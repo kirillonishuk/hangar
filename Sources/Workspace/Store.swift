@@ -1,9 +1,11 @@
 import Foundation
+import os
 
 public enum LoadResult: Equatable, Sendable {
     case empty
     case loaded(WorkspaceState)
     case recoveredFromCorrupt(backup: URL)
+    case unreadable(URL)
 }
 
 /// Persists `WorkspaceState` to `directory/state.json`: atomic writes, debounced saves,
@@ -13,6 +15,8 @@ public final class StateStore {
     private let directory: URL
     private let debounce: Duration
     private var pending: Task<Void, Never>?
+    private var readOnly = false
+    private static let log = Logger(subsystem: "dev.hangar", category: "StateStore")
 
     /// Test seams.
     var writeHook: ((Data) -> Void)?
@@ -31,17 +35,33 @@ public final class StateStore {
     private var backupURL: URL { directory.appendingPathComponent("state.json.bak") }
 
     public func load() -> LoadResult {
-        guard let data = try? Data(contentsOf: fileURL) else { return .empty }
+        readOnly = false
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: fileURL.path) else { return .empty }
+        let data: Data
+        do { data = try Data(contentsOf: fileURL) } catch {
+            return lockDown("cannot read state.json: \(error)")
+        }
         if let state = try? JSONDecoder().decode(WorkspaceState.self, from: data) {
             return .loaded(state)
         }
-        try? FileManager.default.removeItem(at: backupURL)
         do {
-            try FileManager.default.moveItem(at: fileURL, to: backupURL)
+            if fm.fileExists(atPath: backupURL.path) {
+                _ = try fm.replaceItemAt(backupURL, withItemAt: fileURL)
+            } else {
+                try fm.moveItem(at: fileURL, to: backupURL)
+            }
         } catch {
-            FileHandle.standardError.write(Data("Hangar: cannot back up corrupt state.json: \(error)\n".utf8))
+            return lockDown("cannot back up corrupt state.json: \(error)")
         }
         return .recoveredFromCorrupt(backup: backupURL)
+    }
+
+    /// Existing file can't be read or backed up: never write, so the user's file is not overwritten.
+    private func lockDown(_ message: String) -> LoadResult {
+        readOnly = true
+        Self.log.error("\(message, privacy: .public); state store is read-only")
+        return .unreadable(fileURL)
     }
 
     /// Replaces any pending debounced save; writes after `debounce` of quiet.
@@ -53,7 +73,7 @@ public final class StateStore {
             guard !Task.isCancelled, let self else { return }
             self.pending = nil
             do { try self.write(state) } catch {
-                FileHandle.standardError.write(Data("Hangar: state save failed: \(error)\n".utf8))
+                Self.log.error("state save failed: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -66,6 +86,10 @@ public final class StateStore {
     }
 
     private func write(_ state: WorkspaceState) throws {
+        guard !readOnly else {
+            Self.log.error("save skipped: state store is read-only")
+            return
+        }
         let data = try encode(state)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: fileURL, options: .atomic)

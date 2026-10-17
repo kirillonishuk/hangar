@@ -79,4 +79,56 @@ import Testing
         guard case .loaded(let loaded) = store.load() else { Issue.record("expected .loaded"); return }
         #expect(loaded == last)
     }
+
+    @Test func incompatibleSchemaIsBackedUp() throws {
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: dir.appendingPathComponent("state.json"))
+        guard case .recoveredFromCorrupt(let backup) = StateStore(directory: dir).load() else {
+            Issue.record("expected .recoveredFromCorrupt"); return
+        }
+        #expect(try Data(contentsOf: backup) == Data("{}".utf8))
+    }
+
+    @Test func saveNowDiscardsPendingSave() async throws {
+        let dir = tempDir()
+        let store = StateStore(directory: dir, debounce: .milliseconds(50))
+        var writes = 0
+        store.writeHook = { _ in writes += 1 }
+        store.scheduleSave(sample("pending"))
+        let final = sample("final")
+        try store.saveNow(final)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(writes == 1)
+        guard case .loaded(let loaded) = store.load() else { Issue.record("expected .loaded"); return }
+        #expect(loaded == final)
+    }
+
+    @Test func olderBackupIsReplaced() throws {
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("old bak".utf8).write(to: dir.appendingPathComponent("state.json.bak"))
+        try Data("{new bad".utf8).write(to: dir.appendingPathComponent("state.json"))
+        guard case .recoveredFromCorrupt(let backup) = StateStore(directory: dir).load() else {
+            Issue.record("expected .recoveredFromCorrupt"); return
+        }
+        #expect(try Data(contentsOf: backup) == Data("{new bad".utf8))
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("state.json").path))
+    }
+
+    @Test func unreadableFileIsNeverOverwritten() throws {
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("state.json")
+        try Data("{\"keep\":1}".utf8).write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path) }
+        let store = StateStore(directory: dir, debounce: .milliseconds(10))
+        guard case .unreadable(let url) = store.load() else { Issue.record("expected .unreadable"); return }
+        #expect(url == file)
+        try store.saveNow(sample())
+        store.scheduleSave(sample())
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        #expect(try Data(contentsOf: file) == Data("{\"keep\":1}".utf8))
+    }
 }

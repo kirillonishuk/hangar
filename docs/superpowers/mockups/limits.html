@@ -1,0 +1,85 @@
+<style>
+  :root { --bg:#1e1f24; --panel:#282a31; --line:#2a2c33; --tx:#c9ccd3; --tx2:#8b8f99; --tx3:#6c707a; }
+  .stage { background:#141518; border-radius:12px; padding:26px; display:flex; gap:30px; justify-content:center; flex-wrap:wrap; font:12px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; color:var(--tx); margin:10px 0 22px; }
+  .mono { font-family:"JetBrains Mono","SF Mono",Menlo,monospace; }
+  .side { width:230px; height:430px; background:#1a1b1f; border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; position:relative; }
+  .dots { display:flex; gap:7px; padding:13px 12px; }
+  .dots i { width:11px; height:11px; border-radius:50%; display:block; }
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .proj { padding:6px 14px 3px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); }
+  .task { padding:5px 14px; display:flex; align-items:center; color:#b9bcc4; }
+  .task.on { background:#2c3a52; color:#fff; }
+  .st { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; }
+  .run{background:#5ac8fa}.wait{background:#ffb340}.done{background:#32d74b}
+  .foot { margin-top:auto; border-top:1px solid var(--line); padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+  .lim { display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px; }
+  .lim.hover { background:#26282e; }
+  .lim .nm { width:46px; color:var(--tx2); font-size:11px; }
+  .bars { flex:1; display:flex; flex-direction:column; gap:3px; }
+  .bar { height:4px; border-radius:2px; background:#30333b; overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:2px; }
+  .ok{background:#5b8def}.warn{background:#ffb340}.full{background:#ff453a}
+  .pct { width:34px; text-align:right; font-size:10.5px; color:var(--tx2); }
+  .pct.w { color:#ffb340 } .pct.f { color:#ff6b61 }
+  .row2 { display:flex; justify-content:space-between; color:var(--tx3); font-size:11px; padding:0 6px; }
+  .pop { position:absolute; left:238px; bottom:8px; width:330px; background:#2a2c33; border:1px solid #3a3d47; border-radius:12px; box-shadow:0 22px 50px rgba(0,0,0,.55); padding:14px 16px; z-index:3; }
+  .pop::before { content:""; position:absolute; left:-6px; bottom:40px; width:10px; height:10px; background:#2a2c33; border-left:1px solid #3a3d47; border-bottom:1px solid #3a3d47; transform:rotate(45deg); }
+  .ph { display:flex; align-items:baseline; gap:8px; margin:2px 0 8px; }
+  .ph b { color:#eceef3; font-size:13px; }
+  .ph span { color:var(--tx3); font-size:11px; }
+  .ph .src { margin-left:auto; }
+  .item { margin:8px 0 12px; }
+  .item .t { display:flex; justify-content:space-between; margin-bottom:4px; }
+  .item .t b { font-weight:500; color:#e1e3e8; }
+  .item .t span { color:var(--tx2); }
+  .item .bar { height:6px; border-radius:3px; }
+  .item .rs { color:var(--tx3); font-size:11px; margin-top:3px; }
+  .sep { border-top:1px solid #3a3d47; margin:12px -16px; }
+  .badge { font-size:10px; padding:1px 7px; border-radius:10px; }
+  .badge.w { background:rgba(255,179,64,.15); color:#ffb340; }
+  .badge.f { background:rgba(255,69,58,.15); color:#ff6b61; }
+  .pfoot { display:flex; justify-content:space-between; color:var(--tx3); font-size:11px; margin-top:6px; }
+  .cap { text-align:center; color:var(--text-secondary); font-size:12px; margin-top:8px; }
+  .na { color:var(--tx3); font-style:italic; }
+</style>
+
+<h2>Лимиты подписок</h2>
+<p class="subtitle">Внизу сайдбара — компактный блок: по строке на агента, две полоски (сессия 5ч и неделя). Клик — подробный поповер. Пороги: ≥ 80% — жёлтый, ≥ 95% или лимит исчерпан — красный.</p>
+
+<div class="stage">
+  <div>
+    <div class="side">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="proj">shop-api</div>
+      <div class="task"><span class="st wait"></span>fix-auth</div>
+      <div class="task on"><span class="st run"></span>refactor-db</div>
+      <div class="task"><span class="st done"></span>add-metrics</div>
+      <div class="foot">
+        <div class="lim hover"><span class="nm">claude</span><div class="bars"><div class="bar"><i class="warn" style="width:86%"></i></div><div class="bar"><i class="ok" style="width:41%"></i></div></div><span class="pct w">86%</span></div>
+        <div class="lim"><span class="nm">codex</span><div class="bars"><div class="bar"><i class="ok" style="width:22%"></i></div><div class="bar"><i class="full" style="width:100%"></i></div></div><span class="pct f">100%</span></div>
+        <div class="row2"><span>+ проект</span><span>⌘K</span></div>
+      </div>
+
+      <div class="pop">
+        <div class="ph"><b>Claude</b><span>Max 5×</span><span class="src mono">обновлено 1 мин</span></div>
+        <div class="item"><div class="t"><b>Сессия (5 ч)</b><span><span class="badge w">почти лимит</span> 86%</span></div><div class="bar"><i class="warn" style="width:86%"></i></div><div class="rs">сброс через 1 ч 12 мин · 16:40</div></div>
+        <div class="item"><div class="t"><b>Неделя · все модели</b><span>41%</span></div><div class="bar"><i class="ok" style="width:41%"></i></div><div class="rs">сброс пн 09:00</div></div>
+        <div class="item"><div class="t"><b>Неделя · Opus</b><span>63%</span></div><div class="bar"><i class="ok" style="width:63%"></i></div><div class="rs">сброс пн 09:00</div></div>
+        <div class="sep"></div>
+        <div class="ph"><b>Codex</b><span>ChatGPT Plus</span><span class="src mono">обновлено 4 мин</span></div>
+        <div class="item"><div class="t"><b>Сессия (5 ч)</b><span>22%</span></div><div class="bar"><i class="ok" style="width:22%"></i></div><div class="rs">сброс через 3 ч 05 мин</div></div>
+        <div class="item"><div class="t"><b>Неделя</b><span><span class="badge f">лимит исчерпан</span> 100%</span></div><div class="bar"><i class="full" style="width:100%"></i></div><div class="rs">сброс через 2 дн 4 ч · вс 13:20</div></div>
+        <div class="pfoot"><span>⌘⇧L — открыть/закрыть</span><span>↻ обновить</span></div>
+      </div>
+    </div>
+    <div class="cap">Компактный блок в сайдбаре + поповер по клику</div>
+  </div>
+</div>
+
+<h3>Дополнительно</h3>
+<ul style="color:var(--text-secondary);line-height:1.7">
+  <li>Строка агента показывается, только если он установлен и залогинен по подписке. Если данных нет (например, API-ключ вместо подписки) — строки нет вовсе.</li>
+  <li>Цветная точка у вкладки агента тоже краснеет, если его лимит исчерпан, — чтобы было видно прямо в задаче.</li>
+  <li>Системное уведомление один раз при пересечении 80% и при исчерпании (выключается в настройках).</li>
+  <li>Обновление — только по событиям агентов и при открытии поповера, без постоянного опроса.</li>
+</ul>

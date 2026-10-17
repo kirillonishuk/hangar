@@ -5,3 +5,4 @@ DerivedData/
 vendor/ghostty-src/
 vendor/GhosttyKit.xcframework/
 spike/
+/build/

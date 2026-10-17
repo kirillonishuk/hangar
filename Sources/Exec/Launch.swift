@@ -18,8 +18,11 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
     }
-    let shell = shellQuote(userShell)
-    let inner = innerCommand(for: leaf, config: config, shell: shell, restoring: restoring, initialPrompt: initialPrompt)
+    let userShellQuoted = shellQuote(userShell)
+    // shortcut: non-POSIX shells get the zsh wrapper; agents then see zsh's PATH, change if a fish user hits it
+    let posix: Set<String> = ["zsh", "bash", "sh"]
+    let shell = posix.contains((userShell as NSString).lastPathComponent) ? userShellQuoted : "/bin/zsh"
+    let inner = innerCommand(for: leaf, config: config, shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
                       cwd: leaf.cwd,

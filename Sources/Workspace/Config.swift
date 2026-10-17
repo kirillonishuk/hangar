@@ -7,10 +7,18 @@ public struct HangarConfig: Equatable, Sendable {
 
     public init() {}
 
-    public enum ParseError: Error, Equatable {
-        case syntax(line: Int)
-        case unknownAgent(String)
-        case unknownKey(String)
+    public enum ParseError: Error, Equatable, CustomStringConvertible {
+        case syntax(line: Int, reason: String)
+        case unknownAgent(line: Int, name: String)
+        case unknownKey(line: Int, key: String)
+
+        public var description: String {
+            switch self {
+            case .syntax(let n, let r): return "line \(n): \(r)"
+            case .unknownAgent(let n, let a): return "line \(n): unknown agent \"\(a)\""
+            case .unknownKey(let n, let k): return "line \(n): unknown key \"\(k)\""
+            }
+        }
     }
 
     // shortcut: минимальный TOML-подмножество, менять, если конфиг вырастет за плоские строки
@@ -21,44 +29,48 @@ public struct HangarConfig: Equatable, Sendable {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { continue }
             if line.hasPrefix("[") {
-                guard line.hasSuffix("]") else { throw ParseError.syntax(line: n + 1) }
+                guard line.hasSuffix("]") else { throw ParseError.syntax(line: n + 1, reason: "unterminated section header") }
                 section = String(line.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
                 continue
             }
-            guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1) }
+            guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let value = try stringValue(line[line.index(after: eq)...], line: n + 1)
             switch (section, key) {
             case ("", "default_agent"):
                 guard let kind = LeafKind(rawValue: value), kind == .claude || kind == .codex else {
-                    throw ParseError.unknownAgent(value)
+                    throw ParseError.unknownAgent(line: n + 1, name: value)
                 }
                 config.defaultAgent = kind
             case ("", "editor"):
                 config.editor = value
             case ("agents", _):
                 guard let kind = LeafKind(rawValue: key), kind == .claude || kind == .codex else {
-                    throw ParseError.unknownAgent(key)
+                    throw ParseError.unknownAgent(line: n + 1, name: key)
                 }
                 config.agentCommands[kind] = value
             default:
-                throw ParseError.unknownKey(section.isEmpty ? key : "\(section).\(key)")
+                throw ParseError.unknownKey(line: n + 1, key: section.isEmpty ? key : "\(section).\(key)")
             }
         }
         return config
     }
 
-    /// Missing or unreadable/invalid file → defaults.
-    public static func load(from url: URL) -> HangarConfig {
-        guard let text = try? String(contentsOf: url, encoding: .utf8),
-              let config = try? parse(text) else { return HangarConfig() }
-        return config
+    /// Missing file → (defaults, nil). Unreadable or invalid file → (defaults, "<file>: line N: reason").
+    public static func load(from url: URL) -> (config: HangarConfig, warning: String?) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return (HangarConfig(), nil) }
+        do {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            return (try parse(text), nil)
+        } catch {
+            return (HangarConfig(), "\(url.lastPathComponent): \(error)")
+        }
     }
 
     /// Parses `"..."` (with `\"` and `\\` escapes) optionally followed by a `#` comment.
     private static func stringValue(_ s: Substring, line: Int) throws -> String {
         let t = s.trimmingCharacters(in: .whitespaces)
-        guard t.hasPrefix("\"") else { throw ParseError.syntax(line: line) }
+        guard t.hasPrefix("\"") else { throw ParseError.syntax(line: line, reason: "value must be a quoted string") }
         var out = ""
         var escaped = false
         var rest = t.dropFirst()
@@ -68,10 +80,10 @@ public struct HangarConfig: Equatable, Sendable {
             else if c == "\\" { escaped = true }
             else if c == "\"" {
                 let tail = rest.trimmingCharacters(in: .whitespaces)
-                guard tail.isEmpty || tail.hasPrefix("#") else { throw ParseError.syntax(line: line) }
+                guard tail.isEmpty || tail.hasPrefix("#") else { throw ParseError.syntax(line: line, reason: "unexpected text after string") }
                 return out
             } else { out.append(c) }
         }
-        throw ParseError.syntax(line: line)
+        throw ParseError.syntax(line: line, reason: "unterminated string")
     }
 }

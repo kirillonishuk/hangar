@@ -109,4 +109,14 @@ import Workspace
         let bad = Leaf(kind: .shell, cwd: "/nonexistent/dir/xyz")
         #expect(throws: LaunchError.missingCwd("/nonexistent/dir/xyz")) { try spec(bad) }
     }
+
+    @Test func nonPosixShellUsesZshWrapper() throws {
+        let fish = "/opt/homebrew/bin/fish"
+        let c = try spec(leaf(.claude), shell: fish)
+        #expect(c.command.hasPrefix("/bin/zsh -l -i -c '"))
+        let sl = try spec(leaf(.shell), shell: fish)
+        #expect(sl.command.hasPrefix("/bin/zsh -l -i -c '"))
+        #expect(sl.command.contains("/opt/homebrew/bin/fish -l -i"))
+        #expect(try spec(leaf(.claude), shell: "/bin/bash").command.hasPrefix("/bin/bash -l -i -c '"))
+    }
 }

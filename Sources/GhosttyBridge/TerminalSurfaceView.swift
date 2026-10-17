@@ -1,6 +1,7 @@
 import AppKit
 import Exec
 import GhosttyKit
+import os
 
 /// One Ghostty terminal surface (own pty + process). Keyboard/mouse/IME live in TerminalSurfaceView+Input.swift.
 @MainActor public final class TerminalSurfaceView: NSView {
@@ -12,7 +13,10 @@ import GhosttyKit
     // nonisolated(unsafe): freed in deinit, which is nonisolated; only touched on main.
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
     nonisolated(unsafe) var eventMonitor: Any?
-    nonisolated(unsafe) private static var live = Set<UnsafeMutableRawPointer>()
+    /// Views whose surface may still be used by callbacks; locked so deinit can drop itself synchronously on any thread.
+    nonisolated private static let live = OSAllocatedUnfairLock(initialState: Set<UInt>())
+    /// Open clipboard confirmation; must be answered (denied) before the surface is freed.
+    nonisolated(unsafe) private var pendingClipboard: (alert: NSAlert, state: UnsafeMutableRawPointer?)?
 
     private var lastCommandExit: Int32?
     private var visible = true
@@ -35,7 +39,8 @@ import GhosttyKit
         // Non-zero so the renderer has a drawable before the first layout.
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         let me = Unmanaged.passUnretained(self).toOpaque()
-        Self.live.insert(me)
+        let key = UInt(bitPattern: me)
+        _ = Self.live.withLock { $0.insert(key) }
         guard let app = GhosttyApp.shared.app else {
             ghosttyLog.error("TerminalSurfaceView created before GhosttyApp.start()")
             return
@@ -72,19 +77,26 @@ import GhosttyKit
 
     deinit {
         let me = Unmanaged.passUnretained(self).toOpaque()
+        // Unregister first and synchronously: from(ud) must never resolve a view that is tearing down.
+        let key = UInt(bitPattern: me)
+        _ = Self.live.withLock { $0.remove(key) }
         nonisolated(unsafe) let s = surface
         nonisolated(unsafe) let monitor = eventMonitor
+        nonisolated(unsafe) let pendingState = pendingClipboard.map { $0.state }
         nonisolated(unsafe) let release = {
-            Self.live.remove(me)
             if let monitor { NSEvent.removeMonitor(monitor) }
-            if let s { ghostty_surface_free(s) }
+            guard let s else { return }
+            if let pendingState { "".withCString { ghostty_surface_complete_clipboard_request(s, $0, pendingState, true) } }
+            ghostty_surface_free(s)
         }
         if Thread.isMainThread { release() } else { DispatchQueue.main.async { release() } }
     }
 
     /// Resolves callback userdata; nil if the view is already gone (async hops can outlive it).
     static func from(_ ud: UnsafeMutableRawPointer?) -> TerminalSurfaceView? {
-        guard let ud, live.contains(ud) else { return nil }
+        guard let ud else { return nil }
+        let key = UInt(bitPattern: ud)
+        guard live.withLock({ $0.contains(key) }) else { return nil }
         return Unmanaged<TerminalSurfaceView>.fromOpaque(ud).takeUnretainedValue()
     }
 
@@ -190,6 +202,11 @@ import GhosttyKit
     /// Unsafe paste (clipboard-paste-protection) or OSC 52 read: ask the user, never bypass.
     func confirmReadClipboard(_ text: String, state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e) {
         guard let surface else { return }
+        // One dialog at a time (as Ghostty.app); extra requests are denied.
+        guard pendingClipboard == nil else {
+            "".withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+            return
+        }
         let alert = NSAlert()
         if request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ {
             alert.messageText = "A program wants to read the clipboard"
@@ -199,11 +216,28 @@ import GhosttyKit
         alert.informativeText = String(text.prefix(500))
         alert.addButton(withTitle: "Allow")
         alert.addButton(withTitle: "Cancel")
-        let complete: (NSApplication.ModalResponse) -> Void = { response in
-            let data = response == .alertFirstButtonReturn ? text : ""
-            data.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+        pendingClipboard = (alert, state)
+        let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            self?.finishClipboardConfirmation(allow: response == .alertFirstButtonReturn, text: text)
         }
         if let window { alert.beginSheetModal(for: window, completionHandler: complete) } else { complete(alert.runModal()) }
+    }
+
+    /// No-op if already answered (e.g. denied when the view left its window).
+    private func finishClipboardConfirmation(allow: Bool, text: String) {
+        guard let (_, state) = pendingClipboard else { return }
+        pendingClipboard = nil
+        guard let surface else { return }
+        (allow ? text : "").withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, true) }
+    }
+
+    /// Leaving the window (tab closed): deny the open request and close its sheet while the surface is still alive.
+    public override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow !== window, let alert = pendingClipboard?.alert {
+            finishClipboardConfirmation(allow: false, text: "")
+            window?.endSheet(alert.window)
+        }
+        super.viewWillMove(toWindow: newWindow)
     }
 
     private func shellEscape(_ path: String) -> String {

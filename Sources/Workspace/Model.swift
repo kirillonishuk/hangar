@@ -171,7 +171,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         let slots = all.indices.filter { !all[$0].archived }
         var visible = slots.map { all[$0] }
         guard let from = visible.firstIndex(where: { $0.id == id }) else { return }
-        visible.insert(visible.remove(at: from), at: min(max(index, 0), visible.count - 1))
+        let moved = visible.remove(at: from)
+        visible.insert(moved, at: min(max(index, 0), visible.count))
         for (slot, t) in zip(slots, visible) { all[slot] = t }
         for (order, t) in all.enumerated() {
             if let i = tasks.firstIndex(where: { $0.id == t.id }) { tasks[i].order = order }

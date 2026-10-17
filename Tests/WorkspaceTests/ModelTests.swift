@@ -119,6 +119,18 @@ import Testing
         #expect(s.tasks.map(\.order).sorted() == [0, 1, 2, 3])
     }
 
+    @Test func moveTaskToEnd() {
+        var (s, p) = makeState()
+        let a = s.addTask(projectId: p, name: "A")
+        s.addTask(projectId: p, name: "B")
+        s.addTask(projectId: p, name: "C")
+        s.moveTask(id: a, to: 2)
+        #expect(s.tasks(in: p).map(\.name) == ["B", "C", "A"])
+        s.moveTask(id: a, to: 0)
+        s.moveTask(id: a, to: 99)
+        #expect(s.tasks(in: p).map(\.name) == ["B", "C", "A"])
+    }
+
     @Test func archivedTasksHidden() {
         var (s, p) = makeState()
         let a = s.addTask(projectId: p, name: "a")

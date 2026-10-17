@@ -1,0 +1,95 @@
+<style>
+  :root { --bg:#1e1f24; --panel:#282a31; --line:#2f323a; --tx:#c9ccd3; --tx2:#8b8f99; --tx3:#6c707a; --acc:#61afef; }
+  .stage { background:#141518; border-radius:12px; padding:32px 0 36px; display:flex; flex-direction:column; align-items:center; gap:44px; font:12.5px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; color:var(--tx); margin:10px 0 24px; position:relative; }
+  .mono { font-family:"JetBrains Mono","SF Mono",Menlo,monospace; }
+  .sheet { width:580px; background:#25272d; border:1px solid #363941; border-radius:12px; box-shadow:0 24px 60px rgba(0,0,0,.55); overflow:visible; position:relative; }
+  .hd { padding:14px 18px 4px; display:flex; align-items:baseline; gap:8px; }
+  .hd b { font-size:13.5px; color:#eceef3; font-weight:600; }
+  .hd span { color:var(--tx3); font-size:12px; }
+  .name { margin:8px 18px 4px; background:#1b1c21; border:1px solid var(--acc); box-shadow:0 0 0 3px rgba(97,175,239,.18); border-radius:7px; padding:9px 11px; font-size:14px; color:#eceef3; }
+  .name .ph { color:var(--tx3); }
+  .grp { margin:12px 18px 0; border:1px solid var(--line); border-radius:8px; overflow:visible; }
+  .r { display:flex; align-items:center; padding:9px 12px; gap:10px; min-height:20px; position:relative; }
+  .r + .r { border-top:1px solid var(--line); }
+  .r .lbl { color:var(--tx2); width:110px; flex:none; white-space:nowrap; }
+  .r, .r * { white-space:nowrap; }
+  .r .val { flex:1; display:flex; align-items:center; gap:6px; color:#e1e3e8; min-width:0; }
+  .r .hint { color:var(--tx3); font-size:11.5px; margin-left:auto; }
+  .sw { margin-left:auto; width:30px; height:18px; border-radius:10px; background:#3b82f6; position:relative; flex:none; }
+  .sw::after { content:""; position:absolute; right:2px; top:2px; width:14px; height:14px; border-radius:50%; background:#fff; }
+  .sw.off { background:#444852; } .sw.off::after { right:auto; left:2px; }
+  .pick { display:inline-flex; flex:none; align-items:center; gap:6px; background:#1b1c21; border:1px solid #3a3d47; border-radius:6px; padding:3px 8px; }
+  .pick.open { border-color:var(--acc); }
+  .pick .chev { color:var(--tx3); font-size:10px; margin-left:4px; }
+  .dimrow { opacity:.38; }
+  .seg { display:flex; background:#1b1c21; border:1px solid #3a3d47; border-radius:7px; padding:2px; gap:2px; }
+  .seg span { padding:3px 11px; border-radius:5px; color:var(--tx2); }
+  .seg span.on { background:#3a3d47; color:#eceef3; }
+  .msg { margin:12px 18px 0; background:#1b1c21; border:1px solid #3a3d47; border-radius:7px; padding:9px 11px; color:var(--tx3); min-height:38px; }
+  .ft { display:flex; align-items:center; padding:14px 18px; gap:8px; }
+  .ft .k { color:var(--tx3); font-size:11.5px; margin-right:auto; }
+  .btn { padding:5px 14px; border-radius:7px; background:#363941; color:#e1e3e8; }
+  .btn.p { background:#3b82f6; color:#fff; }
+  .dd { position:absolute; left:132px; top:40px; width:340px; background:#2c2e35; border:1px solid #444854; border-radius:9px; box-shadow:0 18px 40px rgba(0,0,0,.6); z-index:5; overflow:hidden; }
+  .dd .q { padding:8px 11px; border-bottom:1px solid #3a3d47; color:#eceef3; }
+  .dd .sec { padding:6px 11px 2px; font-size:10.5px; color:var(--tx3); text-transform:uppercase; letter-spacing:.05em; }
+  .dd .it { padding:5px 11px; display:flex; gap:8px; align-items:center; }
+  .dd .it.on { background:#2c3a52; color:#fff; }
+  .dd .it .m { margin-left:auto; color:var(--tx3); font-size:11px; }
+  .cap { text-align:center; color:var(--text-secondary); font-size:12px; margin-top:8px; }
+</style>
+
+<h2>Новая задача — v4</h2>
+<p class="subtitle">Меньше подписей капсом, всё сгруппировано в одну карточку настроек. Базовая ветка по умолчанию — <span class="mono">origin/main</span> или <span class="mono">origin/master</span> (берётся из <span class="mono">origin/HEAD</span>), перед созданием делаем <span class="mono">git fetch</span>.</p>
+
+<div class="stage">
+  <!-- state 1: worktree on, picker open -->
+  <div>
+    <div class="sheet">
+      <div class="hd"><b>Новая задача</b><span>shop-api</span></div>
+      <div class="name mono">rate-limit-login</div>
+      <div class="grp">
+        <div class="r"><span class="lbl">Worktree</span><span class="val"><span class="hint">отдельная папка и ветка</span></span><span class="sw" style="margin-left:12px"></span></div>
+        <div class="r"><span class="lbl">От ветки</span><span class="val"><span class="pick open mono">⎇ origin/main<span class="chev">▾</span></span><span class="hint">обновлено 2 мин назад</span></span>
+          <div class="dd mono">
+            <div class="q">orig<span style="color:var(--tx3)">|</span></div>
+            <div class="sec">remote</div>
+            <div class="it on">origin/main<span class="m">по умолчанию</span></div>
+            <div class="it">origin/release/2.4<span class="m">3 дн</span></div>
+            <div class="it">origin/feat/oauth<span class="m">5 дн</span></div>
+            <div class="sec">local</div>
+            <div class="it">refactor-db<span class="m">задача</span></div>
+          </div>
+        </div>
+        <div class="r"><span class="lbl">Новая ветка</span><span class="val mono">rate-limit-login</span><span class="hint">из названия</span></div>
+      </div>
+      <div class="msg">Первое сообщение для claude (необязательно)…</div>
+      <div class="ft"><span class="k">esc — отмена</span><span class="btn">Отмена</span><span class="btn p">Создать&nbsp;⌘↩</span></div>
+    </div>
+    <div class="cap" style="margin-top:14px">Worktree включён, выбор базовой ветки открыт (поиск по веткам)</div>
+  </div>
+
+  <!-- state 2: worktree off -->
+  <div>
+    <div class="sheet">
+      <div class="hd"><b>Новая задача</b><span>shop-api</span></div>
+      <div class="name mono"><span class="ph">название задачи</span></div>
+      <div class="grp">
+        <div class="r"><span class="lbl">Worktree</span><span class="val"><span class="hint">работать в основной папке</span></span><span class="sw off" style="margin-left:12px"></span></div>
+        <div class="r dimrow"><span class="lbl">От ветки</span><span class="val"><span class="pick mono">⎇ origin/main<span class="chev">▾</span></span></span></div>
+        <div class="r dimrow"><span class="lbl">Новая ветка</span><span class="val mono">—</span></div>
+      </div>
+      <div class="msg">Первое сообщение для claude (необязательно)…</div>
+      <div class="ft"><span class="k">текущая ветка: main</span><span class="btn">Отмена</span><span class="btn p" style="opacity:.45">Создать&nbsp;⌘↩</span></div>
+    </div>
+    <div class="cap">Worktree выключен: задача работает в папке проекта, на текущей ветке</div>
+  </div>
+</div>
+
+<h3>Что изменилось</h3>
+<ul style="color:var(--text-secondary);line-height:1.7">
+  <li>Настройки — в одной карточке строками «подпись → значение», без капса и разъезжающихся подписей.</li>
+  <li><b>От ветки</b> — выпадающий список с поиском: сначала remote (по умолчанию <span class="mono">origin/HEAD</span>), потом локальные ветки. Последний выбор запоминается для проекта.</li>
+  <li><b>Новая ветка</b> подставляется из названия, но её можно отредактировать.</li>
+  <li>Выбора агента в окне нет: всегда стартует агент по умолчанию (claude). Сменить его можно в настройках, а другие агенты добавляются вкладкой через <span class="mono">+</span>.</li>
+</ul>

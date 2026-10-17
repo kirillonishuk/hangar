@@ -1,0 +1,189 @@
+<style>
+  :root { --bg:#1e1f24; --panel:#282a31; --line:#2a2c33; --tx:#c9ccd3; --tx2:#8b8f99; --tx3:#6c707a; --sel:#2c3a52; --acc:#61afef; }
+  .win { border-radius:12px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.35); font:12px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; background:var(--bg); color:var(--tx); margin:10px 0 26px; position:relative; }
+  .mono { font-family:"JetBrains Mono","SF Mono",Menlo,monospace; }
+  .row { display:flex; }
+  .dots { display:flex; gap:7px; padding:0 12px; align-items:center; height:100%; }
+  .dots i { width:11px; height:11px; border-radius:50%; display:block; }
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .top { height:34px; display:flex; align-items:center; border-bottom:1px solid var(--line); }
+  .tabs { display:flex; gap:2px; margin-left:8px; height:100%; align-items:flex-end; }
+  .tab { padding:6px 14px; font-size:11.5px; color:var(--tx2); display:flex; align-items:center; border-radius:6px 6px 0 0; }
+  .tab.on { background:var(--panel); color:#e6e8ee; }
+  .tab.ro { font-style:italic; }
+  .tab .x { margin-left:8px; opacity:.4; }
+  .title-r { margin-left:auto; margin-right:12px; color:var(--tx3); font-size:11px; }
+  .side { width:200px; background:rgba(255,255,255,.025); border-right:1px solid var(--line); padding:10px 0; flex:none; }
+  .proj { padding:6px 14px 3px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx3); display:flex; }
+  .proj span { margin-left:auto; text-transform:none; letter-spacing:0; }
+  .task { padding:5px 14px; display:flex; align-items:center; color:#b9bcc4; }
+  .task.on { background:var(--sel); color:#fff; }
+  .task .wt { margin-left:auto; font-size:10px; color:var(--tx3); }
+  .task .n { margin-left:auto; font-size:10px; color:var(--tx3); }
+  .st { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; flex:none; }
+  .run{background:#5ac8fa}.wait{background:#ffb340;box-shadow:0 0 0 3px rgba(255,179,64,.25)}.done{background:#32d74b}.idle{background:#636366}.err{background:#ff453a}
+  .main { flex:1; background:var(--panel); min-width:0; }
+  .term { padding:12px 14px; font-size:11.5px; line-height:1.55; white-space:pre; overflow:hidden; }
+  .split { display:flex; height:100%; }
+  .split > div { flex:1; min-width:0; }
+  .split > div + div { border-left:1px solid var(--line); }
+  .pane-h { font-size:10.5px; color:var(--tx3); padding:5px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; }
+  .insp { width:220px; border-left:1px solid var(--line); flex:none; }
+  .seg { display:flex; margin:10px; background:var(--panel); border-radius:6px; padding:2px; }
+  .seg span { flex:1; text-align:center; padding:3px 0; border-radius:4px; color:var(--tx2); font-size:11px; }
+  .seg span.on { background:#3a3d47; color:#e6e8ee; }
+  .file { padding:3px 14px; display:flex; justify-content:space-between; color:#b9bcc4; font-size:11.5px; }
+  .file.on { background:var(--sel); color:#fff; }
+  .M{color:#e5c07b}.A{color:#98c379}.D{color:#e06c75}
+  .k{opacity:.55}
+  .status { height:22px; border-top:1px solid var(--line); display:flex; align-items:center; gap:14px; padding:0 12px; font-size:10.5px; color:var(--tx3); }
+  .note { font-size:12.5px; color:var(--text-secondary); margin:0 0 4px; }
+  /* diff */
+  .diff { font-size:11.5px; line-height:1.6; }
+  .dh { padding:6px 14px; color:var(--tx2); border-bottom:1px solid var(--line); display:flex; gap:12px; }
+  .dh b { color:#e6e8ee; font-weight:500; }
+  .hunk { color:#56b6c2; padding:2px 14px; background:rgba(86,182,194,.07); }
+  .ln { display:flex; white-space:pre; }
+  .ln .g { width:34px; text-align:right; color:var(--tx3); padding-right:8px; flex:none; }
+  .ln .c { padding-left:6px; }
+  .ln.add { background:rgba(152,195,121,.12); } .ln.add .c::before{content:"+ ";color:#98c379}
+  .ln.del { background:rgba(224,108,117,.12); } .ln.del .c::before{content:"- ";color:#e06c75}
+  .ln.ctx .c::before{content:"  "}
+  .kw{color:#c678dd}.fn{color:#61afef}.str{color:#98c379}.cm{color:#7f848e}
+  /* sheet + toast */
+  .dim { position:absolute; inset:34px 0 0 0; background:rgba(0,0,0,.45); }
+  .sheet { position:absolute; left:50%; top:60px; transform:translateX(-50%); width:400px; background:#2a2c33; border:1px solid #3a3d47; border-radius:10px; box-shadow:0 24px 48px rgba(0,0,0,.55); padding:16px; }
+  .sheet h4 { margin:0 0 12px; font-size:13px; color:#e6e8ee; font-weight:600; }
+  .fld { margin-bottom:10px; }
+  .fld label { display:block; font-size:10.5px; color:var(--tx3); margin-bottom:4px; text-transform:uppercase; letter-spacing:.05em; }
+  .inp { background:#1e1f24; border:1px solid #3a3d47; border-radius:6px; padding:6px 9px; color:#e6e8ee; }
+  .inp.focus { border-color:var(--acc); box-shadow:0 0 0 3px rgba(97,175,239,.2); }
+  .chk { display:flex; align-items:center; gap:8px; color:#c9ccd3; margin:4px 0; }
+  .box { width:13px; height:13px; border-radius:3px; background:var(--acc); color:#1e1f24; font-size:10px; display:flex; align-items:center; justify-content:center; }
+  .box.off { background:transparent; border:1px solid #555a66; }
+  .chips { display:flex; gap:6px; }
+  .chip { padding:3px 10px; border-radius:20px; border:1px solid #3a3d47; color:var(--tx2); }
+  .chip.on { border-color:var(--acc); color:#e6e8ee; background:rgba(97,175,239,.12); }
+  .btns { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+  .btn { padding:4px 14px; border-radius:6px; background:#3a3d47; color:#e6e8ee; }
+  .btn.p { background:#3b82f6; }
+  .toast { position:absolute; right:14px; top:44px; width:290px; background:rgba(50,52,60,.96); border:1px solid #444854; border-radius:12px; padding:10px 12px; box-shadow:0 12px 30px rgba(0,0,0,.5); display:flex; gap:10px; }
+  .toast .ic { width:30px; height:30px; border-radius:7px; background:linear-gradient(135deg,#3a3d47,#1e1f24); display:flex; align-items:center; justify-content:center; font-size:15px; flex:none; }
+
+  .shell { display:flex; }
+  .shell > .side { padding:0; display:flex; flex-direction:column; background:#1a1b1f; }
+  .side .lights { height:38px; flex:none; }
+  .side .foot { margin-top:auto; padding:8px 14px; border-top:1px solid var(--line); color:var(--tx3); font-size:11px; display:flex; justify-content:space-between; }
+  .col { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--panel); }
+  .col .top { height:38px; background:var(--bg); border-bottom:1px solid var(--line); padding-left:4px; }
+  .col .tabs { margin-left:4px; }
+  .col .body { flex:1; display:flex; min-height:0; }
+  .col .insp { background:var(--bg); }
+  .ttl { font-size:12px; color:#e6e8ee; font-weight:600; padding:0 10px 0 8px; white-space:nowrap; }
+  .ttl span { color:var(--tx3); font-weight:400; }
+</style>
+
+<h2>Стиль A v2 — сайдбар главный, вкладки внутри задачи</h2>
+<p class="subtitle">Сайдбар на всю высоту окна (светофор над ним). Справа — область выбранной задачи: её собственная полоса вкладок, терминалы, инспектор и строка состояния.</p>
+
+<h3>1. Основной экран</h3>
+<div class="win shell" style="height:420px"><div class="side"><div class="lights"><div class="dots"><i></i><i></i><i></i></div></div><div class="proj">shop-api <span>+</span></div><div class="task"><span class="st wait"></span>fix-auth<span class="wt">⎇</span></div><div class="task on"><span class="st run"></span>refactor-db<span class="wt">⎇</span></div><div class="task"><span class="st done"></span>add-metrics<span class="wt"></span></div><div style="height:8px"></div><div class="proj">web-front <span>+</span></div><div class="task"><span class="st idle"></span>landing<span class="wt"></span></div><div class="task"><span class="st err"></span>ssr-crash<span class="wt"></span></div><div style="height:8px"></div><div class="foot"><span>+ проект</span><span>⌘K</span></div></div>
+  <div class="col">
+    <div class="top"><div class="ttl">refactor-db <span>⎇</span></div>
+      <div class="tabs">
+        <div class="tab"><span class="st wait"></span>claude</div>
+        <div class="tab on"><span class="st run"></span>codex │ hx</div>
+        <div class="tab">zsh</div>
+        <div class="tab k">+</div>
+      </div>
+      <span class="title-r">⌘⌥I</span>
+    </div>
+    <div class="body"><div class="main">
+      <div class="split">
+        <div>
+          <div class="pane-h"><span class="st run" style="width:6px;height:6px"></span>codex · работает 2м 14с</div>
+          <div class="term mono">• Reading src/db/pool.ts
+• Reading src/db/migrations/
+• Editing src/db/pool.ts
+
+  Replacing the hand-rolled pool with
+  pg.Pool and a typed query helper.
+
+<span style="color:#56b6c2">▌</span> <span class="k">Working (esc to interrupt)</span></div>
+        </div>
+        <div>
+          <div class="pane-h">hx · src/db/pool.ts</div>
+          <div class="term mono"><span class="k"> 1</span> <span class="kw">import</span> { Pool } <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="k"> 2</span>
+<span class="k"> 3</span> <span class="kw">export const</span> pool = <span class="kw">new</span> <span class="fn">Pool</span>({
+<span class="k"> 4</span>   connectionString: env.DB_URL,
+<span class="k"> 5</span>   max: <span style="color:#d19a66">10</span>,
+<span class="k"> 6</span> });
+<span class="k"> 7</span>
+<span class="k"> 8</span> <span class="kw">export async function</span> <span class="fn">query</span>&lt;T&gt;(
+<span class="k"> 9</span>   sql: <span class="fn">string</span>,
+<span class="k">10</span> ) {
+<span class="k">  </span>
+<span style="background:#3a3d47;color:#e6e8ee"> NOR </span> <span class="k">pool.ts  ts  ● 2 hints</span></div>
+        </div>
+      </div>
+    </div><div class="insp">
+      <div class="seg"><span class="on">Files</span><span>Changes 2</span></div>
+      <div class="file mono"><span>▾ src</span></div>
+      <div class="file mono"><span>&nbsp;&nbsp;▾ db</span></div>
+      <div class="file mono on"><span>&nbsp;&nbsp;&nbsp;&nbsp;pool.ts</span><span class="M">M</span></div>
+      <div class="file mono"><span>&nbsp;&nbsp;&nbsp;&nbsp;query.ts</span><span class="A">A</span></div>
+      <div class="file mono"><span>&nbsp;&nbsp;&nbsp;&nbsp;▸ migrations</span></div>
+      <div class="file mono"><span>&nbsp;&nbsp;▸ auth</span></div>
+      <div class="file mono"><span>&nbsp;&nbsp;▸ routes</span></div>
+      <div class="file mono"><span>▸ tests</span></div>
+      <div class="file mono"><span>package.json</span></div>
+      <div class="file mono"><span>tsconfig.json</span></div>
+    </div></div>
+    <div class="status mono"><span>⎇ refactor-db</span><span>+38 −12 · 2 файла</span><span style="margin-left:auto">codex · работает 2м 14с</span></div>
+  </div>
+</div>
+
+<h3>2. Просмотр diff</h3>
+<div class="win shell" style="height:390px"><div class="side"><div class="lights"><div class="dots"><i></i><i></i><i></i></div></div><div class="proj">shop-api <span>+</span></div><div class="task on"><span class="st wait"></span>fix-auth<span class="wt">⎇</span></div><div class="task"><span class="st run"></span>refactor-db<span class="wt">⎇</span></div><div class="task"><span class="st done"></span>add-metrics<span class="wt"></span></div><div style="height:8px"></div><div class="proj">web-front <span>+</span></div><div class="task"><span class="st idle"></span>landing<span class="wt"></span></div><div class="task"><span class="st err"></span>ssr-crash<span class="wt"></span></div><div style="height:8px"></div><div class="foot"><span>+ проект</span><span>⌘K</span></div></div>
+  <div class="col">
+    <div class="top"><div class="ttl">fix-auth <span>⎇</span></div>
+      <div class="tabs">
+        <div class="tab"><span class="st wait"></span>claude</div>
+        <div class="tab"><span class="st run"></span>codex</div>
+        <div class="tab on ro">± session.ts<span class="x">×</span></div>
+        <div class="tab k">+</div>
+      </div>
+    </div>
+    <div class="body"><div class="main diff mono">
+      <div class="dh"><b>src/auth/session.ts</b><span class="A">+24</span><span class="D">−9</span><span style="margin-left:auto">unified ⌥U · split ⌥S</span></div>
+      <div class="hunk">@@ -41,14 +41,29 @@ export async function refresh(token: string)</div>
+      <div class="ln ctx"><span class="g">41</span><span class="c">  <span class="kw">const</span> row = <span class="kw">await</span> db.<span class="fn">findToken</span>(token);</span></div>
+      <div class="ln del"><span class="g">42</span><span class="c">  <span class="kw">if</span> (!row) <span class="kw">throw new</span> <span class="fn">AuthError</span>(<span class="str">"invalid"</span>);</span></div>
+      <div class="ln del"><span class="g">43</span><span class="c">  <span class="kw">return</span> <span class="fn">issue</span>(row.userId);</span></div>
+      <div class="ln add"><span class="g">42</span><span class="c">  <span class="kw">if</span> (!row || row.revokedAt) {</span></div>
+      <div class="ln add"><span class="g">43</span><span class="c">    <span class="cm">// reuse of a rotated token → revoke the family</span></span></div>
+      <div class="ln add"><span class="g">44</span><span class="c">    <span class="kw">await</span> db.<span class="fn">revokeFamily</span>(row?.familyId);</span></div>
+      <div class="ln add"><span class="g">45</span><span class="c">    <span class="kw">throw new</span> <span class="fn">AuthError</span>(<span class="str">"reused"</span>);</span></div>
+      <div class="ln add"><span class="g">46</span><span class="c">  }</span></div>
+      <div class="ln add"><span class="g">47</span><span class="c">  <span class="kw">return</span> db.<span class="fn">tx</span>(<span class="kw">async</span> (t) =&gt; {</span></div>
+      <div class="ln add"><span class="g">48</span><span class="c">    <span class="kw">await</span> t.<span class="fn">revoke</span>(row.id);</span></div>
+      <div class="ln add"><span class="g">49</span><span class="c">    <span class="kw">return</span> <span class="fn">issue</span>(row.userId, row.familyId, t);</span></div>
+      <div class="ln add"><span class="g">50</span><span class="c">  });</span></div>
+      <div class="ln ctx"><span class="g">51</span><span class="c">}</span></div>
+    </div><div class="insp">
+      <div class="seg"><span>Files</span><span class="on">Changes 3</span></div>
+      <div class="file mono on"><span>auth/session.ts</span><span class="M">M</span></div>
+      <div class="file mono"><span>auth/tokens.ts</span><span class="M">M</span></div>
+      <div class="file mono"><span>tests/auth.spec.ts</span><span class="A">A</span></div>
+      <div style="padding:14px;color:var(--tx3);font-size:10.5px;line-height:1.5">Сравнение с базовой веткой <span class="mono">main</span><br>⌥B — переключить на «только незакоммиченное»</div>
+    </div></div>
+    <div class="status mono"><span>⎇ fix-auth</span><span>+31 −9 · 3 файла</span><span style="margin-left:auto">claude · ждёт ответа</span></div>
+  </div>
+</div>
+
+<h3>Вариант заголовка задачи</h3>
+<div class="options">
+  <div class="option" data-choice="title-inline" onclick="toggleSelect(this)"><div class="letter">1</div><div class="content"><h3>Название задачи слева от вкладок</h3><p>Как на макетах выше: «refactor-db ⎇ | claude codex zsh +»</p></div></div>
+  <div class="option" data-choice="title-none" onclick="toggleSelect(this)"><div class="letter">2</div><div class="content"><h3>Только вкладки</h3><p>Название видно лишь по подсветке в сайдбаре — максимум места под вкладки</p></div></div>
+</div>

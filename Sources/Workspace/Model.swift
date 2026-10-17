@@ -164,15 +164,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks.filter { $0.projectId == projectId && !$0.archived }.sorted { $0.order < $1.order }
     }
 
-    /// Moves the task to position `to` among the project's tasks (clamped) and renumbers `order`.
+    /// Moves the task to index `to` of `tasks(in:)` (clamped), keeps archived siblings in their slots, renumbers `order`.
     public mutating func moveTask(id: UUID, to index: Int) {
-        guard let task = tasks.first(where: { $0.id == id }) else { return }
-        var siblings = tasks.filter { $0.projectId == task.projectId }.sorted { $0.order < $1.order }
-        guard let from = siblings.firstIndex(where: { $0.id == id }) else { return }
-        let moved = siblings.remove(at: from)
-        siblings.insert(moved, at: min(max(index, 0), siblings.count))
-        for (order, sibling) in siblings.enumerated() {
-            if let i = tasks.firstIndex(where: { $0.id == sibling.id }) { tasks[i].order = order }
+        guard let task = tasks.first(where: { $0.id == id }), !task.archived else { return }
+        var all = tasks.filter { $0.projectId == task.projectId }.sorted { $0.order < $1.order }
+        let slots = all.indices.filter { !all[$0].archived }
+        var visible = slots.map { all[$0] }
+        guard let from = visible.firstIndex(where: { $0.id == id }) else { return }
+        visible.insert(visible.remove(at: from), at: min(max(index, 0), visible.count - 1))
+        for (slot, t) in zip(slots, visible) { all[slot] = t }
+        for (order, t) in all.enumerated() {
+            if let i = tasks.firstIndex(where: { $0.id == t.id }) { tasks[i].order = order }
         }
     }
 
@@ -195,7 +197,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     @discardableResult
     public mutating func addTab(taskId: UUID, kind: LeafKind) -> UUID {
-        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return UUID() }
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else {
+            assertionFailure("addTab: unknown task")
+            return UUID()
+        }
         let leaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]))
         let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
         tasks[i].tabs.append(tab)
@@ -217,7 +222,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func split(taskId: UUID, tabId: UUID, leafId: UUID, axis: Axis, kind: LeafKind) -> UUID {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }),
-              tasks[i].tabs[t].root.leaf(id: leafId) != nil else { return UUID() }
+              tasks[i].tabs[t].root.leaf(id: leafId) != nil else {
+            assertionFailure("split: unknown task, tab or leaf")
+            return UUID()
+        }
         let newLeaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]))
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf)
         tasks[i].tabs[t].focusedLeafId = newLeaf.id

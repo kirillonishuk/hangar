@@ -105,6 +105,20 @@ import Testing
         #expect(s.tasks(in: p).map(\.order) == [0, 1, 2])
     }
 
+    @Test func moveTaskIgnoresArchivedSiblings() {
+        var (s, p) = makeState()
+        let x = s.addTask(projectId: p, name: "X")
+        s.addTask(projectId: p, name: "A")
+        s.addTask(projectId: p, name: "B")
+        s.addTask(projectId: p, name: "C")
+        s.archiveTask(id: x)
+        let a = s.tasks(in: p)[0].id
+        s.moveTask(id: a, to: 1)
+        #expect(s.tasks(in: p).map(\.name) == ["B", "A", "C"])
+        #expect(s.tasks.first { $0.id == x }?.order == 0)
+        #expect(s.tasks.map(\.order).sorted() == [0, 1, 2, 3])
+    }
+
     @Test func archivedTasksHidden() {
         var (s, p) = makeState()
         let a = s.addTask(projectId: p, name: "a")

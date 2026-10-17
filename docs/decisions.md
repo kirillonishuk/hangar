@@ -28,14 +28,27 @@
 
 24. **2026-10-18 — Работа ведётся сабагентами: исполнитель на задачу + независимый ревьюер; основная сессия только оркестрирует.** Почему: основной контекст не забивается, меньше компактов. Отвергнуто: Native-выполнение в основной сессии.
 
+25. **2026-10-18 — Интерфейс `GhosttyBridge`:** `@MainActor final class GhosttyApp { static let shared; func start() throws }`; `@MainActor final class TerminalSurfaceView: NSView { init(spec: LaunchSpec); var onTitleChange: ((String) -> Void)?; var onBell: (() -> Void)?; var onDesktopNotification: ((String, String) -> Void)? /* title, body */; var onChildExit: ((Int32) -> Void)? /* -1 = код неизвестен */; func setVisible(_ visible: Bool) /* ghostty_surface_set_occlusion */; func sendText(_ text: String) /* bracketed paste, не выполняет команду */; func sendEnter() /* новое: ghostty_surface_key, keycode 36 */; func screenText() -> String? }`. Колбэки сразу копируют C-строки и вызываются на main. Почему: подтверждено спайком, `sendEnter` нужен для `hangar tabs send`/MCP. Отвергнуто: `sendText("...\r")` — вставка Enter не отправляет.
+
+26. **2026-10-18 — Код выхода через обёртку OSC 133:** Ghostty на macOS запускает команду через `/usr/bin/login`, код выхода всегда 0. Команда вкладки: `<shell> -l -i -c '<inner>; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c'`; код берётся из `GHOSTTY_ACTION_COMMAND_FINISHED`, поэтому `<inner>` без `exec`. Почему: проверено спайком (`exit 3` → `exit_code=3`). Отвергнуто: `exec claude` и `exit_code` из `SHOW_CHILD_EXITED`.
+
+27. **2026-10-18 — PATH: `-l -i -c`:** login shell `-l -c` не видит `~/.local/bin` (добавляется в `~/.zshrc`), поэтому команды вкладок идут через `<shell> -l -i -c`. Почему: проверено с чистым env, как из Finder. Отвергнуто: только `-l`.
+
+28. **2026-10-18 — Ресурсы Ghostty в `Hangar.app`:** `scripts/bundle.sh` копирует terminfo и `share/ghostty` из `zig-out/share` в `Contents/Resources`. Почему: иначе при запуске из Finder нет `xterm-ghostty` и shell integration (нет `PWD`, `COMMAND_FINISHED`). Отвергнуто: полагаться на env родителя.
+
+29. **2026-10-18 — Первое сообщение агенту — аргументом CLI** (`claude "<msg>"`, `launchSpec(initialPrompt:)`), не через `sendText`. Почему: подтверждено спайком (сессия стартует с автоотправкой). Отвергнуто: отправка по первому выводу surface.
+
+30. **2026-10-18 — OSC-уведомления Ghostty ограничены 1/сек на приложение:** статусы агентов берём из hooks, OSC — только запасной путь. Почему: при нескольких агентах лишние уведомления молча отбрасываются. Отвергнуто: OSC как основной источник статусов.
+
 ## Открытые вопросы (отвечает спайк, этап 0)
 
-- [ ] Жизнеспособность embed GhosttyKit: сборка xcframework на закреплённом коммите, один surface в своём окне.
-- [ ] Есть ли в API пауза рендера скрытой surface (или хватает occlusion).
-- [ ] Можно ли читать текст экрана surface (для `hangar tabs read`).
-- [ ] Codex: есть ли `~/.codex/hooks.json` в установленной версии или только `notify`.
-- [ ] Codex: доступен ли `codex app-server` и `account/rateLimits/read`.
-- [ ] Claude 2.1.302: приходят ли `rate_limits.five_hour/seven_day` в stdin статус-лайна; работает ли `StopFailure` matcher `rate_limit`.
-- [ ] `claude --resume <id>` и `codex resume <id>` восстанавливают нужную сессию в cwd задачи.
-- [ ] Окружение: нет `zig`, `hx`, `nvim`, `codex` в PATH (Xcode 26.6 есть). Установка — с согласия пользователя.
+- [x] Жизнеспособность embed GhosttyKit: работает; v1.3.1 + upstream-фикс libtool a83a82b применяется в скрипте сборки, пока тег его не включит.
+- [x] Пауза рендера скрытой surface: `ghostty_surface_set_occlusion(surface, false)`.
+- [x] Чтение текста экрана: `ghostty_surface_read_text` (+ `ghostty_surface_free_text`).
+- [ ] Codex: есть ли `~/.codex/hooks.json` в установленной версии или только `notify` — codex не установлен, проверка отложена.
+- [ ] Codex: доступен ли `codex app-server` и `account/rateLimits/read` — codex не установлен, проверка отложена.
+- [x] Claude 2.1.302: `rate_limits.five_hour/seven_day` в stdin статус-лайна приходят (после первого ответа); `StopFailure` matcher `rate_limit` принимается без ошибок, но не вызывался (не проверить).
+- [x] `claude --resume <id>` и `claude --continue` восстанавливают сессию в cwd (да).
+- [ ] `codex resume <id>` восстанавливает сессию — codex не установлен, проверка отложена.
+- [x] Окружение: установлены zig@0.15 (keg-only), helix и Metal Toolchain — с согласия пользователя; codex отсутствует.
 - [ ] SSH (этап 6): поведение `ssh -R` для unix-сокетов на целевых серверах (`StreamLocalBindUnlink`), версии tmux.

@@ -122,7 +122,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 - Состояние пишется на диск при изменениях (debounce 500 мс) и при выходе; запись атомарная (temp + rename).
 - При запуске восстанавливаются проекты, задачи, порядок, вкладки, сплиты, активная задача и вкладка, состояние инспектора.
 - Вкладки:
-  - claude → `claude --resume <sessionId>`;
+  - claude → `claude --resume <sessionId>`; без `sessionId` → `claude --continue` в cwd (подтверждено спайком);
   - codex → `codex resume <sessionId>`, если id нет — `codex resume --last` в cwd задачи;
   - editor → редактор с тем же файлом;
   - shell → новый shell в том же cwd.

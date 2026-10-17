@@ -11,7 +11,7 @@ let package = Package(
         .target(name: "Exec", dependencies: ["Workspace"]),
         .target(
             name: "GhosttyBridge",
-            dependencies: ["GhosttyKit"],
+            dependencies: ["GhosttyKit", "Exec"],
             linkerSettings: [
                 .linkedLibrary("c++"),
                 .linkedFramework("AppKit"),

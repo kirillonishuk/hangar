@@ -86,6 +86,7 @@ import Workspace
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
+        case ok, exitStatus
     }
 
     // Sidebar
@@ -185,4 +186,6 @@ import Workspace
     static var defaultBranch: String { s(.defaultBranch) }
     static var defaultBranchLater: String { s(.defaultBranchLater) }
     static var save: String { s(.save) }
+    static var ok: String { s(.ok) }
+    static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
 }

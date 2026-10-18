@@ -17,6 +17,8 @@ enum ActionTarget: Equatable {
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
     var openSettings: () -> Void = {}
+    /// A click on a sidebar row or tab takes the keyboard from the terminal (so F2 renames what was clicked).
+    var releaseFocus: () -> Void = {}
     /// message, informative text, destructive button title, called on confirm.
     var confirm: (String, String, String, @escaping () -> Void) -> Void = { _, _, _, _ in }
     /// message, details.
@@ -176,7 +178,7 @@ func editorName(_ command: String) -> String {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         // The last line is the error; earlier ones are often noise from the user's rc files (e.g. zle in a non-tty zsh).
         let details = String((text.split(separator: "\n").last.map(String.init) ?? "").suffix(400))
-        DispatchQueue.main.async { MainActor.assumeIsolated { onError(details.isEmpty ? "exit \(status)" : details) } }
+        DispatchQueue.main.async { MainActor.assumeIsolated { onError(details.isEmpty ? L10n.exitStatus(status) : details) } }
     }
     do {
         try process.run()
@@ -225,4 +227,16 @@ extension Shortcut {
         default: nil
         }
     }
+}
+
+/// What holds the keyboard when F2 is pressed.
+enum FirstResponderKind { case terminal, text, other }
+enum F2Route: Equatable { case passthrough, rename(ActionTarget), ignore }
+
+/// F2 belongs to the terminal (and to text fields) when they have focus; otherwise it renames the last clicked
+/// sidebar row or tab, falling back to the selected task.
+func f2Route(_ kind: FirstResponderKind, lastClicked: ActionTarget?, selectedTask: UUID?) -> F2Route {
+    guard kind == .other else { return .passthrough }
+    if let lastClicked { return .rename(lastClicked) }
+    return selectedTask.map { .rename(.task($0)) } ?? .ignore
 }

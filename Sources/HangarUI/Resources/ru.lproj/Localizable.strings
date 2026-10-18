@@ -87,3 +87,5 @@
 "defaultBranch" = "Ветка по умолчанию";
 "defaultBranchLater" = "изменение — на этапе 2";
 "save" = "Сохранить";
+"ok" = "ОК";
+"exitStatus" = "код выхода %d";

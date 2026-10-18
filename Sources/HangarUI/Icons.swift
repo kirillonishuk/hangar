@@ -233,14 +233,20 @@ extension View {
 private struct PointingHand: ViewModifier {
     let enabled: Bool
     @State private var pushed = false
+    @State private var hovering = false
 
     func body(content: Content) -> some View {
         if #available(macOS 15, *) {
             content.pointerStyle(enabled ? .link : nil)
         } else {
-            // Balanced push/pop; a view that disappears mid-hover pops, so the cursor never sticks.
+            // Balanced push/pop; disappearing mid-hover or the window losing key pops, so the cursor never sticks.
             content
-                .onHover { inside in set(inside && enabled) }
+                .onHover { inside in
+                    hovering = inside
+                    set(inside && enabled)
+                }
+                .onChange(of: enabled) { set(hovering && enabled) }
+                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in set(false) }
                 .onDisappear { set(false) }
         }
     }

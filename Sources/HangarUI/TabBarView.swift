@@ -142,6 +142,8 @@ private struct TabItem: View {
         .contentShape(Rectangle())
         // One tap handler: a separate count-2 gesture would delay every single click.
         .onTapGesture {
+            app.lastClicked = target
+            ctx.releaseFocus()
             app.activate(tabId: tab.id)
             if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { Action.rename.perform(target, ctx) }
         }

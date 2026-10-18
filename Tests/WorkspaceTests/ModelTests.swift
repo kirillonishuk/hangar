@@ -336,4 +336,17 @@ import Testing
         let data = try JSONEncoder().encode(changed)
         #expect(try JSONDecoder().decode(Tab.self, from: data) == changed)
     }
+
+    @Test func setFocusedLeafFollowsRealFocus() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let tab = s.addTab(taskId: t, kind: .shell)
+        let a = s.tasks[0].tabs[0].root.leaves[0].id
+        let b = s.split(taskId: t, tabId: tab, leafId: a, axis: .horizontal, kind: .shell)
+        #expect(s.tasks[0].tabs[0].focusedLeafId == b)
+        s.setFocusedLeaf(taskId: t, tabId: tab, leafId: a)
+        #expect(s.tasks[0].tabs[0].focusedLeafId == a)
+        s.setFocusedLeaf(taskId: t, tabId: tab, leafId: UUID())  // not in this tab: ignored
+        #expect(s.tasks[0].tabs[0].focusedLeafId == a)
+    }
 }

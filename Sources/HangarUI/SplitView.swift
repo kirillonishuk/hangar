@@ -70,6 +70,7 @@ final class RatioSplitView: HangarSplitView {
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
+    var onFocus: (() -> Void)?
 
     init(leafId: UUID) {
         self.leafId = leafId
@@ -114,6 +115,7 @@ final class RatioSplitView: HangarSplitView {
         let view = TerminalSurfaceView(spec: spec)
         view.onChildExit = { [weak self] code in self?.childExited(code) }
         view.onTitleChange = { [weak self] title in self?.onTitle?(title) }
+        view.onFocus = { [weak self] in self?.onFocus?() }
         if let old = surface {
             // Replacing an exited surface: the old one is finished, removing it is a real close.
             old.removeFromSuperview()
@@ -339,6 +341,7 @@ final class RatioSplitView: HangarSplitView {
                 self?.leafViews[leaf.id]?.setHeader(title)
             }
             view.onExit = { [weak self] code in self?.leafExited(leaf.id, code: code) }
+            view.onFocus = { [weak self] in self?.app.focused(leafId: leaf.id) }
             view.onRelaunch = { [weak self] in
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
                 self?.sync()
@@ -409,6 +412,14 @@ final class RatioSplitView: HangarSplitView {
         leaf.relaunch()
         return true
     }
+
+    #if DEBUG
+    /// Focuses the n-th leaf of the active tab like a click would (first responder).
+    func debugFocus(_ n: Int) {
+        guard let tab = activeTab, tab.root.leaves.indices.contains(n) else { return }
+        window?.makeFirstResponder(leafViews[tab.root.leaves[n].id]?.surface)
+    }
+    #endif
 
     /// Debug summary of every surface and whether it renders.
     func debugDump() -> String {

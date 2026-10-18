@@ -119,6 +119,12 @@ struct SidebarView: View {
         }
     }
 
+    /// Remembered as the F2 target; the terminal gives up the keyboard (a task switch focuses the new terminal again).
+    private func clicked(_ target: ActionTarget) {
+        app.lastClicked = target
+        ctx.releaseFocus()
+    }
+
     // MARK: Reorder
 
     /// Ids and heights of the dragged item's group: a project's unpinned tasks, or all project blocks.
@@ -183,7 +189,10 @@ struct SidebarView: View {
         let exists = folderExists(project.path)
         let target = ActionTarget.project(project.id)
         let handlers = dragHandlers(target)
-        return HoverRow(action: { app.setCollapsed(projectId: project.id, !project.collapsed) },
+        return HoverRow(action: {
+                            clicked(target)
+                            app.setCollapsed(projectId: project.id, !project.collapsed)
+                        },
                         onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
@@ -239,7 +248,10 @@ struct SidebarView: View {
         let target = ActionTarget.task(task.id)
         // Pinned rows mix projects, so only rows inside a project group reorder.
         let handlers = indent ? dragHandlers(target) : nil
-        return HoverRow(selected: selected, action: { app.select(taskId: task.id) },
+        return HoverRow(selected: selected, action: {
+                            clicked(target)
+                            app.select(taskId: task.id)
+                        },
                         doubleAction: { Action.rename.perform(target, ctx) },
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd) { hover in
             GutterRow(collapsed: collapsed) {

@@ -9,6 +9,8 @@ import os
     public var onBell: (() -> Void)?
     public var onDesktopNotification: ((String, String) -> Void)?  // title, body
     public var onChildExit: ((Int32) -> Void)?  // -1 = exit code unknown
+    /// Became first responder (click or programmatic focus).
+    public var onFocus: (() -> Void)?
 
     // nonisolated(unsafe): freed in deinit, which is nonisolated; only touched on main.
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
@@ -261,7 +263,10 @@ import os
 
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
-        if ok { focusDidChange(true) }
+        if ok {
+            focusDidChange(true)
+            onFocus?()
+        }
         return ok
     }
 

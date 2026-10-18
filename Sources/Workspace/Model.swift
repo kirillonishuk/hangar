@@ -407,4 +407,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             }
         }
     }
+
+    /// Follows the real keyboard focus (click into a pane); leaves of other tabs are ignored.
+    public mutating func setFocusedLeaf(taskId: UUID, tabId: UUID, leafId: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }),
+              tasks[i].tabs[t].root.leaf(id: leafId) != nil else { return }
+        tasks[i].tabs[t].focusedLeafId = leafId
+    }
 }

@@ -17,6 +17,17 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var sidebarAnimating = false
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
+    /// Sidebar row or tab clicked last (F2 target when no terminal has focus).
+    var lastClicked: ActionTarget?
+    /// `lastClicked` while it still exists.
+    var keyTarget: ActionTarget? {
+        switch lastClicked {
+        case .task(let id): state.tasks.contains { $0.id == id } ? lastClicked : nil
+        case .project(let id): project(id) != nil ? lastClicked : nil
+        case .tab(let task, let tab): state.tasks.first { $0.id == task }?.tabs.contains { $0.id == tab } == true ? lastClicked : nil
+        case nil: nil
+        }
+    }
 
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String
@@ -223,6 +234,14 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }
+
+    /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).
+    func focused(leafId: UUID) {
+        guard let loc = location(ofLeaf: leafId),
+              state.tasks.first(where: { $0.id == loc.task })?.tabs.first(where: { $0.id == loc.tab })?.focusedLeafId != leafId
+        else { return }
+        perform { $0.setFocusedLeaf(taskId: loc.task, tabId: loc.tab, leafId: leafId) }
+    }
 
     // MARK: Settings
 

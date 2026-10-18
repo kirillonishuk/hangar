@@ -87,3 +87,5 @@
 "defaultBranch" = "Default branch";
 "defaultBranchLater" = "editable in stage 2";
 "save" = "Save";
+"ok" = "OK";
+"exitStatus" = "exit code %d";

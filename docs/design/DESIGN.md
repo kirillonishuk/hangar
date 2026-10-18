@@ -97,6 +97,39 @@ Git и diff: бейджи `M #e5c07b`, `A #98c379`, `D #e06c75`; строки di
 - Выбор — `selection`; фокус поля — рамка `accent` + кольцо; неактивное — прозрачность .38; наведение — чуть светлее фона (`#26282e` на `sidebar`).
 - Пустые и «нет данных»: не показывать элемент, а не рисовать пустую рамку.
 
+## Иконки
+Эталон — `icons-sidebar.html`. Правило: каждая иконка идёт через `enum Icon` (`Sources/HangarUI/Icons.swift`), имён SF Symbols вне этого файла нет. SF Symbols, вес regular, 14 pt (`Theme.iconSize`), цвет `text2` (активная — `textStrong`). Агенты — фирменные логотипы из Simple Icons (SVG в `Contents/Resources/Icons`): claude `#D97757`, codex (OpenAI) `textStrong`; без бандла — запасной SF Symbol.
+
+| Icon | SF Symbol |
+|---|---|
+| sidebarToggle | `sidebar.left` |
+| newTask | `plus` |
+| project | `folder` |
+| worktree | `arrow.triangle.branch` |
+| sshHost | `server.rack` |
+| claude | логотип Claude (запас: `sparkle`) |
+| codex | логотип OpenAI (запас: `chevron.left.forwardslash.chevron.right`) |
+| editor | `pencil` |
+| shell | `terminal` |
+| diff, changes | `plus.forwardslash.minus` |
+| files | `doc.text` |
+| keepAwake | `cup.and.saucer` |
+| limits | `gauge.with.dots.needle.33percent` |
+| settings | `gearshape` |
+| archive | `archivebox` |
+| search | `magnifyingglass` |
+| splitRight | `rectangle.split.2x1` |
+| splitDown | `rectangle.split.1x2` |
+| close | `xmark` |
+| pin / pinned | `pin` / `pin.fill` |
+| chevronDown / chevronRight | `chevron.down` / `chevron.right` |
+| more | `ellipsis` |
+| sidebarRight | `sidebar.right` |
+
+## Сайдбар: свёрнутый режим
+- Жёлобок фиксированный, 44 pt; строки 30 (`railRowHeight`). Маркер (точка/иконка) стоит на одном x в обоих режимах.
+- Монограмма задачи: имя делится по `-`, `_`, `.`, пробелу и границе camelCase; 2+ части — две первые буквы, одна часть — одна буква.
+
 ## Правила
 - Нет капса, кроме заголовков проектов в сайдбаре (и секций пикера веток).
 - В листах нет переносов подписей: `white-space: nowrap`, лист ≥ 580.

@@ -27,7 +27,7 @@ let package = Package(
             ]
         ),
         .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "GhosttyBridge"]),
-        .executableTarget(name: "HangarApp", dependencies: ["HangarUI"]),
+        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
         .testTarget(name: "HangarUITests", dependencies: ["HangarUI"]),

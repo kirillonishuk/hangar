@@ -158,4 +158,79 @@ import Testing
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == s)
         #expect(Set(s.tasks[0].tabs[0].root.leaves.map(\.kind)) == [.claude, .codex, .editor, .shell])
     }
+
+    @Test func oldStateWithoutSidebarFieldsDecodes() throws {
+        let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
+        let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(s.sidebarWidth == 220)
+        #expect(s.sidebarCollapsed == false)
+        #expect(s.inspectorVisible == true)
+        var changed = s
+        changed.sidebarWidth = 260
+        changed.sidebarCollapsed = true
+        let data = try JSONEncoder().encode(changed)
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
+    }
+
+    @Test func setRatioAddressesSplitByPath() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let tab = s.addTab(taskId: t, kind: .claude)
+        let l1 = s.tasks[0].tabs[0].root.leaves[0].id
+        let l2 = s.split(taskId: t, tabId: tab, leafId: l1, axis: .horizontal, kind: .shell)
+        s.split(taskId: t, tabId: tab, leafId: l2, axis: .vertical, kind: .shell)
+        s.setRatio(taskId: t, tabId: tab, path: [1], ratio: 0.3)
+        s.setRatio(taskId: t, tabId: tab, path: [], ratio: 0.7)
+        guard case .split(_, let outer, _, let second) = s.tasks[0].tabs[0].root,
+              case .split(let axis, let inner, _, _) = second else { Issue.record("shape"); return }
+        #expect(outer == 0.7)
+        #expect(inner == 0.3)
+        #expect(axis == .vertical)
+        // Paths into a leaf are ignored and ratios are clamped.
+        s.setRatio(taskId: t, tabId: tab, path: [0, 1], ratio: 0.9)
+        s.setRatio(taskId: t, tabId: tab, path: [], ratio: 5)
+        guard case .split(_, let clamped, _, _) = s.tasks[0].tabs[0].root else { return }
+        #expect(clamped == 0.95)
+        #expect(s.tasks[0].tabs[0].root.leaves.count == 3)
+    }
+
+    @Test func oldTasksAndProjectsDecodeWithDefaults() throws {
+        let p = UUID(), t = UUID()
+        let json = """
+        {"projects":[{"id":"\(p)","name":"app","location":{"local":{"path":"/repo"}}}],
+         "tasks":[{"id":"\(t)","projectId":"\(p)","name":"t","mode":{"mainFolder":{}},"order":0,"archived":false,"tabs":[]}],
+         "inspectorVisible":false}
+        """
+        let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(s.projects[0].collapsed == false)
+        #expect(s.tasks[0].pinned == false)
+        var changed = s
+        changed.setPinned(taskId: t, true)
+        changed.setProjectCollapsed(id: p, true)
+        let data = try JSONEncoder().encode(changed)
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
+    }
+
+    @Test func pinCollapseRenameRestore() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        s.setPinned(taskId: t, true)
+        #expect(s.tasks[0].pinned)
+        s.setPinned(taskId: t, false)
+        #expect(!s.tasks[0].pinned)
+        s.setProjectCollapsed(id: p, true)
+        #expect(s.projects[0].collapsed)
+        s.renameTask(id: t, name: "  fix auth ")
+        #expect(s.tasks[0].name == "fix auth")
+        s.renameTask(id: t, name: "   ")
+        #expect(s.tasks[0].name == "fix auth")
+        s.renameProject(id: p, name: "shop")
+        #expect(s.projects[0].name == "shop")
+        s.renameProject(id: p, name: "")
+        #expect(s.projects[0].name == "shop")
+        s.archiveTask(id: t)
+        #expect(s.tasks(in: p).isEmpty)
+        s.restoreTask(id: t)
+        #expect(s.tasks(in: p).map(\.id) == [t])
+    }
 }

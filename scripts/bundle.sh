@@ -15,6 +15,7 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 SHARE=vendor/ghostty-src/zig-out/share
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
+cp -R Resources/Icons "$APP/Contents/Resources/Icons"
 
 codesign --force -s - "$APP"
 echo "Built $APP"

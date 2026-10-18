@@ -9,12 +9,26 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var name: String
     public var location: Location
     public var lastBaseBranch: String?
+    /// Sidebar group folded.
+    public var collapsed: Bool
 
-    public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil) {
+    public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false) {
         self.id = id
         self.name = name
         self.location = location
         self.lastBaseBranch = lastBaseBranch
+        self.collapsed = collapsed
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, location, lastBaseBranch, collapsed }
+
+    /// `collapsed` was added later; older files decode with the default.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(UUID.self, forKey: .id), name: try c.decode(String.self, forKey: .name),
+                  location: try c.decode(Location.self, forKey: .location),
+                  lastBaseBranch: try c.decodeIfPresent(String.self, forKey: .lastBaseBranch),
+                  collapsed: try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false)
     }
 
     public var path: String {
@@ -73,6 +87,15 @@ public indirect enum SplitNode: Codable, Equatable, Sendable {
         }
     }
 
+    func settingRatio(at path: ArraySlice<Int>, _ value: Double) -> SplitNode {
+        guard case .split(let axis, let ratio, let first, let second) = self else { return self }
+        guard let step = path.first else { return .split(axis: axis, ratio: value, first: first, second: second) }
+        let rest = path.dropFirst()
+        return step == 0
+            ? .split(axis: axis, ratio: ratio, first: first.settingRatio(at: rest, value), second: second)
+            : .split(axis: axis, ratio: ratio, first: first, second: second.settingRatio(at: rest, value))
+    }
+
     /// Removes the leaf; its sibling takes the parent's place. nil when the tree becomes empty.
     func removing(leafId: UUID) -> SplitNode? {
         switch self {
@@ -113,9 +136,10 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var archived: Bool
     public var tabs: [Tab]
     public var activeTabId: UUID?
+    public var pinned: Bool
 
     public init(id: UUID = UUID(), projectId: UUID, name: String, mode: TaskMode = .mainFolder,
-                order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil) {
+                order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false) {
         self.id = id
         self.projectId = projectId
         self.name = name
@@ -124,6 +148,20 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         self.archived = archived
         self.tabs = tabs
         self.activeTabId = activeTabId
+        self.pinned = pinned
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned }
+
+    /// `pinned` was added later; older files decode with the default.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(UUID.self, forKey: .id), projectId: try c.decode(UUID.self, forKey: .projectId),
+                  name: try c.decode(String.self, forKey: .name), mode: try c.decode(TaskMode.self, forKey: .mode),
+                  order: try c.decode(Int.self, forKey: .order), archived: try c.decode(Bool.self, forKey: .archived),
+                  tabs: try c.decode([Tab].self, forKey: .tabs),
+                  activeTabId: try c.decodeIfPresent(UUID.self, forKey: .activeTabId),
+                  pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false)
     }
 }
 
@@ -132,13 +170,34 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var tasks: [HangarTask]
     public var selectedTaskId: UUID?
     public var inspectorVisible: Bool
+    /// Last expanded sidebar width; kept while collapsed so expanding restores it.
+    public var sidebarWidth: Double
+    public var sidebarCollapsed: Bool
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
-                selectedTaskId: UUID? = nil, inspectorVisible: Bool = false) {
+                selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
+                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false) {
         self.projects = projects
         self.tasks = tasks
         self.selectedTaskId = selectedTaskId
         self.inspectorVisible = inspectorVisible
+        self.sidebarWidth = sidebarWidth
+        self.sidebarCollapsed = sidebarCollapsed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed
+    }
+
+    /// Keys added after the first release decode with defaults so older state.json files still load.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(projects: try c.decode([Project].self, forKey: .projects),
+                  tasks: try c.decode([HangarTask].self, forKey: .tasks),
+                  selectedTaskId: try c.decodeIfPresent(UUID.self, forKey: .selectedTaskId),
+                  inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
+                  sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
+                  sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false)
     }
 
     // MARK: Projects / tasks
@@ -248,5 +307,42 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             let remaining = newRoot.leaves
             tasks[i].tabs[t].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
         }
+    }
+
+    /// `path` walks from the root: 0 = first child, 1 = second. Ratio is clamped to 0.05…0.95.
+    public mutating func setRatio(taskId: UUID, tabId: UUID, path: [Int], ratio: Double) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        tasks[i].tabs[t].root = tasks[i].tabs[t].root.settingRatio(at: path[...], min(max(ratio, 0.05), 0.95))
+    }
+
+    // MARK: Sidebar actions
+
+    public mutating func setPinned(taskId: UUID, _ pinned: Bool) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        tasks[i].pinned = pinned
+    }
+
+    public mutating func setProjectCollapsed(id: UUID, _ collapsed: Bool) {
+        guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
+        projects[i].collapsed = collapsed
+    }
+
+    public mutating func restoreTask(id: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[i].archived = false
+    }
+
+    /// Names are trimmed; an empty name is ignored.
+    public mutating func renameTask(id: UUID, name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[i].name = name
+    }
+
+    public mutating func renameProject(id: UUID, name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let i = projects.firstIndex(where: { $0.id == id }) else { return }
+        projects[i].name = name
     }
 }

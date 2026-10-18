@@ -151,23 +151,41 @@ import Workspace
         #expect(dropIndex(heights: [96, 32, 64], from: 2, dy: -100) == 1)
     }
 
-    @Test func f2Routing() {
+    @Test func clickThenF2Renames() {
         let task = UUID(), project = UUID(), tab = UUID()
-        #expect(f2Route(.terminal, lastClicked: .project(project), selectedTask: task) == .passthrough)
-        #expect(f2Route(.text, lastClicked: .project(project), selectedTask: task) == .passthrough)
-        #expect(f2Route(.other, lastClicked: .project(project), selectedTask: task) == .rename(.project(project)))
-        #expect(f2Route(.other, lastClicked: .tab(task: task, tab: tab), selectedTask: task) == .rename(.tab(task: task, tab: tab)))
-        #expect(f2Route(.other, lastClicked: nil, selectedTask: task) == .rename(.task(task)))
-        #expect(f2Route(.other, lastClicked: nil, selectedTask: nil) == .ignore)
+        // The click leaves the terminal focused; F2 still renames what was clicked.
+        #expect(f2Route(.terminal, lastInteraction: .chromeClick(.project(project)), selectedTask: task) == .rename(.project(project)))
+        #expect(f2Route(.terminal, lastInteraction: .chromeClick(.tab(task: task, tab: tab)), selectedTask: task)
+            == .rename(.tab(task: task, tab: tab)))
+        #expect(f2Route(.other, lastInteraction: .chromeClick(.task(task)), selectedTask: nil) == .rename(.task(task)))
+    }
+
+    @Test func clickTypeThenF2PassesThrough() throws {
+        let (app, p, _, _) = try makeApp()
+        defer { cleanup() }
+        app.chromeClicked(.project(p))
+        #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: nil) == .rename(.project(p)))
+        app.keyReachedTerminal()
+        #expect(app.lastInteraction == .typing)
+        #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: nil) == .passthrough)
+        #expect(f2Route(.text, lastInteraction: app.lastInteraction, selectedTask: nil) == .passthrough)
+    }
+
+    @Test func noClickF2PassesThroughWhenTerminalFocused() {
+        let task = UUID()
+        #expect(f2Route(.terminal, lastInteraction: .typing, selectedTask: task) == .passthrough)
+        // Nothing focused that could take F2: the selected task, else nothing.
+        #expect(f2Route(.other, lastInteraction: .typing, selectedTask: task) == .rename(.task(task)))
+        #expect(f2Route(.other, lastInteraction: .typing, selectedTask: nil) == .ignore)
     }
 
     @Test func clickedTargetIsForgottenWhenGone() throws {
         let (app, p, a, _) = try makeApp()
         defer { cleanup() }
-        app.lastClicked = .project(p)
-        #expect(app.keyTarget == .project(p))
+        app.chromeClicked(.project(p))
+        #expect(app.lastInteraction == .chromeClick(.project(p)))
         app.perform { $0.removeProject(id: p) }
-        #expect(app.keyTarget == nil)
+        #expect(app.lastInteraction == .typing)
         _ = a
     }
 }

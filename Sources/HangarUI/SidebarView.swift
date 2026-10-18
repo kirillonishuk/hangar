@@ -119,11 +119,8 @@ struct SidebarView: View {
         }
     }
 
-    /// Remembered as the F2 target; the terminal gives up the keyboard (a task switch focuses the new terminal again).
-    private func clicked(_ target: ActionTarget) {
-        app.lastClicked = target
-        ctx.releaseFocus()
-    }
+    /// Remembered as the F2 target; the keyboard stays with the terminal.
+    private func clicked(_ target: ActionTarget) { app.chromeClicked(target) }
 
     // MARK: Reorder
 

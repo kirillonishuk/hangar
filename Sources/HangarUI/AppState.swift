@@ -17,17 +17,25 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var sidebarAnimating = false
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
-    /// Sidebar row or tab clicked last (F2 target when no terminal has focus).
-    var lastClicked: ActionTarget?
-    /// `lastClicked` while it still exists.
-    var keyTarget: ActionTarget? {
-        switch lastClicked {
-        case .task(let id): state.tasks.contains { $0.id == id } ? lastClicked : nil
-        case .project(let id): project(id) != nil ? lastClicked : nil
-        case .tab(let task, let tab): state.tasks.first { $0.id == task }?.tabs.contains { $0.id == tab } == true ? lastClicked : nil
-        case nil: nil
+    /// Runtime only, never saved; not observed (written on keystrokes).
+    @ObservationIgnored private var interaction: Interaction = .typing
+
+    /// Last user interaction for F2; a clicked target that no longer exists counts as `.typing`.
+    var lastInteraction: Interaction {
+        guard case .chromeClick(let target) = interaction else { return .typing }
+        let exists = switch target {
+        case .task(let id): state.tasks.contains { $0.id == id }
+        case .project(let id): project(id) != nil
+        case .tab(let task, let tab): state.tasks.first { $0.id == task }?.tabs.contains { $0.id == tab } == true
         }
+        return exists ? interaction : .typing
     }
+
+    /// Click on a sidebar row or tab: remembered as the F2 target; the keyboard stays where it was.
+    func chromeClicked(_ target: ActionTarget) { interaction = .chromeClick(target) }
+
+    /// A key event went on to a terminal or text field (called by the key monitor).
+    func keyReachedTerminal() { if interaction != .typing { interaction = .typing } }
 
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String

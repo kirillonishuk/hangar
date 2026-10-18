@@ -17,8 +17,6 @@ enum ActionTarget: Equatable {
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
     var openSettings: () -> Void = {}
-    /// A click on a sidebar row or tab takes the keyboard from the terminal (so F2 renames what was clicked).
-    var releaseFocus: () -> Void = {}
     /// message, informative text, destructive button title, called on confirm.
     var confirm: (String, String, String, @escaping () -> Void) -> Void = { _, _, _, _ in }
     /// message, details.
@@ -232,11 +230,13 @@ extension Shortcut {
 /// What holds the keyboard when F2 is pressed.
 enum FirstResponderKind { case terminal, text, other }
 enum F2Route: Equatable { case passthrough, rename(ActionTarget), ignore }
+/// What the user did last: clicked a sidebar row / tab, or typed into a terminal or field.
+enum Interaction: Equatable { case typing, chromeClick(ActionTarget) }
 
-/// F2 belongs to the terminal (and to text fields) when they have focus; otherwise it renames the last clicked
-/// sidebar row or tab, falling back to the selected task.
-func f2Route(_ kind: FirstResponderKind, lastClicked: ActionTarget?, selectedTask: UUID?) -> F2Route {
+/// A sidebar row / tab clicked with no typing since → F2 renames it (the terminal keeps focus through the click).
+/// Otherwise F2 belongs to the focused terminal or field; with neither focused, the selected task is renamed.
+func f2Route(_ kind: FirstResponderKind, lastInteraction: Interaction, selectedTask: UUID?) -> F2Route {
+    if case .chromeClick(let target) = lastInteraction { return .rename(target) }
     guard kind == .other else { return .passthrough }
-    if let lastClicked { return .rename(lastClicked) }
     return selectedTask.map { .rename(.task($0)) } ?? .ignore
 }

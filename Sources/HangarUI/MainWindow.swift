@@ -223,11 +223,18 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
+        let consumed = route(event, in: window)
+        // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
+        if !consumed, firstResponderKind != .other { app.keyReachedTerminal() }
+        return consumed
+    }
+
+    private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
             if sc == .rename {
-                switch f2Route(firstResponderKind, lastClicked: app.keyTarget, selectedTask: app.selectedTask?.id) {
+                switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
                 case .passthrough: return false
                 case .rename(let target): Action.rename.perform(target, ctx)
                 case .ignore: break
@@ -253,7 +260,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
             toggleSidebar: { [weak self] in self?.toggleSidebar() },
             openSettings: { [weak self] in self?.showSettings(nil) },
-            releaseFocus: { [weak self] in self?.window?.makeFirstResponder(nil) },
             confirm: { [weak self] message, info, button, then in self?.confirm(message, info, button, then) },
             showError: { [weak self] message, info in self?.showError(message, info) })
     }

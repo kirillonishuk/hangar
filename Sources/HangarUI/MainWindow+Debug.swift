@@ -91,12 +91,11 @@ extension MainWindowController {
             uiLog.info("alert text: \((self.window?.attachedSheet?.contentView).map(Self.texts) ?? [], privacy: .public)")
         case "focus": if let n = Int(arg) { column.terminalArea.debugFocus(n) }
         case "clicked":
-            // clicked project|task <n>: what a sidebar row click does (F2 target, terminal gives up the keyboard)
+            // clicked project|task <n>: what a sidebar row click does (F2 target; the terminal keeps the keyboard)
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 2, let n = Int(f[1]) else { return }
-            if f[0] == "project", app.state.projects.indices.contains(n) { app.lastClicked = .project(app.state.projects[n].id) }
-            if f[0] == "task", app.orderedTasks.indices.contains(n) { app.lastClicked = .task(app.orderedTasks[n].id) }
-            ctx.releaseFocus()
+            if f[0] == "project", app.state.projects.indices.contains(n) { app.chromeClicked(.project(app.state.projects[n].id)) }
+            if f[0] == "task", app.orderedTasks.indices.contains(n) { app.chromeClicked(.task(app.orderedTasks[n].id)) }
         case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
         case "typeText": ((window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
         case "mouse":

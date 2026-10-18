@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Workspace
 
@@ -42,6 +43,7 @@ struct TitleBarView: View {
 /// The selected task's tabs and `+` (Claude / Codex / Helix / Shell). Separate row below the titlebar.
 struct TabBarView: View {
     let app: AppState
+    var ctx: ActionContext
     @State private var plusHover = false
 
     var body: some View {
@@ -49,7 +51,7 @@ struct TabBarView: View {
             if let task = app.selectedTask {
                 HStack(alignment: .bottom, spacing: Theme.tabGap) {
                     ForEach(task.tabs) { tab in
-                        TabItem(app: app, tab: tab, active: tab.id == task.activeTabId)
+                        TabItem(ctx: ctx, taskId: task.id, tab: tab, active: tab.id == task.activeTabId)
                     }
                     addMenu
                 }
@@ -91,7 +93,8 @@ struct TabBarView: View {
 }
 
 private struct TabItem: View {
-    let app: AppState
+    let ctx: ActionContext
+    let taskId: UUID
     let tab: Workspace.Tab
     let active: Bool
     @State private var hover = false
@@ -100,6 +103,9 @@ private struct TabItem: View {
     static func clipped(_ title: String) -> String {
         title.count > Theme.tabMaxChars ? String(title.prefix(Theme.tabMaxChars - 1)) + "…" : title
     }
+
+    private var app: AppState { ctx.app }
+    private var target: ActionTarget { .tab(task: taskId, tab: tab.id) }
 
     private var hasAgent: Bool { tab.root.leaves.contains { $0.kind == .claude || $0.kind == .codex } }
 
@@ -112,8 +118,11 @@ private struct TabItem: View {
             if let kind = tab.root.leaves.first?.kind {
                 IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)
             }
-            Text(Self.clipped(app.tabLabel(tab)))
-                .lineLimit(1)
+            if app.renaming == target {
+                RenameField(app: app, target: target).frame(width: Theme.tabRenameWidth)
+            } else {
+                Text(Self.clipped(app.tabLabel(tab))).lineLimit(1)
+            }
             Button { app.closeTab(tab.id) } label: { IconView(icon: .close, active: active, size: Theme.smallIconSize) }
                 .buttonStyle(.plain)
                 .opacity(hover ? Theme.closeOpacity : 0)
@@ -129,7 +138,12 @@ private struct TabItem: View {
                 .fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Color.clear)
         )
         .contentShape(Rectangle())
-        .onTapGesture { app.activate(tabId: tab.id) }
+        // One tap handler: a separate count-2 gesture would delay every single click.
+        .onTapGesture {
+            app.activate(tabId: tab.id)
+            if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { Action.rename.perform(target, ctx) }
+        }
+        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
     }

@@ -7,6 +7,7 @@ enum Icon {
     case sidebarToggle, newTask, project, worktree, sshHost, claude, codex, editor, shell, diff, files, changes
     case keepAwake, limits, settings, archive, search, splitRight, splitDown, close
     case pin, pinned, chevronDown, chevronRight, more, sidebarRight
+    case rename, finder, copy, openExternal, restore, trash, remove
 
     private var symbol: String {
         switch self {
@@ -35,6 +36,13 @@ enum Icon {
         case .chevronRight: "chevron.right"
         case .more: "ellipsis"
         case .sidebarRight: "sidebar.right"
+        case .rename: "character.cursor.ibeam"
+        case .finder: "macwindow.on.rectangle"
+        case .copy: "doc.on.doc"
+        case .openExternal: "arrow.up.forward.app"
+        case .restore: "arrow.uturn.backward"
+        case .trash: "trash"
+        case .remove: "minus.circle"
         }
     }
 
@@ -165,9 +173,15 @@ struct HoverButtonStyle: ButtonStyle {
 struct HoverRow<Content: View>: View {
     var selected = false
     var action: (() -> Void)?
+    /// Second click of a double-click (the first click already ran `action`).
+    var doubleAction: (() -> Void)?
+    /// Vertical drag (reorder): live translation, then the final one. nil = not draggable.
+    var onDrag: ((CGFloat) -> Void)?
+    var onDragEnd: ((CGFloat) -> Void)?
     @ViewBuilder var content: (_ hover: Bool) -> Content
     @State private var hover = false
     @State private var pressed = false
+    @State private var dragging = false
 
     var body: some View {
         content(hover)
@@ -175,11 +189,24 @@ struct HoverRow<Content: View>: View {
             .contentShape(Rectangle())
             .background(fill)
             .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { _ in if !pressed { pressed = true } }
+            // Global space: the dragged row is offset while dragging, local translations would feed back.
+            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                .onChanged { value in
+                    if !pressed { pressed = true }
+                    let moved = abs(value.translation.width) >= Theme.dragThreshold || abs(value.translation.height) >= Theme.dragThreshold
+                    if let onDrag, dragging || moved {
+                        dragging = true
+                        onDrag(value.translation.height)
+                    }
+                }
                 .onEnded { value in
                     pressed = false
-                    if abs(value.translation.width) < 4, abs(value.translation.height) < 4 { action?() }
+                    if dragging {
+                        dragging = false
+                        onDragEnd?(value.translation.height)
+                    } else if abs(value.translation.width) < Theme.dragThreshold, abs(value.translation.height) < Theme.dragThreshold {
+                        if let doubleAction, (NSApp.currentEvent?.clickCount ?? 1) >= 2 { doubleAction() } else { action?() }
+                    }
                 })
             .animation(Motion.ease(Theme.selectionFade), value: selected)
     }

@@ -2,10 +2,11 @@ import AppKit
 
 public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
+    case rename, archiveTask
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
-            + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings]
+            + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask]
     }
 }
 
@@ -25,7 +26,11 @@ public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Short
     case ([.command, .shift], 33): return .prevTask   // [
     case ([.command, .shift], 30): return .nextTask   // ]
     case ([.command, .option], 34): return .toggleInspector  // I
-    case (.command, 29): return .toggleSidebar  // 0
+    case (.command, 29), (.command, 11): return .toggleSidebar  // 0, B (Pane habit)
+    case ([.command, .option], 126): return .prevTask  // ↑ (⌘↑/↓ alone stay with the terminal)
+    case ([.command, .option], 125): return .nextTask  // ↓
+    case ([.command, .shift], 13): return .archiveTask  // W
+    case ([], 120): return .rename  // F2
     case (.command, 43): return .settings  // ,
     case (.command, _):
         return digitKeyCodes.firstIndex(of: keyCode).map { .tab($0 + 1) }

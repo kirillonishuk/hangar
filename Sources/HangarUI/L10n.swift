@@ -72,8 +72,8 @@ import Workspace
 
     nonisolated enum Key: String, CaseIterable, Sendable {
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
-        case newTaskIn, addProject, addProjectEllipsis, restore, renameEllipsis, rename
-        case renameTask, renameProject, pin, unpin, archive, folderMissing
+        case newTaskIn, addProject, addProjectEllipsis, restore, rename
+        case pin, unpin, archive, folderMissing
         case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
@@ -83,6 +83,9 @@ import Workspace
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
+        case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
+        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
     }
 
     // Sidebar
@@ -96,10 +99,7 @@ import Workspace
     static var addProject: String { s(.addProject) }
     static var addProjectEllipsis: String { s(.addProjectEllipsis) }
     static var restore: String { s(.restore) }
-    static var renameEllipsis: String { s(.renameEllipsis) }
     static var rename: String { s(.rename) }
-    static var renameTask: String { s(.renameTask) }
-    static var renameProject: String { s(.renameProject) }
     static var pin: String { s(.pin) }
     static var unpin: String { s(.unpin) }
     static var archive: String { s(.archive) }
@@ -160,4 +160,29 @@ import Workspace
     static var backgroundTheme: String { s(.backgroundTheme) }
     static var afterRestart: String { s(.afterRestart) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
+
+    // Actions (context menus), project settings
+    static var revealInFinder: String { s(.revealInFinder) }
+    static var copyPath: String { s(.copyPath) }
+    static func openIn(_ arg: String) -> String { f(.openIn, arg) }
+    static func openFailed(_ arg: String) -> String { f(.openFailed, arg) }
+    static var deletePermanently: String { s(.deletePermanently) }
+    static func deleteTaskConfirm(_ arg: String) -> String { f(.deleteTaskConfirm, arg) }
+    static var deleteTaskInfo: String { s(.deleteTaskInfo) }
+    static var delete: String { s(.delete) }
+    static var projectSettingsEllipsis: String { s(.projectSettingsEllipsis) }
+    static var projectSettings: String { s(.projectSettings) }
+    static var removeFromHangar: String { s(.removeFromHangar) }
+    static func removeProjectConfirm(_ arg: String) -> String { f(.removeProjectConfirm, arg) }
+    static var removeProjectInfo: String { s(.removeProjectInfo) }
+    static var remove: String { s(.remove) }
+    static var splitRight: String { s(.splitRight) }
+    static var splitDown: String { s(.splitDown) }
+    static var closeTab: String { s(.closeTab) }
+    static var projectName: String { s(.projectName) }
+    static var projectPath: String { s(.projectPath) }
+    static var chooseEllipsis: String { s(.chooseEllipsis) }
+    static var defaultBranch: String { s(.defaultBranch) }
+    static var defaultBranchLater: String { s(.defaultBranchLater) }
+    static var save: String { s(.save) }
 }

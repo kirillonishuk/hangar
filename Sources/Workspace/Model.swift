@@ -74,6 +74,14 @@ public indirect enum SplitNode: Codable, Equatable, Sendable {
 
     public func leaf(id: UUID) -> Leaf? { leaves.first { $0.id == id } }
 
+    func mapLeaves(_ transform: (Leaf) -> Leaf) -> SplitNode {
+        switch self {
+        case .leaf(let leaf): return .leaf(transform(leaf))
+        case .split(let axis, let ratio, let first, let second):
+            return .split(axis: axis, ratio: ratio, first: first.mapLeaves(transform), second: second.mapLeaves(transform))
+        }
+    }
+
     /// Replaces the leaf with `leafId` by `.split(first: oldLeaf, second: newLeaf)`.
     func splitting(leafId: UUID, axis: Axis, newLeaf: Leaf) -> SplitNode {
         switch self {
@@ -118,13 +126,18 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
     public var title: String
     public var root: SplitNode
     public var focusedLeafId: UUID
+    /// Set by the user (rename); wins over the terminal's own title.
+    public var customTitle: String?
 
-    public init(id: UUID = UUID(), title: String, root: SplitNode, focusedLeafId: UUID) {
+    public init(id: UUID = UUID(), title: String, root: SplitNode, focusedLeafId: UUID, customTitle: String? = nil) {
         self.id = id
         self.title = title
         self.root = root
         self.focusedLeafId = focusedLeafId
+        self.customTitle = customTitle
     }
+
+    public func label(auto: String) -> String { customTitle ?? auto }
 }
 
 public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
@@ -344,5 +357,54 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, let i = projects.firstIndex(where: { $0.id == id }) else { return }
         projects[i].name = name
+    }
+
+    /// Blank titles are ignored (like task/project names).
+    public mutating func renameTab(taskId: UUID, tabId: UUID, title: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        tasks[i].tabs[t].customTitle = title
+    }
+
+    /// Only archived tasks can be deleted; removes it from the state (files on disk stay).
+    public mutating func deleteTask(id: UUID) {
+        guard tasks.contains(where: { $0.id == id && $0.archived }) else { return }
+        tasks.removeAll { $0.id == id }
+        if selectedTaskId == id { selectedTaskId = nil }
+    }
+
+    /// Removes the project and all its tasks from the state; the folder on disk is not touched.
+    public mutating func removeProject(id: UUID) {
+        if let selected = selectedTaskId, tasks.contains(where: { $0.id == selected && $0.projectId == id }) {
+            selectedTaskId = nil
+        }
+        tasks.removeAll { $0.projectId == id }
+        projects.removeAll { $0.id == id }
+    }
+
+    /// Moves the project to `index` (clamped) of `projects`.
+    public mutating func moveProject(id: UUID, to index: Int) {
+        guard let from = projects.firstIndex(where: { $0.id == id }) else { return }
+        let project = projects.remove(at: from)
+        projects.insert(project, at: min(max(index, 0), projects.count))
+    }
+
+    /// Blank name keeps the old one. A new path also moves the cwd of main-folder tasks' leaves that sat in the old path.
+    public mutating func updateProject(id: UUID, name: String, path: String) {
+        guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
+        renameProject(id: id, name: name)
+        let old = projects[i].path
+        guard !path.isEmpty, path != old else { return }
+        projects[i].location = .local(path: path)
+        for t in tasks.indices where tasks[t].projectId == id && tasks[t].mode == .mainFolder {
+            for tab in tasks[t].tabs.indices {
+                tasks[t].tabs[tab].root = tasks[t].tabs[tab].root.mapLeaves { leaf in
+                    var leaf = leaf
+                    if leaf.cwd == old { leaf.cwd = path }
+                    return leaf
+                }
+            }
+        }
     }
 }

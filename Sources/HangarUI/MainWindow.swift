@@ -25,12 +25,12 @@ struct WindowDragArea: NSViewRepresentable {
 private final class TaskColumnController: NSViewController {
     let terminalArea: TerminalArea
     private let titleBar: NSHostingView<TitleBarView>
-    private let tabBar: NSHostingView<TabBarView>
+    let tabBar: NSHostingView<TabBarView>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
-        tabBar = NSHostingView(rootView: TabBarView(app: app))
+        tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -96,8 +96,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         splitView.dividerStyle = .thin
         split.splitView = splitView
 
-        var actions = SidebarActions(addProject: {}, newTask: { _ in }, renameTask: { _ in }, renameProject: { _ in },
-                                     toggleCollapsed: {}, openSettings: {})
         let sidebarHost = NSHostingController(rootView: AnyView(EmptyView()))
         sidebarHost.sizingOptions = []
         // Plain item: a `sidebar` item on macOS 26 floats over the content (Liquid Glass), not a full-height column.
@@ -115,21 +113,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         window.setFrameAutosaveName("HangarMainWindow")
 
-        actions = SidebarActions(
-            addProject: { [weak self] in self?.chooseProject() },
-            newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
-            renameTask: { [weak self] task in
-                self?.askName(L10n.renameTask, current: task.name) { self?.app.rename(taskId: task.id, to: $0) }
-            },
-            renameProject: { [weak self] project in
-                self?.askName(L10n.renameProject, current: project.name) { self?.app.rename(projectId: project.id, to: $0) }
-            },
-            toggleCollapsed: { [weak self] in self?.toggleSidebar() },
-            openSettings: { [weak self] in self?.showSettings(nil) })
-        sidebarHost.rootView = AnyView(SidebarView(app: app, actions: actions))
+        sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
+        column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
         splitView.onDragEnd = { [weak self] in self?.sidebarDragEnded() }
 
-        app.didChange = { [weak self] in self?.column.terminalArea.sync() }
+        app.didChange = { [weak self] in
+            guard let self else { return }
+            self.column.terminalArea.sync()
+            // Inline rename ended and the field editor left the window without a responder.
+            // Checked on the next turn: the field editor resigns after the commit/cancel that triggered this.
+            DispatchQueue.main.async {
+                if self.app.renaming == nil, let window = self.window, window.firstResponder === window { self.column.terminalArea.focusActiveLeaf() }
+            }
+        }
         column.terminalArea.onAddProject = { [weak self] in self?.chooseProject() }
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
@@ -227,6 +223,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
+        // The inline rename field: ↩ must reach it, not relaunch the terminal.
+        let editingText = window.firstResponder is NSText
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown]
@@ -234,18 +232,42 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        if event.keyCode == 36, mods.isEmpty { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
+        if event.keyCode == 36, mods.isEmpty, !editingText { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
         return false
     }
 
+    /// Services for `Action.perform`; built on demand (closures hold the controller weakly).
+    private var ctx: ActionContext {
+        ActionContext(
+            app: app,
+            addProject: { [weak self] in self?.chooseProject() },
+            newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
+            projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
+            toggleSidebar: { [weak self] in self?.toggleSidebar() },
+            openSettings: { [weak self] in self?.showSettings(nil) },
+            confirm: { [weak self] message, info, button, then in self?.confirm(message, info, button, then) },
+            showError: { [weak self] message, info in self?.showError(message, info) })
+    }
+
+    /// Keyboard target of a registry action: the selected task, or its active tab.
+    private func keyTarget(for action: Action) -> ActionTarget? {
+        guard let task = app.selectedTask else { return nil }
+        switch action {
+        case .splitRight, .splitDown, .closeTab:
+            return column.terminalArea.activeTab.map { .tab(task: task.id, tab: $0.id) }
+        default: return .task(task.id)
+        }
+    }
+
     private func perform(_ sc: Shortcut) {
-        let area = column.terminalArea
+        if let action = Action.allCases.first(where: { $0.shortcut == sc }) {
+            if let target = keyTarget(for: action) { action.perform(target, ctx) }
+            return
+        }
         switch sc {
         case .newTask: presentNewTask(projectId: nil)
         case .newTab: app.addTab(.shell)
-        case .closeTab: if let tab = area.activeTab { app.closeTab(tab.id) }
-        case .splitRight: if let leaf = area.focusedLeaf { app.split(leafId: leaf.leafId, axis: .horizontal) }
-        case .splitDown: if let leaf = area.focusedLeaf { app.split(leafId: leaf.leafId, axis: .vertical) }
+        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask: break  // Action registry above
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
@@ -336,20 +358,50 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.beginSheet(sheet)
     }
 
-    private func askName(_ title: String, current: String, apply: @escaping (String) -> Void) {
-        guard let window else { return }
+    private func presentProjectSettings(_ id: UUID) {
+        guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: 200),
+                             styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        sheet.backgroundColor = Theme.sheet
+        sheet.appearance = window.appearance
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+        }
+        let view = ProjectSettingsSheet(project: project, onSave: { [weak self] name, path in
+            close()
+            self?.app.perform { $0.updateProject(id: id, name: name, path: path) }
+        }, onCancel: close)
+        let host = NSHostingController(rootView: view)
+        host.sizingOptions = [.preferredContentSize]
+        sheet.contentViewController = host
+        sheetWindow = sheet
+        window.beginSheet(sheet)
+    }
+
+    private func confirm(_ message: String, _ info: String, _ button: String, _ then: @escaping () -> Void) {
+        guard let window, window.attachedSheet == nil else { return }
         let alert = NSAlert()
-        alert.messageText = title
-        let field = NSTextField(string: current)
-        field.frame = NSRect(x: 0, y: 0, width: Theme.renameFieldWidth, height: field.intrinsicContentSize.height)
-        alert.accessoryView = field
-        alert.addButton(withTitle: L10n.rename)
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.informativeText = info
+        alert.addButton(withTitle: button).hasDestructiveAction = true
         alert.addButton(withTitle: L10n.cancel)
-        alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
-            MainActor.assumeIsolated { apply(field.stringValue) }
+            MainActor.assumeIsolated { then() }
         }
+    }
+
+    private func showError(_ message: String, _ info: String) {
+        guard let window, window.attachedSheet == nil else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.informativeText = info
+        alert.addButton(withTitle: "OK")
+        alert.beginSheetModal(for: window)
     }
 
     private func showConfigWarning(_ text: String) {
@@ -378,6 +430,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    private static func texts(_ v: NSView) -> [String] {
+        ((v as? NSTextField).map { [$0.stringValue] } ?? []) + v.subviews.flatMap(texts)
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -385,6 +441,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
+            "rename": .rename, "archiveTask": .archiveTask,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -410,6 +467,67 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
+        case "action":
+            // action <name> task|project|archived|tab <n>
+            let f = arg.split(separator: " ").map(String.init)
+            guard f.count == 3, let action = Action.allCases.first(where: { "\($0)" == f[0] }), let n = Int(f[2]) else { return }
+            let target: ActionTarget? = switch f[1] {
+            case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
+            case "archived": app.archivedTasks.indices.contains(n) ? .task(app.archivedTasks[n].id) : nil
+            case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            default: app.selectedTask.flatMap { t in t.tabs.indices.contains(n) ? .tab(task: t.id, tab: t.tabs[n].id) : nil }
+            }
+            if let target { action.perform(target, ctx) }
+        case "post":
+            // post <keyCode> [cmd,shift,opt] — through NSApp, so the key monitor sees it like a real key.
+            let f = arg.split(separator: " ").map(String.init)
+            guard let code = UInt16(f.first ?? ""), let window else { return }
+            var mods: NSEvent.ModifierFlags = []
+            for m in (f.count > 1 ? f[1] : "").split(separator: ",") {
+                mods.insert(["cmd": .command, "shift": .shift, "opt": .option][String(m)] ?? [])
+            }
+            let chars = code == 36 ? "\r" : code == 53 ? "\u{1b}" : ""
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: window.windowNumber, context: nil, characters: chars,
+                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                    NSApp.postEvent(e, atStart: false)
+                }
+            }
+        case "button":
+            // button <title>: clicks it in the attached sheet/alert (posted keys don't reach a sheet window).
+            func find(_ v: NSView) -> NSButton? {
+                if let b = v as? NSButton, b.title == arg { return b }
+                return v.subviews.lazy.compactMap(find).first
+            }
+            if let root = window?.attachedSheet?.contentView, let b = find(root) { b.performClick(nil) }
+            uiLog.info("alert text: \((self.window?.attachedSheet?.contentView).map(Self.texts) ?? [], privacy: .public)")
+        case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
+        case "typeText": ((window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
+        case "mouse":
+            // mouse <x> <y> [<x2> <y2>] — window points from the top-left; one point = (double) click, two = drag.
+            let v = arg.split(separator: " ").compactMap { Double($0) }
+            guard let window, v.count >= 2 else { return }
+            let h = window.contentView?.frame.height ?? 0
+            var events: [(NSEvent.EventType, Double, Double, Int)] = []
+            if v.count >= 4 {
+                events.append((.leftMouseDown, v[0], v[1], 1))
+                for i in 1...10 { events.append((.leftMouseDragged, v[0] + (v[2] - v[0]) * Double(i) / 10, v[1] + (v[3] - v[1]) * Double(i) / 10, 1)) }
+                events.append((.leftMouseUp, v[2], v[3], 1))
+            } else {
+                for c in 1...(v.count == 3 ? Int(v[2]) : 1) { events += [(.leftMouseDown, v[0], v[1], c), (.leftMouseUp, v[0], v[1], c)] }
+            }
+            events.append((.mouseMoved, events.last!.1 + 1, events.last!.2 + 1, 0))  // real pointers keep sending moves
+            // Spaced out: SwiftUI drops gesture phases delivered within one run-loop turn.
+            for (i, ev) in events.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03 * Double(i)) {
+                    if let e = NSEvent.mouseEvent(with: ev.0, location: NSPoint(x: ev.1, y: h - ev.2), modifierFlags: [],
+                                                  timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                                                  context: nil, eventNumber: Int.random(in: 1...Int(Int32.max)), clickCount: ev.3, pressure: 1) {
+                        NSApp.postEvent(e, atStart: false)  // queued like real input (tracking loops read the queue)
+                    }
+                }
+            }
         case "sheet": presentNewTask(projectId: nil)
         case "settings": showSettings(nil)
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
@@ -421,8 +539,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             uiLog.info("l10n bundle=\(L10n.resources?.bundlePath ?? "-", privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
         case "dump":
             let tasks = app.state.tasks.map { t in
-                "\(t.name) archived=\(t.archived) tabs=\(t.tabs.map { app.tabLabel($0) }) active=\(t.activeTabId == nil ? "-" : "set")"
-            }
+                "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { app.tabLabel($0) }) active=\(t.activeTabId == nil ? "-" : "set")"
+            } + ["projects=\(app.state.projects.map { "\($0.name)@\($0.path)" }) renaming=\(app.renaming.map { "\($0)" } ?? "-") responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) active=\(NSApp.isActive) key=\(window?.isKeyWindow ?? false)"]
             uiLog.info("dump selected=\(self.app.selectedTask?.name ?? "-", privacy: .public) sidebar=\(self.app.state.sidebarWidth)/\(self.app.state.sidebarCollapsed) actual=\(self.sidebarItem.viewController.view.frame.width) panes=\(self.split.splitView.subviews.map { Int($0.frame.width) }, privacy: .public) win=\(Int(self.window?.frame.width ?? 0))\n\(tasks.joined(separator: "\n"), privacy: .public)\n\(self.column.terminalArea.debugDump(), privacy: .public)")
         default: break
         }

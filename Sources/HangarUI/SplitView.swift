@@ -310,6 +310,11 @@ final class RatioSplitView: HangarSplitView {
         }
     }
 
+    /// Back to the focused terminal (after inline rename left nothing focused).
+    func focusActiveLeaf() {
+        if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.surface) }
+    }
+
     private func show(_ tab: Tab) {
         if tabViews[tab.id] == nil {
             let view = NSView(frame: bounds)

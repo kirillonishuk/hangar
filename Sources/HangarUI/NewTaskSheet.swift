@@ -64,7 +64,7 @@ struct NewTaskSheet: View {
 }
 
 /// Field: `field` background, `control` border; focused → `accent` border + 3 pt ring (DESIGN.md).
-private struct SheetField: ViewModifier {
+struct SheetField: ViewModifier {
     let focused: Bool
 
     func body(content: Content) -> some View {
@@ -82,7 +82,7 @@ private struct SheetField: ViewModifier {
     }
 }
 
-private struct SheetButton: ButtonStyle {
+struct SheetButton: ButtonStyle {
     let primary: Bool
 
     func makeBody(configuration: Configuration) -> some View {

@@ -22,50 +22,23 @@ func monogram(_ name: String) -> String {
     return letters.isEmpty ? "?" : letters.joined()
 }
 
-/// Window-level actions the sidebar triggers (panels, sheets, alerts live in MainWindowController).
-struct SidebarActions {
-    var addProject: () -> Void
-    var newTask: (UUID?) -> Void  // project id; nil = selected/last project
-    var renameTask: (HangarTask) -> Void
-    var renameProject: (Project) -> Void
-    var toggleCollapsed: () -> Void
-    var openSettings: () -> Void
-}
-
-/// Every row action (context menus) lives here, so Task 6b extends one place.
-@MainActor struct SidebarMenus {
-    let app: AppState
-    let actions: SidebarActions
-
-    @ViewBuilder func task(_ task: HangarTask) -> some View {
-        if task.archived {
-            Button(L10n.restore) { app.restore(taskId: task.id) }
-        } else {
-            Button(L10n.renameEllipsis) { actions.renameTask(task) }
-            Button(task.pinned ? L10n.unpin : L10n.pin) { app.setPinned(task.id, !task.pinned) }
-            Divider()
-            Button(L10n.archive) { app.archive(taskId: task.id) }
-        }
-    }
-
-    @ViewBuilder func project(_ project: Project) -> some View {
-        Button(L10n.newTask) { actions.newTask(project.id) }
-        Button(L10n.renameEllipsis) { actions.renameProject(project) }
-    }
-}
-
-private func folderExists(_ path: String) -> Bool {
-    var isDir: ObjCBool = false
-    return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
+/// Index among the other items (the list without the dragged one) where the dragged item's center lands.
+func dropIndex(heights: [CGFloat], from: Int, dy: CGFloat) -> Int {
+    var top: CGFloat = 0
+    var centers: [CGFloat] = []
+    for h in heights { centers.append(top + h / 2); top += h }
+    let dragged = centers[from] + dy
+    return centers.indices.filter { $0 != from && centers[$0] < dragged }.count
 }
 
 struct SidebarView: View {
     let app: AppState
-    let actions: SidebarActions
+    let ctx: ActionContext
     @State private var archiveOpen = false
+    /// Row being reordered (task within its group, or project) and its vertical translation.
+    @State private var drag: (target: ActionTarget, dy: CGFloat)?
 
     private var collapsed: Bool { app.state.sidebarCollapsed }
-    private var menus: SidebarMenus { SidebarMenus(app: app, actions: actions) }
 
     var body: some View {
         GeometryReader { geo in
@@ -99,7 +72,7 @@ struct SidebarView: View {
 
     /// Filled full-width button; the fill is inset so the `+` keeps the shared marker x.
     private func newTaskButton(visibleWidth: CGFloat) -> some View {
-        Button { actions.newTask(nil) } label: {
+        Button { ctx.newTask(nil) } label: {
             GutterRow(collapsed: collapsed) {
                 IconView(icon: .newTask, active: true)
             } expanded: {
@@ -129,31 +102,107 @@ struct SidebarView: View {
 
     @ViewBuilder private var projectsSection: some View {
         SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject,
-                      plusAlwaysVisible: app.state.projects.isEmpty, plus: actions.addProject)
+                      plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject)
         ForEach(app.state.projects) { project in
-            projectRow(project)
-            if !project.collapsed {
-                ForEach(app.groupTasks(project.id)) { task in taskRow(task, projectName: nil, indent: true) }
+            // One block per project, so a dragged project moves with its tasks.
+            VStack(spacing: 0) {
+                projectRow(project)
+                if !project.collapsed {
+                    ForEach(app.groupTasks(project.id)) { task in
+                        taskRow(task, projectName: nil, indent: true)
+                            .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
+                    }
+                }
             }
+            .modifier(DragLook(dy: dragOffset(.project(project.id)), line: dropLine(at: project.id)))
+            .zIndex(isDragging(in: project) ? 1 : 0)
         }
+    }
+
+    // MARK: Reorder
+
+    /// Ids and heights of the dragged item's group: a project's unpinned tasks, or all project blocks.
+    private func dragGroup(_ target: ActionTarget) -> (ids: [UUID], heights: [CGFloat])? {
+        switch target {
+        case .task(let id):
+            guard let task = app.state.tasks.first(where: { $0.id == id }) else { return nil }
+            let ids = app.groupTasks(task.projectId).map(\.id)
+            return (ids, ids.map { _ in Theme.railRowHeight })
+        case .project:
+            let heights = app.state.projects.map { p in
+                Theme.railRowHeight * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count))
+            }
+            return (app.state.projects.map(\.id), heights)
+        case .tab: return nil
+        }
+    }
+
+    private func id(_ target: ActionTarget) -> UUID? {
+        switch target {
+        case .task(let id), .project(let id): id
+        case .tab: nil
+        }
+    }
+
+    /// Where the dragged item would land: index among the others, plus the row the insertion line is drawn on.
+    private var dropSlot: (index: Int, row: UUID, edge: VerticalEdge)? {
+        guard let drag, let group = dragGroup(drag.target), let dragged = id(drag.target),
+              let from = group.ids.firstIndex(of: dragged) else { return nil }
+        let to = dropIndex(heights: group.heights, from: from, dy: drag.dy)
+        let others = group.ids.filter { $0 != dragged }
+        guard to != from, let last = others.last else { return nil }
+        return to < others.count ? (to, others[to], .top) : (to, last, .bottom)
+    }
+
+    private func dropLine(at row: UUID) -> VerticalEdge? { dropSlot?.row == row ? dropSlot?.edge : nil }
+
+    /// The block holding the dragged row draws above its neighbours.
+    private func isDragging(in project: Project) -> Bool {
+        guard let drag else { return false }
+        if case .task(let id) = drag.target { return app.state.tasks.first { $0.id == id }?.projectId == project.id }
+        return drag.target == .project(project.id)
+    }
+
+    private func dragOffset(_ target: ActionTarget) -> CGFloat { drag?.target == target ? drag?.dy ?? 0 : 0 }
+
+    private func dragHandlers(_ target: ActionTarget) -> (onDrag: (CGFloat) -> Void, onDragEnd: (CGFloat) -> Void) {
+        ({ dy in drag = (target, dy) }, { dy in
+            drag = (target, dy)
+            let slot = dropSlot
+            drag = nil
+            guard let slot, let moved = id(target) else { return }
+            switch target {
+            case .task: app.moveTask(moved, toGroupIndex: slot.index)
+            case .project: app.moveProject(moved, to: slot.index)
+            case .tab: break
+            }
+        })
     }
 
     private func projectRow(_ project: Project) -> some View {
         let exists = folderExists(project.path)
-        return HoverRow(action: { app.setCollapsed(projectId: project.id, !project.collapsed) }) { hover in
+        let target = ActionTarget.project(project.id)
+        let handlers = dragHandlers(target)
+        return HoverRow(action: { app.setCollapsed(projectId: project.id, !project.collapsed) },
+                        onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
                     IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
                         .frame(width: Theme.smallIconSize)
                         .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
-                    Text(project.name)
-                        .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
-                        .foregroundStyle(Theme.ui.text)
-                        .lineLimit(1)
-                        .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
+                    Group {
+                        if app.renaming == target {
+                            RenameField(app: app, target: target)
+                        } else {
+                            Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
+                        }
+                    }
+                    .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
+                    .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
                     Spacer(minLength: Theme.statusDot)
+                    MoreMenu(target: target, ctx: ctx).opacity(hover ? 1 : 0)
                     if exists {
-                        Button { actions.newTask(project.id) } label: {
+                        Button { ctx.newTask(project.id) } label: {
                             IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
                         }
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
@@ -179,7 +228,7 @@ struct SidebarView: View {
             .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
         }
         .help(collapsed ? project.name : (exists ? project.path : L10n.folderMissing(project.path)))
-        .contextMenu { menus.project(project) }
+        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
     }
 
     // MARK: Tasks
@@ -187,16 +236,26 @@ struct SidebarView: View {
     /// `projectName` set → pinned row (project shown after the name); `indent` → under its project.
     private func taskRow(_ task: HangarTask, projectName: String?, indent: Bool) -> some View {
         let selected = task.id == app.state.selectedTaskId
-        return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
+        let target = ActionTarget.task(task.id)
+        // Pinned rows mix projects, so only rows inside a project group reorder.
+        let handlers = indent ? dragHandlers(target) : nil
+        return HoverRow(selected: selected, action: { app.select(taskId: task.id) },
+                        doubleAction: { Action.rename.perform(target, ctx) },
+                        onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd) { hover in
             GutterRow(collapsed: collapsed) {
                 if case .worktree = task.mode { IconView(icon: .worktree, active: selected) } else { StatusDot() }
             } expanded: {
                 HStack(spacing: Theme.railInset * 1.5) {
-                    Text(task.name).lineLimit(1).truncationMode(.tail)
+                    if app.renaming == target {
+                        RenameField(app: app, target: target)
+                    } else {
+                        Text(task.name).lineLimit(1).truncationMode(.tail)
+                    }
                     if let projectName {
                         Text(projectName).lineLimit(1).foregroundStyle(Theme.ui.text3)
                     }
                     Spacer(minLength: 0)
+                    if hover { MoreMenu(target: target, ctx: ctx) }
                     if task.pinned || hover {
                         Button { app.setPinned(task.id, !task.pinned) } label: {
                             IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
@@ -215,7 +274,7 @@ struct SidebarView: View {
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
         }
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
-        .contextMenu { menus.task(task) }
+        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
     }
 
     // MARK: Archived
@@ -250,7 +309,7 @@ struct SidebarView: View {
                                 .foregroundStyle(Theme.ui.text2)
                             } rail: { EmptyView() }
                         }
-                        .contextMenu { menus.task(task) }
+                        .contextMenu { ActionMenuItems(target: .task(task.id), ctx: ctx) }
                     }
                 }
             }
@@ -265,7 +324,7 @@ struct SidebarView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            HoverRow(action: actions.openSettings) { _ in
+            HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)
                 } expanded: {
@@ -273,7 +332,7 @@ struct SidebarView: View {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
                         Menu {
-                            Button(L10n.addProjectEllipsis, action: actions.addProject)
+                            Button(L10n.addProjectEllipsis, action: ctx.addProject)
                             // shortcut: keep-awake arrives in stage 5.2
                             Button(L10n.keepAwake) {}.disabled(true)
                         } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
@@ -287,7 +346,7 @@ struct SidebarView: View {
                 } rail: { EmptyView() }
             }
             .help(L10n.settingsHelp)
-            HoverRow(action: actions.toggleCollapsed) { _ in
+            HoverRow(action: ctx.toggleSidebar) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .sidebarToggle)
                 } expanded: {
@@ -305,5 +364,36 @@ struct SidebarView: View {
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+    }
+}
+
+/// Hover `…` on a row: the same items as its context menu.
+private struct MoreMenu: View {
+    let target: ActionTarget
+    let ctx: ActionContext
+
+    var body: some View {
+        Menu { ActionMenuItems(target: target, ctx: ctx) } label: {
+            Image(nsImage: Icon.more.image).renderingMode(.template)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L10n.more)
+    }
+}
+
+/// Dragged row follows the pointer; the drop target gets a 2 pt `accent` line on the insertion edge.
+private struct DragLook: ViewModifier {
+    let dy: CGFloat
+    let line: VerticalEdge?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: line == .bottom ? .bottom : .top) {
+                if line != nil { Rectangle().fill(Theme.ui.accent).frame(height: Theme.dropLineWidth) }
+            }
+            .offset(y: dy)
+            .zIndex(dy == 0 ? 0 : 1)
     }
 }

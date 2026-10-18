@@ -15,6 +15,8 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
     var sidebarAnimating = false
+    /// Row or tab currently edited inline (F2 / double-click).
+    var renaming: ActionTarget?
 
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String
@@ -80,7 +82,29 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func title(of leaf: Leaf) -> String { leafTitles[leaf.id] ?? defaultTitle(leaf.kind) }
 
-    func tabLabel(_ tab: Tab) -> String { tab.root.leaves.map(title(of:)).joined(separator: " │ ") }
+    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
+
+    /// Folder an action opens/copies: the task's worktree or project folder.
+    func path(of target: ActionTarget) -> String? {
+        switch target {
+        case .project(let id): return project(id)?.path
+        case .task(let id):
+            guard let task = state.tasks.first(where: { $0.id == id }) else { return nil }
+            if case .worktree(let path, _, _) = task.mode { return path }
+            return project(task.projectId)?.path
+        case .tab: return nil
+        }
+    }
+
+    /// Current name shown in the inline rename field.
+    func name(of target: ActionTarget) -> String {
+        switch target {
+        case .project(let id): return project(id)?.name ?? ""
+        case .task(let id): return state.tasks.first { $0.id == id }?.name ?? ""
+        case .tab(let task, let tab):
+            return state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }.map(tabLabel) ?? ""
+        }
+    }
 
     func spec(for leaf: Leaf, tabId: UUID) throws -> LaunchSpec {
         let prompt = pendingPrompts.removeValue(forKey: leaf.id)
@@ -122,8 +146,34 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func select(taskId: UUID) { perform { $0.select(taskId: taskId) } }
 
-    func rename(taskId: UUID, to name: String) { perform { $0.renameTask(id: taskId, name: name) } }
-    func rename(projectId: UUID, to name: String) { perform { $0.renameProject(id: projectId, name: name) } }
+    /// Ends inline editing; blank text keeps the old name (the model rejects it).
+    func commitRename(_ target: ActionTarget, _ text: String) {
+        if renaming == target { renaming = nil }
+        perform { s in
+            switch target {
+            case .task(let id): s.renameTask(id: id, name: text)
+            case .project(let id): s.renameProject(id: id, name: text)
+            case .tab(let task, let tab): s.renameTab(taskId: task, tabId: tab, title: text)
+            }
+        }
+    }
+
+    func cancelRename() {
+        renaming = nil
+        didChange?()
+    }
+
+    /// Drag within a project group: `index` is among the group's other (unpinned) tasks; pinned siblings keep their slots.
+    func moveTask(_ id: UUID, toGroupIndex index: Int) {
+        guard let task = state.tasks.first(where: { $0.id == id }) else { return }
+        let others = groupTasks(task.projectId).filter { $0.id != id }
+        let all = state.tasks(in: task.projectId).map(\.id).filter { $0 != id }
+        guard let last = others.last, let lastSlot = all.firstIndex(of: last.id) else { return }
+        let slot = index < others.count ? all.firstIndex(of: others[max(index, 0)].id) ?? lastSlot + 1 : lastSlot + 1
+        perform { $0.moveTask(id: id, to: slot) }
+    }
+
+    func moveProject(_ id: UUID, to index: Int) { perform { $0.moveProject(id: id, to: index) } }
     func archive(taskId: UUID) { perform { $0.archiveTask(id: taskId) } }
     func restore(taskId: UUID) { perform { $0.restoreTask(id: taskId) } }
     func setPinned(_ taskId: UUID, _ pinned: Bool) { perform { $0.setPinned(taskId: taskId, pinned) } }

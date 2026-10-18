@@ -129,7 +129,13 @@ public enum Theme {
     public static let tabPaddingH: CGFloat = 14
     public static let tabGap: CGFloat = 2
     public static let tabRadius: CGFloat = 6
-    public static let renameFieldWidth: CGFloat = 264
+    /// Inline rename field in a tab.
+    public static let tabRenameWidth: CGFloat = 140
+    public static let renamePaddingH: CGFloat = 4
+    /// Insertion line while dragging rows (`accent`).
+    public static let dropLineWidth: CGFloat = 2
+    /// Pointer travel before a press becomes a drag.
+    public static let dragThreshold: CGFloat = 4
     public static let tabMaxChars = 32
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10

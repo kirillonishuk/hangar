@@ -233,4 +233,107 @@ import Testing
         s.restoreTask(id: t)
         #expect(s.tasks(in: p).map(\.id) == [t])
     }
+
+    // MARK: Task 6b
+
+    @Test func renameRejectsBlank() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let tab = s.addTab(taskId: t, kind: .shell)
+        s.renameTask(id: t, name: "  ")
+        s.renameProject(id: p, name: "\n ")
+        s.renameTab(taskId: t, tabId: tab, title: " \t")
+        #expect(s.tasks[0].name == "t")
+        #expect(s.projects[0].name == "app")
+        #expect(s.tasks[0].tabs[0].customTitle == nil)
+        s.updateProject(id: p, name: "  ", path: "/repo/app")
+        #expect(s.projects[0].name == "app")
+    }
+
+    @Test func renameTabSetsCustomTitle() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let tab = s.addTab(taskId: t, kind: .shell)
+        s.renameTab(taskId: t, tabId: tab, title: "  server ")
+        #expect(s.tasks[0].tabs[0].customTitle == "server")
+        #expect(s.tasks[0].tabs[0].label(auto: "zsh") == "server")
+        s.tasks[0].tabs[0].customTitle = nil
+        #expect(s.tasks[0].tabs[0].label(auto: "zsh") == "zsh")
+    }
+
+    @Test func deleteOnlyArchived() {
+        var (s, p) = makeState()
+        let a = s.addTask(projectId: p, name: "a")
+        let b = s.addTask(projectId: p, name: "b")
+        s.deleteTask(id: a)
+        #expect(s.tasks.map(\.id) == [a, b])
+        s.select(taskId: b)
+        s.archiveTask(id: b)
+        s.deleteTask(id: b)
+        #expect(s.tasks.map(\.id) == [a])
+    }
+
+    @Test func removeProjectRemovesItsTasks() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-rm-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var s = WorkspaceState()
+        let p1 = s.addProject(name: "one", path: dir.path)
+        let p2 = s.addProject(name: "two", path: "/repo/two")
+        let a = s.addTask(projectId: p1, name: "a")
+        let b = s.addTask(projectId: p1, name: "b")
+        s.archiveTask(id: b)
+        let c = s.addTask(projectId: p2, name: "c")
+        s.select(taskId: a)
+        s.removeProject(id: p1)
+        #expect(s.projects.map(\.id) == [p2])
+        #expect(s.tasks.map(\.id) == [c])
+        #expect(s.selectedTaskId == nil)
+        // Never touches the disk.
+        #expect(FileManager.default.fileExists(atPath: dir.path))
+    }
+
+    @Test func moveProjectReorders() {
+        var s = WorkspaceState()
+        let a = s.addProject(name: "a", path: "/a")
+        let b = s.addProject(name: "b", path: "/b")
+        let c = s.addProject(name: "c", path: "/c")
+        s.moveProject(id: a, to: 2)
+        #expect(s.projects.map(\.id) == [b, c, a])
+        s.moveProject(id: a, to: 0)
+        #expect(s.projects.map(\.id) == [a, b, c])
+        s.moveProject(id: c, to: 99)
+        #expect(s.projects.map(\.id) == [a, b, c])
+        s.moveProject(id: c, to: -5)
+        #expect(s.projects.map(\.id) == [c, a, b])
+    }
+
+    @Test func updateProjectMovesMainFolderLeaves() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        s.addTab(taskId: t, kind: .shell)
+        let w = s.addTask(projectId: p, name: "w")
+        s.tasks[1].mode = .worktree(path: "/wt", branch: "b", base: "main")
+        s.addTab(taskId: w, kind: .shell)
+        s.updateProject(id: p, name: " shop ", path: "/repo/shop")
+        #expect(s.projects[0].name == "shop")
+        #expect(s.projects[0].path == "/repo/shop")
+        #expect(s.tasks[0].tabs[0].root.leaves[0].cwd == "/repo/shop")
+        #expect(s.tasks[1].tabs[0].root.leaves[0].cwd == "/wt")
+    }
+
+    @Test func oldStateWithoutCustomTitleDecodes() throws {
+        let leaf = UUID(), tab = UUID()
+        let json = """
+        {"id":"\(tab)","title":"shell","focusedLeafId":"\(leaf)",
+         "root":{"leaf":{"_0":{"id":"\(leaf)","kind":"shell","cwd":"/repo"}}}}
+        """
+        let decoded = try JSONDecoder().decode(Tab.self, from: Data(json.utf8))
+        #expect(decoded.customTitle == nil)
+        #expect(decoded.title == "shell")
+        var changed = decoded
+        changed.customTitle = "server"
+        let data = try JSONEncoder().encode(changed)
+        #expect(try JSONDecoder().decode(Tab.self, from: data) == changed)
+    }
 }

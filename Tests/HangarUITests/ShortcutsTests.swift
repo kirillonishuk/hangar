@@ -30,7 +30,8 @@ import Testing
 
     @Test func extraModifiersDoNotMatch() {
         #expect(shortcut(keyCode: 17, modifiers: [.command, .control]) == nil)
-        #expect(shortcut(keyCode: 13, modifiers: [.command, .shift]) == nil)
+        #expect(shortcut(keyCode: 13, modifiers: [.command, .option]) == nil)
+        #expect(shortcut(keyCode: 120, modifiers: .command) == nil)
         #expect(shortcut(keyCode: 34, modifiers: .command) == nil)
     }
 
@@ -41,7 +42,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 20)
+        #expect(Shortcut.allCases.count == 22)
     }
 }
 

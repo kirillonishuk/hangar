@@ -54,4 +54,11 @@ import Testing
         #expect("\(HangarConfig.ParseError.syntax(line: 3, reason: "x"))".isEmpty == false)
         #expect(HangarConfig.ParseError.syntax(line: 3, reason: "x").description.contains("line 3"))
     }
+
+    @Test func terminalBackgroundDefaultsToHangar() throws {
+        #expect(try HangarConfig.parse("").terminalBackground == .hangar)
+        #expect(try HangarConfig.parse(#"terminal_background = "theme""#).terminalBackground == .theme)
+        #expect(try HangarConfig.parse(#"terminal_background = "hangar""#).terminalBackground == .hangar)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"terminal_background = "blue""#) }
+    }
 }

@@ -9,11 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
-        do { try GhosttyApp.shared.start(defaultBackground: Theme.terminalBackgroundHex) } catch {
-            NSLog("Hangar: Ghostty failed to start: \(error)")
-        }
-
         let home = FileManager.default.homeDirectoryForCurrentUser
+        let (config, warning) = HangarConfig.load(from: home.appendingPathComponent(".config/hangar/config.toml"))
+        startGhostty(background: config.terminalBackground == .hangar ? Theme.terminalBackgroundHex : nil)
+
         let stateDir: URL = {
             #if DEBUG
             // Verification runs must not touch the real state file.
@@ -25,14 +24,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // shortcut: only `.loaded` is used here; corrupt/unreadable handling and restore UX are Task 7
         let state: WorkspaceState
         if case .loaded(let loaded) = store.load() { state = loaded } else { state = WorkspaceState() }
-        let (config, warning) = HangarConfig.load(from: home.appendingPathComponent(".config/hangar/config.toml"))
-
         let app = AppState(state: state, store: store, config: config)
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)
         windowController = wc
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Without Ghostty every terminal would be blank: ask to retry or quit instead of continuing silently.
+    private func startGhostty(background: String?) {
+        while true {
+            do {
+                try GhosttyApp.shared.start(background: background)
+                return
+            } catch {
+                let alert = NSAlert()
+                alert.alertStyle = .critical
+                alert.messageText = "Не удалось запустить терминал (Ghostty)"
+                alert.informativeText = String(describing: error)
+                alert.addButton(withTitle: "Повторить")
+                alert.addButton(withTitle: "Выйти")
+                if alert.runModal() != .alertFirstButtonReturn { exit(0) }  // user chose to quit
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

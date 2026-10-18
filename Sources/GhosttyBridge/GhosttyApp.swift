@@ -15,29 +15,24 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
 
     private init() {}
 
+    /// True once `start()` succeeded; surfaces can only be created while running.
+    public var isRunning: Bool { app != nil }
+
     /// Idempotent; must run before the first TerminalSurfaceView is created.
-    /// `defaultBackground` ("rrggbb") is used only when the user's Ghostty config doesn't change the background.
-    public func start(defaultBackground: String? = nil) throws {
+    /// `background` ("rrggbb") overrides the terminal background, including one set by the user's theme;
+    /// all other colors still come from the user's Ghostty config (decision #36).
+    public func start(background: String? = nil) throws {
         guard app == nil else { return }
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
             throw GhosttyError.initFailed
         }
-        var cfg = Self.makeConfig(layeredUnder: nil)
-        if let hex = defaultBackground {
-            let pristine = ghostty_config_new()
-            ghostty_config_finalize(pristine)
-            // Same as Ghostty's built-in default → the user (config or theme) didn't set one.
-            let userSetsBackground = Self.background(cfg) != Self.background(pristine)
-            ghosttyLog.info("terminal background: \(userSetsBackground ? "user's Ghostty config" : "Hangar default", privacy: .public)")
-            if !userSetsBackground {
-                let file = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-ghostty-defaults.conf")
-                if (try? "background = \(hex)\n".write(to: file, atomically: true, encoding: .utf8)) != nil {
-                    ghostty_config_free(cfg)
-                    cfg = Self.makeConfig(layeredUnder: file)
-                }
-            }
-            ghostty_config_free(pristine)
+        var override: URL?
+        if let background {
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-ghostty-overrides.conf")
+            if (try? "background = \(background)\n".write(to: file, atomically: true, encoding: .utf8)) != nil { override = file }
         }
+        let cfg = Self.makeConfig(override: override)
+        ghosttyLog.info("terminal background: \(override == nil ? "Ghostty config" : "Hangar \(background ?? "")", privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
             let message = String(cString: ghostty_config_get_diagnostic(cfg, i).message)
             ghosttyLog.warning("config: \(message, privacy: .public)")
@@ -65,21 +60,14 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         }
     }
 
-    /// Our defaults load first so every user file loaded after them wins.
-    private static func makeConfig(layeredUnder defaults: URL?) -> ghostty_config_t? {
+    /// The override loads after the user's files, so it wins over their config and theme.
+    private static func makeConfig(override: URL?) -> ghostty_config_t? {
         let cfg = ghostty_config_new()
-        if let defaults { defaults.path.withCString { ghostty_config_load_file(cfg, $0) } }
         ghostty_config_load_default_files(cfg)
         ghostty_config_load_recursive_files(cfg)
+        if let override { override.path.withCString { ghostty_config_load_file(cfg, $0) } }
         ghostty_config_finalize(cfg)
         return cfg
-    }
-
-    private static func background(_ cfg: ghostty_config_t?) -> [UInt8] {
-        var c = ghostty_config_color_s()
-        let key = "background"
-        guard ghostty_config_get(cfg, &c, key, UInt(key.utf8.count)) else { return [] }
-        return [c.r, c.g, c.b]
     }
 
     /// Nonisolated so the C callbacks don't inherit MainActor (Swift would assert the queue; some run on Ghostty's threads).

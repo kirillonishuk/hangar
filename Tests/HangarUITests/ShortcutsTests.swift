@@ -17,6 +17,7 @@ import Testing
         #expect(shortcut(keyCode: 30, modifiers: [.command, .shift]) == .nextTask)
         #expect(shortcut(keyCode: 34, modifiers: [.command, .option]) == .toggleInspector)
         #expect(shortcut(keyCode: 29, modifiers: .command) == .toggleSidebar)
+        #expect(shortcut(keyCode: 45, modifiers: [.command, .shift]) == .addProject)
     }
 
     @Test func withoutCommandIsNil() {
@@ -39,7 +40,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 18)
+        #expect(Shortcut.allCases.count == 19)
     }
 }
 

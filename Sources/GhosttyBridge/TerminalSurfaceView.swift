@@ -45,6 +45,13 @@ import os
             ghosttyLog.error("TerminalSurfaceView created before GhosttyApp.start()")
             return
         }
+        #if DEBUG
+        // Verification seam: creation fails while the file named by HANGAR_DEBUG_FAIL_SURFACE exists.
+        if let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_FAIL_SURFACE"], FileManager.default.fileExists(atPath: path) {
+            ghosttyLog.error("ghostty_surface_new skipped (HANGAR_DEBUG_FAIL_SURFACE)")
+            return
+        }
+        #endif
         var cfg = ghostty_surface_config_new()
         cfg.userdata = me
         cfg.platform_tag = GHOSTTY_PLATFORM_MACOS
@@ -101,6 +108,9 @@ import os
     }
 
     // MARK: Public API
+
+    /// False when Ghostty could not create the surface (app not started, no display, …); the owner may retry with a new view.
+    public var isAlive: Bool { surface != nil }
 
     /// Hidden surfaces skip GPU frames (decision: occlusion is Ghostty's render pause).
     public func setVisible(_ visible: Bool) {

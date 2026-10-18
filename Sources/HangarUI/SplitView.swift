@@ -63,6 +63,10 @@ final class RatioSplitView: HangarSplitView {
     private let barLine = NSView()
     /// Non-nil while the process has exited with a failure (↩ relaunches).
     private(set) var exitCode: Int32?
+    /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
+    private(set) var failed = false
+    var needsRelaunch: Bool { exitCode != nil || failed }
+    var onRelaunch: (() -> Void)?
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
@@ -117,6 +121,11 @@ final class RatioSplitView: HangarSplitView {
         surface = view
         addSubview(view, positioned: .below, relativeTo: header)
         needsLayout = true
+        failed = !view.isAlive
+        if failed {
+            uiLog.error("terminal not created leaf=\(self.leafId.uuidString.prefix(8), privacy: .public)")
+            setBar("не удалось создать терминал · ↩ повторить")
+        }
     }
 
     private func childExited(_ code: Int32) {
@@ -127,13 +136,15 @@ final class RatioSplitView: HangarSplitView {
         onExit?(code)
     }
 
-    /// ↩ on an exited leaf: run the same spec again.
-    func relaunch() {
-        guard exitCode != nil, let spec else { return }
+    /// ↩ on an exited or failed leaf: run the same spec again (`focus: false` for background retries).
+    func relaunch(focus: Bool = true) {
+        guard needsRelaunch, let spec else { return }
         exitCode = nil
         setBar(nil)
         launch(spec)
-        window?.makeFirstResponder(surface)
+        uiLog.info("relaunch leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
+        if focus, !failed { window?.makeFirstResponder(surface) }
+        onRelaunch?()
     }
 
     private func setBar(_ text: String?) {
@@ -146,7 +157,7 @@ final class RatioSplitView: HangarSplitView {
     override var isFlipped: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        if !bar.isHidden, exitCode != nil, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
+        if !bar.isHidden, needsRelaunch, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
             relaunch()
         } else {
             super.mouseDown(with: event)
@@ -196,6 +207,14 @@ final class RatioSplitView: HangarSplitView {
         placeholder.textColor = Theme.text3
         placeholder.alignment = .center
         addSubview(placeholder)
+        // One retry per display wake for surfaces that failed (typically created while the display slept).
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.retryFailedLeaves() }
+        }
+    }
+
+    private func retryFailedLeaves() {
+        for leaf in leafViews.values where leaf.failed { leaf.relaunch(focus: false) }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -263,7 +282,7 @@ final class RatioSplitView: HangarSplitView {
 
         placeholder.isHidden = active != nil
         placeholder.stringValue = app.selectedTask == nil
-            ? (state.projects.isEmpty ? "Добавьте проект: «+ проект» внизу сайдбара" : "Выберите задачу или создайте новую — ⌘N")
+            ? (state.projects.isEmpty ? "Добавьте проект: «+» у заголовка «ПРОЕКТЫ» или ⌘⇧N" : "Выберите задачу или создайте новую — ⌘N")
             : "Нет вкладок — ⌘T или + в полосе вкладок"
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
@@ -293,6 +312,10 @@ final class RatioSplitView: HangarSplitView {
                 self?.leafViews[leaf.id]?.setHeader(title)
             }
             view.onExit = { [weak self] code in self?.leafExited(leaf.id, code: code) }
+            view.onRelaunch = { [weak self] in
+                self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
+                self?.sync()
+            }
             view.start { try app.spec(for: leaf, tabId: tab.id) }
             uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
         }
@@ -355,7 +378,7 @@ final class RatioSplitView: HangarSplitView {
 
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {
-        guard let leaf = focusedLeaf, leaf.exitCode != nil else { return false }
+        guard let leaf = focusedLeaf, leaf.needsRelaunch else { return false }
         leaf.relaunch()
         return true
     }
@@ -363,7 +386,7 @@ final class RatioSplitView: HangarSplitView {
     /// Debug summary of every surface and whether it renders.
     func debugDump() -> String {
         leafViews.map { id, view in
-            "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-")"
+            "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-") failed=\(view.failed)"
         }.sorted().joined(separator: "\n")
     }
 }

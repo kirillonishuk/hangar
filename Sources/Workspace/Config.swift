@@ -4,6 +4,9 @@ public struct HangarConfig: Equatable, Sendable {
     public var defaultAgent: LeafKind = .claude
     public var editor: String = "hx"
     public var agentCommands: [LeafKind: String] = [.claude: "claude", .codex: "codex"]
+    public var terminalBackground: TerminalBackground = .hangar
+
+    public enum TerminalBackground: String, Sendable { case hangar, theme }
 
     public init() {}
 
@@ -44,6 +47,11 @@ public struct HangarConfig: Equatable, Sendable {
                 config.defaultAgent = kind
             case ("", "editor"):
                 config.editor = value
+            case ("", "terminal_background"):
+                guard let bg = TerminalBackground(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")
+                }
+                config.terminalBackground = bg
             case ("agents", _):
                 guard let kind = LeafKind(rawValue: key), kind == .claude || kind == .codex else {
                     throw ParseError.unknownAgent(line: n + 1, name: key)

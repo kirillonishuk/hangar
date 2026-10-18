@@ -219,7 +219,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
-            perform(sc)
+            // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown]
+            if !(event.isARepeat && once.contains(sc)) { perform(sc) }
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
@@ -241,6 +243,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         // shortcut: only flips the persisted flag; the inspector itself arrives in stage 2
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
+        case .addProject: chooseProject()
         }
     }
 
@@ -317,10 +320,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// HANGAR_DEBUG_PROJECT=<path> adds a project at launch; `dev.hangar.debug` distributed
     /// notifications (object = command) drive the UI for verification without a screen.
     private func installDebugHooks() {
-        if let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_PROJECT"],
-           !app.state.projects.contains(where: { $0.path == path }) {
-            app.addProject(path: path)
-        }
+        // The hook drives the UI (incl. typing into terminals): only for explicit verification runs.
+        guard let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_PROJECT"] else { return }
+        if !app.state.projects.contains(where: { $0.path == path }) { app.addProject(path: path) }
         DistributedNotificationCenter.default().addObserver(forName: .init("dev.hangar.debug"), object: nil, queue: .main) { [weak self] note in
             let command = note.object as? String ?? ""
             MainActor.assumeIsolated { self?.debugCommand(command) }

@@ -42,7 +42,7 @@ public enum Theme {
     public static let sheetText = ns(0xffffff)
     public static let selectionText = ns(0xffffff)
     public static let hover = ns(0x1d2533)
-    public static let hoverStrong = ns(0x2b3444)  // "+ Новая задача" button
+    public static let hoverStrong = ns(0x2b3444)  // "+ New Task" button
     public static let pressed = ns(0x192030)
     public static let button = ns(0x2b3444)
     public static let claudeBrand = ns(0xd97757)
@@ -175,6 +175,21 @@ public enum Theme {
     public static let focusRing: CGFloat = 3
     public static let focusRingOpacity: Double = 0.18
     public static let messageMinHeight: CGFloat = 38
+
+    // Settings window: one card of rows (DESIGN.md «Лист», new-task-v4 `.grp` / `.r` / `.seg`)
+    public static let settingsWidth: CGFloat = 520
+    public static let settingsTopOffset: CGFloat = 80
+    public static let cardRadius: CGFloat = 8
+    public static let cardRowPaddingV: CGFloat = 9
+    public static let cardRowPaddingH: CGFloat = 12
+    public static let cardRowGap: CGFloat = 10
+    /// Settings labels are longer than the new-task ones (e.g. "Terminal background").
+    public static let settingsLabelWidth: CGFloat = 150
+    public static let segmentRadius: CGFloat = 7
+    public static let segmentPadding: CGFloat = 2
+    public static let segmentItemRadius: CGFloat = 5
+    public static let segmentItemPaddingV: CGFloat = 3
+    public static let segmentItemPaddingH: CGFloat = 11
 }
 
 /// One-shot animations only (no loops: zero work when idle); none when the user asked to reduce motion.

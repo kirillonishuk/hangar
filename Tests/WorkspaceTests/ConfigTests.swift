@@ -61,4 +61,61 @@ import Testing
         #expect(try HangarConfig.parse(#"terminal_background = "hangar""#).terminalBackground == .hangar)
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"terminal_background = "blue""#) }
     }
+
+    @Test func languageFromConfig() throws {
+        #expect(try HangarConfig.parse(#"language = "en""#).language == .en)
+        #expect(try HangarConfig.parse(#"language = "ru""#).language == .ru)
+        #expect(try HangarConfig.parse(#"language = "system""#).language == .system)
+        #expect(try HangarConfig.parse("").language == .system)
+        #expect(throws: HangarConfig.ParseError.syntax(line: 2, reason: #"language must be "system", "ru" or "en""#)) {
+            try HangarConfig.parse("# c\nlanguage = \"de\"")
+        }
+    }
+
+    @Test func externalEditorFromConfig() throws {
+        #expect(try HangarConfig.parse("").externalEditor == nil)
+        #expect(try HangarConfig.parse(#"external_editor = "zed""#).externalEditor == "zed")
+        #expect(try HangarConfig.parse(#"external_editor = """#).externalEditor == nil)
+    }
+
+    @Test func configWriterChangesOnlyOneKey() throws {
+        let text = """
+        # Hangar config
+        default_agent = "codex"   # mine
+        language = "ru"  # ui language
+        editor = "nvim"
+
+        [agents]
+        claude = "claude --model opus"
+
+        """
+        let changed = HangarConfig.updating(text, key: "language", value: "en")
+        var expected = text.components(separatedBy: "\n")
+        expected[2] = #"language = "en"  # ui language"#
+        #expect(changed == expected.joined(separator: "\n"))
+        #expect(try HangarConfig.parse(changed).language == .en)
+
+        // Missing key: appended to the end of the root section, before the first [section].
+        let added = HangarConfig.updating(text, key: "terminal_background", value: "theme")
+        var lines = text.components(separatedBy: "\n")
+        lines.insert(#"terminal_background = "theme""#, at: 4)
+        #expect(added == lines.joined(separator: "\n"))
+
+        // Values are escaped; a key under [agents] with the same name is not the root key.
+        let tricky = "[agents]\nclaude = \"x\"\n"
+        #expect(HangarConfig.updating(tricky, key: "editor", value: #"a"b"#) == "editor = \"a\\\"b\"\n[agents]\nclaude = \"x\"\n")
+        #expect(HangarConfig.updating("", key: "language", value: "en") == "language = \"en\"\n")
+        #expect(HangarConfig.updating("editor = \"hx\"", key: "language", value: "en") == "editor = \"hx\"\nlanguage = \"en\"")
+    }
+
+    @Test func configSaveCreatesOrEditsFile() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("hangar-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.toml")
+        try HangarConfig.save(key: "language", value: "en", to: url)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "language = \"en\"\n")
+        try "# keep\neditor = \"hx\"\n".write(to: url, atomically: true, encoding: .utf8)
+        try HangarConfig.save(key: "editor", value: "nvim", to: url)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "# keep\neditor = \"nvim\"\n")
+    }
 }

@@ -17,7 +17,7 @@ struct NewTaskSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.statusDot) {
-                Text("Новая задача")
+                Text(L10n.newTask)
                     .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
                     .foregroundStyle(Theme.ui.sheetText)
                 Text(projectName).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
@@ -25,14 +25,14 @@ struct NewTaskSheet: View {
             .padding(.top, Theme.sheetHeaderTop)
             .padding(.bottom, Theme.sheetHeaderBottom)
 
-            TextField("", text: $name, prompt: Text("название задачи").foregroundStyle(Theme.ui.text3))
+            TextField("", text: $name, prompt: Text(L10n.taskNamePlaceholder).foregroundStyle(Theme.ui.text3))
                 .font(.system(size: Theme.fontSize.taskName, design: .monospaced))
                 .focused($focus, equals: .name)
                 .onSubmit { focus = .message }
                 .modifier(SheetField(focused: focus == .name))
                 .padding(.top, Theme.sheetNameTop)
 
-            TextField("", text: $message, prompt: Text("Первое сообщение для \(agentName) (необязательно)…")
+            TextField("", text: $message, prompt: Text(L10n.firstMessagePlaceholder(agentName))
                 .foregroundStyle(Theme.ui.text3), axis: .vertical)
                 .font(.system(size: Theme.fontSize.sheetRow))
                 .lineLimit(2...8)
@@ -42,12 +42,12 @@ struct NewTaskSheet: View {
                 .padding(.top, Theme.sheetGap)
 
             HStack(spacing: Theme.statusDot) {
-                Text("esc — отмена").font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
-                Button("Отмена", action: onCancel)
+                Button(L10n.cancel, action: onCancel)
                     .buttonStyle(SheetButton(primary: false))
                     .keyboardShortcut(.cancelAction)
-                Button("Создать ⌘↩") { if canCreate { onCreate(name, message) } }
+                Button(L10n.create) { if canCreate { onCreate(name, message) } }
                     .buttonStyle(SheetButton(primary: true))
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(!canCreate)

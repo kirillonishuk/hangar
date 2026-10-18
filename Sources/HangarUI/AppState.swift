@@ -9,7 +9,8 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
 @MainActor @Observable public final class AppState {
     public private(set) var state: WorkspaceState
-    public let config: HangarConfig
+    /// Changed live from Settings (each change is also written to `configURL`).
+    public private(set) var config: HangarConfig
     /// Runtime-only (not persisted): last terminal title per leaf.
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
@@ -24,11 +25,19 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored private var restoredLeaves: Set<UUID> = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
+    /// AppKit parts that build strings once (main menu) rebuild from here.
+    @ObservationIgnored var languageDidChange: (() -> Void)?
+    @ObservationIgnored let configURL: URL
+    /// Ghostty took this background at launch; a change applies after restart.
+    @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 
-    public init(state: WorkspaceState, store: StateStore, config: HangarConfig) {
+    public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL) {
         self.state = state
         self.store = store
         self.config = config
+        self.configURL = configURL
+        launchTerminalBackground = config.terminalBackground
+        L10n.language = config.language
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? ""
         userShell = shell.isEmpty ? "/bin/zsh" : shell
         socketPath = FileManager.default.homeDirectoryForCurrentUser
@@ -162,4 +171,22 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }
+
+    // MARK: Settings
+
+    var language: Language { config.language }
+
+    /// Writes only `key` in config.toml, then applies the change; a failed write changes nothing.
+    func setConfig(_ key: String, _ value: String, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.save(key: key, value: value, to: configURL)
+        apply(&config)
+        uiLog.info("config \(key, privacy: .public) = \(value, privacy: .public)")
+    }
+
+    func setLanguage(_ language: Language) throws {
+        try setConfig("language", language.rawValue) { $0.language = language }
+        L10n.language = language
+        languageDidChange?()
+        didChange?()
+    }
 }

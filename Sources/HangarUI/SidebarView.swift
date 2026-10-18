@@ -29,6 +29,7 @@ struct SidebarActions {
     var renameTask: (HangarTask) -> Void
     var renameProject: (Project) -> Void
     var toggleCollapsed: () -> Void
+    var openSettings: () -> Void
 }
 
 /// Every row action (context menus) lives here, so Task 6b extends one place.
@@ -38,18 +39,18 @@ struct SidebarActions {
 
     @ViewBuilder func task(_ task: HangarTask) -> some View {
         if task.archived {
-            Button("Восстановить") { app.restore(taskId: task.id) }
+            Button(L10n.restore) { app.restore(taskId: task.id) }
         } else {
-            Button("Переименовать…") { actions.renameTask(task) }
-            Button(task.pinned ? "Открепить" : "Закрепить") { app.setPinned(task.id, !task.pinned) }
+            Button(L10n.renameEllipsis) { actions.renameTask(task) }
+            Button(task.pinned ? L10n.unpin : L10n.pin) { app.setPinned(task.id, !task.pinned) }
             Divider()
-            Button("Архивировать") { app.archive(taskId: task.id) }
+            Button(L10n.archive) { app.archive(taskId: task.id) }
         }
     }
 
     @ViewBuilder func project(_ project: Project) -> some View {
-        Button("Новая задача") { actions.newTask(project.id) }
-        Button("Переименовать…") { actions.renameProject(project) }
+        Button(L10n.newTask) { actions.newTask(project.id) }
+        Button(L10n.renameEllipsis) { actions.renameProject(project) }
     }
 }
 
@@ -96,7 +97,7 @@ private struct SectionHeader: View {
     var body: some View {
         HoverRow { hover in
             HStack(spacing: 0) {
-                Text(title.uppercased()).tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
+                Text(title).tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
                 Spacer(minLength: 0)
                 if let plus {
                     Button(action: plus) { IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset) }
@@ -163,7 +164,7 @@ struct SidebarView: View {
                 IconView(icon: .newTask, active: true)
             } expanded: {
                 HStack(spacing: 0) {
-                    Text("Новая задача").foregroundStyle(Theme.ui.textStrong)
+                    Text(L10n.newTask).foregroundStyle(Theme.ui.textStrong)
                     Spacer(minLength: 0)
                     Text("⌘N").font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text2)
                 }
@@ -171,7 +172,7 @@ struct SidebarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * Theme.railInset))
-        .help("Новая задача ⌘N")
+        .help(L10n.newTaskHelp)
     }
 
     // MARK: Pinned
@@ -179,7 +180,7 @@ struct SidebarView: View {
     @ViewBuilder private var pinnedSection: some View {
         let pinned = app.pinnedTasks
         if !pinned.isEmpty {
-            SectionHeader(title: "Закреплённые", collapsed: collapsed)
+            SectionHeader(title: L10n.sectionPinned, collapsed: collapsed)
             ForEach(pinned) { task in taskRow(task, projectName: app.project(task.projectId)?.name, indent: false) }
         }
     }
@@ -187,7 +188,7 @@ struct SidebarView: View {
     // MARK: Projects
 
     @ViewBuilder private var projectsSection: some View {
-        SectionHeader(title: "Проекты", collapsed: collapsed, plusHelp: "Добавить проект", plus: actions.addProject)
+        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject, plus: actions.addProject)
         ForEach(app.state.projects) { project in
             projectRow(project)
             if !project.collapsed {
@@ -216,9 +217,9 @@ struct SidebarView: View {
                         }
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                         .opacity(hover ? 1 : 0)
-                        .help("Новая задача в \(project.name)")
+                        .help(L10n.newTaskIn(project.name))
                     } else {
-                        Text("папка не найдена").font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                        Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
                     }
                 }
                 .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
@@ -236,7 +237,7 @@ struct SidebarView: View {
             .opacity(exists ? 1 : Theme.inactiveOpacity)
             .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
         }
-        .help(collapsed ? project.name : (exists ? project.path : "папка не найдена: \(project.path)"))
+        .help(collapsed ? project.name : (exists ? project.path : L10n.folderMissing(project.path)))
         .contextMenu { menus.project(project) }
     }
 
@@ -260,7 +261,7 @@ struct SidebarView: View {
                             IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
                         }
                         .buttonStyle(.plain)
-                        .help(task.pinned ? "Открепить" : "Закрепить")
+                        .help(task.pinned ? L10n.unpin : L10n.pin)
                     }
                 }
             } rail: {
@@ -287,7 +288,7 @@ struct SidebarView: View {
                         IconView(icon: .archive)
                     } expanded: {
                         HStack(spacing: Theme.railInset * 1.5) {
-                            Text("АРХИВ").tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
+                            Text(L10n.sectionArchived).tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
                             Text("\(archived.count)").font(.system(size: Theme.fontSize.counter))
                             Spacer(minLength: 0)
                             IconView(icon: archiveOpen ? .chevronDown : .chevronRight, size: Theme.smallIconSize)
@@ -323,35 +324,34 @@ struct SidebarView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            HoverRow { _ in
+            HoverRow(action: actions.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)
                 } expanded: {
                     HStack(spacing: 0) {
-                        Text("Настройки")
+                        Text(L10n.settings)
                         Spacer(minLength: 0)
                         Menu {
-                            Button("Добавить проект…", action: actions.addProject)
+                            Button(L10n.addProjectEllipsis, action: actions.addProject)
                             // shortcut: keep-awake arrives in stage 5.2
-                            Button("Не засыпать") {}.disabled(true)
+                            Button(L10n.keepAwake) {}.disabled(true)
                         } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
                             .menuStyle(.borderlessButton)
                             .menuIndicator(.hidden)
                             .fixedSize()
-                            .help("Ещё")
+                            .help(L10n.more)
                     }
                     .font(.system(size: Theme.fontSize.footer))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            // shortcut: settings screen is a later stage; config lives in ~/.config/hangar/config.toml
-            .help("Настройки — ~/.config/hangar/config.toml")
+            .help(L10n.settingsHelp)
             HoverRow(action: actions.toggleCollapsed) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .sidebarToggle)
                 } expanded: {
                     HStack(spacing: 0) {
-                        Text("Свернуть")
+                        Text(L10n.collapse)
                         Spacer(minLength: 0)
                         Text("⌘0")
                     }
@@ -359,7 +359,7 @@ struct SidebarView: View {
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            .help(collapsed ? "Развернуть сайдбар ⌘0" : "Свернуть сайдбар ⌘0")
+            .help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp)
         }
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)

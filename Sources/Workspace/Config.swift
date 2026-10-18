@@ -1,10 +1,16 @@
 import Foundation
 
+/// UI language setting; `system` resolves to ru when the first system language is Russian, else en.
+public enum Language: String, Sendable, CaseIterable { case system, ru, en }
+
 public struct HangarConfig: Equatable, Sendable {
     public var defaultAgent: LeafKind = .claude
     public var editor: String = "hx"
     public var agentCommands: [LeafKind: String] = [.claude: "claude", .codex: "codex"]
     public var terminalBackground: TerminalBackground = .hangar
+    public var language: Language = .system
+    /// Command opening files outside Hangar (e.g. `zed`); nil = off.
+    public var externalEditor: String?
 
     public enum TerminalBackground: String, Sendable { case hangar, theme }
 
@@ -52,6 +58,13 @@ public struct HangarConfig: Equatable, Sendable {
                     throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")
                 }
                 config.terminalBackground = bg
+            case ("", "language"):
+                guard let lang = Language(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: #"language must be "system", "ru" or "en""#)
+                }
+                config.language = lang
+            case ("", "external_editor"):
+                config.externalEditor = value.isEmpty ? nil : value
             case ("agents", _):
                 guard let kind = LeafKind(rawValue: key), kind == .claude || kind == .codex else {
                     throw ParseError.unknownAgent(line: n + 1, name: key)

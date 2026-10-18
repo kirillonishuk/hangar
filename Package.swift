@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Hangar",
+    defaultLocalization: "ru",
     platforms: [.macOS(.v14)],
     products: [.executable(name: "HangarApp", targets: ["HangarApp"])],
     targets: [
@@ -26,7 +27,7 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "GhosttyBridge"]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "GhosttyBridge"], resources: [.process("Resources")]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),

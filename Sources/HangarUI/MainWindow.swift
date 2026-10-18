@@ -72,6 +72,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sidebarAnimation: Timer?
     private var didApplyInitialLayout = false
     private let configWarning: String?
+    private lazy var settings = SettingsWindowController(app: app)
 
     public init(app: AppState, configWarning: String?) {
         self.app = app
@@ -95,7 +96,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         splitView.dividerStyle = .thin
         split.splitView = splitView
 
-        var actions = SidebarActions(addProject: {}, newTask: { _ in }, renameTask: { _ in }, renameProject: { _ in }, toggleCollapsed: {})
+        var actions = SidebarActions(addProject: {}, newTask: { _ in }, renameTask: { _ in }, renameProject: { _ in },
+                                     toggleCollapsed: {}, openSettings: {})
         let sidebarHost = NSHostingController(rootView: AnyView(EmptyView()))
         sidebarHost.sizingOptions = []
         // Plain item: a `sidebar` item on macOS 26 floats over the content (Liquid Glass), not a full-height column.
@@ -117,16 +119,22 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             addProject: { [weak self] in self?.chooseProject() },
             newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
             renameTask: { [weak self] task in
-                self?.askName("Переименовать задачу", current: task.name) { self?.app.rename(taskId: task.id, to: $0) }
+                self?.askName(L10n.renameTask, current: task.name) { self?.app.rename(taskId: task.id, to: $0) }
             },
             renameProject: { [weak self] project in
-                self?.askName("Переименовать проект", current: project.name) { self?.app.rename(projectId: project.id, to: $0) }
+                self?.askName(L10n.renameProject, current: project.name) { self?.app.rename(projectId: project.id, to: $0) }
             },
-            toggleCollapsed: { [weak self] in self?.toggleSidebar() })
+            toggleCollapsed: { [weak self] in self?.toggleSidebar() },
+            openSettings: { [weak self] in self?.showSettings(nil) })
         sidebarHost.rootView = AnyView(SidebarView(app: app, actions: actions))
         splitView.onDragEnd = { [weak self] in self?.sidebarDragEnded() }
 
         app.didChange = { [weak self] in self?.column.terminalArea.sync() }
+        app.languageDidChange = { [weak self] in
+            self?.installMainMenu()
+            self?.settings.updateTitle()
+        }
+        installMainMenu()
         installKeyMonitor()
         #if DEBUG
         installDebugHooks()
@@ -244,7 +252,40 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProject()
+        case .settings: showSettings(nil)
         }
+    }
+
+    @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
+
+    /// Rebuilt on every language switch (menus keep the titles they were built with).
+    /// Quit plus a standard Edit menu, so text fields (new-task sheet, rename) get copy/paste/undo.
+    private func installMainMenu() {
+        let main = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        let settingsItem = appMenu.addItem(withTitle: L10n.settingsEllipsis, action: #selector(showSettings(_:)), keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: L10n.menuHide, action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: L10n.menuQuit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: L10n.menuEdit)
+        edit.addItem(withTitle: L10n.undo, action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: L10n.redo, action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: L10n.cut, action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: L10n.copy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: L10n.paste, action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: L10n.selectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        main.addItem(editItem)
+        NSApp.mainMenu = main
     }
 
     // MARK: Projects, tasks
@@ -255,7 +296,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Добавить проект"
+        panel.prompt = L10n.addProject
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
             MainActor.assumeIsolated { self?.app.addProject(path: url.path) }
@@ -295,8 +336,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let field = NSTextField(string: current)
         field.frame = NSRect(x: 0, y: 0, width: Theme.renameFieldWidth, height: field.intrinsicContentSize.height)
         alert.accessoryView = field
-        alert.addButton(withTitle: "Переименовать")
-        alert.addButton(withTitle: "Отмена")
+        alert.addButton(withTitle: L10n.rename)
+        alert.addButton(withTitle: L10n.cancel)
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
@@ -308,8 +349,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Конфиг Hangar не применён"
-        alert.informativeText = "\(text)\nИспользуются значения по умолчанию."
+        alert.messageText = L10n.configNotApplied
+        alert.informativeText = "\(text)\n\(L10n.usingDefaults)"
         alert.addButton(withTitle: "OK")
         alert.beginSheetModal(for: window)
     }
@@ -355,12 +396,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
-            guard let view = (window?.attachedSheet ?? window)?.contentView,
+            let target = arg.contains("settings") ? settings.window : (window?.attachedSheet ?? window)
+            guard let view = target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "sheet": presentNewTask(projectId: nil)
+        case "settings": showSettings(nil)
+        case "lang":
+            if let lang = Language(rawValue: arg) {
+                do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }
+            }
+            uiLog.info("l10n bundle=\(L10n.resources.bundlePath, privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) tabs=\(t.tabs.map { app.tabLabel($0) }) active=\(t.activeTabId == nil ? "-" : "set")"

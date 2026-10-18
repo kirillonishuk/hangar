@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 swift build -c release
-BIN="$(swift build -c release --show-bin-path)/HangarApp"
+BIN_DIR="$(swift build -c release --show-bin-path)"
+BIN="$BIN_DIR/HangarApp"
 
 APP=build/Hangar.app
 rm -rf "$APP"
@@ -16,6 +17,8 @@ SHARE=vendor/ghostty-src/zig-out/share
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
 cp -R Resources/Icons "$APP/Contents/Resources/Icons"
+# SwiftPM resources (ru/en strings); L10n looks in Contents/Resources first.
+cp -R "$BIN_DIR/Hangar_HangarUI.bundle" "$APP/Contents/Resources/Hangar_HangarUI.bundle"
 
 codesign --force -s - "$APP"
 echo "Built $APP"

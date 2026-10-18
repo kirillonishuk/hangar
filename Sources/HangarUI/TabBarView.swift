@@ -26,7 +26,7 @@ struct TitleBarView: View {
                     IconView(icon: .sidebarRight, active: app.state.inspectorVisible).padding(Theme.railInset + 2)
                 }
                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                .help("Инспектор ⌘⌥I")
+                .help(L10n.inspectorHelp)
                 .padding(.trailing, Theme.tabTitleTrailing)
             }
         }
@@ -81,7 +81,7 @@ struct TabBarView: View {
         .background(RoundedRectangle(cornerRadius: Theme.tabRadius).fill(plusHover ? Theme.ui.hover : .clear))
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { plusHover = h } }
         .padding(.bottom, Theme.railInset)
-        .help("Новая вкладка")
+        .help(L10n.newTabHelp)
     }
 
     private func item(_ title: String, _ kind: LeafKind) -> some View {
@@ -117,7 +117,7 @@ private struct TabItem: View {
                 .buttonStyle(.plain)
                 .opacity(hover ? Theme.closeOpacity : 0)
                 .padding(.leading, Theme.statusDot)
-                .help("Закрыть вкладку ⌘W")
+                .help(L10n.closeTabHelp)
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)

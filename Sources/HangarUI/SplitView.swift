@@ -104,9 +104,9 @@ final class RatioSplitView: HangarSplitView {
             self.spec = spec
             launch(spec)
         } catch LaunchError.missingCwd(let path) {
-            setBar("папка не найдена: \(path)")
+            setBar(L10n.folderMissing(path))
         } catch {
-            setBar("не удалось запустить: \(error)")
+            setBar(L10n.launchFailed(String(describing: error)))
         }
     }
 
@@ -124,15 +124,14 @@ final class RatioSplitView: HangarSplitView {
         failed = !view.isAlive
         if failed {
             uiLog.error("terminal not created leaf=\(self.leafId.uuidString.prefix(8), privacy: .public)")
-            setBar("не удалось создать терминал · ↩ повторить")
+            setBar(L10n.terminalCreateFailed)
         }
     }
 
     private func childExited(_ code: Int32) {
         if code == 0 { onExit?(0); return }
         exitCode = code
-        setBar(code == -1 ? "процесс завершился · ↩ перезапустить"
-                          : "процесс завершился с кодом \(code) · ↩ перезапустить")
+        setBar("\(code == -1 ? L10n.exited : L10n.exitedWithCode(code)) · \(L10n.relaunchHint)")
         onExit?(code)
     }
 
@@ -147,7 +146,17 @@ final class RatioSplitView: HangarSplitView {
         onRelaunch?()
     }
 
-    private func setBar(_ text: String?) {
+    /// Kept as a closure so a language switch can re-render the visible message (`refreshText`).
+    private var barText: () -> String? = { nil }
+
+    private func setBar(_ text: @autoclosure @escaping () -> String?) {
+        barText = text
+        refreshText()
+    }
+
+    func refreshText() {
+        let text = barText()
+        guard text != (bar.isHidden ? nil : bar.stringValue) else { return }
         bar.stringValue = text ?? ""
         bar.isHidden = text == nil
         barLine.isHidden = text == nil
@@ -277,13 +286,14 @@ final class RatioSplitView: HangarSplitView {
                     uiLog.info("setVisible(\(visible)) leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public)")
                 }
                 view.setHeader(app.title(of: leaf))
+                view.refreshText()
             }
         }
 
         placeholder.isHidden = active != nil
         placeholder.stringValue = app.selectedTask == nil
-            ? (state.projects.isEmpty ? "Добавьте проект: «+» у заголовка «ПРОЕКТЫ» или ⌘⇧N" : "Выберите задачу или создайте новую — ⌘N")
-            : "Нет вкладок — ⌘T или + в полосе вкладок"
+            ? (state.projects.isEmpty ? L10n.emptyNoProjects : L10n.emptyNoTask)
+            : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
         if active?.id != shownTab || active?.focusedLeafId != shownFocus {

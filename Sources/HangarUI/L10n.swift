@@ -23,20 +23,32 @@ import Workspace
         return preferred.first.map { Locale(identifier: $0).language.languageCode?.identifier == "ru" } == true ? .ru : .en
     }
 
-    /// In the .app the resources sit in Contents/Resources (bundle.sh); SwiftPM's `Bundle.module` only looks
-    /// next to the .app (unsealed, breaks codesign) or in .build, so check Resources first.
-    nonisolated static let resources: Bundle = {
-        if let url = Bundle.main.resourceURL?.appendingPathComponent("Hangar_HangarUI.bundle"), let bundle = Bundle(url: url) {
-            return bundle
-        }
-        return Bundle.module
+    /// SwiftPM's generated `Bundle.module` fatalErrors when the bundle is missing, so it is never used: look in
+    /// Contents/Resources (bundle.sh), next to the executable (`swift run`), and in DEBUG next to the test
+    /// bundle in .build. Nothing found → strings fall back to their key names instead of crashing.
+    nonisolated static let resources: Bundle? = {
+        var dirs = [Bundle.main.resourceURL, Bundle.main.bundleURL]
+        #if DEBUG
+        dirs.append(Bundle(for: BundleMarker.self).bundleURL.deletingLastPathComponent())
+        #endif
+        return findResources(in: dirs)
     }()
+    private final class BundleMarker {}
+
+    nonisolated static func findResources(in dirs: [URL?]) -> Bundle? {
+        for case let dir? in dirs {
+            if let bundle = Bundle(url: dir.appendingPathComponent("Hangar_HangarUI.bundle")) { return bundle }
+        }
+        return nil
+    }
+
+    nonisolated private static func lproj(_ lang: Language, in resources: Bundle?) -> Bundle? {
+        resources?.url(forResource: lang.rawValue, withExtension: "lproj").flatMap(Bundle.init(url:))
+    }
 
     nonisolated private static let lprojBundles: [Language: Bundle] = {
         var out: [Language: Bundle] = [:]
-        for lang in [Language.ru, .en] {
-            if let url = resources.url(forResource: lang.rawValue, withExtension: "lproj"), let b = Bundle(url: url) { out[lang] = b }
-        }
+        for lang in [Language.ru, .en] { out[lang] = lproj(lang, in: resources) }
         return out
     }()
 
@@ -46,16 +58,19 @@ import Workspace
         return NSDictionary(contentsOf: url) as? [String: String]
     }
 
-    static func s(_ key: Key) -> String {
-        let lang = resolve(language)
-        return lprojBundles[lang]?.localizedString(forKey: key.rawValue, value: nil, table: nil) ?? key.rawValue
+    /// `key` in `lang` from `resources`; the key name when the bundle or the key is missing.
+    nonisolated static func lookup(_ key: Key, _ lang: Language, in resources: Bundle?) -> String {
+        let bundle = resources === Self.resources ? lprojBundles[lang] : lproj(lang, in: resources)
+        return bundle?.localizedString(forKey: key.rawValue, value: key.rawValue, table: nil) ?? key.rawValue
     }
+
+    static func s(_ key: Key) -> String { lookup(key, resolve(language), in: resources) }
 
     private static func f(_ key: Key, _ args: CVarArg...) -> String {
         String(format: s(key), locale: Locale(identifier: resolve(language).rawValue), arguments: args)
     }
 
-    enum Key: String, CaseIterable {
+    nonisolated enum Key: String, CaseIterable, Sendable {
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, renameEllipsis, rename
         case renameTask, renameProject, pin, unpin, archive, folderMissing

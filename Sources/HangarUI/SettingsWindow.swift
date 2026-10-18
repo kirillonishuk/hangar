@@ -3,21 +3,22 @@ import SwiftUI
 import Workspace
 
 /// ⌘, / gear in the sidebar: one card of "label → value" rows (sheet style of new-task-v4), width 520.
-@MainActor final class SettingsWindowController: NSWindowController {
-    private let app: AppState
+@MainActor final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    let model: SettingsModel
 
     init(app: AppState) {
-        self.app = app
+        model = SettingsModel(app: app)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.settingsWidth, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.backgroundColor = Theme.sheet
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
-        let host = NSHostingController(rootView: SettingsView(app: app))
+        let host = NSHostingController(rootView: SettingsView(model: model))
         host.sizingOptions = [.preferredContentSize]
         window.contentViewController = host
         super.init(window: window)
+        window.delegate = self
         updateTitle()
     }
 
@@ -31,14 +32,42 @@ import Workspace
             let p = parent.frame
             window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.maxY - window.frame.height - Theme.settingsTopOffset))
         }
+        model.externalEditor = model.app.config.externalEditor ?? ""
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// The external-editor field saves on ↩ / focus loss; closing the window must not drop a typed value.
+    func windowWillClose(_ notification: Notification) { model.commitExternalEditor() }
+}
+
+/// Settings state shared by the view and its window (draft of the text field, last write error).
+@MainActor @Observable final class SettingsModel {
+    let app: AppState
+    var externalEditor = ""
+    var error: String?
+
+    init(app: AppState) { self.app = app }
+
+    func commitExternalEditor() {
+        let value = externalEditor.trimmingCharacters(in: .whitespaces)
+        guard value != (app.config.externalEditor ?? "") else { return }
+        save { try app.setConfig("external_editor", value) { $0.externalEditor = value.isEmpty ? nil : value } }
+    }
+
+    func save(_ change: () throws -> Void) {
+        do {
+            try change()
+            error = nil
+        } catch {
+            uiLog.error("config write failed: \(String(describing: error), privacy: .public)")
+            self.error = L10n.saveFailed(error.localizedDescription)
+        }
     }
 }
 
 struct SettingsView: View {
-    let app: AppState
-    @State private var externalEditor = ""
-    @State private var error: String?
+    @Bindable var model: SettingsModel
+    private var app: AppState { model.app }
     @FocusState private var editingExternal: Bool
 
     var body: some View {
@@ -61,14 +90,14 @@ struct SettingsView: View {
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                 }
                 row(L10n.externalEditor) {
-                    TextField("", text: $externalEditor,
+                    TextField("", text: $model.externalEditor,
                               prompt: Text(L10n.externalEditorPlaceholder).foregroundStyle(Theme.ui.text3))
                         .textFieldStyle(.plain)
                         .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
                         .focused($editingExternal)
-                        .onSubmit(saveExternalEditor)
-                        .onChange(of: editingExternal) { _, focused in if !focused { saveExternalEditor() } }
+                        .onSubmit(model.commitExternalEditor)
+                        .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                 }
                 row(L10n.terminalBackground) {
                     Segment(selection: app.config.terminalBackground, options: [(.hangar, "Hangar"), (.theme, L10n.backgroundTheme)]) { bg in
@@ -79,7 +108,7 @@ struct SettingsView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
 
             HStack(spacing: 0) {
-                if let error {
+                if let error = model.error {
                     Text(error).foregroundStyle(Theme.ui.failed).lineLimit(2)
                 } else if app.config.terminalBackground != app.launchTerminalBackground {
                     // Ghostty reads its background once at start.
@@ -98,7 +127,6 @@ struct SettingsView: View {
         .frame(width: Theme.settingsWidth)
         .font(.system(size: Theme.fontSize.sheetRow))
         .background(Theme.ui.sheet)
-        .onAppear { externalEditor = app.config.externalEditor ?? "" }
     }
 
     /// hx / nvim, plus the configured editor when it is something else.
@@ -107,21 +135,7 @@ struct SettingsView: View {
         return base.contains(app.config.editor) ? base : base + [app.config.editor]
     }
 
-    private func saveExternalEditor() {
-        let value = externalEditor.trimmingCharacters(in: .whitespaces)
-        guard value != (app.config.externalEditor ?? "") else { return }
-        save { try app.setConfig("external_editor", value) { $0.externalEditor = value.isEmpty ? nil : value } }
-    }
-
-    private func save(_ change: () throws -> Void) {
-        do {
-            try change()
-            error = nil
-        } catch {
-            uiLog.error("config write failed: \(String(describing: error), privacy: .public)")
-            self.error = L10n.saveFailed(error.localizedDescription)
-        }
-    }
+    private func save(_ change: () throws -> Void) { model.save(change) }
 
     private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
         HStack(spacing: Theme.cardRowGap) {

@@ -118,4 +118,39 @@ import Testing
         try HangarConfig.save(key: "editor", value: "nvim", to: url)
         #expect(try String(contentsOf: url, encoding: .utf8) == "# keep\neditor = \"nvim\"\n")
     }
+
+    @Test func crlfPreserved() {
+        let text = "# c\r\neditor = \"hx\"\r\n\r\n[agents]\r\nclaude = \"x\"\r\n"
+        #expect(HangarConfig.updating(text, key: "editor", value: "nvim")
+            == "# c\r\neditor = \"nvim\"\r\n\r\n[agents]\r\nclaude = \"x\"\r\n")
+        #expect(HangarConfig.updating(text, key: "language", value: "en")
+            == "# c\r\neditor = \"hx\"\r\nlanguage = \"en\"\r\n\r\n[agents]\r\nclaude = \"x\"\r\n")
+        // Last line without a terminator gets the file's ending before the appended key.
+        #expect(HangarConfig.updating("# c\r\neditor = \"hx\"", key: "language", value: "en")
+            == "# c\r\neditor = \"hx\"\r\nlanguage = \"en\"")
+    }
+
+    @Test func hashInsideQuotesKept() {
+        #expect(HangarConfig.updating(#"editor = "a#b"  # mine"#, key: "editor", value: "nvim") == #"editor = "nvim"  # mine"#)
+        #expect(HangarConfig.updating(#"editor = "a#b""#, key: "editor", value: "nvim") == #"editor = "nvim""#)
+        #expect(HangarConfig.updating("editor = 'a#b'  # mine", key: "editor", value: "nvim") == #"editor = "nvim"  # mine"#)
+    }
+
+    @Test func commentKeptForUnquotedValue() {
+        #expect(HangarConfig.updating("editor = hx   # mine", key: "editor", value: "nvim") == #"editor = "nvim"   # mine"#)
+        #expect(HangarConfig.updating("editor = hx", key: "editor", value: "nvim") == #"editor = "nvim""#)
+    }
+
+    @Test func permissionsPreserved() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("hangar-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("config.toml")
+        try "editor = \"hx\"\n".write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try HangarConfig.save(key: "language", value: "en", to: url)
+        let perms = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
+        #expect(perms == 0o600)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "editor = \"hx\"\nlanguage = \"en\"\n")
+    }
 }

@@ -5,20 +5,26 @@ extension HangarConfig {
     /// Sets root key `key = "value"`, touching only that line (its trailing comment is kept). A missing key is
     /// added after the last non-blank line of the root section, i.e. before the first `[section]`.
     public static func updating(_ text: String, key: String, value: String) -> String {
+        // Lines keep their own "\r" (CRLF files); edited and inserted lines get the file's ending.
         var lines = text.components(separatedBy: "\n")
+        let cr = text.contains("\r\n") ? "\r" : ""
         let assignment = "\(key) = \"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
         var lastRootLine: Int?
         for (i, raw) in lines.enumerated() {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+            let ending = raw.hasSuffix("\r") ? "\r" : ""
+            let line = (ending.isEmpty ? Substring(raw) : raw.dropLast()).trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("[") { break }
             if line.isEmpty { continue }
             lastRootLine = i
             guard !line.hasPrefix("#"), let eq = line.firstIndex(of: "="),
                   line[..<eq].trimmingCharacters(in: .whitespaces) == key else { continue }
-            lines[i] = assignment + trailingComment(line[line.index(after: eq)...])
+            lines[i] = assignment + trailingComment(line[line.index(after: eq)...]) + ending
             return lines.joined(separator: "\n")
         }
-        lines.insert(assignment, at: lastRootLine.map { $0 + 1 } ?? 0)
+        let at = lastRootLine.map { $0 + 1 } ?? 0
+        // Appending after a last line that has no terminator: give it the file's ending first.
+        if at > 0, !cr.isEmpty, !lines[at - 1].hasSuffix("\r") { lines[at - 1] += cr }
+        lines.insert(assignment + (at < lines.count ? cr : ""), at: at)
         return lines.joined(separator: "\n")
     }
 
@@ -31,15 +37,23 @@ extension HangarConfig {
         try Data(updating(text, key: key, value: value).utf8).write(to: target, options: .atomic)
     }
 
-    /// `   # comment` after the closing quote of a `"..."` value (with its leading spaces), or "".
+    /// The `   # comment` (with its leading spaces) after the old value, or "". A `#` inside a `"..."` (escapes)
+    /// or `'...'` value is part of the value; an unquoted value ends at the first `#`.
     private static func trailingComment(_ s: Substring) -> String {
         var rest = s.drop { $0 == " " || $0 == "\t" }
-        guard rest.first == "\"" else { return "" }
-        rest = rest.dropFirst()
-        var escaped = false
-        while let c = rest.first {
+        if let quote = rest.first, quote == "\"" || quote == "'" {
             rest = rest.dropFirst()
-            if escaped { escaped = false } else if c == "\\" { escaped = true } else if c == "\"" { break }
+            var escaped = false
+            while let c = rest.first {
+                rest = rest.dropFirst()
+                if escaped { escaped = false } else if quote == "\"", c == "\\" { escaped = true } else if c == quote { break }
+            }
+        } else {
+            guard let hash = rest.firstIndex(of: "#") else { return "" }
+            rest = rest[hash...]
+            let value = s.drop { $0 == " " || $0 == "\t" }
+            let spaces = value[..<hash].reversed().prefix { $0 == " " || $0 == "\t" }
+            return String(spaces.reversed()) + rest
         }
         return rest.trimmingCharacters(in: .whitespaces).hasPrefix("#") ? String(rest) : ""
     }

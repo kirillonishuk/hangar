@@ -29,4 +29,13 @@ import Workspace
         #expect(L10n.resolve(.system, preferred: []) == .en)
         #expect(L10n.resolve(.ru, preferred: ["en"]) == .ru)
     }
+
+    @Test func missingBundleReturnsKeys() {
+        let bogus = L10n.findResources(in: [URL(fileURLWithPath: "/nonexistent/hangar")])
+        #expect(bogus == nil)
+        #expect(L10n.lookup(.sectionPinned, .ru, in: bogus) == "sectionPinned")
+        #expect(L10n.lookup(.exitedWithCode, .en, in: bogus) == "exitedWithCode")
+        // The real search finds the bundle without touching SwiftPM's fatalError-ing Bundle.module.
+        #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "PINNED")
+    }
 }

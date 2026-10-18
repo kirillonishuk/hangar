@@ -412,11 +412,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "sheet": presentNewTask(projectId: nil)
         case "settings": showSettings(nil)
+        case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
+        case "closeSettings": settings.window?.performClose(nil)
         case "lang":
             if let lang = Language(rawValue: arg) {
                 do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }
             }
-            uiLog.info("l10n bundle=\(L10n.resources.bundlePath, privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
+            uiLog.info("l10n bundle=\(L10n.resources?.bundlePath ?? "-", privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) tabs=\(t.tabs.map { app.tabLabel($0) }) active=\(t.activeTabId == nil ? "-" : "set")"

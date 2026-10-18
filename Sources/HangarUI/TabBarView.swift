@@ -82,6 +82,7 @@ struct TabBarView: View {
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingV)
         .background(RoundedRectangle(cornerRadius: Theme.tabRadius).fill(plusHover ? Theme.ui.hover : .clear))
+        .pointingHand()
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { plusHover = h } }
         .padding(.bottom, Theme.railInset)
         .help(L10n.newTabHelp)
@@ -125,6 +126,7 @@ private struct TabItem: View {
             }
             Button { app.closeTab(tab.id) } label: { IconView(icon: .close, active: active, size: Theme.smallIconSize) }
                 .buttonStyle(.plain)
+                .pointingHand()
                 .opacity(hover ? Theme.closeOpacity : 0)
                 .padding(.leading, Theme.statusDot)
                 .help(L10n.closeTabHelp)
@@ -144,6 +146,7 @@ private struct TabItem: View {
             if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { Action.rename.perform(target, ctx) }
         }
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+        .pointingHand(app.renaming != target)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
     }

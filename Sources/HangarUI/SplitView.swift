@@ -161,6 +161,12 @@ final class RatioSplitView: HangarSplitView {
         bar.isHidden = text == nil
         barLine.isHidden = text == nil
         needsLayout = true
+        window?.invalidateCursorRects(for: self)
+    }
+
+    /// The ↩ bar of an exited/failed leaf is clickable (relaunch).
+    override func resetCursorRects() {
+        if !bar.isHidden, needsRelaunch { addCursorRect(bar.frame.union(barLine.frame), cursor: .pointingHand) }
     }
 
     override var isFlipped: Bool { true }
@@ -192,6 +198,7 @@ final class RatioSplitView: HangarSplitView {
             bar.frame = NSRect(x: px, y: bottom + (h - th) / 2, width: max(0, bounds.width - 2 * px), height: th)
         }
         surface?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
+        window?.invalidateCursorRects(for: self)
     }
 }
 

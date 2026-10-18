@@ -93,5 +93,6 @@ struct SheetButton: ButtonStyle {
             .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
                 .fill(primary ? Theme.ui.primary : Theme.ui.button))
             .opacity(configuration.isPressed ? Theme.pressedOpacity : 1)
+            .pointingHand()
     }
 }

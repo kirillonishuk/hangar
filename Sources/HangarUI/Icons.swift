@@ -156,6 +156,7 @@ struct HoverButtonStyle: ButtonStyle {
             label
                 .contentShape(Rectangle())
                 .background(RoundedRectangle(cornerRadius: radius).fill(fill))
+                .pointingHand()
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
                 .animation(Motion.ease(Theme.selectionFade), value: selected)
         }
@@ -188,6 +189,7 @@ struct HoverRow<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(fill)
+            .pointingHand(action != nil || doubleAction != nil)
             .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
             // Global space: the dragged row is offset while dragging, local translations would feed back.
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
@@ -215,5 +217,37 @@ struct HoverRow<Content: View>: View {
         if selected { return Theme.ui.selection }
         if pressed { return Theme.ui.pressed }
         return hover ? Theme.ui.hover : .clear
+    }
+}
+
+extension View {
+    /// Pointing hand over everything clickable (DESIGN.md «Курсор»); text fields, terminals and dividers keep theirs.
+    func pointingHand(_ enabled: Bool = true) -> some View { modifier(PointingHand(enabled: enabled)) }
+
+    /// I-beam inside a clickable (pointing-hand) row, e.g. the inline rename field.
+    @ViewBuilder func textCursor() -> some View {
+        if #available(macOS 15, *) { pointerStyle(.horizontalText) } else { self }
+    }
+}
+
+private struct PointingHand: ViewModifier {
+    let enabled: Bool
+    @State private var pushed = false
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.pointerStyle(enabled ? .link : nil)
+        } else {
+            // Balanced push/pop; a view that disappears mid-hover pops, so the cursor never sticks.
+            content
+                .onHover { inside in set(inside && enabled) }
+                .onDisappear { set(false) }
+        }
+    }
+
+    private func set(_ on: Bool) {
+        guard on != pushed else { return }
+        pushed = on
+        if on { NSCursor.pointingHand.push() } else { NSCursor.pop() }
     }
 }

@@ -261,6 +261,7 @@ struct SidebarView: View {
                             IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
                         }
                         .buttonStyle(.plain)
+                        .pointingHand()
                         .help(task.pinned ? L10n.unpin : L10n.pin)
                     }
                 }
@@ -339,6 +340,7 @@ struct SidebarView: View {
                             .menuStyle(.borderlessButton)
                             .menuIndicator(.hidden)
                             .fixedSize()
+                            .pointingHand()
                             .help(L10n.more)
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
@@ -379,6 +381,7 @@ private struct MoreMenu: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        .pointingHand()
         .help(L10n.more)
     }
 }

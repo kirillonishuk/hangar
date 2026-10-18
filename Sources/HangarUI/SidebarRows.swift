@@ -90,6 +90,7 @@ struct FilledRowStyle: ButtonStyle {
                     }
                 }
                 .contentShape(Rectangle())
+                .pointingHand()
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }
     }

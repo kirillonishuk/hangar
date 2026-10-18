@@ -170,6 +170,7 @@ private struct Segment<Value: Equatable>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pointingHand(!on)
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

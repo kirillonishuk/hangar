@@ -19,6 +19,7 @@ struct RenameField: View {
             .textFieldStyle(.plain)
             .foregroundStyle(Theme.ui.textStrong)
             .lineLimit(1)
+            .textCursor()
             .focused($focused)
             .onSubmit { finish(save: true) }
             .onExitCommand { finish(save: false) }

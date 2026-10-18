@@ -102,8 +102,10 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     // MARK: Actions
 
-    func addProject(path: String) {
-        perform { $0.addProject(name: (path as NSString).lastPathComponent, path: path) }
+    @discardableResult func addProject(path: String) -> UUID {
+        var id = UUID()
+        perform { id = $0.addProject(name: (path as NSString).lastPathComponent, path: path) }
+        return id
     }
 
     func createTask(projectId: UUID, name: String, firstMessage: String) {

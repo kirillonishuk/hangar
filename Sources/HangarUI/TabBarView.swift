@@ -23,7 +23,8 @@ struct TitleBarView: View {
             HStack {
                 Spacer()
                 Button { app.perform { $0.inspectorVisible.toggle() } } label: {
-                    IconView(icon: .sidebarRight, active: app.state.inspectorVisible).padding(Theme.railInset + 2)
+                    IconView(icon: .sidebarRight, active: app.state.inspectorVisible)
+                        .frame(width: Theme.titleButtonSize, height: Theme.titleButtonSize)
                 }
                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                 .help(L10n.inspectorHelp)

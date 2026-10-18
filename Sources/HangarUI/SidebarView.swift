@@ -59,66 +59,6 @@ private func folderExists(_ path: String) -> Bool {
     return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
 }
 
-/// One sidebar row. The marker (dot/icon) sits at `Theme.gutterMarkerX` in both expanded and rail mode;
-/// collapsing only cross-fades the labels, so nothing moves (only the sidebar width animates).
-private struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
-    let collapsed: Bool
-    var height = Theme.railRowHeight
-    var textX = Theme.gutterTextX
-    @ViewBuilder var marker: Marker
-    @ViewBuilder var expanded: Expanded
-    @ViewBuilder var rail: Rail
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            marker
-                .frame(width: Theme.iconSize, height: Theme.iconSize)
-                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2)
-            rail
-                .padding(.leading, Theme.railTextX)
-                .opacity(collapsed ? 1 : 0)
-            expanded
-                .padding(.leading, textX)
-                .padding(.trailing, Theme.rowPaddingH)
-                .opacity(collapsed ? 0 : 1)
-        }
-        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
-        .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
-    }
-}
-
-/// Section header (caps, `text3`, 11): fades out in rail mode but keeps its height so rows don't jump.
-private struct SectionHeader: View {
-    let title: String
-    let collapsed: Bool
-    var plusHelp = ""
-    var plus: (() -> Void)?
-
-    var body: some View {
-        HoverRow { hover in
-            HStack(spacing: 0) {
-                Text(title).tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
-                Spacer(minLength: 0)
-                if let plus {
-                    Button(action: plus) { IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset) }
-                        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                        .opacity(hover ? 1 : 0)
-                        .help(plusHelp)
-                }
-            }
-            .font(.system(size: Theme.fontSize.small))
-            .foregroundStyle(Theme.ui.text3)
-            .padding(.leading, Theme.sectionTextX)
-            .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
-            .frame(height: Theme.projectRowHeight)
-            .opacity(collapsed ? 0 : 1)
-            .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
-        }
-        .allowsHitTesting(!collapsed)
-        .padding(.top, Theme.sectionGap)
-    }
-}
-
 struct SidebarView: View {
     let app: AppState
     let actions: SidebarActions
@@ -150,7 +90,7 @@ struct SidebarView: View {
             .frame(width: geo.size.width, alignment: .leading)
             .clipped()
         }
-        .font(.system(size: Theme.fontSize.base))
+        .font(.system(size: Theme.fontSize.sidebarRow))
         .background(Theme.ui.sidebar)
         .ignoresSafeArea()
     }
@@ -188,7 +128,8 @@ struct SidebarView: View {
     // MARK: Projects
 
     @ViewBuilder private var projectsSection: some View {
-        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject, plus: actions.addProject)
+        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject,
+                      plusAlwaysVisible: app.state.projects.isEmpty, plus: actions.addProject)
         ForEach(app.state.projects) { project in
             projectRow(project)
             if !project.collapsed {
@@ -206,7 +147,7 @@ struct SidebarView: View {
                         .frame(width: Theme.smallIconSize)
                         .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
                     Text(project.name)
-                        .font(.system(size: Theme.fontSize.row, weight: .semibold))
+                        .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
                         .foregroundStyle(Theme.ui.text)
                         .lineLimit(1)
                         .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
@@ -270,7 +211,7 @@ struct SidebarView: View {
                     .lineLimit(1)
                     .fixedSize()
             }
-            .font(.system(size: Theme.fontSize.row))
+            .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
         }
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
@@ -288,12 +229,12 @@ struct SidebarView: View {
                         IconView(icon: .archive)
                     } expanded: {
                         HStack(spacing: Theme.railInset * 1.5) {
-                            Text(L10n.sectionArchived).tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
+                            Text(L10n.sectionArchived).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                             Text("\(archived.count)").font(.system(size: Theme.fontSize.counter))
                             Spacer(minLength: 0)
                             IconView(icon: archiveOpen ? .chevronDown : .chevronRight, size: Theme.smallIconSize)
                         }
-                        .font(.system(size: Theme.fontSize.small))
+                        .font(.system(size: Theme.fontSize.section, weight: .semibold))
                         .foregroundStyle(Theme.ui.text3)
                     } rail: { EmptyView() }
                 }
@@ -305,7 +246,7 @@ struct SidebarView: View {
                                     Text(task.name).lineLimit(1)
                                     Text(app.project(task.projectId)?.name ?? "").lineLimit(1).foregroundStyle(Theme.ui.text3)
                                 }
-                                .font(.system(size: Theme.fontSize.row))
+                                .font(.system(size: Theme.fontSize.sidebarRow))
                                 .foregroundStyle(Theme.ui.text2)
                             } rail: { EmptyView() }
                         }
@@ -341,7 +282,7 @@ struct SidebarView: View {
                             .fixedSize()
                             .help(L10n.more)
                     }
-                    .font(.system(size: Theme.fontSize.footer))
+                    .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
@@ -355,7 +296,7 @@ struct SidebarView: View {
                         Spacer(minLength: 0)
                         Text("⌘0")
                     }
-                    .font(.system(size: Theme.fontSize.footer))
+                    .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
@@ -364,33 +305,5 @@ struct SidebarView: View {
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
-    }
-}
-
-/// Fill follows the visible sidebar width (content is laid out wider and clipped in rail mode).
-private struct FilledRowStyle: ButtonStyle {
-    let width: CGFloat
-
-    func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, pressed: configuration.isPressed, width: width)
-    }
-
-    private struct Body<Label: View>: View {
-        let label: Label
-        let pressed: Bool
-        let width: CGFloat
-        @State private var hover = false
-
-        var body: some View {
-            label
-                .background(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: Theme.railItemRadius)
-                        .fill(Theme.ui.hoverStrong)
-                        .brightness(pressed ? -0.03 : hover ? 0.04 : 0)
-                        .frame(width: max(0, width))
-                        .padding(.leading, Theme.railInset)
-                }
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        }
     }
 }

@@ -130,6 +130,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         splitView.onDragEnd = { [weak self] in self?.sidebarDragEnded() }
 
         app.didChange = { [weak self] in self?.column.terminalArea.sync() }
+        column.terminalArea.onAddProject = { [weak self] in self?.chooseProject() }
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()
@@ -290,7 +291,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: Projects, tasks
 
-    private func chooseProject() {
+    /// `thenNewTask`: "+ Новая задача" with no projects — the new-task sheet follows the added project.
+    private func chooseProject(thenNewTask: Bool = false) {
         guard let window else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -299,14 +301,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         panel.prompt = L10n.addProject
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            MainActor.assumeIsolated { self?.app.addProject(path: url.path) }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let id = self.app.addProject(path: url.path)
+                // The open panel is still attached until this handler returns.
+                if thenNewTask { DispatchQueue.main.async { self.presentNewTask(projectId: id) } }
+            }
         }
     }
 
     private func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask?.projectId ?? app.state.projects.last?.id
-        guard let id, let project = app.project(id) else { chooseProject(); return }
+        guard let id, let project = app.project(id) else { chooseProject(thenNewTask: true); return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: 200),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
@@ -363,7 +370,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func installDebugHooks() {
         // The hook drives the UI (incl. typing into terminals): only for explicit verification runs.
         guard let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_PROJECT"] else { return }
-        if !app.state.projects.contains(where: { $0.path == path }) { app.addProject(path: path) }
+        // Empty path: hooks without a project (empty-state checks).
+        if !path.isEmpty, !app.state.projects.contains(where: { $0.path == path }) { app.addProject(path: path) }
         DistributedNotificationCenter.default().addObserver(forName: .init("dev.hangar.debug"), object: nil, queue: .main) { [weak self] note in
             let command = note.object as? String ?? ""
             MainActor.assumeIsolated { self?.debugCommand(command) }

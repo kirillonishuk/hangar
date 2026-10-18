@@ -67,7 +67,7 @@ import Workspace
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
-        case afterRestart, saveFailed, emptyNoProjects
+        case afterRestart, saveFailed
     }
 
     // Sidebar
@@ -117,7 +117,6 @@ import Workspace
     static var exited: String { s(.exited) }
     static func exitedWithCode(_ code: Int32) -> String { f(.exitedWithCode, code) }
     static var relaunchHint: String { s(.relaunchHint) }
-    static var emptyNoProjects: String { s(.emptyNoProjects) }
     static var emptyNoTask: String { s(.emptyNoTask) }
     static var emptyNoTabs: String { s(.emptyNoTabs) }
     public static var ghosttyFailed: String { s(.ghosttyFailed) }

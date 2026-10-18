@@ -206,16 +206,21 @@ final class RatioSplitView: HangarSplitView {
     private var shownTab: UUID?
     private var shownFocus: UUID?
     private let placeholder = NSTextField(labelWithString: "")
+    /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
+    private var emptyState = NSView()
+    var onAddProject: () -> Void = {}
 
     init(app: AppState) {
         self.app = app
         super.init(frame: .zero)
+        emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
         layer?.backgroundColor = Theme.panel.cgColor
         placeholder.font = .systemFont(ofSize: Theme.fontSize.base)
         placeholder.textColor = Theme.text3
         placeholder.alignment = .center
         addSubview(placeholder)
+        addSubview(emptyState)
         // One retry per display wake for surfaces that failed (typically created while the display slept).
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.retryFailedLeaves() }
@@ -232,6 +237,7 @@ final class RatioSplitView: HangarSplitView {
         super.layout()
         let h = placeholder.intrinsicContentSize.height
         placeholder.frame = NSRect(x: 0, y: (bounds.height - h) / 2, width: bounds.width, height: h)
+        emptyState.frame = bounds
     }
 
     var activeTab: Tab? {
@@ -290,10 +296,9 @@ final class RatioSplitView: HangarSplitView {
             }
         }
 
-        placeholder.isHidden = active != nil
-        placeholder.stringValue = app.selectedTask == nil
-            ? (state.projects.isEmpty ? L10n.emptyNoProjects : L10n.emptyNoTask)
-            : L10n.emptyNoTabs
+        emptyState.isHidden = !state.projects.isEmpty
+        placeholder.isHidden = active != nil || state.projects.isEmpty
+        placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
         if active?.id != shownTab || active?.focusedLeafId != shownFocus {

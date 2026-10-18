@@ -67,4 +67,3 @@
 "backgroundTheme" = "Тема Ghostty";
 "afterRestart" = "фон терминала сменится после перезапуска";
 "saveFailed" = "Не удалось сохранить config.toml: %@";
-"emptyNoProjects" = "Добавьте проект: «+» у заголовка «ПРОЕКТЫ» или ⌘⇧N";

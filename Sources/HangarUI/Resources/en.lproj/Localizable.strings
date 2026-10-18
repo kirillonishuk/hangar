@@ -67,4 +67,3 @@
 "backgroundTheme" = "Ghostty theme";
 "afterRestart" = "the terminal background changes after restart";
 "saveFailed" = "Couldn't save config.toml: %@";
-"emptyNoProjects" = "Add a project: «+» next to «PROJECTS» or ⌘⇧N";

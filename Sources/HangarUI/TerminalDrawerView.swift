@@ -201,7 +201,8 @@ import Workspace
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
             self?.sync()
         }
-        view.start { try app.spec(for: leaf, tabId: leaf.id) }  // HANGAR_TAB_ID = the drawer leaf's own stable id
+        // HANGAR_TAB_ID = the drawer leaf's own stable id
+        view.start(app.launchContext(for: leaf.id)) { [app] in try app.spec(for: leaf, tabId: leaf.id, context: $0) }
         uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=shell drawer task=\(taskId.uuidString.prefix(8), privacy: .public)")
     }
 

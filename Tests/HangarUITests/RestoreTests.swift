@@ -39,9 +39,8 @@ import Workspace
     private func state(_ leaves: [Leaf]) -> (WorkspaceState, [UUID]) {
         var s = WorkspaceState()
         let p = s.addProject(name: "p", path: "/tmp")
-        let t = s.addTask(projectId: p, name: "t")
+        s.addTask(projectId: p, name: "t")
         s.tasks[0].tabs = leaves.map { Tab(title: $0.kind.rawValue, root: .leaf($0), focusedLeafId: $0.id) }
-        _ = t
         return (s, leaves.map(\.id))
     }
 
@@ -86,5 +85,48 @@ import Workspace
         let set = resumeSet(for: s)
         #expect(set.contains(b.id))
         #expect(!set.contains(a.id))
+    }
+
+    private func app(_ s: WorkspaceState) -> AppState {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-restore-\(UUID())")
+        return AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
+                        configURL: dir.appendingPathComponent("c.toml"))
+    }
+
+    @Test func createdUsesPromptOnce() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let app = app(s)
+        app.createTask(projectId: p, name: "t", firstMessage: "  fix bug \n")
+        let leaf = app.state.tasks[0].tabs[0].root.leaves[0].id
+        #expect(app.launchContext(for: leaf) == .created(prompt: "fix bug"))
+        #expect(app.launchContext(for: leaf) == .created(prompt: nil))
+    }
+
+    @Test func restoredLeavesGetRestoredContext() {
+        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a")])
+        let app = app(s)
+        #expect(app.launchContext(for: ids[0]) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: ids[1]) == .restored(inResumeSet: false))
+        #expect(app.launchContext(for: UUID()) == .created(prompt: nil))
+    }
+
+    @Test func unarchiveResumesAgents() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let old = s.addTask(projectId: p, name: "old")
+        s.addTask(projectId: p, name: "live")
+        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a")
+        let c = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"), live = Leaf(kind: .claude, cwd: "/a")
+        s.tasks[0].tabs = [a, b, c].map { Tab(title: "claude", root: .leaf($0), focusedLeafId: $0.id) }
+        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(live), focusedLeafId: live.id)]
+        s.archiveTask(id: old)
+        let app = app(s)
+        #expect(app.launchContext(for: a.id) == .created(prompt: nil))  // archived at startup: not restored
+        app.restore(taskId: old)
+        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: b.id) == .restored(inResumeSet: false))
+        #expect(app.launchContext(for: c.id) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))
     }
 }

@@ -59,10 +59,12 @@ import Workspace
     }
 
     @Test func claudeResumesById() throws {
-        #expect(try inner(spec(leaf(.claude, id: "abc"))) == "claude --resume abc")
+        #expect(try inner(spec(leaf(.claude, id: "abc"), restoring: true)) == "claude --resume abc")
         #expect(try inner(spec(leaf(.claude), restoring: true)) == "claude --continue")
         #expect(try inner(spec(leaf(.claude))) == "claude")
-        #expect(try inner(spec(leaf(.claude, id: "abc"), prompt: "hi")) == "claude --resume abc")
+        #expect(try inner(spec(leaf(.claude, id: "abc"), restoring: true, prompt: "hi")) == "claude --resume abc")
+        // Fresh start (a failed resume fell back): the id is ignored.
+        #expect(try inner(spec(leaf(.claude, id: "abc"))) == "claude")
     }
 
     @Test func initialPromptIsArgument() throws {
@@ -71,7 +73,8 @@ import Workspace
     }
 
     @Test func codexResume() throws {
-        #expect(try inner(spec(leaf(.codex, id: "abc"))) == "codex resume abc")
+        #expect(try inner(spec(leaf(.codex, id: "abc"), restoring: true)) == "codex resume abc")
+        #expect(try inner(spec(leaf(.codex, id: "abc"))) == "codex")
         #expect(try inner(spec(leaf(.codex), restoring: true)) == "codex resume --last")
         #expect(try inner(spec(leaf(.codex))) == "codex")
     }
@@ -85,7 +88,7 @@ import Workspace
         #expect(shellQuote("it's") == #"'it'\''s'"#)
         #expect(shellQuote("") == "''")
         #expect(shellQuote("abc-1.2/x") == "abc-1.2/x")
-        #expect(try inner(spec(leaf(.claude, id: "a;b"))) == "claude --resume 'a;b'")
+        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --resume 'a;b'")
     }
 
     @Test func quotingRoundTripsThroughShellAndReportsExitCode() throws {
@@ -118,5 +121,50 @@ import Workspace
         #expect(sl.command.hasPrefix("/bin/zsh -l -i -c '"))
         #expect(sl.command.contains("/opt/homebrew/bin/fish -l -i"))
         #expect(try spec(leaf(.claude), shell: "/bin/bash").command.hasPrefix("/bin/bash -l -i -c '"))
+    }
+}
+
+/// One rule for how an agent leaf is (re)launched (decision #41).
+@Suite struct LaunchModeTests {
+    let claude = Leaf(kind: .claude, cwd: "/a")
+    let fresh = LaunchMode(restoring: false, initialPrompt: nil)
+    let resume = LaunchMode(restoring: true, initialPrompt: nil)
+
+    @Test func createdUsesPromptOnce() {
+        #expect(launchMode(for: claude, .created(prompt: "fix")) == LaunchMode(restoring: false, initialPrompt: "fix"))
+        #expect(launchMode(for: claude, .created(prompt: nil)) == fresh)
+    }
+
+    @Test func restoredFollowsResumeSet() {
+        #expect(launchMode(for: claude, .restored(inResumeSet: true)) == resume)
+        #expect(launchMode(for: claude, .restored(inResumeSet: false)) == fresh)
+    }
+
+    @Test func relaunchNeverResendsPrompt() {
+        let first = launchMode(for: claude, .created(prompt: "fix"))
+        let next = launchMode(for: claude, .relaunch(previous: first, exitCode: 1))
+        #expect(next.initialPrompt == nil)
+        #expect(launchMode(for: Leaf(kind: .codex, cwd: "/a"), .relaunch(previous: first, exitCode: 2)).initialPrompt == nil)
+    }
+
+    @Test func failedContinueFallsBackToFresh() {
+        #expect(launchMode(for: claude, .relaunch(previous: resume, exitCode: 1)) == fresh)
+        let withId = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")
+        #expect(launchMode(for: withId, .relaunch(previous: resume, exitCode: -1)) == fresh)
+        // The fallback then crashing resumes again: no endless fresh starts, no endless failed resumes.
+        #expect(launchMode(for: claude, .relaunch(previous: fresh, exitCode: 1)) == resume)
+    }
+
+    @Test func relaunchAfterCrashResumes() {
+        let first = LaunchMode(restoring: false, initialPrompt: "fix")
+        #expect(launchMode(for: claude, .relaunch(previous: first, exitCode: 137)) == resume)
+        let codex = Leaf(kind: .codex, cwd: "/a", agentSessionId: "x")
+        #expect(launchMode(for: codex, .relaunch(previous: fresh, exitCode: 1)) == resume)
+    }
+
+    @Test func surfaceNeverStartedRetriesSameLaunch() {
+        let first = LaunchMode(restoring: false, initialPrompt: "fix")
+        #expect(launchMode(for: claude, .relaunch(previous: first, exitCode: nil)) == first)
+        #expect(launchMode(for: claude, .relaunch(previous: resume, exitCode: nil)) == resume)
     }
 }

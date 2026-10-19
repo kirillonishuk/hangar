@@ -56,7 +56,9 @@ final class RatioSplitView: HangarSplitView {
 @MainActor final class LeafView: NSView {
     let leafId: UUID
     private(set) var surface: TerminalSurfaceView?
-    private var spec: LaunchSpec?
+    /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
+    private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
+    private var mode: LaunchMode?
     private let header = NSTextField(labelWithString: "")
     private let headerLine = NSView()
     private let bar = NSTextField(labelWithString: "")
@@ -99,16 +101,26 @@ final class RatioSplitView: HangarSplitView {
     func setHeader(_ text: String) { header.stringValue = text }
 
     /// Starts the surface; a launch error (missing folder) shows in the bar instead.
-    func start(_ make: () throws -> LaunchSpec) {
+    func start(_ context: LaunchContext, make: @escaping (LaunchContext) throws -> (LaunchSpec, LaunchMode)) {
+        self.make = make
+        _ = run(context)
+    }
+
+    /// False when the spec could not be built (the bar shows why).
+    private func run(_ context: LaunchContext) -> Bool {
+        guard let make else { return false }
         do {
-            let spec = try make()
-            self.spec = spec
+            let (spec, mode) = try make(context)
+            self.mode = mode
+            setBar(nil)
             launch(spec)
+            return true
         } catch LaunchError.missingCwd(let path) {
             setBar(L10n.folderMissing(path))
         } catch {
             setBar(L10n.launchFailed(String(describing: error)))
         }
+        return false
     }
 
     private func launch(_ spec: LaunchSpec) {
@@ -137,12 +149,14 @@ final class RatioSplitView: HangarSplitView {
         onExit?(code)
     }
 
-    /// ↩ on an exited or failed leaf: run the same spec again (`focus: false` for background retries).
+    /// ↩ on an exited or failed leaf: launch again with a mode computed for this relaunch (decision #41;
+    /// `focus: false` for background retries).
     func relaunch(focus: Bool = true) {
-        guard needsRelaunch, let spec else { return }
+        guard needsRelaunch, let mode else { return }
+        let code = failed ? nil : exitCode
         exitCode = nil
-        setBar(nil)
-        launch(spec)
+        failed = false
+        guard run(.relaunch(previous: mode, exitCode: code)) else { return }
         uiLog.info("relaunch leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if focus, !failed { window?.makeFirstResponder(surface) }
         onRelaunch?()
@@ -391,7 +405,7 @@ final class RatioSplitView: HangarSplitView {
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
                 self?.sync()
             }
-            view.start { try app.spec(for: leaf, tabId: tab.id) }
+            view.start(app.launchContext(for: leaf.id)) { [app] in try app.spec(for: leaf, tabId: tab.id, context: $0) }
             uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
         }
         if structure[tab.id] != signature(tab.root) { layoutTab(tab) }

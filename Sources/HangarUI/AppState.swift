@@ -45,8 +45,8 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
     @ObservationIgnored private var pendingPrompts: [UUID: String] = [:]
-    /// Leaves that came from state.json: agents resume instead of starting fresh.
-    @ObservationIgnored private var restoredLeaves: Set<UUID> = []
+    /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
+    @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -66,10 +66,25 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         userShell = shell.isEmpty ? "/bin/zsh" : shell
         socketPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Hangar/hangar.sock").path
-        restoredLeaves = resumeSet(for: state)
+        markRestored(state.tasks.filter { !$0.archived })
     }
 
-    func isRestored(leafId: UUID) -> Bool { restoredLeaves.contains(leafId) }
+    func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
+
+    private func markRestored(_ tasks: [HangarTask]) {
+        let resuming = resumeSet(for: tasks)
+        for task in tasks {
+            for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
+                restoredLeaves[leaf.id] = resuming.contains(leaf.id)
+            }
+        }
+    }
+
+    /// Context of a leaf's first launch in its view; the new-task prompt is consumed here.
+    func launchContext(for leafId: UUID) -> LaunchContext {
+        if let prompt = pendingPrompts.removeValue(forKey: leafId) { return .created(prompt: prompt) }
+        return restoredLeaves[leafId].map { .restored(inResumeSet: $0) } ?? .created(prompt: nil)
+    }
 
     /// Saves right away (quit): the debounce would not fire.
     public func saveNow() {
@@ -135,12 +150,22 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    func spec(for leaf: Leaf, tabId: UUID) throws -> LaunchSpec {
-        let prompt = pendingPrompts.removeValue(forKey: leaf.id)
-        let restoring = restoredLeaves.contains(leaf.id)
-        uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(restoring)")
-        return try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
-                              userShell: userShell, restoring: restoring, initialPrompt: prompt)
+    /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
+    func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
+        let leaf = self.leaf(id: leaf.id) ?? leaf
+        let mode = launchMode(for: leaf, context)
+        uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
+        let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
+                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt)
+        return (spec, mode)
+    }
+
+    private func leaf(id: UUID) -> Leaf? {
+        for task in state.tasks {
+            if task.drawer.leaf?.id == id { return task.drawer.leaf }
+            for tab in task.tabs { if let leaf = tab.root.leaf(id: id) { return leaf } }
+        }
+        return nil
     }
 
     /// Task and tab that own the leaf.
@@ -206,7 +231,11 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func moveProject(_ id: UUID, to index: Int) { perform { $0.moveProject(id: id, to: index) } }
     func archive(taskId: UUID) { perform { $0.archiveTask(id: taskId) } }
-    func restore(taskId: UUID) { perform { $0.restoreTask(id: taskId) } }
+    /// Unarchived agents resume like at startup (their surfaces were closed by the archive).
+    func restore(taskId: UUID) {
+        perform { $0.restoreTask(id: taskId) }
+        markRestored(state.tasks.filter { $0.id == taskId })
+    }
     func setPinned(_ taskId: UUID, _ pinned: Bool) { perform { $0.setPinned(taskId: taskId, pinned) } }
     func setCollapsed(projectId: UUID, _ collapsed: Bool) { perform { $0.setProjectCollapsed(id: projectId, collapsed) } }
 
@@ -291,11 +320,13 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 }
 
-/// Leaves from the file that start with `restoring: true`, computed once at restore.
+/// Leaves of `tasks` that start with `restoring: true` (at startup: all live tasks; on unarchive: that task).
 /// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so among
 /// claude/codex leaves without an id only the first per (kind, cwd) continues; later ones start fresh.
 /// Leaves with an id always resume; shell and editor leaves are always restored.
-func resumeSet(for state: WorkspaceState) -> Set<UUID> {
+func resumeSet(for state: WorkspaceState) -> Set<UUID> { resumeSet(for: state.tasks.filter { !$0.archived }) }
+
+func resumeSet(for tasks: [HangarTask]) -> Set<UUID> {
     struct Key: Hashable { var kind: LeafKind; var cwd: String }
     var claimed = Set<Key>()
     var result = Set<UUID>()
@@ -307,7 +338,7 @@ func resumeSet(for state: WorkspaceState) -> Set<UUID> {
             if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }
-    for task in state.tasks where !task.archived {
+    for task in tasks {
         for tab in task.tabs { tab.root.leaves.forEach(visit) }
         if let leaf = task.drawer.leaf { visit(leaf) }
     }

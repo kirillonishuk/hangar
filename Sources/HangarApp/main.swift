@@ -38,7 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.window?.makeKeyAndOrderFront(nil)
         windowController = wc
         appState = app
-        NSApp.activate(ignoringOtherApps: true)
+        #if DEBUG
+        // Verification runs next to the user's work: don't steal focus.
+        let activate = ProcessInfo.processInfo.environment["HANGAR_DEBUG_NO_ACTIVATE"] == nil
+        #else
+        let activate = true
+        #endif
+        if activate { NSApp.activate(ignoringOtherApps: true) }
         if let text = loadAlert(for: result), let window = wc.window {
             let alert = NSAlert()
             alert.alertStyle = .warning

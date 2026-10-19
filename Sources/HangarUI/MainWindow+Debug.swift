@@ -1,6 +1,11 @@
 #if DEBUG
 import AppKit
+import SwiftUI
 import Workspace
+
+/// Off-screen branch list of the open new-task sheet: an inactive app closes real popovers at once, and
+/// `NSWindow.sendEvent` reaches the first responder without the app being active.
+@MainActor private var pickerWindow: NSWindow?
 
 /// Debug hooks (verification without a screen); not compiled in release.
 extension MainWindowController {
@@ -15,6 +20,11 @@ extension MainWindowController {
             let command = note.object as? String ?? ""
             MainActor.assumeIsolated { self?.debugCommand(command) }
         }
+    }
+
+    /// NSPopover's window (e.g. the branch picker), if one is shown.
+    private var popoverWindow: NSWindow? {
+        NSApp.windows.first { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }
     }
 
     private static func texts(_ v: NSView) -> [String] {
@@ -48,7 +58,7 @@ extension MainWindowController {
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
-            let target = arg.contains("settings") ? settings.window : (window?.attachedSheet ?? window)
+            let target = arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
             guard let view = target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
@@ -67,13 +77,16 @@ extension MainWindowController {
             if let target { action.perform(target, ctx) }
         case "post":
             // post <keyCode> [cmd,shift,opt] — through NSApp, so the key monitor sees it like a real key.
-            let f = arg.split(separator: " ").map(String.init)
-            guard let code = UInt16(f.first ?? ""), let window else { return }
+            // "post popover …" → the open popover's window.
+            var f = arg.split(separator: " ").map(String.init)
+            let toPopover = f.first == "popover"
+            if toPopover { f.removeFirst() }
+            guard let code = UInt16(f.first ?? ""), let window = toPopover ? popoverWindow : window else { return }
             var mods: NSEvent.ModifierFlags = []
             for m in (f.count > 1 ? f[1] : "").split(separator: ",") {
                 mods.insert(["cmd": .command, "shift": .shift, "opt": .option, "ctrl": .control][String(m)] ?? [])
             }
-            let chars = code == 36 ? "\r" : code == 53 ? "\u{1b}" : ""
+            let chars = [36: "\r", 53: "\u{1b}", 125: "\u{F701}", 126: "\u{F700}"][Int(code)] ?? ""
             for type in [NSEvent.EventType.keyDown, .keyUp] {
                 if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
                                             windowNumber: window.windowNumber, context: nil, characters: chars,
@@ -97,11 +110,12 @@ extension MainWindowController {
             if f[0] == "project", app.state.projects.indices.contains(n) { app.chromeClicked(.project(app.state.projects[n].id)) }
             if f[0] == "task", app.orderedTasks.indices.contains(n) { app.chromeClicked(.task(app.orderedTasks[n].id)) }
         case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
-        case "typeText": ((window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
+        case "typeText": ((popoverWindow ?? window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
         case "mouse":
             // mouse <x> <y> [<x2> <y2>] — window points from the top-left; one point = (double) click, two = drag.
+            // "mouse popover …" → the open popover; otherwise the attached sheet, else the main window.
             let v = arg.split(separator: " ").compactMap { Double($0) }
-            guard let window, v.count >= 2 else { return }
+            guard let window = arg.hasPrefix("popover") ? popoverWindow : (window?.attachedSheet ?? window), v.count >= 2 else { return }
             let h = window.contentView?.frame.height ?? 0
             var events: [(NSEvent.EventType, Double, Double, Int)] = []
             if v.count >= 4 {
@@ -127,7 +141,8 @@ extension MainWindowController {
             let v = arg.split(separator: " ").compactMap { Double($0) }
             guard let content = window?.contentView, v.count == 2, let hit = content.hitTest(content.convert(NSPoint(x: v[0], y: content.frame.height - v[1]), from: nil)) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
-        case "sheet": presentNewTask(projectId: nil)
+        case "sheet":  // sheet [<project index>]
+            presentNewTask(projectId: Int(arg).flatMap { app.state.projects.indices.contains($0) ? app.state.projects[$0].id : nil })
         case "settings": showSettings(nil)
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
@@ -136,6 +151,40 @@ extension MainWindowController {
                 do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }
             }
             uiLog.info("l10n bundle=\(L10n.resources?.bundlePath ?? "-", privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
+        case "picker":
+            // picker open | key <code> | type <text> | snap <path>
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let rest = f.count > 1 ? f[1] : ""
+            switch f.first ?? "" {
+            case "open":
+                guard let model = newTaskModelForDebug else { return }
+                let list = BranchList(selection: Binding(get: { model.base }, set: { model.base = $0 }),
+                                      branches: model.branches, defaultBase: model.defaultBase,
+                                      taskBranches: model.taskBranches, defaultOption: nil) {
+                    uiLog.info("picker closed base=\(model.base ?? "-", privacy: .public)")
+                }
+                let w = NSWindow(contentRect: NSRect(x: -4000, y: 0, width: Theme.dropdownWidth, height: 340),
+                                 styleMask: [.borderless], backing: .buffered, defer: false)
+                w.isReleasedWhenClosed = false
+                w.contentView = NSHostingView(rootView: list)
+                w.orderFrontRegardless()
+                pickerWindow = w
+            case "key":
+                guard let w = pickerWindow, let code = UInt16(rest) else { return }
+                let chars = [36: "\r", 53: "\u{1b}", 125: "\u{F701}", 126: "\u{F700}"][Int(code)] ?? ""
+                if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: w.windowNumber, context: nil, characters: chars,
+                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { w.sendEvent(e) }
+            case "type": (pickerWindow?.firstResponder as? NSTextView)?.insertText(rest, replacementRange: NSRange(location: NSNotFound, length: 0))
+            case "snap":
+                guard let view = pickerWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
+                uiLog.info("picker responder=\(pickerWindow?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
+            default: pickerWindow?.orderOut(nil); pickerWindow = nil  // not close(): last-window-closed quits
+            }
+        case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
+        case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

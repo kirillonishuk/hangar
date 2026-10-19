@@ -91,6 +91,9 @@ import Workspace
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
+        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
+        case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
+        case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
     }
 
     // Sidebar
@@ -135,6 +138,24 @@ import Workspace
     static var createWithoutFetch: String { s(.createWithoutFetch) }
     static var fetchCancelled: String { s(.fetchCancelled) }
     static var noCommits: String { s(.noCommits) }
+    static var worktreeLabel: String { s(.worktreeLabel) }
+    static var worktreeOnHint: String { s(.worktreeOnHint) }
+    static var worktreeOffHint: String { s(.worktreeOffHint) }
+    static var fromBranch: String { s(.fromBranch) }
+    static var newBranch: String { s(.newBranch) }
+    static var fromName: String { s(.fromName) }
+    static func currentBranch(_ name: String) -> String { f(.currentBranch, name) }
+    static var refreshHelp: String { s(.refreshHelp) }
+    static var searchBranches: String { s(.searchBranches) }
+    static var branchesRemote: String { s(.branchesRemote) }
+    static var branchesLocal: String { s(.branchesLocal) }
+    static var branchDefault: String { s(.branchDefault) }
+    static var branchTask: String { s(.branchTask) }
+    static func updatedAgo(_ age: String) -> String { f(.updatedAgo, age) }
+    static var justNow: String { s(.justNow) }
+    static func minutesAgo(_ n: Int) -> String { f(.minutesAgo, n) }
+    static func hoursAgo(_ n: Int) -> String { f(.hoursAgo, n) }
+    static func daysAgo(_ n: Int) -> String { f(.daysAgo, n) }
 
     // Terminal area, alerts, menus
     static var configNotApplied: String { s(.configNotApplied) }

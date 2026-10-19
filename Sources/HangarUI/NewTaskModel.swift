@@ -16,6 +16,8 @@ import Workspace
     var branch = "" {
         didSet { if !suggesting { branchEdited = !branch.isEmpty } }
     }
+    /// The «из названия» hint; redrawn through `branch`, which every change of it accompanies.
+    var branchFollowsName: Bool { !branchEdited }
     var worktree: Bool
     var base: String?
     private(set) var branches: [Branch] = []
@@ -63,6 +65,7 @@ import Workspace
         }
         guard await git.hasCommits() else {
             availability = .noCommits
+            worktree = false
             return
         }
         branches = (try? await git.listBranches()) ?? []
@@ -77,6 +80,8 @@ import Workspace
         }
         availability = .ready
         if !branchEdited { suggestBranch() }
+        // The sheet closed while loading: its fetch would outlive it (`runFetch`'s task doesn't inherit cancellation).
+        guard !Task.isCancelled else { return }
         await refresh()
     }
 

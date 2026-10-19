@@ -204,9 +204,9 @@ import Workspace
         let m = model(t, worktreeByDefault: true)
         await m.load()
         #expect(m.availability == .noCommits)
+        // The switch shows off (and disabled): the remembered «worktree» can't block creating.
+        #expect(m.worktree == false)
         m.name = "t"
-        #expect(m.canCreate == false)
-        m.worktree = false
         #expect(m.canCreate == true)
         #expect(await m.create(skipFetch: false) == .mainFolder)
     }

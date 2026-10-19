@@ -81,6 +81,7 @@ public enum Theme {
         public static let hover = Color(nsColor: Theme.hover)
         public static let pressed = Color(nsColor: Theme.pressed)
         public static let button = Color(nsColor: Theme.button)
+        public static let controlBorderStrong = Color(nsColor: Theme.controlBorderStrong)
     }
 
     // Font sizes (pt)
@@ -211,6 +212,28 @@ public enum Theme {
     public static let segmentItemRadius: CGFloat = 5
     public static let segmentItemPaddingV: CGFloat = 3
     public static let segmentItemPaddingH: CGFloat = 11
+
+    // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
+    public static let cardLabelWidth: CGFloat = 110
+    /// Branch rows without worktree.
+    public static let dimmedRowOpacity: Double = 0.38
+    /// git stderr shown under the card.
+    public static let errorMaxLines = 6
+    public static let pickRadius: CGFloat = 6
+    public static let pickPaddingV: CGFloat = 3
+    public static let pickPaddingH: CGFloat = 8
+    public static let pickGap: CGFloat = 6
+    public static let pickChevronSize: CGFloat = 9
+    /// ↻ next to «обновлено …».
+    public static let sheetIconButtonSize: CGFloat = 22
+    // Branch picker dropdown
+    public static let dropdownWidth: CGFloat = 340
+    public static let dropdownRadius: CGFloat = 9
+    public static let dropdownPaddingH: CGFloat = 11
+    public static let dropdownSearchPaddingV: CGFloat = 8
+    public static let dropdownRowHeight: CGFloat = 26
+    public static let dropdownSectionHeight: CGFloat = 22
+    public static let dropdownListMaxHeight: CGFloat = 260
 }
 
 /// One-shot animations only (no loops: zero work when idle); none when the user asked to reduce motion.

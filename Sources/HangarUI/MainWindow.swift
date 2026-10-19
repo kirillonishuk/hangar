@@ -1,4 +1,5 @@
 import AppKit
+import Git
 import GhosttyBridge
 import SwiftUI
 import Workspace
@@ -70,6 +71,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
     private var sheetWindow: NSWindow?
+    private var newTaskModel: NewTaskModel?
+    #if DEBUG
+    var newTaskModelForDebug: NewTaskModel? { newTaskModel }
+    #endif
     private var sidebarAnimation: Timer?
     private var didApplyInitialLayout = false
     private let configWarning: String?
@@ -371,23 +376,33 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
+        let taskBranches = Set(app.state.tasks.filter { $0.projectId == id }.compactMap(\.branch))
+        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: taskBranches)
+        let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
+            load.cancel()
+            model.cancelFetch()
             window.endSheet(sheet)
             self.sheetWindow = nil
+            self.newTaskModel = nil
         }
-        let view = NewTaskSheet(projectName: project.name, agentName: app.config.defaultAgent.rawValue,
-                                onCreate: { [weak self] name, message in
+        let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
+                                onCreate: { [weak self] name, message, mode in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: .mainFolder)
+                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host
         sheetWindow = sheet
+        newTaskModel = model
         window.beginSheet(sheet)
     }
+
+    /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.
+    public func windowShouldClose(_ sender: NSWindow) -> Bool { newTaskModel?.creating != true }
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }

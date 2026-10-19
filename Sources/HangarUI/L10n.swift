@@ -85,6 +85,7 @@ import Workspace
         case afterRestart, saveFailed
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
+        case drawerTitle, drawerToggle, drawerHelp
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
         case ok, exitStatus
     }
@@ -180,6 +181,9 @@ import Workspace
     static var splitRight: String { s(.splitRight) }
     static var splitDown: String { s(.splitDown) }
     static var closeTab: String { s(.closeTab) }
+    static var drawerTitle: String { s(.drawerTitle) }
+    static var drawerToggle: String { s(.drawerToggle) }
+    static var drawerHelp: String { s(.drawerHelp) }
     static var projectName: String { s(.projectName) }
     static var projectPath: String { s(.projectPath) }
     static var chooseEllipsis: String { s(.chooseEllipsis) }

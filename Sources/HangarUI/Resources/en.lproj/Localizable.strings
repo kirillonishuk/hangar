@@ -89,3 +89,7 @@
 "save" = "Save";
 "ok" = "OK";
 "exitStatus" = "exit code %d";
+
+"drawerTitle" = "TERMINAL";
+"drawerToggle" = "Toggle Terminal";
+"drawerHelp" = "Terminal ⌃`";

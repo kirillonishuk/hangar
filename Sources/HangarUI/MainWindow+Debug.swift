@@ -28,7 +28,7 @@ extension MainWindowController {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
-            "rename": .rename, "archiveTask": .archiveTask,
+            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer,
         ]
         switch parts.first ?? "" {
         case "task":

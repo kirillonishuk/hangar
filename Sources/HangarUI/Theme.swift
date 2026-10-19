@@ -117,6 +117,11 @@ public enum Theme {
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
     public static let statusBarHeight: CGFloat = 22
+    /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
+    public static let drawerBarHeight: CGFloat = 26
+    public static let drawerGrabHeight: CGFloat = 5
+    public static let drawerMaxFraction: CGFloat = 0.7
+    public static let drawerAnimation: Double = 0.18
 
     public static let statusDot: CGFloat = 8
     public static let rowPaddingH: CGFloat = 14

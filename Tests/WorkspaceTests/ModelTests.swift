@@ -349,4 +349,65 @@ import Testing
         s.setFocusedLeaf(taskId: t, tabId: tab, leafId: UUID())  // not in this tab: ignored
         #expect(s.tasks[0].tabs[0].focusedLeafId == a)
     }
+
+    @Test func toggleDrawerCreatesShellOnce() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        #expect(s.tasks[0].drawer.leaf == nil && !s.tasks[0].drawer.visible)
+        s.toggleDrawer(taskId: t)
+        let leaf = s.tasks[0].drawer.leaf
+        #expect(leaf?.kind == .shell && s.tasks[0].drawer.visible)
+        s.toggleDrawer(taskId: t)
+        #expect(!s.tasks[0].drawer.visible && s.tasks[0].drawer.leaf == leaf)
+        s.toggleDrawer(taskId: t)
+        #expect(s.tasks[0].drawer.visible && s.tasks[0].drawer.leaf?.id == leaf?.id)
+    }
+
+    @Test func drawerHeightClampedMin() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        #expect(s.tasks[0].drawer.height == 220)
+        s.setDrawerHeight(taskId: t, 50)
+        #expect(s.tasks[0].drawer.height == 120)
+        s.setDrawerHeight(taskId: t, 300)
+        #expect(s.tasks[0].drawer.height == 300)
+    }
+
+    @Test func oldStateWithoutDrawerDecodes() throws {
+        var (s, p) = makeState()
+        s.addTask(projectId: p, name: "t")
+        var root = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(s)) as? [String: Any])
+        var tasks = try #require(root["tasks"] as? [[String: Any]])
+        #expect(tasks[0]["drawer"] != nil)
+        tasks[0]["drawer"] = nil  // a state.json written before the drawer existed
+        root["tasks"] = tasks
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: root), as: UTF8.self)
+        #expect(!json.contains("drawer"))
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(decoded.tasks[0].drawer == Drawer())
+        s.toggleDrawer(taskId: s.tasks[0].id)
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)) == s)
+    }
+
+    @Test func drawerLeafCwdIsTaskCwd() {
+        var (s, p) = makeState()
+        let a = s.addTask(projectId: p, name: "a")
+        let b = s.addTask(projectId: p, name: "b")
+        s.tasks[1].mode = .worktree(path: "/wt/b", branch: "b", base: "main")
+        s.toggleDrawer(taskId: a)
+        s.toggleDrawer(taskId: b)
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/app")
+        #expect(s.tasks[1].drawer.leaf?.cwd == "/wt/b")
+    }
+
+    @Test func closeDrawerLeafHidesAndForgetsShell() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        s.toggleDrawer(taskId: t)
+        let first = s.tasks[0].drawer.leaf?.id
+        s.closeDrawerLeaf(taskId: t)
+        #expect(s.tasks[0].drawer.leaf == nil && !s.tasks[0].drawer.visible)
+        s.toggleDrawer(taskId: t)
+        #expect(s.tasks[0].drawer.leaf != nil && s.tasks[0].drawer.leaf?.id != first)
+    }
 }

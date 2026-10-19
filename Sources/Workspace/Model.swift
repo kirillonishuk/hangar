@@ -140,6 +140,31 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
     public func label(auto: String) -> String { customTitle ?? auto }
 }
 
+/// Bottom terminal of a task: one shell leaf, created on first show and kept while hidden.
+public struct Drawer: Codable, Equatable, Sendable {
+    public var leaf: Leaf?
+    public var visible: Bool
+    public var height: Double
+
+    public static let minHeight: Double = 120
+
+    public init(leaf: Leaf? = nil, visible: Bool = false, height: Double = 220) {
+        self.leaf = leaf
+        self.visible = visible
+        self.height = height
+    }
+
+    private enum CodingKeys: String, CodingKey { case leaf, visible, height }
+
+    /// Missing keys decode to defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(leaf: try c.decodeIfPresent(Leaf.self, forKey: .leaf),
+                  visible: try c.decodeIfPresent(Bool.self, forKey: .visible) ?? false,
+                  height: try c.decodeIfPresent(Double.self, forKey: .height) ?? 220)
+    }
+}
+
 public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var projectId: UUID
@@ -150,9 +175,11 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var tabs: [Tab]
     public var activeTabId: UUID?
     public var pinned: Bool
+    public var drawer: Drawer
 
     public init(id: UUID = UUID(), projectId: UUID, name: String, mode: TaskMode = .mainFolder,
-                order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false) {
+                order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false,
+                drawer: Drawer = Drawer()) {
         self.id = id
         self.projectId = projectId
         self.name = name
@@ -162,11 +189,12 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         self.tabs = tabs
         self.activeTabId = activeTabId
         self.pinned = pinned
+        self.drawer = drawer
     }
 
-    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned }
+    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer }
 
-    /// `pinned` was added later; older files decode with the default.
+    /// `pinned` and `drawer` were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), projectId: try c.decode(UUID.self, forKey: .projectId),
@@ -174,7 +202,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
                   order: try c.decode(Int.self, forKey: .order), archived: try c.decode(Bool.self, forKey: .archived),
                   tabs: try c.decode([Tab].self, forKey: .tabs),
                   activeTabId: try c.decodeIfPresent(UUID.self, forKey: .activeTabId),
-                  pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false)
+                  pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false,
+                  drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer())
     }
 }
 
@@ -327,6 +356,28 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.settingRatio(at: path[...], min(max(ratio, 0.05), 0.95))
+    }
+
+    // MARK: Drawer
+
+    /// First show creates the shell leaf (cwd = task cwd); later toggles keep it.
+    public mutating func toggleDrawer(taskId: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        if tasks[i].drawer.leaf == nil { tasks[i].drawer.leaf = Leaf(kind: .shell, cwd: cwd(for: tasks[i])) }
+        tasks[i].drawer.visible.toggle()
+    }
+
+    /// The window-height cap is applied by the UI; the model only keeps the minimum.
+    public mutating func setDrawerHeight(taskId: UUID, _ height: Double) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        tasks[i].drawer.height = max(height, Drawer.minHeight)
+    }
+
+    /// The shell exited cleanly: hide the drawer and forget the leaf (the next show starts a new shell).
+    public mutating func closeDrawerLeaf(taskId: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        tasks[i].drawer.leaf = nil
+        tasks[i].drawer.visible = false
     }
 
     // MARK: Sidebar actions

@@ -261,6 +261,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
             toggleSidebar: { [weak self] in self?.toggleSidebar() },
             openSettings: { [weak self] in self?.showSettings(nil) },
+            toggleDrawer: { [weak self] id in self?.column.terminalArea.toggleDrawer(taskId: id) },
             confirm: { [weak self] message, info, button, then in self?.confirm(message, info, button, then) },
             showError: { [weak self] message, info in self?.showError(message, info) })
     }
@@ -290,7 +291,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         switch sc {
         case .newTask: presentNewTask(projectId: nil)
         case .newTab: app.addTab(.shell)
-        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask: break  // Action registry above (F2: handleKeyDown)
+        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer: break  // Action registry above (F2: handleKeyDown)
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)

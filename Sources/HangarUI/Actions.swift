@@ -17,6 +17,8 @@ enum ActionTarget: Equatable {
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
     var openSettings: () -> Void = {}
+    /// Shows/hides the task's bottom terminal (window-level: moves focus); nil = just flip the model.
+    var toggleDrawer: ((UUID) -> Void)?
     /// message, informative text, destructive button title, called on confirm.
     var confirm: (String, String, String, @escaping () -> Void) -> Void = { _, _, _, _ in }
     /// message, details.
@@ -26,7 +28,7 @@ enum ActionTarget: Equatable {
 /// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts (and later ⌘K) read it here.
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, openInEditor
-    case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab
+    case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
     @MainActor static func list(for target: ActionTarget, app: AppState) -> [Action] {
@@ -52,6 +54,7 @@ enum Action: CaseIterable {
         case .splitRight: .splitRight
         case .splitDown: .splitDown
         case .closeTab: .closeTab
+        case .toggleDrawer: .toggleDrawer
         default: nil
         }
     }
@@ -72,6 +75,7 @@ enum Action: CaseIterable {
         case .splitRight: .splitRight
         case .splitDown: .splitDown
         case .closeTab: .close
+        case .toggleDrawer: .shell
         }
     }
 
@@ -92,6 +96,7 @@ enum Action: CaseIterable {
         case .splitRight: L10n.splitRight
         case .splitDown: L10n.splitDown
         case .closeTab: L10n.closeTab
+        case .toggleDrawer: L10n.drawerToggle
         }
     }
 
@@ -142,6 +147,8 @@ enum Action: CaseIterable {
             else { return }
             app.split(leafId: leaf, axis: self == .splitRight ? .horizontal : .vertical)
         case (.closeTab, .tab(let task, let tab)): app.perform { $0.closeTab(taskId: task, tabId: tab) }
+        case (.toggleDrawer, .task(let id)):
+            if let toggle = ctx.toggleDrawer { toggle(id) } else { app.perform { $0.toggleDrawer(taskId: id) } }
         default: assertionFailure("\(self) does not apply to \(target)")
         }
     }
@@ -222,6 +229,7 @@ extension Shortcut {
         case .splitRight: ("d", .command)
         case .splitDown: ("d", [.command, .shift])
         case .closeTab: ("w", .command)
+        case .toggleDrawer: ("`", .control)
         default: nil
         }
     }

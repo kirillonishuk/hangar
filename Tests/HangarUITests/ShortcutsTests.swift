@@ -21,6 +21,13 @@ import Testing
         #expect(shortcut(keyCode: 45, modifiers: [.command, .shift]) == .addProject)
     }
 
+    @Test func toggleDrawerShortcut() {
+        #expect(shortcut(keyCode: 50, modifiers: .control) == .toggleDrawer)  // ⌃` by keyCode: any layout
+        #expect(shortcut(keyCode: 50, modifiers: []) == nil)
+        #expect(shortcut(keyCode: 50, modifiers: [.control, .shift]) == nil)
+        #expect(Action.toggleDrawer.shortcut == .toggleDrawer)
+    }
+
     @Test func withoutCommandIsNil() {
         for code: UInt16 in [17, 13, 45, 2, 18, 33, 30, 34, 29] {
             #expect(shortcut(keyCode: code, modifiers: []) == nil)
@@ -42,7 +49,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 22)
+        #expect(Shortcut.allCases.count == 23)
     }
 }
 

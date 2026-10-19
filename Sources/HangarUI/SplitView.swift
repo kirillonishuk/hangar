@@ -215,13 +215,23 @@ final class RatioSplitView: HangarSplitView {
     private var shownTab: UUID?
     private var shownFocus: UUID?
     private let placeholder = NSTextField(labelWithString: "")
+    /// Tab content above the drawer.
+    private let content = NSView()
+    let drawer: TerminalDrawer
+    private var appliedDrawerHeight: CGFloat = 0
     /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
     private var emptyState = NSView()
     var onAddProject: () -> Void = {}
 
     init(app: AppState) {
         self.app = app
+        drawer = TerminalDrawer(app: app)
         super.init(frame: .zero)
+        content.autoresizingMask = []
+        addSubview(content)
+        addSubview(drawer)
+        drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
+        drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
         layer?.backgroundColor = Theme.panel.cgColor
@@ -247,6 +257,37 @@ final class RatioSplitView: HangarSplitView {
         let h = placeholder.intrinsicContentSize.height
         placeholder.frame = NSRect(x: 0, y: (bounds.height - h) / 2, width: bounds.width, height: h)
         emptyState.frame = bounds
+        applyDrawerFrames(animated: false)
+    }
+
+    /// Splits the area into tab content and the drawer; an expand/collapse animates once (none with Reduce Motion).
+    private func applyDrawerFrames(animated: Bool) {
+        let total = drawer.totalHeight(available: bounds.height)
+        let drawerFrame = NSRect(x: 0, y: 0, width: bounds.width, height: total)
+        let contentFrame = NSRect(x: 0, y: total, width: bounds.width, height: max(0, bounds.height - total))
+        if animated, !Motion.reduced, window != nil, total != appliedDrawerHeight {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.drawerAnimation
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                drawer.animator().frame = drawerFrame
+                content.animator().frame = contentFrame
+            }
+        } else {
+            drawer.frame = drawerFrame
+            content.frame = contentFrame
+        }
+        appliedDrawerHeight = total
+    }
+
+    /// ⌃` and the bar: expand (focus goes into the shell) or collapse (focus returns to the tab if it was in the shell).
+    func toggleDrawer(taskId: UUID) {
+        let focusWasInDrawer = drawer.focusedLeaf != nil
+        app.perform { $0.toggleDrawer(taskId: taskId) }
+        if app.state.tasks.first(where: { $0.id == taskId })?.drawer.visible == true {
+            window?.makeFirstResponder(drawer.currentSurface)
+        } else if focusWasInDrawer {
+            focusActiveLeaf()
+        }
     }
 
     var activeTab: Tab? {
@@ -256,6 +297,7 @@ final class RatioSplitView: HangarSplitView {
 
     /// The leaf whose surface has keyboard focus, else the active tab's focused leaf.
     var focusedLeaf: LeafView? {
+        if let leaf = drawer.focusedLeaf { return leaf }
         guard let tab = activeTab else { return nil }
         if let responder = window?.firstResponder as? NSView,
            let leaf = tab.root.leaves.lazy.compactMap({ self.leafViews[$0.id] }).first(where: { responder.isDescendant(of: $0) }) {
@@ -267,6 +309,8 @@ final class RatioSplitView: HangarSplitView {
     /// Reconciles views with the model after each mutation.
     func sync() {
         let state = app.state
+        drawer.sync()
+        applyDrawerFrames(animated: true)
         let liveTabs = state.tasks.filter { !$0.archived }.flatMap(\.tabs)
         let liveTabIds = Set(liveTabs.map(\.id))
         let liveLeafIds = Set(liveTabs.flatMap { $0.root.leaves.map(\.id) })
@@ -326,9 +370,9 @@ final class RatioSplitView: HangarSplitView {
 
     private func show(_ tab: Tab) {
         if tabViews[tab.id] == nil {
-            let view = NSView(frame: bounds)
+            let view = NSView(frame: content.bounds)
             view.autoresizingMask = [.width, .height]
-            addSubview(view, positioned: .below, relativeTo: placeholder)
+            content.addSubview(view)
             tabViews[tab.id] = view
         }
         // Lazy: surfaces of a tab start the first time it is shown.
@@ -423,8 +467,9 @@ final class RatioSplitView: HangarSplitView {
 
     /// Debug summary of every surface and whether it renders.
     func debugDump() -> String {
-        leafViews.map { id, view in
+        let drawers = drawer.debugDump()
+        return leafViews.map { id, view in
             "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-") failed=\(view.failed)"
-        }.sorted().joined(separator: "\n")
+        }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
     }
 }

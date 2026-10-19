@@ -6,7 +6,7 @@ import Workspace
 enum Icon {
     case sidebarToggle, newTask, project, worktree, sshHost, claude, codex, editor, shell, diff, files, changes
     case keepAwake, limits, settings, archive, search, splitRight, splitDown, close
-    case pin, pinned, chevronDown, chevronRight, more, sidebarRight
+    case pin, pinned, chevronUp, chevronDown, chevronRight, more, sidebarRight
     case rename, finder, copy, openExternal, restore, trash, remove
 
     private var symbol: String {
@@ -32,6 +32,7 @@ enum Icon {
         case .close: "xmark"
         case .pin: "pin"
         case .pinned: "pin.fill"
+        case .chevronUp: "chevron.up"
         case .chevronDown: "chevron.down"
         case .chevronRight: "chevron.right"
         case .more: "ellipsis"

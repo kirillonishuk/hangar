@@ -73,7 +73,7 @@
 
 Замер с живыми агентами и surface нужно повторить на разблокированном экране.
 
-**Этап 2 (приёмка, 2026-10-19):** debug-сборка, консоль разблокирована (surface живые), изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG`, `HANGAR_DEBUG_NO_ACTIVATE`; проекты app (git + bare origin) и plain в /tmp, агент — заглушка `sleep`; лист закрыт, 1 задача с worktree не было (после проверок удалены), простой ~2 мин. `top -l 2 -s 5`: CPU 0,0 %, память 52 МБ. `ps` 5 раз за 2 мин: git-детей у Hangar 0, висящих `git fetch/worktree/branch/status` 0. RELEASE-сборка не замерялась: она игнорирует `HANGAR_STATE_DIR` и тронула бы реальное состояние пользователя (код энергии одинаков в debug и release).
+**Этап 2 (приёмка, 2026-10-19):** debug-сборка, консоль разблокирована (surface живые), изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG`, `HANGAR_DEBUG_NO_ACTIVATE`; проекты app (git + bare origin) и plain в /tmp, агент — заглушка `sleep`; лист закрыт, задач нет (после проверок удалены), простой ~2 мин. `top -l 2 -s 5`: CPU 0,0 %, память 52 МБ. `ps` 5 раз за 2 мин: git-детей у Hangar 0, висящих `git fetch/worktree/branch/status` 0. RELEASE-сборка не замерялась: она игнорирует `HANGAR_STATE_DIR` и тронула бы реальное состояние пользователя (код энергии одинаков в debug и release).
 
 ## Открытые вопросы (отвечает спайк, этап 0)
 

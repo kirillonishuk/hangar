@@ -106,7 +106,7 @@ import Workspace
         await fetchSettled()
     }
 
-    /// Doesn't wait for git: a killed fetch's helpers (ssh, remote-ext) may hold its pipes open for a while.
+    /// Releases waiters at once; the cancelled git (its whole process group) is killed by Runner.
     func cancelFetch() {
         guard fetch == .running else { return }
         fetchTask?.cancel()

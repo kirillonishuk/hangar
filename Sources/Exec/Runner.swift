@@ -30,23 +30,24 @@ public struct Runner: Sendable {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
-        let cancel = CancelFlag()
+        let run = RunState()
         let result: RunResult = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { cont in
+                run.set(cont)
                 // Both pipes are drained in parallel: a 64 KB pipe buffer would otherwise block the child.
                 let group = DispatchGroup()
                 let out = Captured(), err = Captured()
                 process.terminationHandler = { p in
                     group.wait()
-                    cont.resume(returning: RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string))
+                    run.finish(.success(RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string)))
                 }
                 // Entered before launch so a fast-exiting child cannot make group.wait() return early.
                 group.enter(); group.enter()
                 do {
-                    try cancel.launch(process)
+                    try run.launch(process)
                 } catch {
                     group.leave(); group.leave()
-                    cont.resume(throwing: error)
+                    run.finish(.failure(error))
                     return
                 }
                 for (pipe, box) in [(outPipe, out), (errPipe, err)] {
@@ -57,7 +58,7 @@ public struct Runner: Sendable {
                 }
             }
         } onCancel: {
-            cancel.cancel(process)
+            run.cancel()
         }
         try Task.checkCancellation()
         return result
@@ -69,31 +70,51 @@ private final class Captured: @unchecked Sendable {
     var string: String { String(decoding: data, as: UTF8.self) }
 }
 
-/// Handles cancel arriving before or after launch.
-private final class CancelFlag: @unchecked Sendable {
+/// One run: resumes its continuation exactly once — on exit, on launch failure, or right away on cancel (a child
+/// that left the process group may hold the pipes open; its output is no longer wanted).
+private final class RunState: @unchecked Sendable {
     private let lock = NSLock()
+    private var cont: CheckedContinuation<RunResult, Error>?
     private var cancelled = false
-    private var started = false
+    private var pid: pid_t = 0
+    private var ownGroup = false
 
+    func set(_ c: CheckedContinuation<RunResult, Error>) {
+        lock.lock(); defer { lock.unlock() }
+        cont = c
+    }
+
+    /// Cancel before launch → the process is never started.
     func launch(_ p: Process) throws {
         lock.lock(); defer { lock.unlock() }
+        if cancelled { throw CancellationError() }
         try p.run()
-        started = true
-        if cancelled { terminate(p) }
+        pid = p.processIdentifier
+        ownGroup = getpgid(pid) == pid
     }
 
-    func cancel(_ p: Process) {
-        lock.lock(); defer { lock.unlock() }
+    func finish(_ result: Result<RunResult, Error>) {
+        lock.lock()
+        let c = cont
+        cont = nil
+        lock.unlock()
+        c?.resume(with: result)
+    }
+
+    func cancel() {
+        lock.lock()
         cancelled = true
-        if started, p.isRunning { terminate(p) }
+        let pid = pid, ownGroup = ownGroup
+        lock.unlock()
+        if pid > 0 { Self.terminate(pid, group: ownGroup) }
+        finish(.failure(CancellationError()))
     }
 
-    // SIGTERM first; SIGKILL if the child ignores it.
-    private func terminate(_ p: Process) {
-        p.terminate()
-        let pid = p.processIdentifier
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-            if p.isRunning { kill(pid, SIGKILL) }
-        }
+    /// Process starts the child as leader of its own group, so git's helpers (ssh, remote-ext) are in it too:
+    /// SIGTERM to the group, SIGKILL to whatever is left after 2 s (pids are not reused that fast).
+    private static func terminate(_ pid: pid_t, group: Bool) {
+        let target = group ? -pid : pid
+        kill(target, SIGTERM)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { kill(target, SIGKILL) }
     }
 }

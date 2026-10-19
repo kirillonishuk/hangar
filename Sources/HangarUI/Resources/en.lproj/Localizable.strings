@@ -93,3 +93,5 @@
 "drawerTitle" = "TERMINAL";
 "drawerToggle" = "Toggle Terminal";
 "drawerHelp" = "Terminal ⌃`";
+"stateCorrupt" = "State file is corrupt, backup: %@";
+"stateUnreadable" = "Can't read the state file: %@. Hangar runs without saving.";

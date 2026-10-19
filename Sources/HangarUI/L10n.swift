@@ -87,7 +87,7 @@ import Workspace
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
-        case ok, exitStatus
+        case ok, exitStatus, stateCorrupt, stateUnreadable
     }
 
     // Sidebar
@@ -136,6 +136,8 @@ import Workspace
     static var relaunchHint: String { s(.relaunchHint) }
     static var emptyNoTask: String { s(.emptyNoTask) }
     static var emptyNoTabs: String { s(.emptyNoTabs) }
+    public static func stateCorrupt(_ path: String) -> String { f(.stateCorrupt, path) }
+    public static func stateUnreadable(_ path: String) -> String { f(.stateUnreadable, path) }
     public static var ghosttyFailed: String { s(.ghosttyFailed) }
     public static var retry: String { s(.retry) }
     public static var quit: String { s(.quit) }
@@ -190,6 +192,6 @@ import Workspace
     static var defaultBranch: String { s(.defaultBranch) }
     static var defaultBranchLater: String { s(.defaultBranchLater) }
     static var save: String { s(.save) }
-    static var ok: String { s(.ok) }
+    public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
 }

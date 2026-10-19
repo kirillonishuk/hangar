@@ -66,7 +66,17 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         userShell = shell.isEmpty ? "/bin/zsh" : shell
         socketPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Hangar/hangar.sock").path
-        restoredLeaves = Set(state.tasks.flatMap { $0.tabs.flatMap { $0.root.leaves.map(\.id) } })
+        // Every leaf from the file resumes: tab leaves and the drawer's shell.
+        restoredLeaves = Set(state.tasks.flatMap { task in
+            task.tabs.flatMap { $0.root.leaves.map(\.id) } + (task.drawer.leaf.map { [$0.id] } ?? [])
+        })
+    }
+
+    func isRestored(leafId: UUID) -> Bool { restoredLeaves.contains(leafId) }
+
+    /// Saves right away (quit): the debounce would not fire.
+    public func saveNow() {
+        do { try store.saveNow(state) } catch { uiLog.error("state save on quit failed: \(String(describing: error), privacy: .public)") }
     }
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
@@ -130,8 +140,10 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func spec(for leaf: Leaf, tabId: UUID) throws -> LaunchSpec {
         let prompt = pendingPrompts.removeValue(forKey: leaf.id)
+        let restoring = restoredLeaves.contains(leaf.id)
+        uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(restoring)")
         return try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
-                              userShell: userShell, restoring: restoredLeaves.contains(leaf.id), initialPrompt: prompt)
+                              userShell: userShell, restoring: restoring, initialPrompt: prompt)
     }
 
     /// Task and tab that own the leaf.
@@ -270,5 +282,14 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         L10n.language = language
         languageDidChange?()
         didChange?()
+    }
+}
+
+/// Text of the alert shown at launch for a problem with state.json; nil when there is nothing to tell.
+@MainActor public func loadAlert(for result: LoadResult) -> String? {
+    switch result {
+    case .empty, .loaded: nil
+    case .recoveredFromCorrupt(let backup): L10n.stateCorrupt(backup.path)
+    case .unreadable(let url): L10n.stateUnreadable(url.path)
     }
 }

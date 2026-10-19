@@ -10,6 +10,7 @@ let package = Package(
         .binaryTarget(name: "GhosttyKit", path: "vendor/GhosttyKit.xcframework"),
         .target(name: "Workspace"),
         .target(name: "AgentStatus"),
+        .target(name: "ControlServer", dependencies: ["AgentStatus"]),
         .target(name: "Exec", dependencies: ["Workspace"]),
         .target(name: "Git", dependencies: ["Exec"]),
         .target(
@@ -34,6 +35,7 @@ let package = Package(
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
         .testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"]),
+        .testTarget(name: "ControlServerTests", dependencies: ["ControlServer", "AgentStatus"]),
         .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
         .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
     ]

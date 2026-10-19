@@ -65,13 +65,13 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `public struct Runner: Sendable { public var run: @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult; public init(run:); public static let local: Runner }`
   - `Runner.local`: `/usr/bin/env` + `args` (у приложения из Finder `/usr/bin` в PATH есть), `currentDirectoryURL = cwd`, env = окружение процесса + `GIT_TERMINAL_PROMPT=0`, stdin `FileHandle.nullDevice`. Ненулевой код — не ошибка (возвращается в `status`); `throws` — только если процесс не запустился или задача отменена (`CancellationError`, процесс получает `terminate()`).
 
-- [ ] **Step 1: Запись #42 в `decisions.md`** (формат журнала: решение, Почему, Отвергнуто). Содержание — решения контроллера этого плана: модуль `Git` поверх `Exec.Runner` (struct с замыканием, не протокол; `ssh` — этап 6); путь worktree `<родитель проекта>/<папка проекта>.worktrees/<slug ветки>`, настраивается в настройках проекта («Папка worktree»); slug (lowercase, транслит кириллицы по таблице Task 3, пробел и `/` → `-`, схлопывание `-`, пусто → `task`); новая ветка `--no-track` (не тянет upstream базы, `git push` не уйдёт в базовую ветку); переключатель Worktree запоминается по проекту (`Project.worktreeByDefault`), базовая ветка — `Project.lastBaseBranch`, её же правит «Ветка по умолчанию» в настройках проекта (`nil` = из `origin/HEAD`); «обновлено N мин назад» — по mtime `FETCH_HEAD` (учитывает и fetch из терминала, ничего не хранит); fetch — при открытии листа (фоном), по ↻, и перед созданием, если в этом открытии успешного fetch ещё не было; fetch только remote базовой ветки (для локальной базы — `origin`, нет remote — пропуск); архив worktree не трогает; «Удалить навсегда» — галочка «Также удалить worktree и ветку» (выкл.), грязный worktree — второе подтверждение, `--force` только после него, ветка — `branch -d` (не слита — сообщение, ветка остаётся); «Удалить из Hangar» worktree не трогает; не-git проект — строк worktree нет. Отвергнуто: протокол `GitRunner`, моки вывода git, `-D`, удаление worktree при архивации, опрос fetch.
-- [ ] **Step 2: Спека.** §3 Project: + «worktree по умолчанию (вкл/выкл), папка worktree (необязательно)». §4 «Новая задача»: ссылка на #42 (fetch, валидация `check-ref-format`, ошибка «ветка уже существует», не-git — строк нет). §7: `tasks archive` — «архивировать (worktree остаётся, #42)». §8: «нет коммитов → worktree недоступен; fetch не прошёл → stderr + «Создать без fetch»».
-- [ ] **Step 3: Тесты** (`RunnerTests`, RED): `runReturnsStatusAndOutput` (`["sh","-c","echo out; echo err >&2; exit 3"]` → `status == 3`, `stdout == "out\n"`, `stderr == "err\n"`); `runUsesCwd` (`["pwd"]` в temp-папке → stdout = её путь с `/private` префиксом допускается: сравнить `resolvingSymlinksInPath`); `largeOutputDoesNotDeadlock` (`["sh","-c","head -c 300000 /dev/zero | tr '\\0' a"]` → `stdout.count == 300000`); `noPromptEnv` (`["sh","-c","echo $GIT_TERMINAL_PROMPT"]` → `"0\n"`); `cancelTerminatesProcess` (`["sleep","30"]` в `Task`, `cancel()` через 0.2 с → бросает `CancellationError`, общее время < 3 с).
-- [ ] **Step 4:** Run: `swift test --filter RunnerTests` — Expected: FAIL (нет `Runner`).
-- [ ] **Step 5: Реализовать `Runner.local`.** stdout и stderr читать параллельно до выхода (иначе буфер пайпа 64 КБ блокирует процесс); ожидание выхода — `terminationHandler` + continuation внутри `withTaskCancellationHandler`.
-- [ ] **Step 6:** Run: `swift test --filter RunnerTests` — Expected: PASS.
-- [ ] **Step 7: Commit** — `git add Sources/Exec/Runner.swift Tests/ExecTests/RunnerTests.swift docs/decisions.md docs/superpowers/specs/2026-10-18-hangar-design.md && git commit -m "feat(exec): process runner for git; decision #42"`
+- [x] **Step 1: Запись #42 в `decisions.md`** (формат журнала: решение, Почему, Отвергнуто). Содержание — решения контроллера этого плана: модуль `Git` поверх `Exec.Runner` (struct с замыканием, не протокол; `ssh` — этап 6); путь worktree `<родитель проекта>/<папка проекта>.worktrees/<slug ветки>`, настраивается в настройках проекта («Папка worktree»); slug (lowercase, транслит кириллицы по таблице Task 3, пробел и `/` → `-`, схлопывание `-`, пусто → `task`); новая ветка `--no-track` (не тянет upstream базы, `git push` не уйдёт в базовую ветку); переключатель Worktree запоминается по проекту (`Project.worktreeByDefault`), базовая ветка — `Project.lastBaseBranch`, её же правит «Ветка по умолчанию» в настройках проекта (`nil` = из `origin/HEAD`); «обновлено N мин назад» — по mtime `FETCH_HEAD` (учитывает и fetch из терминала, ничего не хранит); fetch — при открытии листа (фоном), по ↻, и перед созданием, если в этом открытии успешного fetch ещё не было; fetch только remote базовой ветки (для локальной базы — `origin`, нет remote — пропуск); архив worktree не трогает; «Удалить навсегда» — галочка «Также удалить worktree и ветку» (выкл.), грязный worktree — второе подтверждение, `--force` только после него, ветка — `branch -d` (не слита — сообщение, ветка остаётся); «Удалить из Hangar» worktree не трогает; не-git проект — строк worktree нет. Отвергнуто: протокол `GitRunner`, моки вывода git, `-D`, удаление worktree при архивации, опрос fetch.
+- [x] **Step 2: Спека.** §3 Project: + «worktree по умолчанию (вкл/выкл), папка worktree (необязательно)». §4 «Новая задача»: ссылка на #42 (fetch, валидация `check-ref-format`, ошибка «ветка уже существует», не-git — строк нет). §7: `tasks archive` — «архивировать (worktree остаётся, #42)». §8: «нет коммитов → worktree недоступен; fetch не прошёл → stderr + «Создать без fetch»».
+- [x] **Step 3: Тесты** (`RunnerTests`, RED): `runReturnsStatusAndOutput` (`["sh","-c","echo out; echo err >&2; exit 3"]` → `status == 3`, `stdout == "out\n"`, `stderr == "err\n"`); `runUsesCwd` (`["pwd"]` в temp-папке → stdout = её путь с `/private` префиксом допускается: сравнить `resolvingSymlinksInPath`); `largeOutputDoesNotDeadlock` (`["sh","-c","head -c 300000 /dev/zero | tr '\\0' a"]` → `stdout.count == 300000`); `noPromptEnv` (`["sh","-c","echo $GIT_TERMINAL_PROMPT"]` → `"0\n"`); `cancelTerminatesProcess` (`["sleep","30"]` в `Task`, `cancel()` через 0.2 с → бросает `CancellationError`, общее время < 3 с).
+- [x] **Step 4:** Run: `swift test --filter RunnerTests` — Expected: FAIL (нет `Runner`).
+- [x] **Step 5: Реализовать `Runner.local`.** stdout и stderr читать параллельно до выхода (иначе буфер пайпа 64 КБ блокирует процесс); ожидание выхода — `terminationHandler` + continuation внутри `withTaskCancellationHandler`.
+- [x] **Step 6:** Run: `swift test --filter RunnerTests` — Expected: PASS.
+- [x] **Step 7: Commit** — `git add Sources/Exec/Runner.swift Tests/ExecTests/RunnerTests.swift docs/decisions.md docs/superpowers/specs/2026-10-18-hangar-design.md && git commit -m "feat(exec): process runner for git; decision #42"`
 
 ### Task 2: Модуль `Git`
 
@@ -102,7 +102,7 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - Ненулевой код любой команды, кроме «проверочных» (`isRepository`, `hasCommits`, `isValidBranchName`, `symbolic-ref`/`rev-parse --verify` внутри `defaultBranch`/`currentBranch`), → `GitError`.
 - Фикстура `TempRepo` (тесты): папка `<tmp>/hangar-git-<uuid>/проект с пробелом/`; `origin.git` (bare), клон `repo` с коммитом в `main`, `push`; свой `git(_ args: String..., in:)` с env `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_AUTHOR/COMMITTER_NAME/EMAIL` и `-c commit.gpgsign=false` (настройки пользователя не влияют на фикстуру); `commit(file:on:)`, `pushBranch(_:)`, `cleanup()`.
 
-- [ ] **Step 1: Тесты** (`GitTests`, RED):
+- [x] **Step 1: Тесты** (`GitTests`, RED):
   - `defaultBranchFromOriginHead` — клон от bare: `defaultBranch() == "origin/main"`.
   - `defaultBranchFallsBackWithoutOriginHead` — после `git remote set-head origin -d`: `"origin/main"`; репо без remote с веткой `master`: `"master"`.
   - `emptyRepoHasNoDefaultBranch` — `git init` без коммитов: `defaultBranch() == nil`, `hasCommits() == false`, `listBranches().isEmpty`.
@@ -116,10 +116,10 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `deleteBranchRefusesUnmerged` — ветка с коммитом, не слитым в `main`: `deleteBranch` бросает `GitError`, ветка на месте; слитая — удаляется.
   - `pruneForgetsDeletedFolder` — папку worktree удалить через `FileManager`; `pruneWorktrees()` → `git worktree list` её не содержит.
   - `nonRepository` — пустая temp-папка: `isRepository() == false`.
-- [ ] **Step 2:** Run: `swift test --filter GitTests` — Expected: FAIL (нет модуля `Git`).
-- [ ] **Step 3: Реализовать `Git`** по Interfaces.
-- [ ] **Step 4:** Run: `swift test --filter GitTests` — Expected: PASS. Run: `swift build` — Expected: собирается.
-- [ ] **Step 5: Commit** — `git add Package.swift Sources/Git Tests/GitTests && git commit -m "feat(git): git CLI module on temp-repo tests"`
+- [x] **Step 2:** Run: `swift test --filter GitTests` — Expected: FAIL (нет модуля `Git`).
+- [x] **Step 3: Реализовать `Git`** по Interfaces.
+- [x] **Step 4:** Run: `swift test --filter GitTests` — Expected: PASS. Run: `swift build` — Expected: собирается.
+- [x] **Step 5: Commit** — `git add Package.swift Sources/Git Tests/GitTests && git commit -m "feat(git): git CLI module on temp-repo tests"`
 
 ### Task 3: Имя ветки и путь worktree
 
@@ -131,11 +131,11 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `public func branchSlug(_ name: String) -> String` — lowercase; кириллица по таблице: а a, б b, в v, г g, д d, е e, ё e, ж zh, з z, и i, й y, к k, л l, м m, н n, о o, п p, р r, с s, т t, у u, ф f, х kh, ц ts, ч ch, ш sh, щ shch, ъ —, ы y, ь —, э e, ю yu, я ya; прочие буквы — `applyingTransform(.toLatin)` + `.stripDiacritics`; всё, кроме `[a-z0-9._]`, → `-`; `-` схлопываются; `-` и `.` по краям срезаются; пусто → `"task"`.
   - `public func worktreePath(projectPath: String, root: String?, branch: String) -> String` — `root` nil → `<dirname(projectPath)>/<basename(projectPath)>.worktrees/<branchSlug(branch)>`; иначе `<root>/<branchSlug(branch)>`. Хвостовой `/` у `projectPath` игнорируется.
 
-- [ ] **Step 1: Тесты** (RED): `slugCases` — таблица: `"Починить логин" → "pochinit-login"`, `"Rate limit / login" → "rate-limit-login"`, `"Щука  Ёж" → "shchuka-ezh"`, `"Объявления: Хабр" → "obyavleniya-khabr"`, `"fix: API v2.1" → "fix-api-v2.1"`, `"--Café--" → "cafe"`, `"!!!" → "task"`, `"feat/oauth" → "feat-oauth"`; `worktreePathDefault` — `("/u/dev/shop-api", nil, "feat/oauth") → "/u/dev/shop-api.worktrees/feat-oauth"`, то же с `"/u/dev/shop-api/"`; `worktreePathCustomRoot` — `("/u/dev/shop-api", "/tmp/wt", "Fix") → "/tmp/wt/fix"`.
-- [ ] **Step 2:** Run: `swift test --filter NamingTests` — Expected: FAIL.
-- [ ] **Step 3: Реализовать** `branchSlug`, `worktreePath`.
-- [ ] **Step 4:** Run: `swift test --filter NamingTests` — Expected: PASS.
-- [ ] **Step 5: Commit** — `git add Sources/Git/Naming.swift Tests/GitTests/NamingTests.swift && git commit -m "feat(git): branch slug and worktree path"`
+- [x] **Step 1: Тесты** (RED): `slugCases` — таблица: `"Починить логин" → "pochinit-login"`, `"Rate limit / login" → "rate-limit-login"`, `"Щука  Ёж" → "shchuka-ezh"`, `"Объявления: Хабр" → "obyavleniya-khabr"`, `"fix: API v2.1" → "fix-api-v2.1"`, `"--Café--" → "cafe"`, `"!!!" → "task"`, `"feat/oauth" → "feat-oauth"`; `worktreePathDefault` — `("/u/dev/shop-api", nil, "feat/oauth") → "/u/dev/shop-api.worktrees/feat-oauth"`, то же с `"/u/dev/shop-api/"`; `worktreePathCustomRoot` — `("/u/dev/shop-api", "/tmp/wt", "Fix") → "/tmp/wt/fix"`.
+- [x] **Step 2:** Run: `swift test --filter NamingTests` — Expected: FAIL.
+- [x] **Step 3: Реализовать** `branchSlug`, `worktreePath`.
+- [x] **Step 4:** Run: `swift test --filter NamingTests` — Expected: PASS.
+- [x] **Step 5: Commit** — `git add Sources/Git/Naming.swift Tests/GitTests/NamingTests.swift && git commit -m "feat(git): branch slug and worktree path"`
 
 ### Task 4: Модель — поля проекта и задача с worktree
 
@@ -150,11 +150,11 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `rememberNewTaskChoice(projectId: UUID, worktree: Bool, base: String?)` — `worktreeByDefault = worktree`; `base` не nil → `lastBaseBranch = base`.
   - `HangarTask.branch: String?` (computed) — ветка worktree-режима, иначе nil.
 
-- [ ] **Step 1: Тесты** (RED): `worktreeTaskLeavesUseWorktreePath` (`addTask(mode: .worktree(path: "/w/x", branch: "x", base: "origin/main"))` → `addTab`, `split`, `toggleDrawer` дают листья с `cwd == "/w/x"`, `branch == "x"`); `oldProjectWithoutWorktreeKeysDecodes` (JSON без ключей → `worktreeByDefault == false`, `worktreeRoot == nil`); `updateProjectSetsBaseAndRoot` (`baseBranch: "origin/dev", worktreeRoot: ""` → `lastBaseBranch == "origin/dev"`, `worktreeRoot == nil`); `updateProjectKeepsWorktreeCwds` (смена пути проекта не трогает cwd листьев worktree-задачи); `rememberNewTaskChoice` (worktree true + base nil → `lastBaseBranch` прежний).
-- [ ] **Step 2:** Run: `swift test --filter ModelTests` — Expected: FAIL.
-- [ ] **Step 3: Реализовать**; обновить вызывающих `updateProject` (лист настроек передаёт текущие значения до Task 8).
-- [ ] **Step 4:** Run: `swift test` — Expected: PASS (все цели).
-- [ ] **Step 5: Commit** — `git add Sources/Workspace Tests/WorkspaceTests Sources/HangarUI && git commit -m "feat(workspace): worktree fields on project, addTask(mode:)"`
+- [x] **Step 1: Тесты** (RED): `worktreeTaskLeavesUseWorktreePath` (`addTask(mode: .worktree(path: "/w/x", branch: "x", base: "origin/main"))` → `addTab`, `split`, `toggleDrawer` дают листья с `cwd == "/w/x"`, `branch == "x"`); `oldProjectWithoutWorktreeKeysDecodes` (JSON без ключей → `worktreeByDefault == false`, `worktreeRoot == nil`); `updateProjectSetsBaseAndRoot` (`baseBranch: "origin/dev", worktreeRoot: ""` → `lastBaseBranch == "origin/dev"`, `worktreeRoot == nil`); `updateProjectKeepsWorktreeCwds` (смена пути проекта не трогает cwd листьев worktree-задачи); `rememberNewTaskChoice` (worktree true + base nil → `lastBaseBranch` прежний).
+- [x] **Step 2:** Run: `swift test --filter ModelTests` — Expected: FAIL.
+- [x] **Step 3: Реализовать**; обновить вызывающих `updateProject` (лист настроек передаёт текущие значения до Task 8).
+- [x] **Step 4:** Run: `swift test` — Expected: PASS (все цели).
+- [x] **Step 5: Commit** — `git add Sources/Workspace Tests/WorkspaceTests Sources/HangarUI && git commit -m "feat(workspace): worktree fields on project, addTask(mode:)"`
 
 ### Task 5: Логика листа — `NewTaskModel`
 
@@ -177,7 +177,7 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `taskBranches` — ветки worktree-задач проекта (для метки «задача» в пикере).
 - L10n (ru / en): `branchRequired` «Введите имя ветки» / «Enter a branch name»; `branchInvalid` «Недопустимое имя ветки» / «Invalid branch name»; `branchExists` «Ветка «%@» уже существует» / «Branch “%@” already exists»; `fetchFailed` «git fetch не удался» / «git fetch failed»; `createWithoutFetch` «Создать без fetch» / «Create without fetch»; `fetchCancelled` «fetch отменён» / «fetch cancelled»; `noCommits` «в репозитории нет коммитов» / «the repository has no commits».
 
-- [ ] **Step 1: Тесты** (`NewTaskModelTests`, RED, настоящие temp-репозитории):
+- [x] **Step 1: Тесты** (`NewTaskModelTests`, RED, настоящие temp-репозитории):
   - `branchFollowsNameUntilEdited` — `name = "Починить логин"` → `branch == "pochinit-login"`; `branch = "feat/login"`, `name = "x"` → `branch == "feat/login"`; `branch = ""`, `name = "y"` → `"y"`.
   - `defaultsFromProject` — `worktreeByDefault == true` → `worktree == true`; `lastBaseBranch == "origin/release"` (существует) → `base == "origin/release"`.
   - `staleLastBaseFallsBackToDefault` — `lastBaseBranch = "origin/gone"` → после `load()` `base == "origin/main"`.
@@ -189,10 +189,10 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `emptyRepoDisablesWorktree` — `git init` без коммитов: `availability == .noCommits`, при `worktree = true` `canCreate == false`; при `worktree = false` и имени → `canCreate == true`.
   - `nonRepositoryHidesWorktree` — обычная папка: `availability == .notRepository`, `create` → `.mainFolder`.
   - `createTaskRemembersChoice` (`AppState`) — `createTask(…, mode: .worktree(…, base: "origin/dev"))` → проект `worktreeByDefault == true`, `lastBaseBranch == "origin/dev"`, cwd листа агента = путь worktree, задача выбрана.
-- [ ] **Step 2:** Run: `swift test --filter "NewTaskModelTests|L10nTests"` — Expected: FAIL.
-- [ ] **Step 3: Реализовать** `NewTaskModel`, `AppState.createTask(mode:)`, строки L10n.
-- [ ] **Step 4:** Run: `swift test --filter "NewTaskModelTests|L10nTests|ActionsTests"` — Expected: PASS.
-- [ ] **Step 5: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): new-task model — fetch, branch validation, worktree create"`
+- [x] **Step 2:** Run: `swift test --filter "NewTaskModelTests|L10nTests"` — Expected: FAIL.
+- [x] **Step 3: Реализовать** `NewTaskModel`, `AppState.createTask(mode:)`, строки L10n.
+- [x] **Step 4:** Run: `swift test --filter "NewTaskModelTests|L10nTests|ActionsTests"` — Expected: PASS.
+- [x] **Step 5: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): new-task model — fetch, branch validation, worktree create"`
 
 ### Task 6: Лист новой задачи — вид, пикер ветки, ветка в заголовке
 
@@ -218,12 +218,12 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
 - `presentNewTask`: создаёт `NewTaskModel(project:git: Git(repo: project.path), taskBranches:)`, `Task { await model.load() }`; `onCreate(mode)` закрывает лист и вызывает `AppState.createTask(…, mode:)`; закрытие листа отменяет фоновый fetch.
 - `TitleBarView`: у worktree-задачи после иконки — `task.branch` моно `text3` (`Theme.fontSize.tab`).
 
-- [ ] **Step 1: Тесты** (`BranchPickerTests`, RED): `itemsRemoteFirstDefaultOnTop` (ветки `origin/feat` (новее), `origin/main`, `refactor-db`; default `origin/main` → `remote.map(\.branch.name) == ["origin/main", "origin/feat"]`, `remote[0].meta == .isDefault`, `local[0].meta == .age(...)`); `queryFiltersCaseInsensitive` (`"FEAT"` → только `origin/feat`, `local` пуст); `taskBranchMeta` (`taskBranches = ["refactor-db"]` → `local[0].meta == .task`); `ageLabels` (ru: 30 с → «только что», 2 мин → «2 мин назад», 3 ч → «3 ч назад», 3 дн → «3 дн назад»; en: «just now», «2 min ago», «3 h ago», «3 d ago»).
-- [ ] **Step 2:** Run: `swift test --filter "BranchPickerTests|L10nTests"` — Expected: FAIL.
-- [ ] **Step 3: Реализовать** `branchPickerItems`, `ageLabel`, `BranchPicker`, новый вид `NewTaskSheet` (принимает `NewTaskModel`, `onCreate: (String, String, TaskMode) -> Void`), `Icon.refresh`, строки, ветку в `TitleBarView`.
-- [ ] **Step 4:** Run: `swift test` — Expected: PASS.
-- [ ] **Step 5: Проверить вручную** (`scripts/bundle.sh && open build/Hangar.app`, проект — git-репо с `origin`): лист ⌘N сверить с макетом v4 (оба состояния); пикер — поиск, ↑/↓/↩/Esc, секции, меты; «обновлено N мин назад» и ↻; создать задачу с worktree → папка `<проект>.worktrees/<slug>`, вкладка claude в ней (`pwd` в ⌘T), иконка worktree в сайдбаре, ветка в заголовке; выключить сеть → ошибка fetch со stderr, «Создать без fetch» работает; существующая ветка → ошибка у поля; не-git папка → строк нет; переоткрыть лист → переключатель и база запомнены. Записать «Нужна проверка глазами».
-- [ ] **Step 6: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): new-task sheet with worktree, branch picker and fetch"`
+- [x] **Step 1: Тесты** (`BranchPickerTests`, RED): `itemsRemoteFirstDefaultOnTop` (ветки `origin/feat` (новее), `origin/main`, `refactor-db`; default `origin/main` → `remote.map(\.branch.name) == ["origin/main", "origin/feat"]`, `remote[0].meta == .isDefault`, `local[0].meta == .age(...)`); `queryFiltersCaseInsensitive` (`"FEAT"` → только `origin/feat`, `local` пуст); `taskBranchMeta` (`taskBranches = ["refactor-db"]` → `local[0].meta == .task`); `ageLabels` (ru: 30 с → «только что», 2 мин → «2 мин назад», 3 ч → «3 ч назад», 3 дн → «3 дн назад»; en: «just now», «2 min ago», «3 h ago», «3 d ago»).
+- [x] **Step 2:** Run: `swift test --filter "BranchPickerTests|L10nTests"` — Expected: FAIL.
+- [x] **Step 3: Реализовать** `branchPickerItems`, `ageLabel`, `BranchPicker`, новый вид `NewTaskSheet` (принимает `NewTaskModel`, `onCreate: (String, String, TaskMode) -> Void`), `Icon.refresh`, строки, ветку в `TitleBarView`.
+- [x] **Step 4:** Run: `swift test` — Expected: PASS.
+- [x] **Step 5: Проверить вручную** (`scripts/bundle.sh && open build/Hangar.app`, проект — git-репо с `origin`): лист ⌘N сверить с макетом v4 (оба состояния); пикер — поиск, ↑/↓/↩/Esc, секции, меты; «обновлено N мин назад» и ↻; создать задачу с worktree → папка `<проект>.worktrees/<slug>`, вкладка claude в ней (`pwd` в ⌘T), иконка worktree в сайдбаре, ветка в заголовке; выключить сеть → ошибка fetch со stderr, «Создать без fetch» работает; существующая ветка → ошибка у поля; не-git папка → строк нет; переоткрыть лист → переключатель и база запомнены. Записать «Нужна проверка глазами».
+- [x] **Step 6: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): new-task sheet with worktree, branch picker and fetch"`
 
 ### Task 7: «Удалить навсегда» для worktree-задачи
 
@@ -240,7 +240,7 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
 - L10n (ru / en): `alsoDeleteWorktree` «Также удалить worktree и ветку» / «Also delete the worktree and branch»; `worktreeDirty` «В worktree есть незакоммиченные изменения» / «The worktree has uncommitted changes»; `worktreeDirtyInfo` «Они будут потеряны.» / «They will be lost.»; `deleteAnyway` «Удалить всё равно» / «Delete anyway»; `worktreeRemoveFailed` «Не удалось удалить worktree» / «Couldn't remove the worktree»; `branchKept` «Ветка «%@» не слита — оставлена» / «Branch “%@” is not merged — kept».
 - `deleteTaskInfo` для worktree-задачи: прежний текст (файлы не трогаются, если галочка снята).
 
-- [ ] **Step 1: Тесты** (`TaskDeletionTests`, RED; temp-репо + `ActionContext` с фейковыми `confirm`/`showError`, записывающими вызовы):
+- [x] **Step 1: Тесты** (`TaskDeletionTests`, RED; temp-репо + `ActionContext` с фейковыми `confirm`/`showError`, записывающими вызовы):
   - `withoutCheckboxKeepsWorktreeAndBranch` — `alsoWorktree: false` → задачи нет в состоянии, папка worktree и ветка на месте, `git` не вызывался для удаления.
   - `cleanWorktreeAndMergedBranchRemoved` — папки нет, `git branch --list x` пусто, `confirm` не вызывался.
   - `dirtyAsksThenForces` — неотслеживаемый файл; фейк `confirm` подтверждает → папки нет, задачи нет; фейк отклоняет → папка, ветка и задача на месте.
@@ -248,10 +248,10 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `missingWorktreeFolderIsPruned` — папку удалить через `FileManager` → задачи нет, `git worktree list` без неё, ветка удалена `-d` (не было коммитов), `showError` не вызван.
   - `archiveAndRemoveProjectKeepWorktree` — `archive` и `removeProject` для worktree-задачи → папка и ветка на месте.
   - `actionUsesCheckboxForWorktreeTask` (в `ActionsTests`) — `.deletePermanently` для архивной worktree-задачи вызывает `confirmWithCheckbox`, для `.mainFolder` — `confirm`.
-- [ ] **Step 2:** Run: `swift test --filter "TaskDeletionTests|ActionsTests|L10nTests"` — Expected: FAIL.
-- [ ] **Step 3: Реализовать** `deleteTaskPermanently`, `confirmWithCheckbox` в `ActionContext` и `MainWindowController`, строки.
-- [ ] **Step 4:** Run: `swift test --filter "TaskDeletionTests|ActionsTests|L10nTests"` — Expected: PASS.
-- [ ] **Step 5: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): delete worktree task with optional worktree and branch removal"`
+- [x] **Step 2:** Run: `swift test --filter "TaskDeletionTests|ActionsTests|L10nTests"` — Expected: FAIL.
+- [x] **Step 3: Реализовать** `deleteTaskPermanently`, `confirmWithCheckbox` в `ActionContext` и `MainWindowController`, строки.
+- [x] **Step 4:** Run: `swift test --filter "TaskDeletionTests|ActionsTests|L10nTests"` — Expected: PASS.
+- [x] **Step 5: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): delete worktree task with optional worktree and branch removal"`
 
 ### Task 8: Настройки проекта — ветка по умолчанию и папка worktree
 
@@ -265,19 +265,31 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
 - «Папка worktree» (`L10n.worktreeFolder` «Папка worktree» / «Worktree folder»): моно-поле + «Выбрать…» (`NSOpenPanel`, можно создать папку); плейсхолдер — каталог по умолчанию (`dirname(worktreePath(projectPath:root:nil, branch:"x"))`); пусто → nil; `~` раскрывается; относительный путь — ошибка `L10n.pathMustBeAbsolute` «Нужен абсолютный путь» / «Use an absolute path», лист не сохраняется. Несуществующая папка допустима (git создаст).
 - Смена пути не переносит существующие worktree-задачи (их `mode.path` остаётся).
 
-- [ ] **Step 1: Тест** (RED): `worktreeRootInputValidation` — вынести проверку пути в `func worktreeRootInput(_ text: String) -> Result<String?, String>` (в `ProjectSettingsSheet.swift`): `""` → `.success(nil)`, `"~/wt"` → `.success(<home>/wt)`, `"wt"` → `.failure(L10n.pathMustBeAbsolute)`.
-- [ ] **Step 2:** Run: `swift test --filter "ActionsTests|L10nTests"` — Expected: FAIL.
-- [ ] **Step 3: Реализовать** лист, `presentProjectSettings` (передаёт `Git(repo: project.path)`, сохраняет через `updateProject`).
-- [ ] **Step 4:** Run: `swift test` — Expected: PASS.
-- [ ] **Step 5: Проверить вручную:** выбрать ветку по умолчанию → новый лист предлагает её; «по умолчанию (origin/main)» → снова `origin/HEAD`; своя папка worktree → новая задача создаётся там; не-git проект — строк нет.
-- [ ] **Step 6: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): project settings — default base branch and worktree folder"`
+- [x] **Step 1: Тест** (RED): `worktreeRootInputValidation` — вынести проверку пути в `func worktreeRootInput(_ text: String) -> Result<String?, String>` (в `ProjectSettingsSheet.swift`): `""` → `.success(nil)`, `"~/wt"` → `.success(<home>/wt)`, `"wt"` → `.failure(L10n.pathMustBeAbsolute)`.
+- [x] **Step 2:** Run: `swift test --filter "ActionsTests|L10nTests"` — Expected: FAIL.
+- [x] **Step 3: Реализовать** лист, `presentProjectSettings` (передаёт `Git(repo: project.path)`, сохраняет через `updateProject`).
+- [x] **Step 4:** Run: `swift test` — Expected: PASS.
+- [x] **Step 5: Проверить вручную:** выбрать ветку по умолчанию → новый лист предлагает её; «по умолчанию (origin/main)» → снова `origin/HEAD`; своя папка worktree → новая задача создаётся там; не-git проект — строк нет.
+- [x] **Step 6: Commit** — `git add Sources/HangarUI Tests/HangarUITests && git commit -m "feat(ui): project settings — default base branch and worktree folder"`
 
 ### Task 9: Приёмка этапа
 
 **Files:**
 - Modify: `docs/decisions.md` (если что-то в ходе этапа менялось — новая запись или дополнение #42), `docs/superpowers/plans/2026-10-19-hangar-stage2.md` (отметки, «Нужна проверка глазами»)
 
-- [ ] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS (показать сводку).
-- [ ] **Step 2: Сценарий вручную** (`scripts/bundle.sh && open build/Hangar.app`): задача с worktree → 3 вкладки (claude, ⌘T, сплит) и нижняя панель — все в папке worktree; ⌘Q → открыть → задача и вкладки в worktree восстановлены (`--continue` в cwd worktree); архив → папка на месте; восстановить → работает; архив → «Удалить навсегда» без галочки → папка на месте; с галочкой на грязном worktree → второе подтверждение; ветка с коммитами → сообщение «не слита — оставлена»; «Удалить из Hangar» → worktree на диске.
-- [ ] **Step 3: Энергия.** Лист закрыт, приложение в простое 5 минут: `top -l 2 -s 5 -pid $(pgrep -x Hangar) -stats pid,cpu | tail -1` — Expected: CPU < 1%; `ps -o pid,command -g $(pgrep -x Hangar) | grep -c git` — Expected: `0` (нет висящих git).
-- [ ] **Step 4: Commit** — `git add docs && git commit -m "docs: stage 2 acceptance checklist"`
+- [x] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS (показать сводку).
+- [x] **Step 2: Сценарий вручную** (`scripts/bundle.sh && open build/Hangar.app`): задача с worktree → 3 вкладки (claude, ⌘T, сплит) и нижняя панель — все в папке worktree; ⌘Q → открыть → задача и вкладки в worktree восстановлены (`--continue` в cwd worktree); архив → папка на месте; восстановить → работает; архив → «Удалить навсегда» без галочки → папка на месте; с галочкой на грязном worktree → второе подтверждение; ветка с коммитами → сообщение «не слита — оставлена»; «Удалить из Hangar» → worktree на диске.
+- [ ] **Step 3: Энергия.** (debug ~2 мин: 0,0 % CPU, 52 МБ — см. decisions «Замеры»; release 5 мин — вручную) Лист закрыт, приложение в простое 5 минут: `top -l 2 -s 5 -pid $(pgrep -x Hangar) -stats pid,cpu | tail -1` — Expected: CPU < 1%; `ps -o pid,command -g $(pgrep -x Hangar) | grep -c git` — Expected: `0` (нет висящих git).
+- [x] **Step 4: Commit** — `git add docs && git commit -m "docs: stage 2 acceptance checklist"`
+
+### Нужна проверка глазами (этап 2)
+
+Не проверяется тестами и автоматикой; проверяет пользователь:
+
+- [ ] Реальный NSPopover пикера ветки: позиция, Esc, клавиатура (↑/↓/Enter).
+- [ ] Оттенок переключателя Worktree (tint) в листе.
+- [ ] Приглушённые курсоры (pointing hand отключён у выключенных контролов).
+- [ ] Не-git карточка: нет «прыжка» высоты листа.
+- [ ] Алерт «Создаётся worktree…» закрывается вместе с листом.
+- [ ] Отрисовка чекбокса в NSAlert «Удалить навсегда».
+- [ ] Release-сборка: idle CPU 5 минут (`top -l 2 -s 5 -pid $(pgrep -x Hangar) -stats pid,cpu | tail -1`, < 1 %).

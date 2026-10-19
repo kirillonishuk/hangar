@@ -3,15 +3,25 @@ import Git
 import SwiftUI
 import Workspace
 
-/// Lets the input check report its message as a `Result` failure.
-extension String: @retroactive Error {}
+struct PathInputError: Error, Equatable { let message: String }
+
+/// True if `root` is the project folder or lies inside it (worktrees would show up in the project's own tree).
+func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
+    func trimmed(_ p: String) -> String {
+        var p = p
+        while p.count > 1, p.hasSuffix("/") { p.removeLast() }
+        return p
+    }
+    let r = trimmed(root), p = trimmed(project)
+    return r == p || r.hasPrefix(p + "/")
+}
 
 /// «Папка worktree» input: blank → nil (default folder), `~` expanded, a relative path is an error.
-@MainActor func worktreeRootInput(_ text: String) -> Result<String?, String> {
+@MainActor func worktreeRootInput(_ text: String) -> Result<String?, PathInputError> {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return .success(nil) }
     let expanded = (trimmed as NSString).expandingTildeInPath
-    return expanded.hasPrefix("/") ? .success(expanded) : .failure(L10n.pathMustBeAbsolute)
+    return expanded.hasPrefix("/") ? .success(expanded) : .failure(PathInputError(message: L10n.pathMustBeAbsolute))
 }
 
 /// Project settings (sheet 580, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
@@ -32,6 +42,7 @@ struct ProjectSettingsSheet: View {
     @State private var isGit: Bool?
     @State private var branches: [Branch] = []
     @State private var defaultBase: String?
+    @State private var branchesError: String?
     @FocusState private var focus: Field?
     private enum Field { case name, path, root }
 
@@ -86,6 +97,10 @@ struct ProjectSettingsSheet: View {
                 label(L10n.defaultBranch)
                 BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
                              defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
+                if let branchesError {
+                    Text(branchesError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
+                        .padding(.top, Theme.railInset)
+                }
 
                 label(L10n.worktreeFolder)
                 HStack(spacing: Theme.statusDot) {
@@ -96,6 +111,11 @@ struct ProjectSettingsSheet: View {
                         .onChange(of: worktreeRoot) { rootError = nil }
                         .modifier(SheetField(focused: focus == .root))
                     Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false))
+                }
+                if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot),
+                   worktreeRootInsideProject(root, project: path) {
+                    Text(L10n.worktreeRootInsideProject).font(.system(size: Theme.fontSize.tab))
+                        .foregroundStyle(Theme.ui.text3).padding(.top, Theme.railInset)
                 }
                 if let rootError {
                     Text(rootError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
@@ -141,7 +161,9 @@ struct ProjectSettingsSheet: View {
     /// Reads branches without fetching.
     private func loadGit() async {
         guard await git.isRepository(), await git.hasCommits() else { isGit = false; return }
-        branches = (try? await git.listBranches()) ?? []
+        do { branches = try await git.listBranches() } catch {
+            branchesError = (error as? GitError)?.errorDescription ?? error.localizedDescription
+        }
         defaultBase = try? await git.defaultBranch()
         isGit = true
     }
@@ -152,7 +174,7 @@ struct ProjectSettingsSheet: View {
         if isGit == true {
             switch worktreeRootInput(worktreeRoot) {
             case .success(let value): root = value
-            case .failure(let message): rootError = message; return
+            case .failure(let e): rootError = e.message; return
             }
         } else {
             root = project.worktreeRoot  // hidden rows keep what is stored

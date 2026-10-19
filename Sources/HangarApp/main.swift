@@ -56,7 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// A worktree being created would be left half-done: refuse to quit until git finishes.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        (windowController?.isCreatingTask ?? false) ? .terminateCancel : .terminateNow
+        guard let wc = windowController, wc.isCreatingTask else { return .terminateNow }
+        wc.notifyCreatingTask()
+        return .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) { appState?.saveNow() }

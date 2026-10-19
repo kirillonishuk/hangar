@@ -88,7 +88,7 @@ import Workspace
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
-        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, pathMustBeAbsolute, branchAuto, save
+        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, creatingWorktreeWait, worktreeRootInsideProject, pathMustBeAbsolute, branchAuto, save
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
@@ -234,6 +234,8 @@ import Workspace
     static var projectPath: String { s(.projectPath) }
     static var chooseEllipsis: String { s(.chooseEllipsis) }
     static var defaultBranch: String { s(.defaultBranch) }
+    static var creatingWorktreeWait: String { s(.creatingWorktreeWait) }
+    static var worktreeRootInsideProject: String { s(.worktreeRootInsideProject) }
     static var worktreeFolder: String { s(.worktreeFolder) }
     static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }

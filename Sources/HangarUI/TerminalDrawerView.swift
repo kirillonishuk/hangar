@@ -113,6 +113,8 @@ import Workspace
 
     /// Set by the area: toggles the selected task's drawer (focus handling lives there).
     var onToggle: (() -> Void)?
+    /// Called after the focused shell exited (code 0) and the drawer collapsed.
+    var onReturnFocus: (() -> Void)?
 
     private var task: HangarTask? { app.selectedTask }
     private var available: CGFloat = 0
@@ -189,14 +191,17 @@ import Workspace
         addSubview(view, positioned: .below, relativeTo: bar)  // in the window before the surface exists
         view.onExit = { [weak self] code in
             guard code == 0 else { return }  // a failure keeps the panel with the ↩ bar
+            guard let self else { return }
             uiLog.info("leaf exited leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) code=0 drawer")
-            self?.app.perform { $0.closeDrawerLeaf(taskId: taskId) }
+            let hadFocus = self.focusedLeaf?.leafId == leaf.id
+            self.app.perform { $0.closeDrawerLeaf(taskId: taskId) }
+            if hadFocus { self.onReturnFocus?() }  // the shell is gone: focus goes back to the tab
         }
         view.onRelaunch = { [weak self] in
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
             self?.sync()
         }
-        view.start { try app.spec(for: leaf, tabId: app.state.tasks.first { $0.id == taskId }?.activeTabId ?? taskId) }
+        view.start { try app.spec(for: leaf, tabId: leaf.id) }  // HANGAR_TAB_ID = the drawer leaf's own stable id
         uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=shell drawer task=\(taskId.uuidString.prefix(8), privacy: .public)")
     }
 

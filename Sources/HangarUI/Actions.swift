@@ -235,6 +235,19 @@ extension Shortcut {
     }
 }
 
+enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
+
+/// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
+/// splits are ignored, everything else (⌘T, ⌃`, ⌘1…9, …) works as usual.
+func drawerRoute(_ sc: Shortcut, drawerFocused: Bool) -> DrawerRoute {
+    guard drawerFocused else { return .perform }
+    switch sc {
+    case .closeTab: return .collapseDrawer
+    case .splitRight, .splitDown: return .ignore
+    default: return .perform
+    }
+}
+
 /// What holds the keyboard when F2 is pressed.
 enum FirstResponderKind { case terminal, text, other }
 enum F2Route: Equatable { case passthrough, rename(ActionTarget), ignore }

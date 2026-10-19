@@ -242,9 +242,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer]
             app.hangarShortcutConsumed()
-            if !(event.isARepeat && once.contains(sc)) { perform(sc) }
+            if event.isARepeat && once.contains(sc) { return true }
+            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil) {
+            case .ignore: break
+            case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
+            case .perform: perform(sc)
+            }
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])

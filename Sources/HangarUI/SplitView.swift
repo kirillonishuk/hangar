@@ -231,6 +231,7 @@ final class RatioSplitView: HangarSplitView {
         addSubview(content)
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
+        drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true

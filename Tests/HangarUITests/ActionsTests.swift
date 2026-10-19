@@ -197,4 +197,15 @@ import Workspace
         #expect(app.lastInteraction == .typing)
         #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: nil) == .passthrough)
     }
+
+    @Test func drawerFocusRoutesShortcuts() {
+        // Terminal drawer focused: ⌘W collapses it, splits are ignored, ⌘T and the rest behave as usual.
+        #expect(drawerRoute(.closeTab, drawerFocused: true) == .collapseDrawer)
+        #expect(drawerRoute(.splitRight, drawerFocused: true) == .ignore)
+        #expect(drawerRoute(.splitDown, drawerFocused: true) == .ignore)
+        #expect(drawerRoute(.newTab, drawerFocused: true) == .perform)
+        #expect(drawerRoute(.toggleDrawer, drawerFocused: true) == .perform)
+        #expect(drawerRoute(.tab(2), drawerFocused: true) == .perform)
+        for sc in [Shortcut.closeTab, .splitRight, .splitDown, .newTab] { #expect(drawerRoute(sc, drawerFocused: false) == .perform) }
+    }
 }

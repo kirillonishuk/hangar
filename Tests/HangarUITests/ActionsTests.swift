@@ -242,4 +242,19 @@ import Workspace
         #expect(drawerRoute(.tab(2), drawerFocused: true) == .perform)
         for sc in [Shortcut.closeTab, .splitRight, .splitDown, .newTab] { #expect(drawerRoute(sc, drawerFocused: false) == .perform) }
     }
+
+    @Test func worktreeRootInputValidation() {
+        L10n.language = .en
+        #expect(worktreeRootInput("") == .success(nil))
+        #expect(worktreeRootInput("  ") == .success(nil))
+        #expect(worktreeRootInput("~/wt") == .success(NSHomeDirectory() + "/wt"))
+        #expect(worktreeRootInput(" /tmp/wt ") == .success("/tmp/wt"))
+        #expect(worktreeRootInput("wt") == .failure(L10n.pathMustBeAbsolute))
+        #expect(L10n.pathMustBeAbsolute == "Use an absolute path")
+        #expect(L10n.branchAuto("origin/main") == "default (origin/main)")
+        #expect(L10n.worktreeFolder == "Worktree folder")
+        L10n.language = .ru
+        #expect(L10n.pathMustBeAbsolute == "Нужен абсолютный путь")
+        #expect(L10n.branchAuto("origin/main") == "по умолчанию (origin/main)")
+    }
 }

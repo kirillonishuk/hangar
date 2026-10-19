@@ -420,9 +420,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, onSave: { [weak self] name, path in
+        let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
-            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: project.lastBaseBranch, worktreeRoot: project.worktreeRoot) }
+            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
         }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]

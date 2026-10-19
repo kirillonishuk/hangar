@@ -85,7 +85,9 @@
 "projectPath" = "Путь";
 "chooseEllipsis" = "Выбрать…";
 "defaultBranch" = "Ветка по умолчанию";
-"defaultBranchLater" = "изменение — на этапе 2";
+"worktreeFolder" = "Папка worktree";
+"pathMustBeAbsolute" = "Нужен абсолютный путь";
+"branchAuto" = "по умолчанию (%@)";
 "save" = "Сохранить";
 "ok" = "ОК";
 "exitStatus" = "код выхода %d";

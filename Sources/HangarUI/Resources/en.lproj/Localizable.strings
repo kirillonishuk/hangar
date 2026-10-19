@@ -85,7 +85,9 @@
 "projectPath" = "Path";
 "chooseEllipsis" = "Choose…";
 "defaultBranch" = "Default branch";
-"defaultBranchLater" = "editable in stage 2";
+"worktreeFolder" = "Worktree folder";
+"pathMustBeAbsolute" = "Use an absolute path";
+"branchAuto" = "default (%@)";
 "save" = "Save";
 "ok" = "OK";
 "exitStatus" = "exit code %d";

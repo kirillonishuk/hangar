@@ -163,13 +163,24 @@ import Exec
     @Test func dashLeadingNamesAreNotParsedAsOptions() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let g = Git(repo: t.repo)
-        // Without `--` git reads these as options: "unknown switch"/"invalid option" instead of a ref/remote error.
+        // Without `--` git reads these as options ("unknown switch"/"unknown option") instead of treating them as names.
+        // Branch "-x" (only creatable via update-ref) is deleted.
+        try t.git("update-ref", "refs/heads/-x", "HEAD", in: t.repo)
+        try await g.deleteBranch("-x")
+        #expect(try await g.listBranches().map(\.name).contains("-x") == false)
         do { try await g.deleteBranch("-nope"); Issue.record("expected GitError") }
         catch let e as GitError { #expect(e.stderr.contains("not found")) }
-        do { try await g.fetch(remote: "-nope"); Issue.record("expected GitError") }
-        catch let e as GitError { #expect(!e.stderr.contains("unknown option")) }
-        try await g.addWorktree(path: t.worktrees + "/ok", newBranch: "ok", base: "origin/main")
+        // Remote "-r" (only creatable via config) is fetched.
+        try t.git("config", "remote.-r.url", t.origin, in: t.repo)
+        try t.git("config", "remote.-r.fetch", "+refs/heads/*:refs/remotes/-r/*", in: t.repo)
+        try await g.fetch(remote: "-r")
+        #expect(try await g.listBranches().map(\.name).contains("-r/main"))
+        // Dash-leading relative worktree path is created and removed (cwd = repo).
+        try await g.addWorktree(path: "-wt", newBranch: "dash-wt", base: "origin/main")
+        #expect(FileManager.default.fileExists(atPath: t.repo + "/-wt"))
+        try await g.removeWorktree(path: "-wt", force: false)
+        #expect(!FileManager.default.fileExists(atPath: t.repo + "/-wt"))
         do { try await g.removeWorktree(path: "-nope", force: false); Issue.record("expected GitError") }
-        catch let e as GitError { #expect(!e.stderr.contains("unknown switch")) }
+        catch let e as GitError { #expect(e.stderr.contains("is not a working tree")) }
     }
 }

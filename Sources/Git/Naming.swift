@@ -7,7 +7,8 @@ private let translit: [Character: String] = [
     "ь": "", "э": "e", "ю": "yu", "я": "ya",
 ]
 
-/// Task name -> git branch name: transliterated, lowercase, only `[a-z0-9._]` and single `-`.
+/// Task name -> git branch name: transliterated, lowercase, only `[a-z0-9._]` and single `-`; always passes
+/// `git check-ref-format --branch`. Distinct names may share a slug: the caller resolves collisions.
 public func branchSlug(_ name: String) -> String {
     var latin = ""
     for ch in name.lowercased() {
@@ -20,17 +21,24 @@ public func branchSlug(_ name: String) -> String {
     for u in latin.lowercased().unicodeScalars {
         let ok = (u >= "a" && u <= "z") || (u >= "0" && u <= "9") || u == "." || u == "_"
         let c: Character = ok ? Character(u) : "-"
-        if c == "-", out.last == "-" { continue }
+        if c == out.last, c == "-" || c == "." { continue }
         out.append(c)
     }
-    let trimmed = out.trimmingCharacters(in: CharacterSet(charactersIn: "-."))
+    let edges = CharacterSet(charactersIn: "-.")
+    var trimmed = out.trimmingCharacters(in: edges)
+    while trimmed.hasSuffix(".lock") {
+        trimmed = String(trimmed.dropLast(5)).trimmingCharacters(in: edges)
+    }
     return trimmed.isEmpty ? "task" : trimmed
 }
 
 /// Default: `<dirname>/<basename>.worktrees/<slug>`; with `root`: `<root>/<slug>`.
 public func worktreePath(projectPath: String, root: String?, branch: String) -> String {
     let slug = branchSlug(branch)
-    if let root { return root + "/" + slug }
+    if var root {
+        while root.count > 1, root.hasSuffix("/") { root.removeLast() }
+        return (root == "/" ? "" : root) + "/" + slug
+    }
     var p = projectPath
     while p.count > 1, p.hasSuffix("/") { p.removeLast() }
     let url = URL(fileURLWithPath: p)

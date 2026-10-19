@@ -8,7 +8,7 @@ struct PathInputError: Error, Equatable { let message: String }
 /// True if `root` is the project folder or lies inside it (worktrees would show up in the project's own tree).
 func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
     func trimmed(_ p: String) -> String {
-        var p = p
+        var p = (p.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
         while p.count > 1, p.hasSuffix("/") { p.removeLast() }
         return p
     }

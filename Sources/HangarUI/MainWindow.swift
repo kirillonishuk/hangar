@@ -386,6 +386,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             guard let self, let sheet else { return }
             load.cancel()
             model.cancelFetch()
+            if let wait = sheet.attachedSheet { sheet.endSheet(wait) } // the «Создаётся worktree…» alert
             window.endSheet(sheet)
             self.sheetWindow = nil
             self.newTaskModel = nil

@@ -257,6 +257,8 @@ import Workspace
         #expect(worktreeRootInsideProject("/p/app", project: "/p/app/"))
         #expect(!worktreeRootInsideProject("/p/app.worktrees", project: "/p/app"))
         #expect(!worktreeRootInsideProject("/p", project: "/p/app"))
+        #expect(worktreeRootInsideProject("~/app/wt", project: NSHomeDirectory() + "/app"))
+        #expect(worktreeRootInsideProject(" /p/app/wt ", project: " /p/app "))
         #expect(L10n.creatingWorktreeWait == "Creating the worktree — wait a few seconds")
         L10n.language = .ru
         #expect(L10n.pathMustBeAbsolute == "Нужен абсолютный путь")

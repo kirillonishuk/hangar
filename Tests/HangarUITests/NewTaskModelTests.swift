@@ -182,6 +182,7 @@ import Workspace
         #expect(m.createError?.isEmpty == false)
         #expect(m.createError?.contains("already exists") == true)
         #expect(FileManager.default.fileExists(atPath: path + "/keep.txt"))
+        #expect(try t.git("branch", "--list", "busy", in: t.repo).isEmpty)  // the failed add left no branch
         #expect(app.state == before)
     }
 

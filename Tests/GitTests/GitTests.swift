@@ -91,6 +91,23 @@ import Exec
         } catch let e as GitError {
             #expect(e.stderr.contains("already exists"))
         }
+        // The pre-existing branch is not cleaned up.
+        #expect(try t.git("branch", "--list", "fix-login", in: t.repo).contains("fix-login"))
+    }
+
+    @Test func failedAddWorktreeRemovesNewBranch() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let path = t.worktrees + "/busy"
+        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        try "x".write(toFile: path + "/keep.txt", atomically: true, encoding: .utf8)
+        do {
+            try await Git(repo: t.repo).addWorktree(path: path, newBranch: "busy", base: "origin/main")
+            Issue.record("expected GitError")
+        } catch let e as GitError {
+            #expect(e.stderr.contains("already exists"))
+        }
+        #expect(try t.git("branch", "--list", "busy", in: t.repo).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: path + "/keep.txt"))
     }
 
     @Test func branchNameValidation() async throws {

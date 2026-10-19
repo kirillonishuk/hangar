@@ -76,3 +76,28 @@ private func win(_ p: Double, resets: Double? = 1_760_005_000, kind: WindowKind 
     #expect(b.view(.codex, now: now) == nil)
     #expect(b.level(.codex, now: now) == nil)
 }
+
+@Test func limitReachedAlertsAgainAfterReset() {
+    var b = UsageBoard()
+    _ = b.update(.codex, windows: [win(50, resets: 1_760_005_000)], plan: nil, now: now)
+    let a1 = b.markLimitReached(.codex, now: now)
+    #expect(a1.count == 1)
+    let later = Date(timeIntervalSince1970: 1_760_005_001)
+    let a2 = b.markLimitReached(.codex, now: later)
+    #expect(a2 == [UsageAlert(agent: .codex, kind: nil, level: .full, percent: nil)])
+}
+
+@Test func oneNotificationPerLimitEvent() {
+    var b = UsageBoard()
+    let a = b.update(.codex, windows: [win(97)], plan: nil, now: now)
+    #expect(a.count == 1)
+    let m = b.markLimitReached(.codex, now: now)
+    #expect(m == [])
+    // reverse order: mark first, then the window crosses 95
+    var c = UsageBoard()
+    _ = c.update(.claude, windows: [win(50)], plan: nil, now: now)
+    let m2 = c.markLimitReached(.claude, now: now)
+    #expect(m2.count == 1)
+    let a2 = c.update(.claude, windows: [win(97)], plan: nil, now: now)
+    #expect(a2 == [])
+}

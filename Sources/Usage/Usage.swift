@@ -91,6 +91,8 @@ public struct UsageBoard: Equatable, Sendable {
             let key = Key(kind: w.kind, resetsAt: w.resetsAt)
             if l > .ok, l > (s.notified[key] ?? .ok) {
                 s.notified[key] = l
+                // One notification per event: the limit-reached alert already went out.
+                if l == .full, s.usage.limitReached, s.limitAlerted, (s.usage.limitResetsAt ?? .distantFuture) > now { continue }
                 alerts.append(UsageAlert(agent: agent, kind: w.kind, level: l, percent: w.usedPercent))
             }
         }
@@ -103,12 +105,16 @@ public struct UsageBoard: Equatable, Sendable {
 
     public mutating func markLimitReached(_ agent: UsageAgent, now: Date) -> [UsageAlert] {
         var s = states[agent] ?? State(usage: AgentUsage(windows: [], plan: nil, updatedAt: now))
+        if let r = s.usage.limitResetsAt, r <= now { s.limitAlerted = false }
         s.usage.limitReached = true
         s.usage.limitResetsAt = s.usage.windows.max { $0.usedPercent < $1.usedPercent }?.resetsAt
         s.usage.updatedAt = now
         defer { states[agent] = s }
         guard !s.limitAlerted else { return [] }
         s.limitAlerted = true
+        // A per-window .full for this event was already delivered: don't notify twice.
+        let covered = s.usage.windows.contains { $0.usedPercent >= UsageThreshold.full && s.notified[Key(kind: $0.kind, resetsAt: $0.resetsAt)] == .full }
+        if covered { return [] }
         return [UsageAlert(agent: agent, kind: nil, level: .full, percent: nil)]
     }
 

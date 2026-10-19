@@ -110,15 +110,7 @@ private final class RunState: @unchecked Sendable {
         cancelled = true
         let pid = pid, ownGroup = ownGroup
         lock.unlock()
-        if pid > 0 { Self.terminate(pid, group: ownGroup) }
+        if pid > 0 { terminateProcess(pid, group: ownGroup) }
         finish(.failure(CancellationError()))
-    }
-
-    /// Process starts the child as leader of its own group, so git's helpers (ssh, remote-ext) are in it too:
-    /// SIGTERM to the group, SIGKILL to whatever is left after 2 s (pids are not reused that fast).
-    private static func terminate(_ pid: pid_t, group: Bool) {
-        let target = group ? -pid : pid
-        kill(target, SIGTERM)
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { kill(target, SIGKILL) }
     }
 }

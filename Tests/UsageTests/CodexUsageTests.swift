@@ -25,6 +25,22 @@ private func alive(_ pid: String) -> Bool {
     guard let p = Int32(pid) else { return false }
     return kill(p, 0) == 0
 }
+/// Bounded poll (no fixed sleeps): true as soon as `cond` holds, false after `seconds`.
+private func waitUntil(_ seconds: Double = 3, _ cond: () -> Bool) async -> Bool {
+    let end = Date().addingTimeInterval(seconds)
+    while Date() < end {
+        if cond() { return true }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    return cond()
+}
+private func pgrepCount(_ marker: String) -> Int {
+    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    p.arguments = ["-f", marker]
+    let out = Pipe(); p.standardOutput = out
+    try? p.run(); p.waitUntilExit()
+    return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").count
+}
 
 @Test func codexMapping() throws {
     let obj = try JSONSerialization.jsonObject(with: Data(fixture.utf8))
@@ -57,21 +73,34 @@ private func alive(_ pid: String) -> Bool {
     #expect(u.windows.map(\.usedPercent) == [22, 100])
     #expect(u.plan == "plus")
     let pid = try String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-    try await Task.sleep(for: .milliseconds(300))
-    #expect(!alive(pid))
+    let gone = await waitUntil { !alive(pid) }
+    #expect(gone)
+}
+
+@Test func codexReaderServerRepliesAndExits() async throws {
+    let dir = try tmpDir(); defer { try? FileManager.default.removeItem(at: dir) }
+    let exe = try script("read a; read b; read c\necho '{\"id\":1,\"result\":\(fixture)}'\nexit 0\n", in: dir)
+    let u = try await CodexUsageReader(executable: exe).read(now: now)
+    #expect(u.windows.map(\.usedPercent) == [22, 100])
+    let bare = try script("read a; read b; read c\nprintf '%s' '{\"id\":1,\"result\":\(fixture)}'\nexit 0\n", in: dir)
+    let u2 = try await CodexUsageReader(executable: bare).read(now: now)
+    #expect(u2.plan == "plus")
 }
 
 @Test func codexReaderFailures() async throws {
     let dir = try tmpDir(); defer { try? FileManager.default.removeItem(at: dir) }
-    let hang = try script("echo $$ > \(dir.path)/pid\nsleep 30\n", in: dir)
+    let marker = String(Int.random(in: 600_000...899_999))
+    let hang = try script("touch \(dir.path)/started\nsleep \(marker)\n", in: dir)
     let t0 = Date()
     await #expect(throws: (any Error).self) {
         try await CodexUsageReader(executable: hang, timeout: .milliseconds(500)).read(now: now)
     }
     #expect(Date().timeIntervalSince(t0) < 2)
-    let pid = try String(contentsOfFile: dir.path + "/pid", encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-    try await Task.sleep(for: .milliseconds(300))
-    #expect(!alive(pid))
+    // The script ran (otherwise the kill proves nothing) and its sleep grandchild is gone too (group kill).
+    let started = await waitUntil { FileManager.default.fileExists(atPath: dir.path + "/started") }
+    #expect(started)
+    let reaped = await waitUntil { pgrepCount("sleep \(marker)") == 0 }
+    #expect(reaped)
 
     let err = try script(#"read a; read b; read c; echo '{"id":1,"error":{"message":"x"}}'; sleep 30"#, in: dir)
     await #expect(throws: (any Error).self) { try await CodexUsageReader(executable: err).read(now: now) }

@@ -49,7 +49,6 @@ public struct CodexUsageReader: Sendable {
     ].joined(separator: "\n") + "\n"
 
     public func read(now: Date) async throws -> AgentUsage {
-        signal(SIGPIPE, SIG_IGN)
         let session = CodexSession()
         let timeout = timeout
         let exe = executable
@@ -80,6 +79,8 @@ private final class CodexSession: @unchecked Sendable {
     private var done = false
     private var process: Process?
     private var buffer = Data()
+    /// Serializes reads of the stdout fd (readability handler vs. the final drain on exit).
+    private let readLock = NSLock()
 
     func start(_ exe: String, input: String, _ c: CheckedContinuation<Box, Error>) {
         lock.lock()
@@ -92,10 +93,19 @@ private final class CodexSession: @unchecked Sendable {
         p.standardInput = inPipe
         p.standardOutput = outPipe
         p.standardError = FileHandle.nullDevice
-        p.terminationHandler = { [self] _ in finish(.failure(CodexReadError(reason: "process exited"))) }
-        outPipe.fileHandleForReading.readabilityHandler = { [self] h in
-            let d = h.availableData
-            if d.isEmpty { h.readabilityHandler = nil; finish(.failure(CodexReadError(reason: "eof"))) } else { feed(d) }
+        let outFD = outPipe.fileHandleForReading.fileDescriptor
+        _ = fcntl(outFD, F_SETFL, fcntl(outFD, F_GETFL) | O_NONBLOCK)
+        // A write to a dead server must fail with EPIPE, not kill the app with SIGPIPE.
+        _ = fcntl(inPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        let reader = outPipe.fileHandleForReading
+        p.terminationHandler = { [self] _ in
+            // The reply may be in the pipe already (reply, then exit): drain and parse before failing.
+            reader.readabilityHandler = nil
+            _ = pump(outFD, final: true)
+            finish(.failure(CodexReadError(reason: "process exited")))
+        }
+        reader.readabilityHandler = { [self] h in
+            if pump(outFD, final: false) { h.readabilityHandler = nil; finish(.failure(CodexReadError(reason: "eof"))) }
         }
         do { try p.run() } catch {
             lock.unlock()
@@ -107,23 +117,31 @@ private final class CodexSession: @unchecked Sendable {
         // stdin stays open (a server may exit on EOF before replying); the process is terminated in finish.
     }
 
-    private func feed(_ d: Data) {
-        lock.lock()
-        buffer.append(d)
+    /// Reads everything available; true at EOF. `final` also parses a last line without a trailing newline.
+    private func pump(_ fd: Int32, final: Bool) -> Bool {
+        readLock.lock(); defer { readLock.unlock() }
+        var eof = false
+        var chunk = [UInt8](repeating: 0, count: 16384)
+        while true {
+            let n = read(fd, &chunk, chunk.count)
+            if n > 0 { buffer.append(contentsOf: chunk[0..<n]) }
+            else { eof = n == 0; break }  // 0 = EOF, -1 = EAGAIN/error: nothing more right now
+        }
         var lines: [Data] = []
         while let i = buffer.firstIndex(of: 0x0A) {
             lines.append(buffer[buffer.startIndex..<i])
             buffer.removeSubrange(buffer.startIndex...i)
         }
-        lock.unlock()
+        if (final || eof), !buffer.isEmpty { lines.append(buffer); buffer.removeAll() }
         for line in lines {
             guard let obj = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
                   (obj["id"] as? NSNumber)?.intValue == 1 else { continue }
             if obj["error"] != nil { finish(.failure(CodexReadError(reason: "error response"))) }
             else if let r = obj["result"] { finish(.success(Box(value: r))) }
             else { finish(.failure(CodexReadError(reason: "empty response"))) }
-            return
+            return eof
         }
+        return eof
     }
 
     func finish(_ result: Result<Box, Error>) {
@@ -135,10 +153,7 @@ private final class CodexSession: @unchecked Sendable {
         lock.unlock()
         if let p, p.isRunning {
             let pid = p.processIdentifier
-            // Process makes the child leader of its own group → kill the group, SIGKILL whatever is left after 2 s.
-            let target = getpgid(pid) == pid ? -pid : pid
-            kill(target, SIGTERM)
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { kill(target, SIGKILL) }
+            terminateProcess(pid, group: getpgid(pid) == pid)
         }
         c?.resume(with: result)
     }

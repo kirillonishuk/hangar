@@ -11,24 +11,33 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var lastBaseBranch: String?
     /// Sidebar group folded.
     public var collapsed: Bool
+    /// New-task sheet starts with the worktree toggle on.
+    public var worktreeByDefault: Bool
+    /// Parent folder for this project's worktrees; nil = the default location.
+    public var worktreeRoot: String?
 
-    public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false) {
+    public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
+                worktreeByDefault: Bool = false, worktreeRoot: String? = nil) {
         self.id = id
         self.name = name
         self.location = location
         self.lastBaseBranch = lastBaseBranch
         self.collapsed = collapsed
+        self.worktreeByDefault = worktreeByDefault
+        self.worktreeRoot = worktreeRoot
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, location, lastBaseBranch, collapsed }
+    private enum CodingKeys: String, CodingKey { case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot }
 
-    /// `collapsed` was added later; older files decode with the default.
+    /// `collapsed` and the worktree fields were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), name: try c.decode(String.self, forKey: .name),
                   location: try c.decode(Location.self, forKey: .location),
                   lastBaseBranch: try c.decodeIfPresent(String.self, forKey: .lastBaseBranch),
-                  collapsed: try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false)
+                  collapsed: try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false,
+                  worktreeByDefault: try c.decodeIfPresent(Bool.self, forKey: .worktreeByDefault) ?? false,
+                  worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot))
     }
 
     public var path: String {
@@ -177,6 +186,12 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var pinned: Bool
     public var drawer: Drawer
 
+    /// Branch of a worktree task; nil for main-folder tasks.
+    public var branch: String? {
+        if case .worktree(_, let branch, _) = mode { return branch }
+        return nil
+    }
+
     public init(id: UUID = UUID(), projectId: UUID, name: String, mode: TaskMode = .mainFolder,
                 order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false,
                 drawer: Drawer = Drawer()) {
@@ -251,11 +266,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return project.id
     }
 
-    /// New tasks are `.mainFolder`; the worktree flow sets `mode` afterwards.
+    /// `mode` is set before any tab exists, so leaves take the worktree path as cwd.
     @discardableResult
-    public mutating func addTask(projectId: UUID, name: String) -> UUID {
+    public mutating func addTask(projectId: UUID, name: String, mode: TaskMode = .mainFolder) -> UUID {
         let order = (tasks.filter { $0.projectId == projectId }.map(\.order).max() ?? -1) + 1
-        let task = HangarTask(projectId: projectId, name: name, order: order)
+        let task = HangarTask(projectId: projectId, name: name, mode: mode, order: order)
         tasks.append(task)
         return task.id
     }
@@ -441,10 +456,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         projects.insert(project, at: min(max(index, 0), projects.count))
     }
 
-    /// Blank name keeps the old one. A new path also moves the cwd of main-folder tasks' leaves that sat in the old path.
-    public mutating func updateProject(id: UUID, name: String, path: String) {
+    /// Remembers the last choice from the new-task sheet; a nil `base` keeps the previous one.
+    public mutating func rememberNewTaskChoice(projectId: UUID, worktree: Bool, base: String?) {
+        guard let i = projects.firstIndex(where: { $0.id == projectId }) else { return }
+        projects[i].worktreeByDefault = worktree
+        if let base { projects[i].lastBaseBranch = base }
+    }
+
+    /// Blank name keeps the old one; nil `baseBranch` keeps the old one; blank `worktreeRoot` resets to default (nil).
+    /// A new path also moves the cwd of main-folder tasks' leaves that sat in the old path.
+    public mutating func updateProject(id: UUID, name: String, path: String, baseBranch: String?, worktreeRoot: String?) {
         guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
         renameProject(id: id, name: name)
+        if let baseBranch { projects[i].lastBaseBranch = baseBranch }
+        let root = worktreeRoot?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        projects[i].worktreeRoot = root.isEmpty ? nil : root
         let old = projects[i].path
         guard !path.isEmpty, path != old else { return }
         projects[i].location = .local(path: path)

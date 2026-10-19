@@ -402,7 +402,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let view = ProjectSettingsSheet(project: project, onSave: { [weak self] name, path in
             close()
-            self?.app.perform { $0.updateProject(id: id, name: name, path: path) }
+            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: project.lastBaseBranch, worktreeRoot: project.worktreeRoot) }
         }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]

@@ -275,6 +275,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             openSettings: { [weak self] in self?.showSettings(nil) },
             toggleDrawer: { [weak self] id in self?.column.terminalArea.toggleDrawer(taskId: id) },
             confirm: { [weak self] message, info, button, then in self?.confirm(message, info, button, then) },
+            confirmWithCheckbox: { [weak self] message, info, button, checkbox, then in
+                self?.confirm(message, info, button, checkbox: checkbox, then)
+            },
             showError: { [weak self] message, info in self?.showError(message, info) })
     }
 
@@ -427,6 +430,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func confirm(_ message: String, _ info: String, _ button: String, _ then: @escaping () -> Void) {
+        confirm(message, info, button, checkbox: nil) { _ in then() }
+    }
+
+    /// `checkbox` (unchecked by default) is shown as the alert's suppression button; `then` gets its state.
+    private func confirm(_ message: String, _ info: String, _ button: String, checkbox: String?, _ then: @escaping (Bool) -> Void) {
         guard let window, window.attachedSheet == nil else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -434,9 +442,15 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         alert.informativeText = info
         alert.addButton(withTitle: button).hasDestructiveAction = true
         alert.addButton(withTitle: L10n.cancel)
+        if let checkbox {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = checkbox
+            alert.suppressionButton?.state = .off
+        }
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
-            MainActor.assumeIsolated { then() }
+            let checked = alert.suppressionButton?.state == .on
+            MainActor.assumeIsolated { then(checked) }
         }
     }
 

@@ -124,3 +124,10 @@
 "minutesAgo" = "%ld мин назад";
 "hoursAgo" = "%ld ч назад";
 "daysAgo" = "%ld дн назад";
+
+"alsoDeleteWorktree" = "Также удалить worktree и ветку";
+"worktreeDirty" = "В worktree есть незакоммиченные изменения";
+"worktreeDirtyInfo" = "Они будут потеряны.";
+"deleteAnyway" = "Удалить всё равно";
+"worktreeRemoveFailed" = "Не удалось удалить worktree";
+"branchKept" = "Ветка «%@» не слита — оставлена";

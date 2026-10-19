@@ -124,3 +124,10 @@
 "minutesAgo" = "%ld min ago";
 "hoursAgo" = "%ld h ago";
 "daysAgo" = "%ld d ago";
+
+"alsoDeleteWorktree" = "Also delete the worktree and branch";
+"worktreeDirty" = "The worktree has uncommitted changes";
+"worktreeDirtyInfo" = "They will be lost.";
+"deleteAnyway" = "Delete anyway";
+"worktreeRemoveFailed" = "Couldn't remove the worktree";
+"branchKept" = "Branch “%@” is not merged — kept";

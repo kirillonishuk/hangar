@@ -1,5 +1,6 @@
 import AppKit
 import Exec
+import Git
 import SwiftUI
 import Workspace
 
@@ -21,6 +22,8 @@ enum ActionTarget: Equatable {
     var toggleDrawer: ((UUID) -> Void)?
     /// message, informative text, destructive button title, called on confirm.
     var confirm: (String, String, String, @escaping () -> Void) -> Void = { _, _, _, _ in }
+    /// message, informative text, destructive button title, checkbox title (unchecked); `then(checked)` only on confirm.
+    var confirmWithCheckbox: (String, String, String, String, @escaping (Bool) -> Void) -> Void = { _, _, _, _, _ in }
     /// message, details.
     var showError: (String, String) -> Void = { _, _ in }
 }
@@ -134,8 +137,14 @@ enum Action: CaseIterable {
         case (.restore, .task(let id)): app.restore(taskId: id)
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-            ctx.confirm(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete) {
-                app.perform { $0.deleteTask(id: id) }
+            guard case .worktree = task.mode, let project = app.project(task.projectId) else {
+                ctx.confirm(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete) {
+                    app.perform { $0.deleteTask(id: id) }
+                }
+                return
+            }
+            ctx.confirmWithCheckbox(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete, L10n.alsoDeleteWorktree) { alsoWorktree in
+                Task { await deleteTaskPermanently(id, alsoWorktree: alsoWorktree, ctx: ctx, git: Git(repo: project.path)) }
             }
         case (.removeProject, .project(let id)):
             guard let project = app.project(id) else { return }

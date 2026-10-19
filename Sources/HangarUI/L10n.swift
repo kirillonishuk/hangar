@@ -85,6 +85,7 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
@@ -210,6 +211,12 @@ import Workspace
     static var deletePermanently: String { s(.deletePermanently) }
     static func deleteTaskConfirm(_ arg: String) -> String { f(.deleteTaskConfirm, arg) }
     static var deleteTaskInfo: String { s(.deleteTaskInfo) }
+    static var alsoDeleteWorktree: String { s(.alsoDeleteWorktree) }
+    static var worktreeDirty: String { s(.worktreeDirty) }
+    static var worktreeDirtyInfo: String { s(.worktreeDirtyInfo) }
+    static var deleteAnyway: String { s(.deleteAnyway) }
+    static var worktreeRemoveFailed: String { s(.worktreeRemoveFailed) }
+    static func branchKept(_ name: String) -> String { f(.branchKept, name) }
     static var delete: String { s(.delete) }
     static var projectSettingsEllipsis: String { s(.projectSettingsEllipsis) }
     static var projectSettings: String { s(.projectSettings) }

@@ -105,6 +105,23 @@ import Workspace
         #expect(FileManager.default.fileExists(atPath: dir.path))
     }
 
+    @Test func actionUsesCheckboxForWorktreeTask() throws {
+        let (app, _, _, archived) = try makeApp()
+        defer { cleanup() }
+        var plain = 0, boxed = 0
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { _, _, _, _ in plain += 1 }
+        ctx.confirmWithCheckbox = { _, _, _, checkbox, _ in
+            #expect(checkbox == L10n.alsoDeleteWorktree)
+            boxed += 1
+        }
+        Action.deletePermanently.perform(.task(archived), ctx)
+        #expect(plain == 1 && boxed == 0)
+        app.perform { $0.tasks[1].mode = .worktree(path: "/wt/b", branch: "b", base: "main") }
+        Action.deletePermanently.perform(.task(archived), ctx)
+        #expect(plain == 1 && boxed == 1)
+    }
+
     @Test func renameStartsInlineEditing() throws {
         let (app, p, a, _) = try makeApp()
         defer { cleanup() }

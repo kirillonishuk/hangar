@@ -15,7 +15,8 @@ public struct Runner: Sendable {
         self.run = run
     }
 
-    /// Non-zero exit is not an error; throws only if the process fails to start or the task is cancelled.
+    /// Non-zero exit (incl. 127 when env cannot find the command) is returned in `status`, not thrown;
+    /// throws only if the process fails to start (e.g. missing cwd) or the task is cancelled.
     public static let local = Runner { args, cwd in
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -39,14 +40,16 @@ public struct Runner: Sendable {
                     group.wait()
                     cont.resume(returning: RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string))
                 }
+                // Entered before launch so a fast-exiting child cannot make group.wait() return early.
+                group.enter(); group.enter()
                 do {
                     try cancel.launch(process)
                 } catch {
+                    group.leave(); group.leave()
                     cont.resume(throwing: error)
                     return
                 }
                 for (pipe, box) in [(outPipe, out), (errPipe, err)] {
-                    group.enter()
                     DispatchQueue.global().async {
                         box.data = pipe.fileHandleForReading.readDataToEndOfFile()
                         group.leave()
@@ -76,12 +79,21 @@ private final class CancelFlag: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         try p.run()
         started = true
-        if cancelled { p.terminate() }
+        if cancelled { terminate(p) }
     }
 
     func cancel(_ p: Process) {
         lock.lock(); defer { lock.unlock() }
         cancelled = true
-        if started, p.isRunning { p.terminate() }
+        if started, p.isRunning { terminate(p) }
+    }
+
+    // SIGTERM first; SIGKILL if the child ignores it.
+    private func terminate(_ p: Process) {
+        p.terminate()
+        let pid = p.processIdentifier
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+            if p.isRunning { kill(pid, SIGKILL) }
+        }
     }
 }

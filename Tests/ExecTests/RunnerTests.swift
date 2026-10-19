@@ -37,4 +37,22 @@ import Testing
         await #expect(throws: CancellationError.self) { try await task.value }
         #expect(Date().timeIntervalSince(start) < 3)
     }
+
+    @Test func fastExitingChildKeepsOutput() async throws {
+        for i in 0..<200 {
+            let r = try await Runner.local.run(["printf", "x"], NSTemporaryDirectory())
+            #expect(r.stdout == "x", "run \(i)")
+        }
+    }
+
+    @Test func startFailureThrows() async {
+        await #expect(throws: (any Error).self) {
+            try await Runner.local.run(["true"], "/nonexistent-\(UUID().uuidString)")
+        }
+    }
+
+    @Test func missingCommandIsStatus127() async throws {
+        let r = try await Runner.local.run(["definitely-not-a-command-xyz"], NSTemporaryDirectory())
+        #expect(r.status == 127)
+    }
 }

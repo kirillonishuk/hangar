@@ -51,6 +51,7 @@ import Workspace
     override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
     override func mouseDown(with event: NSEvent) { onClick?() }
     override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// Grab strip on the drawer's top edge: drag to resize (the divider keeps the resize cursor).
@@ -61,6 +62,7 @@ import Workspace
     private var start: (y: CGFloat, height: CGFloat)?
 
     override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
 
     override func mouseDown(with event: NSEvent) { start = (event.locationInWindow.y, currentHeight()) }

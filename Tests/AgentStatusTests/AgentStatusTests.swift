@@ -22,6 +22,7 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
             (status(.done), .hook(.notification, session: nil, notificationType: "idle_prompt"), .done),
             (status(.working), .hook(.notification, session: nil, notificationType: "auth_success"), .working),
             (status(.working), .hook(.stop, session: nil, notificationType: nil), .done),
+            (status(.waiting), .hook(.stop, session: nil, notificationType: nil), .done),
             (status(.working), .hook(.stopFailure, session: nil, notificationType: nil), .failed),
             (status(.working), .hook(.codexNotify, session: nil, notificationType: nil), .done),
             (status(.idle), .bell, .waiting),

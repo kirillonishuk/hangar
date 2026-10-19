@@ -32,6 +32,7 @@ public func validSessionId(_ s: String?) -> String? {
     return s
 }
 
+/// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
 public func fold(_ status: LeafStatus, _ signal: AgentSignal) -> LeafStatus {
     var s = status
     switch signal {

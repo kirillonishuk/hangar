@@ -243,6 +243,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown]
+            app.hangarShortcutConsumed()
             if !(event.isARepeat && once.contains(sc)) { perform(sc) }
             return true
         }

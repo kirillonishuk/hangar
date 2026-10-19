@@ -188,4 +188,13 @@ import Workspace
         #expect(app.lastInteraction == .typing)
         _ = a
     }
+
+    @Test func consumedShortcutEndsClickState() throws {
+        let (app, p, _, _) = try makeApp()
+        defer { cleanup() }
+        app.chromeClicked(.project(p))
+        app.hangarShortcutConsumed()  // click row -> ⌘T -> F2 must not rename the stale target
+        #expect(app.lastInteraction == .typing)
+        #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: nil) == .passthrough)
+    }
 }

@@ -37,6 +37,9 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// A key event went on to a terminal or text field (called by the key monitor).
     func keyReachedTerminal() { if interaction != .typing { interaction = .typing } }
 
+    /// Hangar consumed a non-F2 shortcut (⌘T, ⌘D, …): the earlier row/tab click is no longer F2's target.
+    func hangarShortcutConsumed() { keyReachedTerminal() }
+
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String
     @ObservationIgnored let userShell: String

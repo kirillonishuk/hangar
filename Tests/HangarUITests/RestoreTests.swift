@@ -72,4 +72,19 @@ import Workspace
         #expect(set.contains(ids[2]))
         #expect(set.contains(ids[3]) && set.contains(ids[4]))
     }
+
+    @Test func archivedTaskDoesNotTakeContinueSlot() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let old = s.addTask(projectId: p, name: "old")
+        let live = s.addTask(projectId: p, name: "live")
+        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a")
+        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
+        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(b), focusedLeafId: b.id)]
+        s.archiveTask(id: old)
+        _ = live
+        let set = resumeSet(for: s)
+        #expect(set.contains(b.id))
+        #expect(!set.contains(a.id))
+    }
 }

@@ -307,7 +307,7 @@ func resumeSet(for state: WorkspaceState) -> Set<UUID> {
             if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }
-    for task in state.tasks {
+    for task in state.tasks where !task.archived {
         for tab in task.tabs { tab.root.leaves.forEach(visit) }
         if let leaf = task.drawer.leaf { visit(leaf) }
     }

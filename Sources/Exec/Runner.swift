@@ -4,6 +4,10 @@ public struct RunResult: Equatable, Sendable {
     public var status: Int32
     public var stdout: String
     public var stderr: String
+
+    public init(status: Int32, stdout: String, stderr: String) {
+        self.status = status; self.stdout = stdout; self.stderr = stderr
+    }
 }
 
 /// Runs a command (argv, never a shell string) and collects its output. A closure, not a protocol (decisions #42);

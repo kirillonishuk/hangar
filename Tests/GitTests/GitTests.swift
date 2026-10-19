@@ -152,4 +152,24 @@ import Exec
         defer { try? FileManager.default.removeItem(atPath: dir) }
         #expect(await Git(repo: dir).isRepository() == false)
     }
+
+    @Test func gitErrorDescriptionIsStderr() {
+        let e = GitError(args: ["fetch", "origin"], status: 128, stderr: "fatal: boom")
+        #expect(e.localizedDescription == "fatal: boom")
+        let empty = GitError(args: ["fetch", "origin"], status: 1, stderr: "")
+        #expect(empty.localizedDescription == "git fetch origin exited 1")
+    }
+
+    @Test func dashLeadingNamesAreNotParsedAsOptions() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let g = Git(repo: t.repo)
+        // Without `--` git reads these as options: "unknown switch"/"invalid option" instead of a ref/remote error.
+        do { try await g.deleteBranch("-nope"); Issue.record("expected GitError") }
+        catch let e as GitError { #expect(e.stderr.contains("not found")) }
+        do { try await g.fetch(remote: "-nope"); Issue.record("expected GitError") }
+        catch let e as GitError { #expect(!e.stderr.contains("unknown option")) }
+        try await g.addWorktree(path: t.worktrees + "/ok", newBranch: "ok", base: "origin/main")
+        do { try await g.removeWorktree(path: "-nope", force: false); Issue.record("expected GitError") }
+        catch let e as GitError { #expect(!e.stderr.contains("unknown switch")) }
+    }
 }

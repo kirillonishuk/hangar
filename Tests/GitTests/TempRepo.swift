@@ -44,6 +44,7 @@ struct TempRepo {
         var env = ProcessInfo.processInfo.environment
         env["GIT_CONFIG_GLOBAL"] = "/dev/null"
         env["GIT_CONFIG_NOSYSTEM"] = "1"
+        env["LC_ALL"] = "C"
         env["GIT_AUTHOR_NAME"] = "Test"; env["GIT_AUTHOR_EMAIL"] = "test@example.com"
         env["GIT_COMMITTER_NAME"] = "Test"; env["GIT_COMMITTER_EMAIL"] = "test@example.com"
         env.merge(extraEnv) { $1 }

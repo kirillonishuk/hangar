@@ -14,11 +14,16 @@ public struct Branch: Equatable, Sendable {
     }
 }
 
-public struct GitError: Error, Equatable, Sendable {
+public struct GitError: Error, LocalizedError, Equatable, Sendable {
     public var args: [String]
     public var status: Int32
     /// Trimmed stderr of git.
     public var stderr: String
+
+    /// git's own message; falls back to the command line when stderr is empty.
+    public var errorDescription: String? {
+        stderr.isEmpty ? "git \(args.joined(separator: " ")) exited \(status)" : stderr
+    }
 }
 
 /// Thin wrapper over the `git` CLI. Every command is an argv array run through `Runner` with cwd = `repo`;
@@ -95,7 +100,7 @@ public struct Git: Sendable {
     }
 
     public func deleteBranch(_ name: String) async throws {
-        try await exec(["branch", "-d", name])
+        try await exec(["branch", "-d", "--", name])
     }
 
     // MARK: Remotes
@@ -105,7 +110,7 @@ public struct Git: Sendable {
     }
 
     public func fetch(remote: String) async throws {
-        try await exec(["fetch", "--quiet", remote])
+        try await exec(["fetch", "--quiet", "--", remote])
     }
 
     /// mtime of FETCH_HEAD in the common git dir (shared by worktrees); nil if never fetched.
@@ -119,11 +124,11 @@ public struct Git: Sendable {
     // MARK: Worktrees
 
     public func addWorktree(path: String, newBranch: String, base: String) async throws {
-        try await exec(["worktree", "add", "--no-track", "-b", newBranch, path, base])
+        try await exec(["worktree", "add", "--no-track", "-b", newBranch, "--", path, base])
     }
 
     public func removeWorktree(path: String, force: Bool) async throws {
-        try await exec(["worktree", "remove"] + (force ? ["--force"] : []) + [path])
+        try await exec(["worktree", "remove"] + (force ? ["--force"] : []) + ["--", path])
     }
 
     public func pruneWorktrees() async throws {

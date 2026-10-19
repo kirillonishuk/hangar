@@ -113,11 +113,13 @@ public struct Git: Sendable {
         try await exec(["fetch", "--quiet", "--", remote])
     }
 
-    /// mtime of FETCH_HEAD in the common git dir (shared by worktrees); nil if never fetched.
+    /// mtime of FETCH_HEAD in the common git dir (shared by worktrees); nil if never fetched or the last fetch failed (empty file).
     public func lastFetch() async -> Date? {
         guard let dir = try? await exec(["rev-parse", "--git-common-dir"]).trimmed, !dir.isEmpty else { return nil }
         let base = dir.hasPrefix("/") ? dir : repo + "/" + dir
         let attrs = try? FileManager.default.attributesOfItem(atPath: base + "/FETCH_HEAD")
+        // A failed fetch truncates FETCH_HEAD: an empty file is not a fetch.
+        guard (attrs?[.size] as? Int ?? 0) > 0 else { return nil }
         return attrs?[.modificationDate] as? Date
     }
 

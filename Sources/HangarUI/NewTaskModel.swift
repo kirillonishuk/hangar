@@ -14,7 +14,7 @@ import Workspace
     }
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.
     var branch = "" {
-        didSet { if !suggesting { branchEdited = !branch.isEmpty } }
+        didSet { if !suggesting { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
     }
     /// The «из названия» hint; redrawn through `branch`, which every change of it accompanies.
     var branchFollowsName: Bool { !branchEdited }
@@ -122,8 +122,14 @@ import Workspace
     }
 
     func validateBranch() async {
-        branchError = await branchProblem(branch)
+        let checked = branch
+        let problem = await branchProblem(checked)
+        guard branch == checked else { return }  // edited meanwhile: a newer validation owns the result
+        branchError = problem
     }
+
+    /// The field was cleared (it follows the name again): nothing to complain about.
+    private func clearBranchError() { branchError = nil }
 
     /// nil keeps the sheet open: fetch failed/cancelled (offer «Create without fetch»), bad branch, or git error.
     func create(skipFetch: Bool) async -> TaskMode? {

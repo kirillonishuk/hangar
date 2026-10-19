@@ -405,7 +405,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.
-    public func windowShouldClose(_ sender: NSWindow) -> Bool { newTaskModel?.creating != true }
+    /// A new-task create is in progress: closing the window or quitting would abandon a half-made worktree.
+    public var isCreatingTask: Bool { newTaskModel?.creating == true }
+    public func windowShouldClose(_ sender: NSWindow) -> Bool { !isCreatingTask }
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }

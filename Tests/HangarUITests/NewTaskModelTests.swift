@@ -257,6 +257,43 @@ import Workspace
         #expect(await skipping.value == .worktree(path: t.repo + ".worktrees/t", branch: "t", base: "origin/main"))
     }
 
+    @Test func staleBranchValidationIsDropped() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t)
+        await m.load()
+        m.branch = "main"  // exists: its (slower, git-backed) validation says so
+        let first = Task { await m.validateBranch() }
+        await Task.yield()  // runs it up to its first git await
+        m.branch = ""
+        await m.validateBranch()  // answers at once: «required»
+        await first.value
+        #expect(m.branchError == L10n.branchRequired)
+    }
+
+    @Test func clearingBranchClearsItsError() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t)
+        await m.load()
+        m.branch = "main"
+        await m.validateBranch()
+        #expect(m.branchError != nil)
+        m.branch = ""
+        #expect(m.branchFollowsName)
+        #expect(m.branchError == nil)
+    }
+
+    @Test func loadCancelledBeforeFetchLeavesFetchIdle() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t)
+        let loading = Task { await m.load() }
+        loading.cancel()
+        await loading.value
+        #expect(m.fetch == .idle)
+    }
+
     @Test func createTaskRemembersChoice() throws {
         var s = WorkspaceState()
         let p = s.addProject(name: "p", path: "/tmp/p")

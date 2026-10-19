@@ -54,6 +54,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A worktree being created would be left half-done: refuse to quit until git finishes.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        (windowController?.isCreatingTask ?? false) ? .terminateCancel : .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) { appState?.saveNow() }
 
     /// Without Ghostty every terminal would be blank: ask to retry or quit instead of continuing silently.

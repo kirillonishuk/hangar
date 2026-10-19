@@ -58,6 +58,18 @@ import Exec
         #expect(last >= before.addingTimeInterval(-1))
     }
 
+    @Test func failedFetchTruncatesFetchHeadAndLastFetchIsNil() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let g = Git(repo: t.repo)
+        try await g.fetch(remote: "origin")
+        #expect(await g.lastFetch() != nil)
+        try t.git("remote", "set-url", "origin", "/nonexistent/x.git", in: t.repo)
+        _ = try? await g.fetch(remote: "origin")
+        let size = try FileManager.default.attributesOfItem(atPath: t.repo + "/.git/FETCH_HEAD")[.size] as? Int
+        #expect(size == 0)
+        #expect(await g.lastFetch() == nil)
+    }
+
     @Test func fetchFailureCarriesStderr() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         try t.git("remote", "set-url", "origin", "/nonexistent/x.git", in: t.repo)

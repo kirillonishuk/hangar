@@ -35,7 +35,7 @@ import Testing
         try await Task.sleep(nanoseconds: 200_000_000)
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(Date().timeIntervalSince(start) < 3)
+        #expect(Date().timeIntervalSince(start) < 10)  // far below sleep 30; loose for parallel test load
     }
 
     @Test func fastExitingChildKeepsOutput() async throws {

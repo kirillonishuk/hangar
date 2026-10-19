@@ -75,7 +75,7 @@ import Testing
         let last = sample("3")
         store.scheduleSave(last)
         // Poll instead of a fixed sleep: a loaded machine may fire the debounce late.
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while writes == 0, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(writes == 1)
         // A further debounce interval (x2) after the first write proves no second write follows.

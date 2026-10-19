@@ -2,3 +2,7 @@
 .build/
 DerivedData/
 *.xcframework
+vendor/ghostty-src/
+vendor/GhosttyKit.xcframework/
+spike/
+/build/

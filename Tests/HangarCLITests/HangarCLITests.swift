@@ -1,0 +1,180 @@
+import Darwin
+import Foundation
+import Testing
+import AgentStatus
+import ControlServer
+
+private final class BundleToken {}
+
+/// The `hangar` binary is built next to the test bundle (the test target depends on it).
+private let binary: URL = Bundle(for: BundleToken.self).bundleURL.deletingLastPathComponent().appendingPathComponent("hangar")
+
+private final class TempDir {
+    let path: String
+    var socket: String { path + "/s.sock" }
+    init() {
+        path = "/tmp/hg-" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
+        mkdir(path, 0o700)
+    }
+    deinit { try? FileManager.default.removeItem(atPath: path) }
+}
+
+@MainActor private final class Inbox {
+    var messages: [ControlMessage] = []
+    func wait(count n: Int, seconds: Double = 3) async -> [ControlMessage] {
+        let deadline = ContinuousClock.now + .seconds(seconds)
+        while messages.count < n && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+        return messages
+    }
+}
+
+private struct Result { var status: Int32; var out: Data; var err: Data; var seconds: Double }
+
+private func run(_ args: [String], env: [String: String], stdin: Data?) throws -> Result {
+    let p = Process()
+    p.executableURL = binary
+    p.arguments = args
+    p.environment = ["PATH": "/usr/bin:/bin"].merging(env) { $1 }
+    let out = Pipe(), err = Pipe(), inp = Pipe()
+    p.standardOutput = out
+    p.standardError = err
+    p.standardInput = inp
+    let outData = LockedData(), errData = LockedData()
+    out.fileHandleForReading.readabilityHandler = { h in outData.append(h.availableData) }
+    err.fileHandleForReading.readabilityHandler = { h in errData.append(h.availableData) }
+    let start = ContinuousClock.now
+    try p.run()
+    DispatchQueue.global().async {
+        if let stdin { try? inp.fileHandleForWriting.write(contentsOf: stdin) }
+        try? inp.fileHandleForWriting.close()
+    }
+    p.waitUntilExit()
+    let elapsed = ContinuousClock.now - start
+    Thread.sleep(forTimeInterval: 0.05)
+    out.fileHandleForReading.readabilityHandler = nil
+    err.fileHandleForReading.readabilityHandler = nil
+    return Result(status: p.terminationStatus, out: outData.value, err: errData.value,
+                  seconds: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18)
+}
+
+private final class LockedData: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func append(_ d: Data) { lock.lock(); data.append(d); lock.unlock() }
+    var value: Data { lock.lock(); defer { lock.unlock() }; return data }
+}
+
+private let statusFixture = Data("""
+{"model":{"id":"x"},"rate_limits":{"five_hour":{"used_percentage":42.5,"resets_at":1760000000},\
+"seven_day":{"used_percentage":10,"resets_at":1760500000},\
+"seven_day_opus":{"used_percentage":3.5,"resets_at":1760600000},"note":"text"}}
+""".utf8)
+
+@Suite struct HangarCLITests {
+    let tab = UUID(), leaf = UUID()
+    fileprivate func env(_ dir: TempDir) -> [String: String] {
+        ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": leaf.uuidString, "HANGAR_SOCKET": dir.socket]
+    }
+
+    @MainActor fileprivate func server(_ dir: TempDir, _ inbox: Inbox) throws -> ControlServer {
+        let s = ControlServer(path: dir.socket) { inbox.messages.append($0) }
+        try s.start()
+        return s
+    }
+
+    @Test @MainActor func eventForwardsHookPayload() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let r = try run(["event", "stop"], env: env(dir), stdin: Data(#"{"session_id":"s1"}"#.utf8))
+        #expect(r.status == 0 && r.out.isEmpty && r.err.isEmpty)
+        #expect(await inbox.wait(count: 1) == [.event(EventMessage(tab: tab, leaf: leaf, kind: .stop, session: "s1"))])
+    }
+
+    @Test @MainActor func eventNeverPrintsAndExitsZero() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let e = env(dir)
+        let huge = Data(repeating: 0x61, count: 2 * 1024 * 1024)
+        var noTab = e; noTab["HANGAR_TAB_ID"] = nil
+        var noSocket = e; noSocket["HANGAR_SOCKET"] = dir.path + "/missing.sock"
+        let table: [(args: [String], env: [String: String], stdin: Data?)] = [
+            (["event", "stop"], e, Data("not json".utf8)),
+            (["event", "stop"], e, huge),
+            (["event", "stop"], e, Data()),
+            (["event", "stop"], e, nil),
+            (["event", "boom"], e, Data("{}".utf8)),
+            (["event", "stop"], noTab, Data("{}".utf8)),
+            (["event", "stop"], noSocket, Data("{}".utf8)),
+            (["event"], e, Data("{}".utf8)),
+        ]
+        for row in table {
+            let r = try run(row.args, env: row.env, stdin: row.stdin)
+            #expect(r.status == 0, "\(row.args)")
+            #expect(r.out.isEmpty && r.err.isEmpty, "\(row.args)")
+            #expect(r.seconds < 1, "\(row.args) took \(r.seconds)")
+        }
+        // Only the four deliverable rows reach the server.
+        #expect(await inbox.wait(count: 4).count == 4)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(inbox.messages.count == 4)
+        for case let .event(m) in inbox.messages { #expect(m.kind == .stop) }
+    }
+
+    @Test @MainActor func codexNotifyChainsOriginal() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let payload = #"{"type":"agent-turn-complete","thread-id":"t1","last-assistant-message":"ok"}"#
+        let out = dir.path + "/out"
+        let r = try run(["event", "codex-notify", "--then", "/bin/sh", "-c", #"printf %s "$1" > "# + out, "sh", payload],
+                        env: env(dir), stdin: nil)
+        #expect(r.status == 0 && r.out.isEmpty && r.err.isEmpty)
+        let deadline = ContinuousClock.now + .seconds(2)
+        var got = ""
+        while ContinuousClock.now < deadline {
+            got = (try? String(contentsOfFile: out, encoding: .utf8)) ?? ""
+            if got == payload { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(got == payload)
+        #expect(await inbox.wait(count: 1) == [.event(EventMessage(tab: tab, leaf: leaf, kind: .codexNotify, session: "t1", message: "ok"))])
+    }
+
+    @Test @MainActor func statuslineSendsWindowsAndRunsOriginal() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let r = try run(["statusline", "--then", "cat"], env: env(dir), stdin: statusFixture)
+        #expect(r.status == 0)
+        #expect(r.out == statusFixture)
+        #expect(await inbox.wait(count: 1) == [.usage(UsageMessage(agent: "claude", windows: [
+            WireWindow(name: "five_hour", usedPercent: 42.5, resetsAt: 1_760_000_000),
+            WireWindow(name: "seven_day", usedPercent: 10, resetsAt: 1_760_500_000),
+            WireWindow(name: "seven_day_opus", usedPercent: 3.5, resetsAt: 1_760_600_000),
+        ]))])
+        let failing = try run(["statusline", "--then", "exit 3"], env: env(dir), stdin: statusFixture)
+        #expect(failing.status == 3)
+    }
+
+    @Test @MainActor func statuslineWithoutDataOrSocket() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let r = try run(["statusline"], env: env(dir), stdin: Data(#"{"model":{}}"#.utf8))
+        #expect(r.status == 0 && r.out.isEmpty)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(inbox.messages.isEmpty)
+
+        var e = env(dir); e["HANGAR_SOCKET"] = dir.path + "/missing.sock"
+        let r2 = try run(["statusline", "--then", "echo hi"], env: e, stdin: statusFixture)
+        #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
+    }
+
+    @Test func unknownSubcommandExitsOne() throws {
+        let r = try run(["frobnicate"], env: [:], stdin: nil)
+        #expect(r.status == 1)
+        #expect(!r.err.isEmpty && r.out.isEmpty)
+    }
+}

@@ -31,11 +31,13 @@ let package = Package(
             ]
         ),
         .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge"], resources: [.process("Resources")]),
+        .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
         .testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"]),
         .testTarget(name: "ControlServerTests", dependencies: ["ControlServer", "AgentStatus"]),
+        .testTarget(name: "HangarCLITests", dependencies: ["hangar", "ControlServer", "AgentStatus"]),
         .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
         .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
     ]

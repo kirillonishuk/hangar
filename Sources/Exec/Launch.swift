@@ -24,7 +24,7 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
                       cwd: leaf.cwd,
-                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_SOCKET": socketPath])
+                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath])
 }
 
 /// Shell for `-l -i -c` wrappers.

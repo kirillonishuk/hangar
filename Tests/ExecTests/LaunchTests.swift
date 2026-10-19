@@ -102,6 +102,12 @@ import Workspace
         #expect(r.status == 3)
     }
 
+    @Test func envHasLeafId() throws {
+        let l = leaf(.claude)
+        let s = try spec(l)
+        #expect(s.env == ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": l.id.uuidString, "HANGAR_SOCKET": "/tmp/h.sock"])
+    }
+
     @Test func envHasTabAndSocket() throws {
         let s = try spec(leaf(.shell))
         #expect(s.env["HANGAR_TAB_ID"] == tab.uuidString)

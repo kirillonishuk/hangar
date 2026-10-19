@@ -38,11 +38,15 @@ import Testing
     @Test func slugIsAlwaysValidBranchName() async throws {
         let inputs = ["", "-x", "..", "a..b", "a...b", "release.lock", "a.lock.lock", "a_.lock", "😀", "Привет", "日本語",
                       "fix/login", "Fix login", " . ", "@{-1}", "a@{b", "HEAD"]
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-naming-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
         for input in inputs {
             let slug = branchSlug(input)
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             p.arguments = ["git", "check-ref-format", "--branch", slug]
+            p.currentDirectoryURL = dir
             p.standardOutput = Pipe(); p.standardError = Pipe()
             try p.run(); p.waitUntilExit()
             #expect(p.terminationStatus == 0, "\(input.debugDescription) -> \(slug.debugDescription)")

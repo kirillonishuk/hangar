@@ -85,8 +85,9 @@ private func event(_ kind: HookKind = .stop) -> ControlMessage {
 
 private func line(_ m: ControlMessage) -> String { String(decoding: m.encoded(), as: UTF8.self) }
 
-private func startServer(_ dir: SocketDir, _ inbox: Inbox) throws -> ControlServer {
+private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? = nil) throws -> ControlServer {
     let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
+    if let idleTimeout { server.idleTimeout = idleTimeout }
     try server.start()
     return server
 }
@@ -237,5 +238,73 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox) throws -> ControlServ
         let elapsed = clock.measure { result = ControlClient.send(event(), to: dir.path) }
         #expect(!result)
         #expect(elapsed < .milliseconds(500))
+    }
+
+    @Test func thirtyThirdClientGetsEOF() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox)
+        defer { server.stop() }
+        let clients = try (0..<ControlServer.maxConnections).map { _ in try RawClient(dir.path) }
+        // The first 32 are accepted once a round-trip works on the last one.
+        clients.last!.send(line(event()))
+        #expect(clients.last!.read(lines: 1).replies == [#"{"ok":true}"#])
+        let extra = try RawClient(dir.path)
+        let r = extra.readToEOF()
+        #expect(r.eof && r.replies.isEmpty)
+        withExtendedLifetime(clients) {}
+    }
+
+    @Test func idleConnectionIsClosed() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox, idleTimeout: 0.3)
+        defer { server.stop() }
+        let raw = try RawClient(dir.path)
+        raw.send("{\"v\":1")  // no newline: never a full line
+        let clock = ContinuousClock()
+        var r: (replies: [String], eof: Bool) = ([], false)
+        let elapsed = clock.measure { r = raw.readToEOF() }
+        #expect(r.eof)
+        #expect(elapsed < .seconds(2))
+    }
+
+    @Test func acceptEMFILESuspendsListenerUntilConnectionCloses() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let failures = OSAllocatedUnfairLock(initialState: 0)
+        let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
+        server.acceptCall = { fd in
+            let fail = failures.withLock { (n: inout Int) -> Bool in if n > 0 { n -= 1; return true }; return false }
+            if fail { errno = EMFILE; return -1 }
+            return Darwin.accept(fd, nil, nil)
+        }
+        try server.start()
+        defer { server.stop() }
+        var a: RawClient? = try RawClient(dir.path)
+        a!.send(line(event()))
+        #expect(a!.read(lines: 1).replies.count == 1)
+
+        failures.withLock { $0 = 1 }
+        let b = try RawClient(dir.path)
+        b.send(line(event(.prompt)))
+        // Listener is suspended, no spin: b is not served while a stays open.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await inbox.wait(count: 2, seconds: 0.2).count == 1)
+        #expect(failures.withLock { $0 } == 0, "accept was attempted exactly once")
+
+        a = nil  // closing a connection resumes the listener
+        #expect(b.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await inbox.wait(count: 2).count == 2)
+    }
+
+    @Test func deinitReleasesSocketFileDescriptors() async throws {
+        let dir = SocketDir()
+        var server: ControlServer? = ControlServer(path: dir.path) { _ in }
+        try server!.start()
+        let raw = try RawClient(dir.path)
+        raw.send("{")
+        try await Task.sleep(for: .milliseconds(50))
+        server = nil
+        let r = raw.readToEOF()
+        #expect(r.eof)
+        #expect(ControlClient.send(event(), to: dir.path) == false)
     }
 }

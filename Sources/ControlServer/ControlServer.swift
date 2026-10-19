@@ -17,9 +17,17 @@ public final class ControlServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?
     private var connections: [Int32: Connection] = [:]
+    /// accept() hit EMFILE/ENFILE: the listener is suspended until a connection closes.
+    private var listenerSuspended = false
+
+    /// Test seams (set before `start`).
+    var idleTimeout: Double = 10
+    var acceptCall: @Sendable (Int32) -> Int32 = { Darwin.accept($0, nil, nil) }
 
     private final class Connection {
         let source: DispatchSourceRead
+        /// One-shot: closes a connection that has not delivered a full line in time.
+        var idleTimer: DispatchSourceTimer?
         /// false — SO_NOSIGPIPE could not be set, so a write could kill the app with SIGPIPE.
         let canReply: Bool
         var buffer = Data()
@@ -65,15 +73,22 @@ public final class ControlServer: @unchecked Sendable {
     }
 
     public func stop() {
-        queue.sync {
-            guard let listener else { return }
-            listener.cancel()
-            self.listener = nil
-            for c in connections.values { c.source.cancel() }
-            connections.removeAll()
-            unlink(path)
-        }
+        queue.sync { shutdown() }
     }
+
+    // A source that is suspended must be resumed before it can finish cancelling.
+    private func shutdown() {
+        guard let listener else { return }
+        listener.cancel()
+        if listenerSuspended { listener.resume(); listenerSuspended = false }
+        self.listener = nil
+        for c in connections.values { c.idleTimer?.cancel(); c.source.cancel() }
+        connections.removeAll()
+        unlink(path)
+    }
+
+    // No other reference exists here, so touching the state without the queue is safe (and queue.sync could deadlock).
+    deinit { shutdown() }
 
     /// The probe connection doubles as the second-instance check: a live server answers connect().
     private func runningPeer(_ addr: inout sockaddr_un) -> Int32? {
@@ -92,8 +107,14 @@ public final class ControlServer: @unchecked Sendable {
     // MARK: - on queue
 
     private func accept(on listenFD: Int32) {
-        let fd = Darwin.accept(listenFD, nil, nil)
-        guard fd >= 0 else { return }
+        let fd = acceptCall(listenFD)
+        guard fd >= 0 else {
+            if errno == EMFILE || errno == ENFILE, !listenerSuspended, let listener {
+                listener.suspend()
+                listenerSuspended = true
+            }
+            return
+        }
         var uid: uid_t = 0, gid: gid_t = 0
         guard getpeereid(fd, &uid, &gid) == 0, uid == getuid(), connections.count < Self.maxConnections else {
             close(fd)
@@ -106,8 +127,19 @@ public final class ControlServer: @unchecked Sendable {
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         source.setEventHandler { [weak self] in self?.read(fd) }
         source.setCancelHandler { close(fd) }
-        connections[fd] = Connection(source: source, canReply: canReply)
+        let connection = Connection(source: source, canReply: canReply)
+        connections[fd] = connection
+        armIdleTimer(connection, fd)
         source.resume()
+    }
+
+    private func armIdleTimer(_ c: Connection, _ fd: Int32) {
+        c.idleTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + idleTimeout)
+        timer.setEventHandler { [weak self] in self?.drop(fd) }
+        c.idleTimer = timer
+        timer.resume()
     }
 
     private func read(_ fd: Int32) {
@@ -130,6 +162,7 @@ public final class ControlServer: @unchecked Sendable {
                 if error == .tooLarge { drop(fd); return }
             }
         }
+        if connections[fd] != nil, c.buffer.isEmpty { armIdleTimer(c, fd) }
         if c.buffer.count > Self.maxLine {
             reply(fd, #"{"ok":false,"error":"too-large"}"#)
             drop(fd)
@@ -144,7 +177,13 @@ public final class ControlServer: @unchecked Sendable {
     }
 
     private func drop(_ fd: Int32) {
-        connections.removeValue(forKey: fd)?.source.cancel()
+        guard let c = connections.removeValue(forKey: fd) else { return }
+        c.idleTimer?.cancel()
+        c.source.cancel()
+        if listenerSuspended, let listener {
+            listenerSuspended = false
+            listener.resume()
+        }
     }
 }
 

@@ -39,12 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         appState = app
         NSApp.activate(ignoringOtherApps: true)
-        if let text = loadAlert(for: result) {
+        if let text = loadAlert(for: result), let window = wc.window {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = text
             alert.addButton(withTitle: L10n.ok)
-            alert.beginSheetModal(for: wc.window!)
+            alert.beginSheetModal(for: window)
         }
     }
 

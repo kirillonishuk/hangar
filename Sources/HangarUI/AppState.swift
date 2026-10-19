@@ -66,10 +66,7 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         userShell = shell.isEmpty ? "/bin/zsh" : shell
         socketPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Hangar/hangar.sock").path
-        // Every leaf from the file resumes: tab leaves and the drawer's shell.
-        restoredLeaves = Set(state.tasks.flatMap { task in
-            task.tabs.flatMap { $0.root.leaves.map(\.id) } + (task.drawer.leaf.map { [$0.id] } ?? [])
-        })
+        restoredLeaves = resumeSet(for: state)
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves.contains(leafId) }
@@ -292,4 +289,27 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     case .recoveredFromCorrupt(let backup): L10n.stateCorrupt(backup.path)
     case .unreadable(let url): L10n.stateUnreadable(url.path)
     }
+}
+
+/// Leaves from the file that start with `restoring: true`, computed once at restore.
+/// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so among
+/// claude/codex leaves without an id only the first per (kind, cwd) continues; later ones start fresh.
+/// Leaves with an id always resume; shell and editor leaves are always restored.
+func resumeSet(for state: WorkspaceState) -> Set<UUID> {
+    struct Key: Hashable { var kind: LeafKind; var cwd: String }
+    var claimed = Set<Key>()
+    var result = Set<UUID>()
+    func visit(_ leaf: Leaf) {
+        switch leaf.kind {
+        case .shell, .editor: result.insert(leaf.id)
+        case .claude, .codex:
+            if leaf.agentSessionId != nil { result.insert(leaf.id); return }
+            if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
+        }
+    }
+    for task in state.tasks {
+        for tab in task.tabs { tab.root.leaves.forEach(visit) }
+        if let leaf = task.drawer.leaf { visit(leaf) }
+    }
+    return result
 }

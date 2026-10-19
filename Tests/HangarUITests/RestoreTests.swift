@@ -34,4 +34,42 @@ import Workspace
         #expect(app.isRestored(leafId: drawerLeaf))
         #expect(!app.isRestored(leafId: UUID()))
     }
+
+    /// One task in "/a" (and optionally "/b") with the given extra leaves as separate tabs.
+    private func state(_ leaves: [Leaf]) -> (WorkspaceState, [UUID]) {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let t = s.addTask(projectId: p, name: "t")
+        s.tasks[0].tabs = leaves.map { Tab(title: $0.kind.rawValue, root: .leaf($0), focusedLeafId: $0.id) }
+        _ = t
+        return (s, leaves.map(\.id))
+    }
+
+    @Test func twoClaudeSameCwdOnlyFirstContinues() {
+        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a")])
+        let set = resumeSet(for: s)
+        #expect(set.contains(ids[0]))
+        #expect(!set.contains(ids[1]))
+    }
+
+    @Test func differentCwdsBothContinue() {
+        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/b")])
+        #expect(resumeSet(for: s) == Set(ids))
+    }
+
+    @Test func sessionIdAlwaysResumes() {
+        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"),
+                              Leaf(kind: .claude, cwd: "/a", agentSessionId: "y")])
+        let set = resumeSet(for: s)
+        #expect(set.contains(ids[1]) && set.contains(ids[2]) && set.contains(ids[0]))
+    }
+
+    @Test func codexSameRule() {
+        let (s, ids) = state([Leaf(kind: .codex, cwd: "/a"), Leaf(kind: .codex, cwd: "/a"),
+                              Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .shell, cwd: "/a"), Leaf(kind: .shell, cwd: "/a")])
+        let set = resumeSet(for: s)
+        #expect(set.contains(ids[0]) && !set.contains(ids[1]))  // claude in the same cwd is a separate (kind, cwd) key
+        #expect(set.contains(ids[2]))
+        #expect(set.contains(ids[3]) && set.contains(ids[4]))
+    }
 }

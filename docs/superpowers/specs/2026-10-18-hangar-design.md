@@ -46,9 +46,10 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `Git` | Вызов `git` CLI: default branch (`origin/HEAD`), список веток, `fetch`, `worktree add/remove`, `status --porcelain=v2`, `diff`. | git |
 | `AgentStatus` | Приём событий агентов, свёртка в статус вкладки и задачи. | — |
 | `Usage` | Лимиты подписок: приём `rate_limits` от `hangar statusline`, вызов `codex app-server`, свёртка в окна, пороги. | `ControlServer`, `Exec` |
+| `Integration` | Правка файлов агентов (`~/.claude/settings.json`, `~/.codex/config.toml`): показ diff, копия, запись, откат (#43). | — |
 | `Power` | Блокировка сна, пока есть вкладки в `working`. | IOKit, `AgentStatus` |
 | `Exec` | «Где выполнять»: локально (`Process`) или на SSH-хосте (через общий `ControlMaster`). Через него ходят `Git`, `Usage`, запуск вкладок. | ssh |
-| `ControlServer` | Unix-сокет, JSON-протокол (запрос/ответ, по строке на сообщение). Обслуживает hooks, CLI и MCP. | `Workspace`, `AgentStatus` |
+| `ControlServer` | Unix-сокет, JSON-протокол (запрос/ответ, по строке на сообщение). Обслуживает hooks, CLI и MCP. На этапе 3 — только типы `event` и `usage`, остальные — этап 5 (#43). | `Workspace`, `AgentStatus` |
 | `UI` | Окно, сайдбар, полоса вкладок, сплиты, инспектор, diff-вкладка, лист новой задачи, настройки. | все выше |
 | `hangar` (CLI) | Подкоманды CLI + `hangar mcp` (MCP-сервер со stdio). Ходит в сокет. | протокол `ControlServer` |
 
@@ -82,11 +83,12 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 
 Статусы: `working`, `waiting`, `done`, `failed`, `idle`.
 
-Каждая surface стартует с env `HANGAR_TAB_ID`, `HANGAR_SOCKET`. `hangar event <kind> [--session <id>]` отправляет событие; без `HANGAR_TAB_ID` молча выходит с кодом 0 (не ломает агентов вне Hangar).
+Каждая surface стартует с env `HANGAR_TAB_ID`, `HANGAR_LEAF_ID` (статус хранится на лист; событие с tab, не владеющим leaf, игнорируется), `HANGAR_SOCKET`. `hangar event <kind> [--session <id>]` отправляет событие; без `HANGAR_TAB_ID` молча выходит с кодом 0 (не ломает агентов вне Hangar).
 
-- **Claude Code**: Hangar предлагает (с подтверждением и показом diff) добавить hooks в `~/.claude/settings.json`: `UserPromptSubmit` → working, `Notification` → waiting, `Stop` → done. `session_id` из payload hook сохраняется в Tab.
+- **Claude Code**: Hangar предлагает (с подтверждением и показом diff) добавить hooks в `~/.claude/settings.json`: `SessionStart` (id сессии), `UserPromptSubmit` → working, `PostToolUse` (matcher `*`) → working, `Notification` → waiting только для `permission_prompt`/`elicitation_dialog` (`idle_prompt` не трогает статус), `Stop` → done, `StopFailure` matcher `rate_limit` → failed + `limitReached`; у каждого `"timeout": 5` (#43). `session_id` из payload hook сохраняется в Tab.
 - **Codex**: `notify` в `~/.codex/config.toml` → done (+ session id). `waiting` — по bell/OSC-уведомлению от surface. Точность проверяется на практике и дорабатывается.
-- **Все**: выход процесса с кодом ≠ 0 → failed; возврат в shell → idle.
+- **Запасные пути (#43)**: bell/OSC-уведомление → waiting только у листов claude/codex и только если у листа не было hook Claude; гаснет в idle при фокусе листа.
+- **Все**: выход процесса с кодом > 0 → failed, иначе idle; перезапуск → idle.
 - **Статус задачи** = максимальный из вкладок по приоритету waiting > failed > working > done > idle.
 - **Уведомления macOS** — при переходе в waiting/done, если вкладка не видна. Клик открывает задачу и вкладку.
 
@@ -99,7 +101,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 **Модель.** `UsageWindow { kind: session | weekly | weekly_model(name), usedPercent, resetsAt, updatedAt }`, по агенту — список окон, план и флаг `limitReached`. Окно с прошедшим `resetsAt` сбрасывается в 0% (ожидаем свежие данные). Все поля во входных данных опциональны.
 
 **Claude — только документированные источники:**
-- Статус-лайн. Hangar (с согласия, как и hooks) прописывает `statusLine` = `hangar statusline`. Команда читает JSON из stdin, отправляет `rate_limits.five_hour` / `rate_limits.seven_day` (`used_percentage`, `resets_at`) в сокет, затем вызывает исходную статус-лайн пользователя (если была) с тем же stdin и печатает её вывод. Исходная команда сохраняется и возвращается при удалении интеграции. Данные приходят только для Pro/Max и только пока в какой-то вкладке работает claude, поэтому показываем возраст данных.
+- Статус-лайн. Hangar (с согласия, как и hooks) прописывает `statusLine` = `hangar statusline`. Команда читает JSON из stdin, отправляет `rate_limits.five_hour` / `rate_limits.seven_day` (`used_percentage`, `resets_at`) в сокет, затем вызывает исходную статус-лайн пользователя (если была) с тем же stdin и печатает её вывод. Исходная команда хранится в самой команде: `'<cli>' statusline --then '<исходная команда>'`, остальные ключи `statusLine` не трогаются; откат восстанавливает её оттуда. Путь CLI — `Hangar.app/Contents/Helpers/hangar` (#43). Данные приходят только для Pro/Max и только пока в какой-то вкладке работает claude, поэтому показываем возраст данных.
 - Исчерпание: hook `StopFailure` с matcher `rate_limit` → `limitReached`.
 - Недокументированный OAuth usage endpoint не используем.
 
@@ -153,7 +155,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 - Ошибка `git fetch`/`worktree add` → лист новой задачи не закрывается, показывает stderr git.
 - Нет коммитов → worktree недоступен. Fetch не прошёл → stderr + кнопка «Создать без fetch».
 - Hooks не установлены → статусы только по bell/exit, в настройках — предупреждение с кнопкой установки.
-- Сокет занят (второй экземпляр) → активировать существующий экземпляр.
+- Сокет занят (второй экземпляр) → по успешному `connect` активировать существующий экземпляр (pid собеседника, `LOCAL_PEERPID`), новый процесс выходит; мёртвый сокет удаляется (#43).
 - Агент не найден в PATH → вкладка показывает сообщение и команду установки.
 
 ## 9. Энергопотребление

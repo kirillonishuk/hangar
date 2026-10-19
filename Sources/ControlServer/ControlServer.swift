@@ -22,6 +22,8 @@ public final class ControlServer: @unchecked Sendable {
 
     /// Test seams (set before `start`).
     var idleTimeout: Double = 10
+    var emfileRetry: Double = 1
+    private var resumeTimer: DispatchSourceTimer?
     var acceptCall: @Sendable (Int32) -> Int32 = { Darwin.accept($0, nil, nil) }
 
     private final class Connection {
@@ -80,6 +82,8 @@ public final class ControlServer: @unchecked Sendable {
     private func shutdown() {
         guard let listener else { return }
         listener.cancel()
+        resumeTimer?.cancel()
+        resumeTimer = nil
         if listenerSuspended { listener.resume(); listenerSuspended = false }
         self.listener = nil
         for c in connections.values { c.idleTimer?.cancel(); c.source.cancel() }
@@ -112,6 +116,12 @@ public final class ControlServer: @unchecked Sendable {
             if errno == EMFILE || errno == ENFILE, !listenerSuspended, let listener {
                 listener.suspend()
                 listenerSuspended = true
+                // With no connection to close, nothing else would ever resume the listener.
+                let timer = DispatchSource.makeTimerSource(queue: queue)
+                timer.schedule(deadline: .now() + emfileRetry)
+                timer.setEventHandler { [weak self] in self?.resumeListener() }
+                resumeTimer = timer
+                timer.resume()
             }
             return
         }
@@ -131,6 +141,14 @@ public final class ControlServer: @unchecked Sendable {
         connections[fd] = connection
         armIdleTimer(connection, fd)
         source.resume()
+    }
+
+    private func resumeListener() {
+        resumeTimer?.cancel()
+        resumeTimer = nil
+        guard listenerSuspended, let listener else { return }
+        listenerSuspended = false
+        listener.resume()
     }
 
     private func armIdleTimer(_ c: Connection, _ fd: Int32) {
@@ -180,10 +198,7 @@ public final class ControlServer: @unchecked Sendable {
         guard let c = connections.removeValue(forKey: fd) else { return }
         c.idleTimer?.cancel()
         c.source.cancel()
-        if listenerSuspended, let listener {
-            listenerSuspended = false
-            listener.resume()
-        }
+        resumeListener()
     }
 }
 

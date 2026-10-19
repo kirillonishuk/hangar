@@ -91,22 +91,27 @@ public final class StateStore {
             return
         }
         let data = try encode(state)
-        ensurePrivateDirectory(directory)
+        ensurePrivateDirectory(directory, tightenExisting: directory.standardizedFileURL.path == defaultStateDirectoryPath())
         try data.write(to: fileURL, options: .atomic)
         writeHook?(data)
     }
 }
 
+/// The default state directory (release path); only this one may be chmod-ed when it already exists.
+public func defaultStateDirectoryPath() -> String { NSHomeDirectory() + "/Library/Application Support/Hangar" }
+
 /// The state directory holds the control socket and the session ids: owner-only (0700).
-/// An existing directory is tightened only if it is ours and group/other can access it.
-public func ensurePrivateDirectory(_ url: URL) {
+/// A pre-existing directory is tightened only when `tightenExisting` (the default state dir), it is ours,
+/// and group/other can access it; intermediate directories get default permissions.
+public func ensurePrivateDirectory(_ url: URL, tightenExisting: Bool) {
     let fm = FileManager.default
     var st = stat()
     if lstat(url.path, &st) == 0 {
-        if st.st_mode & S_IFMT == S_IFDIR, st.st_uid == getuid(), st.st_mode & 0o077 != 0 {
+        if tightenExisting, st.st_mode & S_IFMT == S_IFDIR, st.st_uid == getuid(), st.st_mode & 0o077 != 0 {
             try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
         }
         return
     }
-    try? fm.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? fm.createDirectory(at: url, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
 }

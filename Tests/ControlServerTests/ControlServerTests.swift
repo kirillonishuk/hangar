@@ -271,6 +271,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let dir = SocketDir(), inbox = Inbox()
         let failures = OSAllocatedUnfairLock(initialState: 0)
         let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
+        server.emfileRetry = 60  // the timer is covered by its own test; here only a closing connection may resume
         server.acceptCall = { fd in
             let fail = failures.withLock { (n: inout Int) -> Bool in if n > 0 { n -= 1; return true }; return false }
             if fail { errno = EMFILE; return -1 }
@@ -281,6 +282,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         var a: RawClient? = try RawClient(dir.path)
         a!.send(line(event()))
         #expect(a!.read(lines: 1).replies.count == 1)
+        #expect(await inbox.wait(count: 1).count == 1)
 
         failures.withLock { $0 = 1 }
         let b = try RawClient(dir.path)
@@ -306,5 +308,22 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let r = raw.readToEOF()
         #expect(r.eof)
         #expect(ControlClient.send(event(), to: dir.path) == false)
+    }
+
+    @Test func acceptEMFILEWithNoConnectionsResumesByTimer() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let failures = OSAllocatedUnfairLock(initialState: 1)
+        let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
+        server.emfileRetry = 0.2
+        server.acceptCall = { fd in
+            let fail = failures.withLock { (n: inout Int) -> Bool in if n > 0 { n -= 1; return true }; return false }
+            if fail { errno = EMFILE; return -1 }
+            return Darwin.accept(fd, nil, nil)
+        }
+        try server.start()
+        defer { server.stop() }
+        let m = event()
+        #expect(ControlClient.send(m, to: dir.path))
+        #expect(await inbox.wait(count: 1) == [m])
     }
 }

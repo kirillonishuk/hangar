@@ -456,6 +456,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                     return leaf
                 }
             }
+            if tasks[t].drawer.leaf?.cwd == old { tasks[t].drawer.leaf?.cwd = path }
         }
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import GhosttyBridge
 import Observation
 import Workspace
 
@@ -88,6 +89,7 @@ import Workspace
         case drawerTitle, drawerToggle, drawerHelp
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
         case ok, exitStatus, stateCorrupt, stateUnreadable
+        case clipboardRead, clipboardPasteUnsafe, allow
     }
 
     // Sidebar
@@ -138,6 +140,12 @@ import Workspace
     static var emptyNoTabs: String { s(.emptyNoTabs) }
     public static func stateCorrupt(_ path: String) -> String { f(.stateCorrupt, path) }
     public static func stateUnreadable(_ path: String) -> String { f(.stateUnreadable, path) }
+
+    /// Installed into GhosttyBridge (`TerminalSurfaceView.clipboardPromptText`) by the main window.
+    static func clipboardPromptText() -> ClipboardPromptText {
+        ClipboardPromptText(readClipboard: s(.clipboardRead), pasteUnsafe: s(.clipboardPasteUnsafe),
+                            allow: s(.allow), cancel: cancel)
+    }
     public static var ghosttyFailed: String { s(.ghosttyFailed) }
     public static var retry: String { s(.retry) }
     public static var quit: String { s(.quit) }

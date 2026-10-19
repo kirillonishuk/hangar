@@ -95,3 +95,6 @@
 "drawerHelp" = "Terminal ⌃`";
 "stateCorrupt" = "State file is corrupt, backup: %@";
 "stateUnreadable" = "Can't read the state file: %@. Hangar runs without saving.";
+"clipboardRead" = "A program wants to read the clipboard";
+"clipboardPasteUnsafe" = "Paste text that may run commands?";
+"allow" = "Allow";

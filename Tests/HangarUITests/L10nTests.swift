@@ -1,4 +1,5 @@
 import Foundation
+import GhosttyBridge
 import Testing
 @testable import HangarUI
 import Workspace
@@ -11,6 +12,18 @@ import Workspace
             #expect(Set(table.keys) == keys, "\(lang): extra \(Set(table.keys).subtracting(keys)), missing \(keys.subtracting(table.keys))")
             for (key, value) in table { #expect(!value.trimmingCharacters(in: .whitespaces).isEmpty, "\(lang): empty \(key)") }
         }
+    }
+
+    @Test func clipboardPromptIsLocalized() {
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        let ru = L10n.clipboardPromptText()
+        #expect(ru.allow == "Разрешить" && ru.cancel == "Отмена")
+        #expect(ru.pasteUnsafe == "Вставить текст, который может выполнить команды?")
+        #expect(ru.readClipboard == "Программа хочет прочитать буфер обмена")
+        L10n.language = .en
+        #expect(L10n.clipboardPromptText().allow == "Allow")
+        #expect(L10n.clipboardPromptText().readClipboard == "A program wants to read the clipboard")
     }
 
     @Test func pluralizedExitCode() {

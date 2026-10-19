@@ -143,6 +143,23 @@ import Workspace
         #expect(app.groupTasks(p).map(\.name) == ["a", "d", "e"])
     }
 
+    @Test func taskSwitchingSkipsCollapsedProjects() throws {
+        let (app, p, a, _) = try makeApp()
+        defer { cleanup() }
+        let q = app.addProject(path: dir.path)
+        app.createTask(projectId: q, name: "q", firstMessage: "")
+        let qTask = app.state.tasks.last!.id
+        app.select(taskId: a)
+        app.setCollapsed(projectId: p, true)
+        #expect(app.orderedTasks.map(\.id) == [qTask])
+        app.setPinned(a, true)
+        #expect(app.orderedTasks.map(\.id) == [a, qTask])  // pinned stays reachable
+        app.setPinned(a, false)
+        app.select(taskId: qTask)
+        app.selectTask(offset: 1)
+        #expect(app.state.selectedTaskId == qTask)
+    }
+
     @Test func dropIndexByCenters() {
         #expect(dropIndex(heights: [32, 32, 32], from: 0, dy: 40) == 1)
         #expect(dropIndex(heights: [32, 32, 32], from: 0, dy: 0) == 0)

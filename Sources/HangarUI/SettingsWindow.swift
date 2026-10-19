@@ -8,7 +8,7 @@ import Workspace
 
     init(app: AppState) {
         model = SettingsModel(app: app)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.settingsWidth, height: 240),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.settingsWidth, height: Theme.settingsPlaceholderHeight),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.backgroundColor = Theme.sheet

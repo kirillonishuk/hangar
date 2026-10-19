@@ -263,6 +263,7 @@ final class RatioSplitView: HangarSplitView {
 
     private func retryFailedLeaves() {
         for leaf in leafViews.values where leaf.failed { leaf.relaunch(focus: false) }
+        drawer.retryFailedLeaves()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -478,7 +479,6 @@ final class RatioSplitView: HangarSplitView {
         guard let tab = activeTab, tab.root.leaves.indices.contains(n) else { return }
         window?.makeFirstResponder(leafViews[tab.root.leaves[n].id]?.surface)
     }
-    #endif
 
     /// Debug summary of every surface and whether it renders.
     func debugDump() -> String {
@@ -487,4 +487,5 @@ final class RatioSplitView: HangarSplitView {
             "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-") failed=\(view.failed)"
         }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
     }
+    #endif
 }

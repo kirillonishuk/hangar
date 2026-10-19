@@ -175,6 +175,8 @@ public enum Theme {
     public static let disabledButtonOpacity: Double = 0.45
 
     public static let sheetWidth: CGFloat = 580
+    /// Initial sheet height; SwiftUI content resizes the sheet.
+    public static let sheetPlaceholderHeight: CGFloat = 200
     public static let sheetPaddingH: CGFloat = 18
     public static let sheetRadius: CGFloat = 12
     public static let sheetHeaderTop: CGFloat = 14
@@ -195,6 +197,8 @@ public enum Theme {
 
     // Settings window: one card of rows (DESIGN.md «Лист», new-task-v4 `.grp` / `.r` / `.seg`)
     public static let settingsWidth: CGFloat = 520
+    /// Initial settings window height; SwiftUI content resizes it.
+    public static let settingsPlaceholderHeight: CGFloat = 240
     public static let settingsTopOffset: CGFloat = 80
     public static let cardRadius: CGFloat = 8
     public static let cardRowPaddingV: CGFloat = 9

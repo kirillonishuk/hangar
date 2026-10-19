@@ -217,9 +217,16 @@ import Workspace
         window?.invalidateCursorRects(for: self)
     }
 
+    /// Display wake: one retry for shells whose surface failed (same as tab leaves).
+    func retryFailedLeaves() {
+        for leaf in leafViews.values where leaf.failed { leaf.relaunch(focus: false) }
+    }
+
+    #if DEBUG
     func debugDump() -> String {
         leafViews.map { id, v in
             "drawer task=\(id.uuidString.prefix(8)) leaf=\(v.leafId.uuidString.prefix(8)) surface=\(v.surface != nil) hidden=\(v.isHidden) exit=\(v.exitCode.map(String.init) ?? "-")"
         }.sorted().joined(separator: "\n")
     }
+    #endif
 }

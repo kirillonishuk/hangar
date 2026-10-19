@@ -124,7 +124,7 @@ private struct TabItem: View {
             } else {
                 Text(Self.clipped(app.tabLabel(tab))).lineLimit(1)
             }
-            Button { app.closeTab(tab.id) } label: { IconView(icon: .close, active: active, size: Theme.smallIconSize) }
+            Button { Action.closeTab.perform(target, ctx) } label: { IconView(icon: .close, active: active, size: Theme.smallIconSize) }
                 .buttonStyle(.plain)
                 .pointingHand()
                 .opacity(hover ? Theme.closeOpacity : 0)

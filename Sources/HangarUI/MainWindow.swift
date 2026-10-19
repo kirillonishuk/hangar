@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyBridge
 import SwiftUI
 import Workspace
 
@@ -78,6 +79,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         self.app = app
         self.configWarning = configWarning
         column = TaskColumnController(app: app)
+        TerminalSurfaceView.clipboardPromptText = L10n.clipboardPromptText
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Theme.windowSize),
@@ -365,7 +367,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask?.projectId ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProject(thenNewTask: true); return }
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: 200),
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
@@ -389,7 +391,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: 200),
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance

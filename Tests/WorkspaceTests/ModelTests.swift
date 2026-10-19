@@ -322,6 +322,18 @@ import Testing
         #expect(s.tasks[1].tabs[0].root.leaves[0].cwd == "/wt")
     }
 
+    @Test func updateProjectMovesDrawerLeaf() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let w = s.addTask(projectId: p, name: "w")
+        s.tasks[1].mode = .worktree(path: "/wt", branch: "b", base: "main")
+        s.toggleDrawer(taskId: t)
+        s.toggleDrawer(taskId: w)
+        s.updateProject(id: p, name: "app", path: "/repo/shop")
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/shop")
+        #expect(s.tasks[1].drawer.leaf?.cwd == "/wt")
+    }
+
     @Test func oldStateWithoutCustomTitleDecodes() throws {
         let leaf = UUID(), tab = UUID()
         let json = """

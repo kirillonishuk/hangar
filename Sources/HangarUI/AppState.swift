@@ -113,8 +113,8 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     var archivedTasks: [HangarTask] { state.tasks.filter(\.archived) }
 
-    /// Visible tasks in sidebar order: pinned, then each project's group.
-    var orderedTasks: [HangarTask] { pinnedTasks + state.projects.flatMap { groupTasks($0.id) } }
+    /// Visible tasks in sidebar order: pinned, then each expanded project's group.
+    var orderedTasks: [HangarTask] { pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
 
     func defaultTitle(_ kind: LeafKind) -> String {
         switch kind {
@@ -242,11 +242,6 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func addTab(_ kind: LeafKind) {
         guard let task = selectedTask else { return }
         perform { $0.addTab(taskId: task.id, kind: kind) }
-    }
-
-    func closeTab(_ tabId: UUID) {
-        guard let task = selectedTask else { return }
-        perform { $0.closeTab(taskId: task.id, tabId: tabId) }
     }
 
     func activate(tabId: UUID) {

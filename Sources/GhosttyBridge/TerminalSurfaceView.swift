@@ -4,7 +4,27 @@ import GhosttyKit
 import os
 
 /// One Ghostty terminal surface (own pty + process). Keyboard/mouse/IME live in TerminalSurfaceView+Input.swift.
+/// Texts of the clipboard confirmation; the app supplies them localized (the bridge has no UI strings).
+public struct ClipboardPromptText: Sendable {
+    public var readClipboard: String
+    public var pasteUnsafe: String
+    public var allow: String
+    public var cancel: String
+    public init(readClipboard: String, pasteUnsafe: String, allow: String, cancel: String) {
+        self.readClipboard = readClipboard
+        self.pasteUnsafe = pasteUnsafe
+        self.allow = allow
+        self.cancel = cancel
+    }
+}
+
 @MainActor public final class TerminalSurfaceView: NSView {
+    /// Read when a dialog opens, so a language switch applies to the next one.
+    public static var clipboardPromptText: () -> ClipboardPromptText = {
+        ClipboardPromptText(readClipboard: "A program wants to read the clipboard",
+                            pasteUnsafe: "Paste text that may run commands?", allow: "Allow", cancel: "Cancel")
+    }
+
     public var onTitleChange: ((String) -> Void)?
     public var onBell: (() -> Void)?
     public var onDesktopNotification: ((String, String) -> Void)?  // title, body
@@ -220,14 +240,11 @@ import os
             return
         }
         let alert = NSAlert()
-        if request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ {
-            alert.messageText = "A program wants to read the clipboard"
-        } else {
-            alert.messageText = "Paste text that may run commands?"
-        }
+        let strings = Self.clipboardPromptText()
+        alert.messageText = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_READ ? strings.readClipboard : strings.pasteUnsafe
         alert.informativeText = String(text.prefix(500))
-        alert.addButton(withTitle: "Allow")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: strings.allow)
+        alert.addButton(withTitle: strings.cancel)
         pendingClipboard = (alert, state)
         let complete: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             self?.finishClipboardConfirmation(allow: response == .alertFirstButtonReturn, text: text)

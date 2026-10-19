@@ -463,12 +463,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         if let base { projects[i].lastBaseBranch = base }
     }
 
-    /// Blank name keeps the old one; nil `baseBranch` keeps the old one; blank `worktreeRoot` resets to default (nil).
+    /// Blank name keeps the old one; nil `baseBranch` = automatic (from origin/HEAD), stored as is; blank `worktreeRoot` resets to default (nil).
     /// A new path also moves the cwd of main-folder tasks' leaves that sat in the old path.
     public mutating func updateProject(id: UUID, name: String, path: String, baseBranch: String?, worktreeRoot: String?) {
         guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
         renameProject(id: id, name: name)
-        if let baseBranch { projects[i].lastBaseBranch = baseBranch }
+        projects[i].lastBaseBranch = baseBranch
         let root = worktreeRoot?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         projects[i].worktreeRoot = root.isEmpty ? nil : root
         let old = projects[i].path

@@ -455,6 +455,8 @@ import Testing
         #expect(s.projects[0].lastBaseBranch == "origin/dev" && s.projects[0].worktreeRoot == "/wt")
         s.updateProject(id: p, name: "app", path: "/repo/app", baseBranch: "origin/dev", worktreeRoot: "")
         #expect(s.projects[0].lastBaseBranch == "origin/dev" && s.projects[0].worktreeRoot == nil)
+        s.updateProject(id: p, name: "app", path: "/repo/app", baseBranch: nil, worktreeRoot: nil)
+        #expect(s.projects[0].lastBaseBranch == nil)
     }
 
     @Test func updateProjectKeepsWorktreeCwds() {

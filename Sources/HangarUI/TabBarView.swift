@@ -15,7 +15,10 @@ struct TitleBarView: View {
                     Text(app.project(task.projectId)?.name ?? "").foregroundStyle(Theme.ui.text2)
                     Text("·").foregroundStyle(Theme.ui.text3)
                     Text(task.name).foregroundStyle(Theme.ui.textStrong)
-                    if case .worktree = task.mode { IconView(icon: .worktree, size: Theme.smallIconSize) }
+                    if let branch = task.branch {
+                        IconView(icon: .worktree, size: Theme.smallIconSize)
+                        Text(branch).font(.system(size: Theme.fontSize.tab, design: .monospaced)).foregroundStyle(Theme.ui.text3)
+                    }
                 }
                 .font(.system(size: Theme.fontSize.tabTaskTitle))
                 .lineLimit(1)

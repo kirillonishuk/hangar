@@ -10,6 +10,7 @@ let package = Package(
         .binaryTarget(name: "GhosttyKit", path: "vendor/GhosttyKit.xcframework"),
         .target(name: "Workspace"),
         .target(name: "Exec", dependencies: ["Workspace"]),
+        .target(name: "Git", dependencies: ["Exec"]),
         .target(
             name: "GhosttyBridge",
             dependencies: ["GhosttyKit", "Exec"],
@@ -27,10 +28,11 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "GhosttyBridge"], resources: [.process("Resources")]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge"], resources: [.process("Resources")]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
-        .testTarget(name: "HangarUITests", dependencies: ["HangarUI"]),
+        .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
+        .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
     ]
 )

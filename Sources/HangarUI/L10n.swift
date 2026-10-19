@@ -85,11 +85,16 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
-        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
+        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, creatingWorktreeWait, worktreeRootInsideProject, pathMustBeAbsolute, branchAuto, save
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
+        case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
+        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
+        case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
+        case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
     }
 
     // Sidebar
@@ -127,6 +132,31 @@ import Workspace
     static var escCancel: String { s(.escCancel) }
     static var cancel: String { s(.cancel) }
     static var create: String { s(.create) }
+    static var branchRequired: String { s(.branchRequired) }
+    static var branchInvalid: String { s(.branchInvalid) }
+    static func branchExists(_ name: String) -> String { f(.branchExists, name) }
+    static var fetchFailed: String { s(.fetchFailed) }
+    static var createWithoutFetch: String { s(.createWithoutFetch) }
+    static var fetchCancelled: String { s(.fetchCancelled) }
+    static var noCommits: String { s(.noCommits) }
+    static var worktreeLabel: String { s(.worktreeLabel) }
+    static var worktreeOnHint: String { s(.worktreeOnHint) }
+    static var worktreeOffHint: String { s(.worktreeOffHint) }
+    static var fromBranch: String { s(.fromBranch) }
+    static var newBranch: String { s(.newBranch) }
+    static var fromName: String { s(.fromName) }
+    static func currentBranch(_ name: String) -> String { f(.currentBranch, name) }
+    static var refreshHelp: String { s(.refreshHelp) }
+    static var searchBranches: String { s(.searchBranches) }
+    static var branchesRemote: String { s(.branchesRemote) }
+    static var branchesLocal: String { s(.branchesLocal) }
+    static var branchDefault: String { s(.branchDefault) }
+    static var branchTask: String { s(.branchTask) }
+    static func updatedAgo(_ age: String) -> String { f(.updatedAgo, age) }
+    static var justNow: String { s(.justNow) }
+    static func minutesAgo(_ n: Int) -> String { f(.minutesAgo, n) }
+    static func hoursAgo(_ n: Int) -> String { f(.hoursAgo, n) }
+    static func daysAgo(_ n: Int) -> String { f(.daysAgo, n) }
 
     // Terminal area, alerts, menus
     static var configNotApplied: String { s(.configNotApplied) }
@@ -181,6 +211,14 @@ import Workspace
     static var deletePermanently: String { s(.deletePermanently) }
     static func deleteTaskConfirm(_ arg: String) -> String { f(.deleteTaskConfirm, arg) }
     static var deleteTaskInfo: String { s(.deleteTaskInfo) }
+    static var alsoDeleteWorktree: String { s(.alsoDeleteWorktree) }
+    static var worktreeDirty: String { s(.worktreeDirty) }
+    static var worktreeDirtyInfo: String { s(.worktreeDirtyInfo) }
+    static var worktreeIgnored: String { s(.worktreeIgnored) }
+    static func worktreeIgnoredInfo(_ files: String) -> String { f(.worktreeIgnoredInfo, files) }
+    static var deleteAnyway: String { s(.deleteAnyway) }
+    static var worktreeRemoveFailed: String { s(.worktreeRemoveFailed) }
+    static func branchKept(_ name: String) -> String { f(.branchKept, name) }
     static var delete: String { s(.delete) }
     static var projectSettingsEllipsis: String { s(.projectSettingsEllipsis) }
     static var projectSettings: String { s(.projectSettings) }
@@ -198,7 +236,11 @@ import Workspace
     static var projectPath: String { s(.projectPath) }
     static var chooseEllipsis: String { s(.chooseEllipsis) }
     static var defaultBranch: String { s(.defaultBranch) }
-    static var defaultBranchLater: String { s(.defaultBranchLater) }
+    static var creatingWorktreeWait: String { s(.creatingWorktreeWait) }
+    static var worktreeRootInsideProject: String { s(.worktreeRootInsideProject) }
+    static var worktreeFolder: String { s(.worktreeFolder) }
+    static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
+    static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }

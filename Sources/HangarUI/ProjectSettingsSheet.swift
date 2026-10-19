@@ -1,26 +1,62 @@
 import AppKit
+import Git
 import SwiftUI
 import Workspace
 
-/// Project settings (sheet 580, `new-task-v4` style): name, path with «Choose…», default branch (read-only until stage 2).
+struct PathInputError: Error, Equatable { let message: String }
+
+/// True if `root` is the project folder or lies inside it (worktrees would show up in the project's own tree).
+func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
+    func trimmed(_ p: String) -> String {
+        var p = (p.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
+        while p.count > 1, p.hasSuffix("/") { p.removeLast() }
+        return p
+    }
+    let r = trimmed(root), p = trimmed(project)
+    return r == p || r.hasPrefix(p + "/")
+}
+
+/// «Папка worktree» input: blank → nil (default folder), `~` expanded, a relative path is an error.
+@MainActor func worktreeRootInput(_ text: String) -> Result<String?, PathInputError> {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return .success(nil) }
+    let expanded = (trimmed as NSString).expandingTildeInPath
+    return expanded.hasPrefix("/") ? .success(expanded) : .failure(PathInputError(message: L10n.pathMustBeAbsolute))
+}
+
+/// Project settings (sheet 580, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
 /// A missing folder is shown as an error and nothing is saved.
 struct ProjectSettingsSheet: View {
     let project: Project
-    let onSave: (_ name: String, _ path: String) -> Void
+    let git: Git
+    let onSave: (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
     @State private var path: String
+    @State private var baseBranch: String?
+    @State private var worktreeRoot: String
     @State private var error: String?
+    @State private var rootError: String?
+    /// nil until git has answered; the git-only rows appear only for a repository with commits.
+    @State private var isGit: Bool?
+    @State private var branches: [Branch] = []
+    @State private var defaultBase: String?
+    @State private var branchesError: String?
     @FocusState private var focus: Field?
-    private enum Field { case name, path }
+    private enum Field { case name, path, root }
 
-    init(project: Project, onSave: @escaping (_ name: String, _ path: String) -> Void, onCancel: @escaping () -> Void) {
+    init(project: Project, git: Git,
+         onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void,
+         onCancel: @escaping () -> Void) {
         self.project = project
+        self.git = git
         self.onSave = onSave
         self.onCancel = onCancel
         _name = State(initialValue: project.name)
         _path = State(initialValue: project.path)
+        _baseBranch = State(initialValue: project.lastBaseBranch)
+        _worktreeRoot = State(initialValue: project.worktreeRoot ?? "")
     }
 
     private var canSave: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -57,10 +93,34 @@ struct ProjectSettingsSheet: View {
                     .padding(.top, Theme.railInset)
             }
 
-            label(L10n.defaultBranch)
-            HStack(spacing: Theme.statusDot) {
-                Text(project.lastBaseBranch ?? "—").foregroundStyle(Theme.ui.text2)
-                Text(L10n.defaultBranchLater).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+            if isGit == true {
+                label(L10n.defaultBranch)
+                BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
+                             defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
+                if let branchesError {
+                    Text(branchesError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
+                        .padding(.top, Theme.railInset)
+                }
+
+                label(L10n.worktreeFolder)
+                HStack(spacing: Theme.statusDot) {
+                    TextField("", text: $worktreeRoot, prompt: Text(defaultRootPlaceholder).foregroundStyle(Theme.ui.text3))
+                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                        .focused($focus, equals: .root)
+                        .onSubmit(save)
+                        .onChange(of: worktreeRoot) { rootError = nil }
+                        .modifier(SheetField(focused: focus == .root))
+                    Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false))
+                }
+                if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot),
+                   worktreeRootInsideProject(root, project: path) {
+                    Text(L10n.worktreeRootInsideProject).font(.system(size: Theme.fontSize.tab))
+                        .foregroundStyle(Theme.ui.text3).padding(.top, Theme.railInset)
+                }
+                if let rootError {
+                    Text(rootError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
+                        .padding(.top, Theme.railInset)
+                }
             }
 
             HStack(spacing: Theme.statusDot) {
@@ -83,6 +143,7 @@ struct ProjectSettingsSheet: View {
         .font(.system(size: Theme.fontSize.sheetRow))
         .background(Theme.ui.sheet)
         .onAppear { focus = .name }
+        .task { await loadGit() }
     }
 
     private func label(_ text: String) -> some View {
@@ -91,11 +152,46 @@ struct ProjectSettingsSheet: View {
             .padding(.bottom, Theme.railInset)
     }
 
+    /// Default worktree folder for the current project path.
+    private var defaultRootPlaceholder: String {
+        let url = URL(fileURLWithPath: worktreePath(projectPath: path, root: nil, branch: "x"))
+        return url.deletingLastPathComponent().path
+    }
+
+    /// Reads branches without fetching.
+    private func loadGit() async {
+        guard await git.isRepository(), await git.hasCommits() else { isGit = false; return }
+        do { branches = try await git.listBranches() } catch {
+            branchesError = (error as? GitError)?.errorDescription ?? error.localizedDescription
+        }
+        defaultBase = try? await git.defaultBranch()
+        isGit = true
+    }
+
     private func save() {
         guard canSave else { return }
+        var root: String?
+        if isGit == true {
+            switch worktreeRootInput(worktreeRoot) {
+            case .success(let value): root = value
+            case .failure(let e): rootError = e.message; return
+            }
+        } else {
+            root = project.worktreeRoot  // hidden rows keep what is stored
+        }
         let trimmed = (path.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
         guard folderExists(trimmed) else { error = L10n.folderMissing(trimmed); return }
-        onSave(name, trimmed)
+        onSave(name, trimmed, isGit == true ? baseBranch : project.lastBaseBranch, root)
+    }
+
+    private func chooseRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: worktreeRoot.isEmpty ? defaultRootPlaceholder : (worktreeRoot as NSString).expandingTildeInPath)
+        if panel.runModal() == .OK, let url = panel.url { worktreeRoot = url.path }
     }
 
     private func choose() {

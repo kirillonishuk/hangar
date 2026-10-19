@@ -128,6 +128,7 @@ Git и diff: бейджи `M #e5c07b`, `A #98c379`, `D #e06c75`; строки di
 | chevronDown / chevronRight | `chevron.down` / `chevron.right` |
 | more | `ellipsis` |
 | sidebarRight | `sidebar.right` |
+| refresh | `arrow.clockwise` |
 
 ## Сайдбар: свёрнутый режим
 - Жёлобок фиксированный, 44 pt; строки 32 (`railRowHeight`). Маркер (точка/иконка) стоит на одном x в обоих режимах.

@@ -1,4 +1,5 @@
 import AppKit
+import Git
 import GhosttyBridge
 import SwiftUI
 import Workspace
@@ -70,6 +71,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
     private var sheetWindow: NSWindow?
+    private var newTaskModel: NewTaskModel?
+    #if DEBUG
+    var newTaskModelForDebug: NewTaskModel? { newTaskModel }
+    #endif
     private var sidebarAnimation: Timer?
     private var didApplyInitialLayout = false
     private let configWarning: String?
@@ -270,6 +275,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             openSettings: { [weak self] in self?.showSettings(nil) },
             toggleDrawer: { [weak self] id in self?.column.terminalArea.toggleDrawer(taskId: id) },
             confirm: { [weak self] message, info, button, then in self?.confirm(message, info, button, then) },
+            confirmWithCheckbox: { [weak self] message, info, button, checkbox, then in
+                self?.confirm(message, info, button, checkbox: checkbox, then)
+            },
             showError: { [weak self] message, info in self?.showError(message, info) })
     }
 
@@ -371,22 +379,47 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
+        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: app.taskBranches(id))
+        let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
+            load.cancel()
+            model.cancelFetch()
+            if let wait = sheet.attachedSheet { sheet.endSheet(wait) } // the «Создаётся worktree…» alert
             window.endSheet(sheet)
             self.sheetWindow = nil
+            self.newTaskModel = nil
         }
-        let view = NewTaskSheet(projectName: project.name, agentName: app.config.defaultAgent.rawValue,
-                                onCreate: { [weak self] name, message in
+        let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
+                                onCreate: { [weak self] name, message, mode in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message)
+                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host
         sheetWindow = sheet
+        newTaskModel = model
         window.beginSheet(sheet)
+    }
+
+    /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.
+    /// A new-task create is in progress: closing the window or quitting would abandon a half-made worktree.
+    public var isCreatingTask: Bool { newTaskModel?.creating == true }
+    public func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if isCreatingTask { notifyCreatingTask(); return false }
+        return true
+    }
+
+    /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).
+    public func notifyCreatingTask() {
+        guard let host = sheetWindow ?? window, host.attachedSheet == nil else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = L10n.creatingWorktreeWait
+        alert.addButton(withTitle: L10n.ok)
+        alert.beginSheetModal(for: host)
     }
 
     private func presentProjectSettings(_ id: UUID) {
@@ -400,9 +433,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, onSave: { [weak self] name, path in
+        let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
-            self?.app.perform { $0.updateProject(id: id, name: name, path: path) }
+            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
         }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
@@ -412,6 +445,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func confirm(_ message: String, _ info: String, _ button: String, _ then: @escaping () -> Void) {
+        confirm(message, info, button, checkbox: nil) { _ in then() }
+    }
+
+    /// `checkbox` (unchecked by default) is shown as the alert's suppression button; `then` gets its state.
+    private func confirm(_ message: String, _ info: String, _ button: String, checkbox: String?, _ then: @escaping (Bool) -> Void) {
         guard let window, window.attachedSheet == nil else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -419,9 +457,15 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         alert.informativeText = info
         alert.addButton(withTitle: button).hasDestructiveAction = true
         alert.addButton(withTitle: L10n.cancel)
+        if let checkbox {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = checkbox
+            alert.suppressionButton?.state = .off
+        }
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
-            MainActor.assumeIsolated { then() }
+            let checked = alert.suppressionButton?.state == .on
+            MainActor.assumeIsolated { then(checked) }
         }
     }
 

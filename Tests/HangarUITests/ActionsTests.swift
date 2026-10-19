@@ -105,6 +105,23 @@ import Workspace
         #expect(FileManager.default.fileExists(atPath: dir.path))
     }
 
+    @Test func actionUsesCheckboxForWorktreeTask() throws {
+        let (app, _, _, archived) = try makeApp()
+        defer { cleanup() }
+        var plain = 0, boxed = 0
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { _, _, _, _ in plain += 1 }
+        ctx.confirmWithCheckbox = { _, _, _, checkbox, _ in
+            #expect(checkbox == L10n.alsoDeleteWorktree)
+            boxed += 1
+        }
+        Action.deletePermanently.perform(.task(archived), ctx)
+        #expect(plain == 1 && boxed == 0)
+        app.perform { $0.tasks[1].mode = .worktree(path: "/wt/b", branch: "b", base: "main") }
+        Action.deletePermanently.perform(.task(archived), ctx)
+        #expect(plain == 1 && boxed == 1)
+    }
+
     @Test func renameStartsInlineEditing() throws {
         let (app, p, a, _) = try makeApp()
         defer { cleanup() }
@@ -147,7 +164,7 @@ import Workspace
         let (app, p, a, _) = try makeApp()
         defer { cleanup() }
         let q = app.addProject(path: dir.path)
-        app.createTask(projectId: q, name: "q", firstMessage: "")
+        app.createTask(projectId: q, name: "q", firstMessage: "", mode: .mainFolder)
         let qTask = app.state.tasks.last!.id
         app.select(taskId: a)
         app.setCollapsed(projectId: p, true)
@@ -224,5 +241,27 @@ import Workspace
         #expect(drawerRoute(.toggleDrawer, drawerFocused: true) == .perform)
         #expect(drawerRoute(.tab(2), drawerFocused: true) == .perform)
         for sc in [Shortcut.closeTab, .splitRight, .splitDown, .newTab] { #expect(drawerRoute(sc, drawerFocused: false) == .perform) }
+    }
+
+    @Test func worktreeRootInputValidation() {
+        L10n.language = .en
+        #expect(worktreeRootInput("") == .success(nil))
+        #expect(worktreeRootInput("  ") == .success(nil))
+        #expect(worktreeRootInput("~/wt") == .success(NSHomeDirectory() + "/wt"))
+        #expect(worktreeRootInput(" /tmp/wt ") == .success("/tmp/wt"))
+        #expect(worktreeRootInput("wt") == .failure(PathInputError(message: L10n.pathMustBeAbsolute)))
+        #expect(L10n.pathMustBeAbsolute == "Use an absolute path")
+        #expect(L10n.branchAuto("origin/main") == "default (origin/main)")
+        #expect(L10n.worktreeFolder == "Worktree folder")
+        #expect(worktreeRootInsideProject("/p/app/wt", project: "/p/app"))
+        #expect(worktreeRootInsideProject("/p/app", project: "/p/app/"))
+        #expect(!worktreeRootInsideProject("/p/app.worktrees", project: "/p/app"))
+        #expect(!worktreeRootInsideProject("/p", project: "/p/app"))
+        #expect(worktreeRootInsideProject("~/app/wt", project: NSHomeDirectory() + "/app"))
+        #expect(worktreeRootInsideProject(" /p/app/wt ", project: " /p/app "))
+        #expect(L10n.creatingWorktreeWait == "Creating the worktree — wait a few seconds")
+        L10n.language = .ru
+        #expect(L10n.pathMustBeAbsolute == "Нужен абсолютный путь")
+        #expect(L10n.branchAuto("origin/main") == "по умолчанию (origin/main)")
     }
 }

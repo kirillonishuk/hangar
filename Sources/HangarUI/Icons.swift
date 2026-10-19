@@ -7,7 +7,7 @@ enum Icon {
     case sidebarToggle, newTask, project, worktree, sshHost, claude, codex, editor, shell, diff, files, changes
     case keepAwake, limits, settings, archive, search, splitRight, splitDown, close
     case pin, pinned, chevronUp, chevronDown, chevronRight, more, sidebarRight
-    case rename, finder, copy, openExternal, restore, trash, remove
+    case rename, finder, copy, openExternal, restore, trash, remove, refresh
 
     private var symbol: String {
         switch self {
@@ -44,6 +44,7 @@ enum Icon {
         case .restore: "arrow.uturn.backward"
         case .trash: "trash"
         case .remove: "minus.circle"
+        case .refresh: "arrow.clockwise"
         }
     }
 

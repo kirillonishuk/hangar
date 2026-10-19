@@ -246,7 +246,7 @@ import Testing
         #expect(s.tasks[0].name == "t")
         #expect(s.projects[0].name == "app")
         #expect(s.tasks[0].tabs[0].customTitle == nil)
-        s.updateProject(id: p, name: "  ", path: "/repo/app")
+        s.updateProject(id: p, name: "  ", path: "/repo/app", baseBranch: nil, worktreeRoot: nil)
         #expect(s.projects[0].name == "app")
     }
 
@@ -315,7 +315,9 @@ import Testing
         let w = s.addTask(projectId: p, name: "w")
         s.tasks[1].mode = .worktree(path: "/wt", branch: "b", base: "main")
         s.addTab(taskId: w, kind: .shell)
-        s.updateProject(id: p, name: " shop ", path: "/repo/shop")
+        s.updateProject(id: p, name: " shop ", path: "/repo/shop", baseBranch: nil, worktreeRoot: "/other")
+        #expect(s.projects[0].worktreeRoot == "/other")
+        #expect(s.tasks[1].mode == .worktree(path: "/wt", branch: "b", base: "main"))
         #expect(s.projects[0].name == "shop")
         #expect(s.projects[0].path == "/repo/shop")
         #expect(s.tasks[0].tabs[0].root.leaves[0].cwd == "/repo/shop")
@@ -329,7 +331,7 @@ import Testing
         s.tasks[1].mode = .worktree(path: "/wt", branch: "b", base: "main")
         s.toggleDrawer(taskId: t)
         s.toggleDrawer(taskId: w)
-        s.updateProject(id: p, name: "app", path: "/repo/shop")
+        s.updateProject(id: p, name: "app", path: "/repo/shop", baseBranch: nil, worktreeRoot: nil)
         #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/shop")
         #expect(s.tasks[1].drawer.leaf?.cwd == "/wt")
     }
@@ -421,5 +423,60 @@ import Testing
         #expect(s.tasks[0].drawer.leaf == nil && !s.tasks[0].drawer.visible)
         s.toggleDrawer(taskId: t)
         #expect(s.tasks[0].drawer.leaf != nil && s.tasks[0].drawer.leaf?.id != first)
+    }
+
+    @Test func worktreeTaskLeavesUseWorktreePath() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "x", mode: .worktree(path: "/w/x", branch: "x", base: "origin/main"))
+        let tab = s.addTab(taskId: t, kind: .claude)
+        let leaf = s.tasks[0].tabs[0].focusedLeafId
+        let second = s.split(taskId: t, tabId: tab, leafId: leaf, axis: .horizontal, kind: .shell)
+        s.toggleDrawer(taskId: t)
+        #expect(s.tasks[0].tabs[0].root.leaves.map(\.cwd) == ["/w/x", "/w/x"])
+        #expect(s.tasks[0].tabs[0].root.leaf(id: second)?.cwd == "/w/x")
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/w/x")
+        #expect(s.tasks[0].branch == "x")
+        s.addTask(projectId: p, name: "m")
+        #expect(s.tasks[1].branch == nil)
+    }
+
+    @Test func oldProjectWithoutWorktreeKeysDecodes() throws {
+        let id = UUID().uuidString
+        let json = #"{"id":"\#(id)","name":"a","location":{"local":{"path":"/r"}}}"#
+        let p = try JSONDecoder().decode(Project.self, from: Data(json.utf8))
+        #expect(p.worktreeByDefault == false && p.worktreeRoot == nil)
+        var s = WorkspaceState(projects: [p])
+        s.projects[0].worktreeRoot = "/wt"
+        s.projects[0].worktreeByDefault = true
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)) == s)
+    }
+
+    @Test func updateProjectSetsBaseAndRoot() {
+        var (s, p) = makeState()
+        s.updateProject(id: p, name: "app", path: "/repo/app", baseBranch: "origin/dev", worktreeRoot: "/wt")
+        #expect(s.projects[0].lastBaseBranch == "origin/dev" && s.projects[0].worktreeRoot == "/wt")
+        s.updateProject(id: p, name: "app", path: "/repo/app", baseBranch: "origin/dev", worktreeRoot: "")
+        #expect(s.projects[0].lastBaseBranch == "origin/dev" && s.projects[0].worktreeRoot == nil)
+        s.updateProject(id: p, name: "app", path: "/repo/app", baseBranch: nil, worktreeRoot: nil)
+        #expect(s.projects[0].lastBaseBranch == nil)
+    }
+
+    @Test func updateProjectKeepsWorktreeCwds() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "x", mode: .worktree(path: "/repo/app", branch: "x", base: "main"))
+        s.addTab(taskId: t, kind: .shell)
+        s.toggleDrawer(taskId: t)
+        s.updateProject(id: p, name: "app", path: "/repo/shop", baseBranch: nil, worktreeRoot: nil)
+        #expect(s.tasks[0].tabs[0].root.leaves[0].cwd == "/repo/app")
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/app")
+    }
+
+    @Test func rememberNewTaskChoice() {
+        var (s, p) = makeState()
+        s.projects[0].lastBaseBranch = "origin/main"
+        s.rememberNewTaskChoice(projectId: p, worktree: true, base: nil)
+        #expect(s.projects[0].worktreeByDefault && s.projects[0].lastBaseBranch == "origin/main")
+        s.rememberNewTaskChoice(projectId: p, worktree: false, base: "origin/dev")
+        #expect(!s.projects[0].worktreeByDefault && s.projects[0].lastBaseBranch == "origin/dev")
     }
 }

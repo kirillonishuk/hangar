@@ -105,6 +105,11 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func project(_ id: UUID) -> Project? { state.projects.first { $0.id == id } }
 
+    /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.
+    func taskBranches(_ projectId: UUID) -> Set<String> {
+        Set(state.tasks.filter { $0.projectId == projectId }.compactMap(\.branch))
+    }
+
     /// Pinned tasks (any project), shown only in the PINNED section.
     var pinnedTasks: [HangarTask] { state.projects.flatMap { state.tasks(in: $0.id).filter(\.pinned) } }
 
@@ -188,9 +193,13 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return id
     }
 
-    func createTask(projectId: UUID, name: String, firstMessage: String) {
+    /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
+    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode) {
         perform { s in
-            let task = s.addTask(projectId: projectId, name: name)
+            let task = s.addTask(projectId: projectId, name: name, mode: mode)
+            var base: String?
+            if case .worktree(_, _, let b) = mode { base = b }
+            s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
             s.select(taskId: task)
             let tab = s.addTab(taskId: task, kind: config.defaultAgent)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -98,3 +98,11 @@
 "clipboardRead" = "Программа хочет прочитать буфер обмена";
 "clipboardPasteUnsafe" = "Вставить текст, который может выполнить команды?";
 "allow" = "Разрешить";
+
+"branchRequired" = "Введите имя ветки";
+"branchInvalid" = "Недопустимое имя ветки";
+"branchExists" = "Ветка «%@» уже существует";
+"fetchFailed" = "git fetch не удался";
+"createWithoutFetch" = "Создать без fetch";
+"fetchCancelled" = "fetch отменён";
+"noCommits" = "в репозитории нет коммитов";

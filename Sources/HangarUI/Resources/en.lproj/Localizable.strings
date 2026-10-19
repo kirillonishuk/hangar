@@ -98,3 +98,11 @@
 "clipboardRead" = "A program wants to read the clipboard";
 "clipboardPasteUnsafe" = "Paste text that may run commands?";
 "allow" = "Allow";
+
+"branchRequired" = "Enter a branch name";
+"branchInvalid" = "Invalid branch name";
+"branchExists" = "Branch “%@” already exists";
+"fetchFailed" = "git fetch failed";
+"createWithoutFetch" = "Create without fetch";
+"fetchCancelled" = "fetch cancelled";
+"noCommits" = "the repository has no commits";

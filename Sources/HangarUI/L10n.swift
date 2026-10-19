@@ -90,6 +90,7 @@ import Workspace
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, defaultBranchLater, save
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
+        case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
     }
 
     // Sidebar
@@ -127,6 +128,13 @@ import Workspace
     static var escCancel: String { s(.escCancel) }
     static var cancel: String { s(.cancel) }
     static var create: String { s(.create) }
+    static var branchRequired: String { s(.branchRequired) }
+    static var branchInvalid: String { s(.branchInvalid) }
+    static func branchExists(_ name: String) -> String { f(.branchExists, name) }
+    static var fetchFailed: String { s(.fetchFailed) }
+    static var createWithoutFetch: String { s(.createWithoutFetch) }
+    static var fetchCancelled: String { s(.fetchCancelled) }
+    static var noCommits: String { s(.noCommits) }
 
     // Terminal area, alerts, menus
     static var configNotApplied: String { s(.configNotApplied) }

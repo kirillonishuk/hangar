@@ -147,7 +147,7 @@ import Workspace
         let (app, p, a, _) = try makeApp()
         defer { cleanup() }
         let q = app.addProject(path: dir.path)
-        app.createTask(projectId: q, name: "q", firstMessage: "")
+        app.createTask(projectId: q, name: "q", firstMessage: "", mode: .mainFolder)
         let qTask = app.state.tasks.last!.id
         app.select(taskId: a)
         app.setCollapsed(projectId: p, true)

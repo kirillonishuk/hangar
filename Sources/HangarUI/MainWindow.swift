@@ -379,7 +379,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = NewTaskSheet(projectName: project.name, agentName: app.config.defaultAgent.rawValue,
                                 onCreate: { [weak self] name, message in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message)
+                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: .mainFolder)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)

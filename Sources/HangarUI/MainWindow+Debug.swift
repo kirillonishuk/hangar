@@ -34,7 +34,7 @@ extension MainWindowController {
         case "task":
             let fields = arg.split(separator: "|", maxSplits: 1).map(String.init)
             guard let project = app.selectedTask?.projectId ?? app.state.projects.first?.id else { return }
-            app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "")
+            app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "", mode: .mainFolder)
         case "tab": LeafKind(rawValue: arg).map(app.addTab)
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }

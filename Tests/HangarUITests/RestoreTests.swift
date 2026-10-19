@@ -96,7 +96,7 @@ import Workspace
         var s = WorkspaceState()
         let p = s.addProject(name: "p", path: "/tmp")
         let app = app(s)
-        app.createTask(projectId: p, name: "t", firstMessage: "  fix bug \n")
+        app.createTask(projectId: p, name: "t", firstMessage: "  fix bug \n", mode: .mainFolder)
         let leaf = app.state.tasks[0].tabs[0].root.leaves[0].id
         #expect(app.launchContext(for: leaf) == .created(prompt: "fix bug"))
         #expect(app.launchContext(for: leaf) == .created(prompt: nil))

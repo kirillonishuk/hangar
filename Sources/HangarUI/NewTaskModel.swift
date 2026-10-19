@@ -80,8 +80,14 @@ import Workspace
         await refresh()
     }
 
-    /// Fetches the base's remote, then rereads branches. Returns at once if a fetch is already running.
+    /// Fetches the base's remote, then rereads branches. Returns at once if a fetch is already running or create is
+    /// in progress (create fetches on its own).
     func refresh() async {
+        guard !creating else { return }
+        await runFetch()
+    }
+
+    private func runFetch() async {
         guard availability == .ready, fetch != .running else { return }
         guard let remote = remoteOfBase() else {
             fetch = .noRemote
@@ -111,7 +117,7 @@ import Workspace
     }
 
     func validateBranch() async {
-        branchError = await branchProblem()
+        branchError = await branchProblem(branch)
     }
 
     /// nil keeps the sheet open: fetch failed/cancelled (offer «Create without fetch»), bad branch, or git error.
@@ -122,14 +128,17 @@ import Workspace
         defer { creating = false }
         createError = nil
         if !skipFetch, !fetchedThisOpen {
-            if fetch == .running { await fetchSettled() } else { await refresh() }
+            if fetch == .running { await fetchSettled() } else { await runFetch() }
             switch fetch {
             case .failed, .cancelled: return nil
             default: break
             }
         }
-        await validateBranch()
-        guard branchError == nil, let base else { return nil }
+        // Captured once: the fields stay editable while git runs.
+        let branch = branch
+        guard let base else { return nil }
+        branchError = await branchProblem(branch)
+        guard branchError == nil else { return nil }
         let path = worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: branch)
         do {
             try await git.addWorktree(path: path, newBranch: branch, base: base)
@@ -177,7 +186,7 @@ import Workspace
         return remotes.contains("origin") ? "origin" : nil
     }
 
-    private func branchProblem() async -> String? {
+    private func branchProblem(_ branch: String) async -> String? {
         if branch.isEmpty { return L10n.branchRequired }
         if await !git.isValidBranchName(branch) { return L10n.branchInvalid }
         if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return L10n.branchExists(branch) }

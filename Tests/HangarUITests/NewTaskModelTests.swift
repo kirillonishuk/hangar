@@ -246,7 +246,15 @@ import Workspace
         #expect(await creating.value == nil)
         #expect(ContinuousClock.now - started < .seconds(15))  // well under the helper's 30 s
         #expect(m.fetch == .cancelled)
-        #expect(await m.create(skipFetch: true) == .worktree(path: t.repo + ".worktrees/t", branch: "t", base: "origin/main"))
+
+        // While creating: ↻ starts no fetch, and edits made during create's awaits don't change what is created.
+        let skipping = Task { await m.create(skipFetch: true) }
+        await Task.yield()  // runs create up to its first git await
+        #expect(m.creating)
+        m.branch = "edited"
+        await m.refresh()
+        #expect(m.fetch == .cancelled)
+        #expect(await skipping.value == .worktree(path: t.repo + ".worktrees/t", branch: "t", base: "origin/main"))
     }
 
     @Test func createTaskRemembersChoice() throws {

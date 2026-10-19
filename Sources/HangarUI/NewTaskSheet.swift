@@ -28,6 +28,7 @@ struct NewTaskSheet: View {
             TextField("", text: $model.name, prompt: Text(L10n.taskNamePlaceholder).foregroundStyle(Theme.ui.text3))
                 .font(.system(size: Theme.fontSize.taskName, design: .monospaced))
                 .focused($focus, equals: .name)
+                .disabled(model.creating)
                 .onSubmit { focus = .message }
                 .modifier(SheetField(focused: focus == .name))
                 .padding(.top, Theme.sheetNameTop)
@@ -71,8 +72,8 @@ struct NewTaskSheet: View {
                     .labelsHidden()
                     .controlSize(.small)
                     .tint(Theme.ui.primary)
-                    .disabled(model.availability != .ready)
-                    .pointingHand(model.availability == .ready)
+                    .disabled(model.availability != .ready || model.creating)
+                    .pointingHand(model.availability == .ready && !model.creating)
             }
             row(L10n.fromBranch) {
                 BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
@@ -89,6 +90,7 @@ struct NewTaskSheet: View {
                         .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
                         .focused($focus, equals: .branch)
+                        .disabled(model.creating)
                         .onSubmit { focus = .message }
                     if model.branchFollowsName, !model.branch.isEmpty {
                         Text(L10n.fromName).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)

@@ -7,6 +7,7 @@ import Workspace
 @MainActor @Suite struct TaskDeletionTests {
     private final class Calls: @unchecked Sendable {
         var confirms: [String] = []
+        var infos: [String] = []
         var errors: [(String, String)] = []
     }
 
@@ -24,7 +25,7 @@ import Workspace
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
         let calls = Calls()
         var ctx = ActionContext(app: app)
-        ctx.confirm = { m, _, _, then in calls.confirms.append(m); if answer { then() } }
+        ctx.confirm = { m, i, _, then in calls.confirms.append(m); calls.infos.append(i); if answer { then() } }
         ctx.showError = { calls.errors.append(($0, $1)) }
         return (t, app, id, wt, calls, ctx)
     }
@@ -69,6 +70,37 @@ import Workspace
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeDirty])
         #expect(exists(wt) && app.state.tasks.contains { $0.id == id })
+        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+    }
+
+    /// `.env`-style file: ignored, so `status --porcelain` is clean but `worktree remove` would delete it silently.
+    private func addIgnored(_ t: TempRepo, _ wt: String) throws {
+        try ".env\n".write(toFile: t.repo + "/.gitignore", atomically: true, encoding: .utf8)
+        try t.git("add", ".gitignore", in: t.repo)
+        try t.git("commit", "-q", "-m", "ignore", in: t.repo)
+        try t.git("merge", "-q", "main", in: wt)
+        try "secret".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
+    }
+
+    @Test func ignoredOnlyAsksThenForces() async throws {
+        let (t, app, id, wt, calls, ctx) = try make(answer: true)
+        defer { t.cleanup() }
+        try addIgnored(t, wt)
+        #expect(try await Git(repo: t.repo).isDirty(path: wt) == false)
+        await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
+        #expect(calls.confirms == [L10n.worktreeIgnored])
+        #expect(calls.infos.first?.contains(".env") == true)
+        for _ in 0..<100 where app.state.tasks.contains(where: { $0.id == id }) { try await Task.sleep(for: .milliseconds(50)) }
+        #expect(!exists(wt) && !app.state.tasks.contains { $0.id == id })
+    }
+
+    @Test func ignoredDeclinedChangesNothing() async throws {
+        let (t, app, id, wt, calls, ctx) = try make(answer: false)
+        defer { t.cleanup() }
+        try addIgnored(t, wt)
+        await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
+        #expect(calls.confirms == [L10n.worktreeIgnored])
+        #expect(exists(wt + "/.env") && app.state.tasks.contains { $0.id == id })
         #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
     }
 

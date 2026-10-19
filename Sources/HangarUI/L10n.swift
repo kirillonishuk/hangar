@@ -85,7 +85,7 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, deleteAnyway, worktreeRemoveFailed, branchKept
+        case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
         case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, creatingWorktreeWait, worktreeRootInsideProject, pathMustBeAbsolute, branchAuto, save
@@ -214,6 +214,8 @@ import Workspace
     static var alsoDeleteWorktree: String { s(.alsoDeleteWorktree) }
     static var worktreeDirty: String { s(.worktreeDirty) }
     static var worktreeDirtyInfo: String { s(.worktreeDirtyInfo) }
+    static var worktreeIgnored: String { s(.worktreeIgnored) }
+    static func worktreeIgnoredInfo(_ files: String) -> String { f(.worktreeIgnoredInfo, files) }
     static var deleteAnyway: String { s(.deleteAnyway) }
     static var worktreeRemoveFailed: String { s(.worktreeRemoveFailed) }
     static func branchKept(_ name: String) -> String { f(.branchKept, name) }

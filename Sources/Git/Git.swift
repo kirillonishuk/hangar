@@ -152,6 +152,14 @@ public struct Git: Sendable {
         return !r.stdout.trimmed.isEmpty
     }
 
+    /// Paths git ignores (`!!` entries of `status --porcelain --ignored`): `worktree remove` deletes them silently.
+    public func ignoredFiles(path: String) async throws -> [String] {
+        let args = ["status", "--porcelain", "--ignored"]
+        let r = try await runner.run(["git"] + args, path)
+        guard r.status == 0 else { throw GitError(args: args, status: r.status, stderr: r.stderr.trimmed) }
+        return r.stdout.split(separator: "\n").filter { $0.hasPrefix("!! ") }.map { String($0.dropFirst(3)) }
+    }
+
     // MARK: Helpers
 
     @discardableResult

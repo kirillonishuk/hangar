@@ -379,8 +379,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
-        let taskBranches = Set(app.state.tasks.filter { $0.projectId == id }.compactMap(\.branch))
-        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: taskBranches)
+        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: app.taskBranches(id))
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }

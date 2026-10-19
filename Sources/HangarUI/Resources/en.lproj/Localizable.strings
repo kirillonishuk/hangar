@@ -130,6 +130,8 @@
 "alsoDeleteWorktree" = "Also delete the worktree and branch";
 "worktreeDirty" = "The worktree has uncommitted changes";
 "worktreeDirtyInfo" = "They will be lost.";
+"worktreeIgnored" = "The worktree has files outside git";
+"worktreeIgnoredInfo" = "%@ — they will be deleted.";
 "deleteAnyway" = "Delete anyway";
 "worktreeRemoveFailed" = "Couldn't remove the worktree";
 "branchKept" = "Branch “%@” is not merged — kept";

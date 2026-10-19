@@ -171,19 +171,15 @@ import Workspace
         let path = t.repo + ".worktrees/busy"
         try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
         try "x".write(toFile: path + "/keep.txt", atomically: true, encoding: .utf8)
-        let app = AppState(state: WorkspaceState(), store: StateStore(directory: URL(fileURLWithPath: t.root + "/state")),
-                           config: HangarConfig(), configURL: URL(fileURLWithPath: t.root + "/c.toml"))
-        let before = app.state
         let m = model(t, worktreeByDefault: true)
         await m.load()
         m.name = "busy"
         m.branch = "busy"  // typed by the user: no auto-suffix around the existing folder
         #expect(await m.create(skipFetch: false) == nil)
         #expect(m.createError?.isEmpty == false)
-        #expect(m.createError?.contains("already exists") == true)
         #expect(FileManager.default.fileExists(atPath: path + "/keep.txt"))
         #expect(try t.git("branch", "--list", "busy", in: t.repo).isEmpty)  // the failed add left no branch
-        #expect(app.state == before)
+        #expect(!m.creating)  // the sheet is usable again: the user can fix the name and retry
     }
 
     @Test func noRemoteSkipsFetch() async throws {

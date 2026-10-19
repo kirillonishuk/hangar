@@ -3,7 +3,7 @@ import Git
 import Workspace
 
 /// «Удалить навсегда» for an archived task. Without `alsoWorktree` nothing on disk is touched (decisions #39/#42).
-/// With it: missing folder → prune; dirty → ask before forcing; remove the worktree, drop the task, then `branch -d`
+/// With it: missing folder → prune; dirty or holding ignored files → ask before forcing; remove the worktree, drop the task, then `branch -d`
 /// (an unmerged branch is kept and reported).
 @MainActor func deleteTaskPermanently(_ id: UUID, alsoWorktree: Bool, ctx: ActionContext, git: Git) async {
     let app = ctx.app
@@ -18,9 +18,12 @@ import Workspace
         return
     }
     let dirty = (try? await git.isDirty(path: path)) ?? false
-    if dirty {
+    let ignored = (try? await git.ignoredFiles(path: path)) ?? []
+    if dirty || !ignored.isEmpty {
         // Cancel leaves everything as it was; the forced removal continues from the confirm callback.
-        ctx.confirm(L10n.worktreeDirty, L10n.worktreeDirtyInfo, L10n.deleteAnyway) {
+        let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
+        let info = ignored.isEmpty ? L10n.worktreeDirtyInfo : L10n.worktreeIgnoredInfo(shown)
+        ctx.confirm(dirty ? L10n.worktreeDirty : L10n.worktreeIgnored, info, L10n.deleteAnyway) {
             Task { await removeWorktreeAndTask(id, path: path, branch: branch, force: true, ctx: ctx, git: git) }
         }
         return
@@ -32,7 +35,7 @@ import Workspace
     do {
         try await git.removeWorktree(path: path, force: force)
     } catch {
-        ctx.showError(L10n.worktreeRemoveFailed, stderr(of: error))
+        ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return
     }
     await finishDeletion(id, branch: branch, ctx: ctx, git: git)
@@ -43,10 +46,6 @@ import Workspace
     do {
         try await git.deleteBranch(branch)
     } catch {
-        ctx.showError(L10n.branchKept(branch), stderr(of: error))
+        ctx.showError(L10n.branchKept(branch), error.localizedDescription)
     }
-}
-
-private func stderr(of error: Error) -> String {
-    (error as? GitError)?.stderr ?? error.localizedDescription
 }

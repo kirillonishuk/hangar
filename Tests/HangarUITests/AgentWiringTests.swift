@@ -17,8 +17,10 @@ import Workspace
         for kind in kinds { s.addTab(taskId: t, kind: kind) }
         if drawer { s.toggleDrawer(taskId: t) }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-agents-\(UUID())")
-        return AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
                         configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
+        app.codexRead = nil  // a codex turn must not look for the real codex
+        return app
     }
 
     private func event(_ app: AppState, tab n: Int, _ kind: HookKind, session: String? = nil, type: String? = nil, message: String? = nil) {
@@ -201,8 +203,10 @@ import Workspace
         event(app, tab: 0, .prompt)
         _ = app.usage.markLimitReached(.claude, now: t)
         let tab = app.state.tasks[0].tabs[0]
-        #expect(app.displayState(of: tab, now: t) == .failed)
-        #expect(app.displayState(of: tab, now: t.addingTimeInterval(120)) == .working)
+        app.usageClock = t
+        #expect(app.displayState(of: tab) == .failed)
+        app.usageClock = t.addingTimeInterval(120)
+        #expect(app.displayState(of: tab) == .working)
     }
 
     @MainActor @Test func statusLabelsLocalized() {

@@ -99,6 +99,8 @@ import Workspace
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
+        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
+        case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
     }
 
     // Sidebar
@@ -224,6 +226,23 @@ import Workspace
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
     static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
+
+    // Subscription limits
+    static var limitSession: String { s(.limitSession) }
+    static var limitWeekAll: String { s(.limitWeekAll) }
+    static var limitWeek: String { s(.limitWeek) }
+    static func limitWeekModel(_ model: String) -> String { f(.limitWeekModel, model) }
+    static func resetIn(_ duration: String, _ time: String) -> String { f(.resetIn, duration, time) }
+    static func durationMin(_ m: Int) -> String { f(.durationMin, m) }
+    static func durationHourMin(_ h: Int, _ m: Int) -> String { f(.durationHourMin, h, m) }
+    static func durationDayHour(_ d: Int, _ h: Int) -> String { f(.durationDayHour, d, h) }
+    static func limitAlmost(_ agent: String, _ percent: Int) -> String { f(.limitAlmost, agent, Int32(clamping: percent)) }
+    static func limitReached(_ agent: String) -> String { f(.limitReached, agent) }
+    static var limitBadgeAlmost: String { s(.limitBadgeAlmost) }
+    static var limitBadgeFull: String { s(.limitBadgeFull) }
+    static var limitsShortcutHint: String { s(.limitsShortcutHint) }
+    static var refresh: String { s(.refresh) }
+    static var limitsHelp: String { s(.limitsHelp) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }

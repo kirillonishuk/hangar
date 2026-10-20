@@ -151,3 +151,19 @@
 "agentDone" = "%@ finished";
 "agentsWorking" = "Agents working: %ld. Quit?";
 "agentsWorkingInfo" = "Their processes will be terminated.";
+
+"limitSession" = "Session (5 h)";
+"limitWeekAll" = "Week · all models";
+"limitWeek" = "Week";
+"limitWeekModel" = "Week · %@";
+"resetIn" = "resets in %@ · %@";
+"durationMin" = "%ld min";
+"durationHourMin" = "%ld h %ld min";
+"durationDayHour" = "%ld d %ld h";
+"limitAlmost" = "%@: almost at the limit (%d%%)";
+"limitReached" = "%@: limit reached";
+"limitBadgeAlmost" = "almost at limit";
+"limitBadgeFull" = "limit reached";
+"limitsShortcutHint" = "⌘⇧L — open/close";
+"refresh" = "refresh";
+"limitsHelp" = "Subscription limits (⌘⇧L)";

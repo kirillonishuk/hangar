@@ -25,15 +25,17 @@ extension AppState {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
             switch e.kind {
-            case .stopFailure: alert(usage.markLimitReached(.claude, now: Date()))
+            case .stopFailure:
+                usageClock = clock()
+                alert(usage.markLimitReached(.claude, now: usageClock))
             case .codexNotify: onCodexTurn?()
             default: break
             }
         case let .usage(u):
             // shortcut: codex limits come from its app-server (Task 11), not the socket
             guard u.agent == UsageAgent.claude.rawValue else { return }
-            let now = Date()
-            alert(usage.update(.claude, windows: claudeWindows(u.windows, now: now), plan: nil, now: now))
+            usageClock = clock()
+            alert(usage.update(.claude, windows: claudeWindows(u.windows, now: usageClock), plan: nil, now: usageClock))
         }
     }
 
@@ -53,21 +55,21 @@ extension AppState {
         return taskState(leaves.map { state(ofLeaf: $0.id) })
     }
 
-    /// Like `state`, but an agent leaf whose agent is out of limit shows as failed.
-    func displayState(ofLeaf id: UUID, kind: LeafKind, now: Date = Date()) -> AgentState {
+    /// Like `state`, but an agent leaf whose agent is out of limit (at `usageClock`) shows as failed.
+    func displayState(ofLeaf id: UUID, kind: LeafKind) -> AgentState {
         let st = state(ofLeaf: id)
         let agent: UsageAgent? = kind == .claude ? .claude : kind == .codex ? .codex : nil
-        if let agent, usage.level(agent, now: now) == .full { return .failed }
+        if let agent, usage.level(agent, now: usageClock) == .full { return .failed }
         return st
     }
 
-    func displayState(of tab: Tab, now: Date = Date()) -> AgentState {
-        taskState(tab.root.leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind, now: now) })
+    func displayState(of tab: Tab) -> AgentState {
+        taskState(tab.root.leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind) })
     }
 
-    func displayState(of task: HangarTask, now: Date = Date()) -> AgentState {
+    func displayState(of task: HangarTask) -> AgentState {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
-        return taskState(leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind, now: now) })
+        return taskState(leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind) })
     }
 
     /// Agent tabs always show a dot; other tabs only when something is going on.
@@ -79,6 +81,56 @@ extension AppState {
 
     private func apply(_ signal: AgentSignal, leaf: UUID) {
         if let t = statuses.apply(signal, leaf: leaf) { onTransition?(t) }
+    }
+
+    // MARK: Limits
+
+    /// Agents with data, in order; Codex only while codex is installed.
+    var limitRows: [(agent: UsageAgent, usage: AgentUsage)] {
+        UsageAgent.allCases.compactMap { agent in
+            if agent == .codex, codexRead == nil { return nil }
+            return usage.view(agent, now: usageClock).map { (agent, $0) }
+        }
+    }
+
+    /// Stale windows (reset passed) drop to 0 and «обновлено …» moves on, computed now rather than by a timer.
+    func refreshUsageClock() { usageClock = clock() }
+
+    /// ⌘⇧L / click. Nothing to show → beep. Opening refreshes codex; the returned task is that refresh (tests await it).
+    @discardableResult func toggleLimitsPopover() -> Task<Void, Never>? {
+        if limitsPopoverShown { limitsPopoverShown = false; return nil }
+        refreshUsageClock()
+        guard !limitRows.isEmpty else { beep(); return nil }
+        limitsPopoverShown = true
+        return Task { await refreshCodexUsage(afterTurn: false) }
+    }
+
+    /// After a turn at most once a minute; never two reads at once. A failed read keeps the old data.
+    func refreshCodexUsage(afterTurn: Bool) async {
+        guard let read = codexRead, codexGate.begin(afterTurn: afterTurn, now: clock()) else { return }
+        defer { codexGate.end(now: clock()) }
+        do {
+            let u = try await read()
+            usageClock = clock()
+            alert(usage.update(.codex, windows: u.windows, plan: u.plan, now: usageClock))
+        } catch {
+            uiLog.error("codex limits read failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// The first call looks codex up in the login shell; not found → `codexRead` becomes nil for good.
+    func lazyCodexRead() -> () async throws -> AgentUsage {
+        { [weak self] in
+            guard let self else { throw CancellationError() }
+            guard let exe = await resolveCodex(runner: .local, shell: userShell) else {
+                codexRead = nil
+                throw CodexReadError(reason: "codex not found")
+            }
+            let reader = CodexUsageReader(executable: exe)
+            let read: () async throws -> AgentUsage = { [weak self] in try await reader.read(now: self?.clock() ?? Date()) }
+            codexRead = read
+            return try await read()
+        }
     }
 
     private func alert(_ alerts: [UsageAlert]) {

@@ -70,6 +70,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let sidebarItem: NSSplitViewItem
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
+    nonisolated(unsafe) private var activeObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
     private var newTaskModel: NewTaskModel?
     #if DEBUG
@@ -140,6 +141,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         installMainMenu()
         installKeyMonitor()
+        // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
+        activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.app.refreshUsageClock() }
+        }
         #if DEBUG
         installDebugHooks()
         #endif
@@ -147,7 +152,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    deinit { if let keyMonitor { NSEvent.removeMonitor(keyMonitor) } }
+    deinit {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+    }
 
     public override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
@@ -229,6 +237,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        // ⌘⇧L also closes the limits popover while it has the keyboard.
+        if app.limitsPopoverShown, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
+            app.toggleLimitsPopover()
+            return true
+        }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
@@ -315,6 +328,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProject()
         case .settings: showSettings(nil)
+        case .limits: app.toggleLimitsPopover()
         }
     }
 
@@ -337,6 +351,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.onTransition = { [weak self] t in
             guard let self, let n = notice(for: t, app: self.app, leafVisible: leafVisible(t.leaf, app: self.app, windowVisible: self.windowVisible)) else { return }
             self.notifier?.post(n)
+        }
+        app.onUsageAlerts = { [weak self] alerts in
+            guard let self else { return }
+            for n in limitNotices(alerts, app: self.app) { self.notifier?.post(n) }
         }
     }
 

@@ -43,10 +43,11 @@ extension MainWindowController {
             }
             lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")
         }
-        let now = Date()
+        let now = app.usageClock
         let windows: [String] = app.usage.view(.claude, now: now)?.windows.map { "\($0.kind)=\(Int($0.usedPercent))" } ?? []
         let level: String = app.usage.level(.claude, now: now).map { "\($0)" } ?? "-"
         lines.append("agents working=\(app.workingLeafCount) usage.claude=\(windows) level=\(level)")
+        lines.append("limits rows=\(app.limitRows.map(\.agent.rawValue)) popover=\(app.limitsPopoverShown) codex=\(app.codexRead != nil)")
         return lines
     }
 
@@ -57,7 +58,7 @@ extension MainWindowController {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
-            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer,
+            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
         ]
         switch parts.first ?? "" {
         case "task":

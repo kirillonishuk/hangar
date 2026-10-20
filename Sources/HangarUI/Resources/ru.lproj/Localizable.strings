@@ -151,3 +151,19 @@
 "agentDone" = "%@ закончил";
 "agentsWorking" = "Работают агенты: %ld. Выйти?";
 "agentsWorkingInfo" = "Их процессы будут завершены.";
+
+"limitSession" = "Сессия (5 ч)";
+"limitWeekAll" = "Неделя · все модели";
+"limitWeek" = "Неделя";
+"limitWeekModel" = "Неделя · %@";
+"resetIn" = "сброс через %@ · %@";
+"durationMin" = "%ld мин";
+"durationHourMin" = "%ld ч %ld мин";
+"durationDayHour" = "%ld дн %ld ч";
+"limitAlmost" = "%@: почти лимит (%d%%)";
+"limitReached" = "%@: лимит исчерпан";
+"limitBadgeAlmost" = "почти лимит";
+"limitBadgeFull" = "лимит исчерпан";
+"limitsShortcutHint" = "⌘⇧L — открыть/закрыть";
+"refresh" = "обновить";
+"limitsHelp" = "Лимиты подписок (⌘⇧L)";

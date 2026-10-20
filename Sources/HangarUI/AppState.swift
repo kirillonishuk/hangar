@@ -29,8 +29,17 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onTransition: ((Transition) -> Void)?
     /// Limit thresholds crossed (Task 11).
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
-    /// A codex turn ended: time to refresh its limits (Task 11).
+    /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
     @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
+    var usageClock = Date()
+    var limitsPopoverShown = false
+    /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
+    @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
+    @ObservationIgnored var codexGate = CodexRefreshGate()
+    /// Injectable for tests.
+    @ObservationIgnored var clock: () -> Date = Date.init
+    @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 
@@ -81,6 +90,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         userShell = shell.isEmpty ? "/bin/zsh" : shell
         self.socketPath = socketPath
         markRestored(state.tasks.filter { !$0.archived })
+        codexRead = lazyCodexRead()
+        onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }

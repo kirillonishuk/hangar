@@ -344,6 +344,10 @@ struct SidebarView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
+            // No data for any agent → no block (and no rail tile).
+            if !app.limitRows.isEmpty {
+                if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
+            }
             HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)

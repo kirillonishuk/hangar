@@ -30,6 +30,7 @@ public func codexUsage(fromResult result: Any, now: Date) -> AgentUsage? {
 
 public struct CodexReadError: Error, Equatable, Sendable {
     public var reason: String
+    public init(reason: String) { self.reason = reason }
 }
 
 /// Short-lived `codex app-server`: three JSON lines in, read stdout until the reply with id 1, then terminate.

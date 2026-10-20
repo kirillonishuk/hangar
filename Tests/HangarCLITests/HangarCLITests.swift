@@ -21,7 +21,8 @@ private final class TempDir {
 
 @MainActor private final class Inbox {
     var messages: [ControlMessage] = []
-    func wait(count n: Int, seconds: Double = 3) async -> [ControlMessage] {
+    /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
+    func wait(count n: Int, seconds: Double = 10) async -> [ControlMessage] {
         let deadline = ContinuousClock.now + .seconds(seconds)
         while messages.count < n && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
         return messages
@@ -132,7 +133,7 @@ private let statusFixture = Data("""
         let r = try run(["event", "codex-notify", "--then", "/bin/sh", "-c", #"printf %s "$1" > "# + out, "sh", payload],
                         env: env(dir), stdin: nil)
         #expect(r.status == 0 && r.out.isEmpty && r.err.isEmpty)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)  // polls; exits as soon as the chained command wrote
         var got = ""
         while ContinuousClock.now < deadline {
             got = (try? String(contentsOfFile: out, encoding: .utf8)) ?? ""

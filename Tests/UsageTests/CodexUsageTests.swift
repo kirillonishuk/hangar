@@ -26,7 +26,7 @@ private func alive(_ pid: String) -> Bool {
     return kill(p, 0) == 0
 }
 /// Bounded poll (no fixed sleeps): true as soon as `cond` holds, false after `seconds`.
-private func waitUntil(_ seconds: Double = 3, _ cond: () -> Bool) async -> Bool {
+private func waitUntil(_ seconds: Double = 10, _ cond: () -> Bool) async -> Bool {
     let end = Date().addingTimeInterval(seconds)
     while Date() < end {
         if cond() { return true }

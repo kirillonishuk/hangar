@@ -18,7 +18,8 @@ private final class SocketDir {
 
 @MainActor private final class Inbox {
     var messages: [ControlMessage] = []
-    func wait(count n: Int, seconds: Double = 3) async -> [ControlMessage] {
+    /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
+    func wait(count n: Int, seconds: Double = 10) async -> [ControlMessage] {
         let deadline = ContinuousClock.now + .seconds(seconds)
         while messages.count < n && ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
@@ -34,7 +35,7 @@ private final class RawClient {
         fd = socket(AF_UNIX, SOCK_STREAM, 0)
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-        var tv = timeval(tv_sec: 3, tv_usec: 0)
+        var tv = timeval(tv_sec: 10, tv_usec: 0)  // generous: a timeout reads as eof == false, never as success
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -263,8 +264,8 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let clock = ContinuousClock()
         var r: (replies: [String], eof: Bool) = ([], false)
         let elapsed = clock.measure { r = raw.readToEOF() }
-        #expect(r.eof)
-        #expect(elapsed < .seconds(2))
+        #expect(r.eof)  // closed by the 0.3 s idle timer, not the 10 s read timeout
+        #expect(elapsed < .seconds(5))
     }
 
     @Test func acceptEMFILESuspendsListenerUntilConnectionCloses() async throws {

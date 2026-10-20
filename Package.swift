@@ -32,9 +32,9 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge"], resources: [.process("Resources")]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage"], resources: [.process("Resources")]),
         .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
-        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
+        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
         .testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"]),
@@ -43,6 +43,6 @@ let package = Package(
         .testTarget(name: "UsageTests", dependencies: ["Usage", "ControlServer", "Exec"]),
         .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
         .testTarget(name: "IntegrationTests", dependencies: ["Integration", "Exec"]),
-        .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
+        .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git", "AgentStatus", "ControlServer", "Usage"]),
     ]
 )

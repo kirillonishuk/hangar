@@ -479,4 +479,19 @@ import Testing
         s.rememberNewTaskChoice(projectId: p, worktree: false, base: "origin/dev")
         #expect(!s.projects[0].worktreeByDefault && s.projects[0].lastBaseBranch == "origin/dev")
     }
+    @Test func setAgentSessionId() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "x")
+        s.addTab(taskId: t, kind: .claude)
+        s.toggleDrawer(taskId: t)
+        let tabLeaf = s.tasks[0].tabs[0].root.leaves[0].id
+        let drawerLeaf = s.tasks[0].drawer.leaf!.id
+        s.setAgentSessionId(leafId: tabLeaf, "s1")
+        s.setAgentSessionId(leafId: drawerLeaf, "s2")
+        #expect(s.tasks[0].tabs[0].root.leaves[0].agentSessionId == "s1")
+        #expect(s.tasks[0].drawer.leaf?.agentSessionId == "s2")
+        let before = s
+        s.setAgentSessionId(leafId: UUID(), "s3")
+        #expect(s == before)
+    }
 }

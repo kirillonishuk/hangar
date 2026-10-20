@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import SwiftUI
+import Usage
 import Workspace
 
 /// Off-screen branch list of the open new-task sheet: an inactive app closes real popovers at once, and
@@ -29,6 +30,24 @@ extension MainWindowController {
 
     private static func texts(_ v: NSView) -> [String] {
         ((v as? NSTextField).map { [$0.stringValue] } ?? []) + v.subviews.flatMap(texts)
+    }
+
+    /// Per-leaf agent state and session id, per-task state, usage.
+    private func debugAgents() -> [String] {
+        var lines: [String] = []
+        for t in app.state.tasks where !t.archived {
+            for l in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
+                let state = app.state(ofLeaf: l.id).rawValue
+                let message = app.lastNotificationMessage[l.id] ?? "-"
+                lines.append("agent leaf=\(l.id.uuidString) kind=\(l.kind.rawValue) state=\(state) session=\(l.agentSessionId ?? "-") message=\(message)")
+            }
+            lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")
+        }
+        let now = Date()
+        let windows: [String] = app.usage.view(.claude, now: now)?.windows.map { "\($0.kind)=\(Int($0.usedPercent))" } ?? []
+        let level: String = app.usage.level(.claude, now: now).map { "\($0)" } ?? "-"
+        lines.append("agents working=\(app.workingLeafCount) usage.claude=\(windows) level=\(level)")
+        return lines
     }
 
     private func debugCommand(_ command: String) {
@@ -189,7 +208,7 @@ extension MainWindowController {
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { "\(app.tabLabel($0)) leaves=\($0.root.leaves.map { $0.id.uuidString.prefix(4) }) focus=\($0.focusedLeafId.uuidString.prefix(4))" }) active=\(t.activeTabId == nil ? "-" : "set") drawer=\(t.drawer.visible)/\(Int(t.drawer.height))/\(t.drawer.leaf?.id.uuidString.prefix(4) ?? "-")"
-            } + ["projects=\(app.state.projects.map { "\($0.name)@\($0.path)" }) renaming=\(app.renaming.map { "\($0)" } ?? "-") responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) active=\(NSApp.isActive) key=\(window?.isKeyWindow ?? false)"]
+            } + debugAgents() + ["projects=\(app.state.projects.map { "\($0.name)@\($0.path)" }) renaming=\(app.renaming.map { "\($0)" } ?? "-") responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) active=\(NSApp.isActive) key=\(window?.isKeyWindow ?? false)"]
             uiLog.info("dump selected=\(self.app.selectedTask?.name ?? "-", privacy: .public) sidebar=\(self.app.state.sidebarWidth)/\(self.app.state.sidebarCollapsed) actual=\(self.sidebarItem.viewController.view.frame.width) panes=\(self.split.splitView.subviews.map { Int($0.frame.width) }, privacy: .public) win=\(Int(self.window?.frame.width ?? 0))x\(Int(self.window?.contentView?.frame.height ?? 0))\n\(tasks.joined(separator: "\n"), privacy: .public)\n\(self.column.terminalArea.debugDump(), privacy: .public)")
         default: break
         }

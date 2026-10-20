@@ -1,10 +1,12 @@
+import AgentStatus
 import AppKit
 import Exec
 import Observation
 import os
+import Usage
 import Workspace
 
-let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
+public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
 @MainActor @Observable public final class AppState {
@@ -17,6 +19,18 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var sidebarAnimating = false
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
+    /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
+    var statuses = StatusBoard()
+    /// Subscription limits from the statusline / codex; in memory only.
+    var usage = UsageBoard()
+    /// `message` of the leaf's last hook event (notification body).
+    var lastNotificationMessage: [UUID: String] = [:]
+    /// A leaf's agent state changed (notifications, Task 9).
+    @ObservationIgnored var onTransition: ((Transition) -> Void)?
+    /// Limit thresholds crossed (Task 11).
+    @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
+    /// A codex turn ended: time to refresh its limits (Task 11).
+    @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 
@@ -55,7 +69,8 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Ghostty took this background at launch; a change applies after restart.
     @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 
-    public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL) {
+    public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
+                socketPath: String = defaultStateDirectoryPath() + "/hangar.sock") {
         self.state = state
         self.store = store
         self.config = config
@@ -64,8 +79,7 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         L10n.language = config.language
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? ""
         userShell = shell.isEmpty ? "/bin/zsh" : shell
-        socketPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Hangar/hangar.sock").path
+        self.socketPath = socketPath
         markRestored(state.tasks.filter { !$0.archived })
     }
 
@@ -93,6 +107,12 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
         mutate(&state)
+        // Archived or closed leaves drop their status (and their message) here.
+        let live = liveLeafIds
+        if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
+        if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
+            lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
+        }
         store.scheduleSave(state)
         didChange?()
     }

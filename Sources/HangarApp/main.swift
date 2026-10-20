@@ -1,4 +1,6 @@
 import AppKit
+import os
+import ControlServer
 import GhosttyBridge
 import HangarUI
 import Workspace
@@ -7,6 +9,7 @@ import Workspace
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     var appState: AppState?
+    var server: ControlServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -19,7 +22,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }()
         let (config, warning) = HangarConfig.load(from: configURL)
         L10n.language = config.language  // the Ghostty alert below is already localized
-        startGhostty(background: config.terminalBackground == .hangar ? Theme.terminalBackgroundHex : nil)
 
         let stateDir: URL = {
             #if DEBUG
@@ -28,23 +30,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #endif
             return home.appendingPathComponent("Library/Application Support/Hangar")
         }()
+        let socketPath = stateDir.appendingPathComponent("hangar.sock").path
+        startControlServer(stateDir: stateDir, socketPath: socketPath)
+        startGhostty(background: config.terminalBackground == .hangar ? Theme.terminalBackgroundHex : nil)
+
         let store = StateStore(directory: stateDir)
         let result = store.load()
         let state: WorkspaceState
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
-        let app = AppState(state: state, store: store, config: config, configURL: configURL)
+        let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)
         windowController = wc
         appState = app
-        #if DEBUG
-        // Verification runs next to the user's work: don't steal focus.
-        let activate = ProcessInfo.processInfo.environment["HANGAR_DEBUG_NO_ACTIVATE"] == nil
-        #else
-        let activate = true
-        #endif
-        if activate { NSApp.activate(ignoringOtherApps: true) }
+        if activateAllowed { NSApp.activate(ignoringOtherApps: true) }
         if let text = loadAlert(for: result), let window = wc.window {
             let alert = NSAlert()
             alert.alertStyle = .warning
@@ -54,6 +54,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var activateAllowed: Bool {
+        #if DEBUG
+        // Verification runs next to the user's work: don't steal focus.
+        return ProcessInfo.processInfo.environment["HANGAR_DEBUG_NO_ACTIVATE"] == nil
+        #else
+        return true
+        #endif
+    }
+
     /// A worktree being created would be left half-done: refuse to quit until git finishes.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let wc = windowController, wc.isCreatingTask else { return .terminateNow }
@@ -61,7 +70,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateCancel
     }
 
-    func applicationWillTerminate(_ notification: Notification) { appState?.saveNow() }
+    func applicationWillTerminate(_ notification: Notification) {
+        server?.stop()
+        appState?.saveNow()
+    }
+
+    /// The socket doubles as the single-instance lock: a live one means another Hangar owns this state dir.
+    private func startControlServer(stateDir: URL, socketPath: String) {
+        ensurePrivateDirectory(stateDir, tightenExisting: stateDir.standardizedFileURL.path == defaultStateDirectoryPath())
+        // Messages that arrive before AppState exists are dropped.
+        let server = ControlServer(path: socketPath) { [weak self] in self?.appState?.handle($0) }
+        do {
+            try server.start()
+            self.server = server
+        } catch .alreadyRunning(let pid) {
+            if activateAllowed { NSRunningApplication(processIdentifier: pid)?.activate() }
+            exit(0)
+        } catch {
+            // Without the socket hooks can't reach the app; terminals and fallbacks still work.
+            uiLog.error("control socket failed: \(String(describing: error), privacy: .public)")
+        }
+    }
 
     /// Without Ghostty every terminal would be blank: ask to retry or quit instead of continuing silently.
     private func startGhostty(background: String?) {

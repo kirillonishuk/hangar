@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import Exec
 import GhosttyBridge
@@ -73,6 +74,9 @@ final class RatioSplitView: HangarSplitView {
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
     var onFocus: (() -> Void)?
+    /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
+    var onBell: (() -> Void)?
+    var onNotification: (() -> Void)?
 
     init(leafId: UUID) {
         self.leafId = leafId
@@ -128,6 +132,8 @@ final class RatioSplitView: HangarSplitView {
         view.onChildExit = { [weak self] code in self?.childExited(code) }
         view.onTitleChange = { [weak self] title in self?.onTitle?(title) }
         view.onFocus = { [weak self] in self?.onFocus?() }
+        view.onBell = { [weak self] in self?.onBell?() }
+        view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
         if let old = surface {
             // Replacing an exited surface: the old one is finished, removing it is a real close.
             old.removeFromSuperview()
@@ -400,9 +406,18 @@ final class RatioSplitView: HangarSplitView {
                 self?.app.setTitle(title, leafId: leaf.id)
                 self?.leafViews[leaf.id]?.setHeader(title)
             }
-            view.onExit = { [weak self] code in self?.leafExited(leaf.id, code: code) }
-            view.onFocus = { [weak self] in self?.app.focused(leafId: leaf.id) }
+            view.onExit = { [weak self] code in
+                self?.app.signal(.exited(code: code), leaf: leaf.id)
+                self?.leafExited(leaf.id, code: code)
+            }
+            view.onFocus = { [weak self] in
+                self?.app.focused(leafId: leaf.id)
+                self?.app.signal(.focused, leaf: leaf.id)
+            }
+            view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
+            view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
             view.onRelaunch = { [weak self] in
+                self?.app.signal(.relaunched, leaf: leaf.id)
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
                 self?.sync()
             }

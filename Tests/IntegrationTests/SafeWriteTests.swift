@@ -67,3 +67,18 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     #expect(try perms(f) == 0o600)
     #expect(try FileManager.default.contentsOfDirectory(atPath: f.deletingLastPathComponent().path) == ["settings.json"])
 }
+
+@Test func writeAbortsWhenChangedBeforeRename() throws {
+    let d = try tmpDir()
+    defer { try? FileManager.default.removeItem(at: d) }
+    let f = d.appendingPathComponent("settings.json")
+    try "{\"a\": 1}\n".write(to: f, atomically: true, encoding: .utf8)
+    #expect(throws: IntegrationError.changedOnDisk) {
+        try writeUserFile(f, text: "{}\n", expected: "{\"a\": 1}\n", now: now) {
+            try? "{\"a\": 9}\n".write(to: f, atomically: true, encoding: .utf8)
+        }
+    }
+    #expect(try String(contentsOf: f, encoding: .utf8) == "{\"a\": 9}\n")
+    let names = try FileManager.default.contentsOfDirectory(atPath: d.path).sorted()
+    #expect(names.count == 2 && names[0] == "settings.json" && names[1].hasPrefix("settings.json.hangar-backup-"))
+}

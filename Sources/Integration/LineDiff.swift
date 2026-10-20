@@ -2,15 +2,19 @@ public enum DiffLine: Equatable, Sendable {
     case same(String), added(String), removed(String), skipped(Int)
 }
 
-private func lines(_ s: String) -> [String] {
+private let noNewlineMarker = "\\ No newline at end of file"
+
+private func lines(_ s: String, marking: Bool) -> [String] {
     var l = s.components(separatedBy: "\n")
-    if l.last == "" { l.removeLast() }
+    if l.last == "" { l.removeLast() } else if marking { l.append(noNewlineMarker) }
     return l
 }
 
 /// LCS line diff; removals come before additions at a change. Settings files are small, so O(n·m) is fine.
 public func lineDiff(_ old: String, _ new: String) -> [DiffLine] {
-    let a = lines(old), b = lines(new)
+    // A trailing-newline-only change must show: mark the side without the final newline, only when the sides differ in that.
+    let marking = old.hasSuffix("\n") != new.hasSuffix("\n")
+    let a = lines(old, marking: marking), b = lines(new, marking: marking)
     var lcs = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
     for i in stride(from: a.count - 1, through: 0, by: -1) {
         for j in stride(from: b.count - 1, through: 0, by: -1) {

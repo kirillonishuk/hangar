@@ -4,6 +4,7 @@ import Exec
 public enum IntegrationState: Equatable, Sendable {
     case notInstalled, installed
     case outdated  // Hangar entries point at another CLI path, or only some are present
+    case installedStatuslineByUser  // hooks are current; a statusLine we cannot wrap (not an object / no string command) stays the user's
 }
 
 /// Hook kinds are `HookKind.rawValue` literals: Integration must not depend on AgentStatus.
@@ -113,6 +114,7 @@ private func removeHangarHooks(_ root: inout [JSONMember], keepHooksKey: Bool = 
             touchedEvent = true
             if kept.isEmpty { groups.remove(at: gi) } else { g["hooks"] = .array(kept); groups[gi] = .object(g) }
         }
+        // shortcut: an event/group array that was already empty before we touched anything is kept; only emptying by our removal deletes it.
         guard touchedEvent else { continue }
         touchedHooks = true
         if groups.isEmpty { events.remove(at: ei) } else { events[ei].value = .array(groups) }
@@ -201,5 +203,14 @@ public func claudeState(_ text: String?, cli: String) -> IntegrationState {
     }
     if found.isEmpty && !statusOurs { return .notInstalled }
     let expected = claudeHooks.map { "\($0.event)|\($0.matcher ?? "")|\(hookCommand(cli, $0.kind))" }
-    return found.sorted() == expected.sorted() && statusCurrent ? .installed : .outdated
+    guard found.sorted() == expected.sorted() else { return .outdated }
+    if statusCurrent { return .installed }
+    // shortcut: install leaves such a statusLine alone, so reporting .outdated would never clear.
+    switch root["statusLine"] {
+    case nil: return .outdated
+    case .object(let sl)?:
+        if case .string? = sl["command"] { return .outdated }  // a plain user command: install would wrap it
+        return .installedStatuslineByUser
+    default: return .installedStatuslineByUser
+    }
 }

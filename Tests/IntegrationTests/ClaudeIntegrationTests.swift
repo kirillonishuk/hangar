@@ -346,3 +346,22 @@ private func commands(_ text: String) throws -> [String] {
     let short = lineDiff("a\nb\nc\n", "a\nb\nc\nd\n")
     #expect(collapsed(short, context: 3) == short)
 }
+
+@Test func statuslineNotOursIsDistinctState() throws {
+    let full = try parseJSON(try claudeInstall(nil, cli: "/A/hangar"))
+    func with(_ sl: JSONValue) -> String {
+        printJSON(.object(obj(full).map { $0.key == "statusLine" ? JSONMember(key: "statusLine", value: sl) : $0 }))
+    }
+    #expect(claudeState(with(.string("x")), cli: "/A/hangar") == .installedStatuslineByUser)
+    #expect(claudeState(with(.object([JSONMember(key: "type", value: .string("command"))])), cli: "/A/hangar") == .installedStatuslineByUser)
+    // A user's plain command is wrapped by install, so before that it is still outdated.
+    let plain = JSONValue.object([JSONMember(key: "command", value: .string("echo hi"))])
+    #expect(claudeState(with(plain), cli: "/A/hangar") == .outdated)
+}
+
+@Test func lineDiffShowsTrailingNewlineChange() {
+    let d = lineDiff("a\n", "a")
+    #expect(d != [.same("a")] && d.contains { if case .added = $0 { true } else { false } })
+    #expect(lineDiff("a", "a\n").contains { if case .removed = $0 { true } else { false } })
+    #expect(lineDiff("a", "a") == [.same("a")])
+}

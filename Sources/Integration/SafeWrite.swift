@@ -22,8 +22,9 @@ private func resolveLinks(_ url: URL) throws -> URL {
 }
 
 /// Writes a user's config: refuses if it changed since `expected` was read, backs up the old bytes next to it,
-/// replaces atomically, keeps the file's permissions (new file: 0600). Returns the backup URL, if one was made.
-public func writeUserFile(_ url: URL, text: String, expected: String?, now: Date) throws -> URL? {
+/// re-checks right before the rename (abort keeps the backup, removes the temp), replaces atomically, keeps the file's permissions (new file: 0600). Returns the backup URL, if one was made.
+public func writeUserFile(_ url: URL, text: String, expected: String?, now: Date,
+                         beforeRename: () -> Void = {}) throws -> URL? {
     let fm = FileManager.default
     let target = try resolveLinks(url)
     let current = try readUserFile(target)
@@ -58,6 +59,8 @@ public func writeUserFile(_ url: URL, text: String, expected: String?, now: Date
         try handle.synchronize()
         try handle.close()
         _ = chmod(tmp.path, mode)  // open's mode is masked by umask
+        beforeRename()  // test seam: simulates a concurrent edit
+        guard try readUserFile(target) == expected else { throw IntegrationError.changedOnDisk }
         guard rename(tmp.path, target.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     } catch {
         try? fm.removeItem(at: tmp)

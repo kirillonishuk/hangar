@@ -117,6 +117,7 @@ private struct JSONParser {
                 skipSpace()
                 guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { throw fail() }
                 let key = try string()
+                guard !members.contains(where: { $0.key == key }) else { throw fail() }  // duplicate keys: refuse rather than guess which wins
                 skipSpace()
                 try expect(":")
                 skipSpace()

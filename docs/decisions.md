@@ -89,6 +89,14 @@
 
 **Этап 2 (приёмка, 2026-10-19):** измерено в DEBUG-сборке (изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG`), лист «Новая задача» закрыт, простой ~2 мин: CPU 0,0 %, память 52 МБ; `ps` 5 раз — git-детей у Hangar нет. RELEASE-сборка не замерялась: она по замыслу игнорирует `HANGAR_STATE_DIR` и тронула бы реальное состояние — это ручная проверка пользователя (idle CPU 5 мин).
 
+**Этап 3 (приёмка, 2026-10-20):** DEBUG-сборка (`.build/debug/HangarApp`, не .app), изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG`/`HANGAR_CLAUDE_SETTINGS` в /tmp/hg-a, консоль разблокирована, `[agents] claude = "claude --settings /tmp/hg-a/claude.json"` (hooks + statusLine на `Helpers/hangar` собранного `build/Hangar.app`), настоящий claude 2.1.304, 3 промпта.
+- Статусы по листу (дамп `agent leaf=…`): промпт → `working` → `done`; запрос разрешения на Write → `working` → `waiting` (message «Claude needs your permission») → разрешил → `working` → `done`. session id взят из SessionStart (`state.json`: `agentSessionId`); после выхода и запуска — `launch … restoring=true`, процесс `claude --settings … --resume <id>`, статус `idle`.
+- Лимиты: после первого ответа `usage.claude=[session=3, weekly=46] level=ok` (данные statusLine).
+- Без hooks: codex-лист (`sh`) — `printf '\a'` → `waiting`; `exit 3` → `failed`. ↩ на codex-листе запускает `sh resume …` (фейк) → код 127 → снова `failed` — артефакт фейка, не кода.
+- Энергия (3 тихих минуты, 3 вкладки: claude в простое + 2 codex-листа, `top -l 37 -s 5`): 0,0 % в 29 из 36 замеров; всплеск 0,4–8,7 % на ~40 с совпал с системной активностью (AVE/AppNap/Safari-платформа в логе, не Hangar); повторные 60 с — 0,0 % ×12. Память ~84 МБ в покое. `pgrep -f 'hangar (event|statusline)'` и `pgrep -f app-server` — пусто; `lsof | grep -c hangar.sock` = 1 (слушающий).
+- `~/.claude/settings.json` mtime = 1792077750 (2026-10-15) до и после; `~/.codex` существовал с июня (создан не нами, mtime 9 окт).
+- Ловушка проверки: запуск из сессии Claude Code наследует `CLAUDE_CODE_CHILD_SESSION` и др. — дочерний claude не сохраняет транскрипт, `--resume` падает с кодом 1. Приложение запускать через `env -u CLAUDE*`. Окно доверия папке: по умолчанию «No, exit», нужна стрелка вниз.
+
 ## Открытые вопросы (отвечает спайк, этап 0)
 
 - [x] Жизнеспособность embed GhosttyKit: работает; v1.3.1 + upstream-фикс libtool a83a82b применяется в скрипте сборки, пока тег его не включит.

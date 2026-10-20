@@ -17,10 +17,10 @@ extension AppState {
         switch message {
         case let .event(e):
             guard let leaf = liveLeaf(e.leaf, tab: e.tab),
-                  acceptsHook(statuses.status(leaf.id), kind: e.kind, session: e.session, source: e.source) else { return }
+                  acceptsHook(statuses.status(leaf.id), kind: e.kind, session: e.session, source: e.source, agent: sessionAgent(leaf.kind)) else { return }
             // Stored before `apply`: onTransition builds the notification body from it, and a stale one must not outlive its event.
             if lastNotificationMessage[leaf.id] != e.message { lastNotificationMessage[leaf.id] = e.message }
-            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source), leaf: leaf.id)
+            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source), leaf: leaf)
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
@@ -44,7 +44,7 @@ extension AppState {
     func signal(_ signal: AgentSignal, leaf leafId: UUID) {
         guard let leaf = liveLeaf(leafId, tab: nil) else { return }
         if signal == .bell || signal == .desktopNotification, leaf.kind == .shell || leaf.kind == .editor { return }
-        apply(signal, leaf: leafId)
+        apply(signal, leaf: leaf)
     }
 
     func state(ofLeaf id: UUID) -> AgentState { statuses.status(id).state }
@@ -80,10 +80,15 @@ extension AppState {
 
     var workingLeafCount: Int { statuses.workingCount }
 
-    private func apply(_ signal: AgentSignal, leaf: UUID) {
+    private func apply(_ signal: AgentSignal, leaf: Leaf) {
+        let agent = sessionAgent(leaf.kind), old = statuses.status(leaf.id)
         // Mutating `statuses` notifies observers even when nothing changes.
-        guard fold(statuses.status(leaf), signal) != statuses.status(leaf) else { return }
-        if let t = statuses.apply(signal, leaf: leaf) { onTransition?(t) }
+        guard fold(old, signal, agent: agent) != old else { return }
+        if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) { onTransition?(t) }
+    }
+
+    private func sessionAgent(_ kind: LeafKind) -> SessionAgent? {
+        kind == .claude ? .claude : kind == .codex ? .codex : nil
     }
 
     // MARK: Limits

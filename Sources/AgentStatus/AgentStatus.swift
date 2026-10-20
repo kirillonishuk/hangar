@@ -35,22 +35,31 @@ public func validSessionId(_ s: String?) -> String? {
     return s
 }
 
+/// The agent whose session ids a leaf keeps (claude / codex leaf); nil — no session ids (shell, editor).
+public enum SessionAgent: Sendable { case claude, codex }
+
+/// Session ids are kept per leaf agent: a codex hook in a claude leaf (or vice versa) neither sets nor is filtered by it.
+func ownsSessionId(_ kind: HookKind, agent: SessionAgent?) -> Bool {
+    agent == (kind == .codexNotify ? .codex : .claude)
+}
+
 /// A nested agent (e.g. `claude -p` run by the leaf's agent) reports into the same leaf with its own session id.
 /// The first id after a launch is the leaf's; another one is taken only from SessionStart of /clear, compact or resume.
-/// Events without an id and codex-notify are always accepted.
-public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?) -> Bool {
-    guard kind != .codexNotify, let id = validSessionId(session), let current = status.sessionId, id != current else { return true }
+/// Events without an id, of another agent than the leaf's, and codex-notify are always accepted.
+public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, agent: SessionAgent?) -> Bool {
+    guard kind != .codexNotify, ownsSessionId(kind, agent: agent),
+          let id = validSessionId(session), let current = status.sessionId, id != current else { return true }
     return kind == .sessionStart && ["clear", "compact", "resume"].contains(source)
 }
 
 /// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
-public func fold(_ status: LeafStatus, _ signal: AgentSignal) -> LeafStatus {
+public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgent?) -> LeafStatus {
     var s = status
     switch signal {
     case let .hook(kind, session, type, source):
-        guard acceptsHook(status, kind: kind, session: session, source: source) else { return status }
+        guard acceptsHook(status, kind: kind, session: session, source: source, agent: agent) else { return status }
         if kind != .codexNotify { s.claudeHooks = true }
-        if let id = validSessionId(session) { s.sessionId = id }
+        if ownsSessionId(kind, agent: agent), let id = validSessionId(session) { s.sessionId = id }
         switch kind {
         case .sessionStart: break
         case .prompt, .tool: s.state = .working
@@ -98,9 +107,9 @@ public struct StatusBoard: Equatable, Sendable {
     public func status(_ leaf: UUID) -> LeafStatus { leaves[leaf] ?? LeafStatus() }
 
     /// nil — the state did not change (session id / flags may still have).
-    public mutating func apply(_ signal: AgentSignal, leaf: UUID) -> Transition? {
+    public mutating func apply(_ signal: AgentSignal, leaf: UUID, agent: SessionAgent?) -> Transition? {
         let old = status(leaf)
-        let new = fold(old, signal)
+        let new = fold(old, signal, agent: agent)
         if new != old { leaves[leaf] = new }
         return old.state == new.state ? nil : Transition(leaf: leaf, from: old.state, to: new.state)
     }

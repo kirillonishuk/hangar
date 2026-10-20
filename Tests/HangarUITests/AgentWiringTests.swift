@@ -129,6 +129,22 @@ import Workspace
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .done)
     }
 
+    @Test func otherAgentSessionIdsIgnoredOnTheBoard() {
+        let app = makeApp([.claude, .codex])
+        event(app, tab: 0, .sessionStart, session: "main", source: "startup")
+        event(app, tab: 0, .prompt, session: "main")
+        // `codex` run in the claude tab's shell.
+        event(app, tab: 0, .codexNotify, session: "thread")
+        event(app, tab: 0, .stop, session: "main")
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .done)
+        #expect(app.statuses.status(leaf(app, 0).id).sessionId == "main")
+        // claude run in the codex tab.
+        event(app, tab: 1, .sessionStart, session: "c1", source: "startup")
+        #expect(app.statuses.status(leaf(app, 1).id).sessionId == nil)
+        event(app, tab: 1, .codexNotify, session: "t1")
+        #expect(app.statuses.status(leaf(app, 1).id).sessionId == "t1")
+    }
+
     /// A repeated identical event (statusline ticks, duplicate hooks) must not invalidate observers.
     @Test func repeatedEventDoesNotWrite() {
         let app = makeApp([.claude])

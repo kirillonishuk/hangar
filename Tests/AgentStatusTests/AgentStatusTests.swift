@@ -10,6 +10,9 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
     return s
 }
 
+/// Most rows are about a claude leaf.
+private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentStatus.fold(s, signal, agent: .claude) }
+
 @Suite struct AgentStatusTests {
     @Test func foldTable() {
         let rows: [(LeafStatus, AgentSignal, AgentState)] = [
@@ -104,7 +107,7 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
         for kind in [HookKind.sessionStart, .prompt, .tool, .notification, .stop, .stopFailure] {
             let signal = AgentSignal.hook(kind, session: "nested", notificationType: nil, source: "startup")
             #expect(fold(leaf, signal) == leaf, "\(kind)")
-            #expect(!acceptsHook(leaf, kind: kind, session: "nested", source: "startup"), "\(kind)")
+            #expect(!acceptsHook(leaf, kind: kind, session: "nested", source: "startup", agent: .claude), "\(kind)")
         }
         // Same id, no id, or the first id after a launch: as before.
         #expect(fold(leaf, .hook(.stop, session: "main", notificationType: nil)).state == .done)
@@ -125,12 +128,27 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
     }
 
     @Test func codexNotifyNotFiltered() {
-        let s = fold(status(.working, session: "t1"), .hook(.codexNotify, session: "t2", notificationType: nil))
+        let s = AgentStatus.fold(status(.working, session: "t1"), .hook(.codexNotify, session: "t2", notificationType: nil), agent: .codex)
         #expect(s.state == .done && s.sessionId == "t2")
     }
 
+    /// Session ids belong to the leaf's own agent: codex run in a claude tab and claude in a codex tab don't touch them.
+    @Test func sessionIdsKindMatched() {
+        var s = status(.working, hooks: true, session: "main")
+        s = AgentStatus.fold(s, .hook(.codexNotify, session: "thread", notificationType: nil), agent: .claude)
+        #expect(s.sessionId == "main")
+        s = AgentStatus.fold(s, .hook(.stop, session: "main", notificationType: nil), agent: .claude)
+        #expect(s.state == .done)
+        let codex = AgentStatus.fold(LeafStatus(), .hook(.sessionStart, session: "c1", notificationType: nil, source: "startup"), agent: .codex)
+        #expect(codex.sessionId == nil)
+        // Not the leaf's agent: not filtered by its id either.
+        let other = AgentStatus.fold(status(.idle, session: "t1"), .hook(.prompt, session: "c2", notificationType: nil), agent: .codex)
+        #expect(other.state == .working && other.sessionId == "t1")
+        #expect(AgentStatus.fold(LeafStatus(), .hook(.prompt, session: "x", notificationType: nil), agent: nil).sessionId == nil)
+    }
+
     @Test func codexNotifyDone() {
-        var s = fold(LeafStatus(), .hook(.codexNotify, session: "t1", notificationType: nil))
+        var s = AgentStatus.fold(LeafStatus(), .hook(.codexNotify, session: "t1", notificationType: nil), agent: .codex)
         #expect(s.state == .done && s.sessionId == "t1" && !s.claudeHooks)
         s = fold(s, .bell)
         #expect(s.state == .waiting)
@@ -148,14 +166,14 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
         var board = StatusBoard()
         let a = UUID()
         let prompt = AgentSignal.hook(.prompt, session: nil, notificationType: nil)
-        #expect(board.apply(prompt, leaf: a) == Transition(leaf: a, from: .idle, to: .working))
-        #expect(board.apply(prompt, leaf: a) == nil)
+        #expect(board.apply(prompt, leaf: a, agent: .claude) == Transition(leaf: a, from: .idle, to: .working))
+        #expect(board.apply(prompt, leaf: a, agent: .claude) == nil)
         #expect(board.workingCount == 1)
         // No-op signals leave the board untouched (no write for observers).
         let before = board
-        #expect(board.apply(.focused, leaf: UUID()) == nil)
+        #expect(board.apply(.focused, leaf: UUID(), agent: nil) == nil)
         #expect(board == before)
-        _ = board.apply(.hook(.stop, session: nil, notificationType: nil), leaf: a)
+        _ = board.apply(.hook(.stop, session: nil, notificationType: nil), leaf: a, agent: .claude)
         #expect(board.workingCount == 0)
         board.retain([])
         #expect(board.leaves.isEmpty)

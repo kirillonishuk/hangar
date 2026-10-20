@@ -86,6 +86,7 @@ import Workspace
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
@@ -214,6 +215,12 @@ import Workspace
     static var backgroundTheme: String { s(.backgroundTheme) }
     static var afterRestart: String { s(.afterRestart) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
+    static var notificationsTitle: String { s(.notificationsTitle) }
+    static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
+    static var toggleOn: String { s(.toggleOn) }
+    static var toggleOff: String { s(.toggleOff) }
+    static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
+    static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }

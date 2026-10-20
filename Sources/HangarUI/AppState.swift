@@ -327,6 +327,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         uiLog.info("config \(key, privacy: .public) = \(value, privacy: .public)")
     }
 
+    /// Bare `true` / `false` key (notifications).
+    func setConfig(_ key: String, flag: Bool, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.save(key: key, literal: flag ? "true" : "false", to: configURL)
+        apply(&config)
+        uiLog.info("config \(key, privacy: .public) = \(flag)")
+    }
+
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }
         L10n.language = language

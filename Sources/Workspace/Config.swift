@@ -11,6 +11,10 @@ public struct HangarConfig: Equatable, Sendable {
     public var language: Language = .system
     /// Command opening files outside Hangar (e.g. `zed`); nil = off.
     public var externalEditor: String?
+    /// macOS notifications when an agent waits or finishes in a leaf that isn't on screen.
+    public var notifications = true
+    /// Notifications for subscription-limit thresholds (Task 11).
+    public var limitNotifications = true
 
     public enum TerminalBackground: String, Sendable { case hangar, theme }
 
@@ -44,7 +48,13 @@ public struct HangarConfig: Equatable, Sendable {
             }
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
-            let value = try stringValue(line[line.index(after: eq)...], line: n + 1)
+            let rawValue = line[line.index(after: eq)...]
+            if section.isEmpty, key == "notifications" || key == "limit_notifications" {
+                let flag = try boolValue(rawValue, line: n + 1)
+                if key == "notifications" { config.notifications = flag } else { config.limitNotifications = flag }
+                continue
+            }
+            let value = try stringValue(rawValue, line: n + 1)
             switch (section, key) {
             case ("", "default_agent"):
                 guard let kind = LeafKind(rawValue: value), kind == .claude || kind == .codex else {
@@ -86,6 +96,17 @@ public struct HangarConfig: Equatable, Sendable {
         } catch {
             return (HangarConfig(), "\(url.lastPathComponent): \(error)")
         }
+    }
+
+    /// Parses a bare `true` / `false` optionally followed by a `#` comment.
+    private static func boolValue(_ s: Substring, line: Int) throws -> Bool {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        let word = t.prefix { $0 != " " && $0 != "\t" && $0 != "#" }
+        let tail = t.dropFirst(word.count).trimmingCharacters(in: .whitespaces)
+        guard word == "true" || word == "false", tail.isEmpty || tail.hasPrefix("#") else {
+            throw ParseError.syntax(line: line, reason: "value must be true or false")
+        }
+        return word == "true"
     }
 
     /// Parses `"..."` (with `\"` and `\\` escapes) optionally followed by a `#` comment.

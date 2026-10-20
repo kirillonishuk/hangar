@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)
         windowController = wc
+        wc.enableNotifications()
         appState = app
         if activateAllowed { NSApp.activate(ignoringOtherApps: true) }
         if let text = loadAlert(for: result), let window = wc.window {

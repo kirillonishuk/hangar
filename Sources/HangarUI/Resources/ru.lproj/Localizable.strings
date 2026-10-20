@@ -143,3 +143,9 @@
 "statusFailed" = "ошибка";
 "statusIdle" = "неактивен";
 "rowWithStatus" = "%@, %@";
+"notificationsTitle" = "Уведомления";
+"limitNotificationsTitle" = "Уведомления о лимитах";
+"toggleOn" = "Вкл";
+"toggleOff" = "Выкл";
+"agentWaiting" = "%@ ждёт ответа";
+"agentDone" = "%@ закончил";

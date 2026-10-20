@@ -385,6 +385,12 @@ final class RatioSplitView: HangarSplitView {
         }
     }
 
+    /// Keyboard focus into the surface of `leafId` (tab leaf or the TERMINAL panel's shell).
+    func focus(leafId: UUID) {
+        if let leaf = leafViews[leafId] { window?.makeFirstResponder(leaf.surface) }
+        else if app.selectedTask?.drawer.leaf?.id == leafId { window?.makeFirstResponder(drawer.currentSurface) }
+    }
+
     /// Back to the focused terminal (after inline rename left nothing focused).
     func focusActiveLeaf() {
         if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.surface) }

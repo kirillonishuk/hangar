@@ -153,4 +153,15 @@ import Testing
         #expect(perms == 0o600)
         #expect(try String(contentsOf: url, encoding: .utf8) == "editor = \"hx\"\nlanguage = \"en\"\n")
     }
+
+    @Test func notificationBools() throws {
+        #expect(try HangarConfig.parse("notifications = false").notifications == false)
+        #expect(try HangarConfig.parse("limit_notifications = false").limitNotifications == false)
+        let d = try HangarConfig.parse("")
+        #expect(d.notifications && d.limitNotifications)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"notifications = "no""#) }
+        #expect(HangarConfig.updating("", key: "notifications", literal: "false") == "notifications = false\n")
+        #expect(HangarConfig.updating("notifications = true  # mine", key: "notifications", literal: "false")
+            == "notifications = false  # mine")
+    }
 }

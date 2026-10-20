@@ -99,6 +99,16 @@ struct SettingsView: View {
                         .onSubmit(model.commitExternalEditor)
                         .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                 }
+                row(L10n.notificationsTitle) {
+                    Segment(selection: app.config.notifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
+                    }
+                }
+                row(L10n.limitNotificationsTitle) {
+                    Segment(selection: app.config.limitNotifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
+                    }
+                }
                 row(L10n.terminalBackground) {
                     Segment(selection: app.config.terminalBackground, options: [(.hangar, "Hangar"), (.theme, L10n.backgroundTheme)]) { bg in
                         save { try app.setConfig("terminal_background", bg.rawValue) { $0.terminalBackground = bg } }

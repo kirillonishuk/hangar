@@ -143,3 +143,9 @@
 "statusFailed" = "failed";
 "statusIdle" = "idle";
 "rowWithStatus" = "%@, %@";
+"notificationsTitle" = "Notifications";
+"limitNotificationsTitle" = "Limit notifications";
+"toggleOn" = "On";
+"toggleOff" = "Off";
+"agentWaiting" = "%@ is waiting for you";
+"agentDone" = "%@ finished";

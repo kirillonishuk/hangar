@@ -72,6 +72,12 @@ public struct Transition: Equatable, Sendable {
     public var leaf: UUID
     public var from: AgentState
     public var to: AgentState
+
+    public init(leaf: UUID, from: AgentState, to: AgentState) {
+        self.leaf = leaf
+        self.from = from
+        self.to = to
+    }
 }
 
 public struct StatusBoard: Equatable, Sendable {

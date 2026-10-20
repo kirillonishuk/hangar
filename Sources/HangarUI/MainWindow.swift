@@ -318,6 +318,38 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    // MARK: Notifications
+
+    private var notifier: Notifier?
+
+    /// The app is active and the main window is key and on screen (a notification for a hidden leaf is due otherwise).
+    private var windowVisible: Bool {
+        guard let window else { return false }
+        return NSApp.isActive && window.isKeyWindow && !window.isMiniaturized && window.occlusionState.contains(.visible)
+    }
+
+    /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
+    /// No-op outside an .app bundle.
+    public func enableNotifications() {
+        guard let notifier = Notifier.makeIfAvailable() else { return }
+        self.notifier = notifier
+        notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }
+        app.onTransition = { [weak self] t in
+            guard let self, let n = notice(for: t, app: self.app, leafVisible: leafVisible(t.leaf, app: self.app, windowVisible: self.windowVisible)) else { return }
+            self.notifier?.post(n)
+        }
+    }
+
+    public func reveal(leafId: UUID) {
+        app.reveal(leafId: leafId)
+        NSApp.activate()
+        if let window {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
+        column.terminalArea.focus(leafId: leafId)
+    }
+
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
 
     /// Rebuilt on every language switch (menus keep the titles they were built with).

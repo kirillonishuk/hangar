@@ -40,6 +40,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Injectable for tests.
     @ObservationIgnored var clock: () -> Date = Date.init
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
+    @ObservationIgnored var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Finds the codex executable (login shell); injectable for tests.
+    @ObservationIgnored lazy var findCodex: () async -> String? = { [userShell] in await resolveCodex(runner: .local, shell: userShell) }
+    /// Uptime of the last popover close; a click within 0.3 s is that close's own mouse-up.
+    @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
+    /// The last lookup found no codex: look again on the next popover open.
+    @ObservationIgnored var codexNotFound = false
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 

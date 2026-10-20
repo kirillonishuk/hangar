@@ -1,5 +1,6 @@
 import SwiftUI
 import Usage
+import Workspace
 
 // MARK: Texts
 
@@ -12,6 +13,8 @@ import Usage
     }
 }
 
+@MainActor private var resetFormatters: [Language: DateFormatter] = [:]
+
 /// «сброс через 1 ч 12 мин · 16:40»; a day or more away — «сброс через 2 дн 4 ч · вс 13:20».
 @MainActor func resetLabel(_ resetsAt: Date, now: Date, calendar: Calendar) -> String {
     let minutes = max(1, Int((resetsAt.timeIntervalSince(now) / 60).rounded(.up)))
@@ -19,10 +22,14 @@ import Usage
         : minutes < 24 * 60 ? L10n.durationHourMin(minutes / 60, minutes % 60)
         : L10n.durationDayHour(minutes / (24 * 60), minutes / 60 % 24)
     let lang = L10n.resolve(L10n.language)
-    let f = DateFormatter()
+    let f = resetFormatters[lang] ?? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: lang.rawValue)
+        resetFormatters[lang] = f
+        return f
+    }()
     f.calendar = calendar
     f.timeZone = calendar.timeZone
-    f.locale = Locale(identifier: lang.rawValue)
     f.dateFormat = "HH:mm"
     var time = f.string(from: resetsAt)
     if minutes >= 24 * 60 {
@@ -37,8 +44,9 @@ import Usage
 /// One macOS notification per crossed threshold; `limit-<agent>` replaces the agent's previous one.
 @MainActor func limitNotice(_ alert: UsageAlert) -> AgentNotice {
     let agent = alert.agent.rawValue
-    let title = alert.level == .full || alert.percent == nil
-        ? L10n.limitReached(agent) : L10n.limitAlmost(agent, Int(alert.percent!.rounded()))
+    let title: String
+    if alert.level != .full, let p = alert.percent { title = L10n.limitAlmost(agent, Int(p.rounded())) }
+    else { title = L10n.limitReached(agent) }
     let subtitle = alert.kind.map { limitWindowTitle($0, agent: alert.agent) } ?? ""
     return AgentNotice(id: "limit-\(agent)", title: title, subtitle: subtitle, body: "", leaf: nil)
 }
@@ -101,14 +109,14 @@ struct LimitsBlock: View {
     var body: some View {
         VStack(spacing: Theme.railInset) {
             ForEach(app.limitRows, id: \.agent) { row in
-                Button { app.toggleLimitsPopover() } label: { line(row.agent, row.usage) }
+                Button { app.limitsClicked() } label: { line(row.agent, row.usage) }
                     .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                     .help(L10n.limitsHelp)
             }
         }
         .padding(.vertical, Theme.Limit.blockPaddingV)
         .padding(.horizontal, Theme.Limit.blockPaddingH)
-        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.limitsPopoverShown = $0 }), arrowEdge: .trailing) {
+        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }), arrowEdge: .trailing) {
             LimitsPopover(app: app)
         }
     }
@@ -145,14 +153,14 @@ struct LimitsRailTile: View {
 
     var body: some View {
         let worst = app.limitRows.compactMap { app.usage.level($0.agent, now: app.usageClock) }.max() ?? .ok
-        HoverRow(action: { app.toggleLimitsPopover() }) { _ in
+        HoverRow(action: { app.limitsClicked() }) { _ in
             GutterRow(collapsed: true, height: Theme.footerRowHeight) {
                 IconView(icon: .limits, tint: Theme.Limit.color(worst))
             } expanded: { EmptyView() } rail: { EmptyView() }
         }
         .help(L10n.limitsHelp)
         .accessibilityLabel(L10n.limitsHelp)
-        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.limitsPopoverShown = $0 }),
+        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }),
                  attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: Theme.sidebarRailWidth, height: Theme.footerRowHeight))),
                  arrowEdge: .trailing) {
             LimitsPopover(app: app)

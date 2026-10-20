@@ -125,6 +125,41 @@ import Workspace
         #expect(beeps == 1)
     }
 
+    /// A click on the block right after the popover closed on mouse-down must not reopen it.
+    @Test func clickRightAfterDismissDoesNotReopen() {
+        let app = makeApp()
+        var up: TimeInterval = 100
+        app.uptime = { up }
+        claudeUsage(app, 40)
+        app.limitsClicked()
+        #expect(app.limitsPopoverShown)
+        app.setLimitsPopoverShown(false)  // transient close on mouse-down
+        up += 0.1
+        app.limitsClicked()  // the same click's mouse-up
+        #expect(!app.limitsPopoverShown)
+        up += 0.5
+        app.limitsClicked()
+        #expect(app.limitsPopoverShown)
+        app.setLimitsPopoverShown(false)
+        app.toggleLimitsPopover()  // ⌘⇧L is not debounced
+        #expect(app.limitsPopoverShown)
+    }
+
+    @Test func codexLookupRetriedOnNextOpen() async {
+        let app = makeApp()
+        var lookups = 0
+        app.findCodex = { lookups += 1; return nil }
+        app.codexRead = app.lazyCodexRead()
+        claudeUsage(app, 40)
+        await app.toggleLimitsPopover()?.value
+        #expect(lookups == 1)
+        #expect(app.limitRows.map(\.agent) == [.claude])
+        app.toggleLimitsPopover()  // close: no lookup
+        #expect(lookups == 1)
+        await app.toggleLimitsPopover()?.value
+        #expect(lookups == 2)
+    }
+
     @Test func passedResetShowsZeroAtUsageClock() {
         let app = makeApp()
         var now = t0

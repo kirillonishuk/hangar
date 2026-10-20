@@ -98,11 +98,28 @@ extension AppState {
 
     /// ⌘⇧L / click. Nothing to show → beep. Opening refreshes codex; the returned task is that refresh (tests await it).
     @discardableResult func toggleLimitsPopover() -> Task<Void, Never>? {
-        if limitsPopoverShown { limitsPopoverShown = false; return nil }
+        if limitsPopoverShown { setLimitsPopoverShown(false); return nil }
         refreshUsageClock()
+        if codexRead == nil, codexNotFound {
+            codexNotFound = false
+            codexRead = lazyCodexRead()
+        }
         guard !limitRows.isEmpty else { beep(); return nil }
         limitsPopoverShown = true
         return Task { await refreshCodexUsage(afterTurn: false) }
+    }
+
+    /// Popover binding: a transient close (outside click) is remembered for `limitsClicked`.
+    func setLimitsPopoverShown(_ shown: Bool) {
+        if limitsPopoverShown, !shown { limitsPopoverClosedAt = uptime() }
+        limitsPopoverShown = shown
+    }
+
+    /// Click on the block or rail tile. NSPopover closes on mouse-down and the button fires on mouse-up:
+    /// that same click must not reopen it.
+    func limitsClicked() {
+        if !limitsPopoverShown, let closed = limitsPopoverClosedAt, uptime() - closed < 0.3 { return }
+        toggleLimitsPopover()
     }
 
     /// After a turn at most once a minute; never two reads at once. A failed read keeps the old data.
@@ -118,12 +135,13 @@ extension AppState {
         }
     }
 
-    /// The first call looks codex up in the login shell; not found → `codexRead` becomes nil for good.
+    /// The first call looks codex up; not found → `codexRead` is nil (no Codex row) until the next popover open.
     func lazyCodexRead() -> () async throws -> AgentUsage {
         { [weak self] in
             guard let self else { throw CancellationError() }
-            guard let exe = await resolveCodex(runner: .local, shell: userShell) else {
+            guard let exe = await findCodex() else {
                 codexRead = nil
+                codexNotFound = true
                 throw CodexReadError(reason: "codex not found")
             }
             let reader = CodexUsageReader(executable: exe)

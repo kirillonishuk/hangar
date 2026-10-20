@@ -238,7 +238,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         // ⌘⇧L also closes the limits popover while it has the keyboard.
-        if app.limitsPopoverShown, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
+        if app.limitsPopoverShown, !event.isARepeat, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
             app.toggleLimitsPopover()
             return true
         }
@@ -262,7 +262,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil) {

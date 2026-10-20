@@ -167,3 +167,27 @@
 "limitsShortcutHint" = "⌘⇧L — открыть/закрыть";
 "refresh" = "обновить";
 "limitsHelp" = "Лимиты подписок (⌘⇧L)";
+
+"integrationClaude" = "Claude Code";
+"integrationCodex" = "Codex";
+"integrationInstalled" = "Интеграция установлена";
+"integrationStatuslineByUser" = "Hooks установлены, statusLine — ваш (лимиты Claude не видны)";
+"integrationOutdated" = "Интеграция устарела (приложение перемещено)";
+"hooksMissing" = "Hooks не установлены — статусы только по bell и выходу процесса";
+"codexNotifyMissing" = "notify не настроен — статусы только по bell и выходу процесса";
+"installEllipsis" = "Установить…";
+"updateEllipsis" = "Обновить…";
+"removeIntegration" = "Удалить интеграцию";
+"codexNotFound" = "Codex не найден";
+"codexLookup" = "Поиск codex…";
+"integrationNeedsApp" = "Доступно только в собранном приложении";
+"settingsInvalidJSON" = "settings.json: ошибка JSON в строке %ld — исправьте файл вручную";
+"settingsUnsupported" = "settings.json: неожиданная структура — исправьте файл вручную";
+"fileChanged" = "Файл изменился — проверьте изменения ещё раз";
+"codexConfigUnsupported" = "config.toml: notify в неподдерживаемом виде — правьте вручную";
+"integrationWriteFailed" = "Не удалось записать файл: %@";
+"integrationConfirmTitle" = "Изменить %@?";
+"backupWillBeCreated" = "Будет создана копия: %@";
+"backupCreated" = "Копия сохранена: %@";
+"linesUnchanged" = "… %ld строк без изменений";
+"apply" = "Применить";

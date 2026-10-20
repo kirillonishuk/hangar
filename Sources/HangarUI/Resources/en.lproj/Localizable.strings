@@ -167,3 +167,27 @@
 "limitsShortcutHint" = "⌘⇧L — open/close";
 "refresh" = "refresh";
 "limitsHelp" = "Subscription limits (⌘⇧L)";
+
+"integrationClaude" = "Claude Code";
+"integrationCodex" = "Codex";
+"integrationInstalled" = "Integration installed";
+"integrationStatuslineByUser" = "Hooks installed, statusLine is yours (no Claude limits)";
+"integrationOutdated" = "Integration outdated (the app was moved)";
+"hooksMissing" = "Hooks not installed — statuses only from bell and process exit";
+"codexNotifyMissing" = "notify not set up — statuses only from bell and process exit";
+"installEllipsis" = "Install…";
+"updateEllipsis" = "Update…";
+"removeIntegration" = "Remove integration";
+"codexNotFound" = "Codex not found";
+"codexLookup" = "Looking for codex…";
+"integrationNeedsApp" = "Available only in the built app";
+"settingsInvalidJSON" = "settings.json: JSON error on line %ld — fix the file manually";
+"settingsUnsupported" = "settings.json: unexpected structure — fix the file manually";
+"fileChanged" = "The file changed — review the changes again";
+"codexConfigUnsupported" = "config.toml: unsupported notify — edit it manually";
+"integrationWriteFailed" = "Couldn't write the file: %@";
+"integrationConfirmTitle" = "Change %@?";
+"backupWillBeCreated" = "A backup will be created: %@";
+"backupCreated" = "Backup saved: %@";
+"linesUnchanged" = "… %ld unchanged lines";
+"apply" = "Apply";

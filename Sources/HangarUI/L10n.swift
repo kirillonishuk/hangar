@@ -101,6 +101,10 @@ import Workspace
         case agentsWorking, agentsWorkingInfo
         case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
+        case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
+        case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
+        case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
+        case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply
     }
 
     // Sidebar
@@ -226,6 +230,31 @@ import Workspace
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
     static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
+
+    // Integrations (Settings)
+    static var integrationClaude: String { s(.integrationClaude) }
+    static var integrationCodex: String { s(.integrationCodex) }
+    static var integrationInstalled: String { s(.integrationInstalled) }
+    static var integrationStatuslineByUser: String { s(.integrationStatuslineByUser) }
+    static var integrationOutdated: String { s(.integrationOutdated) }
+    static var hooksMissing: String { s(.hooksMissing) }
+    static var codexNotifyMissing: String { s(.codexNotifyMissing) }
+    static var installEllipsis: String { s(.installEllipsis) }
+    static var updateEllipsis: String { s(.updateEllipsis) }
+    static var removeIntegration: String { s(.removeIntegration) }
+    static var codexNotFound: String { s(.codexNotFound) }
+    static var codexLookup: String { s(.codexLookup) }
+    static var integrationNeedsApp: String { s(.integrationNeedsApp) }
+    static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
+    static var settingsUnsupported: String { s(.settingsUnsupported) }
+    static var fileChanged: String { s(.fileChanged) }
+    static var codexConfigUnsupported: String { s(.codexConfigUnsupported) }
+    static func integrationWriteFailed(_ error: String) -> String { f(.integrationWriteFailed, error) }
+    static func integrationConfirmTitle(_ path: String) -> String { f(.integrationConfirmTitle, path) }
+    static func backupWillBeCreated(_ path: String) -> String { f(.backupWillBeCreated, path) }
+    static func backupCreated(_ path: String) -> String { f(.backupCreated, path) }
+    static func linesUnchanged(_ n: Int) -> String { f(.linesUnchanged, n) }
+    static var apply: String { s(.apply) }
 
     // Subscription limits
     static var limitSession: String { s(.limitSession) }

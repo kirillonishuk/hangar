@@ -40,6 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state: WorkspaceState
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
         let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
+        #if DEBUG
+        // Debug runs never touch the real ~/.claude / ~/.codex: overrides, else a throwaway temp copy.
+        let env = ProcessInfo.processInfo.environment
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-debug")
+        app.claudeSettingsURL = env["HANGAR_CLAUDE_SETTINGS"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude/settings.json")
+        app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
+        #endif
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)

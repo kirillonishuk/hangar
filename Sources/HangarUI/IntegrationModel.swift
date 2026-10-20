@@ -1,0 +1,118 @@
+import Foundation
+import Integration
+import Observation
+
+/// The bundled `Contents/Helpers/hangar` of `bundle`; nil outside a built .app (DEBUG `swift run`):
+/// hooks must never point into `.build`.
+func hangarCLIPath(bundle: Bundle) -> String? {
+    let path = bundle.bundleURL.appendingPathComponent("Contents/Helpers/hangar").path
+    return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+}
+
+enum IntegrationTarget { case claude, codex }
+
+enum CodexAvailability: Equatable { case notFound, found(IntegrationState) }
+
+/// What the consent sheet shows and `apply` writes: `updated` is exactly the bytes that go to disk.
+struct IntegrationPlan: Equatable {
+    var target: IntegrationTarget
+    var install: Bool
+    var url: URL
+    var original: String?
+    var updated: String
+    var diff: [DiffLine]  // collapsed
+}
+
+/// Settings → integrations. Nothing is written except by `apply` of a plan the user confirmed in the sheet.
+@MainActor @Observable final class IntegrationModel {
+    let claudeSettings: URL
+    let codexConfig: URL
+    /// nil: no bundled helper, so nothing can be installed.
+    let cli: String?
+    @ObservationIgnored private let findCodex: () async -> String?
+    /// nil: not looked up yet; once found it is not looked up again.
+    @ObservationIgnored private var codexFound: Bool?
+    @ObservationIgnored var now: () -> Date = Date.init
+
+    var claude: IntegrationState = .notInstalled
+    /// nil until the first lookup of the codex binary has finished.
+    var codex: CodexAvailability?
+    var error: String?
+    /// After a write: where the backup went.
+    var message: String?
+
+    init(claudeSettings: URL, codexConfig: URL, cli: String?, findCodex: @escaping () async -> String?) {
+        self.claudeSettings = claudeSettings
+        self.codexConfig = codexConfig
+        self.cli = cli
+        self.findCodex = findCodex
+    }
+
+    /// Re-reads both files; looks for codex (login shell) until it has been found once.
+    func refresh() async {
+        readStates()
+        if codexFound != true { codexFound = await findCodex() != nil }
+        readStates()
+    }
+
+    private func readStates() {
+        let cli = cli ?? ""
+        claude = claudeState((try? readUserFile(claudeSettings)) ?? nil, cli: cli)
+        switch codexFound {
+        case true?: codex = .found(codexState((try? readUserFile(codexConfig)) ?? nil, cli: cli))
+        case false?: codex = .notFound
+        case nil: break
+        }
+    }
+
+    func plan(_ target: IntegrationTarget, install: Bool) -> IntegrationPlan? {
+        guard let cli else { return nil }
+        let url = target == .claude ? claudeSettings : codexConfig
+        do {
+            let original = try readUserFile(url)
+            let updated: String
+            switch (target, install) {
+            case (.claude, true): updated = try claudeInstall(original, cli: cli)
+            case (.codex, true): updated = try codexInstall(original, cli: cli)
+            case (_, false):
+                guard let original else { return nil }  // nothing to remove
+                updated = target == .claude ? try claudeUninstall(original) : try codexUninstall(original)
+            }
+            error = nil
+            return IntegrationPlan(target: target, install: install, url: url, original: original, updated: updated,
+                                   diff: collapsed(lineDiff(original ?? "", updated)))
+        } catch {
+            self.error = Self.describe(error)
+            return nil
+        }
+    }
+
+    /// Writes the confirmed plan; refuses if the file changed since the plan was made.
+    func apply(_ plan: IntegrationPlan) -> Bool {
+        do {
+            let backup = try writeUserFile(plan.url, text: plan.updated, expected: plan.original, now: now())
+            message = backup.map { L10n.backupCreated(tildePath($0.path)) }
+            error = nil
+            readStates()
+            return true
+        } catch {
+            self.error = Self.describe(error)
+            return false
+        }
+    }
+
+    static func describe(_ error: Error) -> String {
+        switch error as? IntegrationError {
+        case .invalidJSON(let line)?: L10n.settingsInvalidJSON(line)
+        case .notAnObject?: L10n.settingsUnsupported
+        case .changedOnDisk?: L10n.fileChanged
+        case .unsupportedNotify?, .invalidTOML?: L10n.codexConfigUnsupported
+        case nil: L10n.integrationWriteFailed(error.localizedDescription)
+        }
+    }
+}
+
+func tildePath(_ path: String) -> String {
+    let home = NSHomeDirectory()
+    return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+}

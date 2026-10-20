@@ -82,6 +82,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// AppKit parts that build strings once (main menu) rebuild from here.
     @ObservationIgnored var languageDidChange: (() -> Void)?
     @ObservationIgnored let configURL: URL
+    /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
+    @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
+    @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
     /// Ghostty took this background at launch; a change applies after restart.
     @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 

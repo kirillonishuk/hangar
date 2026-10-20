@@ -78,7 +78,7 @@ extension MainWindowController {
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
-            let target = arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
+            let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
             guard let view = target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
@@ -166,6 +166,18 @@ extension MainWindowController {
         case "settings": showSettings(nil)
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
+        case "integration":
+            // integration claude|codex install|remove (opens the consent sheet) | confirm (= «Применить») | cancel | dump
+            let f = arg.split(separator: " ").map(String.init)
+            let m = settings.model
+            switch f.first ?? "" {
+            case "claude", "codex": m.review(f[0] == "claude" ? .claude : .codex, install: f.count > 1 && f[1] == "install")
+            case "confirm": m.confirmPlan()
+            case "cancel": m.cancelPlan()
+            default: break
+            }
+            let i = m.integration
+            uiLog.info("integration claude=\(String(describing: i.claude), privacy: .public) codex=\(String(describing: i.codex), privacy: .public) cli=\(i.cli ?? "-", privacy: .public) sheet=\(m.pendingPlan != nil) attached=\(self.settings.window?.attachedSheet != nil) error=\(i.error ?? "-", privacy: .public) message=\(i.message ?? "-", privacy: .public)")
         case "lang":
             if let lang = Language(rawValue: arg) {
                 do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }

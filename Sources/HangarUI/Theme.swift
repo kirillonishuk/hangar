@@ -217,7 +217,8 @@ public enum Theme {
     public static let messageMinHeight: CGFloat = 38
 
     // Settings window: one card of rows (DESIGN.md «Лист», new-task-v4 `.grp` / `.r` / `.seg`)
-    public static let settingsWidth: CGFloat = 520
+    /// As wide as the sheets: the integration rows carry a sentence and a button.
+    public static let settingsWidth: CGFloat = 580
     /// Initial settings window height; SwiftUI content resizes it.
     public static let settingsPlaceholderHeight: CGFloat = 240
     public static let settingsTopOffset: CGFloat = 80
@@ -308,6 +309,26 @@ extension Theme {
         public static let badgeFont: CGFloat = 10
         public static let badgePaddingH: CGFloat = 7
         public static let badgePaddingV: CGFloat = 1
+    }
+}
+
+extension Theme {
+    /// Diff in the integration consent sheet (DESIGN.md «Git и diff»).
+    public enum Diff {
+        private static func c(_ hex: UInt32, _ opacity: Double = 1) -> Color {
+            Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
+                  blue: Double(hex & 0xff) / 255, opacity: opacity)
+        }
+        public static let add = c(0x98c379, 0.12)
+        public static let del = c(0xe06c75, 0.12)
+        public static let addMarker = c(0x98c379)
+        public static let delMarker = c(0xe06c75)
+        public static let font: CGFloat = 11.5
+        /// Line height ≈ 1.6.
+        public static let linePaddingV: CGFloat = 3
+        public static let maxHeight: CGFloat = 360
+        public static let markerWidth: CGFloat = 16
+        public static let paddingH: CGFloat = 8
     }
 }
 

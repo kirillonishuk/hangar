@@ -29,8 +29,8 @@ public struct GitError: Error, LocalizedError, Equatable, Sendable {
 /// Thin wrapper over the `git` CLI. Every command is an argv array run through `Runner` with cwd = `repo`;
 /// output is parsed from machine-readable formats only.
 public struct Git: Sendable {
-    private let repo: String
-    private let runner: Runner
+    let repo: String
+    let runner: Runner
 
     public init(repo: String, runner: Runner = .local) {
         self.repo = repo

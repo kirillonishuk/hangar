@@ -16,7 +16,7 @@ import Testing
 }
 
 @Test func codexChainsExistingMultilineNotify() throws {
-    let x = "notify = [\n  \"python3\",\n  '/u/n.py', # c\n]\nmodel = \"o3\"\n"
+    let x = "notify = [\n  \"python3\",\n  '/u/n.py',\n]\nmodel = \"o3\"\n"
     let out = try codexInstall(x, cli: "/A/hangar")
     #expect(out == "notify = [\"/A/hangar\", \"event\", \"codex-notify\", \"--then\", \"python3\", \"/u/n.py\"]\nmodel = \"o3\"\n")
     let back = try codexUninstall(out)
@@ -59,4 +59,53 @@ import Testing
     // quoting on write
     let out = try codexInstall("", cli: "/My \"App\"/hangar")
     #expect(try tomlRootStringArray(out, key: "notify")?.values.first == "/My \"App\"/hangar")
+}
+
+// Scanner robustness: whatever the file holds, either edit correctly or refuse; never a duplicate key or a lost root.
+
+@Test func codexScannerSkipsNestedArraysAndMultilineStrings() throws {
+    let cli = "/A/hangar"
+    let arrays = "a = [\n  [1,2],\n  [3]\n]\nmodel = \"o\"\n[t]\nx = 1\n"
+    let out1 = try codexInstall(arrays, cli: cli)
+    #expect(out1 == "a = [\n  [1,2],\n  [3]\n]\nmodel = \"o\"\nnotify = [\"/A/hangar\", \"event\", \"codex-notify\"]\n[t]\nx = 1\n")
+    #expect(try codexUninstall(out1) == arrays)
+
+    let str = "a = \'\'\'\n[x]\nnotify = [\"no\"]\n\'\'\'\nb = \"\"\"\n[y]\n\"\"\"\n"
+    let out2 = try codexInstall(str, cli: cli)
+    #expect(out2 == str + "notify = [\"/A/hangar\", \"event\", \"codex-notify\"]\n")
+    #expect(try codexUninstall(out2) == str)
+
+    let after = "a = [\n  [1,2],\n  [3]\n]\nnotify = [\"x\"]\n"
+    let out3 = try codexInstall(after, cli: cli)
+    #expect(out3 == "a = [\n  [1,2],\n  [3]\n]\nnotify = [\"/A/hangar\", \"event\", \"codex-notify\", \"--then\", \"x\"]\n")
+    #expect(try codexUninstall(out3) == after)
+    // inline tables and trailing array of tables header
+    let inl = "a = { b = [1, 2], c = \"[\" }\n[[t]]\n"
+    #expect(try codexInstall(inl, cli: cli) == "a = { b = [1, 2], c = \"[\" }\nnotify = [\"/A/hangar\", \"event\", \"codex-notify\"]\n[[t]]\n")
+}
+
+@Test func codexRefusesQuotedAndDottedNotifyKeys() {
+    for x in ["\"notify\" = [\"a\"]\n", "'notify' = [\"a\"]\n", "notify.x = 1\n", "notify = [\"a\"]\nnotify = [\"b\"]\n"] {
+        #expect(throws: IntegrationError.unsupportedNotify) { try codexInstall(x, cli: "/A/hangar") }
+    }
+    #expect(codexState("\"notify\" = [\"a\"]\n", cli: "/A/hangar") == .notInstalled)
+}
+
+@Test func codexKeepsTrailingCommentRefusesInnerComments() throws {
+    let x = "notify = [\"a\"] # keep me\n"
+    let out = try codexInstall(x, cli: "/A/hangar")
+    #expect(out == "notify = [\"/A/hangar\", \"event\", \"codex-notify\", \"--then\", \"a\"] # keep me\n")
+    #expect(try codexUninstall(out) == x)
+    let multi = "notify = [\n  \"a\",\n] # tail\n"
+    #expect(try codexUninstall(codexInstall(multi, cli: "/A/hangar")) == "notify = [\"a\"] # tail\n")
+    #expect(throws: IntegrationError.unsupportedNotify) { try codexInstall("notify = [\n  \"a\", # c\n  \"b\"\n]\n", cli: "/A/hangar") }
+    #expect(throws: IntegrationError.unsupportedNotify) { try codexInstall("notify = [ # c\n \"a\"]\n", cli: "/A/hangar") }
+}
+
+@Test func codexChainedValuesRoundTrip() throws {
+    let x = "notify = [\"a b\", \"q\\\"x\\\\\", 'C:\\p q', \"\\u00e9\\t\"]\n"
+    let orig = try #require(try tomlRootStringArray(x, key: "notify")).values
+    let out = try codexInstall(x, cli: "/My App/\"h\"/hangar")
+    #expect(try tomlRootStringArray(out, key: "notify")?.values == ["/My App/\"h\"/hangar", "event", "codex-notify", "--then"] + orig)
+    #expect(try tomlRootStringArray(codexUninstall(out), key: "notify")?.values == orig)
 }

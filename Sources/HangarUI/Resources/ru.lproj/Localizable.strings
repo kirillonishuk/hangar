@@ -149,3 +149,5 @@
 "toggleOff" = "Выкл";
 "agentWaiting" = "%@ ждёт ответа";
 "agentDone" = "%@ закончил";
+"agentsWorking" = "Работают агенты: %ld. Выйти?";
+"agentsWorkingInfo" = "Их процессы будут завершены.";

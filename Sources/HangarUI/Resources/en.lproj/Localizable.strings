@@ -149,3 +149,5 @@
 "toggleOff" = "Off";
 "agentWaiting" = "%@ is waiting for you";
 "agentDone" = "%@ finished";
+"agentsWorking" = "Agents working: %ld. Quit?";
+"agentsWorkingInfo" = "Their processes will be terminated.";

@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import os
 import ControlServer
 import GhosttyBridge
@@ -8,6 +9,8 @@ import Workspace
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
+    /// True between `.terminateLater` and the alert's answer (the one `reply` we owe AppKit).
+    private var terminateReplyOwed = false
     var appState: AppState?
     var server: ControlServer?
 
@@ -66,9 +69,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// A worktree being created would be left half-done: refuse to quit until git finishes.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let wc = windowController, wc.isCreatingTask else { return .terminateNow }
-        wc.notifyCreatingTask()
-        return .terminateCancel
+        guard let wc = windowController else { return .terminateNow }
+        // 0x7768793F = keyAEQuitReason ('why?')
+        let reason = NSAppleEventManager.shared().currentAppleEvent?
+            .attributeDescriptor(forKeyword: AEKeyword(0x7768793F))?.enumCodeValue
+        switch wc.currentQuitDecision(systemShutdown: isSystemShutdown(reason: reason)) {
+        case .terminateNow: return .terminateNow
+        case .cancelCreating:
+            wc.notifyCreatingTask()
+            return .terminateCancel
+        case .ask:
+            // A repeated ⌘Q while the sheet is up must not open a second one nor reply twice.
+            if wc.isAskingToQuit { return terminateReplyOwed ? .terminateLater : .terminateCancel }
+            terminateReplyOwed = true
+            wc.confirmQuit { [weak self] ok in
+                self?.terminateReplyOwed = false
+                NSApp.reply(toApplicationShouldTerminate: ok)
+            }
+            return .terminateLater
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

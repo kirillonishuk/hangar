@@ -1,6 +1,7 @@
 import AgentStatus
 import ControlServer
 import Exec
+import CoreServices
 import Foundation
 import Testing
 @testable import HangarUI
@@ -221,5 +222,36 @@ import Workspace
         #expect(!app.showsDot(tabs[0], state: .idle))
         #expect(app.showsDot(tabs[1], state: .working))
         #expect(app.showsDot(tabs[2], state: .idle))
+    }
+
+    @Test func quitConfirmationText() {
+        defer { L10n.language = .system }
+        #expect(quitConfirmation(working: 0) == nil)
+        L10n.language = .ru
+        #expect(quitConfirmation(working: 2)?.message == "Работают агенты: 2. Выйти?")
+        #expect(quitConfirmation(working: 2)?.info == "Их процессы будут завершены.")
+        L10n.language = .en
+        #expect(quitConfirmation(working: 2)?.message == "Agents working: 2. Quit?")
+        #expect(quitConfirmation(working: 2)?.info == "Their processes will be terminated.")
+    }
+
+    @Test func quitDecisionOrder() {
+        #expect(quitDecision(creating: false, working: 0, confirmed: false, systemShutdown: false) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, systemShutdown: false) == .ask(3))
+        #expect(quitDecision(creating: false, working: 3, confirmed: true, systemShutdown: false) == .terminateNow)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, systemShutdown: false) == .cancelCreating)
+        #expect(quitDecision(creating: true, working: 0, confirmed: true, systemShutdown: false) == .cancelCreating)
+    }
+
+    @Test func systemShutdownNeverAsks() {
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, systemShutdown: true) == .terminateNow)
+        #expect(isSystemShutdown(reason: OSType(kAELogOut)))
+        #expect(isSystemShutdown(reason: OSType(kAEReallyLogOut)))
+        #expect(isSystemShutdown(reason: OSType(kAERestart)))
+        #expect(isSystemShutdown(reason: OSType(kAEShowRestartDialog)))
+        #expect(isSystemShutdown(reason: OSType(kAEShutDown)))
+        #expect(isSystemShutdown(reason: OSType(kAEShowShutdownDialog)))
+        #expect(!isSystemShutdown(reason: OSType(kAEQuitAll)))
+        #expect(!isSystemShutdown(reason: nil))
     }
 }

@@ -1,5 +1,6 @@
 import AgentStatus
 import ControlServer
+import CoreServices
 import Foundation
 import Usage
 import Workspace
@@ -94,4 +95,28 @@ extension AppState {
         }
         return nil
     }
+}
+
+/// Alert texts for quitting while agents work; nil when none do.
+@MainActor func quitConfirmation(working: Int) -> (message: String, info: String)? {
+    working > 0 ? (L10n.agentsWorking(working), L10n.agentsWorkingInfo) : nil
+}
+
+public enum QuitDecision: Equatable, Sendable {
+    case terminateNow, ask(Int), cancelCreating
+}
+
+/// Logout / restart / shutdown quit reasons (`kAEQuitReason` of the quit Apple event).
+public func isSystemShutdown(reason: OSType?) -> Bool {
+    guard let reason else { return false }
+    return [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown]
+        .contains { OSType($0) == reason }
+}
+
+/// A system-initiated quit never asks (the user chose it, state is saved anyway); otherwise a worktree being
+/// created wins (quitting would leave it half-made); then working agents, unless already confirmed.
+public func quitDecision(creating: Bool, working: Int, confirmed: Bool, systemShutdown: Bool) -> QuitDecision {
+    if systemShutdown { return .terminateNow }
+    if creating { return .cancelCreating }
+    return working > 0 && !confirmed ? .ask(working) : .terminateNow
 }

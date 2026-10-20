@@ -98,6 +98,7 @@ import Workspace
         case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
+        case agentsWorking, agentsWorkingInfo
     }
 
     // Sidebar
@@ -221,6 +222,8 @@ import Workspace
     static var toggleOff: String { s(.toggleOff) }
     static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
+    static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
+    static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }

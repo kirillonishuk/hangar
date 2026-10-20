@@ -143,7 +143,7 @@ struct StatusDot: View {
             .scaleEffect(scale)
             .accessibilityElement()
             .accessibilityLabel(L10n.statusLabel(state))
-            .onAppear { if state == .waiting { pulse() } }
+            // shortcut: no pulse on appear (it would repeat on every view re-creation); the static halo marks an already-waiting dot
             .onChange(of: state) { _, now in if now == .waiting { pulse() } }
     }
 

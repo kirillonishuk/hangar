@@ -79,8 +79,14 @@ import Workspace
         #expect(try inner(spec(leaf(.codex))) == "codex")
     }
 
+    @Test func promptStartingWithDashGetsLeadingSpace() throws {
+        #expect(try inner(spec(leaf(.claude), prompt: "--help me")) == "claude ' --help me'")
+        #expect(try inner(spec(leaf(.codex), prompt: "-x")) == "codex ' -x'")
+    }
+
     @Test func editorOpensFile() throws {
-        #expect(try inner(spec(leaf(.editor, file: "src/a b.ts"))) == "hx 'src/a b.ts'")
+        #expect(try inner(spec(leaf(.editor, file: "src/a b.ts"))) == "hx -- 'src/a b.ts'")
+        #expect(try inner(spec(leaf(.editor, file: "-c.ts"))) == "hx -- -c.ts")
         #expect(try inner(spec(leaf(.editor))) == "hx")
     }
 

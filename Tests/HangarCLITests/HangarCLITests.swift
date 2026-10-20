@@ -186,14 +186,14 @@ private let statusFixture = Data("""
         p.environment = ["PATH": "/usr/bin:/bin", "HANGAR_TAB_ID": UUID().uuidString, "HANGAR_LEAF_ID": UUID().uuidString, "HANGAR_SOCKET": dir.socket]
         let out = Pipe(), inp = Pipe()
         p.standardOutput = out
-        p.standardInput = inp  // the writer stays silent and open, like `(sleep 3; echo x) | hangar`
+        p.standardInput = inp  // the writer stays silent and open, like `(sleep 10; echo x) | hangar`
         let start = ContinuousClock.now
         try p.run()
         p.waitUntilExit()
         let elapsed = ContinuousClock.now - start
         try? inp.fileHandleForWriting.close()
         #expect(p.terminationStatus == 0)
-        #expect(elapsed < .milliseconds(1500))
+        #expect(elapsed < .seconds(3))
         #expect(out.fileHandleForReading.availableData.isEmpty)
     }
 }

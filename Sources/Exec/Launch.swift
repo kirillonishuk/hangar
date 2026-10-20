@@ -45,7 +45,7 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
     case .shell:
         return "\(shell) -l -i"
     case .editor:
-        return leaf.openFile.map { "\(config.editor) \(shellQuote($0))" } ?? config.editor
+        return leaf.openFile.map { "\(config.editor) -- \(shellQuote($0))" } ?? config.editor
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }
@@ -59,7 +59,8 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
 
 private func withPrompt(_ cmd: String, _ prompt: String?) -> String {
     guard let prompt, !prompt.isEmpty else { return cmd }
-    return "\(cmd) \(shellQuote(prompt))"
+    // A leading space keeps agent CLIs from parsing a prompt like "--help" as a flag.
+    return "\(cmd) \(shellQuote(prompt.hasPrefix("-") ? " " + prompt : prompt))"
 }
 
 /// What a launch passes to `launchSpec`; computed anew for every launch, never reused (decision #41).

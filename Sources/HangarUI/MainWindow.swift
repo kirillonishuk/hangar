@@ -70,6 +70,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let sidebarItem: NSSplitViewItem
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
+    nonisolated(unsafe) private var activeObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
     private var newTaskModel: NewTaskModel?
     #if DEBUG
@@ -140,6 +141,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         installMainMenu()
         installKeyMonitor()
+        // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
+        activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.app.refreshUsageClock() }
+        }
         #if DEBUG
         installDebugHooks()
         #endif
@@ -147,7 +152,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    deinit { if let keyMonitor { NSEvent.removeMonitor(keyMonitor) } }
+    deinit {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+    }
 
     public override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
@@ -229,6 +237,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        // ⌘⇧L also closes the limits popover while it has the keyboard.
+        if app.limitsPopoverShown, !event.isARepeat, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
+            app.toggleLimitsPopover()
+            return true
+        }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
@@ -249,7 +262,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil) {
@@ -315,7 +328,44 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProject()
         case .settings: showSettings(nil)
+        case .limits: app.toggleLimitsPopover()
         }
+    }
+
+    // MARK: Notifications
+
+    private var notifier: Notifier?
+
+    /// The app is active and the main window is on screen (a key Settings window or sheet doesn't hide it) (a notification for a hidden leaf is due otherwise).
+    private var windowVisible: Bool {
+        guard let window else { return false }
+        return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
+    }
+
+    /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
+    /// No-op outside an .app bundle.
+    public func enableNotifications() {
+        guard let notifier = Notifier.makeIfAvailable() else { return }
+        self.notifier = notifier
+        notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }
+        app.onTransition = { [weak self] t in
+            guard let self, let n = notice(for: t, app: self.app, leafVisible: leafVisible(t.leaf, app: self.app, windowVisible: self.windowVisible)) else { return }
+            self.notifier?.post(n)
+        }
+        app.onUsageAlerts = { [weak self] alerts in
+            guard let self else { return }
+            for n in limitNotices(alerts, app: self.app) { self.notifier?.post(n) }
+        }
+    }
+
+    public func reveal(leafId: UUID) {
+        app.reveal(leafId: leafId)
+        NSApp.activate()
+        if let window {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
+        column.terminalArea.focus(leafId: leafId)
     }
 
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
@@ -408,8 +458,49 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// A new-task create is in progress: closing the window or quitting would abandon a half-made worktree.
     public var isCreatingTask: Bool { newTaskModel?.creating == true }
     public func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if isCreatingTask { notifyCreatingTask(); return false }
-        return true
+        switch currentQuitDecision() {
+        case .terminateNow: return true
+        case .cancelCreating: notifyCreatingTask(); return false
+        case .alreadyAsking: return false
+        case .ask:
+            // Closing the last window quits: ask once (confirmQuit sets quitConfirmed), then close without a second question.
+            confirmQuit { [weak self] ok in
+                if ok { self?.window?.close() }
+            }
+            return false
+        }
+    }
+
+    /// Set after the user confirmed quitting with working agents, so close -> terminate doesn't ask again.
+    private var quitConfirmed = false
+    private var quitAlertShown = false
+
+    /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert:
+    /// with one already up, `then(false)` right away. `then` is always called exactly once.
+    public func confirmQuit(then: @escaping @MainActor (Bool) -> Void) {
+        guard let window, let text = quitConfirmation(working: app.workingLeafCount) else { then(true); return }
+        guard !quitAlertShown else { then(false); return }
+        quitAlertShown = true
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = text.message
+        alert.informativeText = text.info
+        alert.addButton(withTitle: L10n.quit).hasDestructiveAction = true
+        alert.addButton(withTitle: L10n.cancel)
+        alert.beginSheetModal(for: window) { [weak self] response in
+            MainActor.assumeIsolated {
+                self?.quitAlertShown = false
+                let ok = response == .alertFirstButtonReturn
+                if ok { self?.quitConfirmed = true }
+                then(ok)
+            }
+        }
+    }
+
+    /// For `applicationShouldTerminate`.
+    public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
+        quitDecision(creating: isCreatingTask, working: app.workingLeafCount, confirmed: quitConfirmed,
+                     asking: quitAlertShown, systemShutdown: systemShutdown)
     }
 
     /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).

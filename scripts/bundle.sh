@@ -20,5 +20,9 @@ cp -R Resources/Icons "$APP/Contents/Resources/Icons"
 # SwiftPM resources (ru/en strings); L10n looks in Contents/Resources first.
 cp -R "$BIN_DIR/Hangar_HangarUI.bundle" "$APP/Contents/Resources/Hangar_HangarUI.bundle"
 
+mkdir -p "$APP/Contents/Helpers"
+cp "$BIN_DIR/hangar" "$APP/Contents/Helpers/hangar"
+codesign --force -s - "$APP/Contents/Helpers/hangar"
+
 codesign --force -s - "$APP"
 echo "Built $APP"

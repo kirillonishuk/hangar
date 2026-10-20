@@ -5,10 +5,15 @@ extension HangarConfig {
     /// Sets root key `key = "value"`, touching only that line (its trailing comment is kept). A missing key is
     /// added after the last non-blank line of the root section, i.e. before the first `[section]`.
     public static func updating(_ text: String, key: String, value: String) -> String {
+        updating(text, key: key, literal: "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"")
+    }
+
+    /// Like the string variant, but `literal` is written as is (a bare `true` / `false`).
+    public static func updating(_ text: String, key: String, literal: String) -> String {
         // Lines keep their own "\r" (CRLF files); edited and inserted lines get the file's ending.
         var lines = text.components(separatedBy: "\n")
         let cr = text.contains("\r\n") ? "\r" : ""
-        let assignment = "\(key) = \"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
+        let assignment = "\(key) = \(literal)"
         var lastRootLine: Int?
         for (i, raw) in lines.enumerated() {
             let ending = raw.hasSuffix("\r") ? "\r" : ""
@@ -30,11 +35,20 @@ extension HangarConfig {
 
     /// Edits (or creates) the config file, writing atomically; a symlinked config keeps its link.
     public static func save(key: String, value: String, to url: URL) throws {
+        try save(to: url) { updating($0, key: key, value: value) }
+    }
+
+    /// Same, for a bare literal (`true` / `false`).
+    public static func save(key: String, literal: String, to url: URL) throws {
+        try save(to: url) { updating($0, key: key, literal: literal) }
+    }
+
+    private static func save(to url: URL, edit: (String) -> String) throws {
         let target = url.resolvingSymlinksInPath()
         let fm = FileManager.default
         let text = fm.fileExists(atPath: target.path) ? try String(contentsOf: target, encoding: .utf8) : ""
         try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(updating(text, key: key, value: value).utf8).write(to: target, options: .atomic)
+        try Data(edit(text).utf8).write(to: target, options: .atomic)
     }
 
     /// The `   # comment` (with its leading spaces) after the old value, or "". A `#` inside a `"..."` (escapes)

@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import SwiftUI
 import Workspace
@@ -107,6 +108,7 @@ struct IconView: View {
     let icon: Icon
     var active = false
     var size = Theme.iconSize
+    var tint: Color?
 
     var body: some View {
         Image(nsImage: icon.image)
@@ -114,27 +116,43 @@ struct IconView: View {
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
-            .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
+            .foregroundStyle(tint ?? (active ? Theme.ui.textStrong : Theme.ui.text2))
     }
 }
 
-/// Status dot; when `waiting` turns on it pulses once (scale 1 → 1.6 → 1, 400 ms). Never loops.
+/// Status dot; `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
-    var color: Color = Theme.ui.idle
-    var waiting = false
+    var state: AgentState = .idle
+    var size = Theme.statusDot
+    /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
+    var border: Color?
+    var borderWidth: CGFloat = 0
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        Circle().fill(color)
-            .frame(width: Theme.statusDot, height: Theme.statusDot)
-            .scaleEffect(scale)
-            .onChange(of: waiting) { _, now in
-                guard now, !Motion.reduced else { return }
-                let half = Theme.pulseDuration / 2
-                withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
-                    withAnimation(.easeIn(duration: half)) { scale = 1 }
+        Circle().fill(Theme.ui.status(state))
+            .frame(width: size, height: size)
+            .background {
+                if let border { Circle().fill(border).padding(-borderWidth) }
+            }
+            .background {
+                if state == .waiting {
+                    Circle().fill(Theme.ui.waiting.opacity(Theme.haloOpacity)).padding(-(borderWidth + Theme.haloWidth))
                 }
             }
+            .scaleEffect(scale)
+            .accessibilityElement()
+            .accessibilityLabel(L10n.statusLabel(state))
+            // shortcut: no pulse on appear (it would repeat on every view re-creation); the static halo marks an already-waiting dot
+            .onChange(of: state) { _, now in if now == .waiting { pulse() } }
+    }
+
+    private func pulse() {
+        guard !Motion.reduced else { return }
+        let half = Theme.pulseDuration / 2
+        withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
+            withAnimation(.easeIn(duration: half)) { scale = 1 }
+        }
     }
 }
 

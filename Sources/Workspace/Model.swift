@@ -486,6 +486,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         }
     }
 
+    /// Session id captured from the agent's hooks (restore uses `--resume <id>`); unknown leaf ids are ignored.
+    public mutating func setAgentSessionId(leafId: UUID, _ id: String) {
+        for i in tasks.indices {
+            if tasks[i].drawer.leaf?.id == leafId { tasks[i].drawer.leaf?.agentSessionId = id; return }
+            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId) != nil {
+                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
+                    var leaf = leaf
+                    if leaf.id == leafId { leaf.agentSessionId = id }
+                    return leaf
+                }
+                return
+            }
+        }
+    }
+
     /// Follows the real keyboard focus (click into a pane); leaves of other tabs are ignored.
     public mutating func setFocusedLeaf(taskId: UUID, tabId: UUID, leafId: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),

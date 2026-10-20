@@ -1,5 +1,7 @@
+import AgentStatus
 import AppKit
 import SwiftUI
+import Usage
 
 /// Colors and sizes from docs/design/DESIGN.md. UI code must use these, not literals.
 public enum Theme {
@@ -73,6 +75,15 @@ public enum Theme {
         public static let done = Color(nsColor: Theme.done)
         public static let failed = Color(nsColor: Theme.failed)
         public static let idle = Color(nsColor: Theme.idle)
+        public static func status(_ state: AgentState) -> Color {
+            switch state {
+            case .working: working
+            case .waiting: waiting
+            case .done: done
+            case .failed: failed
+            case .idle: idle
+            }
+        }
         public static let lineSheet = Color(nsColor: Theme.lineSheet)
         public static let sheetBorder = Color(nsColor: Theme.sheetBorder)
         public static let sheet = Color(nsColor: Theme.sheet)
@@ -125,6 +136,15 @@ public enum Theme {
     public static let drawerAnimation: Double = 0.18
 
     public static let statusDot: CGFloat = 8
+    /// `waiting` halo: ring of `waiting` at 25%.
+    public static let haloWidth: CGFloat = 3
+    public static let haloOpacity = 0.25
+    /// Rail monogram's corner dot and its `sidebar` border.
+    public static let railDot: CGFloat = 7
+    public static let railDotBorder: CGFloat = 1.5
+    /// Rail dot sticks out of the monogram's top-right corner by this much.
+    public static let railDotOffset: CGFloat = 3.5
+    public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
     public static let taskRowPaddingV: CGFloat = 5
     public static let projectHeaderTop: CGFloat = 6
@@ -197,7 +217,8 @@ public enum Theme {
     public static let messageMinHeight: CGFloat = 38
 
     // Settings window: one card of rows (DESIGN.md «Лист», new-task-v4 `.grp` / `.r` / `.seg`)
-    public static let settingsWidth: CGFloat = 520
+    /// As wide as the sheets: the integration rows carry a sentence and a button.
+    public static let settingsWidth: CGFloat = 580
     /// Initial settings window height; SwiftUI content resizes it.
     public static let settingsPlaceholderHeight: CGFloat = 240
     public static let settingsTopOffset: CGFloat = 80
@@ -234,6 +255,81 @@ public enum Theme {
     public static let dropdownRowHeight: CGFloat = 26
     public static let dropdownSectionHeight: CGFloat = 22
     public static let dropdownListMaxHeight: CGFloat = 260
+}
+
+extension Theme {
+    /// Subscription limits (DESIGN.md «Блок лимитов», limits.html); thresholds come from `UsageThreshold`.
+    public enum Limit {
+        private static func c(_ hex: UInt32) -> Color {
+            Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255, blue: Double(hex & 0xff) / 255)
+        }
+        public static let track = c(0x30333b)
+        public static let ok = c(0x5b8def)
+        public static let warn = c(0xffb340)
+        public static let full = c(0xff453a)
+        public static let fullText = c(0xff6b61)
+        public static let badgeOpacity = 0.15
+
+        public static func color(_ level: UsageLevel) -> Color {
+            switch level {
+            case .ok: ok
+            case .warn: warn
+            case .full: full
+            }
+        }
+        public static func color(forPercent percent: Double, limitReached: Bool) -> Color {
+            color(level(percent: percent, limitReached: limitReached))
+        }
+        /// Percent and badge text: `ok` stays neutral.
+        public static func textColor(_ level: UsageLevel) -> Color {
+            switch level {
+            case .ok: ui.text2
+            case .warn: warn
+            case .full: fullText
+            }
+        }
+
+        public static let nameWidth: CGFloat = 46
+        public static let nameFont: CGFloat = 11
+        public static let blockBar: CGFloat = 4
+        public static let barGap: CGFloat = 3
+        public static let percentFont: CGFloat = 10.5
+        public static let percentWidth: CGFloat = 34
+        public static let rowGap: CGFloat = 8
+        public static let rowPaddingV: CGFloat = 5
+        public static let rowPaddingH: CGFloat = 6
+        public static let blockPaddingV: CGFloat = 8
+        public static let blockPaddingH: CGFloat = 10
+        public static let popoverWidth: CGFloat = 330
+        public static let popoverPaddingV: CGFloat = 14
+        public static let popoverPaddingH: CGFloat = 16
+        public static let popoverBar: CGFloat = 6
+        public static let itemGap: CGFloat = 12
+        public static let agentFont: CGFloat = 13
+        public static let badgeFont: CGFloat = 10
+        public static let badgePaddingH: CGFloat = 7
+        public static let badgePaddingV: CGFloat = 1
+    }
+}
+
+extension Theme {
+    /// Diff in the integration consent sheet (DESIGN.md «Git и diff»).
+    public enum Diff {
+        private static func c(_ hex: UInt32, _ opacity: Double = 1) -> Color {
+            Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
+                  blue: Double(hex & 0xff) / 255, opacity: opacity)
+        }
+        public static let add = c(0x98c379, 0.12)
+        public static let del = c(0xe06c75, 0.12)
+        public static let addMarker = c(0x98c379)
+        public static let delMarker = c(0xe06c75)
+        public static let font: CGFloat = 11.5
+        /// Line height ≈ 1.6.
+        public static let linePaddingV: CGFloat = 3
+        public static let maxHeight: CGFloat = 360
+        public static let markerWidth: CGFloat = 16
+        public static let paddingH: CGFloat = 8
+    }
 }
 
 /// One-shot animations only (no loops: zero work when idle); none when the user asked to reduce motion.

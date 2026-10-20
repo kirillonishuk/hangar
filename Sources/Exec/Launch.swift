@@ -1,3 +1,4 @@
+import AgentStatus
 import Foundation
 import Workspace
 
@@ -24,7 +25,7 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
                       cwd: leaf.cwd,
-                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_SOCKET": socketPath])
+                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath])
 }
 
 /// Shell for `-l -i -c` wrappers.
@@ -38,12 +39,13 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
                           restoring: Bool, initialPrompt: String?) -> String {
     func agent(_ kind: LeafKind) -> String { config.agentCommands[kind] ?? kind.rawValue }
     // A known id is used only when resuming: a fresh start after a failed `--resume <id>` ignores it.
-    let id = restoring ? leaf.agentSessionId.map(shellQuote) : nil
+    // state.json is editable: an id that is not valid falls back to the no-id resume instead of reaching argv.
+    let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
     switch leaf.kind {
     case .shell:
         return "\(shell) -l -i"
     case .editor:
-        return leaf.openFile.map { "\(config.editor) \(shellQuote($0))" } ?? config.editor
+        return leaf.openFile.map { "\(config.editor) \(shellQuote($0.hasPrefix("-") ? "./" + $0 : $0))" } ?? config.editor
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }
@@ -57,7 +59,8 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
 
 private func withPrompt(_ cmd: String, _ prompt: String?) -> String {
     guard let prompt, !prompt.isEmpty else { return cmd }
-    return "\(cmd) \(shellQuote(prompt))"
+    // A leading space keeps agent CLIs from parsing a prompt like "--help" as a flag.
+    return "\(cmd) \(shellQuote(prompt.hasPrefix("-") ? " " + prompt : prompt))"
 }
 
 /// What a launch passes to `launchSpec`; computed anew for every launch, never reused (decision #41).
@@ -91,4 +94,10 @@ public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
         let resumeFailed = isAgent && previous.restoring && code != 0
         return LaunchMode(restoring: !resumeFailed, initialPrompt: nil)
     }
+}
+
+/// Markers of an enclosing Claude Code / Codex session (app started from an agent's terminal): tabs inheriting them
+/// would make agents think they run nested or sandboxed. Config locations (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) stay.
+public func inheritedAgentEnvToScrub(_ env: [String: String]) -> [String] {
+    env.keys.filter { $0 == "CLAUDECODE" || $0.hasPrefix("CLAUDE_CODE_") || $0.hasPrefix("CODEX_SANDBOX") }
 }

@@ -1,10 +1,13 @@
+import AgentStatus
 import AppKit
 import Exec
+import Integration
 import Observation
 import os
+import Usage
 import Workspace
 
-let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
+public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
 @MainActor @Observable public final class AppState {
@@ -17,6 +20,34 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var sidebarAnimating = false
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
+    /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
+    var statuses = StatusBoard()
+    /// Subscription limits from the statusline / codex; in memory only.
+    var usage = UsageBoard()
+    /// `message` of the leaf's last hook event (notification body).
+    var lastNotificationMessage: [UUID: String] = [:]
+    /// A leaf's agent state changed (notifications, Task 9).
+    @ObservationIgnored var onTransition: ((Transition) -> Void)?
+    /// Limit thresholds crossed (Task 11).
+    @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
+    /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
+    @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
+    var usageClock = Date()
+    var limitsPopoverShown = false
+    /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
+    @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
+    @ObservationIgnored var codexGate = CodexRefreshGate()
+    /// Injectable for tests.
+    @ObservationIgnored var clock: () -> Date = Date.init
+    @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
+    @ObservationIgnored var uptime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Finds the codex executable (login shell); injectable for tests.
+    @ObservationIgnored lazy var findCodex: () async -> String? = { [userShell] in await resolveCodex(runner: .local, shell: userShell) }
+    /// Uptime of the last popover close; a click within 0.3 s is that close's own mouse-up.
+    @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
+    /// The last lookup found no codex: look again on the next popover open.
+    @ObservationIgnored var codexNotFound = false
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 
@@ -52,10 +83,18 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// AppKit parts that build strings once (main menu) rebuild from here.
     @ObservationIgnored var languageDidChange: (() -> Void)?
     @ObservationIgnored let configURL: URL
+    /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
+    @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
+    @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
+    /// `CLAUDE_CONFIG_DIR` / `CODEX_HOME` from the login shell (they move the files above); nil keeps the URLs as set.
+    @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
+        await resolveAgentDirs(runner: .local, shell: userShell)
+    }
     /// Ghostty took this background at launch; a change applies after restart.
     @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 
-    public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL) {
+    public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
+                socketPath: String = defaultStateDirectoryPath() + "/hangar.sock") {
         self.state = state
         self.store = store
         self.config = config
@@ -64,9 +103,10 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         L10n.language = config.language
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? ""
         userShell = shell.isEmpty ? "/bin/zsh" : shell
-        socketPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Hangar/hangar.sock").path
+        self.socketPath = socketPath
         markRestored(state.tasks.filter { !$0.archived })
+        codexRead = lazyCodexRead()
+        onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
@@ -93,6 +133,12 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
         mutate(&state)
+        // Archived or closed leaves drop their status (and their message) here.
+        let live = liveLeafIds
+        if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
+        if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
+            lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
+        }
         store.scheduleSave(state)
         didChange?()
     }
@@ -307,6 +353,13 @@ let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         uiLog.info("config \(key, privacy: .public) = \(value, privacy: .public)")
     }
 
+    /// Bare `true` / `false` key (notifications).
+    func setConfig(_ key: String, flag: Bool, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.save(key: key, literal: flag ? "true" : "false", to: configURL)
+        apply(&config)
+        uiLog.info("config \(key, privacy: .public) = \(flag)")
+    }
+
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }
         L10n.language = language
@@ -338,7 +391,7 @@ func resumeSet(for tasks: [HangarTask]) -> Set<UUID> {
         switch leaf.kind {
         case .shell, .editor: result.insert(leaf.id)
         case .claude, .codex:
-            if leaf.agentSessionId != nil { result.insert(leaf.id); return }
+            if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
             if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }

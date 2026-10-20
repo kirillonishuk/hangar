@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import SwiftUI
+import Usage
 import Workspace
 
 /// Off-screen branch list of the open new-task sheet: an inactive app closes real popovers at once, and
@@ -31,6 +32,25 @@ extension MainWindowController {
         ((v as? NSTextField).map { [$0.stringValue] } ?? []) + v.subviews.flatMap(texts)
     }
 
+    /// Per-leaf agent state and session id, per-task state, usage.
+    private func debugAgents() -> [String] {
+        var lines: [String] = []
+        for t in app.state.tasks where !t.archived {
+            for l in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
+                let state = app.state(ofLeaf: l.id).rawValue
+                let message = app.lastNotificationMessage[l.id] ?? "-"
+                lines.append("agent leaf=\(l.id.uuidString) kind=\(l.kind.rawValue) state=\(state) session=\(l.agentSessionId ?? "-") message=\(message)")
+            }
+            lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")
+        }
+        let now = app.usageClock
+        let windows: [String] = app.usage.view(.claude, now: now)?.windows.map { "\($0.kind)=\(Int($0.usedPercent))" } ?? []
+        let level: String = app.usage.level(.claude, now: now).map { "\($0)" } ?? "-"
+        lines.append("agents working=\(app.workingLeafCount) usage.claude=\(windows) level=\(level)")
+        lines.append("limits rows=\(app.limitRows.map(\.agent.rawValue)) popover=\(app.limitsPopoverShown) codex=\(app.codexRead != nil)")
+        return lines
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -38,7 +58,7 @@ extension MainWindowController {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
-            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer,
+            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -58,7 +78,7 @@ extension MainWindowController {
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
-            let target = arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
+            let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
             guard let view = target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
@@ -146,6 +166,18 @@ extension MainWindowController {
         case "settings": showSettings(nil)
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
+        case "integration":
+            // integration claude|codex install|remove (opens the consent sheet) | confirm (= «Применить») | cancel | dump
+            let f = arg.split(separator: " ").map(String.init)
+            let m = settings.model
+            switch f.first ?? "" {
+            case "claude", "codex": m.review(f[0] == "claude" ? .claude : .codex, install: f.count > 1 && f[1] == "install")
+            case "confirm": m.confirmPlan()
+            case "cancel": m.cancelPlan()
+            default: break
+            }
+            let i = m.integration
+            uiLog.info("integration claude=\(String(describing: i.claude), privacy: .public) codex=\(String(describing: i.codex), privacy: .public) cli=\(i.cli ?? "-", privacy: .public) sheet=\(m.pendingPlan != nil) attached=\(self.settings.window?.attachedSheet != nil) error=\(i.error ?? "-", privacy: .public) message=\(i.message ?? "-", privacy: .public)")
         case "lang":
             if let lang = Language(rawValue: arg) {
                 do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }
@@ -189,7 +221,7 @@ extension MainWindowController {
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { "\(app.tabLabel($0)) leaves=\($0.root.leaves.map { $0.id.uuidString.prefix(4) }) focus=\($0.focusedLeafId.uuidString.prefix(4))" }) active=\(t.activeTabId == nil ? "-" : "set") drawer=\(t.drawer.visible)/\(Int(t.drawer.height))/\(t.drawer.leaf?.id.uuidString.prefix(4) ?? "-")"
-            } + ["projects=\(app.state.projects.map { "\($0.name)@\($0.path)" }) renaming=\(app.renaming.map { "\($0)" } ?? "-") responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) active=\(NSApp.isActive) key=\(window?.isKeyWindow ?? false)"]
+            } + debugAgents() + ["projects=\(app.state.projects.map { "\($0.name)@\($0.path)" }) renaming=\(app.renaming.map { "\($0)" } ?? "-") responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) active=\(NSApp.isActive) key=\(window?.isKeyWindow ?? false)"]
             uiLog.info("dump selected=\(self.app.selectedTask?.name ?? "-", privacy: .public) sidebar=\(self.app.state.sidebarWidth)/\(self.app.state.sidebarCollapsed) actual=\(self.sidebarItem.viewController.view.frame.width) panes=\(self.split.splitView.subviews.map { Int($0.frame.width) }, privacy: .public) win=\(Int(self.window?.frame.width ?? 0))x\(Int(self.window?.contentView?.frame.height ?? 0))\n\(tasks.joined(separator: "\n"), privacy: .public)\n\(self.column.terminalArea.debugDump(), privacy: .public)")
         default: break
         }

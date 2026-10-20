@@ -2,11 +2,11 @@ import AppKit
 
 public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
-    case rename, archiveTask, toggleDrawer
+    case rename, archiveTask, toggleDrawer, limits
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
-            + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer]
+            + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
     }
 }
 
@@ -30,6 +30,7 @@ public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Short
     case ([.command, .option], 126): return .prevTask  // ↑ (⌘↑/↓ alone stay with the terminal)
     case ([.command, .option], 125): return .nextTask  // ↓
     case ([.command, .shift], 13): return .archiveTask  // W
+    case ([.command, .shift], 37): return .limits  // L
     case ([], 120): return .rename  // F2
     case (.control, 50): return .toggleDrawer  // ⌃` (physical key left of 1)
     case (.command, 43): return .settings  // ,

@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import Exec
 import GhosttyBridge
@@ -190,6 +191,7 @@ import Workspace
         leafViews[taskId] = view
         addSubview(view, positioned: .below, relativeTo: bar)  // in the window before the surface exists
         view.onExit = { [weak self] code in
+            self?.app.signal(.exited(code: code), leaf: leaf.id)
             guard code == 0 else { return }  // a failure keeps the panel with the ↩ bar
             guard let self else { return }
             uiLog.info("leaf exited leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) code=0 drawer")
@@ -197,7 +199,11 @@ import Workspace
             self.app.perform { $0.closeDrawerLeaf(taskId: taskId) }
             if hadFocus { self.onReturnFocus?() }  // the shell is gone: focus goes back to the tab
         }
+        view.onFocus = { [weak self] in self?.app.signal(.focused, leaf: leaf.id) }
+        view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
+        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
         view.onRelaunch = { [weak self] in
+            self?.app.signal(.relaunched, leaf: leaf.id)
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
             self?.sync()
         }

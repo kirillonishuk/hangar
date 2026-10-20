@@ -1,0 +1,103 @@
+import Darwin
+import Foundation
+import AgentStatus
+import ControlServer
+
+// Hooks must never see output or a non-zero exit from `event`: stdout of some hooks goes into the
+// agent's context and exit code 2 blocks the prompt. A closed pipe must not kill us either.
+signal(SIGPIPE, SIG_IGN)
+
+/// stdin up to 1 MiB within a ~1 s total budget (a silent open pipe must not hold up a hook or the status line);
+/// the rest is drained while the budget lasts so the writer does not get EPIPE. TTY → nil.
+// shortcut: statusline input above 1 MiB is truncated for the original command too (real payloads are a few KB)
+func readStdin() -> Data? {
+    guard isatty(0) == 0 else { return nil }
+    var data = Data()
+    var chunk = [UInt8](repeating: 0, count: 65_536)
+    let deadline = DispatchTime.now().uptimeNanoseconds + 1_000_000_000
+    while true {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard now < deadline else { break }
+        var pfd = pollfd(fd: 0, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pfd, 1, Int32((deadline - now) / 1_000_000) + 1)
+        if ready < 0 && errno == EINTR { continue }
+        if ready <= 0 { break }
+        let n = read(0, &chunk, chunk.count)
+        if n < 0 && errno == EINTR { continue }
+        if n <= 0 { break }
+        if data.count < maxStdin { data.append(chunk, count: min(n, maxStdin - data.count)) }
+    }
+    return data
+}
+
+/// PATH lookup without `/usr/bin/env`, so an argv[0] like `-x` or `A=b` cannot be misread as an option or assignment.
+func resolveExecutable(_ name: String) -> URL? {
+    if name.contains("/") { return URL(fileURLWithPath: name) }
+    let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
+    for dir in path.split(separator: ":") {
+        let candidate = String(dir) + "/" + name
+        if access(candidate, X_OK) == 0 { return URL(fileURLWithPath: candidate) }
+    }
+    return nil
+}
+
+func defaultSocketPath() -> String {
+    ProcessInfo.processInfo.environment["HANGAR_SOCKET"]
+        ?? NSHomeDirectory() + "/Library/Application Support/Hangar/hangar.sock"
+}
+
+func runEvent(_ rest: [String]) -> Int32 {
+    let env = ProcessInfo.processInfo.environment
+    let args = Array(rest.dropFirst())
+    let payloadIsArg = args.last?.hasPrefix("{") == true
+    let inHangar = UUID(uuidString: env["HANGAR_TAB_ID"] ?? "") != nil && UUID(uuidString: env["HANGAR_LEAF_ID"] ?? "") != nil
+        && env["HANGAR_SOCKET"] != nil
+    let stdin = payloadIsArg || !inHangar ? nil : readStdin()
+    if let kind = rest.first, let message = eventMessage(kind: kind, args: args, env: env, stdin: stdin),
+       let socket = env["HANGAR_SOCKET"] {
+        _ = ControlClient.send(.event(message), to: socket)
+    }
+    // The original notify command still runs outside Hangar or without the app.
+    if rest.first == "codex-notify", let argv = chainedArgv(args), let exe = resolveExecutable(argv[0]) {
+        let p = Process()
+        p.executableURL = exe
+        p.arguments = Array(argv.dropFirst()) + (payloadIsArg ? [args[args.count - 1]] : [])
+        p.standardInput = FileHandle.nullDevice
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        try? p.run()
+    }
+    return 0
+}
+
+func runStatusline(_ rest: [String]) -> Int32 {
+    let stdin = readStdin() ?? Data()
+    let windows = statuslineWindows(stdin)
+    if !windows.isEmpty {
+        _ = ControlClient.send(.usage(UsageMessage(agent: "claude", windows: windows)), to: defaultSocketPath())
+    }
+    guard let i = rest.firstIndex(of: "--then"), i + 1 < rest.count else { return 0 }
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/bin/sh")
+    p.arguments = ["-c", rest[i + 1]]
+    let pipe = Pipe()
+    p.standardInput = pipe
+    guard (try? p.run()) != nil else { return 1 }
+    // A writer thread: a command that does not read its stdin must not block us.
+    let writer = pipe.fileHandleForWriting
+    DispatchQueue.global().async {
+        try? writer.write(contentsOf: stdin)
+        try? writer.close()
+    }
+    p.waitUntilExit()
+    return p.terminationReason == .exit ? p.terminationStatus : 128 + p.terminationStatus
+}
+
+let argv = Array(CommandLine.arguments.dropFirst())
+switch argv.first {
+case "event": exit(runEvent(Array(argv.dropFirst())))
+case "statusline": exit(runStatusline(Array(argv.dropFirst())))
+default:
+    FileHandle.standardError.write(Data("usage: hangar event <kind> [--session ID] | hangar statusline [--then <command>]\n".utf8))
+    exit(1)
+}

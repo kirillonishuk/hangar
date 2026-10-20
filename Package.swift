@@ -9,8 +9,12 @@ let package = Package(
     targets: [
         .binaryTarget(name: "GhosttyKit", path: "vendor/GhosttyKit.xcframework"),
         .target(name: "Workspace"),
-        .target(name: "Exec", dependencies: ["Workspace"]),
+        .target(name: "AgentStatus"),
+        .target(name: "ControlServer", dependencies: ["AgentStatus"]),
+        .target(name: "Exec", dependencies: ["Workspace", "AgentStatus"]),
+        .target(name: "Usage", dependencies: ["ControlServer", "Exec"]),
         .target(name: "Git", dependencies: ["Exec"]),
+        .target(name: "Integration", dependencies: ["Exec"]),
         .target(
             name: "GhosttyBridge",
             dependencies: ["GhosttyKit", "Exec"],
@@ -28,11 +32,17 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge"], resources: [.process("Resources")]),
-        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace"]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration"], resources: [.process("Resources")]),
+        .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
+        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer", "Exec"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
-        .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace"]),
+        .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace", "AgentStatus"]),
+        .testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"]),
+        .testTarget(name: "ControlServerTests", dependencies: ["ControlServer", "AgentStatus"]),
+        .testTarget(name: "HangarCLITests", dependencies: ["hangar", "ControlServer", "AgentStatus"]),
+        .testTarget(name: "UsageTests", dependencies: ["Usage", "ControlServer", "Exec"]),
         .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
-        .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
+        .testTarget(name: "IntegrationTests", dependencies: ["Integration", "Exec"]),
+        .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Integration", "Git", "AgentStatus", "ControlServer", "Usage"]),
     ]
 )

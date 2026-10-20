@@ -136,4 +136,42 @@ import Testing
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
         #expect(try Data(contentsOf: file) == Data("{\"keep\":1}".utf8))
     }
+
+    private func mode(_ url: URL) -> Int {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]) as? Int ?? -1) & 0o777
+    }
+
+    @Test func newStateDirectoryIs0700() throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try StateStore(directory: dir).saveNow(sample())
+        #expect(mode(dir) == 0o700)
+    }
+
+    @Test func existingOpenStateDirectoryIsTightenedOnlyWhenAsked() throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+        try StateStore(directory: dir).saveNow(sample())  // not the default path: someone else's directory
+        #expect(mode(dir) == 0o755)
+        ensurePrivateDirectory(dir, tightenExisting: true)
+        #expect(mode(dir) == 0o700)
+    }
+
+    @Test func intermediateDirectoriesKeepDefaultPermissions() throws {
+        let parent = tempDir()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let dir = parent.appendingPathComponent("child")
+        ensurePrivateDirectory(dir, tightenExisting: false)
+        #expect(mode(dir) == 0o700)
+        #expect(mode(parent) != 0o700)
+    }
+
+    @Test func stricterStateDirectoryIsLeftAlone() throws {
+        let dir = tempDir()
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path); try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o500])
+        ensurePrivateDirectory(dir, tightenExisting: true)
+        #expect(mode(dir) == 0o500)
+    }
 }

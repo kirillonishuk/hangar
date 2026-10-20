@@ -79,16 +79,29 @@ import Workspace
         #expect(try inner(spec(leaf(.codex))) == "codex")
     }
 
+    @Test func promptStartingWithDashGetsLeadingSpace() throws {
+        #expect(try inner(spec(leaf(.claude), prompt: "--help me")) == "claude ' --help me'")
+        #expect(try inner(spec(leaf(.codex), prompt: "-x")) == "codex ' -x'")
+    }
+
     @Test func editorOpensFile() throws {
         #expect(try inner(spec(leaf(.editor, file: "src/a b.ts"))) == "hx 'src/a b.ts'")
+        #expect(try inner(spec(leaf(.editor, file: "-c.ts"))) == "hx ./-c.ts")
+        #expect(try inner(spec(leaf(.editor, file: "/tmp/-x"))) == "hx /tmp/-x")
         #expect(try inner(spec(leaf(.editor))) == "hx")
+    }
+
+    /// A tampered state.json must not turn the id into a flag: an invalid stored id falls back to the no-id mode.
+    @Test func invalidStoredIdIsNotOnCommandLine() throws {
+        #expect(try inner(spec(leaf(.claude, id: "--dangerously-skip-permissions"), restoring: true)) == "claude --continue")
+        #expect(try inner(spec(leaf(.codex, id: "-c"), restoring: true)) == "codex resume --last")
+        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --continue")
     }
 
     @Test func argumentsAreShellQuoted() throws {
         #expect(shellQuote("it's") == #"'it'\''s'"#)
         #expect(shellQuote("") == "''")
         #expect(shellQuote("abc-1.2/x") == "abc-1.2/x")
-        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --resume 'a;b'")
     }
 
     @Test func quotingRoundTripsThroughShellAndReportsExitCode() throws {
@@ -100,6 +113,12 @@ import Workspace
         #expect(r.out.contains("\u{1b}]133;D;3\u{07}"))
         #expect(r.out.contains("\u{1b}]133;C\u{07}"))
         #expect(r.status == 3)
+    }
+
+    @Test func envHasLeafId() throws {
+        let l = leaf(.claude)
+        let s = try spec(l)
+        #expect(s.env == ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": l.id.uuidString, "HANGAR_SOCKET": "/tmp/h.sock"])
     }
 
     @Test func envHasTabAndSocket() throws {
@@ -167,4 +186,14 @@ import Workspace
         #expect(launchMode(for: claude, .relaunch(previous: first, exitCode: nil)) == first)
         #expect(launchMode(for: claude, .relaunch(previous: resume, exitCode: nil)) == resume)
     }
+}
+
+/// Launched from inside a Claude Code / Codex session, the app would pass those markers to every tab's agent.
+@Test func inheritedAgentEnvScrubbed() {
+    let env = ["CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SSE_PORT": "1234",
+               "CODEX_SANDBOX": "seatbelt", "CODEX_SANDBOX_NETWORK_DISABLED": "1",
+               "CLAUDE_CONFIG_DIR": "/c", "CODEX_HOME": "/h", "PATH": "/bin", "CLAUDECODEX": "x", "MY_CLAUDECODE": "y"]
+    #expect(inheritedAgentEnvToScrub(env).sorted() == ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT",
+                                                       "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED"])
+    #expect(inheritedAgentEnvToScrub([:]).isEmpty)
 }

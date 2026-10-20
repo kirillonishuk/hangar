@@ -26,6 +26,25 @@ import Workspace
         #expect(L10n.clipboardPromptText().readClipboard == "A program wants to read the clipboard")
     }
 
+    @Test func integrationStrings() {
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        #expect(L10n.settingsInvalidJSON(3) == "settings.json: ошибка JSON в строке 3 — исправьте файл вручную")
+        #expect(L10n.fileChanged == "Файл изменился — проверьте изменения ещё раз")
+        #expect(L10n.codexConfigUnsupported == "config.toml: notify в неподдерживаемом виде — правьте вручную")
+        #expect(L10n.integrationConfirmTitle("~/.claude/settings.json") == "Изменить ~/.claude/settings.json?")
+        #expect(L10n.backupWillBeCreated("a.bak") == "Будет создана копия: a.bak")
+        #expect(L10n.hooksMissing == "Hooks не установлены — статусы только по bell и выходу процесса")
+        #expect(L10n.codexNotFound == "Codex не найден")
+        #expect(L10n.linesUnchanged(12) == "… 12 строк без изменений")
+        L10n.language = .en
+        #expect(L10n.settingsInvalidJSON(3) == "settings.json: JSON error on line 3 — fix the file manually")
+        #expect(L10n.fileChanged == "The file changed — review the changes again")
+        #expect(L10n.codexConfigUnsupported == "config.toml: unsupported notify — edit it manually")
+        #expect(L10n.integrationConfirmTitle("x") == "Change x?")
+        #expect(L10n.backupWillBeCreated("a.bak") == "A backup will be created: a.bak")
+    }
+
     @Test func pluralizedExitCode() {
         defer { L10n.language = .system }
         L10n.language = .ru

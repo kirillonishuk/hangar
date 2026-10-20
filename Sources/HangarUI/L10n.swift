@@ -1,3 +1,4 @@
+import AgentStatus
 import Foundation
 import GhosttyBridge
 import Observation
@@ -75,6 +76,7 @@ import Workspace
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
+        case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
@@ -84,6 +86,7 @@ import Workspace
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
         case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
@@ -95,6 +98,13 @@ import Workspace
         case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
+        case agentsWorking, agentsWorkingInfo
+        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
+        case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
+        case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
+        case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
+        case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
+        case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
     }
 
     // Sidebar
@@ -113,6 +123,16 @@ import Workspace
     static var unpin: String { s(.unpin) }
     static var archive: String { s(.archive) }
     static var folderMissing: String { s(.folderMissing) }
+    static func statusLabel(_ state: AgentState) -> String {
+        switch state {
+        case .working: s(.statusWorking)
+        case .waiting: s(.statusWaiting)
+        case .done: s(.statusDone)
+        case .failed: s(.statusFailed)
+        case .idle: s(.statusIdle)
+        }
+    }
+    static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
     static var keepAwake: String { s(.keepAwake) }
     static var more: String { s(.more) }
@@ -202,6 +222,58 @@ import Workspace
     static var backgroundTheme: String { s(.backgroundTheme) }
     static var afterRestart: String { s(.afterRestart) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
+    static var notificationsTitle: String { s(.notificationsTitle) }
+    static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
+    static var toggleOn: String { s(.toggleOn) }
+    static var toggleOff: String { s(.toggleOff) }
+    static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
+    static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
+    static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
+    static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
+
+    // Integrations (Settings)
+    static var integrationClaude: String { s(.integrationClaude) }
+    static var integrationCodex: String { s(.integrationCodex) }
+    static var integrationInstalled: String { s(.integrationInstalled) }
+    static var integrationStatuslineByUser: String { s(.integrationStatuslineByUser) }
+    static var integrationOutdated: String { s(.integrationOutdated) }
+    static var hooksMissing: String { s(.hooksMissing) }
+    static var codexNotifyMissing: String { s(.codexNotifyMissing) }
+    static var installEllipsis: String { s(.installEllipsis) }
+    static var updateEllipsis: String { s(.updateEllipsis) }
+    static var removeIntegration: String { s(.removeIntegration) }
+    static var codexNotFound: String { s(.codexNotFound) }
+    static var codexLookup: String { s(.codexLookup) }
+    static var integrationNeedsApp: String { s(.integrationNeedsApp) }
+    static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
+    static var settingsUnsupported: String { s(.settingsUnsupported) }
+    static var fileChanged: String { s(.fileChanged) }
+    static var codexConfigUnsupported: String { s(.codexConfigUnsupported) }
+    static func integrationWriteFailed(_ error: String) -> String { f(.integrationWriteFailed, error) }
+    static func integrationConfirmTitle(_ path: String) -> String { f(.integrationConfirmTitle, path) }
+    static func backupWillBeCreated(_ path: String) -> String { f(.backupWillBeCreated, path) }
+    static func backupCreated(_ path: String) -> String { f(.backupCreated, path) }
+    static func linesUnchanged(_ n: Int) -> String { f(.linesUnchanged, n) }
+    static var apply: String { s(.apply) }
+    static var moveToApplications: String { s(.moveToApplications) }
+    static var integrationChecking: String { s(.integrationChecking) }
+
+    // Subscription limits
+    static var limitSession: String { s(.limitSession) }
+    static var limitWeekAll: String { s(.limitWeekAll) }
+    static var limitWeek: String { s(.limitWeek) }
+    static func limitWeekModel(_ model: String) -> String { f(.limitWeekModel, model) }
+    static func resetIn(_ duration: String, _ time: String) -> String { f(.resetIn, duration, time) }
+    static func durationMin(_ m: Int) -> String { f(.durationMin, m) }
+    static func durationHourMin(_ h: Int, _ m: Int) -> String { f(.durationHourMin, h, m) }
+    static func durationDayHour(_ d: Int, _ h: Int) -> String { f(.durationDayHour, d, h) }
+    static func limitAlmost(_ agent: String, _ percent: Int) -> String { f(.limitAlmost, agent, Int32(clamping: percent)) }
+    static func limitReached(_ agent: String) -> String { f(.limitReached, agent) }
+    static var limitBadgeAlmost: String { s(.limitBadgeAlmost) }
+    static var limitBadgeFull: String { s(.limitBadgeFull) }
+    static var limitsShortcutHint: String { s(.limitsShortcutHint) }
+    static var refresh: String { s(.refresh) }
+    static var limitsHelp: String { s(.limitsHelp) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }

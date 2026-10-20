@@ -1,8 +1,9 @@
 import AppKit
+import Integration
 import SwiftUI
 import Workspace
 
-/// ⌘, / gear in the sidebar: one card of "label → value" rows (sheet style of new-task-v4), width 520.
+/// ⌘, / gear in the sidebar: one card of "label → value" rows (sheet style of new-task-v4), width 580.
 @MainActor final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let model: SettingsModel
 
@@ -33,6 +34,8 @@ import Workspace
             window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.maxY - window.frame.height - Theme.settingsTopOffset))
         }
         model.externalEditor = model.app.config.externalEditor ?? ""
+        let integration = model.integration
+        Task { await integration.refresh() }
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -45,8 +48,31 @@ import Workspace
     let app: AppState
     var externalEditor = ""
     var error: String?
+    let integration: IntegrationModel
+    /// Shown in the consent sheet; nothing is written until it is confirmed.
+    var pendingPlan: IntegrationPlan?
 
-    init(app: AppState) { self.app = app }
+    init(app: AppState) {
+        self.app = app
+        integration = IntegrationModel(claudeSettings: app.claudeSettingsURL, codexConfig: app.codexConfigURL,
+                                       cli: hangarCLIPath(bundle: .main), findCodex: app.findCodex, findDirs: app.findAgentDirs)
+    }
+
+    func review(_ target: IntegrationTarget, install: Bool) {
+        integration.message = nil
+        integration.error = nil
+        pendingPlan = integration.plan(target, install: install)
+    }
+
+    func confirmPlan() {
+        guard let plan = pendingPlan else { return }
+        pendingPlan = integration.confirm(plan)
+    }
+
+    func cancelPlan() {
+        pendingPlan = nil
+        integration.error = nil
+    }
 
     func commitExternalEditor() {
         let value = externalEditor.trimmingCharacters(in: .whitespaces)
@@ -99,6 +125,18 @@ struct SettingsView: View {
                         .onSubmit(model.commitExternalEditor)
                         .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                 }
+                row(L10n.notificationsTitle) {
+                    Segment(selection: app.config.notifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
+                    }
+                }
+                row(L10n.limitNotificationsTitle) {
+                    Segment(selection: app.config.limitNotifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
+                    }
+                }
+                row(L10n.integrationClaude) { integrationValue(.claude) }
+                row(L10n.integrationCodex) { integrationValue(.codex) }
                 row(L10n.terminalBackground) {
                     Segment(selection: app.config.terminalBackground, options: [(.hangar, "Hangar"), (.theme, L10n.backgroundTheme)]) { bg in
                         save { try app.setConfig("terminal_background", bg.rawValue) { $0.terminalBackground = bg } }
@@ -109,7 +147,9 @@ struct SettingsView: View {
 
             HStack(spacing: 0) {
                 if let error = model.error {
-                    Text(error).foregroundStyle(Theme.ui.failed).lineLimit(2)
+                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(2)
+                } else if let message = model.integration.message {
+                    Text(verbatim: message).foregroundStyle(Theme.ui.text2).lineLimit(2)
                 } else if app.config.terminalBackground != app.launchTerminalBackground {
                     // Ghostty reads its background once at start.
                     Text(L10n.afterRestart).foregroundStyle(Theme.ui.text3)
@@ -127,6 +167,66 @@ struct SettingsView: View {
         .frame(width: Theme.settingsWidth)
         .font(.system(size: Theme.fontSize.sheetRow))
         .background(Theme.ui.sheet)
+        .sheet(isPresented: Binding(get: { model.pendingPlan != nil }, set: { if !$0 { model.cancelPlan() } })) {
+            if let plan = model.pendingPlan {
+                IntegrationSheet(plan: plan, error: model.integration.error, onApply: model.confirmPlan, onCancel: model.cancelPlan)
+            }
+        }
+    }
+
+    /// State of one integration and the action that changes it (only after the consent sheet).
+    @ViewBuilder private func integrationValue(_ target: IntegrationTarget) -> some View {
+        let status = integrationStatus(target)
+        let integration = model.integration
+        HStack(spacing: Theme.cardRowGap) {
+            VStack(alignment: .leading, spacing: Theme.railInset) {
+                Text(verbatim: status.text)
+                    .foregroundStyle(status.color)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
+                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
+                    Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
+                        .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                        .foregroundStyle(Theme.ui.text3)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 0)
+            if let action = status.action {
+                Button(action.title) { model.review(target, install: action.install) }
+                    .buttonStyle(SheetButton(primary: false))
+                    .fixedSize()
+            }
+        }
+    }
+
+    private func integrationStatus(_ target: IntegrationTarget) -> (text: String, color: Color, action: (title: String, install: Bool)?) {
+        let integration = model.integration
+        guard integration.pathsReady else { return (L10n.integrationChecking, Theme.ui.text3, nil) }
+        let state: IntegrationState
+        switch target {
+        case .claude: state = integration.claude
+        case .codex:
+            switch integration.codex {
+            case nil: return (L10n.codexLookup, Theme.ui.text3, nil)
+            case .notFound?: return (L10n.codexNotFound, Theme.ui.text3, nil)
+            case .found(let s)?: state = s
+            }
+        }
+        guard let cli = integration.cli else { return (L10n.integrationNeedsApp, Theme.ui.text3, nil) }
+        if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
+            return (L10n.moveToApplications, Theme.ui.waiting, nil)  // removal stays possible from the other states
+        }
+        return switch state {
+        case .installed: (L10n.integrationInstalled, Theme.ui.text2, (L10n.removeIntegration, false))
+        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, Theme.ui.text2, (L10n.removeIntegration, false))
+        case .outdated: (L10n.integrationOutdated, Theme.ui.waiting, (L10n.updateEllipsis, true))
+        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, Theme.ui.failed, (L10n.installEllipsis, true))
+        }
     }
 
     /// hx / nvim, plus the configured editor when it is something else.

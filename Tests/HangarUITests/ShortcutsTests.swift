@@ -28,6 +28,12 @@ import Testing
         #expect(Action.toggleDrawer.shortcut == .toggleDrawer)
     }
 
+    @Test func limits() {
+        #expect(shortcut(keyCode: 37, modifiers: [.command, .shift]) == .limits)  // L by keyCode: any layout
+        #expect(shortcut(keyCode: 37, modifiers: .command) == nil)
+        #expect(Shortcut.allCases.contains(.limits))
+    }
+
     @Test func withoutCommandIsNil() {
         for code: UInt16 in [17, 13, 45, 2, 18, 33, 30, 34, 29] {
             #expect(shortcut(keyCode: code, modifiers: []) == nil)
@@ -49,7 +55,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 23)
+        #expect(Shortcut.allCases.count == 24)
     }
 }
 

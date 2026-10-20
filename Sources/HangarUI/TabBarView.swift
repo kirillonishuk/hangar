@@ -111,13 +111,12 @@ private struct TabItem: View {
     private var app: AppState { ctx.app }
     private var target: ActionTarget { .tab(task: taskId, tab: tab.id) }
 
-    private var hasAgent: Bool { tab.root.leaves.contains { $0.kind == .claude || $0.kind == .codex } }
 
     var body: some View {
         HStack(spacing: 0) {
-            if hasAgent {
-                // shortcut: always idle until agent statuses arrive (stage 3)
-                StatusDot().padding(.trailing, Theme.statusDot)
+            let dot = app.displayState(of: tab)
+            if app.showsDot(tab, state: dot) {
+                StatusDot(state: dot).padding(.trailing, Theme.statusDot)
             }
             if let kind = tab.root.leaves.first?.kind {
                 IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)

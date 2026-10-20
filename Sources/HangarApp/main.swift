@@ -2,9 +2,13 @@ import AppKit
 import CoreServices
 import os
 import ControlServer
+import Exec
 import GhosttyBridge
 import HangarUI
 import Workspace
+
+// Before anything reads the environment: every tab inherits it.
+for key in inheritedAgentEnvToScrub(ProcessInfo.processInfo.environment) { unsetenv(key) }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

@@ -187,3 +187,13 @@ import Workspace
         #expect(launchMode(for: claude, .relaunch(previous: resume, exitCode: nil)) == resume)
     }
 }
+
+/// Launched from inside a Claude Code / Codex session, the app would pass those markers to every tab's agent.
+@Test func inheritedAgentEnvScrubbed() {
+    let env = ["CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SSE_PORT": "1234",
+               "CODEX_SANDBOX": "seatbelt", "CODEX_SANDBOX_NETWORK_DISABLED": "1",
+               "CLAUDE_CONFIG_DIR": "/c", "CODEX_HOME": "/h", "PATH": "/bin", "CLAUDECODEX": "x", "MY_CLAUDECODE": "y"]
+    #expect(inheritedAgentEnvToScrub(env).sorted() == ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT",
+                                                       "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED"])
+    #expect(inheritedAgentEnvToScrub([:]).isEmpty)
+}

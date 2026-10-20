@@ -95,3 +95,9 @@ public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
         return LaunchMode(restoring: !resumeFailed, initialPrompt: nil)
     }
 }
+
+/// Markers of an enclosing Claude Code / Codex session (app started from an agent's terminal): tabs inheriting them
+/// would make agents think they run nested or sandboxed. Config locations (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) stay.
+public func inheritedAgentEnvToScrub(_ env: [String: String]) -> [String] {
+    env.keys.filter { $0 == "CLAUDECODE" || $0.hasPrefix("CLAUDE_CODE_") || $0.hasPrefix("CODEX_SANDBOX") }
+}

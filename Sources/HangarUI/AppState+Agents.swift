@@ -16,17 +16,18 @@ extension AppState {
     public func handle(_ message: ControlMessage) {
         switch message {
         case let .event(e):
-            guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
+            guard let leaf = liveLeaf(e.leaf, tab: e.tab),
+                  acceptsHook(statuses.status(leaf.id), kind: e.kind, session: e.session, source: e.source) else { return }
             // Stored before `apply`: onTransition builds the notification body from it, and a stale one must not outlive its event.
-            lastNotificationMessage[leaf.id] = e.message
-            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType), leaf: leaf.id)
+            if lastNotificationMessage[leaf.id] != e.message { lastNotificationMessage[leaf.id] = e.message }
+            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source), leaf: leaf.id)
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
             switch e.kind {
             case .stopFailure:
-                usageClock = clock()
+                tickUsageClock()
                 alert(usage.markLimitReached(.claude, now: usageClock))
             case .codexNotify: onCodexTurn?()
             default: break
@@ -34,7 +35,7 @@ extension AppState {
         case let .usage(u):
             // shortcut: codex limits come from its app-server (Task 11), not the socket
             guard u.agent == UsageAgent.claude.rawValue else { return }
-            usageClock = clock()
+            tickUsageClock()
             alert(usage.update(.claude, windows: claudeWindows(u.windows, now: usageClock), plan: nil, now: usageClock))
         }
     }
@@ -80,6 +81,8 @@ extension AppState {
     var workingLeafCount: Int { statuses.workingCount }
 
     private func apply(_ signal: AgentSignal, leaf: UUID) {
+        // Mutating `statuses` notifies observers even when nothing changes.
+        guard fold(statuses.status(leaf), signal) != statuses.status(leaf) else { return }
         if let t = statuses.apply(signal, leaf: leaf) { onTransition?(t) }
     }
 
@@ -94,7 +97,13 @@ extension AppState {
     }
 
     /// Stale windows (reset passed) drop to 0 and «обновлено …» moves on, computed now rather than by a timer.
-    func refreshUsageClock() { usageClock = clock() }
+    func refreshUsageClock() { tickUsageClock() }
+
+    /// Writes only on change: every write re-renders the observers.
+    private func tickUsageClock() {
+        let now = clock()
+        if usageClock != now { usageClock = now }
+    }
 
     /// ⌘⇧L / click. Nothing to show → beep. Opening refreshes codex; the returned task is that refresh (tests await it).
     @discardableResult func toggleLimitsPopover() -> Task<Void, Never>? {
@@ -128,7 +137,7 @@ extension AppState {
         defer { codexGate.end(now: clock()) }
         do {
             let u = try await read()
-            usageClock = clock()
+            tickUsageClock()
             alert(usage.update(.codex, windows: u.windows, plan: u.plan, now: usageClock))
         } catch {
             uiLog.error("codex limits read failed: \(String(describing: error), privacy: .public)")

@@ -25,6 +25,7 @@ public func eventMessage(kind: String, args: [String], env: [String: String], st
     } else {
         m.session = validSessionId(object["session_id"] as? String)
         m.notificationType = object["notification_type"] as? String
+        m.source = object["source"] as? String
         m.message = object["message"] as? String
     }
     if let i = args.firstIndex(of: "--session"), i < (args.firstIndex(of: "--then") ?? args.endIndex),

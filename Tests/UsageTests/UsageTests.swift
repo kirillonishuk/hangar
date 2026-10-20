@@ -101,3 +101,13 @@ private func win(_ p: Double, resets: Double? = 1_760_005_000, kind: WindowKind 
     let a2 = c.update(.claude, windows: [win(97)], plan: nil, now: now)
     #expect(a2 == [])
 }
+
+/// `resets_at` jitters by a second or so between statusline ticks: the same window must not alert again.
+@Test func alertKeyIgnoresResetJitter() {
+    var b = UsageBoard()
+    func u(_ p: Double, _ r: Double) -> [UsageAlert] { b.update(.claude, windows: [win(p, resets: r)], plan: nil, now: now) }
+    #expect(u(81, 1_760_005_200) == [UsageAlert(agent: .claude, kind: .session, level: .warn, percent: 81)])
+    #expect(u(82, 1_760_005_201) == [])
+    #expect(u(82, 1_760_005_199.4) == [])
+    #expect(u(83, 1_760_005_229) == [])
+}

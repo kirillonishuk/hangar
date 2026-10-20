@@ -8,14 +8,18 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var session: String?
     public var notificationType: String?
     public var message: String?
+    /// SessionStart's `source`: startup / resume / clear / compact.
+    public var source: String?
 
-    public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil) {
+    public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
+                source: String? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
         self.session = session
         self.notificationType = notificationType
         self.message = message
+        self.source = source
     }
 }
 
@@ -73,6 +77,7 @@ public enum ControlMessage: Equatable, Sendable {
         case "event":
             guard var m = try? decoder.decode(EventMessage.self, from: line) else { return .failure(.badField) }
             if let t = m.notificationType, t.count > 64 { return .failure(.badField) }
+            if let t = m.source, t.count > 64 { return .failure(.badField) }
             m.session = validSessionId(m.session)
             m.message = m.message.map { String($0.prefix(500)) }
             return .success(.event(m))

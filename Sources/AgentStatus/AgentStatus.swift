@@ -9,7 +9,8 @@ public enum HookKind: String, Codable, Sendable, CaseIterable {
 }
 
 public enum AgentSignal: Equatable, Sendable {
-    case hook(HookKind, session: String?, notificationType: String?)
+    /// `source`: SessionStart's `source` (startup / resume / clear / compact).
+    case hook(HookKind, session: String?, notificationType: String?, source: String? = nil)
     case bell
     case desktopNotification
     case exited(code: Int32)
@@ -34,11 +35,20 @@ public func validSessionId(_ s: String?) -> String? {
     return s
 }
 
+/// A nested agent (e.g. `claude -p` run by the leaf's agent) reports into the same leaf with its own session id.
+/// The first id after a launch is the leaf's; another one is taken only from SessionStart of /clear, compact or resume.
+/// Events without an id and codex-notify are always accepted.
+public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?) -> Bool {
+    guard kind != .codexNotify, let id = validSessionId(session), let current = status.sessionId, id != current else { return true }
+    return kind == .sessionStart && ["clear", "compact", "resume"].contains(source)
+}
+
 /// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
 public func fold(_ status: LeafStatus, _ signal: AgentSignal) -> LeafStatus {
     var s = status
     switch signal {
-    case let .hook(kind, session, type):
+    case let .hook(kind, session, type, source):
+        guard acceptsHook(status, kind: kind, session: session, source: source) else { return status }
         if kind != .codexNotify { s.claudeHooks = true }
         if let id = validSessionId(session) { s.sessionId = id }
         switch kind {
@@ -58,6 +68,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal) -> LeafStatus {
     case .relaunched:
         s.state = .idle
         s.claudeHooks = false
+        s.sessionId = nil
     }
     return s
 }
@@ -90,7 +101,7 @@ public struct StatusBoard: Equatable, Sendable {
     public mutating func apply(_ signal: AgentSignal, leaf: UUID) -> Transition? {
         let old = status(leaf)
         let new = fold(old, signal)
-        leaves[leaf] = new
+        if new != old { leaves[leaf] = new }
         return old.state == new.state ? nil : Transition(leaf: leaf, from: old.state, to: new.state)
     }
 

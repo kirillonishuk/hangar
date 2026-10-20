@@ -70,7 +70,15 @@ public struct UsageAlert: Equatable, Sendable {
 }
 
 public struct UsageBoard: Equatable, Sendable {
-    private struct Key: Hashable { var kind: WindowKind; var resetsAt: Date? }
+    /// `resetsAt` rounded to the minute: it jitters by a second or so between statusline ticks.
+    private struct Key: Hashable {
+        var kind: WindowKind
+        var resetsAt: Date?
+        init(kind: WindowKind, resetsAt: Date?) {
+            self.kind = kind
+            self.resetsAt = resetsAt.map { Date(timeIntervalSince1970: ($0.timeIntervalSince1970 / 60).rounded() * 60) }
+        }
+    }
     private struct State: Equatable {
         var usage: AgentUsage
         var notified: [Key: UsageLevel] = [:]

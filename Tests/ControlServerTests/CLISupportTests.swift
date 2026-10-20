@@ -44,6 +44,12 @@ import AgentStatus
         #expect(over?.session == "s2")
     }
 
+    @Test func sessionStartSource() {
+        let stdin = Data(#"{"session_id":"s1","hook_event_name":"SessionStart","source":"clear"}"#.utf8)
+        let m = eventMessage(kind: "session-start", args: [], env: env, stdin: stdin)
+        #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .sessionStart, session: "s1", source: "clear"))
+    }
+
     @Test func eventEdgeCases() {
         #expect(eventMessage(kind: "boom", args: [], env: env, stdin: nil) == nil)
         #expect(eventMessage(kind: "stop", args: [], env: ["HANGAR_TAB_ID": tab.uuidString], stdin: nil) == nil)

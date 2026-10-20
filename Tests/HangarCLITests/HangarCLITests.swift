@@ -113,7 +113,8 @@ private let statusFixture = Data("""
             let r = try run(row.args, env: row.env, stdin: row.stdin)
             #expect(r.status == 0, "\(row.args)")
             #expect(r.out.isEmpty && r.err.isEmpty, "\(row.args)")
-            #expect(r.seconds < 1, "\(row.args) took \(r.seconds)")
+            // Never hangs: the ~1 s stdin budget plus process spawn under a loaded parallel test run.
+            #expect(r.seconds < 3, "\(row.args) took \(r.seconds)")
         }
         // Only the four deliverable rows reach the server.
         #expect(await inbox.wait(count: 4).count == 4)

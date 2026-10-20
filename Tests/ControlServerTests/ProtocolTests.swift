@@ -29,6 +29,12 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(json.contains("\"v\":1") && json.contains("\"type\":\"event\"") && !json.contains("session"))
     }
 
+    @Test func sessionStartSourceOnWire() {
+        let m = ControlMessage.event(EventMessage(tab: UUID(), leaf: UUID(), kind: .sessionStart, session: "s1", source: "clear"))
+        #expect(String(decoding: m.encoded(), as: UTF8.self).contains(#""source":"clear""#))
+        #expect(ControlMessage.decode(m.encoded().dropLast()) == .success(m))
+    }
+
     @Test func wireFormatFromSpec() {
         let ev = ControlMessage.decode(line(#"{"v":1,"type":"event","tab":"\#(tab)","leaf":"\#(leaf)","kind":"stop","session":"abc"}"#))
         #expect(ev == .success(.event(EventMessage(tab: UUID(uuidString: tab)!, leaf: UUID(uuidString: leaf)!, kind: .stop, session: "abc"))))
@@ -51,6 +57,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(ControlMessage.decode(ev("", tab: "nope")) == .failure(.badField))
         #expect(ControlMessage.decode(ev("", kind: "boom")) == .failure(.badField))
         #expect(ControlMessage.decode(ev(#","notificationType":"\#(String(repeating: "n", count: 65))""#)) == .failure(.badField))
+        #expect(ControlMessage.decode(ev(#","source":"\#(String(repeating: "s", count: 65))""#)) == .failure(.badField))
         #expect(ControlMessage.decode(us(agent: "gpt", windows: "[]")) == .failure(.badField))
         #expect(ControlMessage.decode(us(windows: #"[{"name":"five_hour","usedPercent":"NaN"}]"#)) == .failure(.badField))
         let nine = "[" + Array(repeating: #"{"name":"w"}"#, count: 9).joined(separator: ",") + "]"

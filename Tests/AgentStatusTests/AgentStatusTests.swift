@@ -79,8 +79,9 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
         #expect(fold(status(.working), .exited(code: 1)).state == .failed)
         #expect(fold(status(.working), .exited(code: 0)).state == .idle)
         #expect(fold(status(.working), .exited(code: -1)).state == .idle)
+        // A new launch: its first session id becomes the leaf's (a failed resume starts a fresh session).
         let r = fold(status(.done, hooks: true, session: "s1"), .relaunched)
-        #expect(r.state == .idle && !r.claudeHooks && r.sessionId == "s1")
+        #expect(r.state == .idle && !r.claudeHooks && r.sessionId == nil)
     }
 
     @Test func invalidSessionIdIgnored() {
@@ -90,11 +91,42 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
             #expect(s.sessionId == "keep", "\(bad.prefix(12))")
         }
         for good in ["0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", "t.1_2-3"] {
-            let s = fold(status(.idle, session: "keep"), .hook(.prompt, session: good, notificationType: nil))
+            let s = fold(status(.idle), .hook(.prompt, session: good, notificationType: nil))
             #expect(s.sessionId == good)
         }
         #expect(validSessionId(String(repeating: "a", count: 128)) != nil)
         #expect(validSessionId(nil) == nil)
+    }
+
+    /// A nested `claude -p` in the leaf reports with its own session id: it must not touch the leaf.
+    @Test func nestedSessionIgnored() {
+        let leaf = status(.working, hooks: true, session: "main")
+        for kind in [HookKind.sessionStart, .prompt, .tool, .notification, .stop, .stopFailure] {
+            let signal = AgentSignal.hook(kind, session: "nested", notificationType: nil, source: "startup")
+            #expect(fold(leaf, signal) == leaf, "\(kind)")
+            #expect(!acceptsHook(leaf, kind: kind, session: "nested", source: "startup"), "\(kind)")
+        }
+        // Same id, no id, or the first id after a launch: as before.
+        #expect(fold(leaf, .hook(.stop, session: "main", notificationType: nil)).state == .done)
+        #expect(fold(leaf, .hook(.stop, session: nil, notificationType: nil)).state == .done)
+        #expect(fold(LeafStatus(), .hook(.prompt, session: "first", notificationType: nil)).sessionId == "first")
+    }
+
+    @Test func sessionSwitchOnlyFromSessionStartClearCompactResume() {
+        let leaf = status(.done, hooks: true, session: "main")
+        for source in ["clear", "compact", "resume"] {
+            let s = fold(leaf, .hook(.sessionStart, session: "next", notificationType: nil, source: source))
+            #expect(s.sessionId == "next", "\(source)")
+        }
+        for source in [nil, "startup", "other"] {
+            #expect(fold(leaf, .hook(.sessionStart, session: "next", notificationType: nil, source: source)) == leaf)
+        }
+        #expect(fold(leaf, .hook(.prompt, session: "next", notificationType: nil, source: "clear")) == leaf)
+    }
+
+    @Test func codexNotifyNotFiltered() {
+        let s = fold(status(.working, session: "t1"), .hook(.codexNotify, session: "t2", notificationType: nil))
+        #expect(s.state == .done && s.sessionId == "t2")
     }
 
     @Test func codexNotifyDone() {
@@ -119,6 +151,10 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
         #expect(board.apply(prompt, leaf: a) == Transition(leaf: a, from: .idle, to: .working))
         #expect(board.apply(prompt, leaf: a) == nil)
         #expect(board.workingCount == 1)
+        // No-op signals leave the board untouched (no write for observers).
+        let before = board
+        #expect(board.apply(.focused, leaf: UUID()) == nil)
+        #expect(board == before)
         _ = board.apply(.hook(.stop, session: nil, notificationType: nil), leaf: a)
         #expect(board.workingCount == 0)
         board.retain([])

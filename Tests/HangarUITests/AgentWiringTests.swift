@@ -3,6 +3,7 @@ import ControlServer
 import Exec
 import CoreServices
 import Foundation
+import Observation
 import Testing
 @testable import HangarUI
 import Usage
@@ -23,10 +24,11 @@ import Workspace
         return app
     }
 
-    private func event(_ app: AppState, tab n: Int, _ kind: HookKind, session: String? = nil, type: String? = nil, message: String? = nil) {
+    private func event(_ app: AppState, tab n: Int, _ kind: HookKind, session: String? = nil, type: String? = nil, message: String? = nil,
+                       source: String? = nil) {
         let tab = app.state.tasks[0].tabs[n]
         app.handle(.event(EventMessage(tab: tab.id, leaf: tab.root.leaves[0].id, kind: kind, session: session,
-                                       notificationType: type, message: message)))
+                                       notificationType: type, message: message, source: source)))
     }
 
     private func leaf(_ app: AppState, _ n: Int) -> Leaf { app.state.tasks[0].tabs[n].root.leaves[0] }
@@ -83,6 +85,69 @@ import Workspace
         let after = changes
         event(app, tab: 0, .prompt, session: "s1")
         #expect(changes == after)
+    }
+
+    /// `claude -p` run from the leaf's claude inherits HANGAR_* and reports with its own session id.
+    @Test func nestedClaudeEventsIgnored() {
+        let app = makeApp([.claude])
+        let id = leaf(app, 0).id
+        var transitions: [Transition] = []
+        app.onTransition = { transitions.append($0) }
+        event(app, tab: 0, .sessionStart, session: "main", source: "startup")
+        event(app, tab: 0, .prompt, session: "main")
+        let before = transitions.count
+        event(app, tab: 0, .sessionStart, session: "nested", source: "startup")
+        event(app, tab: 0, .notification, session: "nested", type: "permission_prompt", message: "nested asks")
+        event(app, tab: 0, .stop, session: "nested")
+        #expect(app.state(ofLeaf: id) == .working)
+        #expect(leaf(app, 0).agentSessionId == "main")
+        #expect(app.statuses.status(id).sessionId == "main")
+        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(transitions.count == before)
+        event(app, tab: 0, .stop, session: "main")
+        #expect(app.state(ofLeaf: id) == .done)
+    }
+
+    @Test func clearSwitchesSession() {
+        let app = makeApp([.claude])
+        event(app, tab: 0, .sessionStart, session: "main", source: "startup")
+        event(app, tab: 0, .sessionStart, session: "after-clear", source: "clear")
+        #expect(leaf(app, 0).agentSessionId == "after-clear")
+        event(app, tab: 0, .prompt, session: "after-clear")
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .working)
+        // ↩ relaunch: the next launch's first id is taken even from a plain startup.
+        app.signal(.relaunched, leaf: leaf(app, 0).id)
+        event(app, tab: 0, .sessionStart, session: "fresh", source: "startup")
+        #expect(leaf(app, 0).agentSessionId == "fresh")
+    }
+
+    @Test func codexNotifyNotFilteredBySession() {
+        let app = makeApp([.codex])
+        event(app, tab: 0, .codexNotify, session: "t1")
+        event(app, tab: 0, .codexNotify, session: "t2")
+        #expect(leaf(app, 0).agentSessionId == "t2")
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .done)
+    }
+
+    /// A repeated identical event (statusline ticks, duplicate hooks) must not invalidate observers.
+    @Test func repeatedEventDoesNotWrite() {
+        let app = makeApp([.claude])
+        let t = Date(timeIntervalSince1970: 1_000_000)
+        app.clock = { t }
+        let usage = ControlMessage.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "five_hour", usedPercent: 10, resetsAt: nil)]))
+        event(app, tab: 0, .prompt, session: "s1")
+        app.handle(usage)
+        final class Flag: @unchecked Sendable { var fired = false }
+        let flag = Flag()
+        withObservationTracking {
+            _ = app.statuses
+            _ = app.lastNotificationMessage
+            _ = app.usageClock
+        } onChange: { flag.fired = true }
+        event(app, tab: 0, .prompt, session: "s1")
+        app.signal(.focused, leaf: leaf(app, 0).id)
+        app.handle(usage)
+        #expect(!flag.fired)
     }
 
     @Test func hostileSessionIdNotStored() {

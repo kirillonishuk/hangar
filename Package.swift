@@ -34,7 +34,7 @@ let package = Package(
         ),
         .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration"], resources: [.process("Resources")]),
         .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
-        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer"]),
+        .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer", "Exec"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
         .testTarget(name: "ExecTests", dependencies: ["Exec", "Workspace", "AgentStatus"]),
         .testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"]),

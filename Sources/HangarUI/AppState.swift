@@ -29,6 +29,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var lastNotificationMessage: [UUID: String] = [:]
     /// A leaf's agent state changed (notifications, Task 9).
     @ObservationIgnored var onTransition: ((Transition) -> Void)?
+    /// A leaf's agent turned `done` (the inspector refreshes the visible task's changes).
+    @ObservationIgnored var onLeafDone: ((UUID) -> Void)?
     /// Limit thresholds crossed (Task 11).
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
     /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).

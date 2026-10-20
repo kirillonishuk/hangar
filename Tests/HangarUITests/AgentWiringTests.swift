@@ -49,6 +49,18 @@ import Workspace
         #expect(app.lastNotificationMessage[leaf(app, 0).id] == "Needs permission")
     }
 
+    @Test func leafDoneFiresOnlyOnTransitionToDone() {
+        let app = makeApp([.claude])
+        var done: [UUID] = []
+        app.onLeafDone = { done.append($0) }
+        event(app, tab: 0, .prompt)
+        #expect(done.isEmpty)
+        event(app, tab: 0, .stop)
+        #expect(done == [leaf(app, 0).id])
+        event(app, tab: 0, .stop)
+        #expect(done.count == 1)
+    }
+
     @Test func unknownTabOrLeafIgnored() {
         let app = makeApp([.claude, .claude])
         var called = false

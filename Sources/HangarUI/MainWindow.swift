@@ -72,6 +72,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     nonisolated(unsafe) private var keyMonitor: Any?
     nonisolated(unsafe) private var activeObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
+    private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
     #if DEBUG
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
@@ -120,6 +121,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         window.setFrameAutosaveName("HangarMainWindow")
+        inspectorWatch = InspectorWatch(app: app, window: window)
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
@@ -128,6 +130,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.didChange = { [weak self] in
             guard let self else { return }
             self.column.terminalArea.sync()
+            self.inspectorWatch?.update()
             // Inline rename ended and the field editor left the window without a responder.
             // Checked on the next turn: the field editor resigns after the commit/cancel that triggered this.
             DispatchQueue.main.async {
@@ -165,6 +168,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.contentView?.layoutSubtreeIfNeeded()
         applySidebarWidth()
         column.terminalArea.sync()
+        inspectorWatch?.update()
         if let configWarning { showConfigWarning(configWarning) }
     }
 

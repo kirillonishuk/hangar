@@ -14,6 +14,7 @@ let package = Package(
         .target(name: "Exec", dependencies: ["Workspace"]),
         .target(name: "Usage", dependencies: ["ControlServer", "Exec"]),
         .target(name: "Git", dependencies: ["Exec"]),
+        .target(name: "Integration", dependencies: ["Exec"]),
         .target(
             name: "GhosttyBridge",
             dependencies: ["GhosttyKit", "Exec"],
@@ -41,6 +42,7 @@ let package = Package(
         .testTarget(name: "HangarCLITests", dependencies: ["hangar", "ControlServer", "AgentStatus"]),
         .testTarget(name: "UsageTests", dependencies: ["Usage", "ControlServer", "Exec"]),
         .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
+        .testTarget(name: "IntegrationTests", dependencies: ["Integration", "Exec"]),
         .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Git"]),
     ]
 )

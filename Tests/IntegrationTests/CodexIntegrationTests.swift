@@ -109,3 +109,12 @@ import Testing
     #expect(try tomlRootStringArray(out, key: "notify")?.values == ["/My App/\"h\"/hangar", "event", "codex-notify", "--then"] + orig)
     #expect(try tomlRootStringArray(codexUninstall(out), key: "notify")?.values == orig)
 }
+
+@Test func codexRefusesNotifyTables() {
+    for h in ["[notify]", "[notify.x]", "[[notify]]", "[\"notify\"]", "[ 'notify' . x ]"] {
+        let x = "k = 1\n\(h)\nx = 1\n"
+        #expect(throws: IntegrationError.unsupportedNotify) { try codexInstall(x, cli: "/A/hangar") }
+    }
+    // a table that merely contains notify deeper, or a string mentioning it, is fine
+    #expect((try? codexInstall("k = 1\n[a.notify]\ns = \"[notify]\"\n", cli: "/A/hangar")) != nil)
+}

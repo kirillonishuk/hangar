@@ -44,12 +44,17 @@ private struct TOMLScanner {
         var out: [Statement] = []
         var i = 0
         let total = line(s.count) + 1
+        var rootEnd: Int?  // first table header; the scan goes on past it only to see whether a `[notify…]` table exists
         while true {
             while i < s.count, " \t\r\n".unicodeScalars.contains(s[i]) || s[i] == "#" {
                 if s[i] == "#" { while i < s.count, s[i] != "\n" { i += 1 } } else { i += 1 }
             }
-            guard i < s.count else { return (out, total) }
-            if s[i] == "[" { return (out, line(i)) }
+            guard i < s.count else { return (out, rootEnd ?? total) }
+            if s[i] == "[" {
+                if rootEnd == nil { rootEnd = line(i) }
+                i = try skipHeader(i)
+                continue
+            }
             let start = i
             var parts: [(text: String, quoted: Bool)] = [], dotted = false
             while true {
@@ -76,11 +81,35 @@ private struct TOMLScanner {
             var v = vStart
             while v < vEnd, " \t".unicodeScalars.contains(s[v]) { v += 1 }
             let tail = String(String.UnicodeScalarView(s[vEnd..<lineEnd])).replacingOccurrences(of: "\r", with: "")
-            out.append(Statement(name: parts.count == 1 && !dotted && !parts[0].quoted ? parts[0].text : nil,
+            if rootEnd == nil { out.append(Statement(name: parts.count == 1 && !dotted && !parts[0].quoted ? parts[0].text : nil,
                                  lines: line(start)..<line(max(vEnd - 1, start)) + 1, value: v..<vEnd,
-                                 comment: tail.contains("#") ? tail : ""))
+                                 comment: tail.contains("#") ? tail : "")) }
             i = lineEnd
         }
+    }
+
+    /// `[a.b]` / `[[a.b]]` at `i`; a table named `notify` (bare or quoted, any depth below it) would clash with a root `notify` key.
+    private func skipHeader(_ start: Int) throws(IntegrationError) -> Int {
+        var i = start + 1
+        if i < s.count, s[i] == "[" { i += 1 }
+        var first = true
+        while i < s.count, s[i] != "\n" {
+            switch s[i] {
+            case " ", "\t", "\r", ".": i += 1
+            case "]": while i < s.count, s[i] != "\n" { i += 1 }  // closing brackets and a trailing comment
+            case "\"", "'":
+                let (text, end) = try quotedSingleLine(i)
+                if first, text == "notify" { throw .unsupportedNotify }
+                first = false; i = end
+            default:
+                let b = i
+                while i < s.count, bare(s[i]) { i += 1 }
+                guard i > b else { throw .unsupportedNotify }
+                if first, String(String.UnicodeScalarView(s[b..<i])) == "notify" { throw .unsupportedNotify }
+                first = false
+            }
+        }
+        return i
     }
 
     private func bare(_ c: Unicode.Scalar) -> Bool {

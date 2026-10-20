@@ -102,6 +102,9 @@ import Workspace
         #expect(try cmd("hx", "-x", nil) == "hx ./-x")
         #expect(try cmd("hx", "-x", 3) == "hx ./-x:3")
         #expect(try cmd("nvim", "-x", 3) == "nvim +3 ./-x")
+        // state.json is editable: a line below 1 is ignored instead of reaching the editor.
+        #expect(try cmd("hx", "/r/a.txt", 0) == "hx /r/a.txt")
+        #expect(try cmd("nvim", "/r/a.txt", -2) == "nvim /r/a.txt")
     }
 
     @Test func helixDetection() {

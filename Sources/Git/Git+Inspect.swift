@@ -69,7 +69,8 @@ extension Git {
             files.append(ChangedFile(path: e.path, change: .untracked))
         }
         let truncated = st.truncated || files.count > limit
-        if truncated { files.removeLast(files.count - limit) }
+        // Status may be capped while `diff HEAD` omits some of its entries (staged, then reverted): fewer files than the limit.
+        if files.count > limit { files.removeLast(files.count - limit) }
         return ChangeSet(files: files, from: rev, mode: effective, baseMissing: baseMissing, truncated: truncated)
     }
 

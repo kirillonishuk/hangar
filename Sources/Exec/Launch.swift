@@ -58,7 +58,7 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
     case .editor:
         guard let file = leaf.openFile else { return config.editor }
         let path = file.hasPrefix("-") ? "./" + file : file
-        guard let line = leaf.openLine else { return "\(config.editor) \(shellQuote(path))" }
+        guard let line = leaf.openLine, line >= 1 else { return "\(config.editor) \(shellQuote(path))" }
         if isHelix(config.editor) { return "\(config.editor) \(shellQuote("\(path):\(line)"))" }
         if ["nvim", "vim"].contains(editorName(config.editor)) { return "\(config.editor) +\(line) \(shellQuote(path))" }
         return "\(config.editor) \(shellQuote(path))"

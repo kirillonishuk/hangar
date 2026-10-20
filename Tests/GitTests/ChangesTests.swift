@@ -139,4 +139,16 @@ import Exec
         #expect(cs.files.count == 3 && cs.truncated)
         #expect(try await g.changedFiles(.uncommitted, limit: 4).truncated == false)
     }
+
+    /// Status counts a staged-then-reverted file that `diff HEAD` omits: the capped status yields fewer files than the limit.
+    @Test func truncatedStatusWithFewerFilesThanLimit() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let original = try String(contentsOfFile: t.repo + "/a.txt", encoding: .utf8)
+        try write(t, "a.txt", "staged\n")
+        try t.git("add", "a.txt", in: t.repo)
+        try write(t, "a.txt", original)
+        for i in 0..<2 { try write(t, "u\(i).txt", "x\n") }
+        let cs = try await Git(repo: t.repo).changedFiles(.uncommitted, limit: 2)
+        #expect(cs.truncated && cs.files.map(\.path) == ["u0.txt"])
+    }
 }

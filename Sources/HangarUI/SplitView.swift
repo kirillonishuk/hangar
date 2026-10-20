@@ -135,10 +135,11 @@ final class RatioSplitView: HangarSplitView {
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
         if let old = surface {
-            // Replacing an exited surface: the old one is finished, removing it is a real close.
+            // Replacing an exited (or not yet drawn, `restart`) surface: removing it is a real close.
             old.removeFromSuperview()
         }
         surface = view
+        drewOutput = false
         addSubview(view, positioned: .below, relativeTo: header)
         needsLayout = true
         failed = !view.isAlive
@@ -167,6 +168,24 @@ final class RatioSplitView: HangarSplitView {
         if focus, !failed { window?.makeFirstResponder(surface) }
         onRelaunch?()
     }
+
+    /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
+    func restart() {
+        guard let old = surface, !needsRelaunch, !hasOutput, let mode else { return }
+        old.onChildExit = nil  // freeing the old surface ends its process; that is not an exit of the leaf
+        guard run(.relaunch(previous: mode, exitCode: nil)) else { return }
+        uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
+        if !failed { window?.makeFirstResponder(surface) }
+        onRelaunch?()
+    }
+
+    /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
+    /// `shortcut: any non-blank screen text counts (a "Last login" line too), Ghostty has no output callback`.
+    var hasOutput: Bool {
+        if !drewOutput, surface?.screenText()?.contains(where: { !$0.isWhitespace }) == true { drewOutput = true }
+        return drewOutput
+    }
+    private var drewOutput = false
 
     /// Kept as a closure so a language switch can re-render the visible message (`refreshText`).
     private var barText: () -> String? = { nil }
@@ -494,8 +513,8 @@ final class RatioSplitView: HangarSplitView {
         guard let task = app.selectedTask else { return }
         let commands = helixCommands(path: path, line: line)
         let route = editorRoute(task: task, isHelix: isHelix(app.config.editor), quotable: commands != nil) { id in
-            guard let view = self.leafViews[id] else { return false }
-            return view.surface != nil && !view.needsRelaunch
+            guard let view = self.leafViews[id], view.surface != nil, !view.needsRelaunch else { return .stopped }
+            return view.hasOutput ? .running : .starting
         }
         uiLog.info("openInEditor route=\(String(describing: route), privacy: .public)")
         switch route {
@@ -504,7 +523,8 @@ final class RatioSplitView: HangarSplitView {
         case .launch(let tab, let leaf):
             app.perform { $0.setOpenFile(leafId: leaf, path: path, line: line) }
             app.activate(tabId: tab)  // a never-shown leaf starts with the new file
-            if let view = leafViews[leaf], view.needsRelaunch { view.relaunch() }
+            // Exited → relaunch; still starting (Helix may not read keys yet) → restart on the new file.
+            if let view = leafViews[leaf] { view.needsRelaunch ? view.relaunch() : view.restart() }
         case .sendKeys(let tab, let leaf):
             app.perform {
                 $0.setOpenFile(leafId: leaf, path: path, line: line)

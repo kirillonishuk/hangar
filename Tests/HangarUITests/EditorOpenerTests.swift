@@ -14,6 +14,9 @@ import Workspace
         #expect(helixQuoted("/r/%{sh}.txt") == "'/r/%{sh}.txt'")
         // A newline would end the pasted command line early.
         #expect(helixQuoted("/r/a\nb.txt") == nil)
+        // Inside "…" Helix reads `\` as an escape: such paths go to a new tab.
+        #expect(helixQuoted("/r/it's `x` \\n.txt") == nil)
+        #expect(helixQuoted("/r/a\\b.txt") == "'/r/a\\b.txt'")
     }
 
     @Test func helixCommandsWithLine() {
@@ -37,27 +40,27 @@ import Workspace
 
     @Test func routePrefersFocusedEditor() {
         let shell = leaf(.shell), ed = leaf(.editor), other = leaf(.editor), ed2 = leaf(.editor)
-        let live: (UUID) -> Bool = { _ in true }
+        let live: (UUID) -> LeafRun = { _ in .running }
         // [shell │ editor] focused on the editor + a separate editor tab.
         let focused = split(shell, ed, focus: ed), separate = single(other)
-        #expect(editorRoute(task: task([separate, focused], active: 1), isHelix: true, quotable: true, isLive: live)
+        #expect(editorRoute(task: task([separate, focused], active: 1), isHelix: true, quotable: true, run: live)
                 == .sendKeys(tab: focused.id, leaf: ed.id))
         // Focus on the shell: the first editor leaf of the active tab.
         let two = Tab(title: "s", root: .split(axis: .horizontal, ratio: 0.5, first: .leaf(shell),
                                                second: .split(axis: .vertical, ratio: 0.5, first: .leaf(ed), second: .leaf(ed2))),
                       focusedLeafId: shell.id)
-        #expect(editorRoute(task: task([separate, two], active: 1), isHelix: true, quotable: true, isLive: live)
+        #expect(editorRoute(task: task([separate, two], active: 1), isHelix: true, quotable: true, run: live)
                 == .sendKeys(tab: two.id, leaf: ed.id))
         // Focus on the second editor: that one.
         var twoFocused = two; twoFocused.focusedLeafId = ed2.id
-        #expect(editorRoute(task: task([separate, twoFocused], active: 1), isHelix: true, quotable: true, isLive: live)
+        #expect(editorRoute(task: task([separate, twoFocused], active: 1), isHelix: true, quotable: true, run: live)
                 == .sendKeys(tab: two.id, leaf: ed2.id))
         // The active tab has no editor: the first editor leaf in tab order.
         let shellTab = single(leaf(.claude))
-        #expect(editorRoute(task: task([shellTab, separate, focused], active: 0), isHelix: true, quotable: true, isLive: live)
+        #expect(editorRoute(task: task([shellTab, separate, focused], active: 0), isHelix: true, quotable: true, run: live)
                 == .sendKeys(tab: separate.id, leaf: other.id))
         // No active tab at all.
-        #expect(editorRoute(task: task([shellTab, separate], active: nil), isHelix: true, quotable: true, isLive: live)
+        #expect(editorRoute(task: task([shellTab, separate], active: nil), isHelix: true, quotable: true, run: live)
                 == .sendKeys(tab: separate.id, leaf: other.id))
     }
 
@@ -65,13 +68,16 @@ import Workspace
         let ed = leaf(.editor)
         let tab = single(ed)
         let withEditor = task([tab], active: 0)
-        #expect(editorRoute(task: task([single(leaf(.shell))], active: 0), isHelix: true, quotable: true) { _ in true } == .newTab)
-        #expect(editorRoute(task: task([], active: nil), isHelix: true, quotable: true) { _ in true } == .newTab)
-        #expect(editorRoute(task: withEditor, isHelix: false, quotable: true) { _ in true } == .newTab)
-        #expect(editorRoute(task: withEditor, isHelix: true, quotable: false) { _ in true } == .newTab)
-        #expect(editorRoute(task: withEditor, isHelix: true, quotable: true) { _ in false } == .launch(tab: tab.id, leaf: ed.id))
+        #expect(editorRoute(task: task([single(leaf(.shell))], active: 0), isHelix: true, quotable: true) { _ in .running } == .newTab)
+        #expect(editorRoute(task: task([], active: nil), isHelix: true, quotable: true) { _ in .running } == .newTab)
+        #expect(editorRoute(task: withEditor, isHelix: false, quotable: true) { _ in .running } == .newTab)
+        #expect(editorRoute(task: withEditor, isHelix: true, quotable: false) { _ in .running } == .newTab)
+        #expect(editorRoute(task: withEditor, isHelix: true, quotable: true) { _ in .stopped } == .launch(tab: tab.id, leaf: ed.id))
+        // Started but no output yet: Helix may not read keys, so it is restarted on the file instead.
+        #expect(editorRoute(task: withEditor, isHelix: true, quotable: true) { _ in .starting } == .launch(tab: tab.id, leaf: ed.id))
+        #expect(editorRoute(task: withEditor, isHelix: true, quotable: true) { _ in .running } == .sendKeys(tab: tab.id, leaf: ed.id))
         var asked: [UUID] = []
-        _ = editorRoute(task: withEditor, isHelix: true, quotable: true) { asked.append($0); return true }
+        _ = editorRoute(task: withEditor, isHelix: true, quotable: true) { asked.append($0); return .running }
         #expect(asked == [ed.id])
     }
 }

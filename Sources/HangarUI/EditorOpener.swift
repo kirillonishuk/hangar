@@ -2,13 +2,13 @@ import Foundation
 import Workspace
 
 /// A path as one argument of Helix's command line (decision #44): `'…'`, else `` `…` ``, else `"…"`
-/// (expands `%`, so only without `%`); nil → open in a new tab, where the shell quotes argv.
+/// (expands `%` and `\` escapes, so only without them); nil → open in a new tab, where the shell quotes argv.
 func helixQuoted(_ path: String) -> String? {
     // A control character (newline) would end or garble the pasted command line.
     guard !path.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return nil }
     if !path.contains("'") { return "'\(path)'" }
     if !path.contains("`") { return "`\(path)`" }
-    if !path.contains("\""), !path.contains("%") { return "\"\(path)\"" }
+    if !path.contains("\""), !path.contains("%"), !path.contains("\\") { return "\"\(path)\"" }
     return nil
 }
 
@@ -22,13 +22,16 @@ func helixCommands(path: String, line: Int?) -> [String]? {
 enum EditorRoute: Equatable {
     /// A running Helix: Esc + `:open` (+ `:goto`).
     case sendKeys(tab: UUID, leaf: UUID)
-    /// The leaf never started or has exited: point it at the file and (re)launch.
+    /// The leaf never started, has exited, or has shown no output yet: point it at the file and (re)start.
     case launch(tab: UUID, leaf: UUID)
     case newTab
 }
 
+/// An editor leaf's process: not running (never shown / exited), started without output yet, or running.
+enum LeafRun { case stopped, starting, running }
+
 /// The task's editor leaf: the active tab's focused leaf, else its first editor leaf, else the first one in tab order.
-@MainActor func editorRoute(task: HangarTask, isHelix: Bool, quotable: Bool, isLive: (UUID) -> Bool) -> EditorRoute {
+@MainActor func editorRoute(task: HangarTask, isHelix: Bool, quotable: Bool, run: (UUID) -> LeafRun) -> EditorRoute {
     guard isHelix, quotable else { return .newTab }
     func editors(_ tab: Tab) -> [Leaf] { tab.root.leaves.filter { $0.kind == .editor } }
     var target: (tab: UUID, leaf: UUID)?
@@ -38,5 +41,5 @@ enum EditorRoute: Equatable {
     }
     if target == nil, let tab = task.tabs.first(where: { !editors($0).isEmpty }) { target = (tab.id, editors(tab)[0].id) }
     guard let target else { return .newTab }
-    return isLive(target.leaf) ? .sendKeys(tab: target.tab, leaf: target.leaf) : .launch(tab: target.tab, leaf: target.leaf)
+    return run(target.leaf) == .running ? .sendKeys(tab: target.tab, leaf: target.leaf) : .launch(tab: target.tab, leaf: target.leaf)
 }

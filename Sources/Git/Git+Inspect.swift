@@ -33,7 +33,8 @@ extension Git {
 
     // MARK: Changes
 
-    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000) async throws -> ChangeSet {
+    /// `status`: the caller's own result (the inspector already ran it), else one is run here for the untracked files.
+    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil) async throws -> ChangeSet {
         var effective = mode
         var baseMissing = false
         var from: String?
@@ -64,7 +65,8 @@ extension Git {
             if let s = byPath[f.path] { f.added = s.added; f.deleted = s.deleted }
             return f
         }
-        let st = try await status(limit: limit)
+        let st: StatusResult
+        if let given { st = given } else { st = try await status(limit: limit) }
         for e in st.entries where e.change == .untracked {
             files.append(ChangedFile(path: e.path, change: .untracked))
         }

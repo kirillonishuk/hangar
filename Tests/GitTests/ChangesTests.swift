@@ -34,6 +34,19 @@ import Exec
         #expect(u.from == "HEAD")
     }
 
+    /// The inspector passes its own `status` so one load runs `git status` once.
+    @Test func reusesGivenStatus() async throws {
+        let t = try featRepo(); defer { t.cleanup() }
+        try write(t, "u.txt", "x\n")
+        let g = Git(repo: t.repo)
+        let st = try await g.status()
+        let given = try await g.changedFiles(.uncommitted, status: st)
+        #expect(given == (try await g.changedFiles(.uncommitted)))
+        let fake = StatusResult(entries: [StatusEntry(path: "other.txt", change: .untracked)], truncated: true)
+        let used = try await g.changedFiles(.uncommitted, status: fake)
+        #expect(used.files.map(\.path) == ["a.txt", "other.txt"] && used.truncated)
+    }
+
     @Test func untrackedInBothModes() async throws {
         let t = try featRepo(); defer { t.cleanup() }
         try write(t, "u.txt", "x\ny\n")

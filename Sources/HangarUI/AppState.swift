@@ -1,6 +1,7 @@
 import AgentStatus
 import AppKit
 import Exec
+import Git
 import Integration
 import Observation
 import os
@@ -34,6 +35,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
+    /// Files / Changes of the visible task (stage 4).
+    let inspector = InspectorModel()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
@@ -152,6 +155,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     func project(_ id: UUID) -> Project? { state.projects.first { $0.id == id } }
+
+    /// Changes are compared with this (decision #44): a worktree task's `base`, else the project's last base or default branch.
+    func baseBranch(of task: HangarTask) async -> String? {
+        if case .worktree(_, _, let base) = task.mode { return base }
+        guard let project = project(task.projectId) else { return nil }
+        if let last = project.lastBaseBranch { return last }
+        return try? await Git(repo: project.path).defaultBranch()
+    }
 
     /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.
     func taskBranches(_ projectId: UUID) -> Set<String> {

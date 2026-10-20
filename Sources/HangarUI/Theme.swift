@@ -1,5 +1,6 @@
 import AgentStatus
 import AppKit
+import Git
 import SwiftUI
 import Usage
 
@@ -106,6 +107,7 @@ public enum Theme {
         public static let tabTaskTitle: CGFloat = 13
         public static let tab: CGFloat = 12.5
         public static let footer: CGFloat = 12
+        public static let segment: CGFloat = 12
         public static let small: CGFloat = 11
         public static let counter: CGFloat = 11.5
         // Sidebar, as in Pane: section headers, rows, bottom buttons.
@@ -128,6 +130,20 @@ public enum Theme {
     public static let windowSize = NSSize(width: 1200, height: 760)
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
+    /// Inspector (DESIGN.md «Раскладка»): default width, drag limits; tree level indent, file row padding (~22 high).
+    public static let inspectorWidth: CGFloat = 220
+    public static let inspectorMin: CGFloat = 180
+    public static let inspectorMax: CGFloat = 480
+    public static let treeIndent: CGFloat = 12
+    public static let fileRowPaddingV: CGFloat = 3
+    public static let inspectorSegmentRadius: CGFloat = 6
+    public static let inspectorSegmentItemRadius: CGFloat = 4
+    public static let inspectorSegmentPaddingH: CGFloat = 10
+    /// Changes hint under the list: gap above, line spacing.
+    public static let changesHintTop: CGFloat = 10
+    public static let changesHintLineGap: CGFloat = 2
+    /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
+    public static let dividerHitSlop: CGFloat = 4
     public static let statusBarHeight: CGFloat = 22
     /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
     public static let drawerBarHeight: CGFloat = 26
@@ -323,12 +339,30 @@ extension Theme {
         public static let del = c(0xe06c75, 0.12)
         public static let addMarker = c(0x98c379)
         public static let delMarker = c(0xe06c75)
-        public static let font: CGFloat = 11.5
+        public static let hunk = c(0x56b6c2)
+        public static let hunkBg = c(0x56b6c2, 0.07)
+        public static let badgeM = c(0xe5c07b)
+        public static let badgeA = c(0x98c379)
+        public static let badgeD = c(0xe06c75)
+        /// Diff view text (mono); the integration sheet keeps its smaller `sheetFont`.
+        public static let font: CGFloat = 12.5
+        public static let sheetFont: CGFloat = 11.5
+        /// Line number column.
+        public static let gutter: CGFloat = 34
         /// Line height ≈ 1.6.
         public static let linePaddingV: CGFloat = 3
         public static let maxHeight: CGFloat = 360
         public static let markerWidth: CGFloat = 16
         public static let paddingH: CGFloat = 8
+
+        /// `?` as added, `R` as modified, `U` as deleted.
+        public static func badge(_ c: FileChange) -> Color {
+            switch c {
+            case .modified, .renamed: badgeM
+            case .added, .untracked: badgeA
+            case .deleted, .conflicted: badgeD
+            }
+        }
     }
 }
 

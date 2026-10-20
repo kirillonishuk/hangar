@@ -35,6 +35,10 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var filesTruncated = false
     private(set) var error: String?
     private(set) var diff: DiffState = .none
+    /// The task's base branch from the last status load (also in uncommitted mode, for the hint); nil if unknown.
+    private(set) var baseName: String?
+    /// Path of the open diff (relative to the top level); its Changes row is selected.
+    private(set) var diffPath: String?
     /// Requested; the effective one is `changes?.mode` (a missing base shows uncommitted).
     private(set) var modeChoice: ModeChoice = .base
     /// Git-ignored entries of the last tree load (the watcher drops their events).
@@ -53,8 +57,6 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
     /// Top level found by a load of this context; nil = not known to be git yet.
     @ObservationIgnored private var top: String?
-    /// Path of the open diff (relative to the top level).
-    @ObservationIgnored private var diffPath: String?
     /// Bumped by every start and cancel: a load applies only while it is the current one.
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var running: RefreshParts = []
@@ -81,6 +83,7 @@ struct RefreshParts: OptionSet, Sendable {
         badges = [:]
         filesTruncated = false
         firstLoad = true
+        baseName = nil
         resetChanges()
         diffPath = nil
         diff = .none
@@ -176,6 +179,7 @@ struct RefreshParts: OptionSet, Sendable {
         var paths = 0
         var ignored: Set<String>?
         var status: StatusResult?
+        var baseName: String?
         var changes: ChangeSet?
         var diff: DiffState?
         var diffPath: String?
@@ -221,8 +225,10 @@ struct RefreshParts: OptionSet, Sendable {
                 r.status = status
                 var mode = DiffMode.uncommitted
                 var missing = false
+                let base = await baseBranch()
+                r.baseName = base
                 if input.mode == .base {
-                    if let b = await baseBranch() { mode = .base(b) } else { missing = true }
+                    if let base { mode = .base(base) } else { missing = true }
                 }
                 var set = try await git.changedFiles(mode, status: status)
                 if missing { set.baseMissing = true }
@@ -265,6 +271,7 @@ struct RefreshParts: OptionSet, Sendable {
             for e in status.entries { b[e.path] = e.change }
             badges = b
             statusTruncated = status.truncated
+            baseName = r.baseName
         }
         if let changes = r.changes { self.changes = changes }
         // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).

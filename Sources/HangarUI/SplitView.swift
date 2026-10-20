@@ -7,12 +7,25 @@ import Workspace
 /// NSSplitView with the theme divider and a hook when the user finishes dragging a divider.
 class HangarSplitView: NSSplitView {
     var onDragEnd: (() -> Void)?
+    /// Index of the divider under the last mouse-down (nil: none); read in `onDragEnd`.
+    private(set) var draggedDivider: Int?
 
     override var dividerColor: NSColor { Theme.line }
 
     override func mouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        draggedDivider = (0..<max(0, arrangedSubviews.count - 1)).first { dividerHitRect($0).contains(p) }
         super.mouseDown(with: event)  // runs the divider tracking loop until mouse up
         onDragEnd?()
+    }
+
+    /// The divider after subview `i`, widened like AppKit's own hit area for thin dividers.
+    private func dividerHitRect(_ i: Int) -> NSRect {
+        let f = arrangedSubviews[i].frame
+        let slop = Theme.dividerHitSlop
+        return isVertical
+            ? NSRect(x: f.maxX - slop, y: bounds.minY, width: dividerThickness + 2 * slop, height: bounds.height)
+            : NSRect(x: bounds.minX, y: f.maxY - slop, width: bounds.width, height: dividerThickness + 2 * slop)
     }
 }
 

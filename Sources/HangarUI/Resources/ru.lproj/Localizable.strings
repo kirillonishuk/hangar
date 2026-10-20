@@ -194,3 +194,15 @@
 "apply" = "Применить";
 "moveToApplications" = "Переместите Hangar в «Программы» и запустите снова";
 "integrationChecking" = "Проверка…";
+"segmentFiles" = "Files";
+"segmentChanges" = "Changes %d";
+"changesHintBase" = "Сравнение с базовой веткой %@";
+"changesHintToBase" = "⌥B — сравнить с %@";
+"changesHintUncommitted" = "Только незакоммиченное";
+"changesHintToUncommitted" = "⌥B — только незакоммиченное";
+"baseMissing" = "Базовая ветка %@ не найдена — показано незакоммиченное";
+"noChanges" = "Нет изменений";
+"statusTruncated" = "Показаны первые %d изменений";
+"filesTruncated" = "Показаны не все файлы (больше %d)";
+"gitFailed" = "git: %@";
+"inspectorNoTask" = "Задача не выбрана";

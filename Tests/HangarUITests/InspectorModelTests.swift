@@ -29,6 +29,9 @@ import Workspace
         let model = InspectorModel()
         model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
         await settle(model)
+        model.loadDiff(path: "a.txt")
+        #expect(model.diffPath == "a.txt")  // the Changes row of the open diff is selected
+        await settle(model)
         #expect(model.isGit)
         #expect(model.error == nil)
         let names = model.tree.children(of: "")?.map(\.name) ?? []
@@ -54,6 +57,8 @@ import Workspace
         await settle(model)
         #expect(model.changes?.files.map(\.path) == ["a.txt"])
         #expect(model.changes?.mode == .uncommitted)
+        // The hint offers "compare with main" while showing uncommitted.
+        #expect(model.baseName == "main")
     }
 
     @Test func baseMissingShowsUncommitted() async throws {

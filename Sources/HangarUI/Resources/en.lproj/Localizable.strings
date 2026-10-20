@@ -194,3 +194,15 @@
 "apply" = "Apply";
 "moveToApplications" = "Move Hangar to Applications and open it again";
 "integrationChecking" = "Checking…";
+"segmentFiles" = "Files";
+"segmentChanges" = "Changes %d";
+"changesHintBase" = "Compared with base branch %@";
+"changesHintToBase" = "⌥B — compare with %@";
+"changesHintUncommitted" = "Uncommitted only";
+"changesHintToUncommitted" = "⌥B — uncommitted only";
+"baseMissing" = "Base branch %@ not found — showing uncommitted";
+"noChanges" = "No changes";
+"statusTruncated" = "Showing the first %d changes";
+"filesTruncated" = "Not all files shown (over %d)";
+"gitFailed" = "git: %@";
+"inspectorNoTask" = "No task selected";

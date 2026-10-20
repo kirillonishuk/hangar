@@ -105,6 +105,8 @@ import Workspace
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
+        case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case baseMissing, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
     }
 
     // Sidebar
@@ -315,6 +317,20 @@ import Workspace
     static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }
+    // Inspector (`%d` keys take Int32: String(format:) reads 32 bits)
+    static var segmentFiles: String { s(.segmentFiles) }
+    static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
+    static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
+    static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
+    static var changesHintUncommitted: String { s(.changesHintUncommitted) }
+    static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }
+    static func baseMissing(_ branch: String) -> String { f(.baseMissing, branch) }
+    static var noChanges: String { s(.noChanges) }
+    static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
+    static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
+    static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
+    static var inspectorNoTask: String { s(.inspectorNoTask) }
+
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
 }

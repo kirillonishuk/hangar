@@ -243,6 +243,26 @@ extension MainWindowController {
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
         case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
+        case "inspector":
+            // inspector [files|changes|toggleMode|expand <dir>|click <row>]: drives the inspector; logs its rows.
+            // With no argument it shows the selected task even when the window is occluded (the watcher stays off).
+            let m = app.inspector
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            switch f.first ?? "" {
+            case "files": m.segment = .files
+            case "changes": m.segment = .changes
+            case "toggleMode": m.toggleMode()
+            case "expand": if f.count > 1 { m.expand(f[1]) }
+            case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }
+            case "":
+                if let task = app.selectedTask {
+                    let root: String? = if case .worktree(let p, _, _) = task.mode { p } else { app.project(task.projectId)?.path }
+                    let app = self.app
+                    m.show(taskId: task.id, root: root, baseBranch: { await app.baseBranch(of: task) })
+                }
+            default: break
+            }
+            uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public)")
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

@@ -139,4 +139,72 @@ private let withStatus = #"""
         let bundle = try #require(Bundle(path: app.path))
         #expect(hangarCLIPath(bundle: bundle) == helper.path)
     }
+
+    @Test func translocatedAppCannotInstallButCanRemove() async throws {
+        for blocked in ["/private/var/folders/ab/T/AppTranslocation/1234/d/Hangar.app/Contents/Helpers/hangar",
+                        "/Volumes/Hangar/Hangar.app/Contents/Helpers/hangar"] {
+            #expect(installBlocked(cli: blocked))
+            let m = model(cli: blocked)
+            #expect(m.plan(.claude, install: true) == nil)
+            #expect(m.error == L10n.moveToApplications)
+            #expect(m.errorTarget == .claude)
+            #expect(!FileManager.default.fileExists(atPath: claudeURL.path))
+        }
+        #expect(!installBlocked(cli: cli))
+        // Installed from /Applications earlier, now run from a DMG: removal still works.
+        try write(withStatus, claudeURL)
+        #expect(model().apply(try #require(model().plan(.claude, install: true))))
+        let dmg = model(cli: "/Volumes/Hangar/Hangar.app/Contents/Helpers/hangar")
+        let removal = try #require(dmg.plan(.claude, install: false))
+        #expect(dmg.apply(removal))
+        #expect(try read(claudeURL) == withStatus)
+    }
+
+    @Test func resolvedDirsDecidePaths() async throws {
+        let custom = dir.appendingPathComponent("custom-claude")
+        let m = IntegrationModel(claudeSettings: claudeURL, codexConfig: codexURL, cli: cli, findCodex: { nil },
+                                 findDirs: { (custom.path, nil) }, home: dir)
+        #expect(!m.pathsReady)
+        await m.refresh()
+        #expect(m.pathsReady)
+        #expect(m.claudeSettings == custom.appendingPathComponent("settings.json"))
+        #expect(m.codexConfig == dir.appendingPathComponent(".codex/config.toml"))
+        let plan = try #require(m.plan(.claude, install: true))
+        #expect(plan.url == custom.appendingPathComponent("settings.json"))
+    }
+
+    @Test func backupGoesNextToSymlinkTarget() async throws {
+        let real = dir.appendingPathComponent("dotfiles/settings.json")
+        try write(withStatus, real)
+        try FileManager.default.createDirectory(at: claudeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: claudeURL, withDestinationURL: real)
+        let plan = try #require(model().plan(.claude, install: true))
+        #expect(plan.resolved.resolvingSymlinksInPath() == real.resolvingSymlinksInPath())
+        #expect(plan.url == claudeURL)
+    }
+
+    /// Apply refused (file changed) and the new contents can't be planned: no sheet, the error goes to the row.
+    @Test func changedToInvalidClosesSheet() async throws {
+        try write(withStatus, claudeURL)
+        let m = model()
+        let plan = try #require(m.plan(.claude, install: true))
+        try write("{,}", claudeURL)
+        #expect(m.confirm(plan) == nil)
+        #expect(m.error == L10n.settingsInvalidJSON(1))
+        #expect(m.errorTarget == .claude)
+        #expect(try read(claudeURL) == "{,}")
+    }
+
+    @Test func changedOnDiskGivesFreshPlan() async throws {
+        try write(withStatus, claudeURL)
+        let m = model()
+        let plan = try #require(m.plan(.claude, install: true))
+        try write(withStatus + " ", claudeURL)
+        let fresh = try #require(m.confirm(plan))
+        #expect(fresh.original == withStatus + " ")
+        #expect(m.error == L10n.fileChanged)
+        #expect(m.confirm(fresh) == nil)
+        #expect(m.error == nil)
+        #expect(m.claude == .installed)
+    }
 }

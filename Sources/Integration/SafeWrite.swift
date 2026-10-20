@@ -10,7 +10,7 @@ public func readUserFile(_ url: URL) throws -> String? {
 }
 
 /// Follows a symlink chain to the real file so the link itself stays a link.
-private func resolveLinks(_ url: URL) throws -> URL {
+public func resolveLinks(_ url: URL) throws -> URL {
     var cur = url
     for _ in 0..<32 {
         guard let type = try? FileManager.default.attributesOfItem(atPath: cur.path)[.type] as? FileAttributeType,

@@ -191,3 +191,5 @@
 "backupCreated" = "Копия сохранена: %@";
 "linesUnchanged" = "… %ld строк без изменений";
 "apply" = "Применить";
+"moveToApplications" = "Переместите Hangar в «Программы» и запустите снова";
+"integrationChecking" = "Проверка…";

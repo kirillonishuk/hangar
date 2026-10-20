@@ -104,7 +104,7 @@ import Workspace
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
-        case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply
+        case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
     }
 
     // Sidebar
@@ -255,6 +255,8 @@ import Workspace
     static func backupCreated(_ path: String) -> String { f(.backupCreated, path) }
     static func linesUnchanged(_ n: Int) -> String { f(.linesUnchanged, n) }
     static var apply: String { s(.apply) }
+    static var moveToApplications: String { s(.moveToApplications) }
+    static var integrationChecking: String { s(.integrationChecking) }
 
     // Subscription limits
     static var limitSession: String { s(.limitSession) }

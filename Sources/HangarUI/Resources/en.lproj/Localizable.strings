@@ -191,3 +191,5 @@
 "backupCreated" = "Backup saved: %@";
 "linesUnchanged" = "… %ld unchanged lines";
 "apply" = "Apply";
+"moveToApplications" = "Move Hangar to Applications and open it again";
+"integrationChecking" = "Checking…";

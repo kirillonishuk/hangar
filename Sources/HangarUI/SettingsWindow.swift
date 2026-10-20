@@ -55,22 +55,18 @@ import Workspace
     init(app: AppState) {
         self.app = app
         integration = IntegrationModel(claudeSettings: app.claudeSettingsURL, codexConfig: app.codexConfigURL,
-                                       cli: hangarCLIPath(bundle: .main), findCodex: app.findCodex)
+                                       cli: hangarCLIPath(bundle: .main), findCodex: app.findCodex, findDirs: app.findAgentDirs)
     }
 
     func review(_ target: IntegrationTarget, install: Bool) {
         integration.message = nil
+        integration.error = nil
         pendingPlan = integration.plan(target, install: install)
     }
 
-    /// «Применить»: a file changed since the diff was shown gets a fresh diff to review instead.
     func confirmPlan() {
         guard let plan = pendingPlan else { return }
-        if integration.apply(plan) { pendingPlan = nil; return }
-        if integration.error == L10n.fileChanged, let fresh = integration.plan(plan.target, install: plan.install) {
-            pendingPlan = fresh
-            integration.error = L10n.fileChanged
-        }
+        pendingPlan = integration.confirm(plan)
     }
 
     func cancelPlan() {
@@ -150,7 +146,7 @@ struct SettingsView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
 
             HStack(spacing: 0) {
-                if let error = model.error ?? (model.pendingPlan == nil ? model.integration.error : nil) {
+                if let error = model.error {
                     Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(2)
                 } else if let message = model.integration.message {
                     Text(verbatim: message).foregroundStyle(Theme.ui.text2).lineLimit(2)
@@ -181,11 +177,24 @@ struct SettingsView: View {
     /// State of one integration and the action that changes it (only after the consent sheet).
     @ViewBuilder private func integrationValue(_ target: IntegrationTarget) -> some View {
         let status = integrationStatus(target)
+        let integration = model.integration
         HStack(spacing: Theme.cardRowGap) {
-            Text(verbatim: status.text)
-                .foregroundStyle(status.color)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Theme.railInset) {
+                Text(verbatim: status.text)
+                    .foregroundStyle(status.color)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
+                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
+                    Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
+                        .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                        .foregroundStyle(Theme.ui.text3)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
             Spacer(minLength: 0)
             if let action = status.action {
                 Button(action.title) { model.review(target, install: action.install) }
@@ -197,6 +206,7 @@ struct SettingsView: View {
 
     private func integrationStatus(_ target: IntegrationTarget) -> (text: String, color: Color, action: (title: String, install: Bool)?) {
         let integration = model.integration
+        guard integration.pathsReady else { return (L10n.integrationChecking, Theme.ui.text3, nil) }
         let state: IntegrationState
         switch target {
         case .claude: state = integration.claude
@@ -207,7 +217,10 @@ struct SettingsView: View {
             case .found(let s)?: state = s
             }
         }
-        guard integration.cli != nil else { return (L10n.integrationNeedsApp, Theme.ui.text3, nil) }
+        guard let cli = integration.cli else { return (L10n.integrationNeedsApp, Theme.ui.text3, nil) }
+        if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
+            return (L10n.moveToApplications, Theme.ui.waiting, nil)  // removal stays possible from the other states
+        }
         return switch state {
         case .installed: (L10n.integrationInstalled, Theme.ui.text2, (L10n.removeIntegration, false))
         case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, Theme.ui.text2, (L10n.removeIntegration, false))

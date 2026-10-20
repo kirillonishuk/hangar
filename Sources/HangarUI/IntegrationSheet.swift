@@ -28,7 +28,7 @@ struct IntegrationSheet: View {
 
             if plan.original != nil {
                 // The real name gets the write time; the pattern shows where the copy goes.
-                Text(verbatim: L10n.backupWillBeCreated(path + ".hangar-backup-yyyyMMdd-HHmmss"))
+                Text(verbatim: L10n.backupWillBeCreated(tildePath(plan.resolved.path) + ".hangar-backup-yyyyMMdd-HHmmss"))
                     .font(.system(size: Theme.fontSize.tab))
                     .foregroundStyle(Theme.ui.text3)
                     .padding(.top, Theme.sheetGap)

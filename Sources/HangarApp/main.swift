@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-debug")
         app.claudeSettingsURL = env["HANGAR_CLAUDE_SETTINGS"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude/settings.json")
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
+        app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
         #endif
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)

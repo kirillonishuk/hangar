@@ -28,6 +28,17 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
                       env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath])
 }
 
+/// Basename of the first word of the editor command.
+private func editorName(_ command: String) -> String {
+    let word = command.split(separator: " ", omittingEmptySubsequences: true).first.map(String.init) ?? ""
+    return (word as NSString).lastPathComponent
+}
+
+/// Helix takes `path:line`; other editors need their own syntax.
+public func isHelix(_ editorCommand: String) -> Bool {
+    ["hx", "helix"].contains(editorName(editorCommand))
+}
+
 /// Shell for `-l -i -c` wrappers.
 // shortcut: non-POSIX shells get the zsh wrapper; agents then see zsh's PATH, change if a fish user hits it
 public func posixShell(_ userShell: String) -> String {
@@ -45,7 +56,12 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
     case .shell:
         return "\(shell) -l -i"
     case .editor:
-        return leaf.openFile.map { "\(config.editor) \(shellQuote($0.hasPrefix("-") ? "./" + $0 : $0))" } ?? config.editor
+        guard let file = leaf.openFile else { return config.editor }
+        let path = file.hasPrefix("-") ? "./" + file : file
+        guard let line = leaf.openLine else { return "\(config.editor) \(shellQuote(path))" }
+        if isHelix(config.editor) { return "\(config.editor) \(shellQuote("\(path):\(line)"))" }
+        if ["nvim", "vim"].contains(editorName(config.editor)) { return "\(config.editor) +\(line) \(shellQuote(path))" }
+        return "\(config.editor) \(shellQuote(path))"
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }

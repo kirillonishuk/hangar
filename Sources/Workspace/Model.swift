@@ -60,13 +60,17 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var cwd: String
     public var agentSessionId: String?
     public var openFile: String?
+    /// 1-based line the editor opens at; nil in states saved before it existed.
+    public var openLine: Int?
 
-    public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil, openFile: String? = nil) {
+    public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
+                openFile: String? = nil, openLine: Int? = nil) {
         self.id = id
         self.kind = kind
         self.cwd = cwd
         self.agentSessionId = agentSessionId
         self.openFile = openFile
+        self.openLine = openLine
     }
 }
 
@@ -230,20 +234,23 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Last expanded sidebar width; kept while collapsed so expanding restores it.
     public var sidebarWidth: Double
     public var sidebarCollapsed: Bool
+    /// Last inspector width (clamped to 180...480 by the view).
+    public var inspectorWidth: Double
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false) {
+                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220) {
         self.projects = projects
         self.tasks = tasks
         self.selectedTaskId = selectedTaskId
         self.inspectorVisible = inspectorVisible
         self.sidebarWidth = sidebarWidth
         self.sidebarCollapsed = sidebarCollapsed
+        self.inspectorWidth = inspectorWidth
     }
 
     private enum CodingKeys: String, CodingKey {
-        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed
+        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -254,7 +261,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   selectedTaskId: try c.decodeIfPresent(UUID.self, forKey: .selectedTaskId),
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
-                  sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false)
+                  sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220)
     }
 
     // MARK: Projects / tasks
@@ -313,12 +321,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     }
 
     @discardableResult
-    public mutating func addTab(taskId: UUID, kind: LeafKind) -> UUID {
+    public mutating func addTab(taskId: UUID, kind: LeafKind, openFile: String? = nil, openLine: Int? = nil) -> UUID {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }) else {
             assertionFailure("addTab: unknown task")
             return UUID()
         }
-        let leaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]))
+        let leaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]), openFile: openFile, openLine: openLine)
         let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
         tasks[i].tabs.append(tab)
         tasks[i].activeTabId = tab.id
@@ -494,6 +502,23 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                 tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
                     var leaf = leaf
                     if leaf.id == leafId { leaf.agentSessionId = id }
+                    return leaf
+                }
+                return
+            }
+        }
+    }
+
+    /// Points an editor leaf at another file and line; unknown leaf ids are ignored.
+    public mutating func setOpenFile(leafId: UUID, path: String, line: Int?) {
+        for i in tasks.indices {
+            if tasks[i].drawer.leaf?.id == leafId {
+                tasks[i].drawer.leaf?.openFile = path; tasks[i].drawer.leaf?.openLine = line; return
+            }
+            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId) != nil {
+                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
+                    var leaf = leaf
+                    if leaf.id == leafId { leaf.openFile = path; leaf.openLine = line }
                     return leaf
                 }
                 return

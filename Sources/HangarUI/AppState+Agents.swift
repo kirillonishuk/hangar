@@ -60,11 +60,6 @@ extension AppState {
         return st
     }
 
-    func displayState(ofLeaf id: UUID, now: Date = Date()) -> AgentState {
-        guard let leaf = liveLeaf(id, tab: nil) else { return state(ofLeaf: id) }
-        return displayState(ofLeaf: id, kind: leaf.kind, now: now)
-    }
-
     func displayState(of tab: Tab, now: Date = Date()) -> AgentState {
         taskState(tab.root.leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind, now: now) })
     }

@@ -1,3 +1,4 @@
+import AgentStatus
 import Foundation
 import GhosttyBridge
 import Observation
@@ -75,6 +76,7 @@ import Workspace
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
+        case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
@@ -113,6 +115,16 @@ import Workspace
     static var unpin: String { s(.unpin) }
     static var archive: String { s(.archive) }
     static var folderMissing: String { s(.folderMissing) }
+    static func statusLabel(_ state: AgentState) -> String {
+        switch state {
+        case .working: s(.statusWorking)
+        case .waiting: s(.statusWaiting)
+        case .done: s(.statusDone)
+        case .failed: s(.statusFailed)
+        case .idle: s(.statusIdle)
+        }
+    }
+    static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
     static var keepAwake: String { s(.keepAwake) }
     static var more: String { s(.more) }

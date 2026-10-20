@@ -284,14 +284,15 @@ struct SidebarView: View {
                     .lineLimit(1)
                     .fixedSize()
                     .overlay(alignment: .topTrailing) {
-                        StatusDot(state: dot, size: Theme.railDot)
-                            .overlay(Circle().stroke(Theme.ui.sidebar, lineWidth: Theme.railDotBorder).padding(-Theme.railDotBorder / 2))
-                            .offset(x: Theme.railDotBorder + 2, y: -(Theme.railDotBorder + 2))
+                        StatusDot(state: dot, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
+                            .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
                     }
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
     }

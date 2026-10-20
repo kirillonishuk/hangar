@@ -124,24 +124,35 @@ struct IconView: View {
 struct StatusDot: View {
     var state: AgentState = .idle
     var size = Theme.statusDot
+    /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
+    var border: Color?
+    var borderWidth: CGFloat = 0
     @State private var scale: CGFloat = 1
 
     var body: some View {
         Circle().fill(Theme.ui.status(state))
             .frame(width: size, height: size)
             .background {
+                if let border { Circle().fill(border).padding(-borderWidth) }
+            }
+            .background {
                 if state == .waiting {
-                    Circle().fill(Theme.ui.waiting.opacity(Theme.haloOpacity)).padding(-Theme.haloWidth)
+                    Circle().fill(Theme.ui.waiting.opacity(Theme.haloOpacity)).padding(-(borderWidth + Theme.haloWidth))
                 }
             }
             .scaleEffect(scale)
-            .onChange(of: state) { _, now in
-                guard now == .waiting, !Motion.reduced else { return }
-                let half = Theme.pulseDuration / 2
-                withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
-                    withAnimation(.easeIn(duration: half)) { scale = 1 }
-                }
-            }
+            .accessibilityElement()
+            .accessibilityLabel(L10n.statusLabel(state))
+            .onAppear { if state == .waiting { pulse() } }
+            .onChange(of: state) { _, now in if now == .waiting { pulse() } }
+    }
+
+    private func pulse() {
+        guard !Motion.reduced else { return }
+        let half = Theme.pulseDuration / 2
+        withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
+            withAnimation(.easeIn(duration: half)) { scale = 1 }
+        }
     }
 }
 

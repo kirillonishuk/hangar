@@ -85,8 +85,9 @@ import Workspace
     }
 
     @Test func editorOpensFile() throws {
-        #expect(try inner(spec(leaf(.editor, file: "src/a b.ts"))) == "hx -- 'src/a b.ts'")
-        #expect(try inner(spec(leaf(.editor, file: "-c.ts"))) == "hx -- -c.ts")
+        #expect(try inner(spec(leaf(.editor, file: "src/a b.ts"))) == "hx 'src/a b.ts'")
+        #expect(try inner(spec(leaf(.editor, file: "-c.ts"))) == "hx ./-c.ts")
+        #expect(try inner(spec(leaf(.editor, file: "/tmp/-x"))) == "hx /tmp/-x")
         #expect(try inner(spec(leaf(.editor))) == "hx")
     }
 

@@ -177,17 +177,42 @@ import Workspace
 
     @Test func limitReachedTurnsAgentDotsRed() {
         let app = makeApp([.claude, .codex, .shell])
-        event(app, tab: 0, .prompt)
-        event(app, tab: 1, .codexNotify)  // any event; codex leaf stays non-failed
-        app.statuses.apply(.hook(.prompt, session: nil, notificationType: nil), leaf: leaf(app, 1).id)
-        app.statuses.apply(.hook(.prompt, session: nil, notificationType: nil), leaf: leaf(app, 2).id)
+        for n in 0...2 { event(app, tab: n, .prompt) }
         _ = app.usage.markLimitReached(.claude, now: Date())
-        #expect(app.displayState(ofLeaf: leaf(app, 0).id) == .failed)
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .failed)
         #expect(app.displayState(of: app.state.tasks[0].tabs[0]) == .failed)
-        #expect(app.displayState(ofLeaf: leaf(app, 1).id) == app.state(ofLeaf: leaf(app, 1).id))
-        #expect(app.displayState(ofLeaf: leaf(app, 1).id) != .failed)
-        #expect(app.displayState(ofLeaf: leaf(app, 2).id) == .working)
+        #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .codex) == .working)
+        #expect(app.displayState(ofLeaf: leaf(app, 2).id, kind: .shell) == .working)
         #expect(app.displayState(of: app.state.tasks[0]) == .failed)
+    }
+
+    @Test func displayStateCoversDrawerLeaf() {
+        let app = makeApp([.shell], drawer: true)
+        let d = app.state.tasks[0].drawer.leaf!.id
+        app.handle(.event(EventMessage(tab: d, leaf: d, kind: .prompt)))
+        #expect(app.displayState(of: app.state.tasks[0]) == .working)
+    }
+
+    @Test func limitExpiryRestoresDot() {
+        let app = makeApp([.claude])
+        let t = Date(timeIntervalSince1970: 1_000_000)
+        _ = app.usage.update(.claude, windows: [UsageWindow(kind: .session, usedPercent: 50, resetsAt: t.addingTimeInterval(60), updatedAt: t)], plan: nil, now: t)
+        event(app, tab: 0, .prompt)
+        _ = app.usage.markLimitReached(.claude, now: t)
+        let tab = app.state.tasks[0].tabs[0]
+        #expect(app.displayState(of: tab, now: t) == .failed)
+        #expect(app.displayState(of: tab, now: t.addingTimeInterval(120)) == .working)
+    }
+
+    @MainActor @Test func statusLabelsLocalized() {
+        L10n.language = .en
+        defer { L10n.language = .system }
+        #expect(L10n.statusLabel(.waiting) == "waiting for you")
+        #expect(L10n.statusLabel(.failed) == "failed")
+        #expect(L10n.rowWithStatus("fix-auth", .working) == "fix-auth, working")
+        L10n.language = .ru
+        #expect(L10n.rowWithStatus("fix-auth", .waiting) == "fix-auth, ждёт ответа")
+        #expect(Set(AgentState.allCases.map { L10n.statusLabel($0) }).count == 5)
     }
 
     @Test func showsDotRules() {

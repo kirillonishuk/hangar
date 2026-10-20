@@ -137,3 +137,9 @@
 "branchKept" = "Ветка «%@» не слита — оставлена";
 "creatingWorktreeWait" = "Создаётся worktree — подождите несколько секунд";
 "worktreeRootInsideProject" = "Папка внутри проекта: worktree появятся в его дереве";
+"statusWorking" = "работает";
+"statusWaiting" = "ждёт ответа";
+"statusDone" = "готово";
+"statusFailed" = "ошибка";
+"statusIdle" = "неактивен";
+"rowWithStatus" = "%@, %@";

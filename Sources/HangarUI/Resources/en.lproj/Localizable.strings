@@ -137,3 +137,9 @@
 "branchKept" = "Branch “%@” is not merged — kept";
 "creatingWorktreeWait" = "Creating the worktree — wait a few seconds";
 "worktreeRootInsideProject" = "The folder is inside the project: worktrees will appear in its tree";
+"statusWorking" = "working";
+"statusWaiting" = "waiting for you";
+"statusDone" = "done";
+"statusFailed" = "failed";
+"statusIdle" = "idle";
+"rowWithStatus" = "%@, %@";

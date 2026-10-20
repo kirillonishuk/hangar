@@ -141,6 +141,8 @@ public enum Theme {
     /// Rail monogram's corner dot and its `sidebar` border.
     public static let railDot: CGFloat = 7
     public static let railDotBorder: CGFloat = 1.5
+    /// Rail dot sticks out of the monogram's top-right corner by this much.
+    public static let railDotOffset: CGFloat = 3.5
     public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
     public static let taskRowPaddingV: CGFloat = 5

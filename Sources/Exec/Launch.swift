@@ -45,7 +45,7 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
     case .shell:
         return "\(shell) -l -i"
     case .editor:
-        return leaf.openFile.map { "\(config.editor) -- \(shellQuote($0))" } ?? config.editor
+        return leaf.openFile.map { "\(config.editor) \(shellQuote($0.hasPrefix("-") ? "./" + $0 : $0))" } ?? config.editor
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }

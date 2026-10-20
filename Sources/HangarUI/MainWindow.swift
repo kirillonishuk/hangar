@@ -322,10 +322,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private var notifier: Notifier?
 
-    /// The app is active and the main window is key and on screen (a notification for a hidden leaf is due otherwise).
+    /// The app is active and the main window is on screen (a key Settings window or sheet doesn't hide it) (a notification for a hidden leaf is due otherwise).
     private var windowVisible: Bool {
         guard let window else { return false }
-        return NSApp.isActive && window.isKeyWindow && !window.isMiniaturized && window.occlusionState.contains(.visible)
+        return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
     }
 
     /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.

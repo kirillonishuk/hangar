@@ -1,4 +1,5 @@
 import AgentStatus
+import ControlServer
 import Foundation
 import Testing
 @testable import HangarUI
@@ -109,5 +110,23 @@ import Workspace
         let before = f.app.state
         f.app.reveal(leafId: leaf)
         #expect(f.app.state == before)
+    }
+
+    @Test func eventMessageReachesNoticeBody() {
+        let f = make()
+        let tab = f.tab1  // not the active tab: hidden
+        let leaf = tab.root.leaves[0]
+        var notices: [AgentNotice] = []
+        f.app.onTransition = { if let n = notice(for: $0, app: f.app, leafVisible: false) { notices.append(n) } }
+        func send(_ kind: HookKind, type: String? = nil, message: String? = nil) {
+            f.app.handle(.event(EventMessage(tab: tab.id, leaf: leaf.id, kind: kind, session: nil, notificationType: type, message: message)))
+        }
+        send(.prompt)
+        send(.notification, type: "permission_prompt", message: "needs permission to run X")
+        #expect(notices.last?.body.contains("needs permission to run X") == true)
+        send(.prompt)
+        send(.stop)
+        #expect(notices.count == 2)
+        #expect(notices.last?.body.contains("needs permission to run X") == false)
     }
 }

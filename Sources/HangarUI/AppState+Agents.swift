@@ -16,9 +16,9 @@ extension AppState {
         switch message {
         case let .event(e):
             guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
-            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType), leaf: leaf.id)
-            // A stale body must not outlive the event it came with.
+            // Stored before `apply`: onTransition builds the notification body from it, and a stale one must not outlive its event.
             lastNotificationMessage[leaf.id] = e.message
+            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType), leaf: leaf.id)
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }

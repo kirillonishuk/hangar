@@ -172,8 +172,13 @@ final class RatioSplitView: HangarSplitView {
     /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
     func restart() {
         guard let old = surface, !needsRelaunch, !hasOutput, let mode else { return }
-        old.onChildExit = nil  // freeing the old surface ends its process; that is not an exit of the leaf
-        guard run(.relaunch(previous: mode, exitCode: nil)) else { return }
+        // Freeing the old surface ends its process; that is not an exit of the leaf. Restored if the new run fails.
+        let handler = old.onChildExit
+        old.onChildExit = nil
+        guard run(.relaunch(previous: mode, exitCode: nil)) else {
+            old.onChildExit = handler
+            return
+        }
         uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if !failed { window?.makeFirstResponder(surface) }
         onRelaunch?()

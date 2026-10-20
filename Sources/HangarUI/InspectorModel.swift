@@ -175,6 +175,8 @@ struct RefreshParts: OptionSet, Sendable {
         var changes: ChangeSet?
         var diff: DiffState?
         var diffPath: String?
+        /// A diff was asked for, but there are no changes to look it up in (not a repository, or status failed).
+        var diffUnavailable = false
         var error: String?
     }
 
@@ -186,6 +188,7 @@ struct RefreshParts: OptionSet, Sendable {
         let git = makeGit(input.root)
         if input.top == nil, await !git.isRepository() {
             r.isGit = false
+            r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
             guard parts.contains(.tree) else { return r }
             var tree = FileTree()
             let base = URL(fileURLWithPath: input.root)
@@ -223,17 +226,20 @@ struct RefreshParts: OptionSet, Sendable {
                     r.diff = .loaded(try await git.diff(file: file, from: changes.from))
                 } else if changes != nil {
                     r.diff = .notChanged
+                } else {
+                    r.diffUnavailable = true
                 }
             }
         } catch {
             r.error = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-            if input.diffPath != nil, parts.contains(.diff) || parts.contains(.status) { r.diff = .failed(r.error!) }
+            if input.diffPath != nil, parts.contains(.diff) || parts.contains(.status) { r.diff = .failed(r.error!); r.diffUnavailable = false }
         }
         return r
     }
 
     private func apply(_ r: LoadResult, parts: RefreshParts) {
         error = r.error
+        if r.diffUnavailable, r.diffPath == diffPath { diff = .failed(L10n.diffUnavailable) }
         if !r.isGit {
             isGit = false
             segment = .files

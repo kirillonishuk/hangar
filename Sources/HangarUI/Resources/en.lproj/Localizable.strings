@@ -24,6 +24,7 @@
 "collapseSidebarHelp" = "Collapse sidebar ⌘0";
 "expandSidebarHelp" = "Expand sidebar ⌘0";
 "inspectorHelp" = "Inspector ⌘⌥I";
+"diffUnavailable" = "No change data available";
 "newTabHelp" = "New Tab";
 "closeTabHelp" = "Close Tab ⌘W";
 "taskNamePlaceholder" = "task name";

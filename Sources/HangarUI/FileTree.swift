@@ -8,6 +8,9 @@ struct FileTree: Equatable, Sendable {
         /// From the root, `/`-separated.
         var path: String
         var isDir: Bool
+        /// A symlink to a directory: shown, but neither expandable (loops) nor an editor file.
+        var isDirLink = false
+        var opensInEditor: Bool { !isDir && !isDirLink }
     }
 
     /// Loaded directories ("" = root) → sorted children.
@@ -39,12 +42,13 @@ struct FileTree: Equatable, Sendable {
 
     /// Plain folders: `entries` from `listDirectory`; their paths are rebased under `dir`.
     mutating func setChildren(_ entries: [Entry], of dir: String) {
-        dirs[dir] = Self.sorted(entries.map { Entry(name: $0.name, path: dir.isEmpty ? $0.name : dir + "/" + $0.name, isDir: $0.isDir) })
+        dirs[dir] = Self.sorted(entries.map { Entry(name: $0.name, path: dir.isEmpty ? $0.name : dir + "/" + $0.name, isDir: $0.isDir, isDirLink: $0.isDirLink) })
     }
 
     /// Entries in all loaded directories.
     var count: Int { dirs.values.reduce(0) { $0 + $1.count } }
 
+    /// shortcut: `localizedStandardCompare` is slow-ish (ICU); fine for one directory, a 200 000-path listing sorts in well under a second off-main.
     private static func sorted(_ entries: [Entry]) -> [Entry] {
         entries.sorted { a, b in
             if a.isDir != b.isDir { return a.isDir }
@@ -91,11 +95,17 @@ func autoExpanded(for changes: [String], fileCount: Int) -> Set<String> {
 /// One directory of a plain (non-git) folder; paths are names (`setChildren` rebases them).
 /// shortcut: local FileManager, stage 6 goes through Exec.
 nonisolated func listDirectory(_ url: URL) -> [FileTree.Entry] {
-    let urls = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+    let urls = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])) ?? []
     return urls.compactMap { u in
         let name = u.lastPathComponent
         guard name != ".git", name != ".DS_Store" else { return nil }
-        let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        return FileTree.Entry(name: name, path: name, isDir: isDir == true)
+        let values = try? u.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        if values?.isSymbolicLink == true {
+            // Never followed (a link to a parent would loop); a link to a directory is a dead-end row.
+            var target: ObjCBool = false
+            let toDir = FileManager.default.fileExists(atPath: u.path, isDirectory: &target) && target.boolValue
+            return FileTree.Entry(name: name, path: name, isDir: false, isDirLink: toDir)
+        }
+        return FileTree.Entry(name: name, path: name, isDir: values?.isDirectory == true)
     }
 }

@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, newTabHelp, closeTabHelp
+        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -145,6 +145,7 @@ import Workspace
 
     // Title bar, tabs, new-task sheet
     static var inspectorHelp: String { s(.inspectorHelp) }
+    static var diffUnavailable: String { s(.diffUnavailable) }
     static var newTabHelp: String { s(.newTabHelp) }
     static var closeTabHelp: String { s(.closeTabHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }

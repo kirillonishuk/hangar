@@ -24,6 +24,7 @@
 "collapseSidebarHelp" = "Свернуть сайдбар ⌘0";
 "expandSidebarHelp" = "Развернуть сайдбар ⌘0";
 "inspectorHelp" = "Инспектор ⌘⌥I";
+"diffUnavailable" = "Нет данных об изменениях";
 "newTabHelp" = "Новая вкладка";
 "closeTabHelp" = "Закрыть вкладку ⌘W";
 "taskNamePlaceholder" = "название задачи";

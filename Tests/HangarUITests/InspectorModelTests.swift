@@ -138,6 +138,39 @@ import Workspace
         #expect(listDirectory(URL(fileURLWithPath: dir + "/sub")).map(\.name) == ["x.txt"])
     }
 
+    @Test func diffWithoutChangesFailsInsteadOfLoadingForever() async throws {
+        let dir = NSTemporaryDirectory() + "hangar-nogit-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let model = InspectorModel()
+        model.show(taskId: UUID(), root: dir, baseBranch: { nil })
+        await settle(model)
+        #expect(model.changes == nil)
+        model.loadDiff(path: "a.txt")
+        await settle(model)
+        guard case .failed = model.diff else { Issue.record("diff is \(model.diff)"); return }
+    }
+
+    @Test func directorySymlinkIsNotExpandableNorOpenable() throws {
+        let dir = NSTemporaryDirectory() + "hangar-sym-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir + "/real", withIntermediateDirectories: true)
+        try "x".write(toFile: dir + "/f.txt", atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(atPath: dir + "/loop", withDestinationPath: dir)
+        try FileManager.default.createSymbolicLink(atPath: dir + "/link", withDestinationPath: "real")
+        try FileManager.default.createSymbolicLink(atPath: dir + "/flink", withDestinationPath: "f.txt")
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let entries = listDirectory(URL(fileURLWithPath: dir))
+        func entry(_ n: String) -> FileTree.Entry? { entries.first { $0.name == n } }
+        #expect(entry("real")?.isDir == true)
+        #expect(entry("loop")?.isDir == false && entry("loop")?.opensInEditor == false)
+        #expect(entry("link")?.isDir == false && entry("link")?.opensInEditor == false)
+        #expect(entry("flink")?.opensInEditor == true)
+        #expect(entry("f.txt")?.opensInEditor == true)
+        var tree = FileTree()
+        tree.setChildren(entries, of: "sub")
+        #expect(tree.children(of: "sub")?.first { $0.name == "loop" }?.opensInEditor == false)
+    }
+
     @Test func diffStateFollowsChanges() async throws {
         let repo = try TempRepo()
         defer { repo.cleanup() }

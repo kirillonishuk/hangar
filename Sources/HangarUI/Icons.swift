@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import SwiftUI
 import Workspace
@@ -107,6 +108,7 @@ struct IconView: View {
     let icon: Icon
     var active = false
     var size = Theme.iconSize
+    var tint: Color?
 
     var body: some View {
         Image(nsImage: icon.image)
@@ -114,22 +116,27 @@ struct IconView: View {
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
-            .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
+            .foregroundStyle(tint ?? (active ? Theme.ui.textStrong : Theme.ui.text2))
     }
 }
 
-/// Status dot; when `waiting` turns on it pulses once (scale 1 → 1.6 → 1, 400 ms). Never loops.
+/// Status dot; `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
-    var color: Color = Theme.ui.idle
-    var waiting = false
+    var state: AgentState = .idle
+    var size = Theme.statusDot
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        Circle().fill(color)
-            .frame(width: Theme.statusDot, height: Theme.statusDot)
+        Circle().fill(Theme.ui.status(state))
+            .frame(width: size, height: size)
+            .background {
+                if state == .waiting {
+                    Circle().fill(Theme.ui.waiting.opacity(Theme.haloOpacity)).padding(-Theme.haloWidth)
+                }
+            }
             .scaleEffect(scale)
-            .onChange(of: waiting) { _, now in
-                guard now, !Motion.reduced else { return }
+            .onChange(of: state) { _, now in
+                guard now == .waiting, !Motion.reduced else { return }
                 let half = Theme.pulseDuration / 2
                 withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
                     withAnimation(.easeIn(duration: half)) { scale = 1 }

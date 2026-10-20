@@ -243,6 +243,7 @@ struct SidebarView: View {
     private func taskRow(_ task: HangarTask, projectName: String?, indent: Bool) -> some View {
         let selected = task.id == app.state.selectedTaskId
         let target = ActionTarget.task(task.id)
+        let dot = app.displayState(of: task)
         // Pinned rows mix projects, so only rows inside a project group reorder.
         let handlers = indent ? dragHandlers(target) : nil
         return HoverRow(selected: selected, action: {
@@ -252,7 +253,7 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd) { hover in
             GutterRow(collapsed: collapsed) {
-                if case .worktree = task.mode { IconView(icon: .worktree, active: selected) } else { StatusDot() }
+                StatusDot(state: dot)
             } expanded: {
                 HStack(spacing: Theme.railInset * 1.5) {
                     if app.renaming == target {
@@ -264,6 +265,9 @@ struct SidebarView: View {
                         Text(projectName).lineLimit(1).foregroundStyle(Theme.ui.text3)
                     }
                     Spacer(minLength: 0)
+                    if case .worktree = task.mode {
+                        IconView(icon: .worktree, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
+                    }
                     if hover { MoreMenu(target: target, ctx: ctx) }
                     if task.pinned || hover {
                         Button { app.setPinned(task.id, !task.pinned) } label: {
@@ -279,6 +283,11 @@ struct SidebarView: View {
                     .font(.system(size: Theme.fontSize.small, weight: .semibold))
                     .lineLimit(1)
                     .fixedSize()
+                    .overlay(alignment: .topTrailing) {
+                        StatusDot(state: dot, size: Theme.railDot)
+                            .overlay(Circle().stroke(Theme.ui.sidebar, lineWidth: Theme.railDotBorder).padding(-Theme.railDotBorder / 2))
+                            .offset(x: Theme.railDotBorder + 2, y: -(Theme.railDotBorder + 2))
+                    }
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)

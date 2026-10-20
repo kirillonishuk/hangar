@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import SwiftUI
 
@@ -73,6 +74,15 @@ public enum Theme {
         public static let done = Color(nsColor: Theme.done)
         public static let failed = Color(nsColor: Theme.failed)
         public static let idle = Color(nsColor: Theme.idle)
+        public static func status(_ state: AgentState) -> Color {
+            switch state {
+            case .working: working
+            case .waiting: waiting
+            case .done: done
+            case .failed: failed
+            case .idle: idle
+            }
+        }
         public static let lineSheet = Color(nsColor: Theme.lineSheet)
         public static let sheetBorder = Color(nsColor: Theme.sheetBorder)
         public static let sheet = Color(nsColor: Theme.sheet)
@@ -125,6 +135,13 @@ public enum Theme {
     public static let drawerAnimation: Double = 0.18
 
     public static let statusDot: CGFloat = 8
+    /// `waiting` halo: ring of `waiting` at 25%.
+    public static let haloWidth: CGFloat = 3
+    public static let haloOpacity = 0.25
+    /// Rail monogram's corner dot and its `sidebar` border.
+    public static let railDot: CGFloat = 7
+    public static let railDotBorder: CGFloat = 1.5
+    public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
     public static let taskRowPaddingV: CGFloat = 5
     public static let projectHeaderTop: CGFloat = 6

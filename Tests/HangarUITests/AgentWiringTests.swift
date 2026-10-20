@@ -174,4 +174,27 @@ import Workspace
         #expect(turns == 1)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .done)
     }
+
+    @Test func limitReachedTurnsAgentDotsRed() {
+        let app = makeApp([.claude, .codex, .shell])
+        event(app, tab: 0, .prompt)
+        event(app, tab: 1, .codexNotify)  // any event; codex leaf stays non-failed
+        app.statuses.apply(.hook(.prompt, session: nil, notificationType: nil), leaf: leaf(app, 1).id)
+        app.statuses.apply(.hook(.prompt, session: nil, notificationType: nil), leaf: leaf(app, 2).id)
+        _ = app.usage.markLimitReached(.claude, now: Date())
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id) == .failed)
+        #expect(app.displayState(of: app.state.tasks[0].tabs[0]) == .failed)
+        #expect(app.displayState(ofLeaf: leaf(app, 1).id) == app.state(ofLeaf: leaf(app, 1).id))
+        #expect(app.displayState(ofLeaf: leaf(app, 1).id) != .failed)
+        #expect(app.displayState(ofLeaf: leaf(app, 2).id) == .working)
+        #expect(app.displayState(of: app.state.tasks[0]) == .failed)
+    }
+
+    @Test func showsDotRules() {
+        let app = makeApp([.shell, .shell, .claude])
+        let tabs = app.state.tasks[0].tabs
+        #expect(!app.showsDot(tabs[0], state: .idle))
+        #expect(app.showsDot(tabs[1], state: .working))
+        #expect(app.showsDot(tabs[2], state: .idle))
+    }
 }

@@ -52,6 +52,33 @@ extension AppState {
         return taskState(leaves.map { state(ofLeaf: $0.id) })
     }
 
+    /// Like `state`, but an agent leaf whose agent is out of limit shows as failed.
+    func displayState(ofLeaf id: UUID, kind: LeafKind, now: Date = Date()) -> AgentState {
+        let st = state(ofLeaf: id)
+        let agent: UsageAgent? = kind == .claude ? .claude : kind == .codex ? .codex : nil
+        if let agent, usage.level(agent, now: now) == .full { return .failed }
+        return st
+    }
+
+    func displayState(ofLeaf id: UUID, now: Date = Date()) -> AgentState {
+        guard let leaf = liveLeaf(id, tab: nil) else { return state(ofLeaf: id) }
+        return displayState(ofLeaf: id, kind: leaf.kind, now: now)
+    }
+
+    func displayState(of tab: Tab, now: Date = Date()) -> AgentState {
+        taskState(tab.root.leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind, now: now) })
+    }
+
+    func displayState(of task: HangarTask, now: Date = Date()) -> AgentState {
+        let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
+        return taskState(leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind, now: now) })
+    }
+
+    /// Agent tabs always show a dot; other tabs only when something is going on.
+    func showsDot(_ tab: Tab, state: AgentState) -> Bool {
+        state != .idle || tab.root.leaves.contains { $0.kind == .claude || $0.kind == .codex }
+    }
+
     var workingLeafCount: Int { statuses.workingCount }
 
     private func apply(_ signal: AgentSignal, leaf: UUID) {

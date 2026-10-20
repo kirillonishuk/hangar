@@ -13,6 +13,13 @@ import Testing
         #expect(tree.children(of: "a.txt") == nil)
     }
 
+    @Test func gitDirLinksDoNotOpen() {
+        let tree = FileTree(paths: ["dl", "d/x", "a"], dirLinks: ["dl"])
+        let dl = tree.children(of: "")?.first { $0.name == "dl" }
+        #expect(dl?.isDir == false && dl?.isDirLink == true && dl?.opensInEditor == false)
+        #expect(tree.children(of: "")?.first { $0.name == "a" }?.opensInEditor == true)
+    }
+
     @Test func visibleRowsOnlyExpanded() {
         let tree = FileTree(paths: ["a.txt", "src/z.swift", "src/lib/x.swift"])
         let rows = visibleRows(tree, expanded: ["src"])

@@ -18,8 +18,8 @@ struct FileTree: Equatable, Sendable {
 
     init() {}
 
-    /// Runs off the main thread (up to 200 000 paths).
-    init(paths: [String]) {
+    /// Runs off the main thread (up to 200 000 paths). `dirLinks`: paths that are symlinks to a directory.
+    init(paths: [String], dirLinks: Set<String> = []) {
         var children: [String: [String: Bool]] = [:]  // dir → name → isDir
         for path in paths {
             var parent = ""
@@ -33,7 +33,10 @@ struct FileTree: Equatable, Sendable {
             }
         }
         for (dir, names) in children {
-            dirs[dir] = Self.sorted(names.map { Entry(name: $0.key, path: dir.isEmpty ? $0.key : dir + "/" + $0.key, isDir: $0.value) })
+            dirs[dir] = Self.sorted(names.map { name, isDir in
+                let path = dir.isEmpty ? name : dir + "/" + name
+                return Entry(name: name, path: path, isDir: isDir, isDirLink: !isDir && dirLinks.contains(path))
+            })
         }
     }
 

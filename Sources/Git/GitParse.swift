@@ -25,6 +25,8 @@ public struct StatusResult: Sendable, Equatable {
 public struct FileListing: Sendable, Equatable {
     public var paths: [String]
     public var truncated: Bool
+    /// Listed paths that are symlinks to a directory (never followed).
+    public var dirLinks: Set<String> = []
 }
 
 /// Parses `status --porcelain=v2 -z`. Paths are relative to the repository root.

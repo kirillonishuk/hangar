@@ -79,6 +79,40 @@ import Exec
         #expect(small.truncated && small.paths.count == 2)
     }
 
+    @Test func ignoredPathsCollapseDirectories() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try write(t, ".gitignore", "node_modules/\nbuild/\n*.o\n"); try write(t, "build/keep.txt")
+        try t.git("add", "-f", ".gitignore", "build/keep.txt", in: t.repo); try t.git("commit", "-q", "-m", "s", in: t.repo)
+        try write(t, "node_modules/a/i.js"); try write(t, "node_modules/b/j.js"); try write(t, "build/out.bin")
+        try write(t, "src/x.o"); try write(t, "src/m.swift")
+        let ignored = try await Git(repo: t.repo).ignoredPaths()
+        // A directory with a tracked file inside is not ignored as a whole.
+        #expect(Set(ignored) == ["node_modules/", "build/out.bin", "src/x.o"])
+    }
+
+    @Test func listFilesMarksDirectorySymlinks() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try write(t, "d/x.txt")
+        let fm = FileManager.default
+        try fm.createSymbolicLink(atPath: t.repo + "/dl", withDestinationPath: "d")
+        try fm.createSymbolicLink(atPath: t.repo + "/fl", withDestinationPath: "a.txt")
+        try t.git("add", "d", "dl", "fl", in: t.repo); try t.git("commit", "-q", "-m", "s", in: t.repo)
+        try fm.createSymbolicLink(atPath: t.repo + "/ul", withDestinationPath: "d")
+        let l = try await Git(repo: t.repo).listFiles()
+        #expect(Set(l.paths) == ["a.txt", "d/x.txt", "dl", "fl", "ul"])
+        #expect(l.dirLinks == ["dl", "ul"])
+    }
+
+    @Test func commonDirOfWorktree() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let main = try await Git(repo: t.repo).gitDir()
+        #expect(try await Git(repo: t.repo).commonDir() == main)
+        let wt = t.worktrees + "/wt"
+        try FileManager.default.createDirectory(atPath: t.worktrees, withIntermediateDirectories: true)
+        try t.git("worktree", "add", "-q", "-b", "wtb", wt, in: t.repo)
+        #expect(try await Git(repo: wt).commonDir() == main)
+    }
+
     @Test func toplevelFromSubdir() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         try write(t, "sub/f.txt"); try t.git("add", "sub", in: t.repo); try t.git("commit", "-q", "-m", "s", in: t.repo)

@@ -57,19 +57,22 @@ import Workspace
         let app = self.app
         app.inspector.show(taskId: id, root: root, baseBranch: { await app.baseBranch(of: task) })
         Task { [weak self] in
-            let gitDir = try? await Git(repo: root).gitDir()
+            let git = Git(repo: root)
+            let gitDir = try? await git.gitDir()
+            let commonDir = gitDir == nil ? nil : try? await git.commonDir()
             guard let self, gen == self.generation else { return }
-            self.start(root: root, gitDir: gitDir)
+            self.start(root: root, gitDir: gitDir, commonDir: commonDir)
         }
     }
 
-    private func start(root: String, gitDir: String?) {
+    private func start(root: String, gitDir: String?, commonDir: String?) {
         // FSEvents reports real paths (/var → /private/var, symlinked project folders).
-        let realRoot = URL(fileURLWithPath: root).resolvingSymlinksInPath().path
-        let realGit = gitDir.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
-        watcher = FileWatcher(paths: watchPaths(root: realRoot, gitDir: realGit),
+        let realRoot = realPath(root)
+        let realGit = gitDir.map(realPath), realCommon = commonDir.map(realPath)
+        let ignored = app.inspector.ignored
+        watcher = FileWatcher(paths: watchPaths(root: realRoot, gitDir: realGit, commonDir: realCommon),
                               onChange: { [weak self] parts in self?.app.inspector.refresh(parts) },
-                              classify: { classify($0, root: realRoot, gitDir: realGit) })
+                              classify: { classify($0, root: realRoot, gitDir: realGit, commonDir: realCommon, ignored: ignored.paths) })
         uiLog.info("watch start root=\(root, privacy: .public)")
     }
 

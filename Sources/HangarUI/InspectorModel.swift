@@ -37,6 +37,8 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var diff: DiffState = .none
     /// Requested; the effective one is `changes?.mode` (a missing base shows uncommitted).
     private(set) var modeChoice: ModeChoice = .base
+    /// Git-ignored entries of the last tree load (the watcher drops their events).
+    @ObservationIgnored let ignored = IgnoredPaths()
     /// The running load or its queued rerun; nil when idle (tests await it).
     @ObservationIgnored private(set) var loading: Task<Void, Never>?
 
@@ -74,6 +76,7 @@ struct RefreshParts: OptionSet, Sendable {
         isGit = true
         top = nil
         tree = FileTree()
+        ignored.paths = []
         expanded = []
         badges = [:]
         filesTruncated = false
@@ -171,6 +174,7 @@ struct RefreshParts: OptionSet, Sendable {
         var tree: FileTree?
         var filesTruncated = false
         var paths = 0
+        var ignored: Set<String>?
         var status: StatusResult?
         var changes: ChangeSet?
         var diff: DiffState?
@@ -203,9 +207,13 @@ struct RefreshParts: OptionSet, Sendable {
             if let top = input.top { r.top = top } else { r.top = try await git.toplevel() }
             if parts.contains(.tree) {
                 let listing = try await git.listFiles()
-                r.tree = FileTree(paths: listing.paths)
+                r.tree = FileTree(paths: listing.paths, dirLinks: listing.dirLinks)
                 r.filesTruncated = listing.truncated
                 r.paths = listing.paths.count
+                if let rel = try? await git.ignoredPaths(), let top = r.top {
+                    let base = realPath(top)
+                    r.ignored = Set(rel.map { base + "/" + ($0.hasSuffix("/") ? String($0.dropLast()) : $0) })
+                }
             }
             var changes = input.known
             if parts.contains(.status) {
@@ -251,6 +259,7 @@ struct RefreshParts: OptionSet, Sendable {
             self.tree = tree
             filesTruncated = r.filesTruncated
         }
+        if let paths = r.ignored { ignored.paths = paths }
         if let status = r.status {
             var b: [String: FileChange] = [:]
             for e in status.entries { b[e.path] = e.change }

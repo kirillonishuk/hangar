@@ -17,18 +17,50 @@ extension Git {
         return parseStatusV2(out, limit: limit)
     }
 
+    /// The common git-dir: the main repository's for a linked worktree, else the same as `gitDir`.
+    public func commonDir() async throws -> String {
+        try await inspect(["rev-parse", "--path-format=absolute", "--git-common-dir"]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Ignored entries relative to the top level; a wholly ignored directory comes as one `dir/` (not descended into).
+    public func ignoredPaths() async throws -> [String] {
+        let out = try await inspect(["status", "--porcelain=v2", "-z", "--ignored=matching", "--untracked-files=normal"])
+        return out.split(separator: "\0", omittingEmptySubsequences: true).compactMap { $0.hasPrefix("! ") ? String($0.dropFirst(2)) : nil }
+    }
+
     /// Tracked + untracked, not ignored; paths relative to the repository root.
     public func listFiles(limit: Int = 200_000) async throws -> FileListing {
         let root = try await toplevel()
-        let out = try await inspect(["ls-files", "-co", "--exclude-standard", "-z"], cwd: root)
+        let tracked = try await inspect(["ls-files", "-c", "-z", "--format=%(objectmode) %(path)"], cwd: root)
+        let others = try await inspect(["ls-files", "-o", "--exclude-standard", "-z"], cwd: root)
         var seen = Set<Substring>()  // unmerged entries are listed once per stage
         var paths: [String] = []
+        var dirLinks = Set<String>()
         var truncated = false
-        for p in out.split(separator: "\0", omittingEmptySubsequences: true) where seen.insert(p).inserted {
-            if paths.count == limit { truncated = true; break }
-            paths.append(String(p))
+        func add(_ p: Substring, link: Bool) -> Bool {
+            guard seen.insert(p).inserted else { return true }
+            if paths.count == limit { truncated = true; return false }
+            let path = String(p)
+            paths.append(path)
+            if link, isDirectoryLink(root + "/" + path) { dirLinks.insert(path) }
+            return true
         }
-        return FileListing(paths: paths, truncated: truncated)
+        for line in tracked.split(separator: "\0", omittingEmptySubsequences: true) {
+            guard let space = line.firstIndex(of: " ") else { continue }
+            guard add(line[line.index(after: space)...], link: line[..<space] == "120000") else { break }
+        }
+        if !truncated {
+            // An untracked symlink looks like a file to git: only the file system tells.
+            for p in others.split(separator: "\0", omittingEmptySubsequences: true) where !add(p, link: true) { break }
+        }
+        return FileListing(paths: paths, truncated: truncated, dirLinks: dirLinks)
+    }
+
+    /// shortcut: local lstat/stat, stage 6 (ssh) goes through Exec.
+    private func isDirectoryLink(_ path: String) -> Bool {
+        var st = stat()
+        guard lstat(path, &st) == 0, st.st_mode & S_IFMT == S_IFLNK, stat(path, &st) == 0 else { return false }
+        return st.st_mode & S_IFMT == S_IFDIR
     }
 
     // MARK: Changes

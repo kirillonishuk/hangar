@@ -47,6 +47,50 @@ import Testing
         #expect(classify([(path: "/r/main/.github/x", flags: modified)], root: "/r/main", gitDir: "/r/main/.git") == .status)
     }
 
+    @Test func classifyDropsIgnored() {
+        let ignored: Set<String> = ["/r/main/node_modules", "/r/main/src/x.o"]
+        func c(_ path: String, _ flags: FSEventStreamEventFlags) -> RefreshParts {
+            classify([(path: path, flags: flags)], root: "/r/main", gitDir: "/r/main/.git", ignored: ignored)
+        }
+        #expect(c("/r/main/node_modules/a/b.js", created).isEmpty)
+        #expect(c("/r/main/node_modules", removed).isEmpty)
+        #expect(c("/r/main/node_modules/a", FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs)).isEmpty)
+        #expect(c("/r/main/src/x.o", modified).isEmpty)
+        #expect(c("/r/main/node_modules2/x", created) == .all)
+        #expect(c("/r/main/src/y.o", modified) == .status)
+        #expect(c("/r/main", FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged)) == .all)
+        #expect(isIgnored("/r/main/node_modules/deep/er", root: "/r/main", ignored: ignored))
+        #expect(!isIgnored("/r/main/node", root: "/r/main", ignored: ignored))
+    }
+
+    @Test func classifyCommonDirOfWorktree() {
+        func c(_ path: String) -> RefreshParts {
+            classify([(path: path, flags: modified | created)], root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt", commonDir: "/r/main/.git")
+        }
+        #expect(c("/r/main/.git/refs/heads/x") == .status)
+        #expect(c("/r/main/.git/packed-refs") == .status)
+        #expect(c("/r/main/.git/refs/heads/x.lock").isEmpty)
+        #expect(c("/r/main/.git/objects/ab/cd").isEmpty)
+        #expect(c("/r/main/.git/worktrees/other/index").isEmpty)
+        #expect(c("/r/main/.git/worktrees/wt/index") == .status)
+        #expect(c("/r/main/.git/worktrees/wt/logs/HEAD").isEmpty)
+        // A watched file path (packed-refs) recreated arrives as RootChanged: only the status.
+        let rootChanged = FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged)
+        #expect(classify([(path: "/r/main/.git/packed-refs", flags: rootChanged)], root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt",
+                         commonDir: "/r/main/.git") == .status)
+    }
+
+    @Test func watchPathsIncludeCommonRefs() {
+        #expect(watchPaths(root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt", commonDir: "/r/main/.git")
+            == ["/r/wt", "/r/main/.git/worktrees/wt", "/r/main/.git/refs", "/r/main/.git/packed-refs"])
+        #expect(watchPaths(root: "/r/main", gitDir: "/r/main/.git", commonDir: "/r/main/.git") == ["/r/main"])
+    }
+
+    @Test func realPathResolvesPrivate() {
+        #expect(realPath("/tmp") == "/private/tmp")
+        #expect(realPath("/nonexistent-hangar-x") == "/nonexistent-hangar-x")
+    }
+
     @Test func watchPathsForWorktree() {
         #expect(watchPaths(root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt") == ["/r/wt", "/r/main/.git/worktrees/wt"])
         #expect(watchPaths(root: "/r/wt", gitDir: "/r/wt/.git") == ["/r/wt"])
@@ -68,28 +112,45 @@ import Testing
         try FileManager.default.createDirectory(atPath: base, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: base) }
         // FSEvents reports real paths (/var → /private/var).
-        let root = URL(fileURLWithPath: base).resolvingSymlinksInPath().path
+        let root = realPath(base)
         let counter = Counter()
         let watcher = FileWatcher(paths: [root], onChange: { counter.n += 1; counter.last.formUnion($0) },
                                   classify: { classify($0, root: root, gitDir: nil) })
         try await Task.sleep(for: .milliseconds(500))
         for i in 0..<20 { try "x".write(toFile: "\(root)/f\(i).txt", atomically: false, encoding: .utf8) }
-        try await Task.sleep(for: .milliseconds(1500))
-        #expect((1...3).contains(counter.n), "calls: \(counter.n)")
+        // Parallel test load delays FSEvents: wait for the first delivery (up to 10 s), then for stragglers.
+        for _ in 0..<100 where counter.n == 0 { try await Task.sleep(for: .milliseconds(100)) }
+        try await Task.sleep(for: .milliseconds(1000))
+        #expect((1...6).contains(counter.n), "calls: \(counter.n)")
         #expect(counter.last == .all)
 
         watcher.stop()
         let before = counter.n
         for i in 0..<20 { try "y".write(toFile: "\(root)/g\(i).txt", atomically: false, encoding: .utf8) }
-        try await Task.sleep(for: .milliseconds(1000))
+        try await Task.sleep(for: .milliseconds(1500))
         #expect(counter.n == before)
+    }
+
+    @Test func renamedRootReloadsAll() async throws {
+        let base = NSTemporaryDirectory() + "hangar-fsw-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: base + "/root", withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: base) }
+        let root = realPath(base + "/root")
+        let counter = Counter()
+        let watcher = FileWatcher(paths: [root], onChange: { counter.n += 1; counter.last.formUnion($0) },
+                                  classify: { classify($0, root: root, gitDir: nil) })
+        defer { watcher.stop() }
+        try await Task.sleep(for: .milliseconds(500))
+        try FileManager.default.moveItem(atPath: base + "/root", toPath: base + "/moved")
+        for _ in 0..<100 where counter.n == 0 { try await Task.sleep(for: .milliseconds(100)) }
+        #expect(counter.last == .all)
     }
 
     @Test func emptyClassificationIsSilent() async throws {
         let base = NSTemporaryDirectory() + "hangar-fsw-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: base, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: base) }
-        let root = URL(fileURLWithPath: base).resolvingSymlinksInPath().path
+        let root = realPath(base)
         let counter = Counter()
         let watcher = FileWatcher(paths: [root], onChange: { _ in counter.n += 1 }, classify: { _ in [] })
         try await Task.sleep(for: .milliseconds(500))

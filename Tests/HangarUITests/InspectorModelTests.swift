@@ -98,7 +98,8 @@ import Workspace
         try write("changed", repo.repo + "/a.txt")
         let statusCalls = OSAllocatedUnfairLock(initialState: 0)
         let counting = Runner { args, cwd in
-            if args.contains("status") { statusCalls.withLock { $0 += 1 } }
+            // The ignored-paths probe of the tree load is not a status refresh.
+            if args.contains("status"), !args.contains("--ignored=matching") { statusCalls.withLock { $0 += 1 } }
             return try await Self.slow.run(args, cwd)
         }
         let model = InspectorModel(git: { Git(repo: $0, runner: counting) })
@@ -149,6 +150,18 @@ import Workspace
         model.loadDiff(path: "a.txt")
         await settle(model)
         guard case .failed = model.diff else { Issue.record("diff is \(model.diff)"); return }
+    }
+
+    @Test func treeLoadCachesIgnoredPaths() async throws {
+        let repo = try TempRepo()
+        defer { repo.cleanup() }
+        try write("node_modules/\n", repo.repo + "/.gitignore")
+        try FileManager.default.createDirectory(atPath: repo.repo + "/node_modules/a", withIntermediateDirectories: true)
+        try write("x", repo.repo + "/node_modules/a/i.js")
+        let model = InspectorModel()
+        model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
+        await settle(model)
+        #expect(model.ignored.paths == [realPath(repo.repo) + "/node_modules"])
     }
 
     @Test func directorySymlinkIsNotExpandableNorOpenable() throws {

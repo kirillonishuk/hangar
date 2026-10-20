@@ -118,6 +118,7 @@ public enum FileDiff: Sendable, Equatable {
     case text(hunks: [Hunk], oldMode: String?, newMode: String?)
     case binary
     case tooLarge(lines: Int)
+    case notAFile
 }
 
 /// `--name-status -z --find-renames`: `M\0path\0`, `R100\0old\0new\0`.
@@ -194,14 +195,15 @@ func parseUnifiedDiff(_ out: String) -> FileDiff {
             let hunk = Hunk(header: l, oldStart: oldNo, newStart: newNo, lines: [])
             while i < lines.count {
                 let s = lines[i]
-                if s.hasPrefix("\\") {
+                let prefix = s.unicodeScalars.first  // scalars: a combining mark after the prefix must stay in the text
+                if prefix == "\\" {
                     if !hl.isEmpty { hl[hl.count - 1].noNewlineAtEnd = true }
                     i += 1; continue
                 }
                 guard oldLeft > 0 || newLeft > 0 else { break }
                 i += 1
-                let text = String(s.dropFirst())
-                switch s.first {
+                let text = String(s.unicodeScalars.dropFirst())
+                switch prefix {
                 case "-" where oldLeft > 0:
                     hl.append(DiffLine(kind: .deleted, text: text, oldLine: oldNo, newLine: nil, noNewlineAtEnd: false))
                     oldNo += 1; oldLeft -= 1

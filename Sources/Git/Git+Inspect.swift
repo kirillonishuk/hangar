@@ -1,4 +1,5 @@
 import Foundation
+import Exec
 
 /// Read-only commands for the inspector. `--no-optional-locks`: otherwise `status` rewrites .git/index,
 /// which fires FSEvents, which triggers `status` again.
@@ -63,10 +64,11 @@ extension Git {
             if let s = byPath[f.path] { f.added = s.added; f.deleted = s.deleted }
             return f
         }
-        for e in try await status(limit: limit).entries where e.change == .untracked {
+        let st = try await status(limit: limit)
+        for e in st.entries where e.change == .untracked {
             files.append(ChangedFile(path: e.path, change: .untracked))
         }
-        let truncated = files.count > limit
+        let truncated = st.truncated || files.count > limit
         if truncated { files.removeLast(files.count - limit) }
         return ChangeSet(files: files, from: rev, mode: effective, baseMissing: baseMissing, truncated: truncated)
     }
@@ -77,7 +79,10 @@ extension Git {
         let target = untracked ? ["--no-index"] : [from]
         // `--no-index` exits 1 when the files differ.
         let ok: Set<Int32> = untracked ? [0, 1] : [0]
-        let stat = try await inspect(["diff", "--numstat", "-z"] + target + ["--"] + paths, ok: ok)
+        let statRun = try await inspectRun(["diff", "--numstat", "-z"] + target + ["--"] + paths, ok: ok)
+        // A directory, nested repository or directory symlink: git prints "Could not access" and exits 1.
+        if untracked, statRun.status == 1, statRun.stdout.isEmpty, !statRun.stderr.isEmpty { return .notAFile }
+        let stat = statRun.stdout
         let entries = parseNumstat(stat)
         if entries.contains(where: { $0.added == nil }) { return .binary }
         let total = entries.reduce(0) { $0 + ($1.added ?? 0) + ($1.deleted ?? 0) }
@@ -88,11 +93,15 @@ extension Git {
     }
 
     private func inspect(_ args: [String], cwd: String? = nil, ok: Set<Int32> = [0]) async throws -> String {
+        try await inspectRun(args, cwd: cwd, ok: ok).stdout
+    }
+
+    private func inspectRun(_ args: [String], cwd: String? = nil, ok: Set<Int32> = [0]) async throws -> RunResult {
         let full = ["--no-optional-locks"] + args
         let r = try await runner.run(["git"] + full, cwd ?? repo)
         guard ok.contains(r.status) else {
             throw GitError(args: full, status: r.status, stderr: r.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return r.stdout
+        return r
     }
 }

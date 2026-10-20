@@ -54,4 +54,10 @@ import Testing
         #expect(parseUnifiedDiff("diff --git a/x b/x\nold mode 100644\nnew mode 100755\n")
             == .text(hunks: [], oldMode: "100644", newMode: "100755"))
     }
+
+    @Test func combiningMarkAfterPrefixIsContent() {
+        let l = hunks(parseUnifiedDiff("@@ -1 +1 @@\n-a\n+\u{301}x\n"))[0].lines
+        #expect(l.map(\.kind) == [.deleted, .added])
+        #expect(l[1].text == "\u{301}x")
+    }
 }

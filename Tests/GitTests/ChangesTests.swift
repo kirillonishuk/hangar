@@ -113,4 +113,30 @@ import Exec
         guard case .text(let h, _, _) = try await g.diff(file: a, from: cs.from) else { Issue.record("not text"); return }
         #expect(h.count == 1 && h[0].lines.map(\.kind).contains(.added))
     }
+
+    @Test func untrackedDirectoriesAreNotFiles() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try FileManager.default.createDirectory(atPath: t.repo + "/d", withIntermediateDirectories: true)
+        try t.git("init", "-q", "nested", in: t.repo)
+        try write(t, "nested/f.txt", "x\n")
+        try FileManager.default.createSymbolicLink(atPath: t.repo + "/ls", withDestinationPath: "d")
+        try write(t, "empty.txt", "")
+        let g = Git(repo: t.repo)
+        let cs = try await g.changedFiles(.uncommitted)
+        for p in ["nested/", "ls"] {
+            let f = try #require(cs.files.first { $0.path == p })
+            #expect(try await g.diff(file: f, from: cs.from) == .notAFile)
+        }
+        let e = try #require(cs.files.first { $0.path == "empty.txt" })
+        #expect(try await g.diff(file: e, from: cs.from) != .notAFile)
+    }
+
+    @Test func truncatedWhenStatusCapDropsEntries() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        for i in 0..<4 { try write(t, "u\(i).txt", "x\n") }
+        let g = Git(repo: t.repo)
+        let cs = try await g.changedFiles(.uncommitted, limit: 3)
+        #expect(cs.files.count == 3 && cs.truncated)
+        #expect(try await g.changedFiles(.uncommitted, limit: 4).truncated == false)
+    }
 }

@@ -32,6 +32,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
     /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
     @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
+    @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
@@ -304,6 +306,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         perform { s in
             if let i = s.tasks.firstIndex(where: { $0.id == task.id }) { s.tasks[i].activeTabId = tabId }
         }
+    }
+
+    /// Inspector clicks: the task's Helix, else a new editor tab (decision #44). Without a selected task — nothing.
+    func openInEditor(path: String, line: Int?) {
+        guard selectedTask != nil else { return }
+        onOpenInEditor?(path, line)
     }
 
     /// ⌘1…9: n-th tab of the selected task.

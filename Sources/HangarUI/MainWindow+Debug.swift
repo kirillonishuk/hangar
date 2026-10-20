@@ -84,6 +84,32 @@ extension MainWindowController {
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
+        case "open":
+            // open <absolute path> [line]: as an inspector click would.
+            var path = arg, line: Int?
+            if let space = arg.lastIndex(of: " "), let n = Int(arg[arg.index(after: space)...]) { path = String(arg[..<space]); line = n }
+            app.openInEditor(path: path, line: line)
+        case "screen":
+            // screen <file>: the focused terminal's text (incl. scrollback) for checks without a screen.
+            try? (column.terminalArea.focusedLeaf?.surface?.screenText() ?? "").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "keys":
+            // keys <chars>: real key presses into the focused terminal ("␣" = space, "⎋" = Esc).
+            guard let surface = column.terminalArea.focusedLeaf?.surface, let w = surface.window else { return }
+            // ANSI keycodes (kVK_ANSI_A…): with the kitty keyboard protocol the keycode, not the text, is sent.
+            let codes: [Character: UInt16] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+                "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "o": 31, "u": 32, "i": 34, "p": 35, "l": 37,
+                "j": 38, "k": 40, "n": 45, "m": 46, "␣": 49, "⎋": 53]
+            for ch in arg {
+                guard let code = codes[ch] else { continue }
+                let chars = ch == "␣" ? " " : ch == "⎋" ? "\u{1b}" : String(ch)
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                windowNumber: w.windowNumber, context: nil, characters: chars,
+                                                charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                        type == .keyDown ? surface.keyDown(with: e) : surface.keyUp(with: e)
+                    }
+                }
+            }
         case "action":
             // action <name> task|project|archived|tab <n>
             let f = arg.split(separator: " ").map(String.init)

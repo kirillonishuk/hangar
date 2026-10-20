@@ -252,6 +252,7 @@ final class RatioSplitView: HangarSplitView {
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
+        app.onOpenInEditor = { [weak self] path, line in self?.openInEditor(path: path, line: line) }
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
@@ -484,6 +485,44 @@ final class RatioSplitView: HangarSplitView {
         switch node {
         case .leaf(let leaf): leaf.id.uuidString
         case .split(let axis, _, let a, let b): "(\(axis.rawValue) \(signature(a)) \(signature(b)))"
+        }
+    }
+
+    /// Decision #44: a running Helix gets Esc + `:open` (+ `:goto`); a stopped editor leaf is pointed at the file
+    /// and (re)started; otherwise a new editor tab opens the file.
+    func openInEditor(path: String, line: Int?) {
+        guard let task = app.selectedTask else { return }
+        let commands = helixCommands(path: path, line: line)
+        let route = editorRoute(task: task, isHelix: isHelix(app.config.editor), quotable: commands != nil) { id in
+            guard let view = self.leafViews[id] else { return false }
+            return view.surface != nil && !view.needsRelaunch
+        }
+        uiLog.info("openInEditor route=\(String(describing: route), privacy: .public)")
+        switch route {
+        case .newTab:
+            app.perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
+        case .launch(let tab, let leaf):
+            app.perform { $0.setOpenFile(leafId: leaf, path: path, line: line) }
+            app.activate(tabId: tab)  // a never-shown leaf starts with the new file
+            if let view = leafViews[leaf], view.needsRelaunch { view.relaunch() }
+        case .sendKeys(let tab, let leaf):
+            app.perform {
+                $0.setOpenFile(leafId: leaf, path: path, line: line)
+                $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
+            }
+            app.activate(tabId: tab)
+            guard let surface = leafViews[leaf]?.surface, let commands else { return }
+            window?.makeFirstResponder(surface)
+            surface.sendKey(.escape)
+            // In one terminal read `Esc :` is Alt-: without the kitty protocol: the rest goes in a later read.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak surface] in
+                guard let surface else { return }
+                for command in commands {
+                    surface.sendKey(.colon)
+                    surface.sendText(command)  // bracketed paste into the `:` prompt
+                    surface.sendEnter()
+                }
+            }
         }
     }
 

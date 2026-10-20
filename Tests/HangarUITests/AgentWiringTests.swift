@@ -82,6 +82,27 @@ import Workspace
         #expect(changes == after)
     }
 
+    @Test func hostileSessionIdNotStored() {
+        let app = makeApp([.claude])
+        for bad in ["-x", "--dangerously-skip-permissions", "x; rm -rf ~"] {
+            event(app, tab: 0, .sessionStart, session: bad)
+            #expect(leaf(app, 0).agentSessionId == nil, "\(bad)")
+        }
+        #expect(app.statuses.status(leaf(app, 0).id).sessionId == nil)
+    }
+
+    @Test func notificationMessageClearedByNextEvent() {
+        let app = makeApp([.claude])
+        let id = leaf(app, 0).id
+        event(app, tab: 0, .notification, type: "permission_prompt", message: "m1")
+        #expect(app.lastNotificationMessage[id] == "m1")
+        event(app, tab: 0, .prompt)
+        #expect(app.lastNotificationMessage[id] == nil)
+        event(app, tab: 0, .notification, type: "permission_prompt", message: "m2")
+        event(app, tab: 0, .notification, type: "permission_prompt")
+        #expect(app.lastNotificationMessage[id] == nil)
+    }
+
     @Test func sessionIdNotWrittenToShellLeaf() {
         let app = makeApp([.shell, .codex])
         event(app, tab: 0, .prompt, session: "s1")

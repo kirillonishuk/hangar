@@ -84,11 +84,17 @@ import Workspace
         #expect(try inner(spec(leaf(.editor))) == "hx")
     }
 
+    /// A tampered state.json must not turn the id into a flag: an invalid stored id falls back to the no-id mode.
+    @Test func invalidStoredIdIsNotOnCommandLine() throws {
+        #expect(try inner(spec(leaf(.claude, id: "--dangerously-skip-permissions"), restoring: true)) == "claude --continue")
+        #expect(try inner(spec(leaf(.codex, id: "-c"), restoring: true)) == "codex resume --last")
+        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --continue")
+    }
+
     @Test func argumentsAreShellQuoted() throws {
         #expect(shellQuote("it's") == #"'it'\''s'"#)
         #expect(shellQuote("") == "''")
         #expect(shellQuote("abc-1.2/x") == "abc-1.2/x")
-        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --resume 'a;b'")
     }
 
     @Test func quotingRoundTripsThroughShellAndReportsExitCode() throws {

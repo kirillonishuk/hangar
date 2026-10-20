@@ -24,10 +24,12 @@ public struct LeafStatus: Equatable, Sendable {
     public init() {}
 }
 
-/// Session ids come from hook stdin (trust boundary): only a safe charset is kept.
+/// Session ids come from hook stdin (trust boundary): `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`.
+/// The first character is alphanumeric so `--resume <id>` can never read the id as a flag.
 public func validSessionId(_ s: String?) -> String? {
-    guard let s, (1...128).contains(s.utf8.count),
-          s.utf8.allSatisfy({ ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || $0 == 0x2E || $0 == 0x5F || $0 == 0x2D })
+    func alnum(_ c: UInt8) -> Bool { (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) }
+    guard let s, (1...128).contains(s.utf8.count), let first = s.utf8.first, alnum(first),
+          s.utf8.allSatisfy({ alnum($0) || $0 == 0x2E || $0 == 0x5F || $0 == 0x2D })
     else { return nil }
     return s
 }

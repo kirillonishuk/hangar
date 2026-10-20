@@ -17,7 +17,8 @@ extension AppState {
         case let .event(e):
             guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType), leaf: leaf.id)
-            if let text = e.message { lastNotificationMessage[leaf.id] = text }
+            // A stale body must not outlive the event it came with.
+            lastNotificationMessage[leaf.id] = e.message
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }

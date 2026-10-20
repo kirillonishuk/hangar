@@ -85,7 +85,7 @@ private func status(_ state: AgentState, hooks: Bool = false, session: String? =
 
     @Test func invalidSessionIdIgnored() {
         let long = String(repeating: "a", count: 129)
-        for bad in ["x; rm -rf ~", "", long] {
+        for bad in ["x; rm -rf ~", "", long, "-x", "--dangerously-skip-permissions", ".x", "_x"] {
             let s = fold(status(.idle, session: "keep"), .hook(.prompt, session: bad, notificationType: nil))
             #expect(s.sessionId == "keep", "\(bad.prefix(12))")
         }

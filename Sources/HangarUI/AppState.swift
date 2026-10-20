@@ -358,7 +358,7 @@ func resumeSet(for tasks: [HangarTask]) -> Set<UUID> {
         switch leaf.kind {
         case .shell, .editor: result.insert(leaf.id)
         case .claude, .codex:
-            if leaf.agentSessionId != nil { result.insert(leaf.id); return }
+            if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
             if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }

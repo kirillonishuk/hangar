@@ -1,3 +1,4 @@
+import AgentStatus
 import Foundation
 import Workspace
 
@@ -38,7 +39,8 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
                           restoring: Bool, initialPrompt: String?) -> String {
     func agent(_ kind: LeafKind) -> String { config.agentCommands[kind] ?? kind.rawValue }
     // A known id is used only when resuming: a fresh start after a failed `--resume <id>` ignores it.
-    let id = restoring ? leaf.agentSessionId.map(shellQuote) : nil
+    // state.json is editable: an id that is not valid falls back to the no-id resume instead of reaching argv.
+    let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
     switch leaf.kind {
     case .shell:
         return "\(shell) -l -i"

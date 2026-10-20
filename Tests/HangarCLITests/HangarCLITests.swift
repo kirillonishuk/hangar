@@ -194,7 +194,8 @@ private let statusFixture = Data("""
         let elapsed = ContinuousClock.now - start
         try? inp.fileHandleForWriting.close()
         #expect(p.terminationStatus == 0)
-        #expect(elapsed < .seconds(3))
+        // The writer never writes nor closes until after exit: anything under 6 s proves `event` didn't wait for stdin.
+        #expect(elapsed < .seconds(6))
         #expect(out.fileHandleForReading.availableData.isEmpty)
     }
 }

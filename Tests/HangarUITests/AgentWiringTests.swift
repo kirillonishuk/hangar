@@ -236,15 +236,23 @@ import Workspace
     }
 
     @Test func quitDecisionOrder() {
-        #expect(quitDecision(creating: false, working: 0, confirmed: false, systemShutdown: false) == .terminateNow)
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, systemShutdown: false) == .ask(3))
-        #expect(quitDecision(creating: false, working: 3, confirmed: true, systemShutdown: false) == .terminateNow)
-        #expect(quitDecision(creating: true, working: 3, confirmed: false, systemShutdown: false) == .cancelCreating)
-        #expect(quitDecision(creating: true, working: 0, confirmed: true, systemShutdown: false) == .cancelCreating)
+        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: false, systemShutdown: false) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, systemShutdown: false) == .ask(3))
+        #expect(quitDecision(creating: false, working: 3, confirmed: true, asking: false, systemShutdown: false) == .terminateNow)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: false, systemShutdown: false) == .cancelCreating)
+        #expect(quitDecision(creating: true, working: 0, confirmed: true, asking: false, systemShutdown: false) == .cancelCreating)
+    }
+
+    /// A second ⌘Q / close while the confirm sheet is up is refused, never a second sheet or a pending reply.
+    @Test func quitWhileAskingIsRefused() {
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, systemShutdown: false) == .alreadyAsking)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: true, systemShutdown: false) == .cancelCreating)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, systemShutdown: true) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: true, systemShutdown: false) == .terminateNow)
     }
 
     @Test func systemShutdownNeverAsks() {
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, systemShutdown: true) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, systemShutdown: true) == .terminateNow)
         #expect(isSystemShutdown(reason: OSType(kAELogOut)))
         #expect(isSystemShutdown(reason: OSType(kAEReallyLogOut)))
         #expect(isSystemShutdown(reason: OSType(kAERestart)))

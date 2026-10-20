@@ -9,8 +9,6 @@ import Workspace
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
-    /// True between `.terminateLater` and the alert's answer (the one `reply` we owe AppKit).
-    private var terminateReplyOwed = false
     var appState: AppState?
     var server: ControlServer?
 
@@ -78,14 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .cancelCreating:
             wc.notifyCreatingTask()
             return .terminateCancel
+        // A repeated ⌘Q while the sheet is up must not open a second one nor reply twice.
+        case .alreadyAsking: return .terminateCancel
         case .ask:
-            // A repeated ⌘Q while the sheet is up must not open a second one nor reply twice.
-            if wc.isAskingToQuit { return terminateReplyOwed ? .terminateLater : .terminateCancel }
-            terminateReplyOwed = true
-            wc.confirmQuit { [weak self] ok in
-                self?.terminateReplyOwed = false
-                NSApp.reply(toApplicationShouldTerminate: ok)
-            }
+            wc.confirmQuit { NSApp.reply(toApplicationShouldTerminate: $0) }
             return .terminateLater
         }
     }

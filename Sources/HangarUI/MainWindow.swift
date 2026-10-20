@@ -443,12 +443,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         switch currentQuitDecision() {
         case .terminateNow: return true
         case .cancelCreating: notifyCreatingTask(); return false
+        case .alreadyAsking: return false
         case .ask:
-            // Closing the last window quits: ask once, then close without a second question.
+            // Closing the last window quits: ask once (confirmQuit sets quitConfirmed), then close without a second question.
             confirmQuit { [weak self] ok in
-                guard ok else { return }
-                self?.quitConfirmed = true
-                self?.window?.close()
+                if ok { self?.window?.close() }
             }
             return false
         }
@@ -457,12 +456,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Set after the user confirmed quitting with working agents, so close -> terminate doesn't ask again.
     private var quitConfirmed = false
     private var quitAlertShown = false
-    public var isAskingToQuit: Bool { quitAlertShown }
 
-    /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert.
+    /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert:
+    /// with one already up, `then(false)` right away. `then` is always called exactly once.
     public func confirmQuit(then: @escaping @MainActor (Bool) -> Void) {
         guard let window, let text = quitConfirmation(working: app.workingLeafCount) else { then(true); return }
-        guard !quitAlertShown else { return }
+        guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -482,7 +481,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// For `applicationShouldTerminate`.
     public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
-        quitDecision(creating: isCreatingTask, working: app.workingLeafCount, confirmed: quitConfirmed, systemShutdown: systemShutdown)
+        quitDecision(creating: isCreatingTask, working: app.workingLeafCount, confirmed: quitConfirmed,
+                     asking: quitAlertShown, systemShutdown: systemShutdown)
     }
 
     /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).

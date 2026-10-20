@@ -103,7 +103,7 @@ extension AppState {
 }
 
 public enum QuitDecision: Equatable, Sendable {
-    case terminateNow, ask(Int), cancelCreating
+    case terminateNow, ask(Int), cancelCreating, alreadyAsking
 }
 
 /// Logout / restart / shutdown quit reasons (`kAEQuitReason` of the quit Apple event).
@@ -115,8 +115,10 @@ public func isSystemShutdown(reason: OSType?) -> Bool {
 
 /// A system-initiated quit never asks (the user chose it, state is saved anyway); otherwise a worktree being
 /// created wins (quitting would leave it half-made); then working agents, unless already confirmed.
-public func quitDecision(creating: Bool, working: Int, confirmed: Bool, systemShutdown: Bool) -> QuitDecision {
+/// `asking`: the confirm sheet is already up, so a repeated ⌘Q/close is refused (no second sheet, no pending reply).
+public func quitDecision(creating: Bool, working: Int, confirmed: Bool, asking: Bool, systemShutdown: Bool) -> QuitDecision {
     if systemShutdown { return .terminateNow }
     if creating { return .cancelCreating }
-    return working > 0 && !confirmed ? .ask(working) : .terminateNow
+    guard working > 0, !confirmed else { return .terminateNow }
+    return asking ? .alreadyAsking : .ask(working)
 }

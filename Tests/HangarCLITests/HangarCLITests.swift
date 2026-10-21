@@ -246,10 +246,25 @@ private let statusFixture = Data("""
         #expect(calls.calls == [.tabsOpen(task: "x", kind: .shell, prompt: nil), .tabsOpen(task: "x", kind: .shell, prompt: nil)])
     }
 
-    @Test func unknownSubcommandExitsOne() throws {
-        let r = try run(["frobnicate"], env: [:], stdin: nil)
-        #expect(r.status == 1)
-        #expect(!r.err.isEmpty && r.out.isEmpty)
+    @Test func unknownSubcommandIsUsage() throws {
+        for args in [["frobnicate"], []] {
+            let r = try run(args, env: [:], stdin: nil)
+            #expect(r.status == 2, "\(args)")
+            #expect(!r.err.isEmpty && r.out.isEmpty, "\(args)")
+        }
+    }
+
+    @Test func usageErrorAsJSON() throws {
+        let dir = TempDir()
+        let r = try run(["tasks", "list", "--frob", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
+        #expect(r.status == 2 && r.out.isEmpty)
+        let error = (try JSONSerialization.jsonObject(with: r.err) as? [String: Any])?["error"] as? [String: Any]
+        #expect(error?["code"] as? String == "bad-params")
+        #expect(error?["message"] as? String == "unknown flag \"--frob\"")
+        // `--json` as the value of --task is not json mode.
+        let plain = try run(["tasks", "archive", "--task", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
+        #expect(plain.status == 2)
+        #expect(String(decoding: plain.err, as: UTF8.self) == "hangar: refusing to archive without --yes\n")
     }
 
     @Test func slowStdinDoesNotBlockEvent() throws {

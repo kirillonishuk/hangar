@@ -2,6 +2,7 @@ import Foundation
 
 public enum Location: Codable, Equatable, Sendable {
     case local(path: String)
+    case ssh(host: String, path: String)
 }
 
 public struct Project: Codable, Identifiable, Equatable, Sendable {
@@ -41,7 +42,15 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     }
 
     public var path: String {
-        switch location { case .local(let path): return path }
+        switch location {
+        case .local(let path), .ssh(_, let path): return path
+        }
+    }
+
+    /// nil for a local project.
+    public var host: String? {
+        if case .ssh(let host, _) = location { return host }
+        return nil
     }
 }
 
@@ -274,6 +283,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return project.id
     }
 
+    /// The same host + path is the same project: returns the existing id.
+    @discardableResult
+    public mutating func addRemoteProject(name: String, host: String, path: String) -> UUID {
+        let location = Location.ssh(host: host, path: path)
+        if let existing = projects.first(where: { $0.location == location }) { return existing.id }
+        let project = Project(name: name, location: location)
+        projects.append(project)
+        return project.id
+    }
+
     /// `mode` is set before any tab exists, so leaves take the worktree path as cwd.
     @discardableResult
     public mutating func addTask(projectId: UUID, name: String, mode: TaskMode = .mainFolder) -> UUID {
@@ -481,7 +500,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         projects[i].worktreeRoot = root.isEmpty ? nil : root
         let old = projects[i].path
         guard !path.isEmpty, path != old else { return }
-        projects[i].location = .local(path: path)
+        projects[i].location = projects[i].host.map { .ssh(host: $0, path: path) } ?? .local(path: path)
         for t in tasks.indices where tasks[t].projectId == id && tasks[t].mode == .mainFolder {
             for tab in tasks[t].tabs.indices {
                 tasks[t].tabs[tab].root = tasks[t].tabs[tab].root.mapLeaves { leaf in

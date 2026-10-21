@@ -177,10 +177,43 @@ final class RatioSplitView: HangarSplitView {
         let code = failed ? nil : exitCode
         exitCode = nil
         failed = false
-        guard run(.relaunch(previous: mode, exitCode: code)) else { return }
+        guard run(.relaunch(previous: mode, exitCode: code)) else {
+            // No new process (missing folder): drop the dead surface so CLI/MCP never paste into it (`failed`).
+            surface?.onChildExit = nil
+            surface?.removeFromSuperview()
+            surface = nil
+            return
+        }
         uiLog.info("relaunch leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if focus, !failed { window?.makeFirstResponder(surface) }
         onRelaunch?()
+    }
+
+    /// For CLI/MCP (decision #45); the view starts its surface on creation, so no surface means the launch could not happen.
+    var controlState: LeafState {
+        if failed || surface == nil { return .failed }
+        if exitCode != nil { return .exited }
+        return hasOutput ? .running : .starting
+    }
+
+    /// Text as a paste, then real key presses in order; only on a `running` leaf.
+    func send(text: String?, keys: [SendKey]) {
+        guard let surface, controlState == .running else { return }
+        if let text { surface.sendText(text) }
+        for key in keys {
+            switch key {
+            case .enter: surface.sendEnter()
+            case .escape: surface.sendKey(.escape)
+            case .tab: surface.sendKey(.tab)
+            case .backspace: surface.sendKey(.backspace)
+            case .up: surface.sendKey(.up)
+            case .down: surface.sendKey(.down)
+            case .left: surface.sendKey(.left)
+            case .right: surface.sendKey(.right)
+            case .ctrlC: surface.sendKey(.ctrlC)
+            case .ctrlD: surface.sendKey(.ctrlD)
+            }
+        }
     }
 
     /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
@@ -297,7 +330,8 @@ final class RatioSplitView: HangarSplitView {
         app.onOpenInEditor = { [weak self] path, line in self?.openInEditor(path: path, line: line) }
         app.terminals = TerminalAccess(
             start: { [weak self] in self?.startHidden(tabId: $0) },
-            send: { [weak self] in self?.send(leafId: $0, text: $1, keys: $2) ?? .notStarted },
+            state: { [weak self] in self?.leafViews[$0]?.controlState ?? .notStarted },
+            send: { [weak self] in self?.leafViews[$0]?.send(text: $1, keys: $2) },
             read: { [weak self] in self?.leafViews[$0]?.surface?.screenText() })
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
@@ -498,32 +532,6 @@ final class RatioSplitView: HangarSplitView {
         guard let tab = app.state.tasks.filter({ !$0.archived }).flatMap(\.tabs).first(where: { $0.id == tabId }) else { return }
         show(tab)
         sync()
-    }
-
-    /// Text as a paste, then real key presses in order.
-    private func send(leafId: UUID, text: String?, keys: [SendKey]) -> SendOutcome {
-        guard let view = leafViews[leafId] else { return .notStarted }
-        // The view starts its surface on creation, so no surface means the launch could not happen.
-        if view.failed || view.surface == nil { return .failed }
-        if view.needsRelaunch { return .exited }
-        // A just-spawned agent has not enabled bracketed paste yet: the text would arrive raw, so the caller retries.
-        guard let surface = view.surface, view.hasOutput else { return .notStarted }
-        if let text { surface.sendText(text) }
-        for key in keys {
-            switch key {
-            case .enter: surface.sendEnter()
-            case .escape: surface.sendKey(.escape)
-            case .tab: surface.sendKey(.tab)
-            case .backspace: surface.sendKey(.backspace)
-            case .up: surface.sendKey(.up)
-            case .down: surface.sendKey(.down)
-            case .left: surface.sendKey(.left)
-            case .right: surface.sendKey(.right)
-            case .ctrlC: surface.sendKey(.ctrlC)
-            case .ctrlD: surface.sendKey(.ctrlD)
-            }
-        }
-        return .sent
     }
 
     private func leafExited(_ leafId: UUID, code: Int32) {

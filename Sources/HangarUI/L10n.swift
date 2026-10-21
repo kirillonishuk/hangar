@@ -105,6 +105,7 @@ import Workspace
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
+        case integrationMCP, copyCommand, commandCopied, mcpHint
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
@@ -249,6 +250,10 @@ import Workspace
     static var codexNotFound: String { s(.codexNotFound) }
     static var codexLookup: String { s(.codexLookup) }
     static var integrationNeedsApp: String { s(.integrationNeedsApp) }
+    static var integrationMCP: String { s(.integrationMCP) }
+    static var copyCommand: String { s(.copyCommand) }
+    static var commandCopied: String { s(.commandCopied) }
+    static var mcpHint: String { s(.mcpHint) }
     static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
     static var settingsUnsupported: String { s(.settingsUnsupported) }
     static var fileChanged: String { s(.fileChanged) }

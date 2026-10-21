@@ -37,6 +37,12 @@ private let withStatus = #"""
         return names.filter { $0.hasPrefix(url.lastPathComponent + ".hangar-backup-") }
     }
 
+    @Test func mcpAddCommandsQuoted() {
+        let c = mcpAddCommands(cli: "/Applications/My Hangar.app/Contents/Helpers/hangar")
+        #expect(c.claude == "claude mcp add --scope user hangar -- '/Applications/My Hangar.app/Contents/Helpers/hangar' mcp")
+        #expect(c.codex == "codex mcp add hangar -- '/Applications/My Hangar.app/Contents/Helpers/hangar' mcp")
+    }
+
     @Test func installFlowWritesBackupAndHooks() async throws {
         try write(withStatus, claudeURL)
         let m = model()

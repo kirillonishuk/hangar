@@ -182,6 +182,10 @@
 "codexNotFound" = "Codex не найден";
 "codexLookup" = "Поиск codex…";
 "integrationNeedsApp" = "Доступно только в собранном приложении";
+"integrationMCP" = "MCP-сервер Hangar";
+"copyCommand" = "Скопировать";
+"commandCopied" = "Команда скопирована";
+"mcpHint" = "Запустите в терминале — Hangar сам конфиги агентов не меняет";
 "settingsInvalidJSON" = "settings.json: ошибка JSON в строке %ld — исправьте файл вручную";
 "settingsUnsupported" = "settings.json: неожиданная структура — исправьте файл вручную";
 "fileChanged" = "Файл изменился — проверьте изменения ещё раз";

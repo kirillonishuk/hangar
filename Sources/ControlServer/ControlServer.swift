@@ -38,9 +38,12 @@ public final class ControlServer: @unchecked Sendable {
         /// false — SO_NOSIGPIPE could not be set, so a write could kill the app with SIGPIPE.
         let canReply: Bool
         var buffer = Data()
-        /// Replies not yet accepted by the socket; drained by `writer` on EAGAIN.
+        /// Replies not yet accepted by the socket, from `sent` on; drained by `writer` on EAGAIN.
         var outbox: [UInt8] = []
+        var sent = 0
+        /// Created on the first EAGAIN, suspended while the outbox is empty, cancelled only with the connection.
         var writer: DispatchSourceWrite?
+        var writerSuspended = false
         var inFlight = 0
         init(source: DispatchSourceRead, canReply: Bool) {
             self.source = source
@@ -246,20 +249,24 @@ public final class ControlServer: @unchecked Sendable {
     /// A reader that falls more than `maxOutbox` behind is dropped rather than buffered without bound.
     private func enqueue(_ fd: Int32, _ c: Connection, _ data: Data) {
         guard c.canReply else { return }
+        // Compacting once per reply, not per partial write, keeps draining linear.
+        if c.sent > 0 { c.outbox.removeFirst(c.sent); c.sent = 0 }
         c.outbox.append(contentsOf: data)
         guard c.outbox.count <= Self.maxOutbox else { drop(fd); return }
         flush(fd, c)
     }
 
     private func flush(_ fd: Int32, _ c: Connection) {
-        while !c.outbox.isEmpty {
-            let n = c.outbox.withUnsafeBytes { Darwin.write(fd, $0.baseAddress!, $0.count) }
+        while c.sent < c.outbox.count {
+            let n = c.outbox.withUnsafeBytes { Darwin.write(fd, $0.baseAddress! + c.sent, $0.count - c.sent) }
             if n > 0 {
-                c.outbox.removeFirst(n)
+                c.sent += n
             } else if n < 0 && errno == EINTR {
                 continue
             } else if n < 0 && errno == EAGAIN {
-                if c.writer == nil {
+                if let writer = c.writer {
+                    if c.writerSuspended { writer.resume(); c.writerSuspended = false }
+                } else {
                     let writer = DispatchSource.makeWriteSource(fileDescriptor: fd, queue: queue)
                     writer.setEventHandler { [weak self] in
                         guard let self, self.connections[fd] === c else { return }
@@ -274,8 +281,9 @@ public final class ControlServer: @unchecked Sendable {
                 return
             }
         }
-        c.writer?.cancel()
-        c.writer = nil
+        c.outbox.removeAll(keepingCapacity: c.outbox.count <= 65_536)
+        c.sent = 0
+        if let writer = c.writer, !c.writerSuspended { writer.suspend(); c.writerSuspended = true }
     }
 
     private func drop(_ fd: Int32) {
@@ -284,17 +292,17 @@ public final class ControlServer: @unchecked Sendable {
         resumeListener()
     }
 
-    /// The read source's cancel handler closes the fd, so it must wait until the write source is gone too.
+    /// The read source's cancel handler closes the fd, so it is cancelled only from the writer's cancel handler:
+    /// the fd cannot be closed (and reused by accept) while the writer is still registered on it.
     private func cancel(_ c: Connection) {
         c.idleTimer?.cancel()
-        if let writer = c.writer {
-            let source = c.source
-            writer.setCancelHandler { source.cancel() }
-            writer.cancel()
-            c.writer = nil
-        } else {
-            c.source.cancel()
-        }
+        guard let writer = c.writer else { c.source.cancel(); return }
+        let source = c.source
+        writer.setCancelHandler { source.cancel() }
+        writer.cancel()
+        // A suspended source never delivers its cancel handler.
+        if c.writerSuspended { writer.resume(); c.writerSuspended = false }
+        c.writer = nil
     }
 }
 

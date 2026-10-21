@@ -16,6 +16,8 @@ public final class ControlServer: @unchecked Sendable {
     public static let maxInFlight = 8
 
     private let path: String
+    /// The ssh host socket: one RemoteMessage per connection, no requests (decision #47).
+    private let remote: Bool
     private let handler: @MainActor (ControlMessage) -> Void
     private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
     private let queue = DispatchQueue(label: "hangar.control-server")
@@ -45,17 +47,22 @@ public final class ControlServer: @unchecked Sendable {
         var writer: DispatchSourceWrite?
         var writerSuspended = false
         var inFlight = 0
+        /// remote: the header line once read, and its payload length.
+        var header: Data?
+        var payloadLength = 0
         init(source: DispatchSourceRead, canReply: Bool) {
             self.source = source
             self.canReply = canReply
         }
     }
 
-    public init(path: String, handler: @escaping @MainActor (ControlMessage) -> Void,
+    /// `remote`: the handler still has to check that the event's tab/leaf belong to that host.
+    public init(path: String, remote: Bool = false, handler: @escaping @MainActor (ControlMessage) -> Void,
                 onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in
                     ControlResponse(id: id, body: .failure(ControlError(code: .unknownMethod, message: "not supported")))
                 }) {
         self.path = path
+        self.remote = remote
         self.handler = handler
         self.onRequest = onRequest
     }
@@ -183,6 +190,7 @@ public final class ControlServer: @unchecked Sendable {
         if n < 0 && (errno == EAGAIN || errno == EINTR) { return }
         guard n > 0 else { drop(fd); return }
         c.buffer.append(chunk, count: n)
+        if remote { readRemote(fd, c); return }
         while let nl = c.buffer.firstIndex(of: 0x0A) {
             let line = c.buffer[c.buffer.startIndex..<nl]
             c.buffer.removeSubrange(c.buffer.startIndex...nl)
@@ -221,6 +229,44 @@ public final class ControlServer: @unchecked Sendable {
         if c.buffer.count > Self.maxLine {
             reply(fd, c, #"{"ok":false,"error":"too-large"}"#)
             drop(fd)
+        }
+    }
+
+    /// One header + payload, one reply, then close. The idle timer is not re-armed: the whole message gets one deadline.
+    private func readRemote(_ fd: Int32, _ c: Connection) {
+        func refuse(_ error: ProtocolError) {
+            reply(fd, c, #"{"ok":false,"error":"\#(error.rawValue)"}"#)
+            drop(fd)
+        }
+        if c.header == nil {
+            guard let nl = c.buffer.firstIndex(of: 0x0A) else {
+                if c.buffer.count > RemoteMessage.maxHeader { refuse(.tooLarge) }
+                return
+            }
+            let line = Data(c.buffer[c.buffer.startIndex..<nl])
+            c.buffer.removeSubrange(c.buffer.startIndex...nl)
+            switch RemoteMessage.header(line) {
+            case let .request(id):
+                respond(fd, c, ControlResponse(id: id, body: .failure(ControlError(code: .unknownMethod, message: "not available over ssh"))))
+                drop(fd)
+                return
+            case let .invalid(error):
+                refuse(error)
+                return
+            case let .message(length):
+                c.header = line
+                c.payloadLength = length
+            }
+        }
+        guard let header = c.header, c.buffer.count >= c.payloadLength else { return }
+        switch RemoteMessage.decode(header: header, payload: Data(c.buffer.prefix(c.payloadLength))) {
+        case let .success(message):
+            let handler = handler
+            DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
+            reply(fd, c, #"{"ok":true}"#)
+            drop(fd)
+        case let .failure(error):
+            refuse(error)
         }
     }
 

@@ -118,6 +118,57 @@ public enum ControlMessage: Equatable, Sendable {
     }
 }
 
+/// The ssh host socket (`ControlServer(remote: true)`): one header line + exactly `len` raw payload bytes per connection.
+/// `{"v":1,"type":"hook","tab":…,"leaf":…,"kind":…,"session":…?,"len":N}` | `{"v":1,"type":"statusline","len":N}`.
+/// Trust boundary: any process of that account on the server can write here; only status updates come out.
+public enum RemoteMessage {
+    static let maxHeader = 4096
+    static let maxPayload = 262_144
+
+    enum Header: Equatable {
+        case message(length: Int)
+        /// A request line: answered with `unknown-method`, never run.
+        case request(id: Int?)
+        case invalid(ProtocolError)
+    }
+
+    static func header(_ line: Data) -> Header {
+        guard line.count <= maxHeader else { return .invalid(.tooLarge) }
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return .invalid(.badJSON) }
+        if object["method"] != nil { return .request(id: object["id"].flatMap(ControlCall.wireInt)) }
+        guard object["v"].flatMap(ControlCall.wireInt) == 1 else { return .invalid(.badVersion) }
+        guard ["hook", "statusline"].contains(object["type"] as? String) else { return .invalid(.unknownType) }
+        guard let len = object["len"].flatMap(ControlCall.wireInt), len >= 0 else { return .invalid(.badField) }
+        return len > maxPayload ? .invalid(.tooLarge) : .message(length: len)
+    }
+
+    public static func decode(header: Data, payload: Data) -> Result<ControlMessage, ProtocolError> {
+        switch Self.header(header) {
+        case .request: return .failure(.badRequest)
+        case let .invalid(e): return .failure(e)
+        case .message: break
+        }
+        let object = (try? JSONSerialization.jsonObject(with: header) as? [String: Any]) ?? [:]
+        let message: ControlMessage
+        if object["type"] as? String == "hook" {
+            guard let tab = (object["tab"] as? String).flatMap(UUID.init(uuidString:)),
+                  let leaf = (object["leaf"] as? String).flatMap(UUID.init(uuidString:)),
+                  let kind = object["kind"] as? String else { return .failure(.badField) }
+            let session = validSessionId(object["session"] as? String)
+            guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: session.map { ["--session", $0] } ?? [], payload: payload)
+            else { return .failure(.badField) }
+            m.message = m.message.map { String($0.prefix(500)) }
+            message = .event(m)
+        } else {
+            let windows = statuslineWindows(payload)
+            guard !windows.isEmpty else { return .failure(.badField) }
+            message = .usage(UsageMessage(agent: "claude", windows: windows))
+        }
+        // Same field limits as the main socket: re-read through its decoder.
+        return ControlMessage.decode(message.encoded().dropLast())
+    }
+}
+
 /// Writes `v` and `type` into the same JSON object as the body's own keys.
 private struct Envelope<Body: Encodable>: Encodable {
     var type: String

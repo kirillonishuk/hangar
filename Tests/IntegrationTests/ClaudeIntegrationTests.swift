@@ -365,3 +365,12 @@ private func commands(_ text: String) throws -> [String] {
     #expect(lineDiff("a", "a\n").contains { if case .removed = $0 { true } else { false } })
     #expect(lineDiff("a", "a") == [.same("a")])
 }
+
+@Test func remoteCommandRecognized() throws {
+    let cli = "/home/u/.hangar/bin/hangar-remote"
+    let out = try claudeInstall(nil, cli: cli)
+    #expect(claudeState(out, cli: cli) == .installed)
+    #expect(isHangarCommand("'/home/u/.hangar/bin/hangar-remote' event stop"))
+    #expect(isHangarCommand("hangar-remote statusline --then x"))
+    #expect(!isHangarCommand("/x/hangar-remote version"))
+}

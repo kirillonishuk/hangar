@@ -122,6 +122,20 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         #expect(await inbox.wait(count: 1) == [m])
     }
 
+    @Test func malformedRequestGetsNewFormatError() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox)
+        defer { server.stop() }
+        let raw = try RawClient(dir.path)
+        raw.send(#"{"v":1,"method":"projects.list"}"# + "\n" + #"{"v":1,"id":1,"method":5}"# + "\n" + #"{"v":1,"id":1,"method":"x","params":[]}"# + "\n")
+        let replies = raw.read(lines: 3).replies
+        #expect(replies.count == 3)
+        for r in replies {
+            #expect(r.hasPrefix(#"{"id":null,"error":{"code":"bad-request","message":""#) && !r.contains(#""ok""#))
+        }
+        #expect(await inbox.wait(count: 1, seconds: 0.2).isEmpty)
+    }
+
     @Test func splitAndBatchedLines() async throws {
         let dir = SocketDir(), inbox = Inbox()
         let server = try startServer(dir, inbox)

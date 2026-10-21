@@ -77,7 +77,7 @@ public enum ControlMessage: Equatable, Sendable {
     public static func decode(_ line: Data) -> Result<ControlMessage, ProtocolError> {
         guard line.count <= ControlServer.maxLine else { return .failure(.tooLarge) }
         guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return .failure(.badJSON) }
-        guard (object["v"] as? Int) == 1 else { return .failure(.badVersion) }
+        guard object["v"].flatMap(ControlCall.wireInt) == 1 else { return .failure(.badVersion) }
         if let method = object["method"] {
             guard let id = object["id"].flatMap(ControlCall.wireInt), (0...9_007_199_254_740_992).contains(id),
                   let method = method as? String else { return .failure(.badRequest) }

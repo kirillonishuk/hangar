@@ -178,6 +178,9 @@ public final class ControlServer: @unchecked Sendable {
                 let handler = handler
                 DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
                 reply(fd, #"{"ok":true}"#)
+            case let .failure(.badRequest):
+                let e = ControlError(code: .badRequest, message: "request needs an integer \"id\", a string \"method\" and object \"params\"")
+                reply(fd, String(decoding: ControlResponse(id: nil, body: .failure(e)).encoded().dropLast(), as: UTF8.self))
             case let .failure(error):
                 reply(fd, #"{"ok":false,"error":"\#(error.rawValue)"}"#)
                 if error == .tooLarge { drop(fd); return }

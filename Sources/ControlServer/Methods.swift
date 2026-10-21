@@ -161,6 +161,9 @@ public enum ControlCall: Equatable, Sendable {
 
     // MARK: validation
 
+    /// Line/paragraph separators and bidi overrides/isolates: invisible, they spoof names in listings.
+    private static let invisibleSeparators: Set<UInt32> = [0x2028, 0x2029, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069]
+
     private static func bad(_ message: String) -> ControlError { ControlError(code: .badParams, message: message) }
 
     private struct Values {
@@ -223,7 +226,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksCreate:
             let name = v.strings["name"]!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard (1...ControlMethod.maxNameChars).contains(name.count) else { throw bad("\"name\" must be 1-\(ControlMethod.maxNameChars) characters") }
-            guard !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw bad("\"name\" must not contain control characters") }
+            guard !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || invisibleSeparators.contains($0.value) }) else { throw bad("\"name\" must not contain control characters") }
             let worktree = v.bools["worktree"] ?? false
             if v.strings["base"] != nil, !worktree { throw bad("\"base\" requires worktree: true") }
             return .tasksCreate(project: v.strings["project"]!, name: name, worktree: worktree, base: v.strings["base"], prompt: v.strings["prompt"])
@@ -233,8 +236,12 @@ public enum ControlCall: Equatable, Sendable {
             return .tabsOpen(task: v.strings["task"]!, kind: kind, prompt: v.strings["prompt"])
         case .tabsSend:
             let keys = (v.lists["keys"] ?? []).compactMap(SendKey.init(rawValue:))
-            guard v.strings["text"] != nil || !keys.isEmpty else { throw bad("pass \"text\" or \"keys\"") }
-            return .tabsSend(tab: v.strings["tab"]!, text: v.strings["text"], keys: keys)
+            // ESC would end the bracketed paste early; keys like escape/ctrl-c have their own `keys`.
+            var text = v.strings["text"]?.unicodeScalars.filter { $0.value >= 0x20 || $0 == "\t" || $0 == "\n" || $0 == "\r" }
+                .reduce(into: "") { $0.unicodeScalars.append($1) }
+            if text?.isEmpty == true { text = nil }
+            guard text != nil || !keys.isEmpty else { throw bad("pass \"text\" or \"keys\"") }
+            return .tabsSend(tab: v.strings["tab"]!, text: text, keys: keys)
         case .tabsRead: return .tabsRead(tab: v.strings["tab"]!, lines: v.ints["lines"] ?? defaultLines)
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }

@@ -38,7 +38,6 @@ public struct PowerAssertions: Sendable {
 
     @ObservationIgnored private let assertions: PowerAssertions
     @ObservationIgnored private let grace: Duration
-    @ObservationIgnored private let name: @MainActor (Int) -> String
     @ObservationIgnored private let schedule: (Duration, @escaping @MainActor () -> Void) -> (() -> Void)
     @ObservationIgnored private var id: UInt32?
     /// Count in the assertion's current name.
@@ -50,13 +49,14 @@ public struct PowerAssertions: Sendable {
     @ObservationIgnored private var stopped = false
 
     public init(assertions: PowerAssertions = .system, grace: Duration = .seconds(120),
-                name: @escaping @MainActor (Int) -> String,
                 schedule: @escaping (Duration, @escaping @MainActor () -> Void) -> (() -> Void) = KeepAwake.taskSchedule) {
         self.assertions = assertions
         self.grace = grace
-        self.name = name
         self.schedule = schedule
     }
+
+    /// Shown by `pmset -g assertions`; fixed English, since pmset can't show Cyrillic (decision #46).
+    static func name(_ n: Int) -> String { n == 1 ? "Hangar: 1 agent working" : "Hangar: \(n) agents working" }
 
     nonisolated public static func taskSchedule(_ delay: Duration, _ body: @escaping @MainActor () -> Void) -> () -> Void {
         let task = Task { @MainActor in
@@ -78,16 +78,16 @@ public struct PowerAssertions: Sendable {
             cancelGrace()
             if let old = id {
                 guard n != namedCount else { return }
-                if assertions.rename(old, name(n)) {
+                if assertions.rename(old, Self.name(n)) {
                     namedCount = n
-                } else if let new = assertions.create(name(n)) {
+                } else if let new = assertions.create(Self.name(n)) {
                     // Create before release so the Mac is never unguarded in between.
                     assertions.release(old)
                     id = new
                     namedCount = n
                 }
             } else if retry {
-                id = assertions.create(name(n))
+                id = assertions.create(Self.name(n))
                 powerLog.info("keep-awake created \(self.id.map(String.init) ?? "nil", privacy: .public)")
                 namedCount = n
                 held = id != nil

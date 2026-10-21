@@ -369,10 +369,9 @@ import Workspace
         app.keepAwake = KeepAwake(
             assertions: PowerAssertions(create: { log.created.append($0); return 7 }, rename: { _, _ in true },
                                         release: { log.released.append($0) }),
-            name: { "n\($0)" },
             schedule: { d, _ in log.delays.append(d); return {} })
         event(app, tab: 0, .prompt)
-        #expect(log.created == ["n1"] && app.keepAwake.held)
+        #expect(log.created == ["Hangar: 1 agent working"] && app.keepAwake.held)
         event(app, tab: 0, .stop)
         #expect(log.delays == [.seconds(120)] && log.released.isEmpty)
         try app.setConfig("keep_awake", flag: false) { $0.keepAwake = false }

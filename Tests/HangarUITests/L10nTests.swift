@@ -55,22 +55,6 @@ import Workspace
         #expect(L10n.sectionPinned == "PINNED")
     }
 
-    @Test func keepAwakeAssertionPlurals() {
-        defer { L10n.language = .system }
-        L10n.language = .ru
-        #expect(L10n.keepAwakeAssertion(0) == "Hangar: 0 агентов работают")
-        #expect(L10n.keepAwakeAssertion(1) == "Hangar: 1 агент работает")
-        #expect(L10n.keepAwakeAssertion(3) == "Hangar: 3 агента работают")
-        for n in [5, 11, 12, 14, 20, 111] { #expect(L10n.keepAwakeAssertion(n) == "Hangar: \(n) агентов работают") }
-        #expect(L10n.keepAwakeAssertion(21) == "Hangar: 21 агент работает")
-        #expect(L10n.keepAwakeAssertion(101) == "Hangar: 101 агент работает")
-        #expect(L10n.keepAwakeAssertion(22) == "Hangar: 22 агента работают")
-        L10n.language = .en
-        #expect(L10n.keepAwakeAssertion(1) == "Hangar: 1 agent working")
-        #expect(L10n.keepAwakeAssertion(2) == "Hangar: 2 agents working")
-        #expect(L10n.keepAwakeAssertion(21) == "Hangar: 21 agents working")
-    }
-
     @Test func systemLanguageResolution() {
         #expect(L10n.resolve(.system, preferred: ["ru-RU", "en-US"]) == .ru)
         #expect(L10n.resolve(.system, preferred: ["de-DE", "ru-RU"]) == .en)

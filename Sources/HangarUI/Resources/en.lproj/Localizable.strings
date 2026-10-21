@@ -217,9 +217,6 @@
 "diffNotChanged" = "File is no longer changed";
 "diffNotAFile" = "Not a file: a directory or a nested repository";
 "diffTabHelp" = "Close ⌘W";
-"keepAwakeAssertionOne" = "Hangar: %ld agent working";
-"keepAwakeAssertionFew" = "Hangar: %ld agents working";
-"keepAwakeAssertionMany" = "Hangar: %ld agents working";
 "keepAwakeTitle" = "Keep awake while agents work";
 "keepAwakeOffHelp" = "Keep awake: off";
 "keepAwakeIdleHelp" = "Keep the Mac awake while agents work";

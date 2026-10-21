@@ -27,7 +27,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
     var statuses = StatusBoard() { didSet { updateKeepAwake() } }
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
-    @ObservationIgnored public lazy var keepAwake = KeepAwake(name: { L10n.keepAwakeAssertion($0) })
+    @ObservationIgnored public lazy var keepAwake = KeepAwake()
     /// Subscription limits from the statusline / codex; in memory only.
     var usage = UsageBoard()
     /// `message` of the leaf's last hook event (notification body).

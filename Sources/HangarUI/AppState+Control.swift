@@ -11,7 +11,8 @@ struct TerminalAccess {
     var read: (UUID /* leaf */) -> String?
 }
 
-enum SendOutcome { case sent, notStarted, exited }
+/// `failed`: the launch failed or cannot happen (missing folder), so a retry will not help.
+enum SendOutcome { case sent, notStarted, exited, failed }
 
 /// Requests from the control socket (decision #45); handlers run on the main actor.
 extension AppState {
@@ -113,6 +114,7 @@ extension AppState {
             case .sent: return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
             case .notStarted: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
+            case .failed: return fail(ControlError(code: .failed, message: "tab could not start"))
             }
 
         case let .tabsRead(ref, lines):
@@ -121,9 +123,12 @@ extension AppState {
             case .success(let t): target = t
             case .failure(let e): return fail(e)
             }
-            guard let screen = terminals?.read(target.leaf) else {
-                return fail(ControlError(code: .notStarted, message: "tab has not started"))
+            var screen = terminals?.read(target.leaf)
+            if screen == nil {
+                terminals?.start(target.tab)
+                screen = terminals?.read(target.leaf)
             }
+            guard let screen else { return fail(ControlError(code: .notStarted, message: "tab is starting, retry")) }
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
         }

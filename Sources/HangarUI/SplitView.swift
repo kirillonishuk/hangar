@@ -503,6 +503,8 @@ final class RatioSplitView: HangarSplitView {
     /// Text as a paste, then real key presses in order.
     private func send(leafId: UUID, text: String?, keys: [SendKey]) -> SendOutcome {
         guard let view = leafViews[leafId] else { return .notStarted }
+        // The view starts its surface on creation, so no surface means the launch could not happen.
+        if view.failed || view.surface == nil { return .failed }
         if view.needsRelaunch { return .exited }
         // A just-spawned agent has not enabled bracketed paste yet: the text would arrive raw, so the caller retries.
         guard let surface = view.surface, view.hasOutput else { return .notStarted }

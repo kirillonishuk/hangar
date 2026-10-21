@@ -246,6 +246,18 @@ private let statusFixture = Data("""
         #expect(calls.calls == [.tabsOpen(task: "x", kind: .shell, prompt: nil), .tabsOpen(task: "x", kind: .shell, prompt: nil)])
     }
 
+    /// The server's own validation (`bad-params`, `confirm-required`) is a usage error too: exit 2, like the CLI's.
+    @Test @MainActor func cliServerUsageErrorsExitTwo() async throws {
+        for code in [ControlErrorCode.badParams, .confirmRequired] {
+            let dir = TempDir(), calls = CallLog()
+            let s = try fakeApp(dir, calls) { id, _ in ControlResponse(id: id, body: .failure(ControlError(code: code, message: "nope"))) }
+            defer { s.stop() }
+            let r = try await runOffMain(["tasks", "list"], socket: dir.socket)
+            #expect(r.status == 2, "\(code)")
+            #expect(String(decoding: r.err, as: UTF8.self) == "hangar: nope\n")
+        }
+    }
+
     @Test func unknownSubcommandIsUsage() throws {
         for args in [["frobnicate"], []] {
             let r = try run(args, env: [:], stdin: nil)

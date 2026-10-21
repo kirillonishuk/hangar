@@ -68,7 +68,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "name", type: .string(maxBytes: Self.maxNameChars * 4), required: true, summary: "Task name, 1-200 characters."),
                 ParamSpec(name: "worktree", type: .bool, required: false, summary: "Create a git worktree instead of using the main folder."),
                 ParamSpec(name: "base", type: .string(maxBytes: 255), required: false, summary: "Base branch for the worktree (only with worktree)."),
-                ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: false, summary: "Start a Claude tab with this prompt."),
+                ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: false, summary: "Start the default agent's tab with this prompt."),
             ]
         case .tabsOpen:
             return [

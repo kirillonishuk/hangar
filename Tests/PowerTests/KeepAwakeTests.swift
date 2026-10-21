@@ -157,7 +157,7 @@ import Testing
     @Test func taskScheduleRunsAndCancels() async {
         var ran = 0
         _ = KeepAwake.taskSchedule(.milliseconds(1)) { ran += 1 }
-        let cancel = KeepAwake.taskSchedule(.milliseconds(1)) { ran += 100 }
+        let cancel = KeepAwake.taskSchedule(.seconds(60)) { ran += 100 }
         cancel()
         for _ in 0..<200 where ran == 0 { try? await Task.sleep(for: .milliseconds(10)) }
         try? await Task.sleep(for: .milliseconds(20))

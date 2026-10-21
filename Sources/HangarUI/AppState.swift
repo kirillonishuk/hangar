@@ -267,7 +267,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
-    /// `select: false` (CLI/MCP) leaves the selected task as it is (decision #45).
+    /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
     @discardableResult
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
@@ -275,8 +275,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
             var base: String?
             if case .worktree(_, _, let b) = mode { base = b }
-            s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
-            if select { s.select(taskId: task) }
+            if select {
+                s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
+                s.select(taskId: task)
+            }
             let tab = s.addTab(taskId: task, kind: config.defaultAgent)
             created = (task, tab)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)

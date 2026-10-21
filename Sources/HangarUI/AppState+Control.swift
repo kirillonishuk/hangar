@@ -111,7 +111,7 @@ extension AppState {
             }
             switch outcome {
             case .sent: return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
-            case .notStarted: return fail(ControlError(code: .notStarted, message: "tab has not started"))
+            case .notStarted: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
             }
 

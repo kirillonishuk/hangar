@@ -171,4 +171,4 @@
 - [x] `claude --resume <id>` и `claude --continue` восстанавливают сессию в cwd (да).
 - [ ] `codex resume <id>` восстанавливает сессию — codex не установлен, проверка отложена.
 - [x] Окружение: установлены zig@0.15 (keg-only), helix и Metal Toolchain — с согласия пользователя; codex отсутствует.
-- [ ] SSH (этап 6): поведение `ssh -R` для unix-сокетов на целевых серверах (`StreamLocalBindUnlink`), версии tmux.
+- [x] SSH (этап 6): закрыто решением #47 — `StreamLocalBindUnlink` обходится `rm -f` сокета перед `-O forward`; версии tmux на целевых серверах — ручная проверка.

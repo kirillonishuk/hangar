@@ -58,6 +58,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
     /// The last lookup found no codex: look again on the next popover open.
     @ObservationIgnored var codexNotFound = false
+    /// CLI/MCP `tasks create` calls in progress: like the new-task sheet's create, they hold off ⌘Q.
+    private(set) var controlCreating = 0
+    /// Starts, types into and reads terminals for CLI/MCP; set by the terminal area.
+    @ObservationIgnored var terminals: TerminalAccess?
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 
@@ -263,19 +267,31 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
-    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode) {
+    /// `select: false` (CLI/MCP) leaves the selected task as it is (decision #45).
+    @discardableResult
+    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true) -> (task: UUID, tab: UUID) {
+        var created = (task: UUID(), tab: UUID())
         perform { s in
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
             var base: String?
             if case .worktree(_, _, let b) = mode { base = b }
             s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
-            s.select(taskId: task)
+            if select { s.select(taskId: task) }
             let tab = s.addTab(taskId: task, kind: config.defaultAgent)
+            created = (task, tab)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {
                 pendingPrompts[leaf.id] = message
             }
         }
+        return created
+    }
+
+    /// Runs a CLI/MCP task creation, counted in `controlCreating` while it lasts (git may be running).
+    func countingCreation<T>(_ work: () async -> T) async -> T {
+        controlCreating += 1
+        defer { controlCreating -= 1 }
+        return await work()
     }
 
     func select(taskId: UUID) { perform { $0.select(taskId: taskId) } }

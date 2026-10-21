@@ -65,7 +65,15 @@ public struct MCPSession {
 
     // MARK: encoding
 
-    private static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    private static let version = Bundle.main.executableURL.map(appVersion) ?? "dev"
+
+    /// The enclosing app's version: the CLI is X.app/Contents/Helpers/hangar (often reached through a symlink), so
+    /// `Bundle.main` has no Info.plist of its own.
+    static func appVersion(executable: URL) -> String {
+        let plist = executable.resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Info.plist")
+        return NSDictionary(contentsOf: plist)?["CFBundleShortVersionString"] as? String ?? "dev"
+    }
 
     /// String or a non-boolean number, returned as is.
     private static func validID(_ raw: Any) -> Any? {

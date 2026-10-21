@@ -93,11 +93,47 @@ func runStatusline(_ rest: [String]) -> Int32 {
     return p.terminationReason == .exit ? p.terminationStatus : 128 + p.terminationStatus
 }
 
+/// Exit codes: 0 ok, 1 app error / not running / timeout, 2 usage or missing --yes (never connects).
+func runCommand(_ args: [String]) -> Int32 {
+    let stderr = FileHandle.standardError
+    switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath) {
+    case let .usage(message):
+        stderr.write(Data("hangar: \(message)\n\(cliUsage)\n".utf8))
+        return 2
+    case let .confirmRequired(message):
+        // `--` ends flags, so a `--json` after it is the task text, not the option.
+        if args.prefix(while: { $0 != "--" }).contains("--json") {
+            stderr.write(errorJSON(ControlError(code: .confirmRequired, message: message)) + Data("\n".utf8))
+        } else {
+            stderr.write(Data("hangar: \(message)\n".utf8))
+        }
+        return 2
+    case let .call(call, json):
+        switch ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) {
+        case let .failure(e):
+            stderr.write(json ? errorJSON(e) + Data("\n".utf8) : Data("hangar: \(e.message)\n".utf8))
+            return 1
+        case let .success(result):
+            var out: Data
+            if json {
+                let object = try? JSONSerialization.jsonObject(with: result, options: [.fragmentsAllowed])
+                out = object.flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]) } ?? result
+            } else {
+                out = Data(formatHuman(call, result: result).utf8)
+            }
+            if !out.isEmpty && out.last != 0x0A { out.append(0x0A) }
+            FileHandle.standardOutput.write(out)
+            return 0
+        }
+    }
+}
+
 let argv = Array(CommandLine.arguments.dropFirst())
 switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
+case "projects", "tasks", "tabs": exit(runCommand(argv))
 default:
-    FileHandle.standardError.write(Data("usage: hangar event <kind> [--session ID] | hangar statusline [--then <command>]\n".utf8))
+    FileHandle.standardError.write(Data((cliUsage + "\n").utf8))
     exit(1)
 }

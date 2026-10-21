@@ -163,4 +163,22 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect((tooLarge["error"] as? [String: Any])?["code"] as? Int == -32600)
         #expect(tooLarge["id"] is NSNull)
     }
+
+    /// The CLI lives at X.app/Contents/Helpers/hangar; its version is the app's.
+    @Test func appVersionFromEnclosingBundle() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mcp-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let contents = root.appendingPathComponent("X.app/Contents")
+        try FileManager.default.createDirectory(at: contents.appendingPathComponent("Helpers"), withIntermediateDirectories: true)
+        let exe = contents.appendingPathComponent("Helpers/hangar")
+        try Data().write(to: exe)
+        #expect(MCPSession.appVersion(executable: exe) == "dev")  // no Info.plist
+        try (["CFBundleShortVersionString": "1.2.3"] as NSDictionary).write(to: contents.appendingPathComponent("Info.plist"))
+        #expect(MCPSession.appVersion(executable: exe) == "1.2.3")
+        // Through a symlink on PATH, as an installed CLI is.
+        let link = root.appendingPathComponent("hangar")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: exe)
+        #expect(MCPSession.appVersion(executable: link) == "1.2.3")
+        #expect(MCPSession.appVersion(executable: root.appendingPathComponent("bin/hangar")) == "dev")
+    }
 }

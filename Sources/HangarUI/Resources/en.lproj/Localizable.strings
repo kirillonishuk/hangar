@@ -15,7 +15,6 @@
 "archive" = "Archive";
 "folderMissing" = "folder not found";
 "folderMissingPath" = "folder not found: %@";
-"keepAwake" = "Keep Awake";
 "more" = "More";
 "settings" = "Settings";
 "settingsHelp" = "Settings ⌘,";
@@ -218,3 +217,11 @@
 "diffNotChanged" = "File is no longer changed";
 "diffNotAFile" = "Not a file: a directory or a nested repository";
 "diffTabHelp" = "Close ⌘W";
+"keepAwakeAssertionOne" = "Hangar: %ld agent working";
+"keepAwakeAssertionFew" = "Hangar: %ld agents working";
+"keepAwakeAssertionMany" = "Hangar: %ld agents working";
+"keepAwakeTitle" = "Keep awake while agents work";
+"keepAwakeOffHelp" = "Keep awake: off";
+"keepAwakeIdleHelp" = "Keep the Mac awake while agents work";
+"keepAwakeActiveHelp" = "The Mac stays awake: agents working — %ld";
+"keepAwakeGraceHelp" = "The Mac stays awake for up to 2 more min";

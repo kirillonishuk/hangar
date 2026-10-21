@@ -164,4 +164,16 @@ import Testing
         #expect(HangarConfig.updating("notifications = true  # mine", key: "notifications", literal: "false")
             == "notifications = false  # mine")
     }
+
+    @Test func keepAwakeFlag() throws {
+        #expect(try HangarConfig.parse("").keepAwake)
+        #expect(try HangarConfig.parse("keep_awake = false").keepAwake == false)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"keep_awake = "no""#) }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-keep-\(UUID()).toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "editor = \"vim\"\nnotifications = false\n".write(to: url, atomically: true, encoding: .utf8)
+        try HangarConfig.save(key: "keep_awake", literal: "false", to: url)
+        let c = try HangarConfig.parse(String(contentsOf: url, encoding: .utf8))
+        #expect(!c.keepAwake && c.editor == "vim" && !c.notifications)
+    }
 }

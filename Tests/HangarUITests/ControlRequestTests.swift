@@ -17,6 +17,7 @@ import Workspace
         build(&s)
         let app = AppState(state: s, store: StateStore(directory: dir.appendingPathComponent("state")),
                            config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
+        app.keepAwake = .inert()
         app.codexRead = nil
         return app
     }

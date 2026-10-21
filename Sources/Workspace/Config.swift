@@ -15,6 +15,8 @@ public struct HangarConfig: Equatable, Sendable {
     public var notifications = true
     /// Notifications for subscription-limit thresholds (Task 11).
     public var limitNotifications = true
+    /// Hold a sleep assertion while agents work (spec §5.2).
+    public var keepAwake = true
 
     public enum TerminalBackground: String, Sendable { case hangar, theme }
 
@@ -49,9 +51,13 @@ public struct HangarConfig: Equatable, Sendable {
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let rawValue = line[line.index(after: eq)...]
-            if section.isEmpty, key == "notifications" || key == "limit_notifications" {
+            if section.isEmpty, key == "notifications" || key == "limit_notifications" || key == "keep_awake" {
                 let flag = try boolValue(rawValue, line: n + 1)
-                if key == "notifications" { config.notifications = flag } else { config.limitNotifications = flag }
+                switch key {
+                case "notifications": config.notifications = flag
+                case "limit_notifications": config.limitNotifications = flag
+                default: config.keepAwake = flag
+                }
                 continue
             }
             let value = try stringValue(rawValue, line: n + 1)

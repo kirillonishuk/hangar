@@ -59,6 +59,8 @@ public enum ControlClient {
             let n = out.withUnsafeBytes { write(fd, $0.baseAddress! + offset, $0.count - offset) }
             if n > 0 { offset += n; continue }
             if n < 0 && errno == EINTR { continue }
+            // The server answers an oversize line and closes before reading the rest; its reply is still readable.
+            if n < 0 && errno == EPIPE { break }
             return .failure(ioError("send"))
         }
         var reply = Data()
@@ -76,19 +78,28 @@ public enum ControlClient {
             }
             if reply.count > maxReply { return .failure(ControlError(code: .badRequest, message: "reply is too large")) }
         }
-        guard reply.count <= maxReply,
-              let object = try? JSONSerialization.jsonObject(with: reply) as? [String: Any],
-              object["id"].flatMap(ControlCall.wireInt) == id
+        guard reply.count <= maxReply, let object = try? JSONSerialization.jsonObject(with: reply) as? [String: Any]
         else { return .failure(ControlError(code: .badRequest, message: "malformed reply")) }
+        let malformed = ControlError(code: .badRequest, message: "malformed reply")
+        guard let replyID = object["id"].flatMap(ControlCall.wireInt) else {
+            // No id: the line was rejected before its id was read — `{"id":null,"error":{…}}` or legacy `{"ok":false,"error":"…"}`.
+            if let legacy = object["error"] as? String {
+                return .failure(ControlError(code: ControlErrorCode(rawValue: legacy) ?? .badRequest, message: "Hangar rejected the request: \(legacy.prefix(64))"))
+            }
+            return .failure(decodeError(object["error"]) ?? malformed)
+        }
+        guard replyID == id else { return .failure(malformed) }
         if let result = object["result"] {
             guard let data = try? JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed, .sortedKeys, .withoutEscapingSlashes])
             else { return .failure(ControlError(code: .badRequest, message: "malformed reply")) }
             return .success(data)
         }
-        guard let raw = object["error"], let data = try? JSONSerialization.data(withJSONObject: raw),
-              let error = try? JSONDecoder().decode(ControlError.self, from: data)
-        else { return .failure(ControlError(code: .badRequest, message: "malformed reply")) }
-        return .failure(error)
+        return .failure(decodeError(object["error"]) ?? malformed)
+    }
+
+    private static func decodeError(_ raw: Any?) -> ControlError? {
+        guard let raw, JSONSerialization.isValidJSONObject(raw), let data = try? JSONSerialization.data(withJSONObject: raw) else { return nil }
+        return try? JSONDecoder().decode(ControlError.self, from: data)
     }
 
     private static func ioError(_ what: String) -> ControlError {

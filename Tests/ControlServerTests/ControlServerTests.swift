@@ -551,6 +551,43 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         #expect(result == .failure(ControlError(code: .notFound, message: "no such task")))
     }
 
+    @Test func clientGetsTooLargeForOversizeLine() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox)
+        defer { server.stop() }
+        let path = dir.path
+        // Every `"` is escaped to two bytes, so the line passes maxLine although the text is within its own limit.
+        let text = String(repeating: "\"", count: ControlMethod.maxText)
+        let result = await Task.detached { ControlClient.request(.tabsSend(tab: "t", text: text, keys: []), to: path, timeout: mainBound) }.value
+        #expect(result.failureCode == .tooLarge)
+    }
+
+    @Test func clientMapsNullIdError() async throws {
+        let dir = SocketDir()
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        var addr = socketAddress(dir.path)!
+        let rc = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        #expect(rc == 0 && listen(fd, 1) == 0)
+        // A fake server: it answers whatever arrives with a request-shaped error that has no id.
+        DispatchQueue.global().async {
+            let peer = accept(fd, nil, nil)
+            var chunk = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = Darwin.read(peer, &chunk, chunk.count)
+                if n <= 0 || chunk[..<n].contains(0x0A) { break }
+            }
+            let reply = Array(#"{"id":null,"error":{"code":"bad-request","message":"nope"}}"#.utf8 + [0x0A])
+            _ = Darwin.write(peer, reply, reply.count)
+            close(peer)
+        }
+        let path = dir.path
+        let result = await Task.detached { ControlClient.request(.projectsList, to: path, timeout: mainBound) }.value
+        #expect(result == .failure(ControlError(code: .badRequest, message: "nope")))
+    }
+
     @Test func clientNotRunning() {
         let dir = SocketDir()
         let clock = ContinuousClock()

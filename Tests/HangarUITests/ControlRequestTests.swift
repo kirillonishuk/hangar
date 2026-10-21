@@ -119,7 +119,7 @@ import Workspace
         }
         defer { cleanup() }
         var started: [UUID] = []
-        app.terminals = TerminalAccess(start: { started.append($0) }, send: { _, _, _ in .sent }, read: { _ in nil })
+        app.terminals = TerminalAccess(start: { started.append($0) }, state: { _ in .running }, send: { _, _, _ in }, read: { _ in nil })
 
         let r = try await ok(app, .tasksCreate(project: "p", name: "B", worktree: false, base: nil, prompt: "hi"), TaskResult.self)
         let b = try #require(app.state.tasks.first { $0.name == "B" })
@@ -196,14 +196,13 @@ import Workspace
     private final class FakeTerminals {
         var started: [UUID] = []
         var sent: [(leaf: UUID, text: String?, keys: [SendKey])] = []
-        var outcomes: [SendOutcome] = []
+        /// Answered in order, then `.running`.
+        var states: [LeafState] = []
         var screen: String?
         var access: TerminalAccess {
             TerminalAccess(start: { self.started.append($0) },
-                           send: { leaf, text, keys in
-                               self.sent.append((leaf, text, keys))
-                               return self.outcomes.isEmpty ? .sent : self.outcomes.removeFirst()
-                           },
+                           state: { _ in self.states.isEmpty ? .running : self.states.removeFirst() },
+                           send: { leaf, text, keys in self.sent.append((leaf, text, keys)) },
                            read: { _ in self.screen })
         }
     }
@@ -259,23 +258,25 @@ import Workspace
         #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notFound)
         #expect(fake.started.isEmpty)
 
-        fake.outcomes = [.notStarted, .sent]
+        fake.states = [.notStarted, .running]
         _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []), SendResult.self)
         #expect(fake.started == [ids.tab])
+        let sentCount = fake.sent.count
         // Spawned but still starting (no output yet): nothing is pasted, the caller retries.
-        fake.outcomes = [.notStarted, .notStarted]
+        fake.states = [.notStarted, .starting]
         let starting = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
         #expect(starting?.code == .notStarted && starting?.message == "tab is starting, retry")
         #expect(fake.started == [ids.tab, ids.tab])
-        fake.outcomes = [.exited]
+        fake.states = [.exited]
         let exited = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
         #expect(exited?.code == .exited && exited?.message == "process has exited; relaunch the tab")
         // Launch failed or cannot launch (missing folder): retrying will not help.
-        fake.outcomes = [.failed]
+        fake.states = [.failed]
         let failed = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
         #expect(failed?.code == .failed && failed?.message == "tab could not start")
-        fake.outcomes = [.notStarted, .failed]
+        fake.states = [.notStarted, .failed]
         #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .failed)
+        #expect(fake.sent.count == sentCount)
     }
 
     @Test func waitingLeafAcceptsSend() async throws {
@@ -321,8 +322,19 @@ import Workspace
         #expect(fake.started.isEmpty)
         // Never started: the read starts it hidden, like send, and the caller retries.
         fake.screen = nil
+        fake.states = [.notStarted, .starting]
         let starting = await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))
         #expect(starting?.code == .notStarted && starting?.message == "tab is starting, retry")
         #expect(fake.started == [ids.tab])
+        // Same leaf states as send: a leaf that cannot launch says so instead of "retry".
+        fake.states = [.notStarted, .failed]
+        let failed = await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))
+        #expect(failed?.code == .failed && failed?.message == "tab could not start")
+        fake.states = [.failed]
+        #expect(await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))?.code == .failed)
+        // An exited leaf's last screen stays readable.
+        fake.states = [.exited]
+        fake.screen = "bye"
+        #expect(try await ok(app, .tabsRead(tab: ids.tab.uuidString, lines: 10), ScreenResult.self).text == "bye")
     }
 }

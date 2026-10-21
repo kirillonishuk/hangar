@@ -7,12 +7,16 @@ import Workspace
 struct TerminalAccess {
     /// Starts the tab's surfaces hidden if they never ran (a `--prompt` agent must not wait to be shown).
     var start: (UUID /* tab */) -> Void
-    var send: (UUID /* leaf */, String?, [SendKey]) -> SendOutcome
+    /// One check for send and read, so both answer the same way.
+    var state: (UUID /* leaf */) -> LeafState
+    /// Only called on a `running` leaf.
+    var send: (UUID /* leaf */, String?, [SendKey]) -> Void
     var read: (UUID /* leaf */) -> String?
 }
 
-/// `failed`: the launch failed or cannot happen (missing folder), so a retry will not help.
-enum SendOutcome { case sent, notStarted, exited, failed }
+/// `starting`: spawned but nothing drawn yet (the agent may not take a paste); `failed`: the launch failed or cannot
+/// happen (missing folder), so a retry will not help.
+enum LeafState { case notStarted, starting, running, exited, failed }
 
 /// Requests from the control socket (decision #45); handlers run on the main actor.
 extension AppState {
@@ -105,16 +109,13 @@ extension AppState {
             case .success(let t): target = t
             case .failure(let e): return fail(e)
             }
-            var outcome = terminals?.send(target.leaf, text, keys) ?? .notStarted
-            if outcome == .notStarted {
-                terminals?.start(target.tab)
-                outcome = terminals?.send(target.leaf, text, keys) ?? .notStarted
-            }
-            switch outcome {
-            case .sent: return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
-            case .notStarted: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
+            switch leafState(target) {
+            case .running:
+                terminals?.send(target.leaf, text, keys)
+                return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
+            case .notStarted, .starting: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
-            case .failed: return fail(ControlError(code: .failed, message: "tab could not start"))
+            case .failed: return fail(Self.couldNotStart)
             }
 
         case let .tabsRead(ref, lines):
@@ -123,15 +124,24 @@ extension AppState {
             case .success(let t): target = t
             case .failure(let e): return fail(e)
             }
-            var screen = terminals?.read(target.leaf)
-            if screen == nil {
-                terminals?.start(target.tab)
-                screen = terminals?.read(target.leaf)
+            if leafState(target) == .failed { return fail(Self.couldNotStart) }
+            guard let screen = terminals?.read(target.leaf) else {
+                return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             }
-            guard let screen else { return fail(ControlError(code: .notStarted, message: "tab is starting, retry")) }
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
         }
+    }
+
+    private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// A never-started leaf is started hidden first (a `--prompt`-less tab may never have been shown).
+    private func leafState(_ target: (tab: UUID, leaf: UUID)) -> LeafState {
+        guard let terminals else { return .notStarted }
+        let state = terminals.state(target.leaf)
+        if state != .notStarted { return state }
+        terminals.start(target.tab)
+        return terminals.state(target.leaf)
     }
 
     /// `--tab`: a tab id (→ its focused leaf) or a leaf id, among non-archived tasks; TERMINAL panel leaves are not addressable

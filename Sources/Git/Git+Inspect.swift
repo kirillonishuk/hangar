@@ -43,7 +43,7 @@ extension Git {
             if paths.count == limit { truncated = true; return false }
             let path = String(p)
             paths.append(path)
-            if link, isDirectoryLink(root + "/" + path) { dirLinks.insert(path) }
+            if link, runner.isLocal, isDirectoryLink(root + "/" + path) { dirLinks.insert(path) }
             return true
         }
         for line in tracked.split(separator: "\0", omittingEmptySubsequences: true) {
@@ -57,7 +57,7 @@ extension Git {
         return FileListing(paths: paths, truncated: truncated, dirLinks: dirLinks)
     }
 
-    /// shortcut: local lstat/stat, stage 6 (ssh) goes through Exec.
+    /// shortcut: local lstat/stat only; remote directory symlinks show as files, change when that is wanted (deferred in stage 6).
     private func isDirectoryLink(_ path: String) -> Bool {
         var st = stat()
         guard lstat(path, &st) == 0, st.st_mode & S_IFMT == S_IFLNK, stat(path, &st) == 0 else { return false }

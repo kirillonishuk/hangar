@@ -11,62 +11,89 @@ public struct RunResult: Equatable, Sendable {
 }
 
 /// Runs a command (argv, never a shell string) and collects its output. A closure, not a protocol (decisions #42);
-/// an ssh runner will be another value of this type (stage 6).
+/// `Runner.ssh` (SSH.swift) is another value of this type.
 public struct Runner: Sendable {
     public var run: @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult
+    /// The command runs on this Mac (its paths can be stat'ed locally).
+    public var isLocal: Bool
 
-    public init(run: @escaping @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult) {
+    public init(isLocal: Bool = false, run: @escaping @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult) {
+        self.isLocal = isLocal
         self.run = run
     }
 
     /// Non-zero exit (incl. 127 when env cannot find the command) is returned in `status`, not thrown;
     /// throws only if the process fails to start (e.g. missing cwd) or the task is cancelled.
-    public static let local = Runner { args, cwd in
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = args
-        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+    public static let local = Runner(isLocal: true) { args, cwd in
         var env = ProcessInfo.processInfo.environment
         env["GIT_TERMINAL_PROMPT"] = "0"
-        process.environment = env
-        process.standardInput = FileHandle.nullDevice
-        let outPipe = Pipe(), errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
+        return try await runProcess("/usr/bin/env", args, cwd: cwd, env: env)
+    }
+}
 
-        let run = RunState()
-        let result: RunResult = try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { cont in
-                run.set(cont)
-                // Both pipes are drained in parallel: a 64 KB pipe buffer would otherwise block the child.
-                let group = DispatchGroup()
-                let out = Captured(), err = Captured()
-                process.terminationHandler = { p in
-                    group.wait()
-                    run.finish(.success(RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string)))
-                }
-                // Entered before launch so a fast-exiting child cannot make group.wait() return early.
-                group.enter(); group.enter()
-                do {
-                    try run.launch(process)
-                } catch {
-                    group.leave(); group.leave()
-                    run.finish(.failure(error))
-                    return
-                }
-                for (pipe, box) in [(outPipe, out), (errPipe, err)] {
-                    DispatchQueue.global().async {
-                        box.data = pipe.fileHandleForReading.readDataToEndOfFile()
-                        group.leave()
-                    }
+/// Starts `executable` and collects stdout/stderr; `input` (if any) is written to stdin, else stdin is /dev/null.
+/// Cancel terminates the child (and its process group).
+func runProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], input: Data? = nil) async throws -> RunResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = args
+    process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+    process.environment = env
+    let inPipe = input.map { _ in Pipe() }
+    process.standardInput = inPipe ?? FileHandle.nullDevice
+    let outPipe = Pipe(), errPipe = Pipe()
+    process.standardOutput = outPipe
+    process.standardError = errPipe
+
+    let run = RunState()
+    let result: RunResult = try await withTaskCancellationHandler {
+        try await withCheckedThrowingContinuation { cont in
+            run.set(cont)
+            // Both pipes are drained in parallel: a 64 KB pipe buffer would otherwise block the child.
+            let group = DispatchGroup()
+            let out = Captured(), err = Captured()
+            process.terminationHandler = { p in
+                group.wait()
+                run.finish(.success(RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string)))
+            }
+            // Entered before launch so a fast-exiting child cannot make group.wait() return early.
+            group.enter(); group.enter()
+            do {
+                try run.launch(process)
+            } catch {
+                group.leave(); group.leave()
+                run.finish(.failure(error))
+                return
+            }
+            if let inPipe, let input {
+                DispatchQueue.global().async { writeAll(input, to: inPipe.fileHandleForWriting) }
+            }
+            for (pipe, box) in [(outPipe, out), (errPipe, err)] {
+                DispatchQueue.global().async {
+                    box.data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    group.leave()
                 }
             }
-        } onCancel: {
-            run.cancel()
         }
-        try Task.checkCancellation()
-        return result
+    } onCancel: {
+        run.cancel()
     }
+    try Task.checkCancellation()
+    return result
+}
+
+/// Writes then closes; a child that exits without reading gets EPIPE, not a SIGPIPE that would kill this process.
+private func writeAll(_ data: Data, to handle: FileHandle) {
+    let fd = handle.fileDescriptor
+    _ = fcntl(fd, F_SETNOSIGPIPE, 1)
+    data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
+        var off = 0
+        while off < buf.count {
+            let n = write(fd, buf.baseAddress! + off, buf.count - off)
+            if n > 0 { off += n } else if n < 0 && errno == EINTR { continue } else { break }
+        }
+    }
+    try? handle.close()
 }
 
 private final class Captured: @unchecked Sendable {

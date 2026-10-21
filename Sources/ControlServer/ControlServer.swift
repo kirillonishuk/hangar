@@ -11,9 +11,13 @@ public enum ControlServerError: Error, Equatable {
 public final class ControlServer: @unchecked Sendable {
     public static let maxLine = 65_536
     public static let maxConnections = 32
+    public static let maxResponse = 1_048_576
+    public static let maxOutbox = 4_194_304
+    public static let maxInFlight = 8
 
     private let path: String
     private let handler: @MainActor (ControlMessage) -> Void
+    private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?
     private var connections: [Int32: Connection] = [:]
@@ -26,22 +30,31 @@ public final class ControlServer: @unchecked Sendable {
     private var resumeTimer: DispatchSourceTimer?
     var acceptCall: @Sendable (Int32) -> Int32 = { Darwin.accept($0, nil, nil) }
 
-    private final class Connection {
+    /// Only touched on `queue`; Sendable so a finished request can carry it back for the identity check.
+    private final class Connection: @unchecked Sendable {
         let source: DispatchSourceRead
         /// One-shot: closes a connection that has not delivered a full line in time.
         var idleTimer: DispatchSourceTimer?
         /// false — SO_NOSIGPIPE could not be set, so a write could kill the app with SIGPIPE.
         let canReply: Bool
         var buffer = Data()
+        /// Replies not yet accepted by the socket; drained by `writer` on EAGAIN.
+        var outbox: [UInt8] = []
+        var writer: DispatchSourceWrite?
+        var inFlight = 0
         init(source: DispatchSourceRead, canReply: Bool) {
             self.source = source
             self.canReply = canReply
         }
     }
 
-    public init(path: String, handler: @escaping @MainActor (ControlMessage) -> Void) {
+    public init(path: String, handler: @escaping @MainActor (ControlMessage) -> Void,
+                onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in
+                    ControlResponse(id: id, body: .failure(ControlError(code: .unknownMethod, message: "not supported")))
+                }) {
         self.path = path
         self.handler = handler
+        self.onRequest = onRequest
     }
 
     public func start() throws(ControlServerError) {
@@ -86,7 +99,7 @@ public final class ControlServer: @unchecked Sendable {
         resumeTimer = nil
         if listenerSuspended { listener.resume(); listenerSuspended = false }
         self.listener = nil
-        for c in connections.values { c.idleTimer?.cancel(); c.source.cancel() }
+        for c in connections.values { cancel(c) }
         connections.removeAll()
         unlink(path)
     }
@@ -172,39 +185,116 @@ public final class ControlServer: @unchecked Sendable {
             c.buffer.removeSubrange(c.buffer.startIndex...nl)
             switch ControlMessage.decode(line) {
             case let .success(.request(r)):
-                // Serving requests is wired in a later task of stage 5.
-                reply(fd, String(decoding: ControlResponse(id: r.id, body: .failure(ControlError(code: .failed, message: "requests are not served yet"))).encoded().dropLast(), as: UTF8.self))
+                switch r.call {
+                case let .failure(error):
+                    respond(fd, c, ControlResponse(id: r.id, body: .failure(error)))
+                case .success where c.inFlight >= Self.maxInFlight:
+                    respond(fd, c, ControlResponse(id: r.id, body: .failure(ControlError(code: .busy, message: "too many requests in flight on this connection"))))
+                case let .success(call):
+                    c.inFlight += 1
+                    c.idleTimer?.cancel()
+                    c.idleTimer = nil
+                    let onRequest = onRequest, id = r.id
+                    Task { @MainActor [weak self] in
+                        let response = await onRequest(id, call)
+                        guard let self else { return }
+                        self.queue.async { self.finish(fd, c, response) }
+                    }
+                }
             case let .success(message):
                 let handler = handler
                 DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
-                reply(fd, #"{"ok":true}"#)
-            case let .failure(.badRequest):
+                reply(fd, c, #"{"ok":true}"#)
+            case .failure(.badRequest):
                 let e = ControlError(code: .badRequest, message: "request needs an integer \"id\", a string \"method\" and object \"params\"")
-                reply(fd, String(decoding: ControlResponse(id: nil, body: .failure(e)).encoded().dropLast(), as: UTF8.self))
+                respond(fd, c, ControlResponse(id: nil, body: .failure(e)))
             case let .failure(error):
-                reply(fd, #"{"ok":false,"error":"\#(error.rawValue)"}"#)
+                reply(fd, c, #"{"ok":false,"error":"\#(error.rawValue)"}"#)
                 if error == .tooLarge { drop(fd); return }
             }
+            guard connections[fd] === c else { return }
         }
-        if connections[fd] != nil, c.buffer.isEmpty { armIdleTimer(c, fd) }
+        if c.buffer.isEmpty, c.inFlight == 0 { armIdleTimer(c, fd) }
         if c.buffer.count > Self.maxLine {
-            reply(fd, #"{"ok":false,"error":"too-large"}"#)
+            reply(fd, c, #"{"ok":false,"error":"too-large"}"#)
             drop(fd)
         }
     }
 
-    /// shortcut: a reply that does not fit the socket buffer is dropped; replies are tiny and clients may not read them.
-    private func reply(_ fd: Int32, _ text: String) {
-        guard connections[fd]?.canReply == true else { return }
-        let data = Array((text + "\n").utf8)
-        _ = Darwin.write(fd, data, data.count)
+    /// A reply for a connection that closed meanwhile is dropped: its fd may already belong to another client.
+    private func finish(_ fd: Int32, _ c: Connection, _ response: ControlResponse) {
+        guard connections[fd] === c else { return }
+        c.inFlight -= 1
+        respond(fd, c, response)
+        // Armed even with a partial line buffered: its own timer was cancelled when the request started.
+        if connections[fd] === c, c.inFlight == 0 { armIdleTimer(c, fd) }
+    }
+
+    private func respond(_ fd: Int32, _ c: Connection, _ response: ControlResponse) {
+        var data = response.encoded()
+        if data.count > Self.maxResponse {
+            let e = ControlError(code: .tooLarge, message: "response exceeds \(Self.maxResponse) bytes")
+            data = ControlResponse(id: response.id, body: .failure(e)).encoded()
+        }
+        enqueue(fd, c, data)
+    }
+
+    private func reply(_ fd: Int32, _ c: Connection, _ text: String) {
+        enqueue(fd, c, Data((text + "\n").utf8))
+    }
+
+    /// A reader that falls more than `maxOutbox` behind is dropped rather than buffered without bound.
+    private func enqueue(_ fd: Int32, _ c: Connection, _ data: Data) {
+        guard c.canReply else { return }
+        c.outbox.append(contentsOf: data)
+        guard c.outbox.count <= Self.maxOutbox else { drop(fd); return }
+        flush(fd, c)
+    }
+
+    private func flush(_ fd: Int32, _ c: Connection) {
+        while !c.outbox.isEmpty {
+            let n = c.outbox.withUnsafeBytes { Darwin.write(fd, $0.baseAddress!, $0.count) }
+            if n > 0 {
+                c.outbox.removeFirst(n)
+            } else if n < 0 && errno == EINTR {
+                continue
+            } else if n < 0 && errno == EAGAIN {
+                if c.writer == nil {
+                    let writer = DispatchSource.makeWriteSource(fileDescriptor: fd, queue: queue)
+                    writer.setEventHandler { [weak self] in
+                        guard let self, self.connections[fd] === c else { return }
+                        self.flush(fd, c)
+                    }
+                    c.writer = writer
+                    writer.resume()
+                }
+                return
+            } else {
+                drop(fd)
+                return
+            }
+        }
+        c.writer?.cancel()
+        c.writer = nil
     }
 
     private func drop(_ fd: Int32) {
         guard let c = connections.removeValue(forKey: fd) else { return }
-        c.idleTimer?.cancel()
-        c.source.cancel()
+        cancel(c)
         resumeListener()
+    }
+
+    /// The read source's cancel handler closes the fd, so it must wait until the write source is gone too.
+    private func cancel(_ c: Connection) {
+        c.idleTimer?.cancel()
+        if let writer = c.writer {
+            let source = c.source
+            writer.setCancelHandler { source.cancel() }
+            writer.cancel()
+            c.writer = nil
+        } else {
+            c.source.cancel()
+        }
     }
 }
 

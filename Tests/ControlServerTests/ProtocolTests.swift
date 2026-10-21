@@ -112,6 +112,10 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             #expect(params != nil)
             #expect(ControlCall.decode(method: call.method.rawValue, params: params ?? [:]) == .success(call))
         }
+        for call in calls {
+            let wire = ControlMessage.request(ControlRequest(id: 42, call: .success(call))).encoded()
+            #expect(ControlMessage.decode(wire.dropLast()) == .success(.request(ControlRequest(id: 42, call: .success(call)))))
+        }
         let parsed = ControlMessage.decode(line(#"{"v":1,"id":7,"method":"tasks.list","params":{}}"#))
         #expect(parsed == .success(.request(ControlRequest(id: 7, call: .success(.tasksList(project: nil))))))
         #expect(ControlMethod.tabsSend.toolName == "tabs_send")

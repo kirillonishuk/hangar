@@ -67,7 +67,7 @@ public enum ControlMessage: Equatable, Sendable {
         case let .request(r):
             let params = String(decoding: r.call.successValue?.paramsJSON() ?? Data("{}".utf8), as: UTF8.self)
             let method = r.call.successValue?.method.rawValue ?? ""
-            data = Data(#"{"v":1,"id":\(r.id),"method":"\(method)","params":\(params)}"#.utf8)
+            data = Data(#"{"v":1,"id":\#(r.id),"method":"\#(method)","params":\#(params)}"#.utf8)
         }
         data.append(0x0A)
         return data

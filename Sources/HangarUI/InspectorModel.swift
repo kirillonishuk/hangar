@@ -57,7 +57,7 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored private let git: @Sendable (String) -> Git
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
-    /// `baseBranch()` of this context once asked (`.some(nil)`: there is none); asked again only for a new context.
+    /// `baseBranch()` once asked (`.some(nil)`: there is none); asked again on every `show` and `baseChanged`.
     @ObservationIgnored private var knownBase: String??
     /// Top level found by a load of this context; nil = not known to be git yet.
     @ObservationIgnored private var top: String?
@@ -74,6 +74,7 @@ struct RefreshParts: OptionSet, Sendable {
 
     func show(taskId: UUID?, root: String?, baseBranch: @escaping @Sendable () async -> String?) {
         self.baseBranch = baseBranch
+        knownBase = nil  // one `baseBranch()` per show: settings may have changed it
         let next = Context(taskId: taskId, root: root, mode: modeChoice)
         guard next != context else { refresh(.all); return }
         context = next
@@ -88,12 +89,17 @@ struct RefreshParts: OptionSet, Sendable {
         filesTruncated = false
         firstLoad = true
         baseName = nil
-        knownBase = nil
         filesError = nil
         resetChanges()
         diffPath = nil
         diff = .none
         if root != nil { start(.all) }
+    }
+
+    /// The project's base branch setting changed: ask `baseBranch()` again and reload the changes.
+    func baseChanged() {
+        knownBase = nil
+        refresh(.status)
     }
 
     /// A same-context change: runs now, or once after the current load.

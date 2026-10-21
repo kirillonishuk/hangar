@@ -202,6 +202,29 @@ import Workspace
         #expect(calls.withLock { $0 } == 2)
     }
 
+    @Test func baseFollowsSettings() async throws {
+        let repo = try TempRepo()
+        defer { repo.cleanup() }
+        try repo.git("branch", "dev", in: repo.repo)
+        let current = OSAllocatedUnfairLock<String?>(initialState: nil)
+        let base: @Sendable () async -> String? = { current.withLock { $0 } }
+        let model = InspectorModel()
+        let task = UUID()
+        model.show(taskId: task, root: repo.repo, baseBranch: base)
+        await settle(model)
+        #expect(model.changes?.baseMissing == true)
+        // A cached nil recovers on the next show of the same task.
+        current.withLock { $0 = "main" }
+        model.show(taskId: task, root: repo.repo, baseBranch: base)
+        await settle(model)
+        #expect(model.changes?.mode == .base("main"))
+        // Project settings saved with another default base.
+        current.withLock { $0 = "dev" }
+        model.baseChanged()
+        await settle(model)
+        #expect(model.changes?.mode == .base("dev"))
+    }
+
     @Test func directorySymlinkIsNotExpandableNorOpenable() throws {
         let dir = NSTemporaryDirectory() + "hangar-sym-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir + "/real", withIntermediateDirectories: true)

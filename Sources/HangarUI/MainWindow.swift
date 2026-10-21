@@ -578,6 +578,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
             self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
+            // The visible task's diff base may be this project's default.
+            if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]

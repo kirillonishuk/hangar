@@ -109,6 +109,8 @@ enum Action: CaseIterable {
         case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
         case .newTask, .revealInFinder, .openInEditor: app.path(of: target).map(folderExists) ?? false
         case .copyPath: app.path(of: target) != nil
+        // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
+        case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
         default: true
         }
     }
@@ -248,7 +250,9 @@ enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
 
 /// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
 /// splits are ignored, everything else (⌘T, ⌃`, ⌘1…9, …) works as usual.
-func drawerRoute(_ sc: Shortcut, drawerFocused: Bool) -> DrawerRoute {
+/// While the diff tab is shown (`diffActive`, focus not in the drawer) splits are ignored too: they would split the hidden tab.
+func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool) -> DrawerRoute {
+    if diffActive, !drawerFocused, sc == .splitRight || sc == .splitDown { return .ignore }
     guard drawerFocused else { return .perform }
     switch sc {
     case .closeTab: return .collapseDrawer
@@ -259,6 +263,12 @@ func drawerRoute(_ sc: Shortcut, drawerFocused: Bool) -> DrawerRoute {
 
 /// What holds the keyboard when F2 is pressed.
 enum FirstResponderKind { case terminal, text, other }
+
+/// The diff view sits in the terminal area but is not a terminal: F2 renames, its keys are not typing.
+func responderKind(isText: Bool, inTerminalArea: Bool, isDiff: Bool) -> FirstResponderKind {
+    if isText { return .text }
+    return inTerminalArea && !isDiff ? .terminal : .other
+}
 enum F2Route: Equatable { case passthrough, rename(ActionTarget), ignore }
 /// What the user did last: clicked a sidebar row / tab, or typed into a terminal or field.
 enum Interaction: Equatable { case typing, chromeClick(ActionTarget) }

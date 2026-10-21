@@ -64,14 +64,21 @@ final class TaskColumnController: NSViewController {
     }
 }
 
+/// The persisted inspector width within the drag limits (state.json may hold anything).
+func clampInspectorWidth(_ w: CGFloat) -> CGFloat {
+    min(max(w, Theme.inspectorMin), Theme.inspectorMax)
+}
+
 public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let app: AppState
     let split = NSSplitViewController()
     let sidebarItem: NSSplitViewItem
+    let inspectorItem: NSSplitViewItem
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
     nonisolated(unsafe) private var activeObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
+    private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
     #if DEBUG
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
@@ -113,6 +120,15 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         split.addSplitViewItem(sidebarItem)
         let content = NSSplitViewItem(viewController: column)
         split.addSplitViewItem(content)
+        let inspectorHost = NSHostingController(rootView: InspectorView(app: app))
+        inspectorHost.sizingOptions = []
+        inspectorItem = NSSplitViewItem(viewController: inspectorHost)
+        inspectorItem.canCollapse = true
+        inspectorItem.minimumThickness = Theme.inspectorMin
+        inspectorItem.maximumThickness = Theme.inspectorMax
+        inspectorItem.holdingPriority = .init(260)  // window resizes go to the terminal area
+        inspectorItem.isCollapsed = !app.state.inspectorVisible
+        split.addSplitViewItem(inspectorItem)
 
         window.contentViewController = split
         window.setContentSize(Theme.windowSize)
@@ -120,14 +136,23 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         window.setFrameAutosaveName("HangarMainWindow")
+        inspectorWatch = InspectorWatch(app: app, window: window)
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
-        splitView.onDragEnd = { [weak self] in self?.sidebarDragEnded() }
+        splitView.onDragEnd = { [weak self, weak splitView] in
+            switch splitView?.draggedDivider {
+            case 0: self?.sidebarDragEnded()
+            case 1: self?.inspectorDragEnded()
+            default: break
+            }
+        }
 
         app.didChange = { [weak self] in
             guard let self else { return }
+            self.syncInspector()
             self.column.terminalArea.sync()
+            self.inspectorWatch?.update()
             // Inline rename ended and the field editor left the window without a responder.
             // Checked on the next turn: the field editor resigns after the commit/cancel that triggered this.
             DispatchQueue.main.async {
@@ -164,7 +189,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         // Position the divider only after the split view has its real size, else setPosition is ignored.
         window.contentView?.layoutSubtreeIfNeeded()
         applySidebarWidth()
+        if app.state.inspectorVisible { applyInspectorWidth() }
         column.terminalArea.sync()
+        inspectorWatch?.update()
         if let configWarning { showConfigWarning(configWarning) }
     }
 
@@ -191,6 +218,31 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard abs(width - app.state.sidebarWidth) >= 1 else { return }
         uiLog.info("sidebar width \(width)")
         app.perform { $0.sidebarWidth = width }
+    }
+
+    // MARK: Inspector width
+
+    private func applyInspectorWidth() {
+        let view = split.splitView
+        view.layoutSubtreeIfNeeded()
+        let width = clampInspectorWidth(CGFloat(app.state.inspectorWidth))
+        view.setPosition(view.bounds.width - width - view.dividerThickness, ofDividerAt: 1)
+    }
+
+    /// Follows `inspectorVisible` (⌘⌥I, titlebar button); expanding restores the saved width.
+    private func syncInspector() {
+        let collapsed = !app.state.inspectorVisible
+        guard inspectorItem.isCollapsed != collapsed else { return }
+        inspectorItem.isCollapsed = collapsed
+        if !collapsed, didApplyInitialLayout { applyInspectorWidth() }
+    }
+
+    private func inspectorDragEnded() {
+        guard app.state.inspectorVisible, !inspectorItem.isCollapsed else { return }
+        let width = Double(inspectorItem.viewController.view.frame.width)
+        guard abs(width - app.state.inspectorWidth) >= 1 else { return }
+        uiLog.info("inspector width \(width)")
+        app.perform { $0.inspectorWidth = width }
     }
 
     /// Animates only the width (ease-in-out); the rows keep their markers in place.
@@ -252,6 +304,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
+        // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
+        let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
+        if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {
+            app.hangarShortcutConsumed()
+            switch key {
+            case .up: app.diffNeighbour(-1)
+            case .down: app.diffNeighbour(1)
+            case .enter: if !event.isARepeat { app.openActiveDiffInEditor() }
+            case .toggleMode: if !event.isARepeat { app.inspector.toggleMode() }
+            case .close: if !event.isARepeat { app.closeDiff() }
+            }
+            return true
+        }
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
             if sc == .rename {
                 switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
@@ -265,7 +330,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil) {
+            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
             case .ignore: break
             case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
             case .perform: perform(sc)
@@ -296,9 +361,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private var firstResponderKind: FirstResponderKind {
         guard let responder = window?.firstResponder else { return .other }
-        if responder is NSText { return .text }
-        if let view = responder as? NSView, view.isDescendant(of: column.terminalArea) { return .terminal }
-        return .other
+        let view = responder as? NSView
+        return responderKind(isText: responder is NSText, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
+                             isDiff: sequence(first: view, next: { $0?.superview }).contains { $0 is DiffHostView })
     }
 
     /// Keyboard target of a registry action (F2 is routed in `handleKeyDown`): the selected task, or its active tab.
@@ -323,7 +388,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
-        // shortcut: only flips the persisted flag; the inspector itself arrives in stage 2
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProject()
@@ -527,6 +591,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
             self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
+            // The visible task's diff base may be this project's default.
+            if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]

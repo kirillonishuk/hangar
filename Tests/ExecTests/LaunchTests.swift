@@ -14,8 +14,8 @@ import Workspace
                        userShell: shell, restoring: restoring, initialPrompt: prompt)
     }
 
-    func leaf(_ kind: LeafKind, id: String? = nil, file: String? = nil) -> Leaf {
-        Leaf(kind: kind, cwd: cwd, agentSessionId: id, openFile: file)
+    func leaf(_ kind: LeafKind, id: String? = nil, file: String? = nil, line: Int? = nil) -> Leaf {
+        Leaf(kind: kind, cwd: cwd, agentSessionId: id, openFile: file, openLine: line)
     }
 
     /// Evaluates the shell-quoted `-c` argument of the command and returns the script text.
@@ -89,6 +89,27 @@ import Workspace
         #expect(try inner(spec(leaf(.editor, file: "-c.ts"))) == "hx ./-c.ts")
         #expect(try inner(spec(leaf(.editor, file: "/tmp/-x"))) == "hx /tmp/-x")
         #expect(try inner(spec(leaf(.editor))) == "hx")
+    }
+
+    @Test func editorWithLine() throws {
+        func cmd(_ editor: String, _ file: String, _ line: Int?) throws -> String {
+            var c = HangarConfig(); c.editor = editor
+            return try inner(spec(leaf(.editor, file: file, line: line), config: c))
+        }
+        #expect(try cmd("hx", "/r/a b.txt", 7) == "hx '/r/a b.txt:7'")
+        #expect(try cmd("nvim", "/r/a b.txt", 7) == "nvim +7 '/r/a b.txt'")
+        #expect(try cmd("code", "/r/a b.txt", 7) == "code '/r/a b.txt'")
+        #expect(try cmd("hx", "-x", nil) == "hx ./-x")
+        #expect(try cmd("hx", "-x", 3) == "hx ./-x:3")
+        #expect(try cmd("nvim", "-x", 3) == "nvim +3 ./-x")
+        // state.json is editable: a line below 1 is ignored instead of reaching the editor.
+        #expect(try cmd("hx", "/r/a.txt", 0) == "hx /r/a.txt")
+        #expect(try cmd("nvim", "/r/a.txt", -2) == "nvim /r/a.txt")
+    }
+
+    @Test func helixDetection() {
+        for e in ["hx", "/opt/homebrew/bin/hx --config x", "helix"] { #expect(isHelix(e)) }
+        for e in ["nvim", "hxx", ""] { #expect(!isHelix(e)) }
     }
 
     /// A tampered state.json must not turn the id into a flag: an invalid stored id falls back to the no-id mode.

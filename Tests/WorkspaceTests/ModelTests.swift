@@ -172,6 +172,37 @@ import Testing
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
     }
 
+    @Test func oldStateWithoutInspectorWidthLoads() throws {
+        let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
+        var s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(s.inspectorWidth == 220)
+        s.inspectorWidth = 300
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).inspectorWidth == 300)
+    }
+
+    @Test func leafOpenLineRoundTrip() throws {
+        let l = Leaf(kind: .editor, cwd: "/r", openFile: "/r/a", openLine: 12)
+        #expect(try JSONDecoder().decode(Leaf.self, from: JSONEncoder().encode(l)).openLine == 12)
+        let old = #"{"id":"\#(UUID().uuidString)","kind":"editor","cwd":"/r","openFile":"/r/a"}"#
+        #expect(try JSONDecoder().decode(Leaf.self, from: Data(old.utf8)).openLine == nil)
+    }
+
+    @Test func addEditorTabWithFile() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        let tab = s.addTab(taskId: t, kind: .editor, openFile: "/r/a b.txt", openLine: 7)
+        #expect(s.tasks[0].activeTabId == tab)
+        let first = s.tasks[0].tabs[0].root.leaves[0]
+        #expect(first.openFile == "/r/a b.txt" && first.openLine == 7)
+        let l2 = s.split(taskId: t, tabId: tab, leafId: first.id, axis: .horizontal, kind: .editor)
+        s.setOpenFile(leafId: l2, path: "/r/c.txt", line: 3)
+        let got = s.tasks[0].tabs[0].root.leaf(id: l2)
+        #expect(got?.openFile == "/r/c.txt" && got?.openLine == 3)
+        s.setOpenFile(leafId: l2, path: "/r/d.txt", line: nil)
+        #expect(s.tasks[0].tabs[0].root.leaf(id: l2)?.openLine == nil)
+        #expect(s.tasks[0].tabs[0].root.leaf(id: first.id)?.openFile == "/r/a b.txt")
+    }
+
     @Test func setRatioAddressesSplitByPath() {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")

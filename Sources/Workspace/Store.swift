@@ -14,7 +14,8 @@ public enum LoadResult: Equatable, Sendable {
 public final class StateStore {
     private let directory: URL
     private let debounce: Duration
-    private var pending: Task<Void, Never>?
+    /// The debounced save waiting to run; nil when none (test seam: tests await it).
+    private(set) var pending: Task<Void, Never>?
     private var readOnly = false
     private static let log = Logger(subsystem: "dev.hangar", category: "StateStore")
 

@@ -1,6 +1,7 @@
 import AgentStatus
 import AppKit
 import Exec
+import Git
 import Integration
 import Observation
 import os
@@ -28,10 +29,19 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var lastNotificationMessage: [UUID: String] = [:]
     /// A leaf's agent state changed (notifications, Task 9).
     @ObservationIgnored var onTransition: ((Transition) -> Void)?
+    /// A leaf's agent turned `done` (the inspector refreshes the visible task's changes).
+    @ObservationIgnored var onLeafDone: ((UUID) -> Void)?
     /// Limit thresholds crossed (Task 11).
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
     /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
     @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
+    @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
+    /// Files / Changes of the visible task (stage 4).
+    let inspector = InspectorModel()
+    /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
+    var diffTabs: [UUID: DiffTab] = [:]
+    @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
@@ -107,6 +117,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         markRestored(state.tasks.filter { !$0.archived })
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
+        inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
@@ -139,6 +150,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
         }
+        // Archived or deleted tasks drop their diff tab.
+        if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
+            diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
+        }
         store.scheduleSave(state)
         didChange?()
     }
@@ -150,6 +165,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     func project(_ id: UUID) -> Project? { state.projects.first { $0.id == id } }
+
+    /// Changes are compared with this (decision #44): a worktree task's `base`, else the project's last base or default branch.
+    func baseBranch(of task: HangarTask) async -> String? {
+        if case .worktree(_, _, let base) = task.mode { return base }
+        guard let project = project(task.projectId) else { return nil }
+        if let last = project.lastBaseBranch { return last }
+        return try? await Git(repo: project.path).defaultBranch()
+    }
 
     /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.
     func taskBranches(_ projectId: UUID) -> Set<String> {
@@ -296,14 +319,23 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func addTab(_ kind: LeafKind) {
         guard let task = selectedTask else { return }
+        deactivateDiff()
         perform { $0.addTab(taskId: task.id, kind: kind) }
     }
 
     func activate(tabId: UUID) {
         guard let task = selectedTask else { return }
+        deactivateDiff()
         perform { s in
             if let i = s.tasks.firstIndex(where: { $0.id == task.id }) { s.tasks[i].activeTabId = tabId }
         }
+    }
+
+    /// Inspector clicks: the task's Helix, else a new editor tab (decision #44). Without a selected task — nothing.
+    func openInEditor(path: String, line: Int?) {
+        guard selectedTask != nil else { return }
+        deactivateDiff()  // the editor tab (also a new one) is shown instead
+        onOpenInEditor?(path, line)
     }
 
     /// ⌘1…9: n-th tab of the selected task.

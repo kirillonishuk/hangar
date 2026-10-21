@@ -75,7 +75,7 @@ struct IntegrationSheet: View {
             ScrollView(.vertical) { lines }.frame(height: Theme.Diff.maxHeight)
         }
         .frame(maxHeight: Theme.Diff.maxHeight)
-        .font(.system(size: Theme.Diff.font, design: .monospaced))
+        .font(.system(size: Theme.Diff.sheetFont, design: .monospaced))
     }
 
     @ViewBuilder private func line(_ l: DiffLine) -> some View {

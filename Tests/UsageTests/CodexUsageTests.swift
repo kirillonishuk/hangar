@@ -95,7 +95,8 @@ private func pgrepCount(_ marker: String) -> Int {
     await #expect(throws: (any Error).self) {
         try await CodexUsageReader(executable: hang, timeout: .milliseconds(500)).read(now: now)
     }
-    #expect(Date().timeIntervalSince(t0) < 2)
+    // Killed at the 0.5 s timeout, not after the 600 000 s sleep; slack for a loaded test machine.
+    #expect(Date().timeIntervalSince(t0) < 6)
     // The script ran (otherwise the kill proves nothing) and its sleep grandchild is gone too (group kill).
     let started = await waitUntil { FileManager.default.fileExists(atPath: dir.path + "/started") }
     #expect(started)

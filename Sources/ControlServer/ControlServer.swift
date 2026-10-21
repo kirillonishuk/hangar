@@ -171,6 +171,9 @@ public final class ControlServer: @unchecked Sendable {
             let line = c.buffer[c.buffer.startIndex..<nl]
             c.buffer.removeSubrange(c.buffer.startIndex...nl)
             switch ControlMessage.decode(line) {
+            case let .success(.request(r)):
+                // Serving requests is wired in a later task of stage 5.
+                reply(fd, String(decoding: ControlResponse(id: r.id, body: .failure(ControlError(code: .failed, message: "requests are not served yet"))).encoded().dropLast(), as: UTF8.self))
             case let .success(message):
                 let handler = handler
                 DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }

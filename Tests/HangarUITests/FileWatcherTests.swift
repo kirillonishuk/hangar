@@ -63,6 +63,19 @@ import Testing
         #expect(!isIgnored("/r/main/node", root: "/r/main", ignored: ignored))
     }
 
+    @Test func ignoreRulesReloadEverything() {
+        #expect(parts("/r/main/.gitignore", modified) == .all)
+        #expect(parts("/r/main/src/deep/.gitignore", modified) == .all)
+        #expect(parts("/r/main/.git/info/exclude", modified) == .all)
+        #expect(parts("/r/main/src/gitignore", modified) == .status)
+        // A linked worktree reads the common dir's info/exclude.
+        #expect(classify([(path: "/r/main/.git/info/exclude", flags: modified)], root: "/r/wt",
+                         gitDir: "/r/main/.git/worktrees/wt", commonDir: "/r/main/.git") == .all)
+        // Inside an ignored directory it is not a rule of this repository's tree.
+        #expect(classify([(path: "/r/main/node_modules/x/.gitignore", flags: modified)], root: "/r/main",
+                         gitDir: "/r/main/.git", ignored: ["/r/main/node_modules"]).isEmpty)
+    }
+
     @Test func classifyCommonDirOfWorktree() {
         func c(_ path: String) -> RefreshParts {
             classify([(path: path, flags: modified | created)], root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt", commonDir: "/r/main/.git")
@@ -82,7 +95,7 @@ import Testing
 
     @Test func watchPathsIncludeCommonRefs() {
         #expect(watchPaths(root: "/r/wt", gitDir: "/r/main/.git/worktrees/wt", commonDir: "/r/main/.git")
-            == ["/r/wt", "/r/main/.git/worktrees/wt", "/r/main/.git/refs", "/r/main/.git/packed-refs"])
+            == ["/r/wt", "/r/main/.git/worktrees/wt", "/r/main/.git/refs", "/r/main/.git/packed-refs", "/r/main/.git/info/exclude"])
         #expect(watchPaths(root: "/r/main", gitDir: "/r/main/.git", commonDir: "/r/main/.git") == ["/r/main"])
     }
 

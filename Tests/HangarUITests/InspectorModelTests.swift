@@ -169,6 +169,39 @@ import Workspace
         #expect(model.ignored.paths == [realPath(repo.repo) + "/node_modules"])
     }
 
+    @Test func treeFailureKeepsChanges() async throws {
+        let repo = try TempRepo()
+        defer { repo.cleanup() }
+        try write("changed", repo.repo + "/a.txt")
+        let failing = Runner { args, cwd in
+            if args.contains("ls-files") { return RunResult(status: 128, stdout: "", stderr: "boom") }
+            return try await Runner.local.run(args, cwd)
+        }
+        let model = InspectorModel(git: { Git(repo: $0, runner: failing) })
+        model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
+        await settle(model)
+        #expect(model.changes?.files.map(\.path) == ["a.txt"])
+        #expect(model.error == nil)
+        #expect(model.filesError?.contains("boom") == true)
+    }
+
+    @Test func baseBranchAskedOncePerContext() async throws {
+        let repo = try TempRepo()
+        defer { repo.cleanup() }
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        let model = InspectorModel()
+        let base: @Sendable () async -> String? = { calls.withLock { $0 += 1 }; return "main" }
+        model.show(taskId: UUID(), root: repo.repo, baseBranch: base)
+        await settle(model)
+        model.refresh(.status); await settle(model)
+        model.toggleMode(); await settle(model)
+        model.toggleMode(); await settle(model)
+        #expect(calls.withLock { $0 } == 1)
+        model.show(taskId: UUID(), root: repo.repo, baseBranch: base)
+        await settle(model)
+        #expect(calls.withLock { $0 } == 2)
+    }
+
     @Test func directorySymlinkIsNotExpandableNorOpenable() throws {
         let dir = NSTemporaryDirectory() + "hangar-sym-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir + "/real", withIntermediateDirectories: true)

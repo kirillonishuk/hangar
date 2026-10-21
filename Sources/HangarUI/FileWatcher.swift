@@ -6,33 +6,37 @@ typealias FSEvent = (path: String, flags: FSEventStreamEventFlags)
 
 /// Which inspector parts a batch of file events invalidates. Inside the git-dir only `index`, `HEAD`, `refs/…`,
 /// `packed-refs` and `MERGE_HEAD` matter (→ status); objects, logs, lock files and the rest are git's own noise.
-/// A linked worktree's common git-dir adds its `refs/…` and `packed-refs`. Git-ignored paths (`ignored`, absolute)
+/// A linked worktree's common git-dir adds its `refs/…` and `packed-refs`. A `.gitignore` or `info/exclude` → everything. Git-ignored paths (`ignored`, absolute)
 /// change neither the tree nor the status: builds in `node_modules`/`.build` cost no `git status`.
 /// Elsewhere created/removed/renamed entries change the tree, a plain write only the status.
 func classify(_ events: [FSEvent], root: String, gitDir: String?, commonDir: String? = nil, ignored: Set<String> = []) -> RefreshParts {
     let tree = FSEventStreamEventFlags(kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemRemoved | kFSEventStreamEventFlagItemRenamed)
     let rescan = FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagRootChanged
         | kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped)
-    func first(_ path: String, under dir: String) -> String? {
+    /// Path inside `dir` ("" for `dir` itself), nil when outside; lock files count as nothing.
+    func inside(_ path: String, _ dir: String) -> Substring? {
         guard path == dir || path.hasPrefix(dir + "/") else { return nil }
-        let rel = path.dropFirst(dir.count).drop { $0 == "/" }
-        guard !rel.hasSuffix(".lock") else { return "" }
-        return rel.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+        return path.dropFirst(dir.count).drop { $0 == "/" }
     }
+    func first(_ rel: Substring) -> String { rel.split(separator: "/", maxSplits: 1).first.map(String.init) ?? "" }
     var result: RefreshParts = []
     for (path, flags) in events {
         if isIgnored(path, root: root, ignored: ignored) { continue }
         // WatchRoot also reports a watched git path (packed-refs, refs) appearing or being replaced as RootChanged.
         if flags & FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged) != 0, path != root { result.formUnion(.status); continue }
         if flags & rescan != 0 { return .all }
-        if let gitDir, let name = first(path, under: gitDir) {
-            if ["index", "HEAD", "packed-refs", "MERGE_HEAD", "refs"].contains(name) { result.formUnion(.status) }
+        // New ignore rules change the listing, the ignored set and the status at once.
+        if let gitDir, let rel = inside(path, gitDir) {
+            if rel == "info/exclude" { return .all }
+            if !rel.hasSuffix(".lock"), ["index", "HEAD", "packed-refs", "MERGE_HEAD", "refs"].contains(first(rel)) { result.formUnion(.status) }
             continue
         }
-        if let commonDir, let name = first(path, under: commonDir) {
-            if ["packed-refs", "refs"].contains(name) { result.formUnion(.status) }
+        if let commonDir, let rel = inside(path, commonDir) {
+            if rel == "info/exclude" { return .all }
+            if !rel.hasSuffix(".lock"), ["packed-refs", "refs"].contains(first(rel)) { result.formUnion(.status) }
             continue
         }
+        if path.hasSuffix("/.gitignore") { return .all }
         result.formUnion(flags & tree != 0 ? .all : .status)
     }
     return result
@@ -51,12 +55,12 @@ func isIgnored(_ path: String, root: String, ignored: Set<String>) -> Bool {
 }
 
 /// The root, plus the git-dir when it lives elsewhere (a linked worktree's is under the main repository),
-/// plus the common git-dir's refs for a linked worktree (branches move there).
+/// plus the common git-dir's refs and `info/exclude` for a linked worktree (branches and shared rules live there).
 func watchPaths(root: String, gitDir: String?, commonDir: String? = nil) -> [String] {
     guard let gitDir, gitDir != root, !gitDir.hasPrefix(root + "/") else { return [root] }
     var paths = [root, gitDir]
     if let commonDir, commonDir != gitDir, commonDir != root, !commonDir.hasPrefix(root + "/") {
-        paths += [commonDir + "/refs", commonDir + "/packed-refs"]
+        paths += [commonDir + "/refs", commonDir + "/packed-refs", commonDir + "/info/exclude"]
     }
     return paths
 }

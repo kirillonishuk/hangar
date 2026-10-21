@@ -34,6 +34,8 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var statusTruncated = false
     private(set) var filesTruncated = false
     private(set) var error: String?
+    /// The listing failed: shown in Files only (Changes still load).
+    private(set) var filesError: String?
     private(set) var diff: DiffState = .none
     /// The task's base branch from the last status load (also in uncommitted mode, for the hint); nil if unknown.
     private(set) var baseName: String?
@@ -55,6 +57,8 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored private let git: @Sendable (String) -> Git
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
+    /// `baseBranch()` of this context once asked (`.some(nil)`: there is none); asked again only for a new context.
+    @ObservationIgnored private var knownBase: String??
     /// Top level found by a load of this context; nil = not known to be git yet.
     @ObservationIgnored private var top: String?
     /// Bumped by every start and cancel: a load applies only while it is the current one.
@@ -84,6 +88,8 @@ struct RefreshParts: OptionSet, Sendable {
         filesTruncated = false
         firstLoad = true
         baseName = nil
+        knownBase = nil
+        filesError = nil
         resetChanges()
         diffPath = nil
         diff = .none
@@ -143,7 +149,7 @@ struct RefreshParts: OptionSet, Sendable {
         let gen = generation
         running = parts
         let input = LoadInput(root: context.root!, mode: context.mode, top: top,
-                              known: changes, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
+                              known: changes, base: knownBase, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
         let git = self.git, baseBranch = self.baseBranch
         loading = Task { [weak self] in
             let result = await Self.load(parts, input, git: git, baseBranch: baseBranch)
@@ -166,6 +172,7 @@ struct RefreshParts: OptionSet, Sendable {
         /// Top level from an earlier load of this context (skips the probes).
         var top: String?
         var known: ChangeSet?
+        var base: String??
         var diffPath: String?
         var expanded: Set<String>
         var firstLoad: Bool
@@ -181,6 +188,7 @@ struct RefreshParts: OptionSet, Sendable {
         var status: StatusResult?
         var baseName: String?
         var changes: ChangeSet?
+        var filesError: String?
         var diff: DiffState?
         var diffPath: String?
         /// A diff was asked for, but there are no changes to look it up in (not a repository, or status failed).
@@ -210,13 +218,18 @@ struct RefreshParts: OptionSet, Sendable {
         do {
             if let top = input.top { r.top = top } else { r.top = try await git.toplevel() }
             if parts.contains(.tree) {
-                let listing = try await git.listFiles()
-                r.tree = FileTree(paths: listing.paths, dirLinks: listing.dirLinks)
-                r.filesTruncated = listing.truncated
-                r.paths = listing.paths.count
-                if let rel = try? await git.ignoredPaths(), let top = r.top {
-                    let base = realPath(top)
-                    r.ignored = Set(rel.map { base + "/" + ($0.hasSuffix("/") ? String($0.dropLast()) : $0) })
+                // A failed listing shows in Files only; the changes still load.
+                do {
+                    let listing = try await git.listFiles()
+                    r.tree = FileTree(paths: listing.paths, dirLinks: listing.dirLinks)
+                    r.filesTruncated = listing.truncated
+                    r.paths = listing.paths.count
+                    if let rel = try? await git.ignoredPaths(), let top = r.top {
+                        let base = realPath(top)
+                        r.ignored = Set(rel.map { base + "/" + ($0.hasSuffix("/") ? String($0.dropLast()) : $0) })
+                    }
+                } catch {
+                    r.filesError = Self.message(error)
                 }
             }
             var changes = input.known
@@ -225,7 +238,8 @@ struct RefreshParts: OptionSet, Sendable {
                 r.status = status
                 var mode = DiffMode.uncommitted
                 var missing = false
-                let base = await baseBranch()
+                let base: String?
+                if let known = input.base { base = known } else { base = await baseBranch() }
                 r.baseName = base
                 if input.mode == .base {
                     if let base { mode = .base(base) } else { missing = true }
@@ -245,14 +259,19 @@ struct RefreshParts: OptionSet, Sendable {
                 }
             }
         } catch {
-            r.error = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            r.error = Self.message(error)
             if input.diffPath != nil, parts.contains(.diff) || parts.contains(.status) { r.diff = .failed(r.error!); r.diffUnavailable = false }
         }
         return r
     }
 
+    private nonisolated static func message(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+
     private func apply(_ r: LoadResult, parts: RefreshParts) {
         error = r.error
+        if parts.contains(.tree), r.error == nil { filesError = r.filesError }
         if r.diffUnavailable, r.diffPath == diffPath { diff = .failed(L10n.diffUnavailable) }
         if !r.isGit {
             isGit = false
@@ -272,6 +291,7 @@ struct RefreshParts: OptionSet, Sendable {
             badges = b
             statusTruncated = status.truncated
             baseName = r.baseName
+            knownBase = .some(r.baseName)
         }
         if let changes = r.changes { self.changes = changes }
         // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).

@@ -101,6 +101,14 @@ import Exec
         let l = try await Git(repo: t.repo).listFiles()
         #expect(Set(l.paths) == ["a.txt", "d/x.txt", "dl", "fl", "ul"])
         #expect(l.dirLinks == ["dl", "ul"])
+        #expect(FileListing.limit == 200_000)
+        // No `ls-files --format` (git 2.38+): the same listing on older git.
+        let noFormat = Runner { args, cwd in
+            if args.contains(where: { $0.hasPrefix("--format") }) { return RunResult(status: 129, stdout: "", stderr: "unknown option") }
+            return try await Runner.local.run(args, cwd)
+        }
+        let old = try await Git(repo: t.repo, runner: noFormat).listFiles()
+        #expect(old == l)
     }
 
     @Test func commonDirOfWorktree() async throws {

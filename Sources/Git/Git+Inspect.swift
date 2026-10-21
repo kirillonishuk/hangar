@@ -29,9 +29,10 @@ extension Git {
     }
 
     /// Tracked + untracked, not ignored; paths relative to the repository root.
-    public func listFiles(limit: Int = 200_000) async throws -> FileListing {
+    public func listFiles(limit: Int = FileListing.limit) async throws -> FileListing {
         let root = try await toplevel()
-        let tracked = try await inspect(["ls-files", "-c", "-z", "--format=%(objectmode) %(path)"], cwd: root)
+        // `-s`: "<mode> <sha> <stage>\t<path>" (mode 120000 = symlink); works on every git, unlike `--format`.
+        let tracked = try await inspect(["ls-files", "-c", "-s", "-z"], cwd: root)
         let others = try await inspect(["ls-files", "-o", "--exclude-standard", "-z"], cwd: root)
         var seen = Set<Substring>()  // unmerged entries are listed once per stage
         var paths: [String] = []
@@ -46,8 +47,8 @@ extension Git {
             return true
         }
         for line in tracked.split(separator: "\0", omittingEmptySubsequences: true) {
-            guard let space = line.firstIndex(of: " ") else { continue }
-            guard add(line[line.index(after: space)...], link: line[..<space] == "120000") else { break }
+            guard let tab = line.firstIndex(of: "\t") else { continue }
+            guard add(line[line.index(after: tab)...], link: line.hasPrefix("120000 ")) else { break }
         }
         if !truncated {
             // An untracked symlink looks like a file to git: only the file system tells.

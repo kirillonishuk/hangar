@@ -42,7 +42,9 @@ struct InspectorView: View {
             segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes)
         }
         .padding(Theme.segmentPadding)
-        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).fill(Theme.ui.panel))
+        // As the settings segment: on `bg` a `panel` track alone would be invisible.
+        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).fill(Theme.ui.field))
+        .overlay(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).stroke(Theme.ui.control, lineWidth: 1))
         .animation(Motion.ease(Theme.selectionFade), value: model.segment)
     }
 
@@ -85,8 +87,8 @@ private struct FilesList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let error = model.error { notice(L10n.gitFailed(error)) }
-            if model.filesTruncated { notice(L10n.filesTruncated(200_000)) }
+            if let error = model.filesError ?? model.error { notice(L10n.gitFailed(error)) }
+            if model.filesTruncated { notice(L10n.filesTruncated(FileListing.limit)) }
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
@@ -146,7 +148,7 @@ private struct ChangesList: View {
         VStack(spacing: 0) {
             if let error = model.error { notice(L10n.gitFailed(error)) }
             if let changes = model.changes {
-                if changes.baseMissing { notice(L10n.baseMissing(model.baseName ?? "—")) }
+                if changes.baseMissing { notice(model.baseName.map(L10n.baseMissing) ?? L10n.baseMissingUnknown) }
                 if changes.truncated || model.statusTruncated { notice(L10n.statusTruncated(changes.files.count)) }
             }
             ScrollView(.vertical) {

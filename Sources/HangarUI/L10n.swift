@@ -106,7 +106,7 @@ import Workspace
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
-        case baseMissing, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
+        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
     }
 
     // Sidebar
@@ -325,6 +325,7 @@ import Workspace
     static var changesHintUncommitted: String { s(.changesHintUncommitted) }
     static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }
     static func baseMissing(_ branch: String) -> String { f(.baseMissing, branch) }
+    static var baseMissingUnknown: String { s(.baseMissingUnknown) }
     static var noChanges: String { s(.noChanges) }
     static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }

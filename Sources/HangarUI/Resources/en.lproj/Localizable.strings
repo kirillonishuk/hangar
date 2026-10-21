@@ -206,3 +206,4 @@
 "filesTruncated" = "Not all files shown (over %d)";
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "No task selected";
+"baseMissingUnknown" = "Base branch not found — showing uncommitted";

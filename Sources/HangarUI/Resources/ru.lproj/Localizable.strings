@@ -206,3 +206,4 @@
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "Задача не выбрана";
+"baseMissingUnknown" = "Базовая ветка не найдена — показано незакоммиченное";

@@ -23,6 +23,8 @@ public struct StatusResult: Sendable, Equatable {
 }
 
 public struct FileListing: Sendable, Equatable {
+    /// Most paths one listing returns (the inspector tree's cap).
+    public static let limit = 200_000
     public var paths: [String]
     public var truncated: Bool
     /// Listed paths that are symlinks to a directory (never followed).

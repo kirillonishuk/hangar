@@ -355,10 +355,9 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
+                        KeepAwakeButton(app: app)
                         Menu {
                             Button(L10n.addProjectEllipsis, action: ctx.addProject)
-                            // shortcut: keep-awake arrives in stage 5.2
-                            Button(L10n.keepAwake) {}.disabled(true)
                         } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
                             .menuStyle(.borderlessButton)
                             .menuIndicator(.hidden)
@@ -389,6 +388,28 @@ struct SidebarView: View {
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+    }
+}
+
+/// ☕ in the Settings row: accent while the sleep assertion is held; click toggles `keep_awake`.
+private struct KeepAwakeButton: View {
+    let app: AppState
+
+    var body: some View {
+        let keep = app.keepAwake
+        Button {
+            let on = !app.config.keepAwake
+            do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
+        } label: {
+            IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
+                .frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .help(!app.config.keepAwake ? L10n.keepAwakeOffHelp
+              : !keep.held ? L10n.keepAwakeIdleHelp
+              : keep.working > 0 ? L10n.keepAwakeActiveHelp(keep.working) : L10n.keepAwakeGraceHelp)
     }
 }
 

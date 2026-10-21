@@ -5,6 +5,7 @@ import Git
 import Integration
 import Observation
 import os
+import Power
 import Usage
 import Workspace
 
@@ -14,7 +15,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 @MainActor @Observable public final class AppState {
     public private(set) var state: WorkspaceState
     /// Changed live from Settings (each change is also written to `configURL`).
-    public private(set) var config: HangarConfig
+    public private(set) var config: HangarConfig {
+        didSet { if config.keepAwake != oldValue.keepAwake { updateKeepAwake() } }
+    }
     /// Runtime-only (not persisted): last terminal title per leaf.
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
@@ -22,7 +25,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
-    var statuses = StatusBoard()
+    var statuses = StatusBoard() { didSet { updateKeepAwake() } }
+    /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
+    @ObservationIgnored public lazy var keepAwake = KeepAwake(name: { L10n.keepAwakeAssertion($0) })
     /// Subscription limits from the statusline / codex; in memory only.
     var usage = UsageBoard()
     /// `message` of the leaf's last hook event (notification body).
@@ -409,6 +414,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         apply(&config)
         uiLog.info("config \(key, privacy: .public) = \(flag)")
     }
+
+    private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }

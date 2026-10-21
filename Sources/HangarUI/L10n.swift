@@ -77,7 +77,7 @@ import Workspace
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
-        case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
+        case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint
@@ -99,6 +99,8 @@ import Workspace
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
+        case keepAwakeAssertionOne, keepAwakeAssertionFew, keepAwakeAssertionMany, keepAwakeTitle
+        case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
         case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
@@ -138,7 +140,6 @@ import Workspace
     }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
-    static var keepAwake: String { s(.keepAwake) }
     static var more: String { s(.more) }
     static var settings: String { s(.settings) }
     static var settingsHelp: String { s(.settingsHelp) }
@@ -234,6 +235,19 @@ import Workspace
     static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
+
+    // Keep awake
+    /// Assertion name shown by `pmset -g assertions`; ru plural forms (1 / 2–4 / 5+, teens are «many»), en few = many.
+    static func keepAwakeAssertion(_ n: Int) -> String {
+        let one = resolve(language) == .ru ? n % 10 == 1 && n % 100 != 11 : n == 1
+        let few = resolve(language) == .ru && (2...4).contains(n % 10) && !(12...14).contains(n % 100)
+        return f(one ? .keepAwakeAssertionOne : few ? .keepAwakeAssertionFew : .keepAwakeAssertionMany, n)
+    }
+    static var keepAwakeTitle: String { s(.keepAwakeTitle) }
+    static var keepAwakeOffHelp: String { s(.keepAwakeOffHelp) }
+    static var keepAwakeIdleHelp: String { s(.keepAwakeIdleHelp) }
+    static func keepAwakeActiveHelp(_ n: Int) -> String { f(.keepAwakeActiveHelp, n) }
+    static var keepAwakeGraceHelp: String { s(.keepAwakeGraceHelp) }
     static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
 
     // Integrations (Settings)

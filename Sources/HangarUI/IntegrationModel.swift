@@ -18,7 +18,6 @@ func installBlocked(cli: String) -> Bool {
 /// Shown in Settings for the user to run: Hangar never edits the agents' MCP configs itself.
 func mcpAddCommands(cli: String) -> (claude: String, codex: String) {
     let q = shellQuote(cli)
-    // verify: codex mcp add — codex не установлен
     return ("claude mcp add --scope user hangar -- \(q) mcp", "codex mcp add hangar -- \(q) mcp")
 }
 

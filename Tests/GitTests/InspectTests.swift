@@ -143,7 +143,31 @@ import Exec
         let before = try mtime()
         let g = Git(repo: t.repo)
         _ = try await g.status(); _ = try await g.listFiles()
+        let cs = try await g.changedFiles(.uncommitted)
+        _ = try await g.diff(file: try #require(cs.files.first), from: cs.from)
         #expect(try mtime() == before)
+    }
+
+    /// Every git call of an inspector load (probes, base branch, changes, diff) passes `--no-optional-locks`.
+    @Test func inspectorCallsPassNoOptionalLocks() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try write(t, "a.txt", "changed\n")
+        let calls = Calls()
+        let g = Git(repo: t.repo, runner: Runner { args, cwd in
+            await calls.add(args)
+            return try await Runner.local.run(args, cwd)
+        })
+        _ = await g.isRepository()
+        _ = try await g.defaultBranch()
+        let cs = try await g.changedFiles(.base("main"))
+        _ = try await g.diff(file: try #require(cs.files.first), from: cs.from)
+        let missing = await calls.all.filter { $0.dropFirst().first != "--no-optional-locks" }
+        #expect(missing.isEmpty, "\(missing)")
+    }
+
+    private actor Calls {
+        var all: [[String]] = []
+        func add(_ args: [String]) { all.append(args) }
     }
 
     @Test func notARepository() async throws {

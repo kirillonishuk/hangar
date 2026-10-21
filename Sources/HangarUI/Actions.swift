@@ -109,6 +109,8 @@ enum Action: CaseIterable {
         case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
         case .newTask, .revealInFinder, .openInEditor: app.path(of: target).map(folderExists) ?? false
         case .copyPath: app.path(of: target) != nil
+        // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
+        case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
         default: true
         }
     }

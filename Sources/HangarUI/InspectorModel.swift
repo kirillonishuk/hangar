@@ -209,7 +209,7 @@ struct RefreshParts: OptionSet, Sendable {
                                          baseBranch: @Sendable () async -> String?) async -> LoadResult {
         var r = LoadResult()
         r.diffPath = input.diffPath
-        let git = makeGit(input.root)
+        var git = makeGit(input.root)
         if input.top == nil, await !git.isRepository() {
             r.isGit = false
             r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
@@ -224,7 +224,11 @@ struct RefreshParts: OptionSet, Sendable {
             return r
         }
         do {
-            if let top = input.top { r.top = top } else { r.top = try await git.toplevel() }
+            let top: String
+            if let known = input.top { top = known } else { top = try await git.toplevel() }
+            r.top = top
+            // Paths from git are top-relative: a project in a subfolder must run git at the top level.
+            git = makeGit(top)
             if parts.contains(.tree) {
                 // A failed listing shows in Files only; the changes still load.
                 do {
@@ -232,7 +236,7 @@ struct RefreshParts: OptionSet, Sendable {
                     r.tree = FileTree(paths: listing.paths, dirLinks: listing.dirLinks)
                     r.filesTruncated = listing.truncated
                     r.paths = listing.paths.count
-                    if let rel = try? await git.ignoredPaths(), let top = r.top {
+                    if let rel = try? await git.ignoredPaths() {
                         let base = realPath(top)
                         r.ignored = Set(rel.map { base + "/" + ($0.hasSuffix("/") ? String($0.dropLast()) : $0) })
                     }

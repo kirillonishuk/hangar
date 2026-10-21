@@ -37,6 +37,23 @@ import Workspace
         try? FileManager.default.removeItem(at: dir)
     }
 
+    /// The tab context menu follows the keyboard rule: no split of a tab hidden behind the diff.
+    @Test func menuSplitIgnoredWhileDiffShown() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        func leaves() -> Int { app.state.tasks.first { $0.id == t }!.tabs.flatMap(\.root.leaves).count }
+        let tab = app.state.tasks.first { $0.id == t }!.tabs[0].id
+        let before = leaves()
+        app.openDiff(path: "a.txt")
+        #expect(!Action.splitRight.isEnabled(for: .tab(task: t, tab: tab), app: app))
+        Action.splitRight.perform(.tab(task: t, tab: tab), ActionContext(app: app))
+        Action.splitDown.perform(.tab(task: t, tab: tab), ActionContext(app: app))
+        #expect(leaves() == before)
+        app.deactivateDiff()
+        Action.splitRight.perform(.tab(task: t, tab: tab), ActionContext(app: app))
+        #expect(leaves() == before + 1)
+    }
+
     @Test func clickReplacesDiffTab() async throws {
         let (app, repo, t) = try await makeApp()
         defer { cleanup(repo) }

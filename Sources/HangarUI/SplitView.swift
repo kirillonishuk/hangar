@@ -504,7 +504,8 @@ final class RatioSplitView: HangarSplitView {
     private func send(leafId: UUID, text: String?, keys: [SendKey]) -> SendOutcome {
         guard let view = leafViews[leafId] else { return .notStarted }
         if view.needsRelaunch { return .exited }
-        guard let surface = view.surface else { return .notStarted }
+        // A just-spawned agent has not enabled bracketed paste yet: the text would arrive raw, so the caller retries.
+        guard let surface = view.surface, view.hasOutput else { return .notStarted }
         if let text { surface.sendText(text) }
         for key in keys {
             switch key {

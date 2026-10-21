@@ -261,8 +261,11 @@ import Workspace
         fake.outcomes = [.notStarted, .sent]
         _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []), SendResult.self)
         #expect(fake.started == [ids.tab])
+        // Spawned but still starting (no output yet): nothing is pasted, the caller retries.
         fake.outcomes = [.notStarted, .notStarted]
-        #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .notStarted)
+        let starting = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
+        #expect(starting?.code == .notStarted && starting?.message == "tab is starting, retry")
+        #expect(fake.started == [ids.tab, ids.tab])
         fake.outcomes = [.exited]
         let exited = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
         #expect(exited?.code == .exited && exited?.message == "process has exited; relaunch the tab")

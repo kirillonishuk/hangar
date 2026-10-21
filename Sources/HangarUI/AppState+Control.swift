@@ -77,8 +77,78 @@ extension AppState {
             case .failure(let e): return fail(e)
             }
 
-        case .tabsOpen, .tabsSend, .tabsRead:
-            return fail(ControlError(code: .unknownMethod, message: "not supported"))
+        case let .tabsOpen(ref, kind, prompt):
+            let taskId: UUID
+            switch resolveTask(ref) {
+            case .success(let t): taskId = t
+            case .failure(let e): return fail(e)
+            }
+            var tabId = UUID()
+            perform { s in
+                guard let i = s.tasks.firstIndex(where: { $0.id == taskId }) else { return }
+                let previous = s.tasks[i].activeTabId
+                tabId = s.addTab(taskId: taskId, kind: leafKind(kind))
+                if let previous { s.tasks[i].activeTabId = previous }
+                let message = prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !message.isEmpty, let leaf = s.tasks[i].tabs.last?.root.leaves.first { pendingPrompts[leaf.id] = message }
+            }
+            terminals?.start(tabId)
+            guard let tab = state.tasks.first(where: { $0.id == taskId })?.tabs.first(where: { $0.id == tabId }) else {
+                return fail(ControlError(code: .failed, message: "tab was not created"))
+            }
+            return .ok(id, TabResult(task: taskId, tab: tabInfo(tab)))
+
+        case let .tabsSend(ref, text, keys):
+            let target: (tab: UUID, leaf: UUID)
+            switch resolveLeaf(ref) {
+            case .success(let t): target = t
+            case .failure(let e): return fail(e)
+            }
+            var outcome = terminals?.send(target.leaf, text, keys) ?? .notStarted
+            if outcome == .notStarted {
+                terminals?.start(target.tab)
+                outcome = terminals?.send(target.leaf, text, keys) ?? .notStarted
+            }
+            switch outcome {
+            case .sent: return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
+            case .notStarted: return fail(ControlError(code: .notStarted, message: "tab has not started"))
+            case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
+            }
+
+        case let .tabsRead(ref, lines):
+            let target: (tab: UUID, leaf: UUID)
+            switch resolveLeaf(ref) {
+            case .success(let t): target = t
+            case .failure(let e): return fail(e)
+            }
+            guard let screen = terminals?.read(target.leaf) else {
+                return fail(ControlError(code: .notStarted, message: "tab has not started"))
+            }
+            let tail = screenTail(screen, lines: lines)
+            return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
+        }
+    }
+
+    /// `--tab`: a tab id (→ its focused leaf) or a leaf id, among non-archived tasks; TERMINAL panel leaves are not addressable
+    /// (shortcut: no drawer refs, add one if orchestrators need the panel shell).
+    private func resolveLeaf(_ ref: String) -> Result<(tab: UUID, leaf: UUID), ControlError> {
+        let tabs = state.tasks.filter { !$0.archived }.flatMap(\.tabs)
+        var targets: [UUID: (tab: UUID, leaf: UUID)] = [:]
+        for tab in tabs {
+            targets[tab.id] = (tab.id, tab.focusedLeafId)
+            for leaf in tab.root.leaves { targets[leaf.id] = (tab.id, leaf.id) }
+        }
+        return resolveRef(ref, in: targets.keys.sorted { $0.uuidString < $1.uuidString }.map { RefCandidate(id: $0, names: []) })
+            .map { targets[$0]! }
+            .mapError { refError($0, ref, "tab") }
+    }
+
+    private func leafKind(_ kind: TabKind) -> LeafKind {
+        switch kind {
+        case .claude: .claude
+        case .codex: .codex
+        case .editor: .editor
+        case .shell: .shell
         }
     }
 
@@ -167,4 +237,20 @@ func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
     if branch.isEmpty { return "task name gives an empty branch name" }
     if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return "branch \"\(branch)\" already exists" }
     return "invalid branch name \"\(branch)\""
+}
+
+/// `tabs.read`: the last `lines` lines without trailing blank ones, at most 512 KiB (cut from the start).
+func screenTail(_ screen: String, lines: Int) -> (text: String, lines: Int, truncated: Bool) {
+    var all = screen.split(separator: "\n", omittingEmptySubsequences: false)
+    while let last = all.last, last.allSatisfy({ $0 == " " || $0 == "\r" }) { all.removeLast() }
+    var truncated = all.count > lines
+    var text = all.suffix(lines).joined(separator: "\n")
+    let maxBytes = 524_288
+    if text.utf8.count > maxBytes {
+        truncated = true
+        var bytes = text.utf8.suffix(maxBytes)
+        while let first = bytes.first, first & 0xC0 == 0x80 { bytes = bytes.dropFirst() }  // not mid-character
+        text = String(decoding: bytes, as: UTF8.self)
+    }
+    return (text, text.isEmpty ? 0 : text.split(separator: "\n", omittingEmptySubsequences: false).count, truncated)
 }

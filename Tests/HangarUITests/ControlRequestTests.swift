@@ -191,4 +191,124 @@ import Workspace
         #expect(FileManager.default.fileExists(atPath: wt.task.path))
         #expect(await error(app, .tasksArchive(task: wt.task.id.uuidString))?.code == .notFound)
     }
+    /// Records what the control handlers ask of the terminals.
+    private final class FakeTerminals {
+        var started: [UUID] = []
+        var sent: [(leaf: UUID, text: String?, keys: [SendKey])] = []
+        var outcomes: [SendOutcome] = []
+        var screen: String?
+        var access: TerminalAccess {
+            TerminalAccess(start: { self.started.append($0) },
+                           send: { leaf, text, keys in
+                               self.sent.append((leaf, text, keys))
+                               return self.outcomes.isEmpty ? .sent : self.outcomes.removeFirst()
+                           },
+                           read: { _ in self.screen })
+        }
+    }
+
+    @Test func tabsOpenKeepsActiveTab() async throws {
+        var ids = (a: UUID(), x: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            ids.a = s.addTask(projectId: p, name: "A")
+            ids.x = s.addTab(taskId: ids.a, kind: .shell)
+            s.select(taskId: ids.a)
+            let old = s.addTask(projectId: p, name: "old")
+            s.archiveTask(id: old)
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+
+        let r = try await ok(app, .tabsOpen(task: "A", kind: .claude, prompt: "go"), TabResult.self)
+        let task = try #require(app.state.tasks.first { $0.id == ids.a })
+        #expect(task.tabs.count == 2 && task.activeTabId == ids.x)
+        #expect(app.state.selectedTaskId == ids.a)
+        let new = task.tabs[1]
+        #expect(r.task == ids.a && r.tab.id == new.id && r.tab.kind == .claude)
+        #expect(fake.started == [new.id])
+        #expect(app.launchContext(for: new.root.leaves[0].id) == .created(prompt: "go"))
+        #expect(await error(app, .tabsOpen(task: "old", kind: .shell, prompt: nil))?.code == .notFound)
+    }
+
+    @Test func tabsSendTargets() async throws {
+        var ids = (tab: UUID(), first: UUID(), second: UUID(), drawer: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            let a = s.addTask(projectId: p, name: "A")
+            ids.tab = s.addTab(taskId: a, kind: .claude)
+            ids.first = s.tasks[0].tabs[0].root.leaves[0].id
+            ids.second = s.split(taskId: a, tabId: ids.tab, leafId: ids.first, axis: .horizontal, kind: .shell)
+            s.setFocusedLeaf(taskId: a, tabId: ids.tab, leafId: ids.first)
+            s.toggleDrawer(taskId: a)
+            ids.drawer = s.tasks[0].drawer.leaf!.id
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+
+        let r = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: "hi", keys: [.enter]), SendResult.self)
+        #expect(r.tab == ids.tab && r.leaf == ids.first)
+        #expect(fake.sent.last?.leaf == ids.first && fake.sent.last?.text == "hi" && fake.sent.last?.keys == [.enter])
+        let second = try await ok(app, .tabsSend(tab: String(ids.second.uuidString.prefix(8)), text: nil, keys: [.ctrlC]), SendResult.self)
+        #expect(second.leaf == ids.second && fake.sent.last?.leaf == ids.second && fake.sent.last?.text == nil)
+        #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notFound)
+        #expect(fake.started.isEmpty)
+
+        fake.outcomes = [.notStarted, .sent]
+        _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []), SendResult.self)
+        #expect(fake.started == [ids.tab])
+        fake.outcomes = [.notStarted, .notStarted]
+        #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .notStarted)
+        fake.outcomes = [.exited]
+        let exited = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
+        #expect(exited?.code == .exited && exited?.message == "process has exited; relaunch the tab")
+    }
+
+    @Test func waitingLeafAcceptsSend() async throws {
+        var ids = (tab: UUID(), leaf: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            let a = s.addTask(projectId: p, name: "A")
+            ids.tab = s.addTab(taskId: a, kind: .claude)
+            ids.leaf = s.tasks[0].tabs[0].root.leaves[0].id
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+        app.handle(.event(EventMessage(tab: ids.tab, leaf: ids.leaf, kind: .prompt)))
+        app.handle(.event(EventMessage(tab: ids.tab, leaf: ids.leaf, kind: .notification, notificationType: "permission_prompt")))
+        #expect(app.state(ofLeaf: ids.leaf) == .waiting)
+        _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: nil, keys: [.enter]), SendResult.self)
+        #expect(app.state(ofLeaf: ids.leaf) == .waiting)
+    }
+
+    @Test func tabsReadLastLines() async throws {
+        var ids = (tab: UUID(), leaf: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            let a = s.addTask(projectId: p, name: "A")
+            ids.tab = s.addTab(taskId: a, kind: .shell)
+            ids.leaf = s.tasks[0].tabs[0].root.leaves[0].id
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+
+        fake.screen = "a\nb\nc\n\n\n"
+        let two = try await ok(app, .tabsRead(tab: ids.tab.uuidString, lines: 2), ScreenResult.self)
+        #expect(two.text == "b\nc" && two.lines == 2 && two.truncated && two.tab == ids.tab && two.leaf == ids.leaf)
+        let ten = try await ok(app, .tabsRead(tab: ids.tab.uuidString, lines: 10), ScreenResult.self)
+        #expect(ten.text == "a\nb\nc" && ten.lines == 3 && !ten.truncated)
+        fake.screen = String(repeating: "\u{44F}", count: 1_048_576)  // 2 MiB of 2-byte characters, one line
+        let big = try await ok(app, .tabsRead(tab: ids.tab.uuidString, lines: 10), ScreenResult.self)
+        #expect(big.text.utf8.count <= 524_288 && big.text.utf8.count > 524_000 && big.truncated)
+        fake.screen = nil
+        #expect(await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))?.code == .notStarted)
+    }
 }

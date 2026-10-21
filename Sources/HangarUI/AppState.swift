@@ -89,7 +89,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let socketPath: String
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
-    @ObservationIgnored private var pendingPrompts: [UUID: String] = [:]
+    @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).

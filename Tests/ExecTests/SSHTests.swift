@@ -16,7 +16,7 @@ import Testing
         for ok in ["dev", "user@host.example", "[::1]", "h-1_2"] { #expect(validSSHHost(ok) == ok) }
         let long = String(repeating: "a", count: 256)
         for bad in ["-oProxyCommand=x", "-oProxyCommand=touch /tmp/x", "a b", "h;rm", "\"$(id)\"", "`id`", "a'b",
-                    "a|b", "a&b", "a<b", "a\\b", "", long, "a\nb", "a\tb", "a\u{7f}b"] {
+                    "a|b", "a&b", "u@-oProxyCommand=x", "@-x", "a<b", "a\\b", "", long, "a\nb", "a\tb", "a\u{7f}b"] {
             #expect(validSSHHost(bad) == nil, "\(bad)")
         }
         #expect(validSSHHost(String(repeating: "a", count: 255)) != nil)
@@ -25,8 +25,11 @@ import Testing
     @Test func shellQuoteSurvivesBackslashes() async throws {
         // A backslash stays outside single quotes: fish (a possible login shell) treats `\'` inside them as a quote.
         #expect(shellQuote(#"a\'b"#) == #"'a'\\''\''b'"#)
+        // zsh expands a leading `=cmd` to the command's path.
+        #expect(shellQuote("=ls") == "'=ls'")
+        #expect(shellQuote("a=b") == "a=b")
         for sh in ["/bin/sh", "/bin/zsh", "/bin/bash"] {
-            for v in [#"a\'b"#, #"\\"#, #"x\"#, "it's", "$(id)"] {
+            for v in ["=ls", #"a\'b"#, #"\\"#, #"x\"#, "it's", "$(id)"] {
                 let r = try await Runner.local.run([sh, "-c", "printf %s " + shellQuote(v)], "/")
                 #expect(r.stdout == v, "\(sh) \(v)")
             }
@@ -52,6 +55,7 @@ import Testing
         let before = Array(call[..<dd])
         #expect(zip(before, before.dropFirst()).contains { $0 == ("-o", "BatchMode=yes") })
         #expect(zip(before, before.dropFirst()).contains { $0 == ("-o", "ControlMaster=no") })
+        #expect(zip(before, before.dropFirst()).contains { $0 == ("-o", "ConnectTimeout=10") })
         #expect(zip(before, before.dropFirst()).contains { $0 == ("-S", cp) })
     }
 
@@ -109,8 +113,16 @@ import Testing
         let long = SSHPaths(stateDir: "/" + String(repeating: "s", count: 119))
         let cp = long.controlPath("dev")
         #expect(cp.hasPrefix("/tmp/hangar-\(getuid())/cm-"))
-        #expect(cp.utf8.count + 17 <= 104)
+        #expect(cp.utf8.count + 17 < 104)
         #expect(long.hostSocket("dev").hasPrefix("/tmp/hangar-\(getuid())/r-"))
+
+        // sun_path counts the NUL: cp + 17 == 104 no longer fits.
+        let edge = SSHPaths(stateDir: "/" + String(repeating: "e", count: 62))
+        #expect(edge.stateDir.utf8.count + "/ssh/cm-".utf8.count + 16 + 17 == 104)
+        #expect(edge.controlPath("dev").hasPrefix("/tmp/hangar-\(getuid())/"))
+        let fits = SSHPaths(stateDir: "/" + String(repeating: "e", count: 61))
+        #expect(fits.controlPath("dev").hasPrefix(fits.stateDir + "/ssh/"))
+        #expect(fits.controlPath("dev").utf8.count + 17 == 103)
 
         let short = SSHPaths(stateDir: "/tmp/st")
         #expect(short.controlPath("dev") == "/tmp/st/ssh/cm-" + fnv1a64Hex("dev"))
@@ -142,8 +154,9 @@ import Testing
         Match all
         HOST  dev   *.example  h?
         Host = spaced
+        Host dev2 # my box
         """
-        #expect(sshConfigHosts(text) == ["dev", "prod", "box", "spaced"])
+        #expect(sshConfigHosts(text) == ["dev", "prod", "box", "spaced", "dev2"])
     }
 
     @Test func directoryExistsRemote() async throws {

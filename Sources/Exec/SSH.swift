@@ -6,11 +6,11 @@ public enum SSHError: Error, Equatable, Sendable {
     case unsafeDirectory(String)
 }
 
-/// The host if it is safe to put on an ssh command line, else nil: 1…255 bytes, no leading `-` (would be an option),
+/// The host if it is safe to put on an ssh command line, else nil: 1…255 bytes, no leading `-` or `@-` (an option),
 /// no whitespace, control characters or shell metacharacters (ssh may hand it to a shell via ProxyCommand `%h`).
 public func validSSHHost(_ s: String) -> String? {
     let banned = Set("'\"\\`$;&|<>()")
-    guard (1...255).contains(s.utf8.count), !s.hasPrefix("-") else { return nil }
+    guard (1...255).contains(s.utf8.count), !s.hasPrefix("-"), !s.contains("@-") else { return nil }
     for u in s.unicodeScalars {
         if u.properties.isWhitespace || u.value < 0x20 || u.value == 0x7f || u.properties.generalCategory == .control { return nil }
         if banned.contains(Character(u)) { return nil }
@@ -19,7 +19,7 @@ public func validSSHHost(_ s: String) -> String? {
 }
 
 /// Where master and host sockets live: `<stateDir>/ssh/`, or `/tmp/hangar-<uid>/` when that would not fit
-/// the 104-byte `sun_path` together with the 17-byte suffix ssh appends while creating the master (#47).
+/// the 104-byte `sun_path` (NUL included) together with the 17-byte suffix ssh appends while creating the master (#47).
 public struct SSHPaths: Sendable, Equatable {
     public var stateDir: String
 
@@ -27,7 +27,7 @@ public struct SSHPaths: Sendable, Equatable {
 
     public var dir: String {
         let d = stateDir + "/ssh"
-        return d.utf8.count + "/cm-".utf8.count + 16 + 17 <= 104 ? d : "/tmp/hangar-\(getuid())"
+        return d.utf8.count + "/cm-".utf8.count + 16 + 17 < 104 ? d : "/tmp/hangar-\(getuid())"
     }
 
     public func controlPath(_ host: String) -> String { dir + "/cm-" + fnv1a64Hex(host) }
@@ -53,8 +53,9 @@ func fnv1a64Hex(_ s: String) -> String {
 }
 
 /// Options of every non-terminal ssh call except the master itself; the caller appends `--` and the host.
+/// ConnectTimeout: with the master down ssh connects directly, and a dead host must fail fast.
 public func sshBaseArgs(controlPath: String) -> [String] {
-    ["-S", controlPath, "-o", "ControlMaster=no", "-o", "BatchMode=yes"]
+    ["-S", controlPath, "-o", "ControlMaster=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
 }
 
 /// The remote command line: the login shell (maybe fish) only parses quoted words; the script reads its arguments

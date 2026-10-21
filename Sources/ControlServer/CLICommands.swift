@@ -25,6 +25,8 @@ usage:
 private struct Grammar {
     var values: Set<String> = []
     var flags: Set<String> = []
+    /// Value flags that may repeat; only `tabs send --key`, collected into `keys`.
+    var repeated: Set<String> = []
     var positionals: ClosedRange<Int> = 0...0
 }
 
@@ -36,7 +38,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "tasks archive": Grammar(values: ["--task"], flags: ["--yes"])
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
-    case "tabs send": Grammar(values: ["--tab"], flags: ["--enter"], positionals: 0...Int.max)
+    case "tabs send": Grammar(values: ["--tab"], flags: ["--enter"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     default: nil
     }
@@ -54,7 +56,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         if a == "--" { flagsEnded = true; continue }
         if a == "--json" { json = true; continue }
         if g.flags.contains(a) { flags.insert(a); continue }
-        let isKey = a == "--key" && command == "tabs send"  // the only repeatable flag
+        let isKey = g.repeated.contains(a)
         guard isKey || g.values.contains(a) else { return .usage("unknown flag \"\(a)\"") }
         guard let v = rest.popFirst() else { return .usage("\(a) needs a value") }
         if isKey {
@@ -172,7 +174,7 @@ public func jsonRequested(_ args: [String]) -> Bool {
     var rest = args.dropFirst(2)[...]
     while let a = rest.popFirst(), a != "--" {
         if a == "--json" { return true }
-        if g.values.contains(a) || (a == "--key" && command == "tabs send") { _ = rest.popFirst() }
+        if g.values.contains(a) || g.repeated.contains(a) { _ = rest.popFirst() }
     }
     return false
 }

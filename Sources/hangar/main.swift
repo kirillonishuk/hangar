@@ -98,15 +98,12 @@ func runCommand(_ args: [String]) -> Int32 {
     let stderr = FileHandle.standardError
     switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath) {
     case let .usage(message):
-        stderr.write(Data("hangar: \(message)\n\(cliUsage)\n".utf8))
+        stderr.write(jsonRequested(args) ? errorJSON(ControlError(code: .badParams, message: message)) + Data("\n".utf8)
+                                         : Data("hangar: \(message)\n\(cliUsage)\n".utf8))
         return 2
     case let .confirmRequired(message):
-        // `--` ends flags, so a `--json` after it is the task text, not the option.
-        if args.prefix(while: { $0 != "--" }).contains("--json") {
-            stderr.write(errorJSON(ControlError(code: .confirmRequired, message: message)) + Data("\n".utf8))
-        } else {
-            stderr.write(Data("hangar: \(message)\n".utf8))
-        }
+        stderr.write(jsonRequested(args) ? errorJSON(ControlError(code: .confirmRequired, message: message)) + Data("\n".utf8)
+                                         : Data("hangar: \(message)\n".utf8))
         return 2
     case let .call(call, json):
         switch ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) {
@@ -133,7 +130,7 @@ switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
 case "projects", "tasks", "tabs": exit(runCommand(argv))
-default:
+default:  // hooks always call `event`/`statusline`, so no hook sees this exit code
     FileHandle.standardError.write(Data((cliUsage + "\n").utf8))
-    exit(1)
+    exit(2)
 }

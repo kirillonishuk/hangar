@@ -74,6 +74,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
     case "projects list":
         call = .projectsList
     case "projects add":
+        guard !words[0].isEmpty else { return .usage("path must not be empty") }
         let path = words[0].hasPrefix("/") ? words[0] : cwd + "/" + words[0]
         call = .projectsAdd(path: URL(fileURLWithPath: path).standardized.path)
     case "tasks list":
@@ -161,4 +162,16 @@ public func errorJSON(_ e: ControlError) -> Data {
     let enc = JSONEncoder()
     enc.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     return (try? enc.encode(Wrapper(error: e))) ?? Data(#"{"error":{"code":"failed","message":"encoding failed"}}"#.utf8)
+}
+
+/// Whether a failed parse should still answer in JSON: `--json` as a flag, not as the value of `--task` etc.
+public func jsonRequested(_ args: [String]) -> Bool {
+    let command = args.prefix(2).joined(separator: " ")
+    guard args.count >= 2, let g = grammar(command) else { return args.prefix(while: { $0 != "--" }).contains("--json") }
+    var rest = args.dropFirst(2)[...]
+    while let a = rest.popFirst(), a != "--" {
+        if a == "--json" { return true }
+        if g.values.contains(a) || (a == "--key" && command == "tabs send") { _ = rest.popFirst() }
+    }
+    return false
 }

@@ -47,6 +47,7 @@ import ControlServer
             ["tabs", "send", "hi"],
             ["tabs", "read", "--tab"],
             ["projects", "add"],
+            ["projects", "add", ""],
             ["projects", "add", "a", "b"],
             ["projects", "list", "extra"],
             ["projects", "frob"],
@@ -58,6 +59,17 @@ import ControlServer
             if case .usage = parseCLI(args, cwd: "/") {} else { Issue.record("\(args) → \(parseCLI(args, cwd: "/"))") }
         }
         #expect(parseCLI(["tasks", "archive", "--task", "t"], cwd: "/") == .confirmRequired("refusing to archive without --yes"))
+    }
+
+    @Test func jsonModeFollowsTheGrammar() {
+        #expect(jsonRequested(["tasks", "list", "--frob", "--json"]))
+        #expect(jsonRequested(["tasks", "archive", "--json", "--task", "t"]))
+        #expect(jsonRequested(["frob", "x", "--json"]))  // unknown command: raw argv fallback
+        #expect(!jsonRequested(["tabs", "open", "--task", "--json"]))  // the value of --task
+        #expect(!jsonRequested(["tabs", "send", "--tab", "x", "--key", "--json"]))
+        #expect(!jsonRequested(["tabs", "send", "--tab", "x", "--", "--json"]))
+        #expect(!jsonRequested(["frob", "--", "--json"]))
+        #expect(!jsonRequested(["tasks", "list"]))
     }
 
     @Test func timeoutsPerCommand() {

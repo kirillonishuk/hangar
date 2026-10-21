@@ -56,7 +56,11 @@ extension AppState {
                 case .failure(let e): return fail(e)
                 }
                 // Removed while git ran: the worktree stays on disk like after an archive.
-                guard self.project(projectId) != nil else { return fail(ControlError(code: .notFound, message: "no project \"\(ref)\"")) }
+                guard self.project(projectId) != nil else {
+                    var left = ""
+                    if case .worktree(let path, let branch, _) = mode { left = "; worktree left at \(path) (branch \(branch))" }
+                    return fail(ControlError(code: .notFound, message: "project \"\(ref)\" was removed while creating the worktree" + left))
+                }
             }
             let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false)
             terminals?.start(created.tab)
@@ -152,6 +156,15 @@ extension AppState {
         if let mode = await model.create(skipFetch: false) { return .success(mode) }
         var fetchError: String?
         if case .failed(let message) = model.fetch { fetchError = message }
-        return failed(model.createError ?? model.branchError ?? fetchError ?? "worktree was not created")
+        // branchError is L10n text for the sheet; the wire gets fixed English.
+        let branchError = model.branchError.map { _ in branchProblemMessage(model.branch, branches: model.branches) }
+        return failed(model.createError ?? branchError ?? fetchError ?? "worktree was not created")
     }
+}
+
+/// English counterpart of `NewTaskModel`'s branch problems (empty, already exists, else invalid).
+func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
+    if branch.isEmpty { return "task name gives an empty branch name" }
+    if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return "branch \"\(branch)\" already exists" }
+    return "invalid branch name \"\(branch)\""
 }

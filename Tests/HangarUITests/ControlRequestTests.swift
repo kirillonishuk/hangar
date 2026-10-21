@@ -2,6 +2,7 @@ import AgentStatus
 import ControlServer
 import Exec
 import Foundation
+import Git
 import Testing
 @testable import HangarUI
 import Workspace
@@ -144,6 +145,18 @@ import Workspace
         #expect(r.task.mode == "worktree" && r.task.branch == "fix-login" && r.task.base == "main")
         #expect(FileManager.default.fileExists(atPath: r.task.path))
         #expect(app.controlCreating == 0)
+        // The sheet's remembered choice is the user's, not the CLI's.
+        let repoProject = try #require(app.state.projects.first { $0.name == "repo" })
+        #expect(!repoProject.worktreeByDefault && repoProject.lastBaseBranch == nil)
+
+        // A name without letters still gives a branch (the slug falls back to "task").
+        let punct = try await ok(app, .tasksCreate(project: "repo", name: "!!!", worktree: true, base: nil, prompt: nil), TaskResult.self)
+        #expect(punct.task.branch == "task")
+        #expect(app.controlCreating == 0)
+        // Wire messages are English, never L10n.
+        #expect(branchProblemMessage("", branches: []) == "task name gives an empty branch name")
+        #expect(branchProblemMessage("main", branches: [Branch(name: "main", isRemote: false, lastCommit: Date())]) == #"branch "main" already exists"#)
+        #expect(branchProblemMessage("a..b", branches: []) == #"invalid branch name "a..b""#)
 
         let noBase = await error(app, .tasksCreate(project: "repo", name: "Other", worktree: true, base: "nope", prompt: nil))
         #expect(noBase?.code == .notFound)
@@ -152,7 +165,7 @@ import Workspace
         let notGit = await error(app, .tasksCreate(project: "plain", name: "Other", worktree: true, base: nil, prompt: nil))
         #expect(notGit?.code == .failed && notGit?.message == "not a git repository")
         #expect(app.controlCreating == 0)
-        #expect(app.state.tasks.count == 1)
+        #expect(app.state.tasks.count == 2)
     }
 
     @Test func archiveResolvesStrictly() async throws {

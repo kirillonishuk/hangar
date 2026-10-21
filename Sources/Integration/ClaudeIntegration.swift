@@ -60,7 +60,8 @@ public func shellWords(_ s: String) -> [String]? {
 
 public func isHangarCommand(_ command: String) -> Bool {
     guard let w = shellWords(command), w.count >= 2 else { return false }
-    return (w[0] == "hangar" || w[0].hasSuffix("/hangar")) && (w[1] == "event" || w[1] == "statusline")
+    let exe = w[0].split(separator: "/").last.map(String.init) ?? ""
+    return (exe == "hangar" || exe == "hangar-remote") && (w[1] == "event" || w[1] == "statusline")
 }
 
 private func hookCommand(_ cli: String, _ kind: String) -> String { "\(shellQuote(cli)) event \(kind)" }

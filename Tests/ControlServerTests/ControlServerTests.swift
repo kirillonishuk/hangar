@@ -6,7 +6,7 @@ import AgentStatus
 @testable import ControlServer
 
 /// Sockets live in /tmp/hg-<8 hex>/ — sun_path is 104 bytes, the temp dir is too long.
-private final class SocketDir {
+final class SocketDir {
     let dir: String
     var path: String { dir + "/s.sock" }
     init() {
@@ -16,7 +16,7 @@ private final class SocketDir {
     deinit { try? FileManager.default.removeItem(atPath: dir) }
 }
 
-@MainActor private final class Inbox {
+@MainActor final class Inbox {
     var messages: [ControlMessage] = []
     /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
     func wait(count n: Int, seconds: Double = 10) async -> [ControlMessage] {
@@ -29,7 +29,7 @@ private final class SocketDir {
 }
 
 /// Raw test client: reads the server's replies, which ControlClient deliberately ignores.
-private final class RawClient {
+final class RawClient {
     let fd: Int32
     init(_ path: String, timeout: Double = 10) throws {
         fd = socket(AF_UNIX, SOCK_STREAM, 0)

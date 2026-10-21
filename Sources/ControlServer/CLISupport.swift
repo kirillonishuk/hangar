@@ -12,8 +12,13 @@ private func uuid(_ env: [String: String], _ key: String) -> UUID? {
 /// nil — not inside a Hangar tab, unknown kind, or (Codex) not an `agent-turn-complete` payload.
 /// Everything read here comes from hook stdin or argv: any local process may have written it.
 public func eventMessage(kind: String, args: [String], env: [String: String], stdin: Data?) -> EventMessage? {
-    guard let kind = HookKind(rawValue: kind),
-          let tab = uuid(env, "HANGAR_TAB_ID"), let leaf = uuid(env, "HANGAR_LEAF_ID") else { return nil }
+    guard let tab = uuid(env, "HANGAR_TAB_ID"), let leaf = uuid(env, "HANGAR_LEAF_ID") else { return nil }
+    return eventMessage(kind: kind, tab: tab, leaf: leaf, args: args, payload: stdin)
+}
+
+/// Shared by `hangar event` and the ssh host socket (RemoteMessage), so both read a payload the same way.
+public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], payload stdin: Data?) -> EventMessage? {
+    guard let kind = HookKind(rawValue: kind) else { return nil }
     let payload = args.last(where: { $0.hasPrefix("{") }).map { Data($0.utf8) } ?? stdin
     let object = payload.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
     var m = EventMessage(tab: tab, leaf: leaf, kind: kind)

@@ -84,7 +84,10 @@ extension AppState {
         let agent = sessionAgent(leaf.kind), old = statuses.status(leaf.id)
         // Mutating `statuses` notifies observers even when nothing changes.
         guard fold(old, signal, agent: agent) != old else { return }
-        if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) { onTransition?(t) }
+        if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) {
+            onTransition?(t)
+            if t.to == .done { onLeafDone?(t.leaf) }
+        }
     }
 
     private func sessionAgent(_ kind: LeafKind) -> SessionAgent? {

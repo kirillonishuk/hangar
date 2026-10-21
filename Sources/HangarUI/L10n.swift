@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, newTabHelp, closeTabHelp
+        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -105,6 +105,9 @@ import Workspace
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
+        case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
+        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
     }
 
     // Sidebar
@@ -145,6 +148,7 @@ import Workspace
 
     // Title bar, tabs, new-task sheet
     static var inspectorHelp: String { s(.inspectorHelp) }
+    static var diffUnavailable: String { s(.diffUnavailable) }
     static var newTabHelp: String { s(.newTabHelp) }
     static var closeTabHelp: String { s(.closeTabHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
@@ -314,6 +318,29 @@ import Workspace
     static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }
+    // Inspector (`%d` keys take Int32: String(format:) reads 32 bits)
+    static var segmentFiles: String { s(.segmentFiles) }
+    static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
+    static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
+    static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
+    static var changesHintUncommitted: String { s(.changesHintUncommitted) }
+    static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }
+    static func baseMissing(_ branch: String) -> String { f(.baseMissing, branch) }
+    static var baseMissingUnknown: String { s(.baseMissingUnknown) }
+    static var noChanges: String { s(.noChanges) }
+    static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
+    static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
+    static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
+    static var inspectorNoTask: String { s(.inspectorNoTask) }
+    // Diff tab
+    static var diffBinary: String { s(.diffBinary) }
+    static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
+    static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
+    static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }
+    static var diffNotChanged: String { s(.diffNotChanged) }
+    static var diffNotAFile: String { s(.diffNotAFile) }
+    static var diffTabHelp: String { s(.diffTabHelp) }
+
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
 }

@@ -7,12 +7,25 @@ import Workspace
 /// NSSplitView with the theme divider and a hook when the user finishes dragging a divider.
 class HangarSplitView: NSSplitView {
     var onDragEnd: (() -> Void)?
+    /// Index of the divider under the last mouse-down (nil: none); read in `onDragEnd`.
+    private(set) var draggedDivider: Int?
 
     override var dividerColor: NSColor { Theme.line }
 
     override func mouseDown(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        draggedDivider = (0..<max(0, arrangedSubviews.count - 1)).first { dividerHitRect($0).contains(p) }
         super.mouseDown(with: event)  // runs the divider tracking loop until mouse up
         onDragEnd?()
+    }
+
+    /// The divider after subview `i`, widened like AppKit's own hit area for thin dividers.
+    private func dividerHitRect(_ i: Int) -> NSRect {
+        let f = arrangedSubviews[i].frame
+        let slop = Theme.dividerHitSlop
+        return isVertical
+            ? NSRect(x: f.maxX - slop, y: bounds.minY, width: dividerThickness + 2 * slop, height: bounds.height)
+            : NSRect(x: bounds.minX, y: f.maxY - slop, width: bounds.width, height: dividerThickness + 2 * slop)
     }
 }
 
@@ -135,10 +148,11 @@ final class RatioSplitView: HangarSplitView {
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
         if let old = surface {
-            // Replacing an exited surface: the old one is finished, removing it is a real close.
+            // Replacing an exited (or not yet drawn, `restart`) surface: removing it is a real close.
             old.removeFromSuperview()
         }
         surface = view
+        drewOutput = false
         addSubview(view, positioned: .below, relativeTo: header)
         needsLayout = true
         failed = !view.isAlive
@@ -167,6 +181,30 @@ final class RatioSplitView: HangarSplitView {
         if focus, !failed { window?.makeFirstResponder(surface) }
         onRelaunch?()
     }
+
+    /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
+    func restart() {
+        guard let old = surface, !needsRelaunch, !hasOutput, let mode else { return }
+        // Freeing the old surface ends its process; that is not an exit of the leaf. Restored if the new run fails.
+        let handler = old.onChildExit
+        old.onChildExit = nil
+        guard run(.relaunch(previous: mode, exitCode: nil)) else {
+            old.onChildExit = handler
+            return
+        }
+        uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
+        if !failed { window?.makeFirstResponder(surface) }
+        onRelaunch?()
+    }
+
+    /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
+    /// `shortcut: any non-blank screen text counts (a "Last login" line too); Ghostty has no output callback and
+    /// ghostty.h exposes no alternate-screen query — use one if GhosttyKit adds it`.
+    var hasOutput: Bool {
+        if !drewOutput, surface?.screenText()?.contains(where: { !$0.isWhitespace }) == true { drewOutput = true }
+        return drewOutput
+    }
+    private var drewOutput = false
 
     /// Kept as a closure so a language switch can re-render the visible message (`refreshText`).
     private var barText: () -> String? = { nil }
@@ -234,6 +272,9 @@ final class RatioSplitView: HangarSplitView {
     private var lastVisible: [UUID: Bool] = [:]
     private var shownTab: UUID?
     private var shownFocus: UUID?
+    /// The task's diff tab is shown instead of its tabs (created on first use).
+    private var diffHost: DiffHostView?
+    private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
     /// Tab content above the drawer.
     private let content = NSView()
@@ -252,6 +293,7 @@ final class RatioSplitView: HangarSplitView {
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
+        app.onOpenInEditor = { [weak self] path, line in self?.openInEditor(path: path, line: line) }
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
@@ -351,16 +393,25 @@ final class RatioSplitView: HangarSplitView {
             uiLog.info("surface closed leaf=\(id.uuidString.prefix(8), privacy: .public)")
         }
 
+        let diffShown = app.activeDiff != nil
+        if diffShown, diffHost == nil {
+            let host = DiffHostView(rootView: DiffView(app: app))
+            host.frame = content.bounds
+            host.autoresizingMask = [.width, .height]
+            content.addSubview(host)
+            diffHost = host
+        }
+        diffHost?.isHidden = !diffShown
         let active = activeTab
         if let tab = active { show(tab) }
         for tab in liveTabs where tabViews[tab.id] != nil && tab.id != active?.id {
             if structure[tab.id] != signature(tab.root) { layoutTab(tab) }  // e.g. a hidden leaf exited with 0
         }
-        for (id, view) in tabViews { view.isHidden = id != active?.id }
+        for (id, view) in tabViews { view.isHidden = diffShown || id != active?.id }
         for tab in liveTabs {
             for leaf in tab.root.leaves {
                 guard let view = leafViews[leaf.id], let surface = view.surface else { continue }
-                let visible = tab.id == active?.id
+                let visible = !diffShown && tab.id == active?.id
                 if lastVisible[leaf.id] != visible {
                     lastVisible[leaf.id] = visible
                     surface.setVisible(visible)
@@ -372,14 +423,17 @@ final class RatioSplitView: HangarSplitView {
         }
 
         emptyState.isHidden = !state.projects.isEmpty
-        placeholder.isHidden = active != nil || state.projects.isEmpty
+        placeholder.isHidden = active != nil || diffShown || state.projects.isEmpty
         placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
-        if active?.id != shownTab || active?.focusedLeafId != shownFocus {
+        if active?.id != shownTab || active?.focusedLeafId != shownFocus || diffShown != shownDiff {
             shownTab = active?.id
             shownFocus = active?.focusedLeafId
-            if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
+            shownDiff = diffShown
+            if diffShown {
+                window?.makeFirstResponder(diffHost)  // typed keys must not reach the hidden terminal
+            } else if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
                 window?.makeFirstResponder(leaf.surface)
             }
         }
@@ -393,6 +447,7 @@ final class RatioSplitView: HangarSplitView {
 
     /// Back to the focused terminal (after inline rename left nothing focused).
     func focusActiveLeaf() {
+        if app.activeDiff != nil, let diffHost { window?.makeFirstResponder(diffHost); return }
         if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.surface) }
     }
 
@@ -484,6 +539,45 @@ final class RatioSplitView: HangarSplitView {
         switch node {
         case .leaf(let leaf): leaf.id.uuidString
         case .split(let axis, _, let a, let b): "(\(axis.rawValue) \(signature(a)) \(signature(b)))"
+        }
+    }
+
+    /// Decision #44: a running Helix gets Esc + `:open` (+ `:goto`); a stopped editor leaf is pointed at the file
+    /// and (re)started; otherwise a new editor tab opens the file.
+    func openInEditor(path: String, line: Int?) {
+        guard let task = app.selectedTask else { return }
+        let commands = helixCommands(path: path, line: line)
+        let route = editorRoute(task: task, isHelix: isHelix(app.config.editor), quotable: commands != nil) { id in
+            guard let view = self.leafViews[id], view.surface != nil, !view.needsRelaunch else { return .stopped }
+            return view.hasOutput ? .running : .starting
+        }
+        uiLog.info("openInEditor route=\(String(describing: route), privacy: .public)")
+        switch route {
+        case .newTab:
+            app.perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
+        case .launch(let tab, let leaf):
+            app.perform { $0.setOpenFile(leafId: leaf, path: path, line: line) }
+            app.activate(tabId: tab)  // a never-shown leaf starts with the new file
+            // Exited → relaunch; still starting (Helix may not read keys yet) → restart on the new file.
+            if let view = leafViews[leaf] { view.needsRelaunch ? view.relaunch() : view.restart() }
+        case .sendKeys(let tab, let leaf):
+            app.perform {
+                $0.setOpenFile(leafId: leaf, path: path, line: line)
+                $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
+            }
+            app.activate(tabId: tab)
+            guard let surface = leafViews[leaf]?.surface, let commands else { return }
+            window?.makeFirstResponder(surface)
+            surface.sendKey(.escape)
+            // In one terminal read `Esc :` is Alt-: without the kitty protocol: the rest goes in a later read.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak surface] in
+                guard let surface else { return }
+                for command in commands {
+                    surface.sendKey(.colon)
+                    surface.sendText(command)  // bracketed paste into the `:` prompt
+                    surface.sendEnter()
+                }
+            }
         }
     }
 

@@ -51,6 +51,17 @@ extension MainWindowController {
         return lines
     }
 
+    private static func describe(_ d: DiffState) -> String {
+        switch d {
+        case .none: "none"
+        case .loading: "loading"
+        case .notChanged: "notChanged"
+        case .failed(let e): "failed(\(e))"
+        case .loaded(.text(let hunks, let o, let n)): "text(hunks=\(hunks.count) lines=\(hunks.reduce(0) { $0 + $1.lines.count }) mode=\(o ?? "-")→\(n ?? "-"))"
+        case .loaded(let other): "\(other)"
+        }
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -84,6 +95,32 @@ extension MainWindowController {
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
+        case "open":
+            // open <absolute path> [line]: as an inspector click would.
+            var path = arg, line: Int?
+            if let space = arg.lastIndex(of: " "), let n = Int(arg[arg.index(after: space)...]) { path = String(arg[..<space]); line = n }
+            app.openInEditor(path: path, line: line)
+        case "screen":
+            // screen <file>: the focused terminal's text (incl. scrollback) for checks without a screen.
+            try? (column.terminalArea.focusedLeaf?.surface?.screenText() ?? "").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "keys":
+            // keys <chars>: real key presses into the focused terminal ("␣" = space, "⎋" = Esc).
+            guard let surface = column.terminalArea.focusedLeaf?.surface, let w = surface.window else { return }
+            // ANSI keycodes (kVK_ANSI_A…): with the kitty keyboard protocol the keycode, not the text, is sent.
+            let codes: [Character: UInt16] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+                "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "o": 31, "u": 32, "i": 34, "p": 35, "l": 37,
+                "j": 38, "k": 40, "n": 45, "m": 46, "␣": 49, "⎋": 53]
+            for ch in arg {
+                guard let code = codes[ch] else { continue }
+                let chars = ch == "␣" ? " " : ch == "⎋" ? "\u{1b}" : String(ch)
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                windowNumber: w.windowNumber, context: nil, characters: chars,
+                                                charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                        type == .keyDown ? surface.keyDown(with: e) : surface.keyUp(with: e)
+                    }
+                }
+            }
         case "action":
             // action <name> task|project|archived|tab <n>
             let f = arg.split(separator: " ").map(String.init)
@@ -217,6 +254,34 @@ extension MainWindowController {
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
         case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
+        case "inspector":
+            // inspector [files|changes|toggleMode|expand <dir>|click <row>]: drives the inspector; logs its rows.
+            // With no argument it shows the selected task even when the window is occluded (the watcher stays off).
+            let m = app.inspector
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            switch f.first ?? "" {
+            case "files": m.segment = .files
+            case "changes": m.segment = .changes
+            case "toggleMode": m.toggleMode()
+            case "expand": if f.count > 1 { m.expand(f[1]) }
+            case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }
+            // change <n>: a click on the n-th Changes row (0-based) → the diff tab.
+            case "change": if f.count > 1, let n = Int(f[1]), let files = m.changes?.files, files.indices.contains(n) { app.openDiff(path: files[n].path) }
+            case "diffTab": app.activateDiff()  // a click on the diff tab
+            case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
+            case "diffKey":
+                // diffKey up|down|enter|optB|cmdW: a real key through the key monitor (as `post`).
+                let keys = ["up": "126", "down": "125", "enter": "36", "optB": "11 opt", "cmdW": "13 cmd"]
+                if f.count > 1, let key = keys[f[1]] { debugCommand("post " + key) }
+            case "":
+                if let task = app.selectedTask {
+                    let root: String? = if case .worktree(let p, _, _) = task.mode { p } else { app.project(task.projectId)?.path }
+                    let app = self.app
+                    m.show(taskId: task.id, root: root, baseBranch: { await app.baseBranch(of: task) })
+                }
+            default: break
+            }
+            uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public) diffPath=\(m.diffPath ?? "-", privacy: .public) diff=\(Self.describe(m.diff), privacy: .public) diffTab=\(self.app.selectedTask.flatMap { self.app.diffTabs[$0.id] }.map { "\($0.path) active=\($0.active) row=\(self.app.activeDiffSelection.map(String.init) ?? "-")" } ?? "-", privacy: .public) rows=\(self.app.activeDiffContent.rows.count) open=\(self.app.activeDiff.flatMap { _ in openTarget(rows: self.app.activeDiffContent.rows, selected: self.app.activeDiffSelection) }.map(String.init) ?? "-", privacy: .public) responder=\(self.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

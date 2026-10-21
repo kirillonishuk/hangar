@@ -53,9 +53,11 @@ struct TabBarView: View {
         HStack(spacing: 0) {
             if let task = app.selectedTask {
                 HStack(alignment: .bottom, spacing: Theme.tabGap) {
+                    let diff = app.diffTabs[task.id]
                     ForEach(task.tabs) { tab in
-                        TabItem(ctx: ctx, taskId: task.id, tab: tab, active: tab.id == task.activeTabId)
+                        TabItem(ctx: ctx, taskId: task.id, tab: tab, active: tab.id == task.activeTabId && diff?.active != true)
                     }
+                    if let diff { DiffTabItem(app: app, tab: diff) }
                     addMenu
                 }
                 .padding(.leading, Theme.tabTitleLeading)
@@ -96,7 +98,7 @@ struct TabBarView: View {
     }
 }
 
-private struct TabItem: View {
+struct TabItem: View {
     let ctx: ActionContext
     let taskId: UUID
     let tab: Workspace.Tab
@@ -152,5 +154,38 @@ private struct TabItem: View {
         .pointingHand(app.renaming != target)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
+    }
+}
+
+/// The temporary diff tab (DESIGN «Полоса вкладок»): `± <file>` in italics, no status dot, no context menu.
+private struct DiffTabItem: View {
+    let app: AppState
+    let tab: DiffTab
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(verbatim: "± " + TabItem.clipped((tab.path as NSString).lastPathComponent)).italic().lineLimit(1)
+            Button { app.closeDiff() } label: { IconView(icon: .close, active: tab.active, size: Theme.smallIconSize) }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .opacity(hover ? Theme.closeOpacity : 0)
+                .padding(.leading, Theme.statusDot)
+                .help(L10n.diffTabHelp)
+        }
+        .font(.system(size: Theme.fontSize.tab))
+        .foregroundStyle(tab.active ? Theme.ui.textStrong : Theme.ui.text2)
+        .padding(.vertical, Theme.tabPaddingV)
+        .padding(.horizontal, Theme.tabPaddingH)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+                .fill(tab.active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { app.activateDiff() }
+        .pointingHand()
+        .help(tab.path)
+        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .animation(Motion.ease(Theme.selectionFade), value: tab.active)
     }
 }

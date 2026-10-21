@@ -273,6 +273,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let failures = OSAllocatedUnfairLock(initialState: 0)
         let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
         server.emfileRetry = 60  // the timer is covered by its own test; here only a closing connection may resume
+        server.idleTimeout = 600  // under parallel load the test ran past the 10 s default: dropping idle `a` resumed the listener
         server.acceptCall = { fd in
             let fail = failures.withLock { (n: inout Int) -> Bool in if n > 0 { n -= 1; return true }; return false }
             if fail { errno = EMFILE; return -1 }
@@ -289,8 +290,8 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let b = try RawClient(dir.path)
         b.send(line(event(.prompt)))
         // Listener is suspended, no spin: b is not served while a stays open.
-        try await Task.sleep(for: .milliseconds(200))
-        #expect(await inbox.wait(count: 2, seconds: 0.2).count == 1)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await inbox.wait(count: 2, seconds: 0.5).count == 1)
         #expect(failures.withLock { $0 } == 0, "accept was attempted exactly once")
 
         a = nil  // closing a connection resumes the listener

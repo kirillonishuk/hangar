@@ -29,23 +29,23 @@ public struct GitError: Error, LocalizedError, Equatable, Sendable {
 /// Thin wrapper over the `git` CLI. Every command is an argv array run through `Runner` with cwd = `repo`;
 /// output is parsed from machine-readable formats only.
 public struct Git: Sendable {
-    private let repo: String
-    private let runner: Runner
+    let repo: String
+    let runner: Runner
 
     public init(repo: String, runner: Runner = .local) {
         self.repo = repo
         self.runner = runner
     }
 
-    // MARK: Probes (non-zero exit is an answer, not an error)
+    // MARK: Probes (non-zero exit is an answer, not an error; read-only, so `--no-optional-locks` as in the inspector)
 
     public func isRepository() async -> Bool {
-        guard let r = try? await runner.run(["git", "rev-parse", "--is-inside-work-tree"], repo) else { return false }
+        guard let r = try? await runner.run(["git", "--no-optional-locks", "rev-parse", "--is-inside-work-tree"], repo) else { return false }
         return r.status == 0 && r.stdout.trimmed == "true"
     }
 
     public func hasCommits() async -> Bool {
-        let r = try? await runner.run(["git", "rev-parse", "--verify", "--quiet", "HEAD"], repo)
+        let r = try? await runner.run(["git", "--no-optional-locks", "rev-parse", "--verify", "--quiet", "HEAD"], repo)
         return r?.status == 0
     }
 
@@ -171,14 +171,14 @@ public struct Git: Sendable {
 
     /// Runs a "checking" command: exit 0 -> trimmed stdout, non-zero -> nil.
     private func probe(_ args: [String]) async throws -> String? {
-        let r = try await runner.run(["git"] + args, repo)
+        let r = try await runner.run(["git", "--no-optional-locks"] + args, repo)
         guard r.status == 0 else { return nil }
         let s = r.stdout.trimmed
         return s.isEmpty ? nil : s
     }
 
     private func refExists(_ ref: String) async -> Bool {
-        let r = try? await runner.run(["git", "rev-parse", "--verify", "--quiet", ref], repo)
+        let r = try? await runner.run(["git", "--no-optional-locks", "rev-parse", "--verify", "--quiet", ref], repo)
         return r?.status == 0
     }
 }

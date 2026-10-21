@@ -70,17 +70,18 @@ import Testing
         let store = StateStore(directory: dir, debounce: .milliseconds(50))
         var writes = 0
         store.writeHook = { _ in writes += 1 }
-        store.scheduleSave(sample("1"))
-        store.scheduleSave(sample("2"))
+        var tasks: [Task<Void, Never>] = []
+        for name in ["1", "2"] {
+            store.scheduleSave(sample(name))
+            tasks.append(try #require(store.pending))
+        }
         let last = sample("3")
         store.scheduleSave(last)
-        // Poll instead of a fixed sleep: a loaded machine may fire the debounce late.
-        let deadline = ContinuousClock.now + .seconds(10)
-        while writes == 0, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        tasks.append(try #require(store.pending))
+        // Every scheduled save has run to its end (cancelled or written): no clock involved.
+        for task in tasks { await task.value }
         #expect(writes == 1)
-        // A further debounce interval (x2) after the first write proves no second write follows.
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(writes == 1)
+        #expect(store.pending == nil)
         guard case .loaded(let loaded) = store.load() else { Issue.record("expected .loaded"); return }
         #expect(loaded == last)
     }

@@ -159,6 +159,30 @@ public struct ClipboardPromptText: Sendable {
         _ = ghostty_surface_key(surface, k)
     }
 
+    /// A real key press + release (not a paste), e.g. Esc and `:` for Helix's command line.
+    public func sendKey(_ key: SurfaceKey) {
+        guard let surface else { return }
+        var k = ghostty_input_key_s()
+        k.action = GHOSTTY_ACTION_PRESS
+        switch key {
+        case .escape:
+            k.keycode = 53  // kVK_Escape
+            _ = ghostty_surface_key(surface, k)
+        case .colon:
+            k.keycode = 41  // kVK_ANSI_Semicolon
+            k.mods = GHOSTTY_MODS_SHIFT
+            k.consumed_mods = GHOSTTY_MODS_SHIFT
+            k.unshifted_codepoint = UInt32(UInt8(ascii: ";"))
+            _ = ":".withCString { ptr in
+                k.text = ptr
+                return ghostty_surface_key(surface, k)
+            }
+            k.text = nil
+        }
+        k.action = GHOSTTY_ACTION_RELEASE
+        _ = ghostty_surface_key(surface, k)
+    }
+
     /// Whole screen including scrollback.
     public func screenText() -> String? {
         guard let surface else { return nil }
@@ -353,4 +377,10 @@ public struct ClipboardPromptText: Sendable {
     public override func resetCursorRects() {
         addCursorRect(bounds, cursor: cursor)
     }
+}
+
+/// Keys `sendKey` can press.
+public enum SurfaceKey: Sendable {
+    case escape  // kVK_Escape 53
+    case colon   // kVK_ANSI_Semicolon 41 + shift, text ":"
 }

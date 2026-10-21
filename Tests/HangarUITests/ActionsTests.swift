@@ -234,13 +234,23 @@ import Workspace
 
     @Test func drawerFocusRoutesShortcuts() {
         // Terminal drawer focused: ⌘W collapses it, splits are ignored, ⌘T and the rest behave as usual.
-        #expect(drawerRoute(.closeTab, drawerFocused: true) == .collapseDrawer)
-        #expect(drawerRoute(.splitRight, drawerFocused: true) == .ignore)
-        #expect(drawerRoute(.splitDown, drawerFocused: true) == .ignore)
-        #expect(drawerRoute(.newTab, drawerFocused: true) == .perform)
-        #expect(drawerRoute(.toggleDrawer, drawerFocused: true) == .perform)
-        #expect(drawerRoute(.tab(2), drawerFocused: true) == .perform)
-        for sc in [Shortcut.closeTab, .splitRight, .splitDown, .newTab] { #expect(drawerRoute(sc, drawerFocused: false) == .perform) }
+        #expect(drawerRoute(.closeTab, drawerFocused: true, diffActive: false) == .collapseDrawer)
+        #expect(drawerRoute(.splitRight, drawerFocused: true, diffActive: false) == .ignore)
+        #expect(drawerRoute(.splitDown, drawerFocused: true, diffActive: false) == .ignore)
+        #expect(drawerRoute(.newTab, drawerFocused: true, diffActive: false) == .perform)
+        #expect(drawerRoute(.toggleDrawer, drawerFocused: true, diffActive: false) == .perform)
+        #expect(drawerRoute(.tab(2), drawerFocused: true, diffActive: false) == .perform)
+        for sc in [Shortcut.closeTab, .splitRight, .splitDown, .newTab] { #expect(drawerRoute(sc, drawerFocused: false, diffActive: false) == .perform) }
+        // The shown diff tab is not a terminal: splits would split the hidden tab.
+        #expect(drawerRoute(.splitRight, drawerFocused: false, diffActive: true) == .ignore)
+        #expect(drawerRoute(.splitDown, drawerFocused: false, diffActive: true) == .ignore)
+        #expect(drawerRoute(.newTab, drawerFocused: false, diffActive: true) == .perform)
+        #expect(drawerRoute(.tab(1), drawerFocused: false, diffActive: true) == .perform)
+        // The diff view holds the keyboard: not a terminal (F2 renames, keys don't count as typing).
+        #expect(responderKind(isText: false, inTerminalArea: true, isDiff: true) == .other)
+        #expect(responderKind(isText: false, inTerminalArea: true, isDiff: false) == .terminal)
+        #expect(responderKind(isText: true, inTerminalArea: true, isDiff: false) == .text)
+        #expect(responderKind(isText: false, inTerminalArea: false, isDiff: false) == .other)
     }
 
     @Test func worktreeRootInputValidation() {

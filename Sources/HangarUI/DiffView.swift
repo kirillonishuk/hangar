@@ -11,7 +11,8 @@ enum DiffRow: Equatable, Identifiable {
     /// Binary, too large, not a file, no longer changed, git error.
     case notice(String)
 
-    /// Unique within one file: a new line number belongs to one added/context line, an old one to one deleted/context line.
+    /// Kind + text, not line numbers, so a line keeps it when lines are inserted above. Identical lines share it:
+    /// `DiffContent.Item.id` adds the occurrence.
     var id: String {
         switch self {
         case .meta(let s): "m" + s
@@ -19,9 +20,9 @@ enum DiffRow: Equatable, Identifiable {
         case .notice(let s): "n" + s
         case .line(let l):
             switch l.kind {
-            case .added: "+\(l.newLine ?? 0)"
-            case .deleted: "-\(l.oldLine ?? 0)"
-            case .context: "=\(l.oldLine ?? 0),\(l.newLine ?? 0)"
+            case .added: "+" + l.text
+            case .deleted: "-" + l.text
+            case .context: " " + l.text
             }
         }
     }
@@ -103,6 +104,7 @@ struct DiffContent {
     }
     var rows: [DiffRow] = []
     var items: [Item] = []
+    var indexById: [String: Int] = [:]
     var added = 0
     var deleted = 0
     var isText = false
@@ -126,12 +128,15 @@ let diffTabWidth = 4
         var c = DiffContent()
         c.version = content.version + 1
         c.rows = diffRows(state, origPath: origPath)
-        var seen = Set<String>()
+        var occurrences: [String: Int] = [:]
         c.items.reserveCapacity(c.rows.count)
         for (i, row) in c.rows.enumerated() {
-            var id = row.id
-            if !seen.insert(id).inserted { id += "#\(i)" }  // defensive: a malformed diff must not crash ForEach
+            let key = row.id
+            let n = occurrences[key, default: 0]
+            occurrences[key] = n + 1
+            let id = "\(n)#" + key  // unique: the n-th row with this kind and text
             c.items.append(.init(id: id, index: i, row: row))
+            c.indexById[id] = i
             if case .line(let l) = row {
                 if l.kind == .added { c.added += 1 } else if l.kind == .deleted { c.deleted += 1 }
                 let tabs = l.text.utf8.reduce(0) { $1 == 9 ? $0 + 1 : $0 }
@@ -155,7 +160,7 @@ struct DiffView: View {
             let content = app.activeDiffContent
             VStack(spacing: 0) {
                 header(tab.path, content)
-                DiffLines(content: content, selected: tab.selectedRow,
+                DiffLines(content: content, selected: app.activeDiffSelection,
                           select: { app.selectDiffRow($0) }, open: { app.openActiveDiffInEditor() })
                     .equatable()
                     .id(tab.path)  // another file starts at the top

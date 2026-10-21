@@ -117,6 +117,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         markRestored(state.tasks.filter { !$0.archived })
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
+        inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
@@ -148,6 +149,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
+        }
+        // Archived or deleted tasks drop their diff tab.
+        if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
+            diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
         }
         store.scheduleSave(state)
         didChange?()

@@ -6,8 +6,8 @@ struct DiffTab: Equatable {
     var path: String
     /// Shown instead of the task's active tab.
     var active: Bool
-    /// Index into `diffRows` of the clicked line (↩ opens there).
-    var selectedRow: Int?
+    /// `DiffContent.Item.id` of the clicked row (↩ opens there): follows the line across reloads.
+    var selectedRowId: String?
 }
 
 extension AppState {
@@ -20,7 +20,7 @@ extension AppState {
     /// A Changes click: replaces (or creates) the selected task's diff tab and shows it.
     func openDiff(path: String) {
         guard let id = selectedTask?.id else { return }
-        diffTabs[id] = DiffTab(path: path, active: true, selectedRow: nil)
+        diffTabs[id] = DiffTab(path: path, active: true, selectedRowId: nil)
         inspector.loadDiff(path: path)
         didChange?()
     }
@@ -48,22 +48,40 @@ extension AppState {
         if next != i { openDiff(path: files[next].path) }
     }
 
-    func selectDiffRow(_ row: Int?) {
+    /// A click on row `index` of the shown diff (nil: none).
+    func selectDiffRow(_ index: Int?) {
         guard let id = selectedTask?.id, diffTabs[id] != nil else { return }
-        diffTabs[id]?.selectedRow = row
+        let items = activeDiffContent.items
+        diffTabs[id]?.selectedRowId = index.flatMap { items.indices.contains($0) ? items[$0].id : nil }
+    }
+
+    /// Row index of the selected line in the current load.
+    var activeDiffSelection: Int? {
+        activeDiff?.selectedRowId.flatMap { activeDiffContent.indexById[$0] }
     }
 
     /// Rows of the shown diff (cached per load). A path not (yet) loaded by the inspector is still loading.
     var activeDiffContent: DiffContent {
         guard let tab = activeDiff else { return diffCache.content(.none, origPath: nil) }
+        return content(of: tab)
+    }
+
+    private func content(of tab: DiffTab) -> DiffContent {
         let state = inspector.diffPath == tab.path ? inspector.diff : .loading
         return diffCache.content(state, origPath: inspector.changes?.files.first { $0.path == tab.path }?.origPath)
+    }
+
+    /// A new load of the open diff (set as `inspector.onDiffApplied`): a selected line that is gone (⌥B, edits) is unselected.
+    func pruneDiffSelection() {
+        guard let id = selectedTask?.id, let tab = diffTabs[id], let row = tab.selectedRowId,
+              inspector.diffPath == tab.path, content(of: tab).indexById[row] == nil else { return }
+        diffTabs[id]?.selectedRowId = nil
     }
 
     /// ↩ / double-click: the task's Helix at `openTarget`; nothing when there is no line to open.
     func openActiveDiffInEditor() {
         guard let tab = activeDiff, let root = inspector.root,
-              let line = openTarget(rows: activeDiffContent.rows, selected: tab.selectedRow) else { return }
+              let line = openTarget(rows: activeDiffContent.rows, selected: activeDiffSelection) else { return }
         openInEditor(path: root + "/" + tab.path, line: line)
     }
 

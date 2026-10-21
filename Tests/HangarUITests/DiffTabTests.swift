@@ -44,7 +44,7 @@ import Workspace
         app.openDiff(path: "a.txt")
         app.openDiff(path: "b.txt")
         #expect(app.diffTabs.count == 1)
-        #expect(app.diffTabs[t] == DiffTab(path: "b.txt", active: true, selectedRow: nil))
+        #expect(app.diffTabs[t] == DiffTab(path: "b.txt", active: true, selectedRowId: nil))
         #expect(app.activeDiff?.path == "b.txt")
         #expect(app.inspector.diffPath == "b.txt")
         #expect(app.state.tasks.first { $0.id == t }!.tabs.count == tabs)
@@ -93,6 +93,51 @@ import Workspace
         #expect(app.activeDiff == nil)
         #expect(app.diffTabs[t] == nil)
         #expect(app.inspector.diffPath == nil)
+    }
+
+    @Test func archiveDropsDiffTab() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        app.openDiff(path: "a.txt")
+        app.archive(taskId: t)
+        #expect(app.diffTabs.isEmpty)
+    }
+
+    private func rowIndex(_ app: AppState, _ match: (DiffLine) -> Bool) -> Int? {
+        app.activeDiffContent.rows.firstIndex { if case .line(let l) = $0 { match(l) } else { false } }
+    }
+
+    @Test func selectionFollowsLineAcrossReloads() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        // A task branch: base main has a.txt's first version, the branch commits another, the worktree a third.
+        try repo.git("checkout", "-q", "-b", "task", in: repo.repo)
+        try "committed\n".write(toFile: repo.repo + "/a.txt", atomically: true, encoding: .utf8)
+        try repo.git("commit", "-q", "-am", "task", in: repo.repo)
+        try "one\ntwo\n".write(toFile: repo.repo + "/a.txt", atomically: true, encoding: .utf8)
+        app.inspector.show(taskId: UUID(), root: repo.repo, baseBranch: { nil })  // another context, then back
+        app.inspector.show(taskId: t, root: repo.repo, baseBranch: { "main" })
+        await settle(app.inspector)
+        app.openDiff(path: "a.txt")
+        await settle(app.inspector)
+        let two = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
+        app.selectDiffRow(two)
+        #expect(app.activeDiffSelection == two)
+        // A line inserted above: the same line stays selected at its new row.
+        try "top\none\ntwo\n".write(toFile: repo.repo + "/a.txt", atomically: true, encoding: .utf8)
+        app.inspector.refresh(.status)
+        await settle(app.inspector)
+        let moved = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
+        #expect(moved == two + 1)
+        #expect(app.activeDiffSelection == moved)
+        // ⌥B: the selected deleted line of the base version is gone → no selection.
+        let deleted = try #require(rowIndex(app) { $0.kind == .deleted })
+        app.selectDiffRow(deleted)
+        app.inspector.toggleMode()
+        await settle(app.inspector)
+        #expect(app.activeDiffContent.rows.contains { if case .line(let l) = $0 { l.text == "committed" } else { false } })
+        #expect(app.activeDiffSelection == nil)
+        #expect(app.activeDiff?.selectedRowId == nil)
     }
 
     @Test func diffKeyRouting() {
@@ -167,8 +212,10 @@ import Workspace
         let added = rows("diff --git a/f b/f\nnew file mode 100644\n--- /dev/null\n+++ b/f\n@@ -0,0 +1 @@\n+x\n")
         #expect(added.count == 2)
         #expect(!added.contains { if case .meta = $0 { true } else { false } })
-        // Ids are unique (stable keys for the lazy list).
-        let r = rows("diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,2 +1,2 @@\n a\n-b\n+b\n@@ -9,1 +9,1 @@\n-z\n+z\n")
-        #expect(Set(r.map(\.id)).count == r.count)
+        // Item ids are unique (stable keys for the lazy list), also for repeated identical lines.
+        let diff = "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,2 +1,2 @@\n a\n-b\n+b\n@@ -9,2 +9,2 @@\n-b\n+b\n a\n"
+        let items = DiffContentCache().content(.loaded(parseUnifiedDiff(diff)), origPath: nil).items
+        #expect(items.count == 8)
+        #expect(Set(items.map(\.id)).count == items.count)
     }
 }

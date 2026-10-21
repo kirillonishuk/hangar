@@ -43,6 +43,8 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var diffPath: String?
     /// Requested; the effective one is `changes?.mode` (a missing base shows uncommitted).
     private(set) var modeChoice: ModeChoice = .base
+    /// A load of the open diff was applied (the diff tab drops a selection that is gone).
+    @ObservationIgnored var onDiffApplied: (() -> Void)?
     /// Git-ignored entries of the last tree load (the watcher drops their events).
     @ObservationIgnored let ignored = IgnoredPaths()
     /// The running load or its queued rerun; nil when idle (tests await it).
@@ -301,7 +303,10 @@ struct RefreshParts: OptionSet, Sendable {
         }
         if let changes = r.changes { self.changes = changes }
         // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).
-        if let diff = r.diff, r.diffPath == diffPath { self.diff = diff }
+        if let diff = r.diff, r.diffPath == diffPath {
+            self.diff = diff
+            onDiffApplied?()
+        }
         if firstLoad, r.tree != nil, let changes = r.changes {
             firstLoad = false
             expanded.formUnion(autoExpanded(for: changes.files.map(\.path), fileCount: r.paths))

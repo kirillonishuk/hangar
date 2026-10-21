@@ -330,7 +330,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil) {
+            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
             case .ignore: break
             case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
             case .perform: perform(sc)
@@ -361,9 +361,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private var firstResponderKind: FirstResponderKind {
         guard let responder = window?.firstResponder else { return .other }
-        if responder is NSText { return .text }
-        if let view = responder as? NSView, view.isDescendant(of: column.terminalArea) { return .terminal }
-        return .other
+        let view = responder as? NSView
+        return responderKind(isText: responder is NSText, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
+                             isDiff: sequence(first: view, next: { $0?.superview }).contains { $0 is DiffHostView })
     }
 
     /// Keyboard target of a registry action (F2 is routed in `handleKeyDown`): the selected task, or its active tab.

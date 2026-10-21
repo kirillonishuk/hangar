@@ -100,6 +100,8 @@ public struct ClipboardPromptText: Sendable {
         }
         updateTrackingAreas()
         installEventMonitor()
+        // Ghostty creates surfaces focused (display link + cursor blink running); match `focused = false`.
+        ghostty_surface_set_focus(surface, false)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -317,7 +319,7 @@ public struct ClipboardPromptText: Sendable {
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
-            focusDidChange(true)
+            focusDidChange(window?.isKeyWindow ?? false)  // focused = first responder in the key window
             onFocus?()
         }
         return ok
@@ -348,6 +350,8 @@ public struct ClipboardPromptText: Sendable {
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(windowDidChangeScreen), name: NSWindow.didChangeScreenNotification, object: window)
         nc.addObserver(self, selector: #selector(windowOcclusionChanged), name: NSWindow.didChangeOcclusionStateNotification, object: window)
+        nc.addObserver(self, selector: #selector(windowKeyChanged), name: NSWindow.didBecomeKeyNotification, object: window)
+        nc.addObserver(self, selector: #selector(windowKeyChanged), name: NSWindow.didResignKeyNotification, object: window)
         windowDidChangeScreen()
         updateOcclusion()
     }
@@ -379,6 +383,9 @@ public struct ClipboardPromptText: Sendable {
     }
 
     @objc private func windowOcclusionChanged() { updateOcclusion() }
+
+    /// Like Ghostty's syncFocusToSurfaceTree: a non-key window must not keep the display link and blink running.
+    @objc private func windowKeyChanged() { focusDidChange(window?.isKeyWindow == true && window?.firstResponder === self) }
 
     private func updateOcclusion() {
         guard let surface else { return }

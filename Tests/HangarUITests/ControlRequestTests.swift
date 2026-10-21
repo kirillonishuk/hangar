@@ -270,6 +270,12 @@ import Workspace
         fake.outcomes = [.exited]
         let exited = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
         #expect(exited?.code == .exited && exited?.message == "process has exited; relaunch the tab")
+        // Launch failed or cannot launch (missing folder): retrying will not help.
+        fake.outcomes = [.failed]
+        let failed = await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))
+        #expect(failed?.code == .failed && failed?.message == "tab could not start")
+        fake.outcomes = [.notStarted, .failed]
+        #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .failed)
     }
 
     @Test func waitingLeafAcceptsSend() async throws {
@@ -312,7 +318,11 @@ import Workspace
         fake.screen = String(repeating: "\u{44F}", count: 1_048_576)  // 2 MiB of 2-byte characters, one line
         let big = try await ok(app, .tabsRead(tab: ids.tab.uuidString, lines: 10), ScreenResult.self)
         #expect(big.text.utf8.count <= 524_288 && big.text.utf8.count > 524_000 && big.truncated)
+        #expect(fake.started.isEmpty)
+        // Never started: the read starts it hidden, like send, and the caller retries.
         fake.screen = nil
-        #expect(await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))?.code == .notStarted)
+        let starting = await error(app, .tabsRead(tab: ids.tab.uuidString, lines: 10))
+        #expect(starting?.code == .notStarted && starting?.message == "tab is starting, retry")
+        #expect(fake.started == [ids.tab])
     }
 }

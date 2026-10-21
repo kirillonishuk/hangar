@@ -217,9 +217,6 @@
 "diffNotChanged" = "Файл больше не изменён";
 "diffNotAFile" = "Не файл: каталог или вложенный репозиторий";
 "diffTabHelp" = "Закрыть ⌘W";
-"keepAwakeAssertionOne" = "Hangar: %ld агент работает";
-"keepAwakeAssertionFew" = "Hangar: %ld агента работают";
-"keepAwakeAssertionMany" = "Hangar: %ld агентов работают";
 "keepAwakeTitle" = "Не засыпать, пока агенты работают";
 "keepAwakeOffHelp" = "Не засыпать: выключено";
 "keepAwakeIdleHelp" = "Не засыпать, пока агенты работают";

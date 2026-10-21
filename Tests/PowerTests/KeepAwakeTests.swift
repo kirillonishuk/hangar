@@ -42,17 +42,17 @@ import Testing
 @MainActor @Suite struct KeepAwakeTests {
     private func make() -> (KeepAwake, FakeAssertions, ManualSchedule) {
         let fake = FakeAssertions(), sched = ManualSchedule()
-        let k = KeepAwake(assertions: fake.assertions, name: { "n\($0)" }, schedule: sched.schedule)
+        let k = KeepAwake(assertions: fake.assertions, schedule: sched.schedule)
         return (k, fake, sched)
     }
 
     @Test func holdsWhileWorking() {
         let (k, fake, _) = make()
         k.update(working: 1, enabled: true)
-        #expect(fake.created == ["n1"])
+        #expect(fake.created == ["Hangar: 1 agent working"])
         #expect(k.held && k.working == 1)
         k.update(working: 3, enabled: true)
-        #expect(fake.renamed.count == 1 && fake.renamed[0].0 == 1 && fake.renamed[0].1 == "n3")
+        #expect(fake.renamed.count == 1 && fake.renamed[0].0 == 1 && fake.renamed[0].1 == "Hangar: 3 agents working")
         #expect(fake.created.count == 1)
         k.update(working: 3, enabled: true)
         #expect(fake.renamed.count == 1)
@@ -147,7 +147,7 @@ import Testing
         k.update(working: 1, enabled: true)
         fake.failRename = true
         k.update(working: 2, enabled: true)
-        #expect(fake.created == ["n1", "n2"])
+        #expect(fake.created == ["Hangar: 1 agent working", "Hangar: 2 agents working"])
         #expect(fake.released == [1])
         #expect(k.held)
         k.stop()

@@ -99,7 +99,7 @@ import Workspace
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
-        case keepAwakeAssertionOne, keepAwakeAssertionFew, keepAwakeAssertionMany, keepAwakeTitle
+        case keepAwakeTitle
         case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
         case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
@@ -237,12 +237,6 @@ import Workspace
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
 
     // Keep awake
-    /// Assertion name shown by `pmset -g assertions`; ru plural forms (1 / 2–4 / 5+, teens are «many»), en few = many.
-    static func keepAwakeAssertion(_ n: Int) -> String {
-        let one = resolve(language) == .ru ? n % 10 == 1 && n % 100 != 11 : n == 1
-        let few = resolve(language) == .ru && (2...4).contains(n % 10) && !(12...14).contains(n % 100)
-        return f(one ? .keepAwakeAssertionOne : few ? .keepAwakeAssertionFew : .keepAwakeAssertionMany, n)
-    }
     static var keepAwakeTitle: String { s(.keepAwakeTitle) }
     static var keepAwakeOffHelp: String { s(.keepAwakeOffHelp) }
     static var keepAwakeIdleHelp: String { s(.keepAwakeIdleHelp) }

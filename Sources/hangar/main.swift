@@ -93,7 +93,8 @@ func runStatusline(_ rest: [String]) -> Int32 {
     return p.terminationReason == .exit ? p.terminationStatus : 128 + p.terminationStatus
 }
 
-/// Exit codes: 0 ok, 1 app error / not running / timeout, 2 usage or missing --yes (never connects).
+/// Exit codes: 0 ok, 1 app error / not running / timeout, 2 usage or missing --yes (the CLI's or the server's `bad-params` /
+/// `confirm-required`).
 func runCommand(_ args: [String]) -> Int32 {
     let stderr = FileHandle.standardError
     switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath) {
@@ -109,7 +110,7 @@ func runCommand(_ args: [String]) -> Int32 {
         switch ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) {
         case let .failure(e):
             stderr.write(json ? errorJSON(e) + Data("\n".utf8) : Data("hangar: \(e.message)\n".utf8))
-            return 1
+            return [.badParams, .confirmRequired].contains(e.code) ? 2 : 1
         case let .success(result):
             var out: Data
             if json {

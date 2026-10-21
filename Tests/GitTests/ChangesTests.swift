@@ -61,6 +61,28 @@ import Exec
         }
     }
 
+    /// A file literally named `HEAD`: without `--` after the rev git calls the argument ambiguous.
+    @Test func fileNamedLikeTheRev() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try write(t, "HEAD", "one\n")
+        try t.git("add", "HEAD", in: t.repo); try t.git("commit", "-q", "-m", "h", in: t.repo)
+        try write(t, "HEAD", "two\n")
+        let g = Git(repo: t.repo)
+        let cs = try await g.changedFiles(.uncommitted)
+        let f = try #require(cs.files.first { $0.path == "HEAD" })
+        #expect(f.change == .modified && f.added == 1 && f.deleted == 1)
+        guard case .text(let h, _, _) = try await g.diff(file: f, from: cs.from) else { Issue.record("not text"); return }
+        #expect(h.count == 1)
+    }
+
+    /// `git rm --cached x`: deleted in `diff HEAD` and untracked in status — listed once (as deleted).
+    @Test func removedFromIndexListedOnce() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try t.git("rm", "-q", "--cached", "a.txt", in: t.repo)
+        let cs = try await Git(repo: t.repo).changedFiles(.uncommitted)
+        #expect(cs.files.filter { $0.path == "a.txt" }.map(\.change) == [.deleted])
+    }
+
     @Test func renameWithSpaces() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         try write(t, "a.txt", "l1\nl2\nl3\nl4\nl5\n")

@@ -3,7 +3,8 @@ import Git
 import Workspace
 
 /// Keeps the inspector fed with the visible task only: while the inspector is shown, the window is on screen
-/// (not occluded, not minimized) and a task is selected, it shows that task and watches its root and git-dir.
+/// (not occluded, not minimized) and a task is selected, it shows that task and watches its root (the repository's
+/// top level for a subfolder project) and git-dir.
 /// Otherwise the stream is stopped — no callbacks, no loads. No timers.
 @MainActor final class InspectorWatch {
     private let app: AppState
@@ -63,8 +64,10 @@ import Workspace
             let git = Git(repo: root)
             let gitDir = try? await git.gitDir()
             let commonDir = gitDir == nil ? nil : try? await git.commonDir()
+            // A project in a subfolder of a repository: status and the listing cover the whole top level, so watch it.
+            let top = gitDir == nil ? nil : try? await git.toplevel()
             guard let self, gen == self.generation else { return }
-            self.start(root: root, gitDir: gitDir, commonDir: commonDir)
+            self.start(root: top ?? root, gitDir: gitDir, commonDir: commonDir)
         }
     }
 

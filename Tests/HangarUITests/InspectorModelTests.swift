@@ -41,6 +41,27 @@ import Workspace
         #expect(model.changes?.files.count == 2)
     }
 
+    /// A project in `sub/` of a repository: paths are top-relative, so git must run at the top level.
+    @Test func subfolderProjectShowsDiffs() async throws {
+        let repo = try TempRepo()
+        defer { repo.cleanup() }
+        try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
+        try write("one\n", repo.repo + "/sub/t.txt")
+        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try write("two\n", repo.repo + "/sub/t.txt")
+        try write("new\n", repo.repo + "/sub/n.txt")
+        let model = InspectorModel()
+        model.show(taskId: UUID(), root: repo.repo + "/sub", baseBranch: { nil })
+        await settle(model)
+        #expect(Set(model.changes?.files.map(\.path) ?? []) == ["sub/t.txt", "sub/n.txt"])
+        for path in ["sub/t.txt", "sub/n.txt"] {
+            model.loadDiff(path: path)
+            await settle(model)
+            guard case .loaded(.text(let hunks, _, _)) = model.diff else { Issue.record("\(path): \(model.diff)"); continue }
+            #expect(!hunks.isEmpty, "\(path)")
+        }
+    }
+
     @Test func toggleModeReloads() async throws {
         let repo = try TempRepo()
         defer { repo.cleanup() }

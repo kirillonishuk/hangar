@@ -89,8 +89,9 @@ extension Git {
             }
         }
         let rev = from!
-        let names = parseNameStatus(try await inspect(["diff", "--name-status", "-z", "--find-renames", rev]))
-        let stats = parseNumstat(try await inspect(["diff", "--numstat", "-z", "--find-renames", rev]))
+        // `--`: a file named like the rev (`HEAD`) is otherwise "ambiguous argument".
+        let names = parseNameStatus(try await inspect(["diff", "--name-status", "-z", "--find-renames", rev, "--"]))
+        let stats = parseNumstat(try await inspect(["diff", "--numstat", "-z", "--find-renames", rev, "--"]))
         var byPath: [String: NumstatEntry] = [:]
         for s in stats { byPath[s.path] = s }
         var files = names.map { f -> ChangedFile in
@@ -100,7 +101,9 @@ extension Git {
         }
         let st: StatusResult
         if let given { st = given } else { st = try await status(limit: limit) }
-        for e in st.entries where e.change == .untracked {
+        // `git rm --cached x`: deleted in the diff and untracked in status — keep the diff's entry.
+        let listed = Set(files.map(\.path))
+        for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
             files.append(ChangedFile(path: e.path, change: .untracked))
         }
         let truncated = st.truncated || files.count > limit

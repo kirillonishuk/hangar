@@ -198,7 +198,8 @@ final class RatioSplitView: HangarSplitView {
     }
 
     /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
-    /// `shortcut: any non-blank screen text counts (a "Last login" line too), Ghostty has no output callback`.
+    /// `shortcut: any non-blank screen text counts (a "Last login" line too); Ghostty has no output callback and
+    /// ghostty.h exposes no alternate-screen query — use one if GhosttyKit adds it`.
     var hasOutput: Bool {
         if !drewOutput, surface?.screenText()?.contains(where: { !$0.isWhitespace }) == true { drewOutput = true }
         return drewOutput

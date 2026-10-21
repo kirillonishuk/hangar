@@ -15,7 +15,7 @@ struct InspectorView: View {
                 notice(L10n.inspectorNoTask)
                 Spacer(minLength: 0)
             } else if model.segment == .changes && model.isGit {
-                ChangesList(model: model)
+                ChangesList(app: app, model: model)
             } else {
                 FilesList(app: app, model: model)
             }
@@ -142,6 +142,7 @@ private struct FileRow: View {
 }
 
 private struct ChangesList: View {
+    let app: AppState
     let model: InspectorModel
 
     var body: some View {
@@ -156,10 +157,7 @@ private struct ChangesList: View {
                     if let changes = model.changes {
                         if changes.files.isEmpty { notice(L10n.noChanges) }
                         ForEach(changes.files) { file in
-                            ChangeRow(file: file, selected: file.path == model.diffPath) {
-                                // Task 8 routes this through `app.openDiff(path:)` (the diff tab).
-                                model.loadDiff(path: file.path)
-                            }
+                            ChangeRow(file: file, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
                         }
                         hint(changes)
                     }

@@ -39,6 +39,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
+    /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
+    var diffTabs: [UUID: DiffTab] = [:]
+    @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
@@ -311,11 +314,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func addTab(_ kind: LeafKind) {
         guard let task = selectedTask else { return }
+        deactivateDiff()
         perform { $0.addTab(taskId: task.id, kind: kind) }
     }
 
     func activate(tabId: UUID) {
         guard let task = selectedTask else { return }
+        deactivateDiff()
         perform { s in
             if let i = s.tasks.firstIndex(where: { $0.id == task.id }) { s.tasks[i].activeTabId = tabId }
         }
@@ -324,6 +329,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Inspector clicks: the task's Helix, else a new editor tab (decision #44). Without a selected task — nothing.
     func openInEditor(path: String, line: Int?) {
         guard selectedTask != nil else { return }
+        deactivateDiff()  // the editor tab (also a new one) is shown instead
         onOpenInEditor?(path, line)
     }
 

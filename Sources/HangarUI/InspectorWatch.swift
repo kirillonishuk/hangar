@@ -44,7 +44,8 @@ import Workspace
     func update() {
         let task = app.selectedTask
         let want = task.flatMap { t in root(of: t).map { (t.id, $0) } }
-        guard shouldWatch(inspectorVisible: app.state.inspectorVisible, windowVisible: windowVisible, hasTask: want != nil),
+        // The shown diff tab is the inspector's data too: it keeps loading (and refreshing) with the inspector hidden.
+        guard shouldWatch(inspectorVisible: app.state.inspectorVisible || app.activeDiff != nil, windowVisible: windowVisible, hasTask: want != nil),
               let task, let (id, root) = want else {
             stop()
             return
@@ -56,6 +57,8 @@ import Workspace
         let gen = generation
         let app = self.app
         app.inspector.show(taskId: id, root: root, baseBranch: { await app.baseBranch(of: task) })
+        // `show` of another task drops the open diff: this task's diff tab asks for its file again.
+        if let path = app.diffTabs[id]?.path, app.inspector.diffPath != path { app.inspector.loadDiff(path: path) }
         Task { [weak self] in
             let git = Git(repo: root)
             let gitDir = try? await git.gitDir()

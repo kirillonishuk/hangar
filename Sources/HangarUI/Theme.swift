@@ -354,6 +354,13 @@ extension Theme {
         public static let maxHeight: CGFloat = 360
         public static let markerWidth: CGFloat = 16
         public static let paddingH: CGFloat = 8
+        /// Diff tab: the path header and hunk headers (mockup `.dh` 6×14, gap 12; `.hunk` 2×14).
+        public static let headerPaddingV: CGFloat = 6
+        public static let headerPaddingH: CGFloat = 14
+        public static let headerGap: CGFloat = 12
+        public static let hunkPaddingV: CGFloat = 2
+        /// The clicked line: `selection` over its add/del background.
+        public static let selectedOpacity: Double = 0.7
 
         /// `?` as added, `R` as modified, `U` as deleted.
         public static func badge(_ c: FileChange) -> Color {

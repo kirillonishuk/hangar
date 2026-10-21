@@ -271,6 +271,9 @@ final class RatioSplitView: HangarSplitView {
     private var lastVisible: [UUID: Bool] = [:]
     private var shownTab: UUID?
     private var shownFocus: UUID?
+    /// The task's diff tab is shown instead of its tabs (created on first use).
+    private var diffHost: DiffHostView?
+    private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
     /// Tab content above the drawer.
     private let content = NSView()
@@ -389,16 +392,25 @@ final class RatioSplitView: HangarSplitView {
             uiLog.info("surface closed leaf=\(id.uuidString.prefix(8), privacy: .public)")
         }
 
+        let diffShown = app.activeDiff != nil
+        if diffShown, diffHost == nil {
+            let host = DiffHostView(rootView: DiffView(app: app))
+            host.frame = content.bounds
+            host.autoresizingMask = [.width, .height]
+            content.addSubview(host)
+            diffHost = host
+        }
+        diffHost?.isHidden = !diffShown
         let active = activeTab
         if let tab = active { show(tab) }
         for tab in liveTabs where tabViews[tab.id] != nil && tab.id != active?.id {
             if structure[tab.id] != signature(tab.root) { layoutTab(tab) }  // e.g. a hidden leaf exited with 0
         }
-        for (id, view) in tabViews { view.isHidden = id != active?.id }
+        for (id, view) in tabViews { view.isHidden = diffShown || id != active?.id }
         for tab in liveTabs {
             for leaf in tab.root.leaves {
                 guard let view = leafViews[leaf.id], let surface = view.surface else { continue }
-                let visible = tab.id == active?.id
+                let visible = !diffShown && tab.id == active?.id
                 if lastVisible[leaf.id] != visible {
                     lastVisible[leaf.id] = visible
                     surface.setVisible(visible)
@@ -410,14 +422,17 @@ final class RatioSplitView: HangarSplitView {
         }
 
         emptyState.isHidden = !state.projects.isEmpty
-        placeholder.isHidden = active != nil || state.projects.isEmpty
+        placeholder.isHidden = active != nil || diffShown || state.projects.isEmpty
         placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
-        if active?.id != shownTab || active?.focusedLeafId != shownFocus {
+        if active?.id != shownTab || active?.focusedLeafId != shownFocus || diffShown != shownDiff {
             shownTab = active?.id
             shownFocus = active?.focusedLeafId
-            if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
+            shownDiff = diffShown
+            if diffShown {
+                window?.makeFirstResponder(diffHost)  // typed keys must not reach the hidden terminal
+            } else if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
                 window?.makeFirstResponder(leaf.surface)
             }
         }
@@ -431,6 +446,7 @@ final class RatioSplitView: HangarSplitView {
 
     /// Back to the focused terminal (after inline rename left nothing focused).
     func focusActiveLeaf() {
+        if app.activeDiff != nil, let diffHost { window?.makeFirstResponder(diffHost); return }
         if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.surface) }
     }
 

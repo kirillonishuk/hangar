@@ -207,3 +207,10 @@
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "No task selected";
 "baseMissingUnknown" = "Base branch not found — showing uncommitted";
+"diffBinary" = "Binary file";
+"diffTooLarge" = "Diff too large (%d lines)";
+"diffModeChange" = "Mode %@ → %@";
+"diffRenamedFrom" = "Renamed from %@";
+"diffNotChanged" = "File is no longer changed";
+"diffNotAFile" = "Not a file: a directory or a nested repository";
+"diffTabHelp" = "Close ⌘W";

@@ -107,6 +107,7 @@ import Workspace
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
+        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
     }
 
     // Sidebar
@@ -331,6 +332,14 @@ import Workspace
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
     static var inspectorNoTask: String { s(.inspectorNoTask) }
+    // Diff tab
+    static var diffBinary: String { s(.diffBinary) }
+    static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
+    static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
+    static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }
+    static var diffNotChanged: String { s(.diffNotChanged) }
+    static var diffNotAFile: String { s(.diffNotAFile) }
+    static var diffTabHelp: String { s(.diffTabHelp) }
 
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }

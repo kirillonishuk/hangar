@@ -304,6 +304,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
+        // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
+        let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
+        if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {
+            app.hangarShortcutConsumed()
+            switch key {
+            case .up: app.diffNeighbour(-1)
+            case .down: app.diffNeighbour(1)
+            case .enter: if !event.isARepeat { app.openActiveDiffInEditor() }
+            case .toggleMode: if !event.isARepeat { app.inspector.toggleMode() }
+            case .close: if !event.isARepeat { app.closeDiff() }
+            }
+            return true
+        }
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
             if sc == .rename {
                 switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {

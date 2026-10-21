@@ -51,6 +51,17 @@ extension MainWindowController {
         return lines
     }
 
+    private static func describe(_ d: DiffState) -> String {
+        switch d {
+        case .none: "none"
+        case .loading: "loading"
+        case .notChanged: "notChanged"
+        case .failed(let e): "failed(\(e))"
+        case .loaded(.text(let hunks, let o, let n)): "text(hunks=\(hunks.count) lines=\(hunks.reduce(0) { $0 + $1.lines.count }) mode=\(o ?? "-")→\(n ?? "-"))"
+        case .loaded(let other): "\(other)"
+        }
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -254,6 +265,14 @@ extension MainWindowController {
             case "toggleMode": m.toggleMode()
             case "expand": if f.count > 1 { m.expand(f[1]) }
             case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }
+            // change <n>: a click on the n-th Changes row (0-based) → the diff tab.
+            case "change": if f.count > 1, let n = Int(f[1]), let files = m.changes?.files, files.indices.contains(n) { app.openDiff(path: files[n].path) }
+            case "diffTab": app.activateDiff()  // a click on the diff tab
+            case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
+            case "diffKey":
+                // diffKey up|down|enter|optB|cmdW: a real key through the key monitor (as `post`).
+                let keys = ["up": "126", "down": "125", "enter": "36", "optB": "11 opt", "cmdW": "13 cmd"]
+                if f.count > 1, let key = keys[f[1]] { debugCommand("post " + key) }
             case "":
                 if let task = app.selectedTask {
                     let root: String? = if case .worktree(let p, _, _) = task.mode { p } else { app.project(task.projectId)?.path }
@@ -262,7 +281,7 @@ extension MainWindowController {
                 }
             default: break
             }
-            uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public)")
+            uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public) diffPath=\(m.diffPath ?? "-", privacy: .public) diff=\(Self.describe(m.diff), privacy: .public) diffTab=\(self.app.selectedTask.flatMap { self.app.diffTabs[$0.id] }.map { "\($0.path) active=\($0.active) row=\($0.selectedRow.map(String.init) ?? "-")" } ?? "-", privacy: .public) rows=\(self.app.activeDiffContent.rows.count) open=\(self.app.activeDiff.flatMap { _ in openTarget(rows: self.app.activeDiffContent.rows, selected: self.app.activeDiff?.selectedRow) }.map(String.init) ?? "-", privacy: .public) responder=\(self.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

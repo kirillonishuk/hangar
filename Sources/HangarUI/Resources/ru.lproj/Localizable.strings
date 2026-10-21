@@ -207,3 +207,10 @@
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "Задача не выбрана";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано незакоммиченное";
+"diffBinary" = "Бинарный файл";
+"diffTooLarge" = "Слишком большой diff (%d строк)";
+"diffModeChange" = "Режим %@ → %@";
+"diffRenamedFrom" = "Переименован из %@";
+"diffNotChanged" = "Файл больше не изменён";
+"diffNotAFile" = "Не файл: каталог или вложенный репозиторий";
+"diffTabHelp" = "Закрыть ⌘W";

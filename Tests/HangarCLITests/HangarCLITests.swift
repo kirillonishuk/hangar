@@ -267,6 +267,31 @@ private let statusFixture = Data("""
         #expect(String(decoding: plain.err, as: UTF8.self) == "hangar: refusing to archive without --yes\n")
     }
 
+    @Test @MainActor func mcpOverStdio() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let s = try fakeApp(dir, calls) { id, _ in .ok(id, TasksResult(tasks: [])) }
+        defer { s.stop() }
+        let input = [
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#,
+            #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tasks_list","arguments":{}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let socket = dir.socket
+        let r = try await Task.detached { try run(["mcp"], env: ["HANGAR_SOCKET": socket], stdin: Data(input.utf8)) }.value
+        #expect(r.status == 0)
+        #expect(r.err.isEmpty, "\(String(decoding: r.err, as: UTF8.self))")
+        let lines = String(decoding: r.out, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.count == 4 && lines.last == "")  // exactly 3 lines, each ends with \n
+        let objects = lines.dropLast().compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        #expect(objects.count == 3)
+        #expect(objects.map { $0["jsonrpc"] as? String } == ["2.0", "2.0", "2.0"])
+        #expect(objects.map { $0["id"] as? Int } == [1, 2, 3])
+        let result = objects.last?["result"] as? [String: Any]
+        #expect(result?["isError"] as? Bool == false)
+        #expect(calls.calls == [.tasksList(project: nil)])
+    }
+
     @Test func slowStdinDoesNotBlockEvent() throws {
         let dir = TempDir()
         let p = Process()

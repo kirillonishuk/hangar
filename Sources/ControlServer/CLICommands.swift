@@ -17,6 +17,7 @@ usage:
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  hangar mcp   (MCP server over stdio)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """

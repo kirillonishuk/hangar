@@ -77,7 +77,7 @@ import Workspace
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
-        case folderMissingPath, keepAwake, more, settings, settingsHelp, settingsEllipsis
+        case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint
@@ -99,12 +99,15 @@ import Workspace
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
+        case keepAwakeTitle
+        case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
         case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
+        case integrationMCP, copyCommand, commandCopied, mcpHint
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
@@ -137,7 +140,6 @@ import Workspace
     }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
-    static var keepAwake: String { s(.keepAwake) }
     static var more: String { s(.more) }
     static var settings: String { s(.settings) }
     static var settingsHelp: String { s(.settingsHelp) }
@@ -233,6 +235,13 @@ import Workspace
     static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
+
+    // Keep awake
+    static var keepAwakeTitle: String { s(.keepAwakeTitle) }
+    static var keepAwakeOffHelp: String { s(.keepAwakeOffHelp) }
+    static var keepAwakeIdleHelp: String { s(.keepAwakeIdleHelp) }
+    static func keepAwakeActiveHelp(_ n: Int) -> String { f(.keepAwakeActiveHelp, n) }
+    static var keepAwakeGraceHelp: String { s(.keepAwakeGraceHelp) }
     static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
 
     // Integrations (Settings)
@@ -249,6 +258,10 @@ import Workspace
     static var codexNotFound: String { s(.codexNotFound) }
     static var codexLookup: String { s(.codexLookup) }
     static var integrationNeedsApp: String { s(.integrationNeedsApp) }
+    static var integrationMCP: String { s(.integrationMCP) }
+    static var copyCommand: String { s(.copyCommand) }
+    static var commandCopied: String { s(.commandCopied) }
+    static var mcpHint: String { s(.mcpHint) }
     static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
     static var settingsUnsupported: String { s(.settingsUnsupported) }
     static var fileChanged: String { s(.fileChanged) }

@@ -49,12 +49,14 @@ public struct UsageMessage: Codable, Equatable, Sendable {
 
 public enum ProtocolError: String, Error, Sendable {
     case badJSON = "bad-json", badVersion = "bad-version", unknownType = "unknown-type", badField = "bad-field", tooLarge = "too-large"
+    case badRequest = "bad-request"
 }
 
 /// One JSON object per line: `{"v":1,"type":"event"|"usage",…}\n`.
 public enum ControlMessage: Equatable, Sendable {
     case event(EventMessage)
     case usage(UsageMessage)
+    case request(ControlRequest)
 
     public func encoded() -> Data {
         let encoder = JSONEncoder()
@@ -62,6 +64,10 @@ public enum ControlMessage: Equatable, Sendable {
         switch self {
         case let .event(m): data = (try? encoder.encode(Envelope(type: "event", body: m))) ?? Data()
         case let .usage(m): data = (try? encoder.encode(Envelope(type: "usage", body: m))) ?? Data()
+        case let .request(r):
+            let params = String(decoding: r.call.successValue?.paramsJSON() ?? Data("{}".utf8), as: UTF8.self)
+            let method = r.call.successValue?.method.rawValue ?? ""
+            data = Data(#"{"v":1,"id":\#(r.id),"method":"\#(method)","params":\#(params)}"#.utf8)
         }
         data.append(0x0A)
         return data
@@ -71,7 +77,17 @@ public enum ControlMessage: Equatable, Sendable {
     public static func decode(_ line: Data) -> Result<ControlMessage, ProtocolError> {
         guard line.count <= ControlServer.maxLine else { return .failure(.tooLarge) }
         guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return .failure(.badJSON) }
-        guard (object["v"] as? Int) == 1 else { return .failure(.badVersion) }
+        guard object["v"].flatMap(ControlCall.wireInt) == 1 else { return .failure(.badVersion) }
+        if let method = object["method"] {
+            guard let id = object["id"].flatMap(ControlCall.wireInt), (0...9_007_199_254_740_992).contains(id),
+                  let method = method as? String else { return .failure(.badRequest) }
+            var params: [String: Any] = [:]
+            if let raw = object["params"] {
+                guard let p = raw as? [String: Any] else { return .failure(.badRequest) }
+                params = p
+            }
+            return .success(.request(ControlRequest(id: id, call: ControlCall.decode(method: method, params: params))))
+        }
         let decoder = JSONDecoder()
         switch object["type"] as? String {
         case "event":
@@ -114,5 +130,211 @@ private struct Envelope<Body: Encodable>: Encodable {
         try c.encode(1, forKey: .v)
         try c.encode(type, forKey: .type)
         try body.encode(to: encoder)
+    }
+}
+
+public enum ControlErrorCode: String, Codable, Sendable {
+    case badRequest = "bad-request", unknownMethod = "unknown-method", badParams = "bad-params", notFound = "not-found", ambiguous
+    case confirmRequired = "confirm-required", notStarted = "not-started", exited, failed, busy, tooLarge = "too-large"
+    case notRunning = "not-running", timeout
+}
+
+public struct ControlError: Error, Equatable, Codable, Sendable {
+    public var code: ControlErrorCode
+    public var message: String
+
+    public init(code: ControlErrorCode, message: String) {
+        self.code = code
+        self.message = message
+    }
+}
+
+/// `{"v":1,"id":N,"method":"…","params":{…}}`; a bad method or params keeps the id so the error can be answered.
+public struct ControlRequest: Equatable, Sendable {
+    public var id: Int
+    public var call: Result<ControlCall, ControlError>
+
+    public init(id: Int, call: Result<ControlCall, ControlError>) {
+        self.id = id
+        self.call = call
+    }
+}
+
+extension Result {
+    var successValue: Success? { if case let .success(v) = self { v } else { nil } }
+}
+
+/// `{"id":N,"result":{…}}` or `{"id":N,"error":{"code","message"}}`, one line + `\n`.
+public struct ControlResponse: Sendable {
+    public var id: Int?
+    public var body: Result<Data, ControlError>
+
+    public init(id: Int?, body: Result<Data, ControlError>) {
+        self.id = id
+        self.body = body
+    }
+
+    public static func ok<T: Encodable>(_ id: Int, _ value: T) -> ControlResponse {
+        ControlResponse(id: id, body: .success((try? wireEncoder.encode(value)) ?? Data("{}".utf8)))
+    }
+
+    public func encoded() -> Data {
+        var out = Data(#"{"id":"#.utf8)
+        out.append(Data((id.map(String.init) ?? "null").utf8))
+        switch body {
+        case let .success(result):
+            out.append(Data(#","result":"#.utf8))
+            out.append(result)
+        case let .failure(error):
+            out.append(Data(#","error":"#.utf8))
+            out.append((try? Self.wireEncoder.encode(error)) ?? Data("{}".utf8))
+        }
+        out.append(Data("}\n".utf8))
+        return out
+    }
+
+    private static var wireEncoder: JSONEncoder {
+        let e = JSONEncoder()
+        e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return e
+    }
+}
+
+// MARK: results
+
+public struct ProjectInfo: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var path: String
+    public var exists: Bool
+
+    public init(id: UUID, name: String, path: String, exists: Bool) {
+        self.id = id
+        self.name = name
+        self.path = path
+        self.exists = exists
+    }
+}
+
+public struct LeafInfo: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var kind: TabKind
+    public var status: String
+
+    public init(id: UUID, kind: TabKind, status: String) {
+        self.id = id
+        self.kind = kind
+        self.status = status
+    }
+}
+
+/// `kind` and `status` are those of the focused leaf.
+public struct TabInfo: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var kind: TabKind
+    public var title: String
+    public var status: String
+    public var leaves: [LeafInfo]
+
+    public init(id: UUID, kind: TabKind, title: String, status: String, leaves: [LeafInfo]) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.status = status
+        self.leaves = leaves
+    }
+}
+
+public struct TaskInfo: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var project: UUID
+    public var projectName: String
+    public var status: String
+    /// "main-folder" | "worktree"
+    public var mode: String
+    public var path: String
+    public var branch: String?
+    public var base: String?
+    public var tabs: [TabInfo]
+
+    public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
+                branch: String?, base: String?, tabs: [TabInfo]) {
+        self.id = id
+        self.name = name
+        self.project = project
+        self.projectName = projectName
+        self.status = status
+        self.mode = mode
+        self.path = path
+        self.branch = branch
+        self.base = base
+        self.tabs = tabs
+    }
+}
+
+public struct ProjectsResult: Codable, Equatable, Sendable {
+    public var projects: [ProjectInfo]
+    public init(projects: [ProjectInfo]) { self.projects = projects }
+}
+
+public struct ProjectAddResult: Codable, Equatable, Sendable {
+    public var project: ProjectInfo
+    public var added: Bool
+    public init(project: ProjectInfo, added: Bool) {
+        self.project = project
+        self.added = added
+    }
+}
+
+public struct TasksResult: Codable, Equatable, Sendable {
+    public var tasks: [TaskInfo]
+    public init(tasks: [TaskInfo]) { self.tasks = tasks }
+}
+
+public struct TaskResult: Codable, Equatable, Sendable {
+    public var task: TaskInfo
+    public init(task: TaskInfo) { self.task = task }
+}
+
+public struct TabResult: Codable, Equatable, Sendable {
+    public var task: UUID
+    public var tab: TabInfo
+    public init(task: UUID, tab: TabInfo) {
+        self.task = task
+        self.tab = tab
+    }
+}
+
+public struct SendResult: Codable, Equatable, Sendable {
+    public var tab: UUID
+    public var leaf: UUID
+    public init(tab: UUID, leaf: UUID) {
+        self.tab = tab
+        self.leaf = leaf
+    }
+}
+
+public struct ScreenResult: Codable, Equatable, Sendable {
+    public var tab: UUID
+    public var leaf: UUID
+    public var text: String
+    public var lines: Int
+    public var truncated: Bool
+    public init(tab: UUID, leaf: UUID, text: String, lines: Int, truncated: Bool) {
+        self.tab = tab
+        self.leaf = leaf
+        self.text = text
+        self.lines = lines
+        self.truncated = truncated
+    }
+}
+
+public struct ArchiveResult: Codable, Equatable, Sendable {
+    public var task: UUID
+    public var archived: Bool
+    public init(task: UUID, archived: Bool) {
+        self.task = task
+        self.archived = archived
     }
 }

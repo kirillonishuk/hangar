@@ -98,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         server?.stop()
+        appState?.keepAwake.stop()
         appState?.saveNow()
     }
 
@@ -105,7 +106,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startControlServer(stateDir: URL, socketPath: String) {
         ensurePrivateDirectory(stateDir, tightenExisting: stateDir.standardizedFileURL.path == defaultStateDirectoryPath())
         // Messages that arrive before AppState exists are dropped.
-        let server = ControlServer(path: socketPath) { [weak self] in self?.appState?.handle($0) }
+        let server = ControlServer(path: socketPath, handler: { [weak self] in self?.appState?.handle($0) },
+                                   onRequest: { [weak self] id, call in
+                                       await self?.appState?.respond(id, call)
+                                           ?? ControlResponse(id: id, body: .failure(ControlError(code: .failed, message: "Hangar is starting")))
+                                   })
         do {
             try server.start()
             self.server = server

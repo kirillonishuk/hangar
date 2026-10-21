@@ -29,6 +29,8 @@ private final class TempDir {
     }
 }
 
+@MainActor private final class CallLog { var calls: [ControlCall] = [] }
+
 private struct Result { var status: Int32; var out: Data; var err: Data; var seconds: Double }
 
 private func run(_ args: [String], env: [String: String], stdin: Data?) throws -> Result {
@@ -56,6 +58,11 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
     err.fileHandleForReading.readabilityHandler = nil
     return Result(status: p.terminationStatus, out: outData.value, err: errData.value,
                   seconds: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18)
+}
+
+/// The fake app answers on the main actor, so the blocking `waitUntilExit` must not run there.
+private func runOffMain(_ args: [String], socket: String) async throws -> Result {
+    try await Task.detached { try run(args, env: ["HANGAR_SOCKET": socket], stdin: nil) }.value
 }
 
 private final class LockedData: @unchecked Sendable {
@@ -174,10 +181,127 @@ private let statusFixture = Data("""
         #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
     }
 
-    @Test func unknownSubcommandExitsOne() throws {
-        let r = try run(["frobnicate"], env: [:], stdin: nil)
+    @MainActor fileprivate func fakeApp(_ dir: TempDir, _ calls: CallLog, reply: @escaping @MainActor (Int, ControlCall) -> ControlResponse) throws -> ControlServer {
+        let s = ControlServer(path: dir.socket, handler: { _ in }, onRequest: { id, call in
+            calls.calls.append(call)
+            return reply(id, call)
+        })
+        try s.start()
+        return s
+    }
+
+    @Test @MainActor func cliJSONOutput() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let expected = TasksResult(tasks: [TaskInfo(id: UUID(), name: "N", project: UUID(), projectName: "web", status: "idle", mode: "worktree",
+                                                    path: "/w", branch: "b", base: "main", tabs: [
+                                                        TabInfo(id: UUID(), kind: .claude, title: "Claude", status: "idle",
+                                                                leaves: [LeafInfo(id: UUID(), kind: .claude, status: "idle")]),
+                                                    ])])
+        let s = try fakeApp(dir, calls) { id, _ in .ok(id, expected) }
+        defer { s.stop() }
+        let r = try await runOffMain(["tasks", "list", "--json"], socket: dir.socket)
+        #expect(r.status == 0, "\(String(decoding: r.err, as: UTF8.self))")
+        #expect(try JSONDecoder().decode(TasksResult.self, from: r.out) == expected)
+        #expect(String(decoding: r.out, as: UTF8.self).contains("\n  "))  // pretty-printed
+        #expect(calls.calls == [.tasksList(project: nil)])
+    }
+
+    @Test func cliNotRunning() throws {
+        let dir = TempDir()
+        let r = try run(["projects", "list"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
         #expect(r.status == 1)
-        #expect(!r.err.isEmpty && r.out.isEmpty)
+        #expect(String(decoding: r.err, as: UTF8.self).contains("Hangar is not running"))
+        #expect(r.out.isEmpty)
+        // Fails on connect, not after the 10 s request timeout; spawn under a loaded parallel run alone can take ~2 s.
+        #expect(r.seconds < 5)
+    }
+
+    @Test @MainActor func cliArchiveWithoutYes() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let s = try fakeApp(dir, calls) { id, _ in .ok(id, ArchiveResult(task: UUID(), archived: true)) }
+        defer { s.stop() }
+        let r = try await runOffMain(["tasks", "archive", "--task", "t"], socket: dir.socket)
+        #expect(r.status == 2)
+        #expect(String(decoding: r.err, as: UTF8.self).contains("--yes"))
+        let bad = try await runOffMain(["tasks", "list", "--frob"], socket: dir.socket)
+        #expect(bad.status == 2 && !bad.err.isEmpty && bad.out.isEmpty)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(calls.calls.isEmpty)
+    }
+
+    @Test @MainActor func cliAppError() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let s = try fakeApp(dir, calls) { id, _ in ControlResponse(id: id, body: .failure(ControlError(code: .notFound, message: "no task \"x\""))) }
+        defer { s.stop() }
+        let r = try await runOffMain(["tabs", "open", "--task", "x", "--kind", "shell"], socket: dir.socket)
+        #expect(r.status == 1)
+        #expect(String(decoding: r.err, as: UTF8.self) == "hangar: no task \"x\"\n")
+        #expect(r.out.isEmpty)
+        let j = try await runOffMain(["tabs", "open", "--task", "x", "--kind", "shell", "--json"], socket: dir.socket)
+        #expect(j.status == 1 && j.out.isEmpty)
+        let object = try JSONSerialization.jsonObject(with: j.err) as? [String: Any]
+        let error = object?["error"] as? [String: Any]
+        #expect(error?["code"] as? String == "not-found")
+        #expect(error?["message"] as? String == "no task \"x\"")
+        #expect(calls.calls == [.tabsOpen(task: "x", kind: .shell, prompt: nil), .tabsOpen(task: "x", kind: .shell, prompt: nil)])
+    }
+
+    /// The server's own validation (`bad-params`, `confirm-required`) is a usage error too: exit 2, like the CLI's.
+    @Test @MainActor func cliServerUsageErrorsExitTwo() async throws {
+        for code in [ControlErrorCode.badParams, .confirmRequired] {
+            let dir = TempDir(), calls = CallLog()
+            let s = try fakeApp(dir, calls) { id, _ in ControlResponse(id: id, body: .failure(ControlError(code: code, message: "nope"))) }
+            defer { s.stop() }
+            let r = try await runOffMain(["tasks", "list"], socket: dir.socket)
+            #expect(r.status == 2, "\(code)")
+            #expect(String(decoding: r.err, as: UTF8.self) == "hangar: nope\n")
+        }
+    }
+
+    @Test func unknownSubcommandIsUsage() throws {
+        for args in [["frobnicate"], []] {
+            let r = try run(args, env: [:], stdin: nil)
+            #expect(r.status == 2, "\(args)")
+            #expect(!r.err.isEmpty && r.out.isEmpty, "\(args)")
+        }
+    }
+
+    @Test func usageErrorAsJSON() throws {
+        let dir = TempDir()
+        let r = try run(["tasks", "list", "--frob", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
+        #expect(r.status == 2 && r.out.isEmpty)
+        let error = (try JSONSerialization.jsonObject(with: r.err) as? [String: Any])?["error"] as? [String: Any]
+        #expect(error?["code"] as? String == "bad-params")
+        #expect(error?["message"] as? String == "unknown flag \"--frob\"")
+        // `--json` as the value of --task is not json mode.
+        let plain = try run(["tasks", "archive", "--task", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
+        #expect(plain.status == 2)
+        #expect(String(decoding: plain.err, as: UTF8.self) == "hangar: refusing to archive without --yes\n")
+    }
+
+    @Test @MainActor func mcpOverStdio() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let s = try fakeApp(dir, calls) { id, _ in .ok(id, TasksResult(tasks: [])) }
+        defer { s.stop() }
+        let input = [
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#,
+            #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tasks_list","arguments":{}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let socket = dir.socket
+        let r = try await Task.detached { try run(["mcp"], env: ["HANGAR_SOCKET": socket], stdin: Data(input.utf8)) }.value
+        #expect(r.status == 0)
+        #expect(r.err.isEmpty, "\(String(decoding: r.err, as: UTF8.self))")
+        let lines = String(decoding: r.out, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.count == 4 && lines.last == "")  // exactly 3 lines, each ends with \n
+        let objects = lines.dropLast().compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        #expect(objects.count == 3)
+        #expect(objects.map { $0["jsonrpc"] as? String } == ["2.0", "2.0", "2.0"])
+        #expect(objects.map { $0["id"] as? Int } == [1, 2, 3])
+        let result = objects.last?["result"] as? [String: Any]
+        #expect(result?["isError"] as? Bool == false)
+        #expect(calls.calls == [.tasksList(project: nil)])
     }
 
     @Test func slowStdinDoesNotBlockEvent() throws {

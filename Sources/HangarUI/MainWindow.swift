@@ -563,7 +563,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// For `applicationShouldTerminate`.
     public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
-        quitDecision(creating: isCreatingTask, working: app.workingLeafCount, confirmed: quitConfirmed,
+        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.workingLeafCount, confirmed: quitConfirmed,
                      asking: quitAlertShown, systemShutdown: systemShutdown)
     }
 

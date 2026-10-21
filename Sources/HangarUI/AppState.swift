@@ -5,6 +5,7 @@ import Git
 import Integration
 import Observation
 import os
+import Power
 import Usage
 import Workspace
 
@@ -14,7 +15,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 @MainActor @Observable public final class AppState {
     public private(set) var state: WorkspaceState
     /// Changed live from Settings (each change is also written to `configURL`).
-    public private(set) var config: HangarConfig
+    public private(set) var config: HangarConfig {
+        didSet { if config.keepAwake != oldValue.keepAwake { updateKeepAwake() } }
+    }
     /// Runtime-only (not persisted): last terminal title per leaf.
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
@@ -22,7 +25,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
-    var statuses = StatusBoard()
+    var statuses = StatusBoard() { didSet { updateKeepAwake() } }
+    /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
+    @ObservationIgnored public lazy var keepAwake = KeepAwake()
     /// Subscription limits from the statusline / codex; in memory only.
     var usage = UsageBoard()
     /// `message` of the leaf's last hook event (notification body).
@@ -58,6 +63,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
     /// The last lookup found no codex: look again on the next popover open.
     @ObservationIgnored var codexNotFound = false
+    /// CLI/MCP `tasks create` calls in progress: like the new-task sheet's create, they hold off ⌘Q.
+    private(set) var controlCreating = 0
+    /// Starts, types into and reads terminals for CLI/MCP; set by the terminal area.
+    @ObservationIgnored var terminals: TerminalAccess?
     /// Runtime only, never saved; not observed (written on keystrokes).
     @ObservationIgnored private var interaction: Interaction = .typing
 
@@ -85,7 +94,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let socketPath: String
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
-    @ObservationIgnored private var pendingPrompts: [UUID: String] = [:]
+    @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
@@ -263,19 +272,33 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
-    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode) {
+    /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
+    @discardableResult
+    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true) -> (task: UUID, tab: UUID) {
+        var created = (task: UUID(), tab: UUID())
         perform { s in
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
             var base: String?
             if case .worktree(_, _, let b) = mode { base = b }
-            s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
-            s.select(taskId: task)
+            if select {
+                s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
+                s.select(taskId: task)
+            }
             let tab = s.addTab(taskId: task, kind: config.defaultAgent)
+            created = (task, tab)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {
                 pendingPrompts[leaf.id] = message
             }
         }
+        return created
+    }
+
+    /// Runs a CLI/MCP task creation, counted in `controlCreating` while it lasts (git may be running).
+    func countingCreation<T>(_ work: () async -> T) async -> T {
+        controlCreating += 1
+        defer { controlCreating -= 1 }
+        return await work()
     }
 
     func select(taskId: UUID) { perform { $0.select(taskId: taskId) } }
@@ -391,6 +414,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         apply(&config)
         uiLog.info("config \(key, privacy: .public) = \(flag)")
     }
+
+    private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }

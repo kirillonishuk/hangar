@@ -82,4 +82,141 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         }
         #expect(bad.session == nil)
     }
+
+    // MARK: requests
+
+    private func decode(_ method: String, _ json: String) -> Result<ControlCall, ControlError> {
+        let params = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] ?? [:]
+        return ControlCall.decode(method: method, params: params)
+    }
+
+    private func badParams(_ method: String, _ json: String, sourceLocation: SourceLocation = #_sourceLocation) {
+        guard case let .failure(e) = decode(method, json) else {
+            Issue.record("accepted \(method) \(json.prefix(80))", sourceLocation: sourceLocation); return
+        }
+        #expect(e.code == .badParams, sourceLocation: sourceLocation)
+    }
+
+    @Test func requestRoundTrip() {
+        let calls: [ControlCall] = [
+            .projectsList, .projectsAdd(path: "/tmp/p"), .tasksList(project: nil), .tasksList(project: "app"),
+            .tasksCreate(project: "app", name: "Fix", worktree: false, base: nil, prompt: nil),
+            .tasksCreate(project: "app", name: "Fix", worktree: true, base: "main", prompt: "go"),
+            .tabsOpen(task: "t1", kind: .shell, prompt: nil), .tabsOpen(task: "t1", kind: .claude, prompt: "hi"),
+            .tabsSend(tab: "ab12", text: "ls", keys: [.enter, .ctrlC]), .tabsSend(tab: "ab12", text: nil, keys: [.up]),
+            .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"),
+        ]
+        #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))
+        for call in calls {
+            let params = (try? JSONSerialization.jsonObject(with: call.paramsJSON())) as? [String: Any]
+            #expect(params != nil)
+            #expect(ControlCall.decode(method: call.method.rawValue, params: params ?? [:]) == .success(call))
+        }
+        for call in calls {
+            let wire = ControlMessage.request(ControlRequest(id: 42, call: .success(call))).encoded()
+            #expect(ControlMessage.decode(wire.dropLast()) == .success(.request(ControlRequest(id: 42, call: .success(call)))))
+        }
+        let parsed = ControlMessage.decode(line(#"{"v":1,"id":7,"method":"tasks.list","params":{}}"#))
+        #expect(parsed == .success(.request(ControlRequest(id: 7, call: .success(.tasksList(project: nil))))))
+        #expect(ControlMethod.tabsSend.toolName == "tabs_send")
+    }
+
+    @Test func unknownMethodKeepsId() {
+        let parsed = ControlMessage.decode(line(#"{"v":1,"id":7,"method":"tabs.close","params":{}}"#))
+        guard case let .success(.request(r)) = parsed, case let .failure(e) = r.call else { Issue.record("not a request failure"); return }
+        #expect(r.id == 7 && e.code == .unknownMethod)
+    }
+
+    @Test func paramsValidated() {
+        let big = String(repeating: "a", count: 32_769)
+        badParams("tasks.archive", #"{"task":"t","yes":true,"force":1}"#)
+        badParams("tasks.create", #"{"project":"p"}"#)
+        badParams("tabs.read", #"{"tab":"t","lines":"5"}"#)
+        badParams("tabs.read", #"{"tab":"t","lines":0}"#)
+        badParams("tabs.read", #"{"tab":"t","lines":5001}"#)
+        badParams("tabs.send", #"{"tab":"t","text":"a\u0000b"}"#)
+        badParams("tabs.send", #"{"tab":"t","text":"\#(big)"}"#)
+        badParams("tabs.open", #"{"task":"t","kind":"diff"}"#)
+        badParams("tabs.send", #"{"tab":"t","keys":["f13"]}"#)
+        badParams("tabs.send", #"{"tab":"t","keys":[\#(Array(repeating: "\"enter\"", count: 33).joined(separator: ","))]}"#)
+        badParams("tasks.create", #"{"project":"p","name":"  "}"#)
+        badParams("tasks.create", #"{"project":"p","name":"a\nb"}"#)
+        badParams("projects.add", #"{"path":"rel/dir"}"#)
+        badParams("tasks.create", #"{"project":"p","name":"n","base":"main"}"#)
+        badParams("tasks.create", #"{"project":"p","name":"n","worktree":false,"base":"main"}"#)
+        badParams("tabs.open", #"{"task":"t","kind":"shell","prompt":"x"}"#)
+        badParams("tabs.send", #"{"tab":"t"}"#)
+        badParams("tabs.send", #"{"tab":"t","keys":[]}"#)
+        badParams("tasks.create", #"{"project":"p","name":true}"#)
+        badParams("tasks.create", #"{"project":"p","name":"n","worktree":1}"#)
+        badParams("projects.list", #"{"x":1}"#)
+        #expect(decode("tabs.read", #"{"tab":"t"}"#) == .success(.tabsRead(tab: "t", lines: 100)))
+        #expect(decode("tasks.create", #"{"project":"p","name":" n "}"#) == .success(.tasksCreate(project: "p", name: "n", worktree: false, base: nil, prompt: nil)))
+    }
+
+    @Test func archiveNeedsYes() {
+        for json in [#"{"task":"t"}"#, #"{"task":"t","yes":false}"#] {
+            guard case let .failure(e) = decode("tasks.archive", json) else { Issue.record("accepted"); continue }
+            #expect(e.code == .confirmRequired)
+        }
+        #expect(decode("tasks.archive", #"{"task":"t","yes":true}"#) == .success(.tasksArchive(task: "t")))
+        #expect(String(decoding: ControlCall.tasksArchive(task: "t").paramsJSON(), as: UTF8.self).contains(#""yes":true"#))
+    }
+
+    @Test func missingIdIsBadRequest() {
+        for l in [#"{"v":1,"method":"projects.list","params":{}}"#, #"{"v":1,"id":"7","method":"projects.list"}"#,
+                  #"{"v":1,"id":-1,"method":"projects.list"}"#, #"{"v":1,"id":1.5,"method":"projects.list"}"#,
+                  #"{"v":1,"id":9007199254740993,"method":"projects.list"}"#] {
+            #expect(ControlMessage.decode(line(l)) == .failure(.badRequest))
+        }
+        #expect(ControlMessage.decode(line(#"{"v":2,"id":1,"method":"projects.list"}"#)) == .failure(.badVersion))
+        #expect(ControlMessage.decode(line(#"{"v":1,"id":1,"method":"projects.list","params":[]}"#)) == .failure(.badRequest))
+    }
+
+    @Test func responseEncoding() {
+        let u = UUID(uuidString: tab)!
+        let ok = String(decoding: ControlResponse.ok(3, ArchiveResult(task: u, archived: true)).encoded(), as: UTF8.self)
+        #expect(ok.hasSuffix("\n") && ok.dropLast().contains("\n") == false)
+        #expect(ok.hasPrefix(#"{"id":3,"result":{"#) && ok.contains(#""archived":true"#) && ok.contains(tab))
+        let err = ControlResponse(id: 3, body: .failure(ControlError(code: .notFound, message: #"no task "x""#)))
+        #expect(String(decoding: err.encoded(), as: UTF8.self) == #"{"id":3,"error":{"code":"not-found","message":"no task \"x\""}}"# + "\n")
+        let nilId = ControlResponse(id: nil, body: .failure(ControlError(code: .badRequest, message: "m")))
+        #expect(String(decoding: nilId.encoded(), as: UTF8.self).hasPrefix(#"{"id":null,"error":"#))
+    }
+
+    @Test func strictVersionAndShapes() {
+        for v in ["true", "1.0", #""1""#] {
+            #expect(ControlMessage.decode(line(#"{"v":\#(v),"id":1,"method":"projects.list"}"#)) == .failure(.badVersion))
+        }
+    }
+
+    @Test func pastedTextLosesControlCharacters() {
+        // ESC would end the bracketed paste early ("\u{1B}[201~"); keys go through `keys`.
+        #expect(decode("tabs.send", #"{"tab":"t","text":"a\u001b[201~b\u0003c\td\ne\rf"}"#)
+                == .success(.tabsSend(tab: "t", text: "a[201~bc\td\ne\rf", keys: [])))
+        badParams("tabs.send", #"{"tab":"t","text":"\u001b"}"#)
+        #expect(decode("tabs.send", #"{"tab":"t","text":"\u001b","keys":["enter"]}"#) == .success(.tabsSend(tab: "t", text: nil, keys: [.enter])))
+    }
+
+    @Test func nameRejectsInvisibleSeparators() {
+        for c in ["\\u2028", "\\u2029", "\\u202e", "\\u202a", "\\u2066", "\\u2069"] {
+            badParams("tasks.create", #"{"project":"p","name":"a\#(c)b"}"#)
+        }
+    }
+
+    @Test func moreValidation() {
+        badParams("tasks.list", #"{"project":""}"#)
+        badParams("projects.add", #"{"path":"/a\u0000b"}"#)
+        badParams("tasks.list", #"{"project":"a\u0000b"}"#)
+        badParams("tasks.create", #"{"project":"p","name":"n","prompt":"a\u0000b"}"#)
+        badParams("tasks.list", #"{"project":{"a":1}}"#)
+        badParams("tasks.list", #"{"project":["a"]}"#)
+        badParams("tabs.open", #"{"task":"t","kind":5}"#)
+        badParams("tabs.read", #"{"tab":"t","lines":1.5}"#)
+        badParams("tabs.read", #"{"tab":"t","lines":99999999999999999999}"#)
+        badParams("tabs.send", #"{"tab":"t","keys":[1]}"#)
+        badParams("tabs.send", #"{"tab":"t","keys":"enter"}"#)
+        #expect(decode("tabs.read", #"{"tab":"t","lines":null}"#) == .success(.tabsRead(tab: "t", lines: 100)))
+        #expect(decode("tasks.list", #"{"project":null}"#) == .success(.tasksList(project: nil)))
+    }
 }

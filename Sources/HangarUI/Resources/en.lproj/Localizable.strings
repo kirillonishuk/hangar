@@ -15,7 +15,6 @@
 "archive" = "Archive";
 "folderMissing" = "folder not found";
 "folderMissingPath" = "folder not found: %@";
-"keepAwake" = "Keep Awake";
 "more" = "More";
 "settings" = "Settings";
 "settingsHelp" = "Settings ⌘,";
@@ -182,6 +181,10 @@
 "codexNotFound" = "Codex not found";
 "codexLookup" = "Looking for codex…";
 "integrationNeedsApp" = "Available only in the built app";
+"integrationMCP" = "Hangar MCP server";
+"copyCommand" = "Copy";
+"commandCopied" = "Command copied";
+"mcpHint" = "Run it in a terminal — Hangar does not edit agent configs itself";
 "settingsInvalidJSON" = "settings.json: JSON error on line %ld — fix the file manually";
 "settingsUnsupported" = "settings.json: unexpected structure — fix the file manually";
 "fileChanged" = "The file changed — review the changes again";
@@ -214,3 +217,8 @@
 "diffNotChanged" = "File is no longer changed";
 "diffNotAFile" = "Not a file: a directory or a nested repository";
 "diffTabHelp" = "Close ⌘W";
+"keepAwakeTitle" = "Keep awake while agents work";
+"keepAwakeOffHelp" = "Keep awake: off";
+"keepAwakeIdleHelp" = "Keep the Mac awake while agents work";
+"keepAwakeActiveHelp" = "The Mac stays awake: agents working — %ld";
+"keepAwakeGraceHelp" = "The Mac stays awake for up to 2 more min";

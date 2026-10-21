@@ -74,6 +74,13 @@ import Workspace
         integration.error = nil
     }
 
+    func copy(_ command: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        error = nil
+        integration.message = L10n.commandCopied
+    }
+
     func commitExternalEditor() {
         let value = externalEditor.trimmingCharacters(in: .whitespaces)
         guard value != (app.config.externalEditor ?? "") else { return }
@@ -135,8 +142,14 @@ struct SettingsView: View {
                         save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
                     }
                 }
+                row(L10n.keepAwakeTitle) {
+                    Segment(selection: app.config.keepAwake, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
+                    }
+                }
                 row(L10n.integrationClaude) { integrationValue(.claude) }
                 row(L10n.integrationCodex) { integrationValue(.codex) }
+                row(L10n.integrationMCP) { mcpValue }
                 row(L10n.terminalBackground) {
                     Segment(selection: app.config.terminalBackground, options: [(.hangar, "Hangar"), (.theme, L10n.backgroundTheme)]) { bg in
                         save { try app.setConfig("terminal_background", bg.rawValue) { $0.terminalBackground = bg } }
@@ -201,6 +214,34 @@ struct SettingsView: View {
                     .buttonStyle(SheetButton(primary: false))
                     .fixedSize()
             }
+        }
+    }
+
+    /// Commands for the user to run in a terminal: Hangar itself never touches the agents' MCP configs.
+    @ViewBuilder private var mcpValue: some View {
+        if let cli = model.integration.cli {
+            let commands = mcpAddCommands(cli: cli)
+            VStack(alignment: .leading, spacing: Theme.railInset) {
+                ForEach([commands.claude, commands.codex], id: \.self) { command in
+                    HStack(alignment: .top, spacing: Theme.cardRowGap) {
+                        Text(verbatim: command)
+                            .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                            .foregroundStyle(Theme.ui.text2)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        Spacer(minLength: 0)
+                        Button(L10n.copyCommand) { model.copy(command) }
+                            .buttonStyle(SheetButton(primary: false))
+                            .fixedSize()
+                    }
+                }
+                Text(L10n.mcpHint).foregroundStyle(Theme.ui.text3)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            Text(L10n.integrationNeedsApp).foregroundStyle(Theme.ui.text3)
         }
     }
 

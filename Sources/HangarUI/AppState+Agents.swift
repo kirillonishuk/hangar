@@ -32,6 +32,8 @@ extension AppState {
             case .codexNotify: onCodexTurn?()
             default: break
             }
+        case .request:
+            break // served by the request router (stage 5), never reaches the hook handler
         case let .usage(u):
             // shortcut: codex limits come from its app-server (Task 11), not the socket
             guard u.agent == UsageAgent.claude.rawValue else { return }

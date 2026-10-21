@@ -15,7 +15,6 @@
 "archive" = "Архивировать";
 "folderMissing" = "папка не найдена";
 "folderMissingPath" = "папка не найдена: %@";
-"keepAwake" = "Не засыпать";
 "more" = "Ещё";
 "settings" = "Настройки";
 "settingsHelp" = "Настройки ⌘,";
@@ -182,6 +181,10 @@
 "codexNotFound" = "Codex не найден";
 "codexLookup" = "Поиск codex…";
 "integrationNeedsApp" = "Доступно только в собранном приложении";
+"integrationMCP" = "MCP-сервер Hangar";
+"copyCommand" = "Скопировать";
+"commandCopied" = "Команда скопирована";
+"mcpHint" = "Запустите в терминале — Hangar сам конфиги агентов не меняет";
 "settingsInvalidJSON" = "settings.json: ошибка JSON в строке %ld — исправьте файл вручную";
 "settingsUnsupported" = "settings.json: неожиданная структура — исправьте файл вручную";
 "fileChanged" = "Файл изменился — проверьте изменения ещё раз";
@@ -214,3 +217,8 @@
 "diffNotChanged" = "Файл больше не изменён";
 "diffNotAFile" = "Не файл: каталог или вложенный репозиторий";
 "diffTabHelp" = "Закрыть ⌘W";
+"keepAwakeTitle" = "Не засыпать, пока агенты работают";
+"keepAwakeOffHelp" = "Не засыпать: выключено";
+"keepAwakeIdleHelp" = "Не засыпать, пока агенты работают";
+"keepAwakeActiveHelp" = "Mac не уснёт: работающих агентов — %ld";
+"keepAwakeGraceHelp" = "Mac не уснёт ещё до 2 мин";

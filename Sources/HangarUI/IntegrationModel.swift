@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Integration
 import Observation
@@ -12,6 +13,12 @@ func hangarCLIPath(bundle: Bundle) -> String? {
 /// A translocated (quarantined, not moved) or DMG-mounted app: hooks would point at a path that disappears.
 func installBlocked(cli: String) -> Bool {
     cli.contains("/AppTranslocation/") || cli.hasPrefix("/Volumes/")
+}
+
+/// Shown in Settings for the user to run: Hangar never edits the agents' MCP configs itself.
+func mcpAddCommands(cli: String) -> (claude: String, codex: String) {
+    let q = shellQuote(cli)
+    return ("claude mcp add --scope user hangar -- \(q) mcp", "codex mcp add hangar -- \(q) mcp")
 }
 
 enum IntegrationTarget { case claude, codex }

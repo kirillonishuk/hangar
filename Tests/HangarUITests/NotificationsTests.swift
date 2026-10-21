@@ -35,6 +35,7 @@ import Workspace
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-notif-\(UUID())")
         let app = AppState(state: s, store: StateStore(directory: dir), config: config,
                            configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
+        app.keepAwake = .inert()
         let ot = app.state.tasks.first { $0.id == o }!
         return Fixture(app: app, task: t, tab0: task.tabs[0], tab1: task.tabs[1], other: o, otherTab: ot.tabs[1],
                        drawerLeaf: task.drawer.leaf!.id)

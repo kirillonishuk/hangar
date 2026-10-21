@@ -31,11 +31,12 @@ private final class SocketDir {
 /// Raw test client: reads the server's replies, which ControlClient deliberately ignores.
 private final class RawClient {
     let fd: Int32
-    init(_ path: String) throws {
+    init(_ path: String, timeout: Double = 10) throws {
         fd = socket(AF_UNIX, SOCK_STREAM, 0)
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-        var tv = timeval(tv_sec: 10, tv_usec: 0)  // generous: a timeout reads as eof == false, never as success
+        // generous default: a timeout reads as eof == false, never as success
+        var tv = timeval(tv_sec: Int(timeout), tv_usec: Int32((timeout - Double(Int(timeout))) * 1_000_000))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -64,11 +65,13 @@ private final class RawClient {
     /// Reads until `lines` newline-terminated replies arrive, EOF, or the receive timeout.
     func read(lines: Int) -> (replies: [String], eof: Bool) {
         var buf = Data()
-        var chunk = [UInt8](repeating: 0, count: 4096)
-        while buf.filter({ $0 == 0x0A }).count < lines {
+        var chunk = [UInt8](repeating: 0, count: 65_536)
+        var seen = 0
+        while seen < lines {
             let n = Darwin.read(fd, &chunk, chunk.count)
             if n <= 0 { return (split(buf), n == 0) }
             buf.append(chunk, count: n)
+            seen += chunk[..<n].reduce(0) { $1 == 0x0A ? $0 + 1 : $0 }
         }
         return (split(buf), false)
     }
@@ -86,8 +89,45 @@ private func event(_ kind: HookKind = .stop) -> ControlMessage {
 
 private func line(_ m: ControlMessage) -> String { String(decoding: m.encoded(), as: UTF8.self) }
 
-private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? = nil) throws -> ControlServer {
-    let server = ControlServer(path: dir.path) { inbox.messages.append($0) }
+/// Holds request handlers until `open()`; `waiting` lets a test know a handler is parked.
+@MainActor private final class Gate {
+    var isOpen = false
+    var waiting = 0
+    var calls: [ControlCall] = []
+    private var parked: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        if isOpen { return }
+        waiting += 1
+        await withCheckedContinuation { parked.append($0) }
+    }
+    func open() {
+        isOpen = true
+        parked.forEach { $0.resume() }
+        parked.removeAll()
+    }
+    func untilWaiting(_ n: Int) async { await until { waiting >= n } }
+    func untilCalls(_ n: Int) async { await until { calls.count >= n } }
+    private func until(_ done: () -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while !done() && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+    }
+}
+
+/// Request handlers run on the main actor, which the parallel @MainActor UI suites keep busy for seconds.
+private let mainBound = 30.0
+
+private func request(_ id: Int, _ method: String, _ params: String = "{}") -> String {
+    #"{"v":1,"id":\#(id),"method":"\#(method)","params":\#(params)}"# + "\n"
+}
+
+private func screen(_ id: Int, bytes: Int) -> ControlResponse {
+    .ok(id, ScreenResult(tab: UUID(), leaf: UUID(), text: String(repeating: "a", count: bytes), lines: 1, truncated: false))
+}
+
+private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? = nil,
+                         onRequest: (@MainActor (Int, ControlCall) async -> ControlResponse)? = nil) throws -> ControlServer {
+    let server = onRequest.map { ControlServer(path: dir.path, handler: { inbox.messages.append($0) }, onRequest: $0) }
+        ?? ControlServer(path: dir.path) { inbox.messages.append($0) }
     if let idleTimeout { server.idleTimeout = idleTimeout }
     try server.start()
     return server
@@ -120,6 +160,20 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         raw.send(line(m))
         #expect(raw.read(lines: 1).replies == [#"{"ok":true}"#])
         #expect(await inbox.wait(count: 1) == [m])
+    }
+
+    @Test func malformedRequestGetsNewFormatError() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox)
+        defer { server.stop() }
+        let raw = try RawClient(dir.path)
+        raw.send(#"{"v":1,"method":"projects.list"}"# + "\n" + #"{"v":1,"id":1,"method":5}"# + "\n" + #"{"v":1,"id":1,"method":"x","params":[]}"# + "\n")
+        let replies = raw.read(lines: 3).replies
+        #expect(replies.count == 3)
+        for r in replies {
+            #expect(r.hasPrefix(#"{"id":null,"error":{"code":"bad-request","message":""#) && !r.contains(#""ok""#))
+        }
+        #expect(await inbox.wait(count: 1, seconds: 0.2).isEmpty)
     }
 
     @Test func splitAndBatchedLines() async throws {
@@ -328,4 +382,240 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         #expect(ControlClient.send(m, to: dir.path))
         #expect(await inbox.wait(count: 1) == [m])
     }
+
+    // MARK: requests
+
+    @Test func requestGetsResponse() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox) { id, _ in .ok(id, ProjectsResult(projects: [])) }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(5, "projects.list"))
+        #expect(raw.read(lines: 1).replies == [#"{"id":5,"result":{"projects":[]}}"#])
+    }
+
+    @Test func invalidRequestAnsweredWithoutHandler() async throws {
+        let dir = SocketDir(), inbox = Inbox(), gate = Gate()
+        let server = try startServer(dir, inbox) { id, call in
+            gate.calls.append(call)
+            return .ok(id, ProjectsResult(projects: []))
+        }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(1, "tasks.archive", #"{"task":"x"}"#))
+        let replies = raw.read(lines: 1).replies
+        #expect(replies.count == 1 && replies[0].hasPrefix(#"{"id":1,"error":{"code":"confirm-required","#))
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(await gate.calls.isEmpty)
+    }
+
+    @Test func slowRequestOutlivesIdleTimeout() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox, idleTimeout: 0.2) { id, _ in
+            try? await Task.sleep(for: .milliseconds(600))
+            return .ok(id, ProjectsResult(projects: []))
+        }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(2, "projects.list"))
+        let r = raw.read(lines: 1)
+        #expect(r.replies == [#"{"id":2,"result":{"projects":[]}}"#])
+        #expect(!r.eof)
+    }
+
+    @Test func partialLineAfterRequestStillTimesOut() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox, idleTimeout: 0.2) { id, _ in .ok(id, ProjectsResult(projects: [])) }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(2, "projects.list") + #"{"v":1"#)
+        let r = raw.readToEOF()
+        #expect(r.replies == [#"{"id":2,"result":{"projects":[]}}"#])
+        #expect(r.eof)
+    }
+
+    @Test func largeResponseArrivesWhole() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox) { id, _ in screen(id, bytes: 900_000) }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(3, "tabs.read", #"{"tab":"t"}"#))
+        try await Task.sleep(for: .milliseconds(300))
+        let replies = raw.read(lines: 1).replies
+        #expect(replies.count == 1)
+        let object = try JSONSerialization.jsonObject(with: Data(replies[0].utf8)) as? [String: Any]
+        #expect(object?["id"] as? Int == 3)
+        #expect(((object?["result"] as? [String: Any])?["text"] as? String)?.utf8.count == 900_000)
+    }
+
+    @Test func responseAfterDisconnectDropped() async throws {
+        let dir = SocketDir(), inbox = Inbox(), gate = Gate()
+        let server = try startServer(dir, inbox) { id, _ in
+            await gate.wait()
+            return .ok(id, ProjectsResult(projects: []))
+        }
+        defer { server.stop() }
+        var first: RawClient? = try RawClient(dir.path, timeout: mainBound)
+        first!.send(request(1, "projects.list"))
+        await gate.untilWaiting(1)
+        #expect(await gate.waiting == 1)
+        first = nil
+        try await Task.sleep(for: .milliseconds(100))  // the server sees EOF and drops the connection; its fd may be reused
+
+        let second = try RawClient(dir.path, timeout: 0.5)
+        second.send(line(event()))
+        #expect(second.read(lines: 1).replies == [#"{"ok":true}"#])
+        await gate.open()
+
+        // The first handler resumes before the third one runs, so once the third reply is here the first was settled.
+        let third = try RawClient(dir.path, timeout: mainBound)
+        third.send(request(7, "projects.list"))
+        #expect(third.read(lines: 1).replies == [#"{"id":7,"result":{"projects":[]}}"#])
+        let late = second.read(lines: 1)
+        #expect(late.replies.isEmpty && !late.eof)
+        withExtendedLifetime(first) {}
+    }
+
+    @Test func inFlightCapPerConnection() async throws {
+        let dir = SocketDir(), inbox = Inbox(), gate = Gate()
+        let server = try startServer(dir, inbox) { id, _ in
+            await gate.wait()
+            return .ok(id, ProjectsResult(projects: []))
+        }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send((1...9).map { request($0, "projects.list") }.joined())
+        let early = raw.read(lines: 1).replies
+        #expect(early.count == 1 && early[0].hasPrefix(#"{"id":9,"error":{"code":"busy","#))
+        await gate.untilWaiting(8)
+        #expect(await gate.waiting == 8)
+        await gate.open()
+        let rest = raw.read(lines: 8).replies
+        #expect(rest.count == 8)
+        #expect(rest.allSatisfy { $0.contains(#""result":{"projects":[]}"#) })
+    }
+
+    @Test func slowReaderOverOutboxCapDropped() async throws {
+        let dir = SocketDir(), inbox = Inbox(), gate = Gate()
+        let server = try startServer(dir, inbox) { id, call in
+            if case .projectsList = call { return .ok(id, ProjectsResult(projects: [])) }
+            gate.calls.append(call)
+            return screen(id, bytes: 900_000)
+        }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send((1...8).map { request($0, "tabs.read", #"{"tab":"t"}"#) }.joined())
+        // Reading early would drain the outbox; wait until every reply has been handed to the server queue.
+        await gate.untilCalls(8)
+        #expect(await gate.calls.count == 8)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(raw.readToEOF().eof)
+
+        let fresh = try RawClient(dir.path, timeout: mainBound)
+        fresh.send(request(1, "projects.list"))
+        #expect(fresh.read(lines: 1).replies == [#"{"id":1,"result":{"projects":[]}}"#])
+    }
+
+    @Test func oversizeResponseReplacedByTooLarge() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox) { id, _ in screen(id, bytes: ControlServer.maxResponse) }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(4, "tabs.read", #"{"tab":"t"}"#))
+        let replies = raw.read(lines: 1).replies
+        #expect(replies.count == 1 && replies[0].hasPrefix(#"{"id":4,"error":{"code":"too-large","#))
+    }
+
+    @Test func clientRequestRoundTrip() async throws {
+        let dir = SocketDir(), inbox = Inbox(), gate = Gate()
+        let server = try startServer(dir, inbox) { id, call in
+            gate.calls.append(call)
+            return .ok(id, TasksResult(tasks: []))
+        }
+        defer { server.stop() }
+        let path = dir.path
+        let result = await Task.detached { ControlClient.request(.tasksList(project: nil), to: path, timeout: mainBound) }.value
+        let data = try result.get()
+        #expect(try JSONDecoder().decode(TasksResult.self, from: data) == TasksResult(tasks: []))
+        #expect(await gate.calls == [.tasksList(project: nil)])
+    }
+
+    @Test func clientRequestReturnsServerError() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox) { id, _ in
+            ControlResponse(id: id, body: .failure(ControlError(code: .notFound, message: "no such task")))
+        }
+        defer { server.stop() }
+        let path = dir.path
+        let result = await Task.detached { ControlClient.request(.tasksArchive(task: "x"), to: path, timeout: mainBound) }.value
+        #expect(result == .failure(ControlError(code: .notFound, message: "no such task")))
+    }
+
+    @Test func clientGetsTooLargeForOversizeLine() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox)
+        defer { server.stop() }
+        let path = dir.path
+        // Every `"` is escaped to two bytes, so the line passes maxLine although the text is within its own limit.
+        let text = String(repeating: "\"", count: ControlMethod.maxText)
+        let result = await Task.detached { ControlClient.request(.tabsSend(tab: "t", text: text, keys: []), to: path, timeout: mainBound) }.value
+        #expect(result.failureCode == .tooLarge)
+    }
+
+    @Test func clientMapsNullIdError() async throws {
+        let dir = SocketDir()
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        var addr = socketAddress(dir.path)!
+        let rc = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        #expect(rc == 0 && listen(fd, 1) == 0)
+        // A fake server: it answers whatever arrives with a request-shaped error that has no id.
+        DispatchQueue.global().async {
+            let peer = accept(fd, nil, nil)
+            var chunk = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = Darwin.read(peer, &chunk, chunk.count)
+                if n <= 0 || chunk[..<n].contains(0x0A) { break }
+            }
+            let reply = Array(#"{"id":null,"error":{"code":"bad-request","message":"nope"}}"#.utf8 + [0x0A])
+            _ = Darwin.write(peer, reply, reply.count)
+            close(peer)
+        }
+        let path = dir.path
+        let result = await Task.detached { ControlClient.request(.projectsList, to: path, timeout: mainBound) }.value
+        #expect(result == .failure(ControlError(code: .badRequest, message: "nope")))
+    }
+
+    @Test func clientNotRunning() {
+        let dir = SocketDir()
+        let clock = ContinuousClock()
+        var result: Result<Data, ControlError> = .success(Data())
+        let elapsed = clock.measure { result = ControlClient.request(.projectsList, to: dir.path, timeout: 2) }
+        #expect(result.failureCode == .notRunning)
+        #expect(elapsed < .milliseconds(500))
+    }
+
+    @Test func clientTimeout() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox) { id, _ in
+            try? await Task.sleep(for: .seconds(3))
+            return .ok(id, ProjectsResult(projects: []))
+        }
+        defer { server.stop() }
+        let path = dir.path
+        // Timed inside the task: under a parallel run the detached task itself may start late.
+        let (result, elapsed) = await Task.detached {
+            let start = ContinuousClock.now
+            let r = ControlClient.request(.projectsList, to: path, timeout: 0.3)
+            return (r, ContinuousClock.now - start)
+        }.value
+        #expect(result.failureCode == .timeout)
+        #expect(elapsed < .milliseconds(1500))
+    }
+}
+
+private extension Result where Failure == ControlError {
+    var failureCode: ControlErrorCode? { if case let .failure(e) = self { e.code } else { nil } }
 }

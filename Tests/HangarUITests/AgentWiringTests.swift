@@ -4,6 +4,7 @@ import Exec
 import CoreServices
 import Foundation
 import Observation
+import Power
 import Testing
 @testable import HangarUI
 import Usage
@@ -21,6 +22,7 @@ import Workspace
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
                         configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
         app.codexRead = nil  // a codex turn must not look for the real codex
+        app.keepAwake = .inert()
         return app
     }
 
@@ -358,5 +360,21 @@ import Workspace
         #expect(isSystemShutdown(reason: OSType(kAEShowShutdownDialog)))
         #expect(!isSystemShutdown(reason: OSType(kAEQuitAll)))
         #expect(!isSystemShutdown(reason: nil))
+    }
+
+    @Test func keepAwakeFollowsStatuses() throws {
+        let app = makeApp([.claude])
+        final class Log: @unchecked Sendable { var created: [String] = []; var released: [UInt32] = []; var delays: [Duration] = [] }
+        let log = Log()
+        app.keepAwake = KeepAwake(
+            assertions: PowerAssertions(create: { log.created.append($0); return 7 }, rename: { _, _ in true },
+                                        release: { log.released.append($0) }),
+            schedule: { d, _ in log.delays.append(d); return {} })
+        event(app, tab: 0, .prompt)
+        #expect(log.created == ["Hangar: 1 agent working"] && app.keepAwake.held)
+        event(app, tab: 0, .stop)
+        #expect(log.delays == [.seconds(120)] && log.released.isEmpty)
+        try app.setConfig("keep_awake", flag: false) { $0.keepAwake = false }
+        #expect(log.released == [7] && !app.keepAwake.held)
     }
 }

@@ -93,11 +93,78 @@ func runStatusline(_ rest: [String]) -> Int32 {
     return p.terminationReason == .exit ? p.terminationStatus : 128 + p.terminationStatus
 }
 
+/// Exit codes: 0 ok, 1 app error / not running / timeout, 2 usage or missing --yes (the CLI's or the server's `bad-params` /
+/// `confirm-required`).
+func runCommand(_ args: [String]) -> Int32 {
+    let stderr = FileHandle.standardError
+    switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath) {
+    case let .usage(message):
+        stderr.write(jsonRequested(args) ? errorJSON(ControlError(code: .badParams, message: message)) + Data("\n".utf8)
+                                         : Data("hangar: \(message)\n\(cliUsage)\n".utf8))
+        return 2
+    case let .confirmRequired(message):
+        stderr.write(jsonRequested(args) ? errorJSON(ControlError(code: .confirmRequired, message: message)) + Data("\n".utf8)
+                                         : Data("hangar: \(message)\n".utf8))
+        return 2
+    case let .call(call, json):
+        switch ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) {
+        case let .failure(e):
+            stderr.write(json ? errorJSON(e) + Data("\n".utf8) : Data("hangar: \(e.message)\n".utf8))
+            return [.badParams, .confirmRequired].contains(e.code) ? 2 : 1
+        case let .success(result):
+            var out: Data
+            if json {
+                let object = try? JSONSerialization.jsonObject(with: result, options: [.fragmentsAllowed])
+                out = object.flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]) } ?? result
+            } else {
+                out = Data(formatHuman(call, result: result).utf8)
+            }
+            if !out.isEmpty && out.last != 0x0A { out.append(0x0A) }
+            FileHandle.standardOutput.write(out)
+            return 0
+        }
+    }
+}
+
+/// MCP over stdio: one JSON-RPC message per line until EOF, answered in order; stdout carries only replies.
+func runMCP() -> Int32 {
+    var session = MCPSession { call in ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) }
+    let out = FileHandle.standardOutput
+    // An oversize line keeps only maxMCPLine + 1 bytes, enough for `handle` to answer -32600.
+    var pending = Data()
+    func answer(_ line: Data) -> Bool {
+        var line = line
+        if line.last == 0x0D { line.removeLast() }
+        guard line.contains(where: { $0 != 0x20 && $0 != 0x09 }), var reply = session.handle(line) else { return true }
+        reply.append(0x0A)
+        return (try? out.write(contentsOf: reply)) != nil  // FileHandle writes unbuffered: each reply is flushed
+    }
+    var chunk = [UInt8](repeating: 0, count: 65_536)
+    while true {
+        let n = read(0, &chunk, chunk.count)
+        if n < 0 && errno == EINTR { continue }
+        if n <= 0 {
+            _ = answer(pending)  // a last line without a newline
+            return 0
+        }
+        var rest = chunk[..<n]
+        while let nl = rest.firstIndex(of: 0x0A) {
+            pending.append(contentsOf: rest[..<nl].prefix(maxMCPLine + 1 - pending.count))
+            guard answer(pending) else { return 0 }  // stdout closed: the client is gone
+            pending.removeAll(keepingCapacity: true)
+            rest = rest[(nl + 1)...]
+        }
+        pending.append(contentsOf: rest.prefix(maxMCPLine + 1 - pending.count))
+    }
+}
+
 let argv = Array(CommandLine.arguments.dropFirst())
 switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
-default:
-    FileHandle.standardError.write(Data("usage: hangar event <kind> [--session ID] | hangar statusline [--then <command>]\n".utf8))
-    exit(1)
+case "projects", "tasks", "tabs": exit(runCommand(argv))
+case "mcp" where argv.count == 1: exit(runMCP())
+default:  // hooks always call `event`/`statusline`, so no hook sees this exit code
+    FileHandle.standardError.write(Data((cliUsage + "\n").utf8))
+    exit(2)
 }

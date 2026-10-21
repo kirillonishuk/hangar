@@ -100,6 +100,8 @@ public struct ClipboardPromptText: Sendable {
         }
         updateTrackingAreas()
         installEventMonitor()
+        // Ghostty creates surfaces focused (display link + cursor blink running); match `focused = false`.
+        ghostty_surface_set_focus(surface, false)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -165,19 +167,31 @@ public struct ClipboardPromptText: Sendable {
         var k = ghostty_input_key_s()
         k.action = GHOSTTY_ACTION_PRESS
         switch key {
-        case .escape:
-            k.keycode = 53  // kVK_Escape
-            _ = ghostty_surface_key(surface, k)
+        case .escape: k.keycode = 53  // kVK_Escape
+        case .tab: k.keycode = 48
+        case .backspace: k.keycode = 51  // kVK_Delete
+        case .up: k.keycode = 126
+        case .down: k.keycode = 125
+        case .left: k.keycode = 123
+        case .right: k.keycode = 124
+        case .ctrlC, .ctrlD:
+            k.keycode = key == .ctrlC ? 8 : 2  // kVK_ANSI_C, kVK_ANSI_D
+            k.mods = GHOSTTY_MODS_CTRL
+            k.unshifted_codepoint = UInt32(UInt8(ascii: key == .ctrlC ? "c" : "d"))
         case .colon:
             k.keycode = 41  // kVK_ANSI_Semicolon
             k.mods = GHOSTTY_MODS_SHIFT
             k.consumed_mods = GHOSTTY_MODS_SHIFT
             k.unshifted_codepoint = UInt32(UInt8(ascii: ";"))
+        }
+        if key == .colon {
             _ = ":".withCString { ptr in
                 k.text = ptr
                 return ghostty_surface_key(surface, k)
             }
             k.text = nil
+        } else {
+            _ = ghostty_surface_key(surface, k)
         }
         k.action = GHOSTTY_ACTION_RELEASE
         _ = ghostty_surface_key(surface, k)
@@ -305,7 +319,7 @@ public struct ClipboardPromptText: Sendable {
     public override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
-            focusDidChange(true)
+            focusDidChange(window?.isKeyWindow ?? false)  // focused = first responder in the key window
             onFocus?()
         }
         return ok
@@ -336,6 +350,8 @@ public struct ClipboardPromptText: Sendable {
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(windowDidChangeScreen), name: NSWindow.didChangeScreenNotification, object: window)
         nc.addObserver(self, selector: #selector(windowOcclusionChanged), name: NSWindow.didChangeOcclusionStateNotification, object: window)
+        nc.addObserver(self, selector: #selector(windowKeyChanged), name: NSWindow.didBecomeKeyNotification, object: window)
+        nc.addObserver(self, selector: #selector(windowKeyChanged), name: NSWindow.didResignKeyNotification, object: window)
         windowDidChangeScreen()
         updateOcclusion()
     }
@@ -368,6 +384,9 @@ public struct ClipboardPromptText: Sendable {
 
     @objc private func windowOcclusionChanged() { updateOcclusion() }
 
+    /// Like Ghostty's syncFocusToSurfaceTree: a non-key window must not keep the display link and blink running.
+    @objc private func windowKeyChanged() { focusDidChange(window?.isKeyWindow == true && window?.firstResponder === self) }
+
     private func updateOcclusion() {
         guard let surface else { return }
         let windowVisible = window?.occlusionState.contains(.visible) ?? false
@@ -383,4 +402,7 @@ public struct ClipboardPromptText: Sendable {
 public enum SurfaceKey: Sendable {
     case escape  // kVK_Escape 53
     case colon   // kVK_ANSI_Semicolon 41 + shift, text ":"
+    case tab, backspace, up, down, left, right
+    case ctrlC   // kVK_ANSI_C 8 + ctrl, codepoint "c"
+    case ctrlD   // kVK_ANSI_D 2 + ctrl, codepoint "d"
 }

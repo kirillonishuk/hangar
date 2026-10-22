@@ -15,10 +15,8 @@ import Workspace
     }
 
     // Fixtures run git synchronously: build them off the main actor so other suites' main-actor tasks keep running.
-    private func repo() async throws -> TempRepo { try await Task.detached { try TempRepo() }.value }
-    private func emptyRepo() async throws -> TempRepo {
-        try await Task.detached { try TempRepo(emptyWithBranch: "main") }.value
-    }
+    private func repo() async throws -> TempRepo { try await TempRepo.offMain() }
+    private func emptyRepo() async throws -> TempRepo { try await TempRepo.offMain { try TempRepo(emptyWithBranch: "main") } }
 
     /// Generous: parallel tests' fixtures run git synchronously on the main actor.
     private func wait(until condition: () -> Bool) async throws {

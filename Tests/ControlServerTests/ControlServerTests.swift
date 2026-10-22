@@ -18,20 +18,27 @@ final class SocketDir {
 
 @MainActor final class Inbox {
     var messages: [ControlMessage] = []
-    /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
-    func wait(count n: Int, seconds: Double = 10) async -> [ControlMessage] {
-        let deadline = ContinuousClock.now + .seconds(seconds)
-        while messages.count < n && ContinuousClock.now < deadline {
+    /// Returns as soon as `n` arrive. Messages are delivered on the main actor, so the default is `mainBound`;
+    /// the suspending clock ignores a system sleep during the run.
+    func wait(count n: Int, seconds: Double = mainBound) async -> [ControlMessage] {
+        let deadline = SuspendingClock.now + .seconds(seconds)
+        while messages.count < n && SuspendingClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
         }
         return messages
     }
 }
 
+/// Runs a blocking wait (socket read, child exit) on a GCD thread. The cooperative pool has one thread per core:
+/// tests blocking it while the server waits for a busy main actor stall every async test in the run.
+func offPool<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
+    await withCheckedContinuation { c in DispatchQueue.global().async { c.resume(returning: body()) } }
+}
+
 /// Raw test client: reads the server's replies, which ControlClient deliberately ignores.
-final class RawClient {
+final class RawClient: @unchecked Sendable {
     let fd: Int32
-    init(_ path: String, timeout: Double = 10) throws {
+    init(_ path: String, timeout: Double = mainBound) throws {
         fd = socket(AF_UNIX, SOCK_STREAM, 0)
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -63,7 +70,11 @@ final class RawClient {
     }
 
     /// Reads until `lines` newline-terminated replies arrive, EOF, or the receive timeout.
-    func read(lines: Int) -> (replies: [String], eof: Bool) {
+    func read(lines: Int) async -> (replies: [String], eof: Bool) { await offPool { self.readBlocking(lines: lines) } }
+
+    func readToEOF() async -> (replies: [String], eof: Bool) { await read(lines: .max) }
+
+    private func readBlocking(lines: Int) -> (replies: [String], eof: Bool) {
         var buf = Data()
         var chunk = [UInt8](repeating: 0, count: 65_536)
         var seen = 0
@@ -76,7 +87,6 @@ final class RawClient {
         return (split(buf), false)
     }
 
-    func readToEOF() -> (replies: [String], eof: Bool) { read(lines: .max) }
 
     private func split(_ d: Data) -> [String] {
         String(decoding: d, as: UTF8.self).split(separator: "\n").map(String.init)
@@ -108,8 +118,8 @@ private func line(_ m: ControlMessage) -> String { String(decoding: m.encoded(),
     func untilWaiting(_ n: Int) async { await until { waiting >= n } }
     func untilCalls(_ n: Int) async { await until { calls.count >= n } }
     private func until(_ done: () -> Bool) async {
-        let deadline = ContinuousClock.now + .seconds(30)
-        while !done() && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+        let deadline = SuspendingClock.now + .seconds(30)
+        while !done() && SuspendingClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
     }
 }
 
@@ -144,7 +154,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
 
         let raw = try RawClient(dir.path)
         raw.send(line(m))
-        #expect(raw.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await raw.read(lines: 1).replies == [#"{"ok":true}"#])
         #expect(await inbox.wait(count: 2).count == 2)
     }
 
@@ -154,11 +164,11 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path)
         raw.send("garbage\n{\"v\":2}\n{\"v\":1,\"type\":\"tabs\"}\n")
-        let replies = raw.read(lines: 3).replies
+        let replies = await raw.read(lines: 3).replies
         #expect(replies == [#"{"ok":false,"error":"bad-json"}"#, #"{"ok":false,"error":"bad-version"}"#, #"{"ok":false,"error":"unknown-type"}"#])
         let m = event()
         raw.send(line(m))
-        #expect(raw.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await raw.read(lines: 1).replies == [#"{"ok":true}"#])
         #expect(await inbox.wait(count: 1) == [m])
     }
 
@@ -168,7 +178,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path)
         raw.send(#"{"v":1,"method":"projects.list"}"# + "\n" + #"{"v":1,"id":1,"method":5}"# + "\n" + #"{"v":1,"id":1,"method":"x","params":[]}"# + "\n")
-        let replies = raw.read(lines: 3).replies
+        let replies = await raw.read(lines: 3).replies
         #expect(replies.count == 3)
         for r in replies {
             #expect(r.hasPrefix(#"{"id":null,"error":{"code":"bad-request","message":""#) && !r.contains(#""ok""#))
@@ -187,9 +197,9 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         raw.send(String(s[..<mid]))
         try await Task.sleep(for: .milliseconds(50))
         raw.send(String(s[mid...]))
-        #expect(raw.read(lines: 1).replies.count == 1)
+        #expect(await raw.read(lines: 1).replies.count == 1)
         raw.send(line(b) + line(c))
-        #expect(raw.read(lines: 2).replies.count == 2)
+        #expect(await raw.read(lines: 2).replies.count == 2)
         #expect(await inbox.wait(count: 3) == [a, b, c])
     }
 
@@ -199,7 +209,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path)
         raw.send(Data(repeating: 0x61, count: 70_000))
-        let r = raw.readToEOF()
+        let r = await raw.readToEOF()
         #expect(r.replies == [#"{"ok":false,"error":"too-large"}"#])
         #expect(r.eof)
 
@@ -288,7 +298,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
 
     @Test func sendToMissingSocketIsFastFalse() {
         let dir = SocketDir()
-        let clock = ContinuousClock()
+        let clock = SuspendingClock()  // blind to a system sleep mid-run
         var result = true
         let elapsed = clock.measure { result = ControlClient.send(event(), to: dir.path) }
         #expect(!result)
@@ -302,9 +312,9 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let clients = try (0..<ControlServer.maxConnections).map { _ in try RawClient(dir.path) }
         // The first 32 are accepted once a round-trip works on the last one.
         clients.last!.send(line(event()))
-        #expect(clients.last!.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await clients.last!.read(lines: 1).replies == [#"{"ok":true}"#])
         let extra = try RawClient(dir.path)
-        let r = extra.readToEOF()
+        let r = await extra.readToEOF()
         #expect(r.eof && r.replies.isEmpty)
         withExtendedLifetime(clients) {}
     }
@@ -315,11 +325,11 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path)
         raw.send("{\"v\":1")  // no newline: never a full line
-        let clock = ContinuousClock()
-        var r: (replies: [String], eof: Bool) = ([], false)
-        let elapsed = clock.measure { r = raw.readToEOF() }
-        #expect(r.eof)  // closed by the 0.3 s idle timer, not the 10 s read timeout
-        #expect(elapsed < .seconds(5))
+        let start = SuspendingClock.now  // blind to a system sleep mid-run
+        let r = await raw.readToEOF()
+        let elapsed = SuspendingClock.now - start
+        #expect(r.eof)  // closed by the server's 0.3 s idle timer: a read timeout reads as eof == false
+        #expect(elapsed < .seconds(20))  // well before the read timeout; the server queue waits for CPU under load
     }
 
     @Test func acceptEMFILESuspendsListenerUntilConnectionCloses() async throws {
@@ -337,7 +347,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         var a: RawClient? = try RawClient(dir.path)
         a!.send(line(event()))
-        #expect(a!.read(lines: 1).replies.count == 1)
+        #expect(await a!.read(lines: 1).replies.count == 1)
         #expect(await inbox.wait(count: 1).count == 1)
 
         failures.withLock { $0 = 1 }
@@ -349,7 +359,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         #expect(failures.withLock { $0 } == 0, "accept was attempted exactly once")
 
         a = nil  // closing a connection resumes the listener
-        #expect(b.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await b.read(lines: 1).replies == [#"{"ok":true}"#])
         #expect(await inbox.wait(count: 2).count == 2)
     }
 
@@ -361,7 +371,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         raw.send("{")
         try await Task.sleep(for: .milliseconds(50))
         server = nil
-        let r = raw.readToEOF()
+        let r = await raw.readToEOF()
         #expect(r.eof)
         #expect(ControlClient.send(event(), to: dir.path) == false)
     }
@@ -391,7 +401,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(5, "projects.list"))
-        #expect(raw.read(lines: 1).replies == [#"{"id":5,"result":{"projects":[]}}"#])
+        #expect(await raw.read(lines: 1).replies == [#"{"id":5,"result":{"projects":[]}}"#])
     }
 
     @Test func invalidRequestAnsweredWithoutHandler() async throws {
@@ -403,7 +413,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(1, "tasks.archive", #"{"task":"x"}"#))
-        let replies = raw.read(lines: 1).replies
+        let replies = await raw.read(lines: 1).replies
         #expect(replies.count == 1 && replies[0].hasPrefix(#"{"id":1,"error":{"code":"confirm-required","#))
         try await Task.sleep(for: .milliseconds(100))
         #expect(await gate.calls.isEmpty)
@@ -418,7 +428,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(2, "projects.list"))
-        let r = raw.read(lines: 1)
+        let r = await raw.read(lines: 1)
         #expect(r.replies == [#"{"id":2,"result":{"projects":[]}}"#])
         #expect(!r.eof)
     }
@@ -429,7 +439,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(2, "projects.list") + #"{"v":1"#)
-        let r = raw.readToEOF()
+        let r = await raw.readToEOF()
         #expect(r.replies == [#"{"id":2,"result":{"projects":[]}}"#])
         #expect(r.eof)
     }
@@ -441,10 +451,24 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(3, "tabs.read", #"{"tab":"t"}"#))
         try await Task.sleep(for: .milliseconds(300))
-        let replies = raw.read(lines: 1).replies
+        let replies = await raw.read(lines: 1).replies
         #expect(replies.count == 1)
         let object = try JSONSerialization.jsonObject(with: Data(replies[0].utf8)) as? [String: Any]
         #expect(object?["id"] as? Int == 3)
+        #expect(((object?["result"] as? [String: Any])?["text"] as? String)?.utf8.count == 900_000)
+    }
+
+    /// A connection still draining a reply is not idle: a slow reader (a loaded machine) gets the whole response.
+    @Test func slowReaderOutlivesIdleTimeout() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox, idleTimeout: 0.3) { id, _ in screen(id, bytes: 900_000) }
+        defer { server.stop() }
+        let raw = try RawClient(dir.path, timeout: mainBound)
+        raw.send(request(4, "tabs.read", #"{"tab":"t"}"#))
+        try await Task.sleep(for: .seconds(1.5))  // the reply fills the socket buffer; the rest waits in the outbox
+        let replies = await raw.read(lines: 1).replies
+        #expect(replies.count == 1)
+        let object = replies.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
         #expect(((object?["result"] as? [String: Any])?["text"] as? String)?.utf8.count == 900_000)
     }
 
@@ -464,14 +488,14 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
 
         let second = try RawClient(dir.path, timeout: 0.5)
         second.send(line(event()))
-        #expect(second.read(lines: 1).replies == [#"{"ok":true}"#])
+        #expect(await second.read(lines: 1).replies == [#"{"ok":true}"#])
         await gate.open()
 
         // The first handler resumes before the third one runs, so once the third reply is here the first was settled.
         let third = try RawClient(dir.path, timeout: mainBound)
         third.send(request(7, "projects.list"))
-        #expect(third.read(lines: 1).replies == [#"{"id":7,"result":{"projects":[]}}"#])
-        let late = second.read(lines: 1)
+        #expect(await third.read(lines: 1).replies == [#"{"id":7,"result":{"projects":[]}}"#])
+        let late = await second.read(lines: 1)
         #expect(late.replies.isEmpty && !late.eof)
         withExtendedLifetime(first) {}
     }
@@ -485,12 +509,12 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send((1...9).map { request($0, "projects.list") }.joined())
-        let early = raw.read(lines: 1).replies
+        let early = await raw.read(lines: 1).replies
         #expect(early.count == 1 && early[0].hasPrefix(#"{"id":9,"error":{"code":"busy","#))
         await gate.untilWaiting(8)
         #expect(await gate.waiting == 8)
         await gate.open()
-        let rest = raw.read(lines: 8).replies
+        let rest = await raw.read(lines: 8).replies
         #expect(rest.count == 8)
         #expect(rest.allSatisfy { $0.contains(#""result":{"projects":[]}"#) })
     }
@@ -509,11 +533,11 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         await gate.untilCalls(8)
         #expect(await gate.calls.count == 8)
         try await Task.sleep(for: .milliseconds(300))
-        #expect(raw.readToEOF().eof)
+        #expect(await raw.readToEOF().eof)
 
         let fresh = try RawClient(dir.path, timeout: mainBound)
         fresh.send(request(1, "projects.list"))
-        #expect(fresh.read(lines: 1).replies == [#"{"id":1,"result":{"projects":[]}}"#])
+        #expect(await fresh.read(lines: 1).replies == [#"{"id":1,"result":{"projects":[]}}"#])
     }
 
     @Test func oversizeResponseReplacedByTooLarge() async throws {
@@ -522,7 +546,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(4, "tabs.read", #"{"tab":"t"}"#))
-        let replies = raw.read(lines: 1).replies
+        let replies = await raw.read(lines: 1).replies
         #expect(replies.count == 1 && replies[0].hasPrefix(#"{"id":4,"error":{"code":"too-large","#))
     }
 
@@ -590,7 +614,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
 
     @Test func clientNotRunning() {
         let dir = SocketDir()
-        let clock = ContinuousClock()
+        let clock = SuspendingClock()  // blind to a system sleep mid-run
         var result: Result<Data, ControlError> = .success(Data())
         let elapsed = clock.measure { result = ControlClient.request(.projectsList, to: dir.path, timeout: 2) }
         #expect(result.failureCode == .notRunning)
@@ -607,9 +631,9 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let path = dir.path
         // Timed inside the task: under a parallel run the detached task itself may start late.
         let (result, elapsed) = await Task.detached {
-            let start = ContinuousClock.now
+            let start = SuspendingClock.now
             let r = ControlClient.request(.projectsList, to: path, timeout: 0.3)
-            return (r, ContinuousClock.now - start)
+            return (r, SuspendingClock.now - start)
         }.value
         #expect(result.failureCode == .timeout)
         #expect(elapsed < .milliseconds(1500))

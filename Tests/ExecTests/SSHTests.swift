@@ -100,13 +100,14 @@ import Testing
     @Test func cancelKillsLocalSSH() async throws {
         let f = try fake(); defer { f.cleanup() }
         try "".write(toFile: (f.ssh.path as NSString).deletingLastPathComponent + "/hang", atomically: true, encoding: .utf8)
-        let start = Date()
+        let start = SuspendingClock.now
         let runner = Runner.ssh(host: "dev", controlPath: "/tmp/x", sshPath: f.ssh.path)
         let task = Task { try await runner.run(["true"], "") }
         try await Task.sleep(nanoseconds: 200_000_000)
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(Date().timeIntervalSince(start) < 10)
+        // Long before the fake's 600 s hang; loose for a busy cooperative pool, blind to a system sleep.
+        #expect(SuspendingClock.now - start < .seconds(20))
     }
 
     @Test func controlPathFitsSocketLimit() throws {

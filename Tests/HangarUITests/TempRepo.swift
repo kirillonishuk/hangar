@@ -22,6 +22,12 @@ struct TempRepo {
         try git("remote", "set-head", "origin", "main", in: repo)
     }
 
+    /// The fixture runs git synchronously: built on a GCD thread, it stalls neither the main actor (control-server
+    /// handlers, CLI fake apps) nor the cooperative pool (one thread per core) under a loaded parallel run.
+    static func offMain(_ make: @escaping @Sendable () throws -> TempRepo = { try TempRepo() }) async throws -> TempRepo {
+        try await withCheckedThrowingContinuation { c in DispatchQueue.global().async { c.resume(with: Result { try make() }) } }
+    }
+
     /// A plain `git init` repo without remote; `branch` is the initial branch.
     init(emptyWithBranch branch: String = "main") throws {
         root = NSTemporaryDirectory() + "hangar-git-\(UUID().uuidString)"

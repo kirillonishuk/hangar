@@ -22,7 +22,7 @@ import Workspace
     }
 
     @Test func loadsFilesAndChanges() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("changed", repo.repo + "/a.txt")
         try write("new", repo.repo + "/u.txt")
@@ -43,7 +43,7 @@ import Workspace
 
     /// A project in `sub/` of a repository: paths are top-relative, so git must run at the top level.
     @Test func subfolderProjectShowsDiffs() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
         try write("one\n", repo.repo + "/sub/t.txt")
@@ -63,7 +63,7 @@ import Workspace
     }
 
     @Test func toggleModeReloads() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try repo.git("checkout", "-q", "-b", "task", in: repo.repo)
         try repo.commit(file: "b.txt", on: "task")
@@ -83,7 +83,7 @@ import Workspace
     }
 
     @Test func baseMissingShowsUncommitted() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("changed", repo.repo + "/a.txt")
         let model = InspectorModel()
@@ -95,7 +95,7 @@ import Workspace
     }
 
     @Test func contextSwitchCancelsAndDropsStale() async throws {
-        let a = try TempRepo(), b = try TempRepo()
+        let a = try await TempRepo.offMain(), b = try await TempRepo.offMain()
         defer { a.cleanup(); b.cleanup() }
         try write("x", a.repo + "/only-a.txt")
         try write("x", b.repo + "/only-b.txt")
@@ -108,10 +108,12 @@ import Workspace
                 && model.tree.children(of: "")?.contains { $0.name == "only-a.txt" } != true
                 && model.badges["only-a.txt"] == nil && (model.root == b.repo || model.root == topB)
         }
-        let deadline = Date().addingTimeInterval(60)
-        while model.loading != nil, Date() < deadline {
+        // Polls without spinning the main actor (other suites' main-actor work must keep running); the
+        // suspending clock ignores a system sleep in the middle of the run.
+        let deadline = SuspendingClock.now + .seconds(60)
+        while model.loading != nil, SuspendingClock.now < deadline {
             #expect(noA())
-            await Task.yield()
+            try await Task.sleep(for: .milliseconds(5))
         }
         #expect(model.loading == nil)
         #expect(noA())
@@ -119,22 +121,28 @@ import Workspace
     }
 
     @Test func burstCoalescesWithoutStarvation() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("changed", repo.repo + "/a.txt")
         let statusCalls = OSAllocatedUnfairLock(initialState: 0)
+        let gate = OSAllocatedUnfairLock(initialState: false)
         let counting = Runner { args, cwd in
             // The ignored-paths probe of the tree load is not a status refresh.
-            if args.contains("status"), !args.contains("--ignored=matching") { statusCalls.withLock { $0 += 1 } }
-            return try await Self.slow.run(args, cwd)
+            if args.contains("status"), !args.contains("--ignored=matching") {
+                statusCalls.withLock { $0 += 1 }
+                // Status calls hold until the burst is over: the first load is in flight for the whole burst on any machine.
+                while !gate.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(5)) }
+            }
+            return try await Runner.local.run(args, cwd)
         }
         let model = InspectorModel(git: { Git(repo: $0, runner: counting) })
         model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
         for _ in 0..<10 {
             #expect(model.loading != nil)
             model.refresh(.status)
-            try await Task.sleep(for: .milliseconds(50))
+            try await Task.sleep(for: .milliseconds(10))
         }
+        gate.withLock { $0 = true }
         await settle(model)
         #expect(statusCalls.withLock { $0 } == 2)
         #expect(model.changes?.files.map(\.path) == ["a.txt"])
@@ -179,7 +187,7 @@ import Workspace
     }
 
     @Test func treeLoadCachesIgnoredPaths() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("node_modules/\n", repo.repo + "/.gitignore")
         try FileManager.default.createDirectory(atPath: repo.repo + "/node_modules/a", withIntermediateDirectories: true)
@@ -191,7 +199,7 @@ import Workspace
     }
 
     @Test func treeFailureKeepsChanges() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("changed", repo.repo + "/a.txt")
         let failing = Runner { args, cwd in
@@ -207,7 +215,7 @@ import Workspace
     }
 
     @Test func baseBranchAskedOncePerContext() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         let calls = OSAllocatedUnfairLock(initialState: 0)
         let model = InspectorModel()
@@ -224,7 +232,7 @@ import Workspace
     }
 
     @Test func baseFollowsSettings() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try repo.git("branch", "dev", in: repo.repo)
         let current = OSAllocatedUnfairLock<String?>(initialState: nil)
@@ -267,7 +275,7 @@ import Workspace
     }
 
     @Test func diffStateFollowsChanges() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         try write("changed", repo.repo + "/a.txt")
         let model = InspectorModel()
@@ -287,7 +295,7 @@ import Workspace
     }
 
     @Test func baseBranchOfTask() async throws {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
         var s = WorkspaceState()
         let p = s.addProject(name: "app", path: repo.repo)

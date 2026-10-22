@@ -10,7 +10,7 @@ import Workspace
 
     /// A selected task on a temp repo with three changed files (a.txt, b.txt, c.txt); the inspector has loaded it.
     private func makeApp() async throws -> (AppState, TempRepo, task: UUID) {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         try repo.commit(file: "b.txt", on: "main")
         try repo.commit(file: "c.txt", on: "main")
         for f in ["a.txt", "b.txt", "c.txt"] { try "changed\n".write(toFile: repo.repo + "/" + f, atomically: true, encoding: .utf8) }

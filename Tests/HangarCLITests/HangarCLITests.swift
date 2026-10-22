@@ -22,9 +22,9 @@ private final class TempDir {
 @MainActor private final class Inbox {
     var messages: [ControlMessage] = []
     /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
-    func wait(count n: Int, seconds: Double = 10) async -> [ControlMessage] {
-        let deadline = ContinuousClock.now + .seconds(seconds)
-        while messages.count < n && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+    func wait(count n: Int, seconds: Double = 30) async -> [ControlMessage] {
+        let deadline = SuspendingClock.now + .seconds(seconds)
+        while messages.count < n && SuspendingClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
         return messages
     }
 }
@@ -42,34 +42,59 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
     p.standardOutput = out
     p.standardError = err
     p.standardInput = inp
+    // A CLI that exits without reading all of stdin (e.g. the 2 MB event) must give EPIPE, not kill the test run.
+    _ = fcntl(inp.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
     let outData = LockedData(), errData = LockedData()
     out.fileHandleForReading.readabilityHandler = { h in outData.append(h.availableData) }
     err.fileHandleForReading.readabilityHandler = { h in errData.append(h.availableData) }
-    let start = ContinuousClock.now
+    // The CLI reads stdin with a ~1 s budget (a hook must never hang). A payload written by a background writer after
+    // launch can miss that budget under load, so one that fits the pipe buffer is in the pipe before the CLI starts.
+    let prefill = (stdin?.count ?? 0) <= 16_384
+    if prefill {
+        if let stdin { try inp.fileHandleForWriting.write(contentsOf: stdin) }
+        try inp.fileHandleForWriting.close()
+    }
+    let start = SuspendingClock.now
     try p.run()
-    DispatchQueue.global().async {
-        if let stdin { try? inp.fileHandleForWriting.write(contentsOf: stdin) }
-        try? inp.fileHandleForWriting.close()
+    if !prefill {
+        DispatchQueue.global().async {
+            if let stdin { try? inp.fileHandleForWriting.write(contentsOf: stdin) }
+            try? inp.fileHandleForWriting.close()
+        }
     }
     p.waitUntilExit()
-    let elapsed = ContinuousClock.now - start
-    Thread.sleep(forTimeInterval: 0.05)
+    let elapsed = SuspendingClock.now - start
+    // Wait for EOF on both pipes, not a fixed 50 ms that loses output under load. Bounded: a child spawned by a
+    // parallel test at the same moment can inherit the write ends and hold them open.
+    let deadline = SuspendingClock.now + .seconds(5)
+    while !(outData.eof && errData.eof), SuspendingClock.now < deadline { Thread.sleep(forTimeInterval: 0.01) }
     out.fileHandleForReading.readabilityHandler = nil
     err.fileHandleForReading.readabilityHandler = nil
     return Result(status: p.terminationStatus, out: outData.value, err: errData.value,
                   seconds: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18)
 }
 
-/// The fake app answers on the main actor, so the blocking `waitUntilExit` must not run there.
+/// The fake apps of all tests here answer on the main actor (the CLI gives up after 10 s), so the blocking
+/// `waitUntilExit` must never run there — not even in tests that need no answer. Nor on the cooperative pool (one
+/// thread per core): a few CLIs waiting for a busy main actor would stall every async test in the run.
+private func runOffMain(_ args: [String], env: [String: String], stdin: Data?) async throws -> Result {
+    try await withCheckedThrowingContinuation { c in
+        DispatchQueue.global().async { c.resume(with: Swift.Result { try run(args, env: env, stdin: stdin) }) }
+    }
+}
+
 private func runOffMain(_ args: [String], socket: String) async throws -> Result {
-    try await Task.detached { try run(args, env: ["HANGAR_SOCKET": socket], stdin: nil) }.value
+    try await runOffMain(args, env: ["HANGAR_SOCKET": socket], stdin: nil)
 }
 
 private final class LockedData: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
-    func append(_ d: Data) { lock.lock(); data.append(d); lock.unlock() }
+    private var ended = false
+    /// An empty read is EOF.
+    func append(_ d: Data) { lock.lock(); if d.isEmpty { ended = true } else { data.append(d) }; lock.unlock() }
     var value: Data { lock.lock(); defer { lock.unlock() }; return data }
+    var eof: Bool { lock.lock(); defer { lock.unlock() }; return ended }
 }
 
 private let statusFixture = Data("""
@@ -94,7 +119,7 @@ private let statusFixture = Data("""
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)
         defer { s.stop() }
-        let r = try run(["event", "stop"], env: env(dir), stdin: Data(#"{"session_id":"s1"}"#.utf8))
+        let r = try await runOffMain(["event", "stop"], env: env(dir), stdin: Data(#"{"session_id":"s1"}"#.utf8))
         #expect(r.status == 0 && r.out.isEmpty && r.err.isEmpty)
         #expect(await inbox.wait(count: 1) == [.event(EventMessage(tab: tab, leaf: leaf, kind: .stop, session: "s1"))])
     }
@@ -118,7 +143,7 @@ private let statusFixture = Data("""
             (["event"], e, Data("{}".utf8)),
         ]
         for row in table {
-            let r = try run(row.args, env: row.env, stdin: row.stdin)
+            let r = try await runOffMain(row.args, env: row.env, stdin: row.stdin)
             #expect(r.status == 0, "\(row.args)")
             #expect(r.out.isEmpty && r.err.isEmpty, "\(row.args)")
             // Never hangs: the ~1 s stdin budget plus process spawn under a loaded parallel test run.
@@ -137,12 +162,12 @@ private let statusFixture = Data("""
         defer { s.stop() }
         let payload = #"{"type":"agent-turn-complete","thread-id":"t1","last-assistant-message":"ok"}"#
         let out = dir.path + "/out"
-        let r = try run(["event", "codex-notify", "--then", "/bin/sh", "-c", #"printf %s "$1" > "# + out, "sh", payload],
+        let r = try await runOffMain(["event", "codex-notify", "--then", "/bin/sh", "-c", #"printf %s "$1" > "# + out, "sh", payload],
                         env: env(dir), stdin: nil)
         #expect(r.status == 0 && r.out.isEmpty && r.err.isEmpty)
-        let deadline = ContinuousClock.now + .seconds(10)  // polls; exits as soon as the chained command wrote
+        let deadline = SuspendingClock.now + .seconds(30)  // polls; exits as soon as the chained command wrote
         var got = ""
-        while ContinuousClock.now < deadline {
+        while SuspendingClock.now < deadline {
             got = (try? String(contentsOfFile: out, encoding: .utf8)) ?? ""
             if got == payload { break }
             try await Task.sleep(for: .milliseconds(10))
@@ -155,7 +180,7 @@ private let statusFixture = Data("""
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)
         defer { s.stop() }
-        let r = try run(["statusline", "--then", "cat"], env: env(dir), stdin: statusFixture)
+        let r = try await runOffMain(["statusline", "--then", "cat"], env: env(dir), stdin: statusFixture)
         #expect(r.status == 0)
         #expect(r.out == statusFixture)
         #expect(await inbox.wait(count: 1) == [.usage(UsageMessage(agent: "claude", windows: [
@@ -163,7 +188,7 @@ private let statusFixture = Data("""
             WireWindow(name: "seven_day", usedPercent: 10, resetsAt: 1_760_500_000),
             WireWindow(name: "seven_day_opus", usedPercent: 3.5, resetsAt: 1_760_600_000),
         ]))])
-        let failing = try run(["statusline", "--then", "exit 3"], env: env(dir), stdin: statusFixture)
+        let failing = try await runOffMain(["statusline", "--then", "exit 3"], env: env(dir), stdin: statusFixture)
         #expect(failing.status == 3)
     }
 
@@ -171,13 +196,13 @@ private let statusFixture = Data("""
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)
         defer { s.stop() }
-        let r = try run(["statusline"], env: env(dir), stdin: Data(#"{"model":{}}"#.utf8))
+        let r = try await runOffMain(["statusline"], env: env(dir), stdin: Data(#"{"model":{}}"#.utf8))
         #expect(r.status == 0 && r.out.isEmpty)
         try await Task.sleep(for: .milliseconds(200))
         #expect(inbox.messages.isEmpty)
 
         var e = env(dir); e["HANGAR_SOCKET"] = dir.path + "/missing.sock"
-        let r2 = try run(["statusline", "--then", "echo hi"], env: e, stdin: statusFixture)
+        let r2 = try await runOffMain(["statusline", "--then", "echo hi"], env: e, stdin: statusFixture)
         #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
     }
 
@@ -290,7 +315,7 @@ private let statusFixture = Data("""
             #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tasks_list","arguments":{}}}"#,
         ].joined(separator: "\n") + "\n"
         let socket = dir.socket
-        let r = try await Task.detached { try run(["mcp"], env: ["HANGAR_SOCKET": socket], stdin: Data(input.utf8)) }.value
+        let r = try await runOffMain(["mcp"], env: ["HANGAR_SOCKET": socket], stdin: Data(input.utf8))
         #expect(r.status == 0)
         #expect(r.err.isEmpty, "\(String(decoding: r.err, as: UTF8.self))")
         let lines = String(decoding: r.out, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false)
@@ -313,10 +338,10 @@ private let statusFixture = Data("""
         let out = Pipe(), inp = Pipe()
         p.standardOutput = out
         p.standardInput = inp  // the writer stays silent and open, like `(sleep 10; echo x) | hangar`
-        let start = ContinuousClock.now
+        let start = SuspendingClock.now
         try p.run()
         p.waitUntilExit()
-        let elapsed = ContinuousClock.now - start
+        let elapsed = SuspendingClock.now - start
         try? inp.fileHandleForWriting.close()
         #expect(p.terminationStatus == 0)
         // The writer never writes nor closes until after exit: anything under 6 s proves `event` didn't wait for stdin.

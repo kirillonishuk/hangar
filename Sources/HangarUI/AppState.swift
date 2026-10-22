@@ -40,6 +40,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
     /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
     @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
+    @ObservationIgnored var onHostConnected: ((String) -> Void)?
     /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
@@ -158,9 +160,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
+        let remoteBefore = liveRemoteLeaves()
         mutate(&state)
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
+        killSessions(of: remoteBefore.filter { !live.contains($0.key) })
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
@@ -244,6 +248,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let leaf = self.leaf(id: leaf.id) ?? leaf
         let mode = launchMode(for: leaf, context)
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
+        if let host = remoteLeafHost(leaf.id) {
+            guard let target = remote.target(host) else {
+                Task { await remote.connect(host) }
+                throw LaunchError.notConnected(host: host)
+            }
+            return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target, editor: config.editor,
+                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt), mode)
+        }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
                                   userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt)
         return (spec, mode)

@@ -86,7 +86,8 @@ import Workspace
             app.remote = app.makeRemoteHosts(paths: SSHPaths(stateDir: root), sshPath: ssh,
                                              schedule: { [weak self] d, body in self?.scheduled.append((d, body)); return {} },
                                              isActive: { [weak self] in self?.active ?? false })
-            app.remote.onConnected = { [weak self] in self?.connected.append($0) }
+            let wiredConnected = app.remote.onConnected
+            app.remote.onConnected = { [weak self] in self?.connected.append($0); wiredConnected?($0) }
             app.remote.onLost = { [weak self] in self?.lost.append($0) }
             let wired = app.remote.onUnreachable
             app.remote.onUnreachable = { [weak self] in self?.unreachable.append($0); wired?($0) }

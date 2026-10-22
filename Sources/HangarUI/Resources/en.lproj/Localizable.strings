@@ -38,6 +38,8 @@
 "exited" = "process exited";
 "exitedWithCode" = "process exited with code %d";
 "relaunchHint" = "↩ restart";
+"hostNotConnected" = "Not connected to %@ · connecting…";
+"sessionDetached" = "Connection lost · ↩ reconnect";
 "emptyNoTask" = "Select a task or create a new one — ⌘N";
 "emptyNoTabs" = "No tabs — ⌘T or + in the tab bar";
 "ghosttyFailed" = "Couldn't start the terminal (Ghostty)";

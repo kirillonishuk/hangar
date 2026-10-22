@@ -396,10 +396,10 @@ final class RatioSplitView: HangarSplitView {
             for view in Array(leafViews.values) + drawer.leaves where view.host == host { view.refreshText() }
         }
         app.terminals = TerminalAccess(
-            start: { [weak self] in self?.startHidden(tabId: $0) },
-            state: { [weak self] in self?.leafViews[$0]?.controlState ?? .notStarted },
-            send: { [weak self] in self?.leafViews[$0]?.send(text: $1, keys: $2) },
-            read: { [weak self] in self?.leafViews[$0]?.surface?.screenText() })
+            start: { [weak self] in self?.startHidden(tabId: $0); self?.drawer.startHidden(leafId: $0) },
+            state: { [weak self] in self?.controlLeaf($0)?.controlState ?? .notStarted },
+            send: { [weak self] in self?.controlLeaf($0)?.send(text: $1, keys: $2) },
+            read: { [weak self] in self?.controlLeaf($0)?.surface?.screenText() })
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
@@ -600,6 +600,11 @@ final class RatioSplitView: HangarSplitView {
         guard let tab = app.state.tasks.filter({ !$0.archived }).flatMap(\.tabs).first(where: { $0.id == tabId }) else { return }
         show(tab)
         sync()
+    }
+
+    /// A tab leaf or a task's drawer shell (CLI/MCP refs, decision #45).
+    private func controlLeaf(_ leafId: UUID) -> LeafView? {
+        leafViews[leafId] ?? drawer.leaves.first { $0.leafId == leafId }
     }
 
     private func leafExited(_ leafId: UUID, code: Int32) {

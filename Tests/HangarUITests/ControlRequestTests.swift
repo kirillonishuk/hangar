@@ -281,7 +281,6 @@ import Workspace
         #expect(fake.sent.last?.leaf == ids.first && fake.sent.last?.text == "hi" && fake.sent.last?.keys == [.enter])
         let second = try await ok(app, .tabsSend(tab: String(ids.second.uuidString.prefix(8)), text: nil, keys: [.ctrlC]), SendResult.self)
         #expect(second.leaf == ids.second && fake.sent.last?.leaf == ids.second && fake.sent.last?.text == nil)
-        #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notFound)
         #expect(fake.started.isEmpty)
 
         fake.states = [.notStarted, .running]
@@ -303,6 +302,49 @@ import Workspace
         fake.states = [.notStarted, .failed]
         #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .failed)
         #expect(fake.sent.count == sentCount)
+    }
+
+    /// The TERMINAL drawer's shell: listed in tasks.list, its leaf id works as the `tab` ref (decision #45).
+    @Test func drawerLeafAddressable() async throws {
+        var ids = (a: UUID(), b: UUID(), drawer: UUID(), oldDrawer: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            ids.a = s.addTask(projectId: p, name: "A")
+            s.addTab(taskId: ids.a, kind: .claude)
+            s.toggleDrawer(taskId: ids.a)
+            ids.drawer = s.tasks[0].drawer.leaf!.id
+            ids.b = s.addTask(projectId: p, name: "B")
+            let old = s.addTask(projectId: p, name: "old")
+            s.toggleDrawer(taskId: old)
+            ids.oldDrawer = s.tasks.first { $0.id == old }!.drawer.leaf!.id
+            s.archiveTask(id: old)
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+
+        let list = try await ok(app, .tasksList(project: nil), TasksResult.self)
+        let a = try #require(list.tasks.first { $0.id == ids.a })
+        #expect(a.drawer?.id == ids.drawer && a.drawer?.kind == .shell)
+        #expect(a.tabs.allSatisfy { !$0.leaves.contains { $0.id == ids.drawer } })
+        #expect(list.tasks.first { $0.id == ids.b }?.drawer == nil)
+
+        // Never shown since launch: started hidden first, like a tab.
+        fake.states = [.notStarted, .running]
+        let r = try await ok(app, .tabsSend(tab: ids.drawer.uuidString, text: "ls", keys: [.enter]), SendResult.self)
+        #expect(r.tab == ids.drawer && r.leaf == ids.drawer)
+        #expect(fake.started == [ids.drawer])
+        #expect(fake.sent.last?.leaf == ids.drawer && fake.sent.last?.text == "ls")
+        fake.states = [.notStarted, .starting]
+        #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notStarted)
+
+        fake.screen = "$ ls\nfoo\n"
+        let read = try await ok(app, .tabsRead(tab: String(ids.drawer.uuidString.prefix(8)), lines: 10), ScreenResult.self)
+        #expect(read.tab == ids.drawer && read.leaf == ids.drawer && read.text == "$ ls\nfoo")
+
+        // Archived tasks' drawers are never found.
+        #expect(await error(app, .tabsRead(tab: ids.oldDrawer.uuidString, lines: 10))?.code == .notFound)
     }
 
     @Test func waitingLeafAcceptsSend() async throws {

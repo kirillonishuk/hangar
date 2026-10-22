@@ -44,7 +44,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         switch self {
         case .projectsList: "List the projects registered in Hangar."
         case .projectsAdd: "Register a folder as a Hangar project (idempotent)."
-        case .tasksList: "List tasks with their tabs and agent statuses, optionally for one project."
+        case .tasksList: "List tasks with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project."
         case .tasksCreate: "Create a task in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
@@ -78,13 +78,13 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             ]
         case .tabsSend:
             return [
-                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id or leaf id (or unique prefix)."),
+                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a task's drawer leaf id from tasks_list (or unique prefix)."),
                 ParamSpec(name: "text", type: .string(maxBytes: Self.maxText), required: false, summary: "Text to paste."),
                 ParamSpec(name: "keys", type: .list(of: SendKey.allCases.map(\.rawValue), max: 32), required: false, summary: "Keys to press after the text."),
             ]
         case .tabsRead:
             return [
-                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id or leaf id (or unique prefix)."),
+                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a task's drawer leaf id from tasks_list (or unique prefix)."),
                 ParamSpec(name: "lines", type: .int(1...5000), required: false, summary: "Number of last lines (default 100)."),
             ]
         case .tasksArchive:

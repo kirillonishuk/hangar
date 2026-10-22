@@ -249,4 +249,29 @@ import Testing
         #expect(sshFailure(status: 255, stderr: "motd: the build timed out\nx\n") == .exited(255, "x"))
         #expect(sshFailure(status: 255, stderr: "Timeout, server box not responding.\n") == .unreachable("Timeout, server box not responding."))
     }
+
+    /// Real OpenSSH stderr lines, plus look-alikes from other programs.
+    @Test func openSSHLines() {
+        let table: [(String, SSHFailure)] = [
+            ("kirill@box: Permission denied (publickey).", .auth("kirill@box: Permission denied (publickey).")),
+            ("deploy@10.0.0.5: Permission denied (publickey,password,keyboard-interactive).",
+             .auth("deploy@10.0.0.5: Permission denied (publickey,password,keyboard-interactive).")),
+            ("Permission denied (publickey,gssapi-keyex,gssapi-with-mic).", .auth("Permission denied (publickey,gssapi-keyex,gssapi-with-mic).")),
+            ("Error: Permission denied (os error 13)", .exited(255, "Error: Permission denied (os error 13)")),
+            ("cat: x: Permission denied (publickey). extra", .exited(255, "cat: x: Permission denied (publickey). extra")),
+            ("ssh: connect to host box port 22: Network is unreachable", .unreachable("ssh: connect to host box port 22: Network is unreachable")),
+            ("ssh: connect to host box port 22: Connection refused", .unreachable("ssh: connect to host box port 22: Connection refused")),
+            ("ssh: connect to host box port 22: Operation timed out", .unreachable("ssh: connect to host box port 22: Operation timed out")),
+            ("Connection closed by 10.0.0.5 port 22", .unreachable("Connection closed by 10.0.0.5 port 22")),
+            ("Connection reset by 10.0.0.5 port 22", .unreachable("Connection reset by 10.0.0.5 port 22")),
+            ("kex_exchange_identification: read: Connection reset by peer", .unreachable("kex_exchange_identification: read: Connection reset by peer")),
+            ("kex_exchange_identification: Connection closed by remote host", .unreachable("kex_exchange_identification: Connection closed by remote host")),
+            ("packet_write_wait: Connection to 10.0.0.5 port 22: Broken pipe", .unreachable("packet_write_wait: Connection to 10.0.0.5 port 22: Broken pipe")),
+            ("client_loop: send disconnect: Broken pipe", .unreachable("client_loop: send disconnect: Broken pipe")),
+            ("Connection to box closed by remote host.", .exited(255, "Connection to box closed by remote host.")),
+        ]
+        for (line, want) in table {
+            #expect(sshFailure(status: 255, stderr: line + "\n") == want, "\(line)")
+        }
+    }
 }

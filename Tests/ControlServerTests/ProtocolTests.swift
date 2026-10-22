@@ -83,6 +83,14 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(bad.session == nil)
     }
 
+    @Test func resetsAtClampedTo30Days() {
+        let far = Date().timeIntervalSince1970 + 365 * 86_400
+        let r = ControlMessage.decode(line(#"{"v":1,"type":"usage","agent":"claude","windows":[{"name":"w","resetsAt":\#(far)}]}"#))
+        guard case let .success(.usage(u)) = r, let got = u.windows.first?.resetsAt else { Issue.record("\(r)"); return }
+        let cap = Date().timeIntervalSince1970 + 30 * 86_400
+        #expect(got <= cap && got > cap - 60)
+    }
+
     // MARK: requests
 
     private func decode(_ method: String, _ json: String) -> Result<ControlCall, ControlError> {

@@ -144,8 +144,20 @@ import Testing
         #expect((attrs[.posixPermissions] as? Int) == 0o700)
     }
 
-    @Test func sshConfigHostList() {
-        let text = """
+    /// Fixture ssh dir (never the real ~/.ssh): writes `files` (relative path → text) and returns the dir.
+    private func sshFixture(_ files: [String: String]) throws -> (dir: String, cleanup: () -> Void) {
+        let dir = NSTemporaryDirectory() + "hangar-sshcfg-\(UUID().uuidString)"
+        for (name, text) in files {
+            let path = dir + "/" + name
+            try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                    withIntermediateDirectories: true)
+            try text.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+        return (dir, { try? FileManager.default.removeItem(atPath: dir) })
+    }
+
+    @Test func sshConfigHostList() throws {
+        let f = try sshFixture(["config": """
         # comment
         Host dev prod
           HostName 10.0.0.1
@@ -156,8 +168,71 @@ import Testing
         HOST  dev   *.example  h?
         Host = spaced
         Host dev2 # my box
-        """
-        #expect(sshConfigHosts(text) == ["dev", "prod", "box", "spaced", "dev2"])
+        """]); defer { f.cleanup() }
+        #expect(sshConfigHosts(path: f.dir + "/config") == ["dev", "prod", "box", "spaced", "dev2"])
+        #expect(sshConfigHosts(path: f.dir + "/missing").isEmpty)
+    }
+
+    @Test func sshConfigFollowsIncludes() throws {
+        let f = try sshFixture([
+            "config": """
+            Host first
+            Include conf.d/*.conf "q u o t e d"
+            Include   ABS
+            Match host x
+              Include matched
+            Host after
+            include=nested ?1
+            Host last
+            """,
+            "conf.d/b.conf": "Host b1 *.wild",
+            "conf.d/a.conf": "Host a1\nMatch all\n",  // a Match here must not hide the parent's next Include
+            "conf.d/skip.txt": "Host nope1",
+            "q u o t e d": "Host quoted",
+            "abs": "Host abs1",
+            "matched": "Host nope2",
+            "nested": "Host n1\nInclude deeper/x",
+            "deeper/x": "Host n2",
+            "z1": "Host z1",
+            "z12": "Host nope3",
+        ]); defer { f.cleanup() }
+        let cfg = try String(contentsOfFile: f.dir + "/config", encoding: .utf8)
+        try cfg.replacingOccurrences(of: "ABS", with: f.dir + "/abs")
+            .write(toFile: f.dir + "/config", atomically: true, encoding: .utf8)
+        #expect(sshConfigHosts(path: f.dir + "/config")
+                == ["first", "a1", "b1", "quoted", "abs1", "after", "n1", "n2", "z1", "last"])
+    }
+
+    @Test func sshConfigIncludeBaseIsInjected() throws {
+        let f = try sshFixture(["home/config": "Include inc", "ssh/inc": "Host fromssh", "home/inc": "Host nope"])
+        defer { f.cleanup() }
+        #expect(sshConfigHosts(path: f.dir + "/home/config", sshDir: f.dir + "/ssh") == ["fromssh"])
+        #expect(sshConfigHosts(path: f.dir + "/home/config") == ["nope"])  // default base: the config's folder
+    }
+
+    @Test func sshConfigIncludeCyclesAndDepth() throws {
+        var files = ["config": "Host top\nInclude a", "a": "Host a\nInclude config a b", "b": "Host b\nInclude a"]
+        for i in 0...17 { files["d\(i)"] = "Host d\(i)\nInclude d\(i + 1)" }
+        files["config2"] = "Include d1"  // config2 is depth 0, d1 depth 1 … d16 depth 16 (OpenSSH's limit)
+        let f = try sshFixture(files); defer { f.cleanup() }
+        var reads: [String] = []
+        let hosts = sshConfigHosts(path: f.dir + "/config", read: { reads.append($0); return FileManager.default.contents(atPath: $0) })
+        #expect(hosts == ["top", "a", "b"])
+        #expect(reads.count == 3)
+        #expect(sshConfigHosts(path: f.dir + "/config2") == (1...16).map { "d\($0)" })
+    }
+
+    @Test func sshConfigTotalByteCap() throws {
+        let f = try sshFixture(["config": "", "big": "", "after": ""]); defer { f.cleanup() }
+        let read: (String) -> Data? = { path in
+            switch (path as NSString).lastPathComponent {
+            case "config": Data("Host top\nInclude big after".utf8)
+            case "big": Data(("Host big\n" + String(repeating: "#", count: sshConfigByteCap)).utf8)
+            default: Data("Host after".utf8)
+            }
+        }
+        // The file that crosses the total cap and everything after it are skipped.
+        #expect(sshConfigHosts(path: f.dir + "/config", read: read) == ["top"])
     }
 
     @Test func directoryExistsRemote() async throws {

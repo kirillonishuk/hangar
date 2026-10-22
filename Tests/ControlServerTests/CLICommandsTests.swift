@@ -22,6 +22,9 @@ import ControlServer
             (["tabs", "open", "--kind", "codex", "--task", "t", "--prompt", "go"], .call(.tabsOpen(task: "t", kind: .codex, prompt: "go"), json: false)),
             (["projects", "add", "../x"], .call(.projectsAdd(path: "/tmp/a/x"), json: false)),
             (["projects", "add", "/abs/./y/"], .call(.projectsAdd(path: "/abs/y"), json: false)),
+            // A server path stays as typed: no local cwd, `~` is the server's home.
+            (["projects", "add", "--host", "dev", "~/app"], .call(.projectsAdd(path: "~/app", host: "dev"), json: false)),
+            (["projects", "add", "rel", "--host", "u@h", "--json"], .call(.projectsAdd(path: "rel", host: "u@h"), json: true)),
             (["projects", "list", "--json"], .call(.projectsList, json: true)),
             (["tasks", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
             (["tasks", "list"], .call(.tasksList(project: nil), json: false)),
@@ -51,6 +54,7 @@ import ControlServer
             ["projects", "add"],
             ["projects", "add", ""],
             ["projects", "add", "a", "b"],
+            ["projects", "add", "a", "--host"],
             ["projects", "list", "extra"],
             ["projects", "frob"],
             ["tasks", "create", "--project", "p", "--project", "q", "--name", "N"],
@@ -117,6 +121,11 @@ import ControlServer
                 == "abcdef12-0000-0000-0000-000000000001  /src/web  (already added)")
         #expect(formatHuman(.projectsAdd(path: "/src/web"), result: try JSONEncoder().encode(ProjectAddResult(project: p, added: true)))
                 == "abcdef12-0000-0000-0000-000000000001  /src/web")
+        let onHost = ProjectAddResult(project: remote, added: true, warnings: ["tmux missing on server; open Hangar → Server to install"])
+        #expect(formatHuman(.projectsAdd(path: "~/app", host: "dev"), result: try JSONEncoder().encode(onHost))
+                == "abcdef12-0000-0000-0000-000000000001  dev:/srv/app\nwarning: tmux missing on server; open Hangar → Server to install")
+        #expect(requestTimeout(.projectsAdd(path: "~/app", host: "dev")) >= 60)
+        #expect(requestTimeout(.projectsAdd(path: "/a")) == 10)
         let tab = TabInfo(id: t1, kind: .shell, title: "zsh", status: "idle", leaves: [])
         #expect(formatHuman(.tabsOpen(task: "t", kind: .shell, prompt: nil), result: try JSONEncoder().encode(TabResult(task: taskId, tab: tab)))
                 == "tab 11112222-0000-0000-0000-000000000002")

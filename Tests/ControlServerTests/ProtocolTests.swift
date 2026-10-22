@@ -107,7 +107,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
 
     @Test func requestRoundTrip() {
         let calls: [ControlCall] = [
-            .projectsList, .projectsAdd(path: "/tmp/p"), .tasksList(project: nil), .tasksList(project: "app"),
+            .projectsList, .projectsAdd(path: "/tmp/p"), .projectsAdd(path: "~/app", host: "dev"), .tasksList(project: nil), .tasksList(project: "app"),
             .tasksCreate(project: "app", name: "Fix", worktree: false, base: nil, prompt: nil),
             .tasksCreate(project: "app", name: "Fix", worktree: true, base: "main", prompt: "go"),
             .tabsOpen(task: "t1", kind: .shell, prompt: nil), .tabsOpen(task: "t1", kind: .claude, prompt: "hi"),
@@ -150,6 +150,8 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         badParams("tasks.create", #"{"project":"p","name":"  "}"#)
         badParams("tasks.create", #"{"project":"p","name":"a\nb"}"#)
         badParams("projects.add", #"{"path":"rel/dir"}"#)
+        badParams("projects.add", #"{"path":"/a","host":""}"#)
+        badParams("projects.add", #"{"path":"/a","host":7}"#)
         badParams("tasks.create", #"{"project":"p","name":"n","base":"main"}"#)
         badParams("tasks.create", #"{"project":"p","name":"n","worktree":false,"base":"main"}"#)
         badParams("tabs.open", #"{"task":"t","kind":"shell","prompt":"x"}"#)
@@ -159,6 +161,8 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         badParams("tasks.create", #"{"project":"p","name":"n","worktree":1}"#)
         badParams("projects.list", #"{"x":1}"#)
         #expect(decode("tabs.read", #"{"tab":"t"}"#) == .success(.tabsRead(tab: "t", lines: 100)))
+        // On a host the path is the server's: `~` and relative paths are resolved there.
+        #expect(decode("projects.add", #"{"path":"rel/dir","host":"dev"}"#) == .success(.projectsAdd(path: "rel/dir", host: "dev")))
         #expect(decode("tasks.create", #"{"project":"p","name":" n "}"#) == .success(.tasksCreate(project: "p", name: "n", worktree: false, base: nil, prompt: nil)))
     }
 

@@ -1,4 +1,5 @@
 import ControlServer
+import Exec
 import Foundation
 import Git
 import Workspace
@@ -26,7 +27,10 @@ extension AppState {
         case .projectsList:
             return .ok(id, ProjectsResult(projects: state.projects.map(projectInfo)))
 
-        case .projectsAdd(let raw):
+        case .projectsAdd(let raw, .some(let host)):
+            return await addRemote(id, path: raw, host: host)
+
+        case .projectsAdd(let raw, nil):
             let path = (raw as NSString).standardizingPath
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
@@ -135,6 +139,28 @@ extension AppState {
     }
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// The «Удалённый проект» sheet without the sheet: connect (with the server check), `pwd -P` on the server, add.
+    /// Nothing is installed here; what the server lacks comes back as warnings. A failure lets go of a host no project uses.
+    private func addRemote(_ id: Int, path: String, host raw: String) async -> ControlResponse {
+        guard let host = validSSHHost(raw) else { return ControlResponse(id: id, body: .failure(ControlError(code: .badParams, message: "invalid host"))) }
+        func fail(_ code: ControlErrorCode, _ message: String) -> ControlResponse {
+            releaseUnusedHost(host)
+            return ControlResponse(id: id, body: .failure(ControlError(code: code, message: message)))
+        }
+        guard await remote.connect(host) == .connected, let info = remote.hosts[host], let home = info.home else {
+            let info = remote.hosts[host]
+            if info?.authFailed == true { return fail(.failed, "auth failed: run ssh \(host) in Terminal, then retry") }
+            if info?.unsupportedShell != nil { return fail(.failed, "unsupported login shell (csh/tcsh)") }
+            return fail(.failed, "host not connected")
+        }
+        guard let real = await remoteRealPath(path, home: home, runner: remote.runner(host)) else {
+            return fail(.notFound, "folder not found on server")
+        }
+        let added = !state.projects.contains { $0.location == .ssh(host: host, path: real) }
+        let project = project(addRemoteProject(host: host, path: real))!
+        return .ok(id, ProjectAddResult(project: projectInfo(project), added: added, warnings: remoteAddWarnings(remote.hosts[host] ?? info)))
+    }
 
     /// A never-started leaf is started hidden first (a `--prompt`-less tab may never have been shown).
     private func leafState(_ target: (tab: UUID, leaf: UUID)) -> LeafState {
@@ -247,6 +273,17 @@ extension AppState {
         let branchError = model.branchError.map { _ in branchProblemMessage(model.branch, branches: model.branches) }
         return failed(model.createError ?? branchError ?? fetchError ?? "worktree was not created")
     }
+}
+
+/// `projects.add --host`: the sidebar warning's reasons (`HostInfo.needsAttention`) as fixed English lines.
+func remoteAddWarnings(_ info: HostInfo) -> [String] {
+    guard let r = info.report else { return [] }
+    let install = "; open Hangar → Server to install"
+    var out = r.missingRequired.map { "\($0.rawValue) missing on server" + install }
+    if r.remoteOutdated(current: hangarRemoteVersion) { out.append("hangar-remote missing or outdated on server" + install) }
+    if r.socketClient == nil { out.append("no socket client (python3, socat or nc) on server, agent statuses unavailable" + install) }
+    if !info.forwarding { out.append("socket forwarding refused by server, agent statuses unavailable") }
+    return out
 }
 
 /// English counterpart of `NewTaskModel`'s branch problems (empty, already exists, else invalid).

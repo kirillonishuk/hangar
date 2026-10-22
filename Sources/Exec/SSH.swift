@@ -70,9 +70,11 @@ let remoteRunScript = #"cd "${1:-$HOME}" && shift && exec env GIT_TERMINAL_PROMP
 extension Runner {
     /// Runs argv on `host` through the master at `controlPath`; a failed login is status 255 with ssh's stderr.
     /// Cancel kills the local ssh. shortcut: the remote command may outlive a cancel; ok for short git calls.
-    public static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh") -> Runner {
+    /// `maxOutput`: past that many bytes on a stream the ssh is killed and the stream cut (untrusted server output).
+    public static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh", maxOutput: Int = .max) -> Runner {
         Runner { args, cwd in
-            try await runSSH(host: host, controlPath: controlPath, sshPath: sshPath, script: remoteRunScript, args: [cwd] + args, input: nil)
+            try await runSSH(host: host, controlPath: controlPath, sshPath: sshPath, script: remoteRunScript, args: [cwd] + args,
+                             input: nil, maxOutput: maxOutput)
         }
     }
 }
@@ -84,10 +86,21 @@ public func sshWrite(host: String, controlPath: String, sshPath: String = "/usr/
 }
 
 private func runSSH(host: String, controlPath: String, sshPath: String,
-                    script: String, args: [String], input: Data?) async throws -> RunResult {
+                    script: String, args: [String], input: Data?, maxOutput: Int = .max) async throws -> RunResult {
     guard let host = validSSHHost(host) else { throw SSHError.invalidHost(host) }
     let argv = sshBaseArgs(controlPath: controlPath) + ["-T", "--", host, remoteShellArgs(script: script, args)]
-    return try await runProcess(sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment, input: input)
+    return try await runProcess(sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment, input: input, maxOutput: maxOutput)
+}
+
+/// A connected host, as terminal launches need it (built by RemoteHosts from the master and the server check).
+public struct RemoteTarget: Equatable, Sendable {
+    public var host: String, controlPath: String, home: String
+    public var tmux: Bool
+    public var sshPath: String
+
+    public init(host: String, controlPath: String, home: String, tmux: Bool, sshPath: String) {
+        self.host = host; self.controlPath = controlPath; self.home = home; self.tmux = tmux; self.sshPath = sshPath
+    }
 }
 
 /// `test -d` through the runner (local or remote); any failure counts as "no".

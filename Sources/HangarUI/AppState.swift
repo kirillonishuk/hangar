@@ -109,6 +109,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
+    /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
+    @ObservationIgnored public var sshPath = "/usr/bin/ssh"
+    /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
+    @ObservationIgnored public lazy var remote: RemoteHosts = makeRemoteHosts(
+        paths: SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent), sshPath: sshPath,
+        isActive: { NSApp?.isActive ?? false })
     /// Ghostty took this background at launch; a change applies after restart.
     @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 

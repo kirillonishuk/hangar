@@ -335,6 +335,14 @@ import Workspace
         #expect(try await h.remote.runner("dev").run(["true"], "").status == 0)
     }
 
+    /// Untrusted server output: every command through the host (git, `cat` of an integration file) is cut at 64 MiB.
+    @Test func runnerCapsOutput() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        let r = try await h.remote.runner("dev").run(["/bin/sh", "-c", "yes | head -c 70000000"], "")
+        #expect(r.stdout.utf8.count == RemoteHosts.maxOutput && RemoteHosts.maxOutput == 64 << 20)
+    }
+
     @Test func hangingCheckTimesOut() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await h.hangingGit()

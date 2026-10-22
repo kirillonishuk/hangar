@@ -506,7 +506,8 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
 
     @Test func responseAfterDisconnectDropped() async throws {
         let dir = SocketDir(), inbox = Inbox(), gate = Gate()
-        let server = try startServer(dir, inbox) { id, _ in
+        // Idle timeout out of the way: under load `second` waits > 10 s for the main-actor reply and was closed (eof).
+        let server = try startServer(dir, inbox, idleTimeout: 600) { id, _ in
             await gate.wait()
             return .ok(id, ProjectsResult(projects: []))
         }

@@ -17,6 +17,7 @@ usage:
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
   hangar mcp   (MCP server over stdio)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
@@ -138,9 +139,11 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         }
     case .tasksList:
         text = (try? d.decode(TasksResult.self, from: result)).map { r in
-            r.tasks.flatMap { t in
-                ["\(id8(t.id))  \(t.status)  \(t.projectName)/\(t.name)" + (t.branch.map { "  ⎇ \($0)" } ?? "")]
-                    + t.tabs.map { "    \(id8($0.id))  \($0.kind.rawValue)  \($0.status)  \($0.title)" }
+            r.tasks.flatMap { t -> [String] in
+                var lines = ["\(id8(t.id))  \(t.status)  \(t.projectName)/\(t.name)" + (t.branch.map { "  ⎇ \($0)" } ?? "")]
+                lines += t.tabs.map { "    \(id8($0.id))  \($0.kind.rawValue)  \($0.status)  \($0.title)" }
+                if let d = t.drawer { lines.append("    \(id8(d.id))  drawer  \(d.status)  TERMINAL") }
+                return lines
             }.joined(separator: "\n")
         }
     case .tasksCreate:

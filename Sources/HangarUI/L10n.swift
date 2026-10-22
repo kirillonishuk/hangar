@@ -251,6 +251,10 @@ import Workspace
     static var keepAwakeIdleHelp: String { s(.keepAwakeIdleHelp) }
     static func keepAwakeActiveHelp(_ n: Int) -> String { f(.keepAwakeActiveHelp, n) }
     static var keepAwakeGraceHelp: String { s(.keepAwakeGraceHelp) }
+    /// ☕ tooltip: off / waiting for agents / how many work / the 2-min grace.
+    static func keepAwakeHelp(enabled: Bool, held: Bool, working: Int) -> String {
+        !enabled ? keepAwakeOffHelp : !held ? keepAwakeIdleHelp : working > 0 ? keepAwakeActiveHelp(working) : keepAwakeGraceHelp
+    }
     static var agentsWorkingInfo: String { s(.agentsWorkingInfo) }
 
     // Integrations (Settings)

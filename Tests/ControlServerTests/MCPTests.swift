@@ -79,6 +79,10 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect(keys?["maxItems"] as? Int == 32)
         #expect((keys?["items"] as? [String: Any])?["enum"] as? [String] == SendKey.allCases.map(\.rawValue))
         #expect((send?["text"] as? [String: Any])?["maxLength"] as? Int == ControlMethod.maxText)
+        for tool in ["tabs_send", "tabs_read"] {
+            let tab = (byName[tool]?["properties"] as? [String: Any])?["tab"] as? [String: Any]
+            #expect((tab?["description"] as? String)?.contains("drawer") == true, "\(tool)")
+        }
         let lines = (byName["tabs_read"]?["properties"] as? [String: Any])?["lines"] as? [String: Any]
         #expect(lines?["type"] as? String == "integer")
         #expect(lines?["minimum"] as? Int == 1)

@@ -6,7 +6,7 @@ import Workspace
 /// What CLI/MCP commands need from the terminals (Ghostty surfaces live in the views, not in the model).
 struct TerminalAccess {
     /// Starts the tab's surfaces hidden if they never ran (a `--prompt` agent must not wait to be shown).
-    var start: (UUID /* tab */) -> Void
+    var start: (UUID /* tab, or a drawer leaf */) -> Void
     /// One check for send and read, so both answer the same way.
     var state: (UUID /* leaf */) -> LeafState
     /// Only called on a `running` leaf.
@@ -145,15 +145,16 @@ extension AppState {
         return terminals.state(target.leaf)
     }
 
-    /// `--tab`: a tab id (→ its focused leaf) or a leaf id, among non-archived tasks; TERMINAL panel leaves are not addressable
-    /// (shortcut: no drawer refs, add one if orchestrators need the panel shell).
+    /// `--tab`: a tab id (→ its focused leaf), a leaf id or a drawer leaf id (its own tab, like its HANGAR_TAB_ID),
+    /// among non-archived tasks.
     private func resolveLeaf(_ ref: String) -> Result<(tab: UUID, leaf: UUID), ControlError> {
-        let tabs = state.tasks.filter { !$0.archived }.flatMap(\.tabs)
+        let tasks = state.tasks.filter { !$0.archived }
         var targets: [UUID: (tab: UUID, leaf: UUID)] = [:]
-        for tab in tabs {
+        for tab in tasks.flatMap(\.tabs) {
             targets[tab.id] = (tab.id, tab.focusedLeafId)
             for leaf in tab.root.leaves { targets[leaf.id] = (tab.id, leaf.id) }
         }
+        for leaf in tasks.compactMap(\.drawer.leaf) { targets[leaf.id] = (leaf.id, leaf.id) }
         return resolveRef(ref, in: targets.keys.sorted { $0.uuidString < $1.uuidString }.map { RefCandidate(id: $0, names: []) })
             .map { targets[$0]! }
             .mapError { refError($0, ref, "tab") }
@@ -175,7 +176,8 @@ extension AppState {
         if case .worktree(let p, _, let b) = task.mode { (path, base, mode) = (p, b, "worktree") }
         return TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
                         status: displayState(of: task).rawValue, mode: mode, path: path, branch: task.branch, base: base,
-                        tabs: task.tabs.map(tabInfo))
+                        tabs: task.tabs.map(tabInfo),
+                        drawer: task.drawer.leaf.map { LeafInfo(id: $0.id, kind: tabKind($0.kind), status: displayState(ofLeaf: $0.id, kind: $0.kind).rawValue) })
     }
 
     private func tabInfo(_ tab: Tab) -> TabInfo {

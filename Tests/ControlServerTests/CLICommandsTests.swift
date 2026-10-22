@@ -17,6 +17,8 @@ import ControlServer
              .call(.tabsSend(tab: "x", text: nil, keys: [.escape, .down]), json: false)),
             (["tabs", "read", "--tab", "x", "--lines", "20", "--json"], .call(.tabsRead(tab: "x", lines: 20), json: true)),
             (["tabs", "read", "--tab", "x"], .call(.tabsRead(tab: "x", lines: 100), json: false)),
+            // A drawer leaf id is a plain `--tab` ref.
+            (["tabs", "read", "--tab", "55556666"], .call(.tabsRead(tab: "55556666", lines: 100), json: false)),
             (["tabs", "open", "--kind", "codex", "--task", "t", "--prompt", "go"], .call(.tabsOpen(task: "t", kind: .codex, prompt: "go"), json: false)),
             (["projects", "add", "../x"], .call(.projectsAdd(path: "/tmp/a/x"), json: false)),
             (["projects", "add", "/abs/./y/"], .call(.projectsAdd(path: "/abs/y"), json: false)),
@@ -87,12 +89,17 @@ import ControlServer
                                 TabInfo(id: t1, kind: .claude, title: "Claude", status: "working", leaves: []),
                                 TabInfo(id: t2, kind: .shell, title: "zsh", status: "idle", leaves: []),
                             ])
-        let data = try JSONEncoder().encode(TasksResult(tasks: [task]))
+        var withDrawer = task
+        withDrawer.drawer = LeafInfo(id: UUID(uuidString: "55556666-0000-0000-0000-000000000004")!, kind: .shell, status: "idle")
+        let data = try JSONEncoder().encode(TasksResult(tasks: [withDrawer]))
         #expect(formatHuman(.tasksList(project: nil), result: data) == """
         abcdef12  working  web/Fix login  ⎇ fix-login
             11112222  claude  working  Claude
             33334444  shell  idle  zsh
+            55556666  drawer  idle  TERMINAL
         """)
+        // No drawer shell yet: no key in the JSON, no line.
+        #expect(!String(decoding: try JSONEncoder().encode(task), as: UTF8.self).contains("drawer"))
 
         let main = TaskInfo(id: taskId, name: "N", project: UUID(), projectName: "web", status: "idle", mode: "main-folder",
                             path: "/w", branch: nil, base: nil, tabs: [TabInfo(id: t1, kind: .claude, title: "C", status: "idle", leaves: [])])

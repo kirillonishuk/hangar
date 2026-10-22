@@ -80,7 +80,7 @@ import Workspace
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
-        case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, sessionDetached
+        case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
@@ -141,6 +141,8 @@ import Workspace
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
     static func hostNotConnected(_ host: String) -> String { f(.hostNotConnected, host) }
+    static func hostOffline(_ host: String) -> String { f(.hostOffline, host) }
+    static var remoteNoGit: String { s(.remoteNoGit) }
     static var sessionDetached: String { s(.sessionDetached) }
     static var more: String { s(.more) }
     static var settings: String { s(.settings) }

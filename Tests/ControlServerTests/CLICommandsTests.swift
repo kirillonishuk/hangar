@@ -104,6 +104,8 @@ import ControlServer
 
         let p = ProjectInfo(id: taskId, name: "web", path: "/src/web", exists: true)
         #expect(formatHuman(.projectsList, result: try JSONEncoder().encode(ProjectsResult(projects: [p]))) == "abcdef12  web  /src/web")
+        let remote = ProjectInfo(id: taskId, name: "app", path: "/srv/app", exists: true, host: "dev")
+        #expect(formatHuman(.projectsList, result: try JSONEncoder().encode(ProjectsResult(projects: [remote]))) == "abcdef12  app  dev:/srv/app")
         #expect(formatHuman(.projectsAdd(path: "/src/web"), result: try JSONEncoder().encode(ProjectAddResult(project: p, added: false)))
                 == "abcdef12-0000-0000-0000-000000000001  /src/web  (already added)")
         #expect(formatHuman(.projectsAdd(path: "/src/web"), result: try JSONEncoder().encode(ProjectAddResult(project: p, added: true)))

@@ -34,6 +34,10 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var statusTruncated = false
     private(set) var filesTruncated = false
     private(set) var error: String?
+    /// A remote folder that is not a repository: no tree (the server's disk is listed only through git).
+    private(set) var remoteNoGit = false
+    /// The remote task's host is not connected: a calm notice; what was loaded stays until the next load.
+    private(set) var offline = false
     /// The listing failed: shown in Files only (Changes still load).
     private(set) var filesError: String?
     private(set) var diff: DiffState = .none
@@ -56,7 +60,8 @@ struct RefreshParts: OptionSet, Sendable {
         var mode: ModeChoice
     }
 
-    @ObservationIgnored private let git: @Sendable (String) -> Git
+    @ObservationIgnored private var git: @Sendable (String) -> Git = { Git(repo: $0) }
+    @ObservationIgnored private var remote = false
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
     /// `baseBranch()` once asked (`.some(nil)`: there is none); asked again on every `show` and `baseChanged`.
@@ -70,12 +75,12 @@ struct RefreshParts: OptionSet, Sendable {
     /// No load of this context has finished yet (auto-expansion runs once).
     @ObservationIgnored private var firstLoad = true
 
-    init(git: @escaping @Sendable (String) -> Git = { Git(repo: $0) }) {
-        self.git = git
-    }
-
-    func show(taskId: UUID?, root: String?, baseBranch: @escaping @Sendable () async -> String?) {
+    /// `git`: git at a path on the task's machine; `remote`: that machine is an ssh host (no FileManager on its paths).
+    func show(taskId: UUID?, root: String?, git: @escaping @Sendable (String) -> Git = { Git(repo: $0) }, remote: Bool = false,
+              baseBranch: @escaping @Sendable () async -> String?) {
         self.baseBranch = baseBranch
+        self.git = git
+        self.remote = remote
         knownBase = nil  // one `baseBranch()` per show: settings may have changed it
         let next = Context(taskId: taskId, root: root, mode: modeChoice)
         guard next != context else { refresh(.all); return }
@@ -83,6 +88,8 @@ struct RefreshParts: OptionSet, Sendable {
         cancel()
         self.root = root
         isGit = true
+        remoteNoGit = false
+        offline = false
         top = nil
         tree = FileTree()
         ignored.paths = []
@@ -156,7 +163,7 @@ struct RefreshParts: OptionSet, Sendable {
         generation += 1
         let gen = generation
         running = parts
-        let input = LoadInput(root: context.root!, mode: context.mode, top: top,
+        let input = LoadInput(root: context.root!, remote: remote, mode: context.mode, top: top,
                               known: changes, base: knownBase, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
         let git = self.git, baseBranch = self.baseBranch
         loading = Task { [weak self] in
@@ -176,6 +183,7 @@ struct RefreshParts: OptionSet, Sendable {
 
     private struct LoadInput: Sendable {
         var root: String
+        var remote: Bool
         var mode: ModeChoice
         /// Top level from an earlier load of this context (skips the probes).
         var top: String?
@@ -188,6 +196,8 @@ struct RefreshParts: OptionSet, Sendable {
 
     private struct LoadResult: Sendable {
         var isGit = true
+        var remoteNoGit = false
+        var offline = false
         var top: String?
         var tree: FileTree?
         var filesTruncated = false
@@ -204,13 +214,13 @@ struct RefreshParts: OptionSet, Sendable {
         var error: String?
     }
 
-    /// Off the main thread: git through the injected runner, the plain folder through FileManager.
+    /// Off the main thread: git through the injected runner, a local plain folder through FileManager.
     private nonisolated static func load(_ parts: RefreshParts, _ input: LoadInput, git makeGit: @Sendable (String) -> Git,
                                          baseBranch: @Sendable () async -> String?) async -> LoadResult {
         var r = LoadResult()
         r.diffPath = input.diffPath
         var git = makeGit(input.root)
-        if input.top == nil, await !git.isRepository() {
+        if input.top == nil, !input.remote, await !git.isRepository() {
             r.isGit = false
             r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
             guard parts.contains(.tree) else { return r }
@@ -225,7 +235,20 @@ struct RefreshParts: OptionSet, Sendable {
         }
         do {
             let top: String
-            if let known = input.top { top = known } else { top = try await git.toplevel() }
+            if let known = input.top {
+                top = known
+            } else if input.remote {
+                // One call answers both "git?" and "reachable?"; a git failure here means not a repository.
+                do { top = try await git.toplevel() } catch where !Self.isOffline(error) {
+                    r.isGit = false
+                    r.remoteNoGit = true
+                    r.tree = FileTree()
+                    r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
+                    return r
+                }
+            } else {
+                top = try await git.toplevel()
+            }
             r.top = top
             // Paths from git are top-relative: a project in a subfolder must run git at the top level.
             git = makeGit(top)
@@ -236,11 +259,12 @@ struct RefreshParts: OptionSet, Sendable {
                     r.tree = FileTree(paths: listing.paths, dirLinks: listing.dirLinks)
                     r.filesTruncated = listing.truncated
                     r.paths = listing.paths.count
-                    if let rel = try? await git.ignoredPaths() {
+                    // Only the local watcher uses them (and `realPath` is this Mac's disk).
+                    if !input.remote, let rel = try? await git.ignoredPaths() {
                         let base = realPath(top)
                         r.ignored = Set(rel.map { base + "/" + ($0.hasSuffix("/") ? String($0.dropLast()) : $0) })
                     }
-                } catch {
+                } catch where !(input.remote && Self.isOffline(error)) {
                     r.filesError = Self.message(error)
                 }
             }
@@ -270,11 +294,19 @@ struct RefreshParts: OptionSet, Sendable {
                     r.diffUnavailable = true
                 }
             }
+        } catch where input.remote && Self.isOffline(error) {
+            r.offline = true
+            r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
         } catch {
             r.error = Self.message(error)
             if input.diffPath != nil, parts.contains(.diff) || parts.contains(.status) { r.diff = .failed(r.error!); r.diffUnavailable = false }
         }
         return r
+    }
+
+    /// The host, not git: not connected, or ssh's own failure (255) mid-call.
+    private nonisolated static func isOffline(_ error: Error) -> Bool {
+        error is RemoteHostError || (error as? GitError)?.status == 255
     }
 
     private nonisolated static func message(_ error: Error) -> String {
@@ -285,6 +317,9 @@ struct RefreshParts: OptionSet, Sendable {
         error = r.error
         if parts.contains(.tree), r.error == nil { filesError = r.filesError }
         if r.diffUnavailable, r.diffPath == diffPath { diff = .failed(L10n.diffUnavailable) }
+        offline = r.offline
+        if r.offline { return }
+        remoteNoGit = r.remoteNoGit
         if !r.isGit {
             isGit = false
             segment = .files

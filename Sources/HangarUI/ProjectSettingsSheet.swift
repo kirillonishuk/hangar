@@ -1,4 +1,5 @@
 import AppKit
+import Exec
 import Git
 import SwiftUI
 import Workspace
@@ -16,19 +17,22 @@ func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
     return r == p || r.hasPrefix(p + "/")
 }
 
-/// «Папка worktree» input: blank → nil (default folder), `~` expanded, a relative path is an error.
-@MainActor func worktreeRootInput(_ text: String) -> Result<String?, PathInputError> {
+/// «Папка worktree» input: blank → nil (default folder), `~` expanded (`remote`: not — this Mac's home is not the server's),
+/// a relative path is an error.
+@MainActor func worktreeRootInput(_ text: String, remote: Bool = false) -> Result<String?, PathInputError> {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return .success(nil) }
-    let expanded = (trimmed as NSString).expandingTildeInPath
+    let expanded = remote ? trimmed : (trimmed as NSString).expandingTildeInPath
     return expanded.hasPrefix("/") ? .success(expanded) : .failure(PathInputError(message: L10n.pathMustBeAbsolute))
 }
 
 /// Project settings (sheet 580, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
-/// A missing folder is shown as an error and nothing is saved.
+/// A missing folder is shown as an error and nothing is saved. A remote project: paths are typed (no «Choose…»),
+/// the folder is checked on its host.
 struct ProjectSettingsSheet: View {
     let project: Project
     let git: Git
+    let runner: Runner
     let onSave: (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void
     let onCancel: () -> Void
 
@@ -46,11 +50,12 @@ struct ProjectSettingsSheet: View {
     @FocusState private var focus: Field?
     private enum Field { case name, path, root }
 
-    init(project: Project, git: Git,
+    init(project: Project, git: Git, runner: Runner,
          onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void,
          onCancel: @escaping () -> Void) {
         self.project = project
         self.git = git
+        self.runner = runner
         self.onSave = onSave
         self.onCancel = onCancel
         _name = State(initialValue: project.name)
@@ -58,6 +63,8 @@ struct ProjectSettingsSheet: View {
         _baseBranch = State(initialValue: project.lastBaseBranch)
         _worktreeRoot = State(initialValue: project.worktreeRoot ?? "")
     }
+
+    private var remote: Bool { project.host != nil }
 
     private var canSave: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -86,7 +93,7 @@ struct ProjectSettingsSheet: View {
                     .onSubmit(save)
                     .onChange(of: path) { error = nil }
                     .modifier(SheetField(focused: focus == .path))
-                Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false))
+                if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)) }
             }
             if let error {
                 Text(error).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
@@ -110,9 +117,9 @@ struct ProjectSettingsSheet: View {
                         .onSubmit(save)
                         .onChange(of: worktreeRoot) { rootError = nil }
                         .modifier(SheetField(focused: focus == .root))
-                    Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false))
+                    if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)) }
                 }
-                if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot),
+                if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
                    worktreeRootInsideProject(root, project: path) {
                     Text(L10n.worktreeRootInsideProject).font(.system(size: Theme.fontSize.tab))
                         .foregroundStyle(Theme.ui.text3).padding(.top, Theme.railInset)
@@ -154,8 +161,7 @@ struct ProjectSettingsSheet: View {
 
     /// Default worktree folder for the current project path.
     private var defaultRootPlaceholder: String {
-        let url = URL(fileURLWithPath: worktreePath(projectPath: path, root: nil, branch: "x"))
-        return url.deletingLastPathComponent().path
+        (worktreePath(projectPath: path, root: nil, branch: "x") as NSString).deletingLastPathComponent
     }
 
     /// Reads branches without fetching.
@@ -172,16 +178,26 @@ struct ProjectSettingsSheet: View {
         guard canSave else { return }
         var root: String?
         if isGit == true {
-            switch worktreeRootInput(worktreeRoot) {
+            switch worktreeRootInput(worktreeRoot, remote: remote) {
             case .success(let value): root = value
             case .failure(let e): rootError = e.message; return
             }
         } else {
             root = project.worktreeRoot  // hidden rows keep what is stored
         }
-        let trimmed = (path.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
-        guard folderExists(trimmed) else { error = L10n.folderMissing(trimmed); return }
-        onSave(name, trimmed, isGit == true ? baseBranch : project.lastBaseBranch, root)
+        let typed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = remote ? typed : (typed as NSString).expandingTildeInPath
+        let base = isGit == true ? baseBranch : project.lastBaseBranch
+        guard remote else {
+            guard folderExists(trimmed) else { error = L10n.folderMissing(trimmed); return }
+            onSave(name, trimmed, base, root)
+            return
+        }
+        // A host that can't answer counts as missing: nothing is saved.
+        Task {
+            guard trimmed.hasPrefix("/"), await directoryExists(trimmed, runner: runner) else { error = L10n.folderMissing(trimmed); return }
+            onSave(name, trimmed, base, root)
+        }
     }
 
     private func chooseRoot() {

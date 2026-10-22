@@ -53,6 +53,6 @@ public func worktreePath(projectPath: String, root: String?, branch: String) -> 
     }
     var p = projectPath
     while p.count > 1, p.hasSuffix("/") { p.removeLast() }
-    let url = URL(fileURLWithPath: p)
+    let url = URL(fileURLWithPath: p, isDirectory: true)  // no stat: the path may be on a server
     return url.deletingLastPathComponent().path + "/" + url.lastPathComponent + ".worktrees/" + slug
 }

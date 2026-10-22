@@ -72,6 +72,19 @@ import Workspace
         #expect(list.projects.map(\.exists) == [true, false])
     }
 
+    @Test func projectsListHost() async throws {
+        // The remote project's path exists on this Mac: `projects add` of it still makes a new local project.
+        let path = try folder("same")
+        var remote = UUID()
+        let app = try makeApp { remote = $0.addRemoteProject(name: "app", host: "dev", path: path) }
+        defer { cleanup() }
+        let list = try await ok(app, .projectsList, ProjectsResult.self)
+        #expect(list.projects.map(\.host) == ["dev"])
+        #expect(list.projects[0].exists)  // the host was never given up on
+        let added = try await ok(app, .projectsAdd(path: path), ProjectAddResult.self)
+        #expect(added.added && added.project.id != remote && added.project.host == nil)
+    }
+
     @Test func tasksListShape() async throws {
         var ids: (p: UUID, q: UUID, a: UUID, b: UUID, archived: UUID, tab: UUID, claude: UUID) = (UUID(), UUID(), UUID(), UUID(), UUID(), UUID(), UUID())
         let pPath = try folder("p"), qPath = try folder("q")

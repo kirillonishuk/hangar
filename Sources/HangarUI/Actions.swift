@@ -107,7 +107,9 @@ enum Action: CaseIterable {
         switch self {
         // Sidebar rows can't host a text field in rail mode.
         case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
-        case .newTask, .revealInFinder, .openInEditor: app.path(of: target).map(folderExists) ?? false
+        case .newTask: app.isAvailable(target)
+        // Finder and the external editor see only this Mac's disk.
+        case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
         case .copyPath: app.path(of: target) != nil
         // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
         case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
@@ -129,7 +131,7 @@ enum Action: CaseIterable {
         case (.copyPath, _):
             guard let path = app.path(of: target) else { return }
             ctx.pasteboard.clearContents()
-            ctx.pasteboard.setString(path, forType: .string)
+            ctx.pasteboard.setString((app.project(of: target)?.host).map { "\($0):\(path)" } ?? path, forType: .string)
         case (.openInEditor, _):
             guard let editor = app.config.externalEditor, let path = app.path(of: target) else { return }
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in
@@ -146,7 +148,9 @@ enum Action: CaseIterable {
                 return
             }
             ctx.confirmWithCheckbox(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete, L10n.alsoDeleteWorktree) { alsoWorktree in
-                Task { await deleteTaskPermanently(id, alsoWorktree: alsoWorktree, ctx: ctx, git: Git(repo: project.path)) }
+                Task {
+                    await deleteTaskPermanently(id, alsoWorktree: alsoWorktree, ctx: ctx, git: app.git(for: project), runner: app.runner(for: project))
+                }
             }
         case (.removeProject, .project(let id)):
             guard let project = app.project(id) else { return }

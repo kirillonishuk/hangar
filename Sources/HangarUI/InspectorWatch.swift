@@ -4,13 +4,16 @@ import Workspace
 
 /// Keeps the inspector fed with the visible task only: while the inspector is shown, the window is on screen
 /// (not occluded, not minimized) and a task is selected, it shows that task and watches its root (the repository's
-/// top level for a subfolder project) and git-dir.
+/// top level for a subfolder project) and git-dir. A remote task has no FSEvents (#47): it reloads on show, when the
+/// window becomes key and when an agent is done.
 /// Otherwise the stream is stopped — no callbacks, no loads. No timers.
 @MainActor final class InspectorWatch {
     private let app: AppState
     private weak var window: NSWindow?
-    private var watcher: FileWatcher?
-    private var current: (task: UUID, root: String)?
+    private(set) var watcher: FileWatcher?
+    private var current: (task: UUID, root: String, remote: Bool)?
+    /// Test seam: on screen, not occluded, not minimized.
+    var windowVisible: () -> Bool = { false }
     /// Bumped on every change of what is watched: a git-dir lookup that finishes late is dropped.
     private var generation = 0
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
@@ -18,21 +21,23 @@ import Workspace
     init(app: AppState, window: NSWindow) {
         self.app = app
         self.window = window
+        windowVisible = { [weak window] in
+            guard let window else { return false }
+            return window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
+        }
         let center = NotificationCenter.default
         for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
             observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.update() }
             })
         }
+        observers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.becameKey() }
+        })
         app.onLeafDone = { [weak self] leaf in self?.leafDone(leaf) }
     }
 
     deinit { for o in observers { NotificationCenter.default.removeObserver(o) } }
-
-    private var windowVisible: Bool {
-        guard let window else { return false }
-        return window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
-    }
 
     private func root(of task: HangarTask) -> String? {
         switch task.mode {
@@ -46,20 +51,25 @@ import Workspace
         let task = app.selectedTask
         let want = task.flatMap { t in root(of: t).map { (t.id, $0) } }
         // The shown diff tab is the inspector's data too: it keeps loading (and refreshing) with the inspector hidden.
-        guard shouldWatch(inspectorVisible: app.state.inspectorVisible || app.activeDiff != nil, windowVisible: windowVisible, hasTask: want != nil),
+        guard shouldWatch(inspectorVisible: app.state.inspectorVisible || app.activeDiff != nil, windowVisible: windowVisible(), hasTask: want != nil),
               let task, let (id, root) = want else {
             stop()
             return
         }
         if let current, current.task == id, current.root == root { return }
         stop()
-        current = (id, root)
+        let app = self.app
+        guard let project = app.project(task.projectId) else { return }
+        let remote = project.host != nil
+        current = (id, root, remote)
         generation += 1
         let gen = generation
-        let app = self.app
-        app.inspector.show(taskId: id, root: root, baseBranch: { await app.baseBranch(of: task) })
+        let runner = app.runner(for: project)
+        app.inspector.show(taskId: id, root: root, git: { Git(repo: $0, runner: runner) }, remote: remote,
+                           baseBranch: { await app.baseBranch(of: task) })
         // `show` of another task drops the open diff: this task's diff tab asks for its file again.
         if let path = app.diffTabs[id]?.path, app.inspector.diffPath != path { app.inspector.loadDiff(path: path) }
+        guard !remote else { uiLog.info("watch remote root=\(root, privacy: .public)"); return }
         Task { [weak self] in
             let git = Git(repo: root)
             let gitDir = try? await git.gitDir()
@@ -89,6 +99,11 @@ import Workspace
         watcher?.stop()
         watcher = nil
         current = nil
+    }
+
+    /// Back from another app or window: a remote task's files may have changed meanwhile.
+    private func becameKey() {
+        if current?.remote == true { app.inspector.refresh(.all) }
     }
 
     /// An agent of the visible task finished: its changes are likely new.

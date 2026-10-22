@@ -64,6 +64,10 @@ struct InspectorView: View {
     }
 }
 
+@MainActor private func remoteHost(_ app: AppState) -> String? {
+    app.selectedTask.flatMap { app.project($0.projectId)?.host }
+}
+
 /// A one-line `text3` remark above a list (missing base, truncation, git error, no task).
 private func notice(_ text: String) -> some View {
     Text(text)
@@ -87,7 +91,13 @@ private struct FilesList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let error = model.filesError ?? model.error { notice(L10n.gitFailed(error)) }
+            if model.offline, let host = remoteHost(app) {
+                notice(L10n.hostOffline(host))
+            } else if model.remoteNoGit {
+                notice(L10n.remoteNoGit)
+            } else if let error = model.filesError ?? model.error {
+                notice(L10n.gitFailed(error))
+            }
             if model.filesTruncated { notice(L10n.filesTruncated(FileListing.limit)) }
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
@@ -147,7 +157,11 @@ private struct ChangesList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let error = model.error { notice(L10n.gitFailed(error)) }
+            if model.offline, let host = remoteHost(app) {
+                notice(L10n.hostOffline(host))
+            } else if let error = model.error {
+                notice(L10n.gitFailed(error))
+            }
             if let changes = model.changes {
                 if changes.baseMissing { notice(model.baseName.map(L10n.baseMissing) ?? L10n.baseMissingUnknown) }
                 if changes.truncated || model.statusTruncated { notice(L10n.statusTruncated(changes.files.count)) }

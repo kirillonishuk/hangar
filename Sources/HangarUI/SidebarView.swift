@@ -183,7 +183,8 @@ struct SidebarView: View {
     }
 
     private func projectRow(_ project: Project) -> some View {
-        let exists = folderExists(project.path)
+        // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
+        let exists = app.isAvailable(project)
         let target = ActionTarget.project(project.id)
         let handlers = dragHandlers(target)
         return HoverRow(action: {
@@ -214,7 +215,7 @@ struct SidebarView: View {
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                         .opacity(hover ? 1 : 0)
                         .help(L10n.newTaskIn(project.name))
-                    } else {
+                    } else if project.host == nil {
                         Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
                     }
                 }
@@ -233,7 +234,8 @@ struct SidebarView: View {
             .opacity(exists ? 1 : Theme.inactiveOpacity)
             .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
         }
-        .help(collapsed ? project.name : (exists ? project.path : L10n.folderMissing(project.path)))
+        .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
+              ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
     }
 

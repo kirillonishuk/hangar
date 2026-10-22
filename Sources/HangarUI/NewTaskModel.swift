@@ -220,7 +220,8 @@ import Workspace
             })
             suggestion = slug
             var n = 1
-            while taken.contains(suggestion.lowercased()) || FileManager.default.fileExists(
+            // A remote folder can't be stat'ed here (and runs on every keystroke): `worktree add` reports a taken one.
+            while taken.contains(suggestion.lowercased()) || project.host == nil && FileManager.default.fileExists(
                 atPath: worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: suggestion)) {
                 n += 1
                 suggestion = "\(slug)-\(n)"

@@ -25,11 +25,12 @@ public struct HostInfo: Equatable {
     }
 }
 
-public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
+public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible {
     case notConnected(String)
     public var description: String {
         switch self { case let .notConnected(h): "host \(h) is not connected" }
     }
+    public var errorDescription: String? { description }
 }
 
 /// Every ssh host: its master, the events-only host socket and bounded reconnect (#47). No timers while idle:

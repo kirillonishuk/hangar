@@ -50,19 +50,25 @@ cd "$cwd" 2>/dev/null || { echo "hangar: no such folder: $cwd" >&2; exit 254; }
 
 """#
 
-/// No session but an exit file: the agent ended (maybe while no client was attached) — report it, start nothing;
-/// an empty or garbled file is "exit status lost" (254), never success.
-/// tmux gets the pane command as argv (no shell parses it); `-A` attaches to a live session as is and `-D` detaches
-/// any other client, so a lingering old connection never reads the code. No `-c`: tmux format-expands it (`#`, `;`),
-/// the pane starts in the client's folder from the `cd` above.
-/// A file next to a live session is stale (the brief's guard): dropped before attaching.
+/// Attach first: `attach -d` to a live session (detaching any other client, so a lingering old connection never
+/// reads the code). Only when that fails is the session gone, and then an exit file is final: the agent ended (maybe
+/// while no client was attached) — report it, start nothing; an empty or garbled file is "exit status lost" (254),
+/// never success. Else `new-session` (`-A -D` for a racing second client). A check-then-act (`has-session`, `rm`,
+/// `new-session`) could lose a code written in between and start the agent again.
+/// tmux gets the pane command as argv (no shell parses it). No `-c`: tmux format-expands it (`#`, `;`), the pane
+/// starts in the client's folder from the `cd` above. `set-option -t "=$s:"`: the trailing `:` makes it a session
+/// target (a bare `=$s` is read as a pane and fails).
 /// The pane writes the agent's code; no file after the client returns = detached or lost.
-// shortcut: a client detached by `-D` in the same instant the agent exits may still read the code; harmless for one view per leaf
+// shortcut: a client detached by `-d` in the same instant the agent exits may still read the code; harmless for one view per leaf
 let remoteTmuxScript = remoteScriptPrologue + #"""
 code() { c=$(cat "$f" 2>/dev/null); rm -f "$f"; case $c in ''|*[!0-9]*) c=254 ;; esac; exit "$c"; }
-if ! tmux -L hangar has-session -t "=$s" 2>/dev/null && [ -f "$f" ]; then code; fi
-rm -f "$f"; mkdir -p "${f%/*}"
-tmux -L hangar new-session -A -D -s "$s" /bin/sh -c 'export HANGAR_TAB_ID="$1" HANGAR_LEAF_ID="$2" HANGAR_SOCKET="$3"; "${SHELL:-/bin/sh}" -l -i -c "$4"; c=$?; [ $c = 255 ] && c=254; echo $c > "$5"' sh "$tab" "$leaf" "$sock" "$cmd" "$f" \; set-option -t "=$s" status off
+if tmux -L hangar attach -d -t "=$s" 2>/dev/null; then
+  if [ -f "$f" ]; then code; fi
+  exit 255
+fi
+if [ -f "$f" ]; then code; fi
+mkdir -p "${f%/*}"
+tmux -L hangar new-session -A -D -s "$s" /bin/sh -c 'export HANGAR_TAB_ID="$1" HANGAR_LEAF_ID="$2" HANGAR_SOCKET="$3"; "${SHELL:-/bin/sh}" -l -i -c "$4"; c=$?; [ $c = 255 ] && c=254; echo $c > "$5"' sh "$tab" "$leaf" "$sock" "$cmd" "$f" \; set-option -t "=$s:" status off
 if [ -f "$f" ]; then code; fi
 exit 255
 """#

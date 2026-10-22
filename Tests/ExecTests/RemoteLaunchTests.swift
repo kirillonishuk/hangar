@@ -12,7 +12,7 @@ import Workspace
     /// A short root (tmux socket path), a fake login shell (skips /etc/profile) and a fake ssh.
     final class Fixture: @unchecked Sendable {
         let root: String, home: String, ssh: String, login: String
-        let env: [String: String]
+        var env: [String: String]
 
         /// `decode`: the fake ssh only records its argv, TERM and the remote words instead of running them.
         init(decode: Bool = false) throws {
@@ -253,18 +253,50 @@ import Workspace
             #expect(!FileManager.default.fileExists(atPath: file))
         }
 
-        // A live session wins over a leftover file: the launch attaches.
+        // A live session wins over a file next to it: the launch attaches to the same pane and reports nothing early;
+        // the file counts only once the session is gone (attach first, #47).
         let leaf = UUID(), name = remoteSessionName(leaf)
         let cmd = command(f, leaf: leaf, agent: "sleep 30")
         let first = Task { try await f.run(cmd) }
         #expect(await waitUntil { await !f.clients().isEmpty })
+        let pane = try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout
         for pid in await f.clients() { kill(pid, SIGHUP) }
         #expect(try await first.value == 255)
         try "7".write(toFile: f.home + "/.hangar/run/" + name + ".exit", atomically: true, encoding: .utf8)
         let second = Task { try await f.run(cmd) }
         #expect(await waitUntil { await !f.clients().isEmpty })
+        #expect(try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout == pane)
         _ = try await f.argv(killSessionArgs(leaf))
-        #expect(try await second.value != 7)
+        #expect(try await second.value == 7)
+    } }
+
+    /// Attach first, so a live session is never replaced: `attach -d` to a live session; only when that fails
+    /// (the session is gone, any exit file is final) the file, then `new-session`. The status line is off.
+    @Test(.enabled(if: tmuxPath != nil)) func attachComesFirst() async throws { try await Fixture.with { f in
+        // A tmux on PATH that logs each subcommand (`tmux -L hangar <cmd> …`) and runs the real one.
+        let wrap = f.root + "/wrap"
+        try FileManager.default.createDirectory(atPath: wrap, withIntermediateDirectories: true)
+        try "#!/bin/sh\necho \"$3\" >> \(shellQuote(f.root + "/tmux.log"))\nexec \(shellQuote(RemoteLaunchTests.tmuxPath!)) \"$@\"\n"
+            .write(toFile: wrap + "/tmux", atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrap + "/tmux")
+        f.env["PATH"] = wrap + ":" + (f.env["PATH"] ?? "")
+        _ = try? await runProcess(wrap + "/tmux", ["-V"], cwd: "/", env: f.env)  // first exec of a fresh script is slow
+        let launches = { f.read("tmux.log").split(separator: "\n").map(String.init).filter { ["attach", "new-session", "has-session"].contains($0) } }
+
+        let leaf = UUID(), name = remoteSessionName(leaf), go = f.root + "/go"
+        let cmd = command(f, leaf: leaf, agent: "while [ ! -f \(shellQuote(go)) ]; do sleep 0.05; done; exit 4")
+        let first = Task { try await f.run(cmd) }
+        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(launches() == ["attach", "new-session"])
+        #expect(try await f.tmux(["show-options", "-t", "=" + name + ":", "status"]).stdout == "status off\n")
+
+        // A live session: the next client only attaches (the old one is detached).
+        let second = Task { try await f.run(cmd) }
+        #expect(try await first.value == 255)
+        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(launches() == ["attach", "new-session", "attach"])
+        try "".write(toFile: go, atomically: true, encoding: .utf8)
+        #expect(try await second.value == 4)
     } }
 
     /// A second client of the same leaf (a reconnect while the old connection lingers) takes over: the old one

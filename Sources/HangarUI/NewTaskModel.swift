@@ -204,19 +204,20 @@ import Workspace
         return nil
     }
 
-    /// Slug of `name`; if that branch (local, or remote of the same name) or its worktree folder exists, `-2`, `-3`, …
+    /// `name` itself if it is a branch name (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
+    /// remote of the same name; case-insensitive, as refs on macOS' disk) or its worktree folder exists, `-2`, `-3`, …
     private func suggestBranch() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var suggestion = ""
         if !trimmed.isEmpty {
-            let slug = branchSlug(trimmed)
+            let slug = isBranchName(trimmed) ? trimmed : branchSlug(trimmed)
             let taken = Set(branches.map { b in
-                guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name }
-                return String(b.name.dropFirst(r.count + 1))
+                guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name.lowercased() }
+                return String(b.name.dropFirst(r.count + 1)).lowercased()
             })
             suggestion = slug
             var n = 1
-            while taken.contains(suggestion) || FileManager.default.fileExists(
+            while taken.contains(suggestion.lowercased()) || FileManager.default.fileExists(
                 atPath: worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: suggestion)) {
                 n += 1
                 suggestion = "\(slug)-\(n)"

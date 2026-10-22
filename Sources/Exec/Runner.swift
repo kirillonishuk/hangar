@@ -32,8 +32,10 @@ public struct Runner: Sendable {
 }
 
 /// Starts `executable` and collects stdout/stderr; `input` (if any) is written to stdin, else stdin is /dev/null.
-/// Cancel terminates the child (and its process group).
-func runProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], input: Data? = nil) async throws -> RunResult {
+/// Cancel terminates the child (and its process group). Past `maxOutput` bytes on stdout or stderr the child is
+/// terminated and the stream is cut there (untrusted servers).
+func runProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], input: Data? = nil,
+                maxOutput: Int = .max) async throws -> RunResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = args
@@ -70,7 +72,7 @@ func runProcess(_ executable: String, _ args: [String], cwd: String, env: [Strin
             }
             for (pipe, box) in [(outPipe, out), (errPipe, err)] {
                 DispatchQueue.global().async {
-                    box.data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    box.data = readCapped(pipe.fileHandleForReading, max: maxOutput) { run.kill() }
                     group.leave()
                 }
             }
@@ -80,6 +82,18 @@ func runProcess(_ executable: String, _ args: [String], cwd: String, env: [Strin
     }
     try Task.checkCancellation()
     return result
+}
+
+/// Reads to EOF, keeping at most `max` bytes; `over` runs once when more arrives (the reader keeps draining to EOF).
+private func readCapped(_ h: FileHandle, max: Int, over: () -> Void) -> Data {
+    guard max < .max else { return h.readDataToEndOfFile() }
+    var data = Data(), killed = false
+    while let chunk = try? h.read(upToCount: 65_536), !chunk.isEmpty {
+        let room = max - data.count
+        data.append(chunk.prefix(room))
+        if chunk.count > room, !killed { killed = true; over() }
+    }
+    return data
 }
 
 /// Writes then closes; a child that exits without reading gets EPIPE, not a SIGPIPE that would kill this process.
@@ -130,6 +144,14 @@ private final class RunState: @unchecked Sendable {
         cont = nil
         lock.unlock()
         c?.resume(with: result)
+    }
+
+    /// Terminates the child; its exit still finishes the run with what was read.
+    func kill() {
+        lock.lock()
+        let pid = pid, ownGroup = ownGroup
+        lock.unlock()
+        if pid > 0 { terminateProcess(pid, group: ownGroup) }
     }
 
     func cancel() {

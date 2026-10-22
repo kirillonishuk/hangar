@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.claudeSettingsURL = env["HANGAR_CLAUDE_SETTINGS"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude/settings.json")
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
         app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
+        if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
         #endif
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
@@ -58,6 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         wc.enableNotifications()
         appState = app
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.appState?.remote.didWake() }
+        }
         if activateAllowed { NSApp.activate(ignoringOtherApps: true) }
         if let text = loadAlert(for: result), let window = wc.window {
             let alert = NSAlert()
@@ -96,7 +100,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        appState?.remote.appBecameActive()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        appState?.remote.stopAll()
         server?.stop()
         appState?.keepAwake.stop()
         appState?.saveNow()

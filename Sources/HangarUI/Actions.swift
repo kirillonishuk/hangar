@@ -13,7 +13,12 @@ enum ActionTarget: Equatable {
 @MainActor struct ActionContext {
     let app: AppState
     var pasteboard: NSPasteboard = .general
+    /// «+ проект»: the menu «Локальная папка…» / «Удалённый (SSH)…».
     var addProject: () -> Void = {}
+    var addLocalProject: () -> Void = {}
+    var addRemoteProject: () -> Void = {}
+    /// «Сервер <host>» sheet.
+    var checkServer: (String) -> Void = { _ in }
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
@@ -31,17 +36,19 @@ enum ActionTarget: Equatable {
 /// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts (and later ⌘K) read it here.
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, openInEditor
-    case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer
+    case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
     @MainActor static func list(for target: ActionTarget, app: AppState) -> [Action] {
         let editor: [Action] = app.config.externalEditor == nil ? [] : [.openInEditor]
+        // A remote project's rows can bring their host back.
+        let reconnect: [Action] = app.project(of: target)?.host == nil ? [] : [.reconnect]
         switch target {
         case .task(let id):
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return [.rename, .togglePin, .revealInFinder, .copyPath] + editor + [.archive]
+            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath] + editor + [.archive]
         case .project:
-            return [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath] + editor + [.removeProject]
+            return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath] + editor + [.removeProject]
         case .tab:
             return [.rename, .splitRight, .splitDown, .closeTab]
         }
@@ -79,6 +86,7 @@ enum Action: CaseIterable {
         case .splitDown: .splitDown
         case .closeTab: .close
         case .toggleDrawer: .shell
+        case .reconnect: .refresh
         }
     }
 
@@ -100,6 +108,7 @@ enum Action: CaseIterable {
         case .splitDown: L10n.splitDown
         case .closeTab: L10n.closeTab
         case .toggleDrawer: L10n.drawerToggle
+        case .reconnect: L10n.reconnect
         }
     }
 
@@ -111,6 +120,7 @@ enum Action: CaseIterable {
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
         case .copyPath: app.path(of: target) != nil
+        case .reconnect: app.project(of: target)?.host.map { app.remote.hosts[$0]?.state != .connected } ?? false
         // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
         case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
         default: true
@@ -162,6 +172,7 @@ enum Action: CaseIterable {
             else { return }
             app.split(leafId: leaf, axis: self == .splitRight ? .horizontal : .vertical)
         case (.closeTab, .tab(let task, let tab)): app.perform { $0.closeTab(taskId: task, tabId: tab) }
+        case (.reconnect, _): if let host = app.project(of: target)?.host { app.reconnect(host: host) }
         case (.toggleDrawer, .task(let id)):
             if let toggle = ctx.toggleDrawer { toggle(id) } else { app.perform { $0.toggleDrawer(taskId: id) } }
         default: assertionFailure("\(self) does not apply to \(target)")
@@ -217,7 +228,7 @@ struct ActionMenuItems: View {
         let app = ctx.app
         let actions = Action.list(for: target, app: app)
         ForEach(Array(actions.enumerated()), id: \.offset) { i, action in
-            if i > 0 && action.startsGroup { Divider() }
+            if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { Divider() }
             Button { action.perform(target, ctx) } label: {
                 Label { Text(action.title(for: target, app: app)) } icon: { Image(nsImage: action.icon.image) }
             }

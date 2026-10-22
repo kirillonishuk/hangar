@@ -15,9 +15,11 @@ extension AppState {
                                 hasWorking: { [weak self] in self?.hasWorking(host: $0) ?? false },
                                 onMessage: { [weak self] in self?.handleRemote(host: $0, $1) })
         hosts.onConnected = { [weak self] host in
+            self?.flushKills(host)
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
         }
+        hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in
             guard let self else { return }
             for id in liveLeafIds where remoteLeafHost(id) == host { signal(.relaunched, leaf: id) }
@@ -87,13 +89,78 @@ extension AppState {
         return result
     }
 
-    /// Closed, archived or deleted remote leaves: their tmux sessions go (quitting never comes here).
-    // shortcut: without a connection the session stays on the server (runner fails fast); kill on reconnect is a followup
-    func killSessions(of leaves: [UUID: String]) {
-        for (id, host) in leaves {
+    /// Closed, archived or deleted remote leaves: their tmux sessions go (quitting never comes here). While the host is
+    /// not connected they wait in `pendingKills` for `onConnected`. A host in `removing` (its last project went) is
+    /// removed after its kills; an offline one at once.
+    func killSessions(of leaves: [UUID: String], removing: Set<String> = []) {
+        var byHost: [String: [UUID]] = [:]
+        for (id, host) in leaves { byHost[host, default: []].append(id) }
+        for host in Set(byHost.keys).union(removing) {
+            let ids = byHost[host] ?? [], remove = removing.contains(host)
+            guard remote.hosts[host]?.state == .connected else {
+                if remove {
+                    pendingKills[host] = nil
+                    remote.remove(host)
+                } else {
+                    pendingKills[host, default: []].formUnion(ids)
+                }
+                continue
+            }
+            let queued = remove ? pendingKills.removeValue(forKey: host) ?? [] : []
             let runner = remote.runner(host)
-            Task { _ = try? await runner.run(killSessionArgs(id), "") }
+            Task {
+                for id in ids + queued { _ = try? await runner.run(killSessionArgs(id), "") }
+                if remove, !state.projects.contains(where: { $0.host == host }) { remote.remove(host) }
+            }
         }
+    }
+
+    private func flushKills(_ host: String) {
+        guard let ids = pendingKills.removeValue(forKey: host) else { return }
+        killSessions(of: Dictionary(uniqueKeysWithValues: ids.map { ($0, host) }))
+    }
+
+    /// «Переподключиться» (sidebar, task menu, a leaf's bar): a fresh attempt.
+    func reconnect(host: String) {
+        Task { await remote.connect(host) }
+    }
+
+    /// The host was given up on or disconnected by the user: a waiting leaf offers «Переподключиться».
+    func hostDown(_ host: String) -> Bool {
+        switch remote.hosts[host]?.state {
+        case .unreachable?, .disconnected?: true
+        default: false
+        }
+    }
+
+    /// A new leaf view learns its host and how to reconnect it from its bar.
+    func wireHost(_ view: LeafView) {
+        guard let host = remoteLeafHost(view.leafId) else { return }
+        view.host = host
+        view.hostDown = { [weak self] in self?.hostDown(host) ?? false }
+        view.onReconnect = { [weak self] in self?.reconnect(host: host) }
+    }
+
+    /// Hosts of remote projects, in project order (the `SSH HOSTS` section).
+    var sshHosts: [String] {
+        var seen = Set<String>()
+        return state.projects.compactMap(\.host).filter { seen.insert($0).inserted }
+    }
+
+    /// Hosts named in the user's ssh config; none if it can't be read.
+    func configHosts() -> [String] {
+        (try? String(contentsOfFile: sshConfigPath, encoding: .utf8)).map(sshConfigHosts) ?? []
+    }
+
+    /// A host the remote-project sheet connected and no project uses goes again.
+    func releaseUnusedHost(_ host: String) {
+        if !state.projects.contains(where: { $0.host == host }) { remote.remove(host) }
+    }
+
+    @discardableResult func addRemoteProject(host: String, path: String) -> UUID {
+        var id = UUID()
+        perform { id = $0.addRemoteProject(name: (path as NSString).lastPathComponent, host: host, path: path) }
+        return id
     }
 
     /// Working leaves ⌘Q asks about: a remote one in tmux keeps running on the server after quit.

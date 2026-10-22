@@ -50,7 +50,7 @@ struct SidebarView: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         pinnedSection
-                        // SSH HOSTS section slot: stage 6.
+                        hostsSection
                         projectsSection
                         archivedSection
                     }
@@ -96,6 +96,55 @@ struct SidebarView: View {
             SectionHeader(title: L10n.sectionPinned, collapsed: collapsed)
             ForEach(pinned) { task in taskRow(task, projectName: app.project(task.projectId)?.name, indent: false) }
         }
+    }
+
+    // MARK: SSH hosts
+
+    /// Hidden without remote projects. A row: server icon, host, state `text3`; a waiting dot when the server needs attention.
+    @ViewBuilder private var hostsSection: some View {
+        let hosts = app.sshHosts
+        if !hosts.isEmpty {
+            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed)
+            ForEach(hosts, id: \.self) { host in hostRow(host) }
+        }
+    }
+
+    private func hostRow(_ host: String) -> some View {
+        let info = app.remote.hosts[host]
+        let items = hostMenuItems(host, app: app, ctx: ctx)
+        return HoverRow(action: { popUpMenu(items) }) { hover in
+            GutterRow(collapsed: collapsed) {
+                IconView(icon: .sshHost, size: Theme.hostIconSize)
+                    .overlay(alignment: .topTrailing) {
+                        // The same corner dot as a rail monogram's: visible in both modes, nothing moves.
+                        Circle().fill(Theme.ui.waiting)
+                            .frame(width: Theme.railDot, height: Theme.railDot)
+                            .background(Circle().fill(Theme.ui.sidebar).padding(-Theme.railDotBorder))
+                            .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+                            .opacity(info?.needsAttention == true ? 1 : 0)
+                    }
+            } expanded: {
+                HStack(spacing: Theme.railInset * 1.5) {
+                    Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                        .font(.system(size: Theme.fontSize.base))
+                        .foregroundStyle(Theme.ui.textRow)
+                    Spacer(minLength: 0)
+                    Text(hostStatusLabel(info)).lineLimit(1)
+                        .font(.system(size: Theme.fontSize.counter))
+                        .foregroundStyle(Theme.ui.text3)
+                    MenuButton(items: items).opacity(hover ? 1 : 0)
+                }
+            } rail: { EmptyView() }
+        }
+        .help(hostHelp(host, info))
+        .contextMenu { MenuItemsView(items: items) }
+    }
+
+    /// Why the host is not connected (or that its server needs attention).
+    private func hostHelp(_ host: String, _ info: HostInfo?) -> String {
+        if info?.needsAttention == true { return L10n.serverTitle(host) + " · " + L10n.checkServer }
+        guard let info, info.state != .connected else { return host }
+        return host + " · " + hostFailure(host, info).text
     }
 
     // MARK: Projects
@@ -246,6 +295,8 @@ struct SidebarView: View {
         let selected = task.id == app.state.selectedTaskId
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
+        // As a project whose folder is missing: the host was given up on.
+        let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         // Pinned rows mix projects, so only rows inside a project group reorder.
         let handlers = indent ? dragHandlers(target) : nil
         return HoverRow(selected: selected, action: {
@@ -292,6 +343,7 @@ struct SidebarView: View {
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+            .opacity(offline ? Theme.inactiveOpacity : 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
@@ -359,7 +411,8 @@ struct SidebarView: View {
                         Spacer(minLength: 0)
                         KeepAwakeButton(app: app)
                         Menu {
-                            Button(L10n.addProjectEllipsis, action: ctx.addProject)
+                            Button(L10n.addLocalProject, action: ctx.addLocalProject)
+                            Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
                         } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
                             .menuStyle(.borderlessButton)
                             .menuIndicator(.hidden)

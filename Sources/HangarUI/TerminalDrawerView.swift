@@ -188,7 +188,7 @@ import Workspace
 
     private func makeLeafView(taskId: UUID, leaf: Leaf) {
         let view = LeafView(leafId: leaf.id)
-        view.host = app.remoteLeafHost(leaf.id)
+        app.wireHost(view)
         leafViews[taskId] = view
         addSubview(view, positioned: .below, relativeTo: bar)  // in the window before the surface exists
         view.onExit = { [weak self] code in

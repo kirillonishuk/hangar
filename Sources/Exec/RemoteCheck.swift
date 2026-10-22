@@ -232,3 +232,17 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
 public func terminalScript(_ steps: [InstallStep]) -> String {
     "set -e\n" + steps.filter(\.inTerminal).map(\.command).joined(separator: "\n")
 }
+
+/// `$1` = the install script. As the server check, the login shell (maybe fish) only supplies PATH (npm, brew);
+/// the script runs in /bin/sh with the terminal as stdin, so sudo asks there.
+let installLauncher = #"HANGAR_INSTALL=$1; export HANGAR_INSTALL; exec "${SHELL:-/bin/sh}" -l -i -c 'exec /bin/sh -c "$HANGAR_INSTALL"'"#
+
+/// The install terminal: `ssh -t` through the host's master runs exactly `terminalScript(steps)`, wrapped like a tab
+/// for the OSC 133 exit code (#26). The script reaches the server as one quoted word.
+public func installTerminalSpec(target: RemoteTarget, steps: [InstallStep]) -> LaunchSpec {
+    let ssh = [target.sshPath, "-t", "-e", "none"] + sshBaseArgs(controlPath: target.controlPath) + ["--", target.host]
+    let inner = "TERM=xterm-256color " + ssh.map(shellQuote).joined(separator: " ") + " "
+        + shellQuote(remoteShellArgs(script: installLauncher, [terminalScript(steps)]))
+    let command = "/bin/sh -c " + shellQuote(inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#)
+    return LaunchSpec(command: command, cwd: NSHomeDirectory(), env: [:])
+}

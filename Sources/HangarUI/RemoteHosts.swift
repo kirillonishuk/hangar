@@ -17,6 +17,10 @@ public struct HostInfo: Equatable {
     /// The host socket is forwarded to the server: agent statuses and limits arrive.
     public var forwarding = false
     public var authFailed = false
+    /// The login shell (path) is csh/tcsh: given up with a readable reason, no retry.
+    public var unsupportedShell: String?
+    /// `reconnecting` with no timer: the next attempt waits for the app to become active.
+    public var retryPaused = false
 
     /// Something on the server is missing or stale (sidebar warning, #47).
     public var needsAttention: Bool {
@@ -42,6 +46,8 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     @ObservationIgnored public var onLost: ((String) -> Void)?
     /// Reconnect gave up or was refused (auth, unsupported shell): the host's leaves are no longer running anything we see.
     @ObservationIgnored public var onUnreachable: ((String) -> Void)?
+    /// Any change of a host's info (AppKit views that don't observe, e.g. a leaf's «connecting» bar).
+    @ObservationIgnored public var onChange: ((String) -> Void)?
 
     /// Test seams.
     @ObservationIgnored var checkTimeout: Double = 30
@@ -94,7 +100,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         if state(host) == .connected { return .connected }
         link.cancelTimer?(); link.cancelTimer = nil
         link.attempts = 0; link.reconnecting = false; link.waiting = false
-        set(host) { $0.state = .connecting; $0.authFailed = false }
+        set(host) { $0.state = .connecting; $0.authFailed = false; $0.unsupportedShell = nil; $0.retryPaused = false }
         await startAttempt(host).value
         return state(host)
     }
@@ -111,6 +117,16 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         return Runner { [weak self] args, cwd in
             guard await self?.state(host) == .connected else { throw RemoteHostError.notConnected(host) }
             return try await ssh.run(args, cwd)
+        }
+    }
+
+    /// `sshWrite` over the master (file writes after the user confirmed them); not connected → status -1 at once.
+    public func write(_ host: String, script: String, args: [String], input: Data) async -> RunResult {
+        guard state(host) == .connected else { return RunResult(status: -1, stdout: "", stderr: RemoteHostError.notConnected(host).description) }
+        do {
+            return try await sshWrite(host: host, controlPath: paths.controlPath(host), sshPath: sshPath, script: script, args: args, input: input)
+        } catch {
+            return RunResult(status: -1, stdout: "", stderr: "\(error)")
         }
     }
 
@@ -131,6 +147,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         if let link = links[host] { close(link, host) }
         links[host] = nil
         hosts[host] = nil
+        onChange?(host)
     }
 
     /// A host paused for activation gets its next attempt now.
@@ -138,7 +155,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         for (host, link) in links where link.waiting && link.inFlight == nil {
             link.waiting = false
             link.attempts += 1
-            set(host) { $0.state = .reconnecting(attempt: link.attempts) }
+            set(host) { $0.state = .reconnecting(attempt: link.attempts); $0.retryPaused = false }
             startAttempt(host)
         }
     }
@@ -170,7 +187,9 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     private func set(_ host: String, _ change: (inout HostInfo) -> Void) {
         var info = hosts[host] ?? HostInfo()
         change(&info)
-        if hosts[host] != info { hosts[host] = info }
+        guard hosts[host] != info else { return }
+        hosts[host] = info
+        onChange?(host)
     }
 
     private func link(_ host: String) -> Link {
@@ -270,17 +289,21 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         case let .auth(m):
             giveUp(host, link, m.isEmpty ? "authentication failed" : m, auth: true)
         case let .unsupportedShell(shell):
-            giveUp(host, link, "unsupported login shell: \(shell)", auth: false)
+            giveUp(host, link, "unsupported login shell: \(shell)", auth: false, shell: shell)
         case let .unreachable(m), let .exited(_, m):
             if link.reconnecting { scheduleRetry(host, link, lastError: m) } else { giveUp(host, link, m, auth: false) }
         }
     }
 
-    private func giveUp(_ host: String, _ link: Link, _ message: String, auth: Bool) {
+    private func giveUp(_ host: String, _ link: Link, _ message: String, auth: Bool, shell: String? = nil) {
         link.attempts = 0; link.reconnecting = false; link.waiting = false
         link.server?.stop()
         link.server = nil
-        set(host) { $0.state = .unreachable(message); $0.forwarding = false; if auth { $0.authFailed = true } }
+        set(host) {
+            $0.state = .unreachable(message); $0.forwarding = false; $0.retryPaused = false
+            if auth { $0.authFailed = true }
+            $0.unsupportedShell = shell
+        }
         onUnreachable?(host)
     }
 
@@ -304,8 +327,9 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     private func scheduleRetry(_ host: String, _ link: Link, lastError: String) {
         let n = link.attempts + 1
         guard n <= Self.maxAttempts else { return giveUp(host, link, lastError, auth: false) }
-        set(host) { $0.state = .reconnecting(attempt: n) }
-        guard isActive() || hasWorking(host) else { link.waiting = true; return }
+        let paused = !(isActive() || hasWorking(host))
+        set(host) { $0.state = .reconnecting(attempt: n); $0.retryPaused = paused }
+        guard !paused else { link.waiting = true; return }
         let gen = link.generation
         link.cancelTimer = schedule(.seconds(min(60, 1 << n))) { [weak self] in
             guard let self, link.generation == gen else { return }

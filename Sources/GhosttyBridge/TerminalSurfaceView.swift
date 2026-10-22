@@ -131,6 +131,20 @@ public struct ClipboardPromptText: Sendable {
         return Unmanaged<TerminalSurfaceView>.fromOpaque(ud).takeUnretainedValue()
     }
 
+    /// At quit: frees every surface, so Ghostty SIGHUPs each child's group until it exits. The pty hangup
+    /// when the app exits alone misses a child that is still starting (login → zsh), and it outlives the app.
+    public static func freeAll() {
+        let keys = live.withLock { keys in defer { keys.removeAll() }; return keys }
+        for key in keys {
+            let view = Unmanaged<TerminalSurfaceView>.fromOpaque(UnsafeRawPointer(bitPattern: key)!).takeUnretainedValue()
+            guard let s = view.surface else { continue }
+            view.surface = nil
+            if let state = view.pendingClipboard?.state { "".withCString { ghostty_surface_complete_clipboard_request(s, $0, state, true) } }
+            view.pendingClipboard = nil
+            ghostty_surface_free(s)
+        }
+    }
+
     // MARK: Public API
 
     /// False when Ghostty could not create the surface (app not started, no display, …); the owner may retry with a new view.

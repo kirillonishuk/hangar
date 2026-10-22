@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server?.stop()
         appState?.keepAwake.stop()
         appState?.saveNow()
+        TerminalSurfaceView.freeAll()  // last: blocks until every tab's child has exited
     }
 
     /// The socket doubles as the single-instance lock: a live one means another Hangar owns this state dir.

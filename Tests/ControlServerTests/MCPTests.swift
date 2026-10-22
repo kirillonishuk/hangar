@@ -73,6 +73,9 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         }
         #expect(byName["tasks_archive"]?["required"] as? [String] == ["task", "yes"])
         #expect(byName["projects_list"]?["required"] as? [String] == [])
+        #expect(byName["projects_add"]?["required"] as? [String] == ["path"])
+        let host = (byName["projects_add"]?["properties"] as? [String: Any])?["host"] as? [String: Any]
+        #expect(host?["type"] as? String == "string")
         let send = byName["tabs_send"]?["properties"] as? [String: Any]
         let keys = send?["keys"] as? [String: Any]
         #expect(keys?["type"] as? String == "array")

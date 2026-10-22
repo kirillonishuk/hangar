@@ -150,9 +150,9 @@ extension AppState {
         return state.projects.compactMap(\.host).filter { seen.insert($0).inserted }
     }
 
-    /// Hosts named in the user's ssh config; none if it can't be read.
+    /// Hosts named in the user's ssh config and the files it includes; none if it can't be read.
     func configHosts() -> [String] {
-        (try? String(contentsOfFile: sshConfigPath, encoding: .utf8)).map(sshConfigHosts) ?? []
+        sshConfigHosts(path: sshConfigPath)
     }
 
     /// A host the remote-project sheet connected and no project uses goes again.

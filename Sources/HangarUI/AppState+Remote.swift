@@ -2,6 +2,7 @@ import AgentStatus
 import ControlServer
 import Exec
 import Foundation
+import Git
 import Power
 import Workspace
 
@@ -13,12 +14,47 @@ extension AppState {
         let hosts = RemoteHosts(paths: paths, sshPath: sshPath, schedule: schedule, isActive: isActive,
                                 hasWorking: { [weak self] in self?.hasWorking(host: $0) ?? false },
                                 onMessage: { [weak self] in self?.handleRemote(host: $0, $1) })
-        hosts.onConnected = { [weak self] in self?.onHostConnected?($0) }
+        hosts.onConnected = { [weak self] host in
+            self?.onHostConnected?(host)
+            self?.inspectorHostConnected(host)
+        }
         hosts.onUnreachable = { [weak self] host in
             guard let self else { return }
             for id in liveLeafIds where remoteLeafHost(id) == host { signal(.relaunched, leaf: id) }
         }
         return hosts
+    }
+
+    /// Where the project's commands run: this Mac, or its host (failing fast while not connected).
+    func runner(for project: Project) -> Runner { project.host.map(remote.runner) ?? .local }
+
+    /// git of the project (or of `repo`, one of its worktrees) on the project's machine.
+    func git(for project: Project, repo: String? = nil) -> Git { Git(repo: repo ?? project.path, runner: runner(for: project)) }
+
+    /// Remote: the host was not given up on (the server's disk is never stat'ed from here); local: the folder exists.
+    func isAvailable(_ project: Project) -> Bool {
+        guard let host = project.host else { return folderExists(project.path) }
+        if case .unreachable = remote.hosts[host]?.state { return false }
+        return true
+    }
+
+    /// The task's or project's folder can be used: as `isAvailable`, a local task by its own folder.
+    func isAvailable(_ target: ActionTarget) -> Bool {
+        guard let path = path(of: target), let project = project(of: target) else { return false }
+        return project.host == nil ? folderExists(path) : isAvailable(project)
+    }
+
+    func project(of target: ActionTarget) -> Project? {
+        switch target {
+        case .project(let id): project(id)
+        case .task(let id), .tab(let id, _): state.tasks.first { $0.id == id }.flatMap { project($0.projectId) }
+        }
+    }
+
+    /// The inspector of the visible remote task showed «not connected»: its host is back, load again (no FSEvents there).
+    private func inspectorHostConnected(_ host: String) {
+        guard inspector.offline, let task = selectedTask, project(task.projectId)?.host == host else { return }
+        inspector.refresh(.all)
     }
 
     /// Trust boundary: any process of that account on the server can write the forwarded socket, so an event

@@ -1,5 +1,7 @@
 #if DEBUG
 import AppKit
+import Exec
+import Git
 import SwiftUI
 import Usage
 import Workspace
@@ -277,7 +279,9 @@ extension MainWindowController {
                 if let task = app.selectedTask {
                     let root: String? = if case .worktree(let p, _, _) = task.mode { p } else { app.project(task.projectId)?.path }
                     let app = self.app
-                    m.show(taskId: task.id, root: root, baseBranch: { await app.baseBranch(of: task) })
+                    let runner = app.project(task.projectId).map(app.runner(for:)) ?? .local
+                    m.show(taskId: task.id, root: root, git: { Git(repo: $0, runner: runner) }, remote: !runner.isLocal,
+                           baseBranch: { await app.baseBranch(of: task) })
                 }
             default: break
             }

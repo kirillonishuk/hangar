@@ -130,7 +130,7 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
     switch call {
     case .projectsList:
         text = (try? d.decode(ProjectsResult.self, from: result)).map { r in
-            r.projects.map { "\(id8($0.id))  \($0.name)  \($0.path)" }.joined(separator: "\n")
+            r.projects.map { "\(id8($0.id))  \($0.name)  \($0.host.map { $0 + ":" } ?? "")\($0.path)" }.joined(separator: "\n")
         }
     case .projectsAdd:
         text = (try? d.decode(ProjectAddResult.self, from: result)).map { r in

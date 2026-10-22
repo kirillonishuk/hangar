@@ -32,7 +32,8 @@ extension AppState {
             guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
                 return fail(ControlError(code: .notFound, message: "no such directory"))
             }
-            if let existing = state.projects.first(where: { ($0.path as NSString).standardizingPath == path }) {
+            // A remote project with the same path is another folder.
+            if let existing = state.projects.first(where: { $0.host == nil && ($0.path as NSString).standardizingPath == path }) {
                 return .ok(id, ProjectAddResult(project: projectInfo(existing), added: false))
             }
             let added = addProject(path: path)
@@ -195,9 +196,7 @@ extension AppState {
     }
 
     private func projectInfo(_ p: Project) -> ProjectInfo {
-        var isDir: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: p.path, isDirectory: &isDir) && isDir.boolValue
-        return ProjectInfo(id: p.id, name: p.name, path: p.path, exists: exists)
+        ProjectInfo(id: p.id, name: p.name, path: p.path, exists: isAvailable(p), host: p.host)
     }
 
     private func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
@@ -222,7 +221,7 @@ extension AppState {
     /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path; a failed fetch fails.
     private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<TaskMode, ControlError> {
         let failed = { (message: String) in Result<TaskMode, ControlError>.failure(ControlError(code: .failed, message: message)) }
-        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: taskBranches(project.id))
+        let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))
         await model.load()
         switch model.availability {
         case .notRepository: return failed("not a git repository")

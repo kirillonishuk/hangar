@@ -257,13 +257,17 @@ public struct ProjectInfo: Codable, Equatable, Sendable {
     public var id: UUID
     public var name: String
     public var path: String
+    /// Remote: its host is not given up on (its disk is not stat'ed from the Mac); local: the folder exists.
     public var exists: Bool
+    /// ssh host of a remote project; nil (absent in JSON) for a local one.
+    public var host: String?
 
-    public init(id: UUID, name: String, path: String, exists: Bool) {
+    public init(id: UUID, name: String, path: String, exists: Bool, host: String? = nil) {
         self.id = id
         self.name = name
         self.path = path
         self.exists = exists
+        self.host = host
     }
 }
 

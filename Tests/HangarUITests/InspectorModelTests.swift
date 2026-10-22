@@ -99,9 +99,10 @@ import Workspace
         defer { a.cleanup(); b.cleanup() }
         try write("x", a.repo + "/only-a.txt")
         try write("x", b.repo + "/only-b.txt")
-        let model = InspectorModel(git: { Git(repo: $0, runner: Self.slow) })
-        model.show(taskId: UUID(), root: a.repo, baseBranch: { "main" })
-        model.show(taskId: UUID(), root: b.repo, baseBranch: { "main" })
+        let model = InspectorModel()
+        let git: @Sendable (String) -> Git = { Git(repo: $0, runner: Self.slow) }
+        model.show(taskId: UUID(), root: a.repo, git: git, baseBranch: { "main" })
+        model.show(taskId: UUID(), root: b.repo, git: git, baseBranch: { "main" })
         let topB = try b.git("rev-parse", "--show-toplevel", in: b.repo)
         func noA() -> Bool {
             model.changes?.files.contains { $0.path == "only-a.txt" } != true
@@ -135,8 +136,9 @@ import Workspace
             }
             return try await Runner.local.run(args, cwd)
         }
-        let model = InspectorModel(git: { Git(repo: $0, runner: counting) })
-        model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
+        let model = InspectorModel()
+        let git: @Sendable (String) -> Git = { Git(repo: $0, runner: counting) }
+        model.show(taskId: UUID(), root: repo.repo, git: git, baseBranch: { "main" })
         for _ in 0..<10 {
             #expect(model.loading != nil)
             model.refresh(.status)
@@ -206,8 +208,9 @@ import Workspace
             if args.contains("ls-files") { return RunResult(status: 128, stdout: "", stderr: "boom") }
             return try await Runner.local.run(args, cwd)
         }
-        let model = InspectorModel(git: { Git(repo: $0, runner: failing) })
-        model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
+        let model = InspectorModel()
+        let git: @Sendable (String) -> Git = { Git(repo: $0, runner: failing) }
+        model.show(taskId: UUID(), root: repo.repo, git: git, baseBranch: { "main" })
         await settle(model)
         #expect(model.changes?.files.map(\.path) == ["a.txt"])
         #expect(model.error == nil)

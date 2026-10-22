@@ -190,7 +190,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if case .worktree(_, _, let base) = task.mode { return base }
         guard let project = project(task.projectId) else { return nil }
         if let last = project.lastBaseBranch { return last }
-        return try? await Git(repo: project.path).defaultBranch()
+        return try? await git(for: project).defaultBranch()
     }
 
     /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.

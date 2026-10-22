@@ -493,7 +493,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
-        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: app.taskBranches(id))
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id))
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
@@ -588,7 +588,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
             self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
             // The visible task's diff base may be this project's default.

@@ -8,9 +8,10 @@ import Workspace
 
 /// RemoteHosts against the fake ssh only (never a real host); `schedule` stores bodies, the test runs them.
 @MainActor @Suite struct RemoteHostsTests {
-    /// Blocking work (spawning, `waitUntilExit`) on a GCD thread: a blocked main actor stalls every other suite.
+    /// Blocking work (spawning, `waitUntilExit`) on its own thread: a blocked main actor stalls every other suite, and
+    /// GCD's global queue (thread-limited, full of other suites' blocking waits under a full run) starts it seconds late.
     nonisolated static func offMain<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { c in DispatchQueue.global().async { c.resume(with: Result { try work() }) } }
+        try await withCheckedThrowingContinuation { c in Thread { c.resume(with: Result { try work() }) }.start() }
     }
 
     /// Runs and waits for a process off main; stdin (if any) is in the pipe before launch.

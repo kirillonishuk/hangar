@@ -57,10 +57,10 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
     let start = SuspendingClock.now
     try p.run()
     if !prefill {
-        DispatchQueue.global().async {
+        Thread {
             if let stdin { try? inp.fileHandleForWriting.write(contentsOf: stdin) }
             try? inp.fileHandleForWriting.close()
-        }
+        }.start()
     }
     p.waitUntilExit()
     let elapsed = SuspendingClock.now - start
@@ -76,10 +76,11 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
 
 /// The fake apps of all tests here answer on the main actor (the CLI gives up after 10 s), so the blocking
 /// `waitUntilExit` must never run there — not even in tests that need no answer. Nor on the cooperative pool (one
-/// thread per core): a few CLIs waiting for a busy main actor would stall every async test in the run.
+/// thread per core): a few CLIs waiting for a busy main actor would stall every async test in the run. Nor on GCD's
+/// global queue: its thread limit fills with other suites' blocking waits and a queued CLI run starts seconds late.
 private func runOffMain(_ args: [String], env: [String: String], stdin: Data?) async throws -> Result {
     try await withCheckedThrowingContinuation { c in
-        DispatchQueue.global().async { c.resume(with: Swift.Result { try run(args, env: env, stdin: stdin) }) }
+        Thread { c.resume(with: Swift.Result { try run(args, env: env, stdin: stdin) }) }.start()
     }
 }
 

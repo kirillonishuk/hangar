@@ -136,6 +136,8 @@ import Workspace
         #expect(m.branch == "fix-login")
         m.name = "feat//x"
         #expect(m.branch == "feat-x")
+        m.name = "Refactor"  // no `/`: a single word keeps the slug
+        #expect(m.branch == "refactor")
         m.name = "feat/JS-13333"
         let mode = await m.create(skipFetch: false)
         #expect(mode == .worktree(path: t.repo + ".worktrees/feat-js-13333", branch: "feat/JS-13333", base: "origin/main"))

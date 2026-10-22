@@ -204,13 +204,13 @@ import Workspace
         return nil
     }
 
-    /// `name` itself if it is a branch name (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
+    /// `name` itself if it has `/` and is a branch name (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
     /// remote of the same name; case-insensitive, as refs on macOS' disk) or its worktree folder exists, `-2`, `-3`, …
     private func suggestBranch() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var suggestion = ""
         if !trimmed.isEmpty {
-            let slug = isBranchName(trimmed) ? trimmed : branchSlug(trimmed)
+            let slug = trimmed.contains("/") && isBranchName(trimmed) ? trimmed : branchSlug(trimmed)
             let taken = Set(branches.map { b in
                 guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name.lowercased() }
                 return String(b.name.dropFirst(r.count + 1)).lowercased()

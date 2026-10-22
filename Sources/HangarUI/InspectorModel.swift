@@ -24,7 +24,7 @@ struct RefreshParts: OptionSet, Sendable {
     enum ModeChoice { case base, uncommitted }
 
     var segment: Segment = .files
-    /// The task's folder; for git — the repository top level once loaded (paths are relative to it).
+    /// The task's folder; every path of the inspector is relative to it.
     private(set) var root: String?
     private(set) var isGit = true
     private(set) var tree = FileTree()
@@ -43,7 +43,7 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var diff: DiffState = .none
     /// The task's base branch from the last status load (also in uncommitted mode, for the hint); nil if unknown.
     private(set) var baseName: String?
-    /// Path of the open diff (relative to the top level); its Changes row is selected.
+    /// Path of the open diff (relative to the root); its Changes row is selected.
     private(set) var diffPath: String?
     /// Requested; the effective one is `changes?.mode` (a missing base shows uncommitted).
     private(set) var modeChoice: ModeChoice = .base
@@ -66,8 +66,8 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
     /// `baseBranch()` once asked (`.some(nil)`: there is none); asked again on every `show` and `baseChanged`.
     @ObservationIgnored private var knownBase: String??
-    /// Top level found by a load of this context; nil = not known to be git yet.
-    @ObservationIgnored private var top: String?
+    /// Top level and the folder's prefix under it, found by a load of this context; nil = not known to be git yet.
+    @ObservationIgnored private var top: (top: String, prefix: String)?
     /// Bumped by every start and cancel: a load applies only while it is the current one.
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var running: RefreshParts = []
@@ -134,7 +134,7 @@ struct RefreshParts: OptionSet, Sendable {
 
     func collapse(_ dir: String) { expanded.remove(dir) }
 
-    /// Path relative to the top level; nil closes the diff.
+    /// Path relative to the root; nil closes the diff.
     func loadDiff(path: String?) {
         diffPath = path
         guard path != nil else { diff = .none; return }
@@ -185,8 +185,8 @@ struct RefreshParts: OptionSet, Sendable {
         var root: String
         var remote: Bool
         var mode: ModeChoice
-        /// Top level from an earlier load of this context (skips the probes).
-        var top: String?
+        /// Top level and prefix from an earlier load of this context (skips the probes).
+        var top: (top: String, prefix: String)?
         var known: ChangeSet?
         var base: String??
         var diffPath: String?
@@ -198,7 +198,7 @@ struct RefreshParts: OptionSet, Sendable {
         var isGit = true
         var remoteNoGit = false
         var offline = false
-        var top: String?
+        var top: (top: String, prefix: String)?
         var tree: FileTree?
         var filesTruncated = false
         var paths = 0
@@ -219,7 +219,7 @@ struct RefreshParts: OptionSet, Sendable {
                                          baseBranch: @Sendable () async -> String?) async -> LoadResult {
         var r = LoadResult()
         r.diffPath = input.diffPath
-        var git = makeGit(input.root)
+        let git = makeGit(input.root)
         if input.top == nil, !input.remote, (try? await git.isRepository()) != true {
             r.isGit = false
             r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
@@ -234,12 +234,13 @@ struct RefreshParts: OptionSet, Sendable {
             return r
         }
         do {
-            let top: String
+            // A project in a subfolder (`prefix` "apps/web/"): git runs in it and covers only it (#44).
+            let top: String, prefix: String
             if let known = input.top {
-                top = known
+                (top, prefix) = known
             } else if input.remote {
                 // One call answers both "git?" and "reachable?"; a git failure here means not a repository.
-                do { top = try await git.toplevel() } catch where !Self.isOffline(error) {
+                do { (top, prefix) = try await git.location() } catch where !Self.isOffline(error) {
                     r.isGit = false
                     r.remoteNoGit = true
                     r.tree = FileTree()
@@ -247,11 +248,9 @@ struct RefreshParts: OptionSet, Sendable {
                     return r
                 }
             } else {
-                top = try await git.toplevel()
+                (top, prefix) = try await git.location()
             }
-            r.top = top
-            // Paths from git are top-relative: a project in a subfolder must run git at the top level.
-            git = makeGit(top)
+            r.top = (top, prefix)
             if parts.contains(.tree) {
                 // A failed listing shows in Files only; the changes still load.
                 do {
@@ -270,7 +269,7 @@ struct RefreshParts: OptionSet, Sendable {
             }
             var changes = input.known
             if parts.contains(.status) {
-                let status = try await git.status()
+                let status = try await git.status(prefix: prefix)
                 r.status = status
                 var mode = DiffMode.uncommitted
                 var missing = false
@@ -326,7 +325,7 @@ struct RefreshParts: OptionSet, Sendable {
             if let tree = r.tree { self.tree = tree }
             return
         }
-        if let top = r.top { self.top = top; root = top }
+        if let top = r.top { self.top = top }
         if let tree = r.tree {
             self.tree = tree
             filesTruncated = r.filesTruncated

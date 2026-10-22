@@ -6,14 +6,21 @@ public enum SSHFailure: Error, Equatable, Sendable {
     case unsupportedShell(String)
 }
 
-/// Classifies a failed ssh by its stderr; the message is the last non-empty stderr line, at most 300 characters.
+/// Classifies a failed ssh by ssh's own diagnostic lines (whole lines, not substrings: a banner or rc file may say
+/// "Permission denied"); the message is the last non-empty stderr line, at most 300 characters.
 func sshFailure(status: Int32, stderr: String) -> SSHFailure {
-    let last = stderr.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.last { !$0.isEmpty } ?? ""
-    let line = String(last.prefix(300))
-    let has = { (s: String) in stderr.contains(s) }
-    if has("Permission denied") || has("Host key verification failed") || has("passphrase") { return .auth(line) }
-    if has("Could not resolve") || has("Connection refused") || has("timed out") || has("No route") { return .unreachable(line) }
-    return .exited(status, line)
+    let lines = stderr.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    let line = String((lines.last ?? "").prefix(300))
+    let auth = lines.contains { l in
+        l.hasPrefix("Permission denied (") || l.contains(": Permission denied (") || l.hasPrefix("Host key verification failed")
+            || ((l.hasPrefix("Load key") || l.hasPrefix("Enter passphrase")) && l.contains("passphrase"))
+    }
+    if auth { return .auth(line) }
+    let network = lines.contains { l in
+        (l.hasPrefix("ssh:") && ["Could not resolve", "Connection refused", "timed out", "No route"].contains { l.contains($0) })
+            || l.hasPrefix("client_loop:") || l.hasPrefix("Timeout, server") || l.hasPrefix("Connection timed out")
+    }
+    return network ? .unreachable(line) : .exited(status, line)
 }
 
 /// `<home>` of a `HANGAR-READY <home>` line, only if it is an absolute path without control characters, ≤ 1024 bytes:
@@ -29,8 +36,8 @@ func readyHome(_ line: Substring) -> String? {
 }
 
 /// The control master of one host: a child process of the app (#47). Ready = the marker on stdout, lost = the process
-/// exited; no polling. shortcut: a `connect`/`exit` racing a dying master on the same control path is not serialized
-/// (the new master needs a network round trip before it binds); serialize if reconnects ever become instant.
+/// exited; no polling. shortcut: `exit()` followed at once by `connect()` does not wait for the fire-and-forget
+/// `-O exit` (the new master binds only after a network round trip); make `exit` async if that ever bites.
 public final class SSHMaster: @unchecked Sendable {
     public let host: String, controlPath: String, sshPath: String
     private let lock = NSLock()
@@ -50,7 +57,8 @@ public final class SSHMaster: @unchecked Sendable {
     /// Starts the master; success is the server's `$HOME`. Timeout kills it and reports `.unreachable("timed out")`.
     public func connect(timeout: Double = 30) async -> Result<String, SSHFailure> {
         guard let host = validSSHHost(host) else { return .failure(.exited(255, "invalid host")) }
-        lock.withLock { current }?.stop(sendExit: false)
+        // The old master unlinks its socket when it dies; it must not take the new one with it.
+        await lock.withLock { current }?.stopAndWait(seconds: 3)
         unlink(controlPath)  // ssh -M with an existing socket silently runs without a master
         let script = #"printf 'HANGAR-READY %s\n' "$HOME"; exec cat >/dev/null"#
         let args = ["-M", "-T", "-S", controlPath, "-o", "ControlPersist=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
@@ -64,30 +72,38 @@ public final class SSHMaster: @unchecked Sendable {
     public func forward(remote: String, local: String) async -> Bool {
         guard let host = validSSHHost(host), !remote.contains(":"), !local.contains(":") else { return false }
         let runner = Runner.ssh(host: host, controlPath: controlPath, sshPath: sshPath)
-        // sshd's StreamLocalBindUnlink defaults to no: a stale socket file would make -R fail.
-        let prep = try? await runner.run(["sh", "-c", #"mkdir -p -m 700 "$HOME/.hangar/run" && rm -f "$1""#, "sh", remote], "")
-        guard prep?.status == 0 else { return false }
-        let argv = ["-S", controlPath, "-O", "forward", "-R", remote + ":" + local, "--", host]
-        return (try? await runProcess(sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment))?.status == 0
+        let (cp, ssh) = (controlPath, sshPath)
+        return await withTimeout(10) {
+            // sshd's StreamLocalBindUnlink defaults to no: a stale socket file would make -R fail.
+            let prep = try? await runner.run(["sh", "-c", #"mkdir -p -m 700 "$HOME/.hangar/run" && rm -f "$1""#, "sh", remote], "")
+            guard prep?.status == 0 else { return false }
+            let argv = ["-S", cp, "-O", "forward", "-R", remote + ":" + local, "--", host]
+            return (try? await runProcess(ssh, argv, cwd: "/", env: ProcessInfo.processInfo.environment))?.status == 0
+        }
     }
 
     /// One `true` through the master (after wake); false on a non-zero exit or after `timeout` (the ssh is killed).
     public func probe(timeout: Double) async -> Bool {
         let runner = Runner.ssh(host: host, controlPath: controlPath, sshPath: sshPath)
-        let run = Task { (try? await runner.run(["true"], ""))?.status == 0 }
-        let timer = Task {
-            try? await Task.sleep(nanoseconds: UInt64(max(0, timeout) * 1_000_000_000))
-            run.cancel()
-        }
-        let ok = await run.value
-        timer.cancel()
-        return ok
+        return await withTimeout(timeout) { (try? await runner.run(["true"], ""))?.status == 0 }
     }
 
     /// App quit or host removed: `-O exit` (fire-and-forget), close the master's stdin, terminate it; no `onExit`.
     public func exit() {
         lock.withLock { current }?.stop(sendExit: true)
     }
+}
+
+/// Runs `op`, cancelling it after `seconds` (cancel kills its ssh); a cancelled `op` is expected to return false.
+private func withTimeout(_ seconds: Double, _ op: @escaping @Sendable () async -> Bool) async -> Bool {
+    let run = Task { await op() }
+    let timer = Task {
+        try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+        run.cancel()
+    }
+    let ok = await run.value
+    timer.cancel()
+    return ok
 }
 
 /// One master process. Resolves `start` exactly once; reports a loss only after it was ready and not stopped.
@@ -99,7 +115,8 @@ private final class MasterProcess: @unchecked Sendable {
     private var cont: CheckedContinuation<Result<String, SSHFailure>, Never>?
     private var onLost: (@Sendable (SSHFailure) -> Void)?
     private var out = Data(), err = Data()
-    private var ready = false, stopped = false, stdinClosed = false
+    private var ready = false, stopped = false, stdinClosed = false, gone = false
+    private var exitWaiters: [CheckedContinuation<Void, Never>] = []
     private var pid: pid_t = 0, ownGroup = false
     private let outEOF = DispatchSemaphore(value: 0), errEOF = DispatchSemaphore(value: 0)
 
@@ -125,6 +142,7 @@ private final class MasterProcess: @unchecked Sendable {
             do {
                 try process.run()
             } catch {
+                finishWaiters()
                 close()
                 resolve(.failure(.exited(-1, error.localizedDescription)))
                 return
@@ -162,6 +180,32 @@ private final class MasterProcess: @unchecked Sendable {
         if target > 0 && process.isRunning { terminateProcess(target, group: group) }
     }
 
+    /// Stops without `-O exit` and returns once the process is gone; after `seconds` it is SIGKILLed and not waited for.
+    func stopAndWait(seconds: Double) async {
+        stop(sendExit: false)
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            let done = lock.withLock { () -> Bool in
+                if gone || pid == 0 { return true }
+                exitWaiters.append(c)
+                return false
+            }
+            if done { c.resume(); return }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { [self] in
+                let (target, group) = lock.withLock { (pid, ownGroup) }
+                if process.isRunning { kill(group ? -target : target, SIGKILL) }
+                finishWaiters()
+            }
+        }
+    }
+
+    private func finishWaiters() {
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            defer { gone = true; exitWaiters = [] }
+            return exitWaiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+
     /// Lines before the marker (rc-file noise) are skipped; an over-long unterminated line is dropped.
     private func readOut(_ data: Data) {
         if data.isEmpty {
@@ -177,7 +221,8 @@ private final class MasterProcess: @unchecked Sendable {
                 let line = String(decoding: out[out.startIndex..<nl], as: UTF8.self)
                 out.removeSubrange(out.startIndex...nl)
                 guard line.hasPrefix("HANGAR-READY ") else { continue }
-                if let home = readyHome(Substring(line)) { ready = true; result = .success(home) }
+                // Pre-ready stderr (banner, rc noise) must not classify a later drop.
+                if let home = readyHome(Substring(line)) { ready = true; err.removeAll(); result = .success(home) }
                 else { result = .failure(.exited(-1, "invalid HANGAR-READY line")) }
             }
             if out.count > 4096 { out.removeAll() }
@@ -200,6 +245,7 @@ private final class MasterProcess: @unchecked Sendable {
     }
 
     private func exited(_ status: Int32) {
+        finishWaiters()
         // The last stderr/stdout bytes may still be in flight; a helper holding the pipes open must not block us.
         let deadline = DispatchTime.now() + 1
         _ = errEOF.wait(timeout: deadline)

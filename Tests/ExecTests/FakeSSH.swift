@@ -38,7 +38,7 @@ enum FakeSSH {
           esac
           exit 255
         fi
-        if [ -f "$D/hang" ]; then sleep 30; exit 255; fi
+        if [ -f "$D/hang" ]; then sleep 600; exit 255; fi
         [ -n "$master" ] && echo $$ > "$D/master.pid"
         export HOME="$D/home"
         cd "$HOME" || exit 255

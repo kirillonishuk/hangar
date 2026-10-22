@@ -41,12 +41,13 @@ import Testing
 
     @Test func hangingShellTimesOut() async {
         let runner = Runner { _, _ in
-            try await Task.sleep(for: .seconds(30))
+            try await Task.sleep(for: .seconds(600))
             return RunResult(status: 0, stdout: "__hangar_dirs__/c\0/d\0", stderr: "")
         }
-        let start = Date()
+        let start = SuspendingClock.now
         let d = await resolveAgentDirs(runner: runner, shell: "/bin/zsh", timeout: .milliseconds(100))
         #expect(d.claude == nil && d.codex == nil)
-        #expect(Date().timeIntervalSince(start) < 5)
+        // Long before the 600 s hang: the timer and the cancelled child wait for a busy cooperative pool under load.
+        #expect(SuspendingClock.now - start < .seconds(20))
     }
 }

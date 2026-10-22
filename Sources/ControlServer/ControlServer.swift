@@ -176,6 +176,9 @@ public final class ControlServer: @unchecked Sendable {
 
     private func armIdleTimer(_ c: Connection, _ fd: Int32) {
         c.idleTimer?.cancel()
+        c.idleTimer = nil
+        // Still draining a reply to a slow reader: not idle; `flush` arms the timer once the outbox is empty.
+        guard c.outbox.isEmpty else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + idleTimeout)
         timer.setEventHandler { [weak self] in self?.drop(fd) }
@@ -329,7 +332,11 @@ public final class ControlServer: @unchecked Sendable {
         }
         c.outbox.removeAll(keepingCapacity: c.outbox.count <= 65_536)
         c.sent = 0
-        if let writer = c.writer, !c.writerSuspended { writer.suspend(); c.writerSuspended = true }
+        if let writer = c.writer, !c.writerSuspended {
+            writer.suspend(); c.writerSuspended = true
+            // A drained backlog: the idle deadline counts from now, not from when the reply was queued.
+            if c.inFlight == 0 { armIdleTimer(c, fd) }
+        }
     }
 
     private func drop(_ fd: Int32) {

@@ -126,7 +126,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         defer { server.stop() }
         let c1 = try RawClient(r.dir.path)
         c1.send(#"{"v":1,"id":1,"method":"tabs.send","params":{"tab":"\#(UUID().uuidString)","text":"rm -rf ~\n"}}"# + "\n")
-        let reply = c1.readToEOF()
+        let reply = await c1.readToEOF()
         #expect(reply.eof)
         #expect(reply.replies == [#"{"id":1,"error":{"code":"unknown-method","message":"not available over ssh"}}"#])
 
@@ -135,7 +135,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         for m in [event, usage] {
             let c = try RawClient(r.dir.path)
             c.send(m.encoded())
-            let rr = c.readToEOF()
+            let rr = await c.readToEOF()
             #expect(rr.eof && rr.replies == [#"{"ok":false,"error":"unknown-type"}"#])
         }
         await settle()
@@ -149,7 +149,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         defer { server.stop() }
         let c = try RawClient(r.dir.path)
         c.send(hook(r.tab, r.leaf, len: 2) + "{}" + hook(r.tab, r.leaf, kind: "prompt", len: 2) + "{}")
-        let reply = c.readToEOF()
+        let reply = await c.readToEOF()
         #expect(reply.eof && reply.replies == [#"{"ok":true}"#])
         await settle()
         let got = await r.inbox.messages
@@ -165,7 +165,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         let payload = #"{"session_id":"s9"}"#
         let all = hook(r.tab, r.leaf, len: payload.utf8.count) + payload
         for ch in all { c.send(String(ch)) }
-        #expect(c.readToEOF().replies == [#"{"ok":true}"#])
+        #expect(await c.readToEOF().replies == [#"{"ok":true}"#])
         let got = await r.inbox.wait(count: 1)
         guard case let .event(m)? = got.first else { Issue.record("no event"); return }
         #expect(m.session == "s9")
@@ -178,19 +178,19 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         let cut = #"{"session_id":"#
         let c1 = try RawClient(r.dir.path)
         c1.send(hook(r.tab, r.leaf, len: cut.utf8.count) + cut)
-        #expect(c1.readToEOF().replies == [#"{"ok":true}"#])
+        #expect(await c1.readToEOF().replies == [#"{"ok":true}"#])
         let got = await r.inbox.wait(count: 1)
         guard case let .event(m)? = got.first else { Issue.record("no event"); return }
         #expect(m.kind == .stop && m.session == nil)
 
         let c2 = try RawClient(r.dir.path)
         c2.send(hook(r.tab, r.leaf, len: 300_000))
-        let big = c2.readToEOF()
+        let big = await c2.readToEOF()
         #expect(big.eof && big.replies == [#"{"ok":false,"error":"too-large"}"#])
 
         let c3 = try RawClient(r.dir.path)
         c3.send(String(repeating: "x", count: 5000))
-        #expect(c3.readToEOF().eof)
+        #expect(await c3.readToEOF().eof)
         await settle()
         #expect(await r.inbox.messages.count == 1)
     }

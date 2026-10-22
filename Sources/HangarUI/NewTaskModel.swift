@@ -210,14 +210,17 @@ import Workspace
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var suggestion = ""
         if !trimmed.isEmpty {
-            // `origin/x` as a local branch would be ambiguous with the remote-tracking one.
-            let verbatim = trimmed.contains("/") && isBranchName(trimmed)
-                && !remotes.contains(String(trimmed.prefix { $0 != "/" }))
-            let slug = verbatim ? trimmed : branchSlug(trimmed)
             let taken = Set(branches.map { b in
                 guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name.lowercased() }
                 return String(b.name.dropFirst(r.count + 1)).lowercased()
             })
+            // `origin/x` as a local branch would be ambiguous with the remote-tracking one; `release/1.2` next to
+            // `release` (or `a` next to `a/b`) can't exist at all: a ref is either a file or a folder.
+            let lower = trimmed.lowercased()
+            let verbatim = trimmed.contains("/") && isBranchName(trimmed)
+                && !remotes.contains(String(trimmed.prefix { $0 != "/" }))
+                && !taken.contains { lower.hasPrefix($0 + "/") || $0.hasPrefix(lower + "/") }
+            let slug = verbatim ? trimmed : branchSlug(trimmed)
             suggestion = slug
             var n = 1
             // A remote folder can't be stat'ed here (and runs on every keystroke): `worktree add` reports a taken one.

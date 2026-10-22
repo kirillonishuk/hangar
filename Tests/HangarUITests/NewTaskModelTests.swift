@@ -123,6 +123,24 @@ import Workspace
         #expect(m2.branchError == L10n.branchExists("pochinit-login"))
     }
 
+    /// git can't have both `release` and `release/1.2` (a ref is a file or a folder): such a verbatim name → slug.
+    @Test func verbatimNameClashingWithAPrefixFallsBackToSlug() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        try t.git("branch", "Release", in: t.repo)
+        try t.git("branch", "hotfix/x/y", in: t.repo)
+        let m = model(t, worktreeByDefault: true)
+        await m.load()
+        m.name = "release/1.2"  // an existing branch is a `/`-prefix of it (case-insensitive, as on disk)
+        #expect(m.branch == "release-1.2")
+        m.name = "hotfix/x"  // it is a `/`-prefix of an existing branch
+        #expect(m.branch == "hotfix-x")
+        m.name = "hotfix/z"
+        #expect(m.branch == "hotfix/z")
+        m.name = "release/1.2"
+        #expect(await m.create(skipFetch: false) == .worktree(path: t.repo + ".worktrees/release-1.2", branch: "release-1.2", base: "origin/main"))
+    }
+
     @Test func branchLikeNameIsSuggestedVerbatim() async throws {
         let t = try await repo()
         defer { t.cleanup() }

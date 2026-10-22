@@ -8,36 +8,68 @@ import Workspace
 
 /// RemoteHosts against the fake ssh only (never a real host); `schedule` stores bodies, the test runs them.
 @MainActor @Suite struct RemoteHostsTests {
+    /// Blocking work (spawning, `waitUntilExit`) on a GCD thread: a blocked main actor stalls every other suite.
+    nonisolated static func offMain<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { c in DispatchQueue.global().async { c.resume(with: Result { try work() }) } }
+    }
+
+    /// Runs and waits for a process off main; stdin (if any) is in the pipe before launch.
+    nonisolated static func run(_ path: String, _ args: [String], env: [String: String]? = nil, stdin: String? = nil) async throws {
+        try await offMain {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: path)
+            p.arguments = args
+            if let env { p.environment = env }
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            if let stdin {
+                let input = Pipe()
+                // A child exiting before it reads stdin must not SIGPIPE the test process.
+                _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+                try input.fileHandleForWriting.write(contentsOf: Data(stdin.utf8))  // small: fits the pipe buffer
+                try input.fileHandleForWriting.close()
+                p.standardInput = input
+            } else {
+                p.standardInput = FileHandle.nullDevice
+            }
+            try p.run()
+            p.waitUntilExit()
+        }
+    }
+
     @MainActor final class Harness {
-        let root: String, ssh: String, log: String, home: String, fakeDir: String
+        let root: String, ssh: String, log: String, home: String, fakeDir: String, bin: String
         let app: AppState
         var active = true
         var scheduled: [(delay: Duration, body: @MainActor () -> Void)] = []
-        var connected: [String] = [], lost: [String] = []
+        var connected: [String] = [], lost: [String] = [], unreachable: [String] = []
 
         init() async throws {
             // Short root: the master and host sockets must fit sun_path without the shared /tmp/hangar-<uid> fallback.
-            root = "/tmp/hr-" + UUID().uuidString.prefix(8)
+            let root = "/tmp/hr-" + UUID().uuidString.prefix(8)
+            self.root = root
             fakeDir = root + "/fake"
-            let f = try FakeSSH.make(dir: fakeDir)
-            log = f.log; home = f.home
-            let bin = root + "/bin"
-            try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
-            // A "login shell" that skips /etc/profile (path_helper would put Homebrew first) and a system PATH:
-            // the server check never starts a tool of this Mac outside /usr/bin, /bin and the test's own bin.
-            let login = bin + "/login-sh"
-            try "#!/bin/sh\nshift 3\nexec /bin/sh -c \"$1\"\n".write(toFile: login, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: login)
+            bin = root + "/bin"
             ssh = root + "/ssh-wrapper"
-            try "#!/bin/sh\nexport SHELL=\(shellQuote(login)) PATH=\(shellQuote(bin)):/usr/bin:/bin\nexec \(shellQuote(f.path)) \"$@\"\n"
-                .write(toFile: ssh, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ssh)
+            let (fakeDir, bin, ssh) = (fakeDir, bin, ssh)
+            let f = try await RemoteHostsTests.offMain { () -> (path: String, log: String, home: String) in
+                let f = try FakeSSH.make(dir: fakeDir)
+                try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
+                // A "login shell" that skips /etc/profile (path_helper would put Homebrew first) and a system PATH:
+                // the server check never starts a tool of this Mac outside /usr/bin, /bin and the test's own bin.
+                // `<root>/shell`, if present, names another login shell (the csh test).
+                let login = bin + "/login-sh"
+                try "#!/bin/sh\nshift 3\nexec /bin/sh -c \"$1\"\n".write(toFile: login, atomically: true, encoding: .utf8)
+                try "#!/bin/sh\nexit 0\n".write(toFile: bin + "/tcsh", atomically: true, encoding: .utf8)
+                let wrapper = "#!/bin/sh\nSHELL=\(shellQuote(login))\n[ -f \(shellQuote(root + "/shell")) ] && SHELL=$(cat \(shellQuote(root + "/shell")))\n"
+                    + "export SHELL PATH=\(shellQuote(bin)):/usr/bin:/bin\nexec \(shellQuote(f.path)) \"$@\"\n"
+                try wrapper.write(toFile: ssh, atomically: true, encoding: .utf8)
+                for x in [login, bin + "/tcsh", ssh] { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: x) }
+                return f
+            }
+            log = f.log; home = f.home
             // The first exec of a fresh script is slow on macOS (security scan).
-            let warm = Process()
-            warm.executableURL = URL(fileURLWithPath: ssh)
-            warm.arguments = ["-O", "check", "--", "dev"]
-            try warm.run()
-            warm.waitUntilExit()
+            try await RemoteHostsTests.run(ssh, ["-O", "check", "--", "dev"])
             try? FileManager.default.removeItem(atPath: log)
 
             var s = WorkspaceState()
@@ -56,6 +88,8 @@ import Workspace
                                              isActive: { [weak self] in self?.active ?? false })
             app.remote.onConnected = { [weak self] in self?.connected.append($0) }
             app.remote.onLost = { [weak self] in self?.lost.append($0) }
+            let wired = app.remote.onUnreachable
+            app.remote.onUnreachable = { [weak self] in self?.unreachable.append($0); wired?($0) }
         }
 
         var remote: RemoteHosts { app.remote }
@@ -63,11 +97,31 @@ import Workspace
 
         func cleanup() {
             remote.stopAll()
+            // A hanging fake tool records its pid: no stray process outlives the test.
+            if let pid = pid("tool.pid") { kill(pid, SIGKILL) }
             try? FileManager.default.removeItem(atPath: root)
         }
 
         func flag(_ name: String, _ text: String = "") throws {
             try text.write(toFile: fakeDir + "/" + name, atomically: true, encoding: .utf8)
+        }
+
+        /// A pid written by a fake (relative to the fake dir, or absolute).
+        func pid(_ file: String) -> pid_t? {
+            let path = file.hasPrefix("/") ? file : (file == "tool.pid" ? root + "/" + file : fakeDir + "/" + file)
+            return (try? String(contentsOfFile: path, encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        }
+
+        func alive(_ pid: pid_t) -> Bool { kill(pid, 0) == 0 }
+
+        /// A `git` (the check's first tool) whose `--version` hangs, so the check does; its pid → `<root>/tool.pid`.
+        func hangingGit() async throws {
+            let git = bin + "/git"
+            try "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho $$ > \(shellQuote(root + "/tool.pid"))\nexec sleep 600\n"
+                .write(toFile: git, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: git)
+            // The first exec of a fresh script is slow on macOS (security scan): it would outlast the check deadline.
+            try await RemoteHostsTests.run(git, ["warm"])
         }
 
         /// The only leaf of the project named `name`.
@@ -80,37 +134,26 @@ import Workspace
         func masterCalls() -> Int { FakeSSH.calls(log).filter { $0.contains("-M") }.count }
 
         func killMaster() {
-            let pid = (try? String(contentsOfFile: fakeDir + "/master.pid", encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-            if let pid { kill(pid, SIGKILL) }
+            if let pid = pid("master.pid") { kill(pid, SIGKILL) }
         }
 
         /// Runs `hangar-remote` as a process on the "server" would: the leaf's env, the forwarded socket.
-        func hangarRemote(_ args: [String], leaf: (tab: UUID, leaf: UUID), stdin: String) throws {
+        func hangarRemote(_ args: [String], leaf: (tab: UUID, leaf: UUID), stdin: String) async throws {
             let script = root + "/hangar-remote"
             if !FileManager.default.fileExists(atPath: script) {
                 try hangarRemoteScript.write(toFile: script, atomically: true, encoding: .utf8)
             }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/sh")
-            p.arguments = [script] + args
-            p.environment = ["HANGAR_TAB_ID": leaf.tab.uuidString, "HANGAR_LEAF_ID": leaf.leaf.uuidString,
-                             "HANGAR_SOCKET": home + "/.hangar/hangar.sock", "PATH": "/usr/bin:/bin"]
-            let input = Pipe()
-            p.standardInput = input
-            p.standardOutput = FileHandle.nullDevice
-            // A child exiting before it reads stdin must not SIGPIPE the test process.
-            _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
-            try p.run()
-            try? input.fileHandleForWriting.write(contentsOf: Data(stdin.utf8))
-            try input.fileHandleForWriting.close()
-            p.waitUntilExit()
+            try await RemoteHostsTests.run("/bin/sh", [script] + args,
+                                           env: ["HANGAR_TAB_ID": leaf.tab.uuidString, "HANGAR_LEAF_ID": leaf.leaf.uuidString,
+                                                 "HANGAR_SOCKET": home + "/.hangar/hangar.sock", "PATH": "/usr/bin:/bin"],
+                                           stdin: stdin)
         }
     }
 
-    /// Test-only wait for an async side effect (the code under test never polls).
-    private func waitUntil(_ seconds: Double = 10, _ cond: () -> Bool) async -> Bool {
-        let end = Date().addingTimeInterval(seconds)
-        while Date() < end {
+    /// Test-only wait for an async side effect (the code under test never polls); SuspendingClock survives Mac sleep.
+    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
+        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
+        while clock.now < end {
             if cond() { return true }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
@@ -139,15 +182,15 @@ import Workspace
         let h = try await Harness(); defer { h.cleanup() }
         #expect(await h.remote.connect("dev") == .connected)
         let local = h.leaf("local"), other = h.leaf("other"), dev = h.leaf("dev")
-        try h.hangarRemote(["event", "prompt"], leaf: local, stdin: "{}")
-        try h.hangarRemote(["event", "prompt"], leaf: other, stdin: "{}")
-        try h.hangarRemote(["event", "prompt"], leaf: dev, stdin: "{}")
+        try await h.hangarRemote(["event", "prompt"], leaf: local, stdin: "{}")
+        try await h.hangarRemote(["event", "prompt"], leaf: other, stdin: "{}")
+        try await h.hangarRemote(["event", "prompt"], leaf: dev, stdin: "{}")
         #expect(await waitUntil { h.app.state(ofLeaf: dev.leaf) == .working })
         #expect(h.app.state(ofLeaf: local.leaf) == .idle)
         #expect(h.app.state(ofLeaf: other.leaf) == .idle)
 
         let resets = Int(Date().timeIntervalSince1970) + 3600
-        try h.hangarRemote(["statusline"], leaf: dev, stdin: #"{"rate_limits":{"five_hour":{"used_percentage":42.5,"resets_at":\#(resets)}}}"#)
+        try await h.hangarRemote(["statusline"], leaf: dev, stdin: #"{"rate_limits":{"five_hour":{"used_percentage":42.5,"resets_at":\#(resets)}}}"#)
         #expect(await waitUntil { h.app.usage.view(.claude, now: Date()) != nil })
     }
 
@@ -231,7 +274,7 @@ import Workspace
         try h.flag("hang")
         defer { try? FileManager.default.removeItem(atPath: h.fakeDir + "/hang") }
         h.remote.didWake()
-        #expect(await waitUntil(5) { h.lost == ["dev"] })
+        #expect(await waitUntil { h.lost == ["dev"] })  // the fake hangs 600 s
         #expect(h.state() == .reconnecting(attempt: 1))
     }
 
@@ -239,19 +282,34 @@ import Workspace
         let h = try await Harness(); defer { h.cleanup() }
         #expect(await h.remote.connect("dev") == .connected)
         #expect(await h.remote.connect("other") == .connected)
+        let masters = try ["dev", "other"].map { try #require(h.pid("master-\($0).pid")) }
+        #expect(masters.allSatisfy(h.alive))
         let paths = SSHPaths(stateDir: h.root)
         #expect(FileManager.default.fileExists(atPath: paths.hostSocket("dev")))
         h.remote.stopAll()
+        #expect(await waitUntil { !masters.contains(where: h.alive) })
         // Two concurrent fake calls may interleave their log lines, so count the `exit` lines instead of parsing calls.
-        #expect(await waitUntil {
-            let lines = ((try? String(contentsOfFile: h.log, encoding: .utf8)) ?? "").split(separator: "\n")
-            return lines.filter { $0 == "exit" }.count == 2 && lines.contains("other")
-        })
+        let lines = ((try? String(contentsOfFile: h.log, encoding: .utf8)) ?? "").split(separator: "\n")
+        #expect(lines.filter { $0 == "exit" }.count == 2)
         #expect(!FileManager.default.fileExists(atPath: paths.hostSocket("dev")))
         #expect(!FileManager.default.fileExists(atPath: paths.hostSocket("other")))
         #expect(h.state() == .disconnected && h.state("other") == .disconnected)
         try? await Task.sleep(nanoseconds: 200_000_000)
         #expect(h.lost.isEmpty)
+    }
+
+    /// Task 9 removes a host whose last project went away: master gone, entries dropped, safe to repeat.
+    @Test func removeDropsHost() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        let master = try #require(h.pid("master-dev.pid"))
+        h.remote.remove("dev")
+        #expect(h.remote.hosts["dev"] == nil)
+        #expect(!FileManager.default.fileExists(atPath: SSHPaths(stateDir: h.root).hostSocket("dev")))
+        #expect(await waitUntil { !h.alive(master) })
+        h.remote.remove("dev")
+        h.remote.remove("never-seen")
+        #expect(h.remote.hosts.isEmpty)
     }
 
     @Test func runnerFailsFastWhileDisconnected() async throws {
@@ -264,12 +322,70 @@ import Workspace
 
     @Test func hangingCheckTimesOut() async throws {
         let h = try await Harness(); defer { h.cleanup() }
-        let tmux = h.root + "/bin/tmux"
-        try "#!/bin/sh\nexec sleep 30\n".write(toFile: tmux, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmux)
-        h.remote.checkTimeout = 0.5
-        // Without the deadline the check would finish after the fake's 30 s and the host would connect.
+        try await h.hangingGit()
+        h.remote.checkTimeout = 10  // reaches the tool under load, far below the 600 s hang
+        // Without the deadline the check would wait for the fake's 600 s and the host would connect.
         #expect(await h.remote.connect("dev") == .unreachable("server check timed out"))
         #expect(h.connected.isEmpty)
+        // The kill reaches the hanging tool too (SIGKILL escalation after 2 s).
+        let tool = try #require(h.pid("tool.pid"))
+        #expect(await waitUntil { !h.alive(tool) })
+    }
+
+    /// The UI's connect right after activation must join the activation attempt, not start a second one.
+    @Test func activationAttemptSharedWithConnect() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        h.active = false
+        #expect(await h.remote.connect("dev") == .connected)
+        h.killMaster()
+        #expect(await waitUntil { h.lost == ["dev"] })
+        h.active = true
+        h.remote.appBecameActive()
+        #expect(await h.remote.connect("dev") == .connected)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        #expect(h.masterCalls() == 2)
+        #expect(h.state() == .connected)
+        #expect(h.unreachable.isEmpty)
+        #expect(h.connected == ["dev", "dev"])
+    }
+
+    /// Disconnect while the check runs: the old attempt stops; a connect right away starts fresh, and the old
+    /// attempt finishing later must not touch the new master.
+    @Test func disconnectDuringConnect() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await h.hangingGit()
+        h.remote.checkTimeout = 10  // the old attempt ends when it fires
+        let first = Task { await h.remote.connect("dev") }
+        #expect(await waitUntil { h.pid("tool.pid") != nil })
+        h.remote.disconnect("dev")
+        #expect(h.state() == .disconnected)
+        try FileManager.default.removeItem(atPath: h.bin + "/git")
+        #expect(await h.remote.connect("dev") == .connected)
+        let master = try #require(h.pid("master-dev.pid"))
+        _ = await first.value  // the old check times out and returns
+        #expect(h.state() == .connected)
+        #expect(h.alive(master))
+        #expect(h.connected == ["dev"])
+        #expect(h.unreachable.isEmpty)
+        #expect(try await h.remote.runner("dev").run(["true"], "").status == 0)
+    }
+
+    @Test func unsupportedShellNoRetry() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let shellFile = h.root + "/shell"
+        try (h.bin + "/tcsh").write(toFile: shellFile, atomically: true, encoding: .utf8)
+        #expect(await h.remote.connect("dev") == .unreachable("unsupported login shell: \(h.bin)/tcsh"))
+        #expect(h.scheduled.isEmpty)
+
+        try FileManager.default.removeItem(atPath: shellFile)
+        #expect(await h.remote.connect("dev") == .connected)
+        try (h.bin + "/tcsh").write(toFile: shellFile, atomically: true, encoding: .utf8)
+        h.killMaster()
+        #expect(await waitUntil { h.scheduled.count == 1 })
+        guard h.scheduled.count == 1 else { return }
+        h.scheduled[0].body()
+        #expect(await waitUntil { h.state() == .unreachable("unsupported login shell: \(h.bin)/tcsh") })
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        #expect(h.scheduled.count == 1)
     }
 }

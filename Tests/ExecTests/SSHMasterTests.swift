@@ -43,8 +43,8 @@ import Testing
 
     /// Test-only wait for an async side effect (the code under test never polls).
     private func waitUntil(_ seconds: Double, _ cond: () async -> Bool) async -> Bool {
-        let end = Date().addingTimeInterval(seconds)
-        while Date() < end {
+        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
+        while clock.now < end {
             if await cond() { return true }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
@@ -80,9 +80,10 @@ import Testing
         let m = f.master()
         let lost = Counter()
         m.onExit = { lost.add($0) }
-        let start = Date()
-        #expect(await m.connect(timeout: 5) == .failure(.auth("Permission denied (publickey).")))
-        #expect(Date().timeIntervalSince(start) < 2)
+        // A long connect timeout: the failure must come from ssh's exit, not the deadline. SuspendingClock: load and sleep safe.
+        let clock = SuspendingClock(), start = clock.now
+        #expect(await m.connect(timeout: 600) == .failure(.auth("Permission denied (publickey).")))
+        #expect(clock.now - start < .seconds(20))
         try await Task.sleep(nanoseconds: 200_000_000)
         #expect(lost.count == 0)
     }
@@ -91,10 +92,11 @@ import Testing
         let (f, cleanup) = try await fake(); defer { cleanup() }
         try f.flag("hang")
         let m = f.master()
-        let start = Date()
+        // The fake hangs 600 s, so finishing well before that proves the deadline fired.
+        let clock = SuspendingClock(), start = clock.now
         #expect(await m.connect(timeout: 0.5) == .failure(.unreachable("timed out")))
-        #expect(Date().timeIntervalSince(start) < 2)
-        #expect(await waitUntil(3) { await f.liveFakes() == 0 })
+        #expect(clock.now - start < .seconds(20))
+        #expect(await waitUntil(20) { await f.liveFakes() == 0 })
     }
 
     @Test func deathFiresOnExitOnce() async throws {
@@ -146,9 +148,30 @@ import Testing
         #expect(await m.connect(timeout: 5) == .success(f.home))
         #expect(await m.probe(timeout: 5))
         try f.flag("hang")
-        let start = Date()
+        let clock = SuspendingClock(), start = clock.now
         #expect(await !m.probe(timeout: 0.3))
-        #expect(Date().timeIntervalSince(start) < 1)
+        #expect(clock.now - start < .seconds(20))  // the fake hangs 600 s
+    }
+
+    /// `exit()` while `connect` still waits for the old master to go: the new child must not be left running.
+    @Test func exitDuringReconnectStopsNewChild() async throws {
+        // A master that ignores SIGTERM, so the old one takes ~2 s (the SIGKILL escalation) to go.
+        let (m, root, cleanup) = try await script("""
+        case " $* " in *" -O "*) exit 0 ;; esac
+        echo $$ >> "$(dirname "$0")/pids"
+        trap '' TERM
+        printf 'HANGAR-READY /h\\n'
+        while :; do sleep 1; done
+        """)
+        defer { cleanup() }
+        #expect(await m.connect(timeout: 30) == .success("/h"))
+        let again = Task { await m.connect(timeout: 30) }
+        try await Task.sleep(nanoseconds: 500_000_000)  // inside the wait for the old master
+        m.exit()
+        guard case .failure = await again.value else { Issue.record("reconnect after exit() succeeded"); return }
+        let pids = ((try? String(contentsOfFile: root + "/pids", encoding: .utf8)) ?? "").split(separator: "\n").compactMap { pid_t($0) }
+        #expect(await waitUntil(20) { pids.allSatisfy { kill($0, 0) != 0 } })
+        for p in pids { kill(p, SIGKILL) }  // a failing run must not leave a TERM-proof loop behind
     }
 
     @Test func readyLineValidated() {

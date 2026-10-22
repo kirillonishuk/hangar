@@ -187,6 +187,14 @@ import Workspace
         window?.invalidateCursorRects(for: self)
     }
 
+    /// CLI/MCP on a drawer shell not shown since launch: start it hidden (rendering paused), like a tab's leaves.
+    func startHidden(leafId: UUID) {
+        guard let task = app.state.tasks.first(where: { !$0.archived && $0.drawer.leaf?.id == leafId }),
+              let leaf = task.drawer.leaf, leafViews[task.id] == nil else { return }
+        makeLeafView(taskId: task.id, leaf: leaf)
+        sync()
+    }
+
     private func makeLeafView(taskId: UUID, leaf: Leaf) {
         let view = LeafView(leafId: leaf.id)
         app.wireHost(view)
@@ -220,7 +228,8 @@ import Workspace
         bar.frame = NSRect(x: 0, y: 0, width: bounds.width, height: barH)
         topLine.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
         handle.frame = NSRect(x: 0, y: 0, width: bounds.width, height: Theme.drawerGrabHeight)
-        let body = NSRect(x: 0, y: barH, width: bounds.width, height: max(0, bounds.height - barH))
+        // Collapsed: a shell started hidden by CLI/MCP keeps the panel's size, not 0 rows.
+        let body = NSRect(x: 0, y: barH, width: bounds.width, height: bounds.height > barH ? bounds.height - barH : panelHeight)
         for view in leafViews.values { view.frame = body }
         window?.invalidateCursorRects(for: self)
     }

@@ -1,7 +1,8 @@
 import Foundation
 
 /// Read-only probe of a server (POSIX sh). Prints only `HANGAR <key> <value>` lines, control characters removed,
-/// `end` last. Tools are only asked for `--version` (`tmux -V`); nothing is written.
+/// `end` last. Tools are only asked for `--version` (`tmux -V`); nothing is written outside one `mktemp -d` dir
+/// (hx's XDG config/cache/data/state, since helix writes its log on start), which is removed afterwards.
 /// shortcut: a tool whose `--version` hangs hangs the check; the caller's cancel kills ssh. Add a timeout if seen.
 public let serverCheckScript = #"""
 p() { printf 'HANGAR %s\n' "$(printf '%s' "$*" | tr -d '\000-\037\177')"; }
@@ -22,8 +23,16 @@ p shell "${SHELL:-}"
 for t in git tmux claude codex hx curl npm; do
   x=$(command -v "$t" 2>/dev/null)
   case $x in
-    /*) if [ "$t" = tmux ]; then f=-V; else f=--version; fi
-        p tool "$t" "$x" "$("$x" "$f" </dev/null 2>/dev/null | head -n 1 | cut -c 1-80)" ;;
+    /*) v=
+        case $t in
+          tmux) v=$("$x" -V </dev/null 2>/dev/null | head -n 1 | cut -c 1-80) ;;
+          hx) if tmp=$(mktemp -d 2>/dev/null); then
+                v=$(XDG_CONFIG_HOME=$tmp XDG_CACHE_HOME=$tmp XDG_DATA_HOME=$tmp XDG_STATE_HOME=$tmp "$x" --version </dev/null 2>/dev/null | head -n 1 | cut -c 1-80)
+                rm -rf "$tmp"
+              fi ;;
+          *) v=$("$x" --version </dev/null 2>/dev/null | head -n 1 | cut -c 1-80) ;;
+        esac
+        p tool "$t" "$x" "$v" ;;
     *) p missing "$t" ;;
   esac
 done
@@ -139,6 +148,11 @@ public func checkServer(_ runner: Runner) async -> Result<ServerReport, SSHFailu
         return .failure(.exited(-1, String("\(error)".prefix(300))))
     }
     if r.status != 255, let report = parseServerReport(r.stdout) { return .success(report) }
+    // shortcut: csh/tcsh login shells are not supported (stage 6, #47); one cheap probe names the reason.
+    if r.status != 255, let probe = try? await runner.run(["/bin/sh", "-c", #"printf %s "$SHELL""#], ""), probe.status == 0,
+       let shell = absolutePath(probe.stdout), ["csh", "tcsh"].contains((shell as NSString).lastPathComponent) {
+        return .failure(.unsupportedShell(shell))
+    }
     return .failure(sshFailure(status: r.status, stderr: r.stderr.isEmpty ? "server check printed no report" : r.stderr))
 }
 
@@ -162,8 +176,9 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
     if !has(.claude) && !has(.curl) { pkgs.append(("curl", .curl)) }
 
     let pm = r.packageManager.flatMap { $0 == .brew || r.uid == 0 || r.hasSudo ? $0 : nil }
-    // apt-get and yum (RHEL/CentOS base) mostly have no helix package.
-    if pm == .aptGet || pm == .yum, let i = pkgs.firstIndex(where: { $0.tool == .hx }) {
+    // helix is in the distro's own repos only on Arch, Alpine, Fedora and Homebrew (not Debian/Ubuntu, RHEL clones, Amazon).
+    let helixInRepos = pm == .pacman || pm == .apk || pm == .brew || pm == .dnf && r.distro == "fedora"
+    if pm != nil, !helixInRepos, let i = pkgs.firstIndex(where: { $0.tool == .hx }) {
         manual.append(.hx)
         pkgs.remove(at: i)
     }
@@ -171,7 +186,8 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
         let list = pkgs.map(\.name).joined(separator: " ")
         let s = r.uid != 0 && pm != .brew ? "sudo " : ""
         let command = switch pm {
-        case .aptGet: "\(s)apt-get update && \(s)apt-get install -y \(list)"
+        // Separate lines, not `&&`: under `set -e` a failed left side of `&&` does not stop the script.
+        case .aptGet: "\(s)apt-get update\n\(s)apt-get install -y \(list)"
         case .dnf, .yum: "\(s)\(pm.rawValue) install -y \(list)"
         case .pacman: "\(s)pacman -S --needed --noconfirm \(list)"
         case .apk: "\(s)apk add \(list)"
@@ -184,7 +200,9 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
 
     if !has(.claude) {
         if has(.curl) || !steps.isEmpty && pkgs.contains(where: { $0.tool == .curl }) {
-            steps.append(InstallStep(title: "claude", command: "curl -fsSL https://claude.ai/install.sh | bash", inTerminal: true))
+            // Download first, then run: `curl | bash` would report bash's status and hide a failed download.
+            let command = "t=$(mktemp)\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\"\nrm -f \"$t\""
+            steps.append(InstallStep(title: "claude", command: command, inTerminal: true))
         } else {
             manual.append(.claude)
         }
@@ -202,7 +220,8 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
     if r.remoteOutdated(current: remoteVersion) {
         steps.append(InstallStep(
             title: "hangar-remote",
-            command: #"mkdir -p "$HOME/.hangar/bin" && cat > "$HOME/.hangar/bin/hangar-remote" && chmod 700 "$HOME/.hangar/bin/hangar-remote""#,
+            // Written to .tmp and renamed: a broken upload never replaces a working script.
+            command: #"mkdir -p "$HOME/.hangar/bin" && cat > "$HOME/.hangar/bin/hangar-remote.tmp" && chmod 700 "$HOME/.hangar/bin/hangar-remote.tmp" && mv -f "$HOME/.hangar/bin/hangar-remote.tmp" "$HOME/.hangar/bin/hangar-remote""#,
             inTerminal: false))
     }
     return (steps, manual)

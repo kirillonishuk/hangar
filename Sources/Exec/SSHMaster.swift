@@ -2,6 +2,8 @@ import Foundation
 
 public enum SSHFailure: Error, Equatable, Sendable {
     case auth(String), unreachable(String), exited(Int32, String)
+    /// The login shell (path) is csh/tcsh: not supported in stage 6 (#47).
+    case unsupportedShell(String)
 }
 
 /// Classifies a failed ssh by its stderr; the message is the last non-empty stderr line, at most 300 characters.

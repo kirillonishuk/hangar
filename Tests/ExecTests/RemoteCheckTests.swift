@@ -28,12 +28,15 @@ import Testing
 
     """
 
-    private func report(pm: PackageManager? = .aptGet, uid: Int = 1000, sudo: Bool = true,
+    private static let claudeInstall = "t=$(mktemp)\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\"\nrm -f \"$t\""
+    private static let remoteInstall = #"mkdir -p "$HOME/.hangar/bin" && cat > "$HOME/.hangar/bin/hangar-remote.tmp" && chmod 700 "$HOME/.hangar/bin/hangar-remote.tmp" && mv -f "$HOME/.hangar/bin/hangar-remote.tmp" "$HOME/.hangar/bin/hangar-remote""#
+
+    private func report(pm: PackageManager? = .aptGet, distro: String? = nil, uid: Int = 1000, sudo: Bool = true,
                         have: [RemoteTool] = RemoteTool.allCases, client: String? = "python3", remote: Int? = 1) -> ServerReport {
         var tools: [RemoteTool: ToolInfo] = [:]
         for t in have { tools[t] = ToolInfo(path: "/usr/bin/" + t.rawValue, version: "1") }
         return ServerReport(os: "Linux", home: "/home/dev", shell: "/bin/bash", claudeDir: "/home/dev/.claude",
-                            codexHome: "/home/dev/.codex", distro: nil, packageManager: pm, uid: uid, hasSudo: sudo,
+                            codexHome: "/home/dev/.codex", distro: distro, packageManager: pm, uid: uid, hasSudo: sudo,
                             tools: tools, socketClient: client, remoteVersion: remote)
     }
 
@@ -98,7 +101,7 @@ import Testing
     @Test func planTable() {
         // apt + no git, tmux, hx → hx is manual (no helix package on most apt releases).
         var p = installPlan(report(have: without([.git, .tmux, .hx])), remoteVersion: 1)
-        #expect(p.steps == [InstallStep(title: "packages", command: "sudo apt-get update && sudo apt-get install -y git tmux", inTerminal: true)])
+        #expect(p.steps == [InstallStep(title: "packages", command: "sudo apt-get update\nsudo apt-get install -y git tmux", inTerminal: true)])
         #expect(p.manual == [.hx])
 
         p = installPlan(report(pm: .pacman, uid: 0, sudo: false, have: without([.git, .tmux, .hx])), remoteVersion: 1)
@@ -110,6 +113,17 @@ import Testing
 
         p = installPlan(report(pm: .dnf, have: without([.tmux])), remoteVersion: 1)
         #expect(p.steps.map(\.command) == ["sudo dnf install -y tmux"])
+        // helix only where the distro's own repos have it: Fedora yes, RHEL/Rocky/Alma/Amazon no.
+        p = installPlan(report(pm: .dnf, distro: "fedora", have: without([.hx])), remoteVersion: 1)
+        #expect(p.steps.map(\.command) == ["sudo dnf install -y helix"])
+        #expect(p.manual.isEmpty)
+        for distro in ["rocky", "rhel", "almalinux", "amzn", nil] as [String?] {
+            p = installPlan(report(pm: .dnf, distro: distro, have: without([.hx])), remoteVersion: 1)
+            #expect(p.steps.isEmpty, "\(String(describing: distro))")
+            #expect(p.manual == [.hx])
+        }
+        p = installPlan(report(pm: .apk, uid: 0, have: without([.hx])), remoteVersion: 1)
+        #expect(p.steps.map(\.command) == ["apk add helix"])
         p = installPlan(report(pm: .yum, have: without([.tmux])), remoteVersion: 1)
         #expect(p.steps.map(\.command) == ["sudo yum install -y tmux"])
         p = installPlan(report(pm: .apk, uid: 0, have: without([.git]), client: nil), remoteVersion: 1)
@@ -124,8 +138,7 @@ import Testing
 
         // No claude and no curl → curl in the packages, the installer after them.
         p = installPlan(report(have: without([.claude, .curl])), remoteVersion: 1)
-        #expect(p.steps.map(\.command) == ["sudo apt-get update && sudo apt-get install -y curl",
-                                           "curl -fsSL https://claude.ai/install.sh | bash"])
+        #expect(p.steps.map(\.command) == ["sudo apt-get update\nsudo apt-get install -y curl", Self.claudeInstall])
         // …and without a way to get curl, claude is manual too.
         p = installPlan(report(pm: nil, have: without([.claude, .curl])), remoteVersion: 1)
         #expect(p.steps.isEmpty)
@@ -145,16 +158,15 @@ import Testing
         // hangar-remote missing or older → written over ssh stdin, not in the terminal.
         for old in [nil, 1] as [Int?] {
             p = installPlan(report(remote: old), remoteVersion: 2)
-            #expect(p.steps == [InstallStep(title: "hangar-remote",
-                                            command: #"mkdir -p "$HOME/.hangar/bin" && cat > "$HOME/.hangar/bin/hangar-remote" && chmod 700 "$HOME/.hangar/bin/hangar-remote""#,
-                                            inTerminal: false)])
+            #expect(p.steps == [InstallStep(title: "hangar-remote", command: Self.remoteInstall, inTerminal: false)])
         }
     }
 
     @Test func planIsWhatRuns() {
         let p = installPlan(report(have: [.npm], client: nil, remote: nil), remoteVersion: 1)
         #expect(p.steps.map(\.title) == ["packages", "claude", "codex", "hangar-remote"])
-        #expect(p.steps[0].command == "sudo apt-get update && sudo apt-get install -y git tmux socat curl")
+        #expect(p.steps[0].command == "sudo apt-get update\nsudo apt-get install -y git tmux socat curl")
+        #expect(p.steps[1].command == Self.claudeInstall)
         #expect(p.manual == [.hx])
         #expect(terminalScript(p.steps) == "set -e\n" + p.steps.filter(\.inTerminal).map(\.command).joined(separator: "\n"))
         #expect(!terminalScript(p.steps).contains("hangar-remote"))
@@ -169,7 +181,7 @@ import Testing
         let bin = root + "/bin", home = root + "/home dir"
         try fm.createDirectory(atPath: bin, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: home + "/.hangar/bin", withIntermediateDirectories: true)
-        for u in ["uname", "id", "sed", "tr", "cut", "head", "cat"] {
+        for u in ["uname", "id", "sed", "tr", "cut", "head", "cat", "mktemp", "rm", "mkdir", "dirname"] {
             let path = ["/usr/bin/" + u, "/bin/" + u].first { fm.fileExists(atPath: $0) }!
             try fm.createSymbolicLink(atPath: bin + "/" + u, withDestinationPath: path)
         }
@@ -182,6 +194,8 @@ import Testing
         try tool("tmux", #"[ "$1" = -V ] && echo 'tmux 3.4' || { echo usage >&2; exit 1; }"#)
         try tool("claude", "echo " + String(repeating: "x", count: 120) + "; echo second line")
         try tool("curl", "printf 'curl 8.5\\033[2J\\n'")
+        // Like helix: writes a log under its cache dir on start.
+        try tool("hx", #"c=${XDG_CACHE_HOME:-$HOME/.cache}; mkdir -p "$c/helix" && echo x > "$c/helix/log"; printf '%s\n' "$c" > "$(dirname "$0")/../hxcache"; echo 'helix 25.01'"#)
         try tool("apt-get", "exit 0")
         try tool("brew", "exit 0")
         try tool("sudo", "exit 0")
@@ -213,14 +227,19 @@ import Testing
             #expect(rep.tools[.tmux]?.version == "tmux 3.4")
             #expect(rep.tools[.claude]?.version == String(repeating: "x", count: 80))
             #expect(rep.tools[.curl]?.version == "curl 8.5[2J")
-            #expect(rep.tools[.hx] == nil && rep.tools[.codex] == nil && rep.tools[.npm] == nil)
+            #expect(rep.tools[.hx]?.version == "helix 25.01")
+            #expect(rep.tools[.codex] == nil && rep.tools[.npm] == nil)
+            // hx gets a temp XDG dir outside HOME, removed afterwards.
+            let hxCache = try String(contentsOfFile: f.root + "/hxcache", encoding: .utf8).trimmingCharacters(in: .newlines)
+            #expect(!hxCache.isEmpty && !hxCache.hasPrefix(f.home), "\(hxCache)")
+            #expect(!FileManager.default.fileExists(atPath: hxCache))
             #expect(rep.socketClient == "python3")
             #expect(rep.remoteVersion == 3)
             #expect(rep.claudeDir == "/cfg/claude")
             #expect(rep.codexHome == f.home + "/.codex")
             // Read-only: tools only asked for their version, nothing written under HOME, sudo / package managers never run.
             let calls = (try String(contentsOfFile: f.root + "/calls", encoding: .utf8)).split(separator: "\n").sorted()
-            #expect(calls == ["claude --version", "curl --version", "git --version", "tmux -V"], "\(sh)")
+            #expect(calls == ["claude --version", "curl --version", "git --version", "hx --version", "tmux -V"], "\(sh)")
             #expect(try FileManager.default.subpathsOfDirectory(atPath: f.home).sorted() == before)
         }
     }
@@ -251,5 +270,83 @@ import Testing
 
         try "auth".write(toFile: root + "/fake/fail", atomically: true, encoding: .utf8)
         #expect(await checkServer(runner) == .failure(.auth("Permission denied (publickey).")))
+    }
+
+    /// Runs `terminalScript` locally under /bin/sh with fake sudo / apt-get / curl / bash on PATH.
+    private func runInstall(_ script: String, failing: [String]) async throws -> (status: Int32, calls: [String]) {
+        let fm = FileManager.default
+        let root = NSTemporaryDirectory() + "hangar-install-\(UUID().uuidString)"
+        defer { try? fm.removeItem(atPath: root) }
+        let bin = root + "/bin"
+        try fm.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        for u in ["mktemp", "rm"] {
+            try fm.createSymbolicLink(atPath: bin + "/" + u, withDestinationPath: ["/usr/bin/" + u, "/bin/" + u].first { fm.fileExists(atPath: $0) }!)
+        }
+        for name in ["sudo", "apt-get", "curl", "bash"] {
+            let body = name == "sudo" ? #""$@""# : (failing.contains(name) ? "exit 7" : "exit 0")
+            try "#!/bin/sh\nprintf '%s %s\\n' \(name) \"$*\" >> \(shellQuote(root + "/calls"))\n\(body)\n"
+                .write(toFile: bin + "/" + name, atomically: true, encoding: .utf8)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/" + name)
+        }
+        let r = try await Runner.local.run(["env", "-i", "PATH=" + bin, "/bin/sh", "-c", script], "/")
+        let calls = ((try? String(contentsOfFile: root + "/calls", encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        return (r.status, calls)
+    }
+
+    @Test func terminalScriptStopsOnFailure() async throws {
+        let script = terminalScript(installPlan(report(have: without([.git, .claude, .curl])), remoteVersion: 1).steps)
+        // apt-get update fails → install never runs.
+        var r = try await runInstall(script, failing: ["apt-get"])
+        #expect(r.status != 0)
+        #expect(r.calls == ["sudo apt-get update", "apt-get update"])
+        // The download fails → the installer never runs (no `curl | bash` masking it).
+        r = try await runInstall(script, failing: ["curl"])
+        #expect(r.status != 0)
+        #expect(r.calls.contains { $0.hasPrefix("curl -fsSL -o ") })
+        #expect(!r.calls.contains { $0.hasPrefix("bash") }, "\(r.calls)")
+        // All succeed → status 0, the installer runs on the downloaded file.
+        r = try await runInstall(script, failing: [])
+        #expect(r.status == 0)
+        #expect(r.calls.contains { $0.hasPrefix("bash /") }, "\(r.calls)")
+    }
+
+    @Test func remoteInstallIsAtomic() throws {
+        let home = NSTemporaryDirectory() + "hangar-rinst-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
+        let step = try #require(installPlan(report(remote: nil), remoteVersion: 1).steps.last)
+        let text = "#!/bin/sh\n# hangar-remote 1\n"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["HOME=" + home, "/bin/sh", "-c", step.command]
+        let pipe = Pipe()
+        p.standardInput = pipe
+        try p.run()
+        pipe.fileHandleForWriting.write(Data(text.utf8))
+        try pipe.fileHandleForWriting.close()
+        p.waitUntilExit()
+        #expect(p.terminationStatus == 0)
+        let path = home + "/.hangar/bin/hangar-remote"
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == text)
+        #expect((try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int) == 0o700)
+        #expect(!FileManager.default.fileExists(atPath: path + ".tmp"))
+    }
+
+    @Test func cshLoginShellUnsupported() async {
+        // A csh/tcsh login shell cannot run the check: no report, then a cheap probe of $SHELL names the reason.
+        for shell in ["/bin/tcsh", "/usr/bin/csh"] {
+            let runner = Runner { args, _ in
+                args.contains(serverCheckScript)
+                    ? RunResult(status: 1, stdout: "", stderr: "Unmatched quote.")
+                    : RunResult(status: 0, stdout: shell, stderr: "")
+            }
+            #expect(await checkServer(runner) == .failure(.unsupportedShell(shell)))
+        }
+        let bash = Runner { args, _ in
+            args.contains(serverCheckScript)
+                ? RunResult(status: 1, stdout: "", stderr: "boom")
+                : RunResult(status: 0, stdout: "/bin/bash", stderr: "")
+        }
+        #expect(await checkServer(bash) == .failure(.exited(1, "boom")))
     }
 }

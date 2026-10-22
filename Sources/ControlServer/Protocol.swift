@@ -343,9 +343,12 @@ public struct ProjectsResult: Codable, Equatable, Sendable {
 public struct ProjectAddResult: Codable, Equatable, Sendable {
     public var project: ProjectInfo
     public var added: Bool
-    public init(project: ProjectInfo, added: Bool) {
+    /// Remote only: what the server lacks (nothing is installed from CLI/MCP); nil (absent in JSON) for a local project.
+    public var warnings: [String]?
+    public init(project: ProjectInfo, added: Bool, warnings: [String]? = nil) {
         self.project = project
         self.added = added
+        self.warnings = warnings
     }
 }
 

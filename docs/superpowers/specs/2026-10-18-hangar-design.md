@@ -137,7 +137,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 
 | Команда | Действие |
 |---|---|
-| `hangar projects list` / `add <path>` | проекты |
+| `hangar projects list` / `add <path> [--host H]` | проекты (с `--host` — папка на сервере, #45) |
 | `hangar tasks list [--project]` | задачи со статусами (и лист панели TERMINAL — его id годится как `--tab`) |
 | `hangar tasks create --project P --name N [--worktree --base B] [--prompt T]` | создать задачу |
 | `hangar tabs open --task T --kind claude\|codex\|editor\|shell [--prompt T]` | новая вкладка |

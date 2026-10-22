@@ -52,11 +52,9 @@ import SwiftUI
             phase = .failed(f.text, mono: f.mono)
             return
         }
-        // `~` is the server's home; a relative path is taken from there too.
-        let full = p == "~" ? home : p.hasPrefix("~/") ? home + p.dropFirst(1) : p.hasPrefix("/") ? p : home + "/" + p
-        let r = try? await remote.runner(h).run(["pwd", "-P"], full)
+        let real = await remoteRealPath(p, home: home, runner: remote.runner(h))
         guard h == trimmedHost, p == trimmedPath else { return }
-        guard let r, r.status == 0, let real = lastLine(r.stdout), real.hasPrefix("/") else {
+        guard let real else {
             phase = .failed(L10n.remotePathMissing, mono: false)
             return
         }
@@ -77,6 +75,14 @@ import SwiftUI
         server = nil
         cancel()
     }
+}
+
+/// The folder's real path on the server (`pwd -P`), nil if it is not there. `~` is the server's home; a relative path
+/// is taken from there too. Shared by the sheet and `projects.add --host`.
+func remoteRealPath(_ path: String, home: String, runner: Runner) async -> String? {
+    let full = path == "~" ? home : path.hasPrefix("~/") ? home + path.dropFirst(1) : path.hasPrefix("/") ? path : home + "/" + path
+    guard let r = try? await runner.run(["pwd", "-P"], full), r.status == 0, let real = lastLine(r.stdout), real.hasPrefix("/") else { return nil }
+    return real
 }
 
 /// Sheet (580, new-task-v4): title, one card (Хост with the ssh-config drop-down, Путь mono), the connection state,

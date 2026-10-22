@@ -36,13 +36,15 @@ func readyHome(_ line: Substring) -> String? {
 }
 
 /// The control master of one host: a child process of the app (#47). Ready = the marker on stdout, lost = the process
-/// exited; no polling. shortcut: `exit()` followed at once by `connect()` does not wait for the fire-and-forget
-/// `-O exit` (the new master binds only after a network round trip); make `exit` async if that ever bites.
+/// exited; no polling. `connect()` right after `exit()` first waits for that `-O exit` (≤ 3 s): run later, it would
+/// stop the new master on the same socket.
 public final class SSHMaster: @unchecked Sendable {
     public let host: String, controlPath: String, sshPath: String
     private let lock = NSLock()
     private var exitHandler: (@Sendable (SSHFailure) -> Void)?
     private var current: MasterProcess?
+    /// Bumped by `exit()`: a `connect` that started earlier must not start its child.
+    private var exits = 0
 
     public init(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh") {
         self.host = host; self.controlPath = controlPath; self.sshPath = sshPath
@@ -57,14 +59,20 @@ public final class SSHMaster: @unchecked Sendable {
     /// Starts the master; success is the server's `$HOME`. Timeout kills it and reports `.unreachable("timed out")`.
     public func connect(timeout: Double = 30) async -> Result<String, SSHFailure> {
         guard let host = validSSHHost(host) else { return .failure(.exited(255, "invalid host")) }
+        let (epoch, old) = lock.withLock { (exits, current) }
         // The old master unlinks its socket when it dies; it must not take the new one with it.
-        await lock.withLock { current }?.stopAndWait(seconds: 3)
+        await old?.stopAndWait(seconds: 3)
         unlink(controlPath)  // ssh -M with an existing socket silently runs without a master
         let script = #"printf 'HANGAR-READY %s\n' "$HOME"; exec cat >/dev/null"#
         let args = ["-M", "-T", "-S", controlPath, "-o", "ControlPersist=no", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
                     "--", host, remoteShellArgs(script: script, [])]
         let p = MasterProcess(sshPath: sshPath, args: args, host: host, controlPath: controlPath)
-        lock.withLock { current = p }
+        let stopped = lock.withLock { () -> Bool in
+            guard exits == epoch else { return true }
+            current = p
+            return false
+        }
+        if stopped { return .failure(.exited(-1, "stopped")) }
         return await p.start(timeout: timeout) { [weak self] failure in self?.onExit?(failure) }
     }
 
@@ -90,7 +98,7 @@ public final class SSHMaster: @unchecked Sendable {
 
     /// App quit or host removed: `-O exit` (fire-and-forget), close the master's stdin, terminate it; no `onExit`.
     public func exit() {
-        lock.withLock { current }?.stop(sendExit: true)
+        lock.withLock { () -> MasterProcess? in exits += 1; return current }?.stop(sendExit: true)
     }
 }
 
@@ -118,6 +126,8 @@ private final class MasterProcess: @unchecked Sendable {
     private var ready = false, stopped = false, stdinClosed = false, gone = false
     private var exitWaiters: [CheckedContinuation<Void, Never>] = []
     private var pid: pid_t = 0, ownGroup = false
+    /// The `-O exit` helper, if one was started.
+    private let exitHelper = DispatchGroup()
     private let outEOF = DispatchSemaphore(value: 0), errEOF = DispatchSemaphore(value: 0)
 
     init(sshPath: String, args: [String], host: String, controlPath: String) {
@@ -174,15 +184,22 @@ private final class MasterProcess: @unchecked Sendable {
             p.standardInput = FileHandle.nullDevice
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
-            try? p.run()
+            exitHelper.enter()
+            p.terminationHandler = { [exitHelper] _ in exitHelper.leave() }
+            do { try p.run() } catch { exitHelper.leave() }
         }
         closeStdin()
         if target > 0 && process.isRunning { terminateProcess(target, group: group) }
     }
 
-    /// Stops without `-O exit` and returns once the process is gone; after `seconds` it is SIGKILLed and not waited for.
+    /// Stops without `-O exit` and returns once the process (and an earlier `-O exit` helper) is gone; after `seconds`
+    /// it is SIGKILLed and not waited for.
     func stopAndWait(seconds: Double) async {
         stop(sendExit: false)
+        let helper = exitHelper
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global().async { _ = helper.wait(timeout: .now() + seconds); c.resume() }
+        }
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
             let done = lock.withLock { () -> Bool in
                 if gone || pid == 0 { return true }

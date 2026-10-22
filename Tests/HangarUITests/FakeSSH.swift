@@ -2,7 +2,7 @@ import Foundation
 import Exec
 
 /// A fake `ssh` (sh script) that runs the remote command locally with HOME = `<dir>/home`; never touches the network.
-/// Behaviour switches are files in `dir`, visible to any process: `fail` (`auth` / `refused`) → exit 255, `hang` → sleep.
+/// Behaviour switches are files in `dir`, visible to any process: `fail` (`auth` / `refused`) → exit 255, `hang` → sleep; each master's pid → `master.pid` and `master-<host>.pid`.
 enum FakeSSH {
     static func make(dir: String) throws -> (path: String, log: String, home: String) {
         let fm = FileManager.default
@@ -25,7 +25,7 @@ enum FakeSSH {
             *) break ;;
           esac
         done
-        shift  # host
+        host=$1; shift
         case "$ctl" in
           forward) ln -sf "${fwd#*:}" "${fwd%%:*}"; exit 0 ;;
           exit) kill "$(cat "$D/master.pid")" 2>/dev/null; exit 0 ;;
@@ -38,8 +38,9 @@ enum FakeSSH {
           esac
           exit 255
         fi
-        if [ -f "$D/hang" ]; then sleep 30; exit 255; fi
-        [ -n "$master" ] && echo $$ > "$D/master.pid"
+        # exec: killing the fake ssh must not leave a stray sleep behind.
+        if [ -f "$D/hang" ]; then exec sleep 600; fi
+        [ -n "$master" ] && echo $$ > "$D/master.pid" && echo $$ > "$D/master-$host.pid"
         export HOME="$D/home"
         cd "$HOME" || exit 255
         exec sh -c "$*"

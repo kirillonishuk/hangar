@@ -61,6 +61,8 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         let master: SSHMaster
         var server: ControlServer?
         var inFlight: Task<Void, Never>?
+        /// Identifies `inFlight`: an older attempt finishing must not clear a newer one.
+        var attemptID = 0
         var cancelTimer: (() -> Void)?
         /// Attempts made since the loss; > 0 (or `waiting`) means failures go on with the backoff.
         var attempts = 0
@@ -90,7 +92,7 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         link.cancelTimer?(); link.cancelTimer = nil
         link.attempts = 0; link.reconnecting = false; link.waiting = false
         set(host) { $0.state = .connecting; $0.authFailed = false }
-        await attempt(host)
+        await startAttempt(host).value
         return state(host)
     }
 
@@ -121,13 +123,20 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         set(host) { $0.state = .disconnected }
     }
 
+    /// The host's last project went away (Task 9): disconnect and forget it; repeating is harmless.
+    public func remove(_ host: String) {
+        if let link = links[host] { close(link, host) }
+        links[host] = nil
+        hosts[host] = nil
+    }
+
     /// A host paused for activation gets its next attempt now.
     public func appBecameActive() {
         for (host, link) in links where link.waiting && link.inFlight == nil {
             link.waiting = false
             link.attempts += 1
             set(host) { $0.state = .reconnecting(attempt: link.attempts) }
-            Task { await attempt(host) }
+            startAttempt(host)
         }
     }
 
@@ -168,8 +177,10 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         return l
     }
 
+    /// A still-running attempt is detached (its generation is stale), so a `connect` right after starts fresh.
     private func close(_ link: Link, _ host: String) {
         link.generation += 1
+        link.inFlight = nil
         link.cancelTimer?(); link.cancelTimer = nil
         link.attempts = 0; link.reconnecting = false; link.waiting = false
         link.master.exit()
@@ -178,13 +189,18 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         set(host) { $0.forwarding = false }
     }
 
-    /// One attempt; every caller of `connect` during it awaits the same task.
-    private func attempt(_ host: String) async {
+    /// Stores the attempt before returning, so any `connect` from now on awaits this same task.
+    @discardableResult private func startAttempt(_ host: String) -> Task<Void, Never> {
         let link = self.link(host)
-        let t = Task { await establish(host, link) }
+        if let t = link.inFlight { return t }
+        link.attemptID += 1
+        let id = link.attemptID
+        let t = Task {
+            await establish(host, link)
+            if link.attemptID == id { link.inFlight = nil }
+        }
         link.inFlight = t
-        await t.value
-        link.inFlight = nil
+        return t
     }
 
     /// master → check → host socket → forward → connected.
@@ -201,15 +217,17 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
             if gen == link.generation { failed(host, link, f) }
             return
         }
+        // Disconnected meanwhile: `close` already stopped this master, and a newer attempt may own it now.
+        guard gen == link.generation else { return }
         let report: ServerReport
         switch await check(host, link.master) {
         case let .success(r): report = r
         case let .failure(f):
+            guard gen == link.generation else { return }
             link.master.exit()
-            if gen == link.generation { failed(host, link, f) }
-            return
+            return failed(host, link, f)
         }
-        guard gen == link.generation else { link.master.exit(); return }
+        guard gen == link.generation else { return }
         var forwarding = false
         if link.server == nil {
             let server = ControlServer(path: paths.hostSocket(host), remote: true, handler: { [weak self] m in self?.onMessage(host, m) })
@@ -218,7 +236,8 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         if link.server != nil {
             forwarding = await link.master.forward(remote: home + "/.hangar/hangar.sock", local: paths.hostSocket(host))
         }
-        guard gen == link.generation else { link.master.exit(); return }
+        guard gen == link.generation else { return }
+        // Checked right before `.connected` with no suspension in between; a later death finds `.connected` (see `lost`).
         if link.died { link.master.exit(); return failed(host, link, .unreachable("connection lost")) }
         link.attempts = 0; link.reconnecting = false
         set(host) { $0 = HostInfo(state: .connected, home: home, report: report, forwarding: forwarding, authFailed: false) }
@@ -261,8 +280,10 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
 
     private func lost(_ host: String, _ f: SSHFailure) {
         guard let link = links[host] else { return }
-        if link.inFlight != nil { link.died = true; return }
-        guard state(host) == .connected else { return }
+        guard state(host) == .connected else {
+            if link.inFlight != nil { link.died = true }
+            return
+        }
         set(host) { $0.forwarding = false }
         onLost?(host)
         link.reconnecting = true
@@ -284,7 +305,7 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
             guard let self, link.generation == gen else { return }
             link.cancelTimer = nil
             link.attempts = n
-            Task { await self.attempt(host) }
+            self.startAttempt(host)
         }
     }
 }

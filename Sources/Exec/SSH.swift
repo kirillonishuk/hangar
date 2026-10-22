@@ -64,16 +64,19 @@ public func remoteShellArgs(script: String, _ args: [String]) -> String {
     (["/bin/sh", "-c", shellQuote(script), "sh"] + args.map(shellQuote)).joined(separator: " ")
 }
 
-/// `$1` = cwd (empty = remote $HOME), the rest = argv. No prompts: git must fail rather than wait for a password.
-let remoteRunScript = #"cd "${1:-$HOME}" && shift && exec env GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes}" "$@""#
+/// `$1` = PATH (empty = sshd's own), `$2` = cwd (empty = remote $HOME), the rest = argv. No prompts: git must fail
+/// rather than wait for a password.
+let remoteRunScript = #"[ -z "$1" ] || { PATH=$1; export PATH; }; shift; cd "${1:-$HOME}" && shift && exec env GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes}" "$@""#
 
 extension Runner {
     /// Runs argv on `host` through the master at `controlPath`; a failed login is status 255 with ssh's stderr.
     /// Cancel kills the local ssh. shortcut: the remote command may outlive a cancel; ok for short git calls.
     /// `maxOutput`: past that many bytes on a stream the ssh is killed and the stream cut (untrusted server output).
-    public static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh", maxOutput: Int = .max) -> Runner {
+    /// `path`: the login shell's PATH from the server check (#47); nil = the non-login PATH sshd gives.
+    public static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh", maxOutput: Int = .max,
+                           path: String? = nil) -> Runner {
         Runner { args, cwd in
-            try await runSSH(host: host, controlPath: controlPath, sshPath: sshPath, script: remoteRunScript, args: [cwd] + args,
+            try await runSSH(host: host, controlPath: controlPath, sshPath: sshPath, script: remoteRunScript, args: [path ?? "", cwd] + args,
                              input: nil, maxOutput: maxOutput)
         }
     }

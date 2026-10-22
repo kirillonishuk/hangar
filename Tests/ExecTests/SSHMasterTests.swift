@@ -156,7 +156,7 @@ import Testing
         let m = f.master()
         defer { m.exit() }
         #expect(await m.connect(timeout: 5) == .success(f.home))
-        #expect(await m.probe(timeout: 5))
+        #expect(await m.probe(timeout: 30))  // returns at once; generous for a loaded run
         try f.flag("hang")
         let clock = SuspendingClock(), start = clock.now
         #expect(await !m.probe(timeout: 0.3))

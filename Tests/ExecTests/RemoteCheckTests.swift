@@ -64,6 +64,17 @@ import Testing
         #expect(r.remoteOutdated(current: 1))
     }
 
+    /// The login PATH reaches every later remote command: only absolute entries, bounded; else nil (sshd's PATH).
+    @Test func parseLoginPath() throws {
+        #expect(try #require(parseServerReport(Self.ubuntu)).path == nil)
+        let good = "/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin"
+        for (value, expected) in [(good, good), ("bin:/usr/bin", nil), ("/usr/bin::/bin", nil), ("/usr/bin:", nil), ("", nil),
+                                  ("/" + String(repeating: "a", count: 4000), nil)] as [(String, String?)] {
+            let text = Self.ubuntu.replacingOccurrences(of: "HANGAR end\n", with: "HANGAR path \(value)\nHANGAR end\n")
+            #expect(try #require(parseServerReport(text)).path == expected, "\(value)")
+        }
+    }
+
     @Test func parseRejectsTruncated() {
         #expect(parseServerReport(Self.ubuntu.replacingOccurrences(of: "HANGAR end\n", with: "")) == nil)
         #expect(parseServerReport(Self.ubuntu.replacingOccurrences(of: "HANGAR home /home/dev\n", with: "")) == nil)

@@ -50,6 +50,7 @@ fi
 p remote "$r"
 p claude_dir "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 p codex_home "${CODEX_HOME:-$HOME/.codex}"
+p path "$PATH"
 p end
 """#
 
@@ -80,6 +81,8 @@ public struct ServerReport: Equatable, Sendable {
     public var tools: [RemoteTool: ToolInfo]
     public var socketClient: String?
     public var remoteVersion: Int?
+    /// The login shell's PATH (where the check found the tools); every later command on the host runs with it.
+    public var path: String? = nil
 
     public var tmux: Bool { tools[.tmux] != nil }
     public var missingRequired: [RemoteTool] { [RemoteTool.git, .tmux].filter { tools[$0] == nil } }
@@ -118,6 +121,7 @@ public func parseServerReport(_ stdout: String) -> ServerReport? {
         case "remote": r.remoteVersion = Int(value).flatMap { (1...1_000_000).contains($0) ? $0 : nil }
         case "claude_dir": r.claudeDir = absolutePath(value) ?? ""
         case "codex_home": r.codexHome = absolutePath(value) ?? ""
+        case "path": r.path = loginPath(value)
         case "end": ended = true
         default: continue
         }
@@ -133,6 +137,12 @@ private func isControl(_ u: Unicode.Scalar) -> Bool { u.value < 0x20 || (0x7f...
 
 private func printable(_ s: String, max: Int) -> String? {
     !s.isEmpty && s.count <= max && !s.unicodeScalars.contains(where: isControl) ? s : nil
+}
+
+/// A PATH goes into every remote command's environment: ≤ 4000 bytes, printable, only absolute entries.
+func loginPath(_ s: String) -> String? {
+    guard s.utf8.count <= 4000, printable(s, max: 4000) != nil else { return nil }
+    return s.split(separator: ":", omittingEmptySubsequences: false).allSatisfy({ $0.hasPrefix("/") }) ? s : nil
 }
 
 private func absolutePath(_ s: String) -> String? {

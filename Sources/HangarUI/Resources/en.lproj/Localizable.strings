@@ -267,3 +267,4 @@
 "integrationShortInstalled" = "Installed";
 "integrationShortOutdated" = "Outdated";
 "removeEllipsis" = "Remove…";
+"hostPausedBar" = "No connection to %@ · ↩ reconnect";

@@ -111,7 +111,7 @@ import Workspace
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
-        case integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
+        case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
@@ -365,6 +365,7 @@ import Workspace
 
     // SSH hosts, remote project and server sheets
     static var integrationNotInstalled: String { s(.integrationNotInstalled) }
+    static func hostPausedBar(_ host: String) -> String { f(.hostPausedBar, host) }
     static var integrationShortInstalled: String { s(.integrationShortInstalled) }
     static var integrationShortOutdated: String { s(.integrationShortOutdated) }
     static var removeEllipsis: String { s(.removeEllipsis) }

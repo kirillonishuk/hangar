@@ -37,6 +37,8 @@ struct IntegrationPlan: Equatable {
     var diff: [DiffLine]  // collapsed
     /// `host:path` of a file on an ssh server (the sheet shows it instead of a local path); nil = this Mac.
     var displayPath: String?
+    /// `host:path` of the file the remote write replaces (symlinks followed): its backup goes next to it.
+    var backupDisplayPath: String?
 }
 
 /// Settings → integrations. Nothing is written except by `apply` of a plan the user confirmed in the sheet.

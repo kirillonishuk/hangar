@@ -255,6 +255,17 @@ struct SidebarView: View {
                     }
                     .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
                     .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
+                    // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
+                    if let host = project.host, app.renaming != target {
+                        HStack(spacing: Theme.railInset) {
+                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                            Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                                .font(.system(size: Theme.fontSize.counter))
+                                .foregroundStyle(Theme.ui.text3)
+                        }
+                        .padding(.leading, Theme.railInset * 1.5)
+                        .layoutPriority(-1)
+                    }
                     Spacer(minLength: Theme.statusDot)
                     MoreMenu(target: target, ctx: ctx).opacity(hover ? 1 : 0)
                     if exists {

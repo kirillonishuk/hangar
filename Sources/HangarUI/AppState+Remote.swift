@@ -125,11 +125,14 @@ extension AppState {
         Task { await remote.connect(host) }
     }
 
-    /// The host was given up on or disconnected by the user: a waiting leaf offers «Переподключиться».
-    func hostDown(_ host: String) -> Bool {
-        switch remote.hosts[host]?.state {
-        case .unreachable?, .disconnected?: true
-        default: false
+    /// A waiting leaf's bar when nothing is retrying right now (given up, disconnected, retry paused without a timer):
+    /// it offers «Переподключиться». nil while the host is connecting.
+    func hostReconnectText(_ host: String) -> String? {
+        guard let info = remote.hosts[host] else { return nil }
+        switch info.state {
+        case .unreachable, .disconnected: return L10n.hostGaveUp(host)
+        case .reconnecting where info.retryPaused: return L10n.hostPausedBar(host)
+        default: return nil
         }
     }
 
@@ -137,7 +140,7 @@ extension AppState {
     func wireHost(_ view: LeafView) {
         guard let host = remoteLeafHost(view.leafId) else { return }
         view.host = host
-        view.hostDown = { [weak self] in self?.hostDown(host) ?? false }
+        view.reconnectText = { [weak self] in self?.hostReconnectText(host) }
         view.onReconnect = { [weak self] in self?.reconnect(host: host) }
     }
 

@@ -4,20 +4,22 @@ import Foundation
 import Integration
 import Observation
 
-/// Writes an integration file on the server from stdin = `<expected bytes><new bytes>`: `$1` path, `$2` length of the
-/// expected bytes (`-` = the file must not exist), `$3` timestamp. Symlinks are followed (the link stays a link).
-/// Exit 3 = the file is not what the plan was made from. The old file is copied (`cp -p`) next to it before anything
-/// is replaced; the new one goes to a temp file with the old mode and is renamed over it. Prints the backup path.
-/// `dd bs=1`: `head -c` may read past its count from a pipe, eating the new bytes.
-let remoteFileWriteScript = #"""
-set -e
-f=$1; n=$2; ts=$3
+/// Follows `$f`'s symlinks (at most 32), as the write does: the backup goes next to the real file.
+let remoteResolveLinks = #"""
 i=0
 while [ -L "$f" ] && [ $i -lt 32 ]; do
   l=$(readlink "$f")
   case $l in /*) f=$l ;; *) f=${f%/*}/$l ;; esac
   i=$((i + 1))
 done
+"""#
+
+/// Writes an integration file on the server from stdin = `<expected bytes><new bytes>`: `$1` path, `$2` length of the
+/// expected bytes (`-` = the file must not exist), `$3` timestamp. Symlinks are followed (the link stays a link).
+/// Exit 3 = the file is not what the plan was made from. The old file is copied (`cp -p`) next to it before anything
+/// is replaced; the new one goes to a temp file with the old mode and is renamed over it. Prints the backup path.
+/// `dd bs=1`: `head -c` may read past its count from a pipe, eating the new bytes.
+let remoteFileWriteScript = "set -e\nf=$1; n=$2; ts=$3\n" + remoteResolveLinks + "\n" + #"""
 d=${f%/*}
 mkdir -p "$d"
 tmp=$(mktemp "$d/.hangar-XXXXXX")
@@ -173,6 +175,13 @@ mv -f "$tmp" "$f"
         throw RemoteFileError(message: lastLine(r.stderr) ?? L10n.exitStatus(r.status))
     }
 
+    /// The file the write will replace (its symlinks followed on the server), for the sheet's backup line.
+    private func resolve(_ path: String) async throws -> String {
+        let r = try await remote.runner(host).run(["/bin/sh", "-c", "f=$1\n" + remoteResolveLinks + "\nprintf '%s\\n' \"$f\"", "sh", path], "")
+        guard r.status == 0, let real = lastLine(r.stdout) else { throw RemoteFileError(message: lastLine(r.stderr) ?? L10n.exitStatus(r.status)) }
+        return real
+    }
+
     private struct RemoteFileError: LocalizedError {
         var message: String
         var errorDescription: String? { message }
@@ -193,9 +202,10 @@ mv -f "$tmp" "$f"
                 updated = t == .claude ? try claudeUninstall(original) : try codexUninstall(original)
             }
             integrationError = nil
-            let url = URL(fileURLWithPath: path)
-            return IntegrationPlan(target: t, install: install, url: url, resolved: url, original: original, updated: updated,
-                                   diff: collapsed(lineDiff(original ?? "", updated)), displayPath: host + ":" + path)
+            let real = try await resolve(path)
+            return IntegrationPlan(target: t, install: install, url: URL(fileURLWithPath: path), resolved: URL(fileURLWithPath: real),
+                                   original: original, updated: updated, diff: collapsed(lineDiff(original ?? "", updated)),
+                                   displayPath: host + ":" + path, backupDisplayPath: host + ":" + real)
         } catch {
             integrationError = (error as? RemoteFileError)?.message ?? IntegrationModel.describe(error)
             return nil
@@ -227,7 +237,9 @@ mv -f "$tmp" "$f"
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyyMMdd-HHmmss"
         let old = p.original.map { Data($0.utf8) }
-        let args = [p.url.path, old.map { String($0.count) } ?? "-", f.string(from: now())]
+        // The path exactly as read (`URL.path` would normalize it).
+        let path = p.displayPath.map { String($0.dropFirst(host.count + 1)) } ?? p.url.path
+        let args = [path, old.map { String($0.count) } ?? "-", f.string(from: now())]
         let r = await remote.write(host, script: remoteFileWriteScript, args: args, input: (old ?? Data()) + Data(p.updated.utf8))
         guard r.status == 0 else {
             integrationError = r.status == 3 ? L10n.fileChanged : L10n.integrationWriteFailed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))

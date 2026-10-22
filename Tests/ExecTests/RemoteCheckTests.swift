@@ -28,7 +28,7 @@ import Testing
 
     """
 
-    private static let claudeInstall = "t=$(mktemp)\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\"\nrm -f \"$t\""
+    private static let claudeInstall = "t=$(mktemp)\ntrap 'rm -f \"$t\"' EXIT\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\""
     private static let remoteInstall = #"mkdir -p "$HOME/.hangar/bin" && cat > "$HOME/.hangar/bin/hangar-remote.tmp" && chmod 700 "$HOME/.hangar/bin/hangar-remote.tmp" && mv -f "$HOME/.hangar/bin/hangar-remote.tmp" "$HOME/.hangar/bin/hangar-remote""#
 
     private func report(pm: PackageManager? = .aptGet, distro: String? = nil, uid: Int = 1000, sudo: Bool = true,
@@ -279,9 +279,13 @@ import Testing
         defer { try? fm.removeItem(atPath: root) }
         let bin = root + "/bin"
         try fm.createDirectory(atPath: bin, withIntermediateDirectories: true)
-        for u in ["mktemp", "rm"] {
-            try fm.createSymbolicLink(atPath: bin + "/" + u, withDestinationPath: ["/usr/bin/" + u, "/bin/" + u].first { fm.fileExists(atPath: $0) }!)
-        }
+        try fm.createSymbolicLink(atPath: bin + "/rm", withDestinationPath: "/bin/rm")
+        // macOS mktemp ignores TMPDIR: a fake one creates its files in `<root>/tmp` so leftovers can be seen.
+        let tmp = root + "/tmp"
+        try fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
+        try "#!/bin/sh\nf=\(shellQuote(tmp))/t.$$\n: > \"$f\"\nprintf '%s\\n' \"$f\"\n"
+            .write(toFile: bin + "/mktemp", atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/mktemp")
         for name in ["sudo", "apt-get", "curl", "bash"] {
             let body = name == "sudo" ? #""$@""# : (failing.contains(name) ? "exit 7" : "exit 0")
             try "#!/bin/sh\nprintf '%s %s\\n' \(name) \"$*\" >> \(shellQuote(root + "/calls"))\n\(body)\n"
@@ -290,6 +294,7 @@ import Testing
         }
         let r = try await Runner.local.run(["env", "-i", "PATH=" + bin, "/bin/sh", "-c", script], "/")
         let calls = ((try? String(contentsOfFile: root + "/calls", encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        #expect(try fm.contentsOfDirectory(atPath: tmp).isEmpty, "temp file left, failing: \(failing)")
         return (r.status, calls)
     }
 
@@ -304,6 +309,9 @@ import Testing
         #expect(r.status != 0)
         #expect(r.calls.contains { $0.hasPrefix("curl -fsSL -o ") })
         #expect(!r.calls.contains { $0.hasPrefix("bash") }, "\(r.calls)")
+        // The installer fails → non-zero, its temp file still removed (checked in runInstall).
+        r = try await runInstall(script, failing: ["bash"])
+        #expect(r.status != 0)
         // All succeed → status 0, the installer runs on the downloaded file.
         r = try await runInstall(script, failing: [])
         #expect(r.status == 0)

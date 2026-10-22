@@ -201,7 +201,8 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [Insta
     if !has(.claude) {
         if has(.curl) || !steps.isEmpty && pkgs.contains(where: { $0.tool == .curl }) {
             // Download first, then run: `curl | bash` would report bash's status and hide a failed download.
-            let command = "t=$(mktemp)\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\"\nrm -f \"$t\""
+            // The trap removes the download on any exit, including a `set -e` stop.
+            let command = "t=$(mktemp)\ntrap 'rm -f \"$t\"' EXIT\ncurl -fsSL -o \"$t\" https://claude.ai/install.sh\nbash \"$t\""
             steps.append(InstallStep(title: "claude", command: command, inTerminal: true))
         } else {
             manual.append(.claude)

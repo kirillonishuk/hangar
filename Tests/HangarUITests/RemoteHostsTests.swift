@@ -288,9 +288,11 @@ import Workspace
         #expect(FileManager.default.fileExists(atPath: paths.hostSocket("dev")))
         h.remote.stopAll()
         #expect(await waitUntil { !masters.contains(where: h.alive) })
-        // Two concurrent fake calls may interleave their log lines, so count the `exit` lines instead of parsing calls.
-        let lines = ((try? String(contentsOfFile: h.log, encoding: .utf8)) ?? "").split(separator: "\n")
-        #expect(lines.filter { $0 == "exit" }.count == 2)
+        // The `-O exit` helpers run after the masters got SIGTERM. Concurrent fake calls may interleave their log
+        // lines, so count the `exit` lines instead of parsing calls.
+        #expect(await waitUntil {
+            ((try? String(contentsOfFile: h.log, encoding: .utf8)) ?? "").split(separator: "\n").filter { $0 == "exit" }.count == 2
+        })
         #expect(!FileManager.default.fileExists(atPath: paths.hostSocket("dev")))
         #expect(!FileManager.default.fileExists(atPath: paths.hostSocket("other")))
         #expect(h.state() == .disconnected && h.state("other") == .disconnected)
@@ -347,6 +349,34 @@ import Workspace
         #expect(h.state() == .connected)
         #expect(h.unreachable.isEmpty)
         #expect(h.connected == ["dev", "dev"])
+    }
+
+    /// An attempt started and cancelled in the same main-actor turn (before its body runs) must not connect.
+    @Test func disconnectBeforeAttemptBodyRuns() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        h.active = false
+        #expect(await h.remote.connect("dev") == .connected)
+        h.killMaster()
+        #expect(await waitUntil { h.lost == ["dev"] })
+        h.active = true
+        h.remote.appBecameActive()  // starts the attempt synchronously
+        h.remote.disconnect("dev")
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        #expect(h.state() == .disconnected)
+        #expect(h.masterCalls() == 1)
+        #expect(h.connected == ["dev"])
+    }
+
+    /// remove, then the host comes back at once: the old `-O exit` must not stop the new master.
+    @Test func removeThenReconnectKeepsNewMaster() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        h.remote.remove("dev")
+        #expect(await h.remote.connect("dev") == .connected)
+        let master = try #require(h.pid("master-dev.pid"))
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        #expect(h.alive(master))
+        #expect(try await h.remote.runner("dev").run(["true"], "").status == 0)
     }
 
     /// Disconnect while the check runs: the old attempt stops; a connect right away starts fresh, and the old

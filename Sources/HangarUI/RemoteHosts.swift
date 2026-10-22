@@ -56,6 +56,8 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
     @ObservationIgnored private let hasWorking: (String) -> Bool
     @ObservationIgnored private let onMessage: (String, ControlMessage) -> Void
     @ObservationIgnored private var links: [String: Link] = [:]
+    /// Kept across `remove`: a re-added host's `connect` then waits for the old master's pending `-O exit`.
+    @ObservationIgnored private var masters: [String: SSHMaster] = [:]
 
     private final class Link {
         let master: SSHMaster
@@ -172,7 +174,9 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
 
     private func link(_ host: String) -> Link {
         if let l = links[host] { return l }
-        let l = Link(master: SSHMaster(host: host, controlPath: paths.controlPath(host), sshPath: sshPath))
+        let master = masters[host] ?? SSHMaster(host: host, controlPath: paths.controlPath(host), sshPath: sshPath)
+        masters[host] = master
+        let l = Link(master: master)
         links[host] = l
         return l
     }
@@ -194,9 +198,10 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
         let link = self.link(host)
         if let t = link.inFlight { return t }
         link.attemptID += 1
-        let id = link.attemptID
+        // Captured now: a disconnect before the body runs must still cancel it.
+        let id = link.attemptID, gen = link.generation
         let t = Task {
-            await establish(host, link)
+            await establish(host, link, gen: gen)
             if link.attemptID == id { link.inFlight = nil }
         }
         link.inFlight = t
@@ -204,8 +209,8 @@ public enum RemoteHostError: Error, Equatable, CustomStringConvertible {
     }
 
     /// master → check → host socket → forward → connected.
-    private func establish(_ host: String, _ link: Link) async {
-        let gen = link.generation
+    private func establish(_ host: String, _ link: Link, gen: Int) async {
+        guard gen == link.generation else { return }
         link.died = false
         guard validSSHHost(host) != nil else { return failed(host, link, .exited(255, "invalid host")) }
         do { try paths.prepare() } catch { return failed(host, link, .exited(-1, "\(error)")) }

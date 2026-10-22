@@ -160,7 +160,7 @@ import Exec
             await calls.add(args)
             return try await Runner.local.run(args, cwd)
         })
-        _ = await g.isRepository()
+        _ = try await g.isRepository()
         _ = try await g.defaultBranch()
         let cs = try await g.changedFiles(.base("main"))
         _ = try await g.diff(file: try #require(cs.files.first), from: cs.from)

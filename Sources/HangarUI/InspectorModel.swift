@@ -220,7 +220,7 @@ struct RefreshParts: OptionSet, Sendable {
         var r = LoadResult()
         r.diffPath = input.diffPath
         var git = makeGit(input.root)
-        if input.top == nil, !input.remote, await !git.isRepository() {
+        if input.top == nil, !input.remote, (try? await git.isRepository()) != true {
             r.isGit = false
             r.diffUnavailable = input.diffPath != nil && (parts.contains(.diff) || parts.contains(.status))
             guard parts.contains(.tree) else { return r }

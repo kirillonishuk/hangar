@@ -108,6 +108,7 @@ struct NewTaskSheet: View {
 
     private var worktreeHint: String {
         if model.availability == .noCommits { return L10n.noCommits }
+        if case .hostOffline(let host) = model.availability { return L10n.hostOffline(host) }
         return model.worktree ? L10n.worktreeOnHint : L10n.worktreeOffHint
     }
 

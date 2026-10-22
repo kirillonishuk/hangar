@@ -6,7 +6,7 @@ import Workspace
 /// Logic of the new-task sheet: worktree toggle, base branch, background fetch, branch validation, worktree creation.
 /// git runs only on open (`load`), on ↻ (`refresh`) and before create; no timers.
 @MainActor @Observable final class NewTaskModel {
-    enum Availability: Equatable { case loading, notRepository, noCommits, ready }
+    enum Availability: Equatable { case loading, notRepository, noCommits, ready, hostOffline(String) }
     enum FetchState: Equatable { case idle, running, done, failed(String), cancelled, noRemote }
 
     var name = "" {
@@ -58,7 +58,13 @@ import Workspace
 
     func load() async {
         availability = .loading
-        guard await git.isRepository() else {
+        let isRepository: Bool
+        do { isRepository = try await git.isRepository() } catch RemoteHostError.notConnected(let host) {
+            availability = .hostOffline(host)
+            worktree = false
+            return
+        } catch { isRepository = false }
+        guard isRepository else {
             availability = .notRepository
             worktree = false
             return

@@ -166,7 +166,7 @@ struct ProjectSettingsSheet: View {
 
     /// Reads branches without fetching.
     private func loadGit() async {
-        guard await git.isRepository(), await git.hasCommits() else { isGit = false; return }
+        guard (try? await git.isRepository()) == true, await git.hasCommits() else { isGit = false; return }
         do { branches = try await git.listBranches() } catch {
             branchesError = (error as? GitError)?.errorDescription ?? error.localizedDescription
         }
@@ -193,9 +193,15 @@ struct ProjectSettingsSheet: View {
             onSave(name, trimmed, base, root)
             return
         }
-        // A host that can't answer counts as missing: nothing is saved.
+        // Nothing is saved unless the host says the folder is there; a host that isn't connected says so.
         Task {
-            guard trimmed.hasPrefix("/"), await directoryExists(trimmed, runner: runner) else { error = L10n.folderMissing(trimmed); return }
+            do {
+                guard trimmed.hasPrefix("/"), try await directoryExists(trimmed, runner: runner) else { error = L10n.folderMissing(trimmed); return }
+            } catch RemoteHostError.notConnected(let host) {
+                error = L10n.hostOffline(host); return
+            } catch {
+                self.error = L10n.folderMissing(trimmed); return
+            }
             onSave(name, trimmed, base, root)
         }
     }

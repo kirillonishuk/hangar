@@ -312,9 +312,11 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     public var branch: String?
     public var base: String?
     public var tabs: [TabInfo]
+    /// The TERMINAL drawer's shell once it was first shown; its id is a `tab` ref (decision #45).
+    public var drawer: LeafInfo?
 
     public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
-                branch: String?, base: String?, tabs: [TabInfo]) {
+                branch: String?, base: String?, tabs: [TabInfo], drawer: LeafInfo? = nil) {
         self.id = id
         self.name = name
         self.project = project
@@ -325,6 +327,7 @@ public struct TaskInfo: Codable, Equatable, Sendable {
         self.branch = branch
         self.base = base
         self.tabs = tabs
+        self.drawer = drawer
     }
 }
 

@@ -413,6 +413,8 @@ struct SidebarView: View {
             if !app.limitRows.isEmpty {
                 if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
             }
+            // The Settings row's ☕ is clipped in the rail: there it gets its own row above, Settings/Collapse stay put.
+            if collapsed { KeepAwakeButton(app: app, rail: true) }
             HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)
@@ -457,25 +459,34 @@ struct SidebarView: View {
     }
 }
 
-/// ☕ in the Settings row: accent while the sleep assertion is held; click toggles `keep_awake`.
+/// ☕ in the Settings row, or its own row in the rail: accent while the sleep assertion is held; click toggles `keep_awake`.
 private struct KeepAwakeButton: View {
     let app: AppState
+    var rail = false
 
     var body: some View {
         let keep = app.keepAwake
-        Button {
-            let on = !app.config.keepAwake
-            do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
-        } label: {
-            IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
-                .frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight)
-                .contentShape(Rectangle())
+        let icon = IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
+        Group {
+            if rail {
+                HoverRow(action: toggle) { _ in
+                    GutterRow(collapsed: true, height: Theme.footerRowHeight) { icon } expanded: { EmptyView() } rail: { EmptyView() }
+                }
+            } else {
+                Button(action: toggle) {
+                    icon.frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+            }
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .help(!app.config.keepAwake ? L10n.keepAwakeOffHelp
-              : !keep.held ? L10n.keepAwakeIdleHelp
-              : keep.working > 0 ? L10n.keepAwakeActiveHelp(keep.working) : L10n.keepAwakeGraceHelp)
+        .help(L10n.keepAwakeHelp(enabled: app.config.keepAwake, held: keep.held, working: keep.working))
+        .accessibilityLabel(L10n.keepAwakeTitle)
+    }
+
+    private func toggle() {
+        let on = !app.config.keepAwake
+        do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
     }
 }
 

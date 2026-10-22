@@ -43,7 +43,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public var summary: String {
         switch self {
         case .projectsList: "List the projects registered in Hangar."
-        case .projectsAdd: "Register a folder as a Hangar project (idempotent)."
+        case .projectsAdd: "Register a folder as a Hangar project (idempotent). With host: a folder on that ssh server; Hangar connects and checks the server (up to ~1 min), installs nothing and returns warnings for missing tools."
         case .tasksList: "List tasks with their tabs and agent statuses, optionally for one project."
         case .tasksCreate: "Create a task in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
@@ -59,7 +59,11 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .projectsList:
             return []
         case .projectsAdd:
-            return [ParamSpec(name: "path", type: .string(maxBytes: 1024), required: true, summary: "Absolute folder path.")]
+            return [
+                ParamSpec(name: "path", type: .string(maxBytes: 1024), required: true,
+                          summary: "Absolute folder path; with host, a path on the server (~ and relative paths are from the server home)."),
+                ParamSpec(name: "host", type: .string(maxBytes: 255), required: false, summary: "ssh host (ssh config name or user@host) for a remote project."),
+            ]
         case .tasksList:
             return [ParamSpec(name: "project", type: ref, required: false, summary: "Project id (or unique prefix) or name.")]
         case .tasksCreate:
@@ -98,7 +102,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
 
 public enum ControlCall: Equatable, Sendable {
     case projectsList
-    case projectsAdd(path: String)
+    /// `host`: checked with `validSSHHost` by the app (Exec is not linked into the CLI).
+    case projectsAdd(path: String, host: String? = nil)
     case tasksList(project: String?)
     case tasksCreate(project: String, name: String, worktree: Bool, base: String?, prompt: String?)
     case tabsOpen(task: String, kind: TabKind, prompt: String?)
@@ -125,7 +130,9 @@ public enum ControlCall: Equatable, Sendable {
         var p: [String: Any] = [:]
         switch self {
         case .projectsList: break
-        case let .projectsAdd(path): p["path"] = path
+        case let .projectsAdd(path, host):
+            p["path"] = path
+            p["host"] = host
         case let .tasksList(project): p["project"] = project
         case let .tasksCreate(project, name, worktree, base, prompt):
             p = ["project": project, "name": name, "worktree": worktree]
@@ -219,9 +226,9 @@ public enum ControlCall: Equatable, Sendable {
         switch m {
         case .projectsList: return .projectsList
         case .projectsAdd:
-            let path = v.strings["path"]!
-            guard path.hasPrefix("/") else { throw bad("\"path\" must be absolute") }
-            return .projectsAdd(path: path)
+            let path = v.strings["path"]!, host = v.strings["host"]
+            guard host != nil || path.hasPrefix("/") else { throw bad("\"path\" must be absolute") }
+            return .projectsAdd(path: path, host: host)
         case .tasksList: return .tasksList(project: v.strings["project"])
         case .tasksCreate:
             let name = v.strings["name"]!.trimmingCharacters(in: .whitespacesAndNewlines)

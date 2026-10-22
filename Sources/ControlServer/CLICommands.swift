@@ -10,7 +10,7 @@ public enum CLIParse: Equatable, Sendable {
 public let cliUsage = """
 usage:
   hangar projects list [--json]
-  hangar projects add <path> [--json]
+  hangar projects add <path> [--host H] [--json]   (with --host: a path on the server, quote ~ so the local shell keeps it)
   hangar tasks list [--project P] [--json]
   hangar tasks create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
   hangar tasks archive --task T --yes [--json]
@@ -33,7 +33,7 @@ private struct Grammar {
 private func grammar(_ command: String) -> Grammar? {
     switch command {
     case "projects list": Grammar()
-    case "projects add": Grammar(positionals: 1...1)
+    case "projects add": Grammar(values: ["--host"], positionals: 1...1)
     case "tasks list": Grammar(values: ["--project"])
     case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "tasks archive": Grammar(values: ["--task"], flags: ["--yes"])
@@ -78,6 +78,8 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         call = .projectsList
     case "projects add":
         guard !words[0].isEmpty else { return .usage("path must not be empty") }
+        // A server path is resolved on the server (`~` = its home), never against this Mac's cwd.
+        if let host = values["--host"] { return .call(.projectsAdd(path: words[0], host: host), json: json) }
         let path = words[0].hasPrefix("/") ? words[0] : cwd + "/" + words[0]
         call = .projectsAdd(path: URL(fileURLWithPath: path).standardized.path)
     case "tasks list":
@@ -115,9 +117,14 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
     return .call(call, json: json)
 }
 
-/// A worktree create runs `git fetch`/`worktree add`, which can take minutes on a big repo.
+/// A worktree create runs `git fetch`/`worktree add`, which can take minutes on a big repo; a remote add connects
+/// (ConnectTimeout 10 s) and checks the server (up to 30 s) first.
 public func requestTimeout(_ call: ControlCall) -> Double {
-    if case .tasksCreate = call { 300 } else { 10 }
+    switch call {
+    case .tasksCreate: 300
+    case .projectsAdd(_, .some): 60
+    default: 10
+    }
 }
 
 private func id(_ u: UUID) -> String { u.uuidString.lowercased() }
@@ -134,7 +141,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         }
     case .projectsAdd:
         text = (try? d.decode(ProjectAddResult.self, from: result)).map { r in
-            "\(id(r.project.id))  \(r.project.path)" + (r.added ? "" : "  (already added)")
+            "\(id(r.project.id))  \(r.project.host.map { $0 + ":" } ?? "")\(r.project.path)" + (r.added ? "" : "  (already added)")
+                + (r.warnings ?? []).map { "\nwarning: " + $0 }.joined()
         }
     case .tasksList:
         text = (try? d.decode(TasksResult.self, from: result)).map { r in

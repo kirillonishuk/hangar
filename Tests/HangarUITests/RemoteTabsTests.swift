@@ -108,7 +108,7 @@ import Workspace
 
     private func kills(_ h: Harness, _ id: UUID) -> Int {
         FakeSSH.calls(h.log).filter { call in
-            call.contains { $0.contains("kill-session") && $0.contains("=hangar-\(id.uuidString.lowercased())") }
+            call.contains { $0.contains("hangar kill-session") && $0.contains("=hangar-\(id.uuidString.lowercased())") }
         }.count
     }
 

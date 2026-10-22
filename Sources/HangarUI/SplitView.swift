@@ -92,6 +92,10 @@ final class RatioSplitView: HangarSplitView {
     /// The launch that met `.notConnected`, made again by `resumeIfWaiting` once the host is up.
     private var waiting: LaunchContext?
     var isWaitingForHost: Bool { waiting != nil }
+    /// The leaf's host was given up on or disconnected (set with `host`): the waiting bar offers «Переподключиться».
+    var hostDown: () -> Bool = { false }
+    var onReconnect: (() -> Void)?
+    var canReconnect: Bool { waiting != nil && hostDown() }
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
@@ -146,7 +150,9 @@ final class RatioSplitView: HangarSplitView {
             setBar(L10n.folderMissing(path))
         } catch LaunchError.notConnected(let host) {
             waiting = context
-            setBar(L10n.hostNotConnected(host))
+            // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
+            barText = { [weak self] in self?.hostDown() == true ? L10n.hostGaveUp(host) : L10n.hostNotConnected(host) }
+            refreshText()
         } catch {
             setBar(L10n.launchFailed(String(describing: error)))
         }
@@ -285,16 +291,25 @@ final class RatioSplitView: HangarSplitView {
         window?.invalidateCursorRects(for: self)
     }
 
-    /// The ↩ bar of an exited/failed leaf is clickable (relaunch).
+    #if DEBUG
+    var barString: String? { bar.isHidden ? nil : bar.stringValue }
+    #endif
+
+    /// ↩ or a click on the bar: relaunch an exited/failed leaf, or reconnect the host a waiting one gave up on.
+    func activateBar() {
+        if canReconnect { onReconnect?() } else { relaunch() }
+    }
+
+    /// The ↩ bar of an exited/failed leaf (or of one whose host gave up) is clickable.
     override func resetCursorRects() {
-        if !bar.isHidden, needsRelaunch { addCursorRect(bar.frame.union(barLine.frame), cursor: .pointingHand) }
+        if !bar.isHidden, needsRelaunch || canReconnect { addCursorRect(bar.frame.union(barLine.frame), cursor: .pointingHand) }
     }
 
     override var isFlipped: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        if !bar.isHidden, needsRelaunch, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
-            relaunch()
+        if !bar.isHidden, needsRelaunch || canReconnect, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
+            activateBar()
         } else {
             super.mouseDown(with: event)
         }
@@ -358,6 +373,10 @@ final class RatioSplitView: HangarSplitView {
         app.onHostConnected = { [weak self] host in
             guard let self else { return }
             hostConnected(host: host, leaves: Array(leafViews.values) + drawer.leaves)
+        }
+        app.onHostChange = { [weak self] host in
+            guard let self else { return }
+            for view in Array(leafViews.values) + drawer.leaves where view.host == host { view.refreshText() }
         }
         app.terminals = TerminalAccess(
             start: { [weak self] in self?.startHidden(tabId: $0) },
@@ -531,7 +550,7 @@ final class RatioSplitView: HangarSplitView {
         // Lazy: surfaces of a tab start the first time it is shown.
         for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
             let view = LeafView(leafId: leaf.id)
-            view.host = app.remoteLeafHost(leaf.id)
+            app.wireHost(view)
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
             view.onTitle = { [weak self] title in
@@ -663,8 +682,8 @@ final class RatioSplitView: HangarSplitView {
 
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {
-        guard let leaf = focusedLeaf, leaf.needsRelaunch else { return false }
-        leaf.relaunch()
+        guard let leaf = focusedLeaf, leaf.needsRelaunch || leaf.canReconnect else { return false }
+        leaf.activateBar()
         return true
     }
 

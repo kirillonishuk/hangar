@@ -111,6 +111,11 @@ import Workspace
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
+        case integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
+        case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
+        case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
+        case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
+        case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
     }
 
     // Sidebar
@@ -357,6 +362,49 @@ import Workspace
     static var diffNotChanged: String { s(.diffNotChanged) }
     static var diffNotAFile: String { s(.diffNotAFile) }
     static var diffTabHelp: String { s(.diffTabHelp) }
+
+    // SSH hosts, remote project and server sheets
+    static var integrationNotInstalled: String { s(.integrationNotInstalled) }
+    static var integrationShortInstalled: String { s(.integrationShortInstalled) }
+    static var integrationShortOutdated: String { s(.integrationShortOutdated) }
+    static var removeEllipsis: String { s(.removeEllipsis) }
+    static var addLocalProject: String { s(.addLocalProject) }
+    static var addRemoteProject: String { s(.addRemoteProject) }
+    static var hostConnected: String { s(.hostConnected) }
+    static var hostConnecting: String { s(.hostConnecting) }
+    static var hostReconnecting: String { s(.hostReconnecting) }
+    static var hostUnreachable: String { s(.hostUnreachable) }
+    static var hostDisconnected: String { s(.hostDisconnected) }
+    static var hostPaused: String { s(.hostPaused) }
+    static var reconnect: String { s(.reconnect) }
+    static var checkServer: String { s(.checkServer) }
+    static var disconnect: String { s(.disconnect) }
+    static var remoteProjectTitle: String { s(.remoteProjectTitle) }
+    static var hostLabel: String { s(.hostLabel) }
+    static var pathLabel: String { s(.pathLabel) }
+    static var hostPlaceholder: String { s(.hostPlaceholder) }
+    static var connect: String { s(.connect) }
+    static var add: String { s(.add) }
+    static var remotePathMissing: String { s(.remotePathMissing) }
+    static func serverTitle(_ arg: String) -> String { f(.serverTitle, arg) }
+    static func toolFound(_ arg: String) -> String { f(.toolFound, arg) }
+    static var toolMissing: String { s(.toolMissing) }
+    static var toolOptional: String { s(.toolOptional) }
+    static func toolOutdated(_ arg: String) -> String { f(.toolOutdated, arg) }
+    static var socketClient: String { s(.socketClient) }
+    static var installPlanTitle: String { s(.installPlanTitle) }
+    static var install: String { s(.install) }
+    static func installManual(_ arg: String) -> String { f(.installManual, arg) }
+    static var allInstalled: String { s(.allInstalled) }
+    static var sudoHint: String { s(.sudoHint) }
+    static var noStatusClient: String { s(.noStatusClient) }
+    static var forwardFailed: String { s(.forwardFailed) }
+    static func sshAuthFailed(_ arg: String) -> String { f(.sshAuthFailed, arg) }
+    static func remoteIntegration(_ arg: String) -> String { f(.remoteIntegration, arg) }
+    static func unsupportedShell(_ arg: String) -> String { f(.unsupportedShell, arg) }
+    static func installFailed(_ code: Int32) -> String { f(.installFailed, code) }
+    static var close: String { s(.close) }
+    static func hostGaveUp(_ arg: String) -> String { f(.hostGaveUp, arg) }
 
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }

@@ -271,6 +271,16 @@ public enum Theme {
     public static let dropdownRowHeight: CGFloat = 26
     public static let dropdownSectionHeight: CGFloat = 22
     public static let dropdownListMaxHeight: CGFloat = 260
+    // SSH hosts and the server sheet
+    public static let hostIconSize: CGFloat = 13
+    /// «Claude Code на сервере»: wider than the card's usual 110, so the label stays on one line.
+    public static let remoteIntegrationLabelWidth: CGFloat = 200
+    public static let installTerminalHeight: CGFloat = 260
+    public static let reportRowPaddingV: CGFloat = 6
+    /// Heights of the sheets' other parts (title, host card, footer, margins) and the smallest report before it scrolls.
+    public static let remoteSheetChrome: CGFloat = 250
+    public static let serverSheetChrome: CGFloat = 140
+    public static let serverReportMinHeight: CGFloat = 160
 }
 
 extension Theme {

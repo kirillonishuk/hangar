@@ -113,6 +113,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
+    /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
+    @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
+    /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
+    // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
+    @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
+    /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
+    @ObservationIgnored var onHostChange: ((String) -> Void)?
     /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
     @ObservationIgnored public lazy var remote: RemoteHosts = makeRemoteHosts(
         paths: SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent), sshPath: sshPath,
@@ -161,10 +168,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
         let remoteBefore = liveRemoteLeaves()
+        let hostsBefore = Set(state.projects.compactMap(\.host))
         mutate(&state)
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
-        killSessions(of: remoteBefore.filter { !live.contains($0.key) })
+        // A host whose last project went is forgotten (after its sessions are killed).
+        killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }

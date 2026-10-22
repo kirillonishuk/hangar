@@ -35,6 +35,8 @@ struct IntegrationPlan: Equatable {
     var original: String?
     var updated: String
     var diff: [DiffLine]  // collapsed
+    /// `host:path` of a file on an ssh server (the sheet shows it instead of a local path); nil = this Mac.
+    var displayPath: String?
 }
 
 /// Settings → integrations. Nothing is written except by `apply` of a plan the user confirmed in the sheet.

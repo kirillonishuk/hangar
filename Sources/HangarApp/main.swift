@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
         app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
         if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
+        if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)

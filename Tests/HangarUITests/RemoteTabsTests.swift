@@ -151,4 +151,76 @@ import Workspace
         #expect(h.app.quitWorkingCount == 1)
         #expect(quitDecision(creating: false, working: h.app.quitWorkingCount, confirmed: false, asking: false, systemShutdown: false) == .ask(1))
     }
+
+    @Test func killsWaitForTheHost() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        h.remote.disconnect("dev")
+        let dev = h.leaf("dev")
+        let task = h.app.location(ofLeaf: dev.leaf)!.task
+        h.app.archive(taskId: task)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        #expect(kills(h, dev.leaf) == 0)
+        // The queue goes out once the host is back (and only once).
+        #expect(await h.remote.connect("dev") == .connected)
+        #expect(await waitUntil { kills(h, dev.leaf) == 1 })
+        h.remote.disconnect("dev")
+        #expect(await h.remote.connect("dev") == .connected)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        #expect(kills(h, dev.leaf) == 1)
+    }
+
+    @Test func lastProjectRemovesHost() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        // The fake's `-O exit` kills the last master started: "other" goes offline before "dev" connects.
+        #expect(await h.remote.connect("other") == .connected)
+        h.remote.disconnect("other")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        #expect(h.remote.hosts["other"]?.state == .disconnected)
+        #expect(await h.remote.connect("dev") == .connected)
+        let dev = h.leaf("dev")
+        let project = h.app.state.projects.first { $0.name == "dev" }!
+        h.app.perform { $0.removeProject(id: project.id) }
+        // Sessions first, then the host goes (the kill needs the master).
+        #expect(await waitUntil { kills(h, dev.leaf) == 1 && h.remote.hosts["dev"] == nil })
+        // An offline host goes at once.
+        let other = h.app.state.projects.first { $0.name == "other" }!
+        h.app.perform { $0.removeProject(id: other.id) }
+        #expect(h.remote.hosts["other"] == nil)
+    }
+
+    @Test func gaveUpLeafOffersReconnect() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try h.flag("fail", "refused")
+        let dev = h.leaf("dev")
+        let view = LeafView(leafId: dev.leaf)
+        view.host = "dev"
+        view.hostDown = { [app = h.app] in app.hostDown("dev") }
+        var reconnects = 0
+        view.onReconnect = { reconnects += 1 }
+        h.app.onHostChange = { _ in view.refreshText() }  // as TerminalArea does
+        start(view, h, leaf: leaf(h, dev.leaf), tab: dev.tab, context: .created(prompt: nil), into: Launches())
+        #expect(view.isWaitingForHost)
+        #expect(await waitUntil { if case .unreachable = h.state() { true } else { false } })
+        #expect(view.canReconnect)
+        #expect(view.barString == L10n.hostGaveUp("dev"))
+        view.activateBar()
+        #expect(reconnects == 1)
+        // Reconnecting: the bar says so again.
+        try FileManager.default.removeItem(atPath: h.fakeDir + "/fail")
+        h.app.reconnect(host: "dev")
+        #expect(await waitUntil { h.state() == .connected })
+        #expect(!view.canReconnect)
+    }
+
+    @Test func reconnectAction() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let dev = h.app.location(ofLeaf: h.leaf("dev").leaf)!.task
+        let local = h.app.location(ofLeaf: h.leaf("local").leaf)!.task
+        #expect(Action.list(for: .task(dev), app: h.app).contains(.reconnect))
+        #expect(!Action.list(for: .task(local), app: h.app).contains(.reconnect))
+        #expect(Action.reconnect.isEnabled(for: .task(dev), app: h.app))
+        #expect(await h.remote.connect("dev") == .connected)
+        #expect(!Action.reconnect.isEnabled(for: .task(dev), app: h.app))
+    }
 }

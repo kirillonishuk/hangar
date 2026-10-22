@@ -462,14 +462,15 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
     /// whole timeout in total, gets the whole response.
     @Test func slowReaderOutlivesIdleTimeout() async throws {
         let dir = SocketDir(), inbox = Inbox()
-        let server = try startServer(dir, inbox, idleTimeout: 1) { id, _ in screen(id, bytes: 900_000) }
+        let server = try startServer(dir, inbox, idleTimeout: 3) { id, _ in screen(id, bytes: 900_000) }
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(4, "tabs.read", #"{"tab":"t"}"#))
         let fd = raw.fd
-        // A socket-buffer's worth every 20 ms: seconds for the whole reply, never a 1 s gap.
+        // 4 KB every 20 ms: ≥ 4.4 s for the whole reply (more than the 3 s timeout), while a gap of 3 s (a thread
+        // starved under a loaded run) stays unlikely; a 1 s timeout was seen to drop it under load.
         let data = await offPool { () -> Data in
-            var buf = Data(), chunk = [UInt8](repeating: 0, count: 32_768)
+            var buf = Data(), chunk = [UInt8](repeating: 0, count: 4096)
             while !buf.contains(0x0A) {
                 let n = Darwin.read(fd, &chunk, chunk.count)
                 if n <= 0 { break }

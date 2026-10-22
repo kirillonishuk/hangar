@@ -79,14 +79,14 @@ import Testing
     }
 
     @Test func warningsFromReport() throws {
-        let text = "HANGAR home /home/u\nHANGAR tool git /usr/bin/git 2.43\nHANGAR remote 1\nHANGAR end\n"
+        let text = "HANGAR home /home/u\nHANGAR tool git /usr/bin/git 2.43\nHANGAR remote \(hangarRemoteVersion)\nHANGAR end\n"
         var info = HostInfo(state: .connected, home: "/home/u", report: parseServerReport(text), forwarding: true)
         #expect(remoteAddWarnings(info) == [
             "tmux missing on server; open Hangar → Server to install",
             "no socket client (python3, socat or nc) on server, agent statuses unavailable; open Hangar → Server to install",
         ])
         info.forwarding = false
-        info.report = parseServerReport(text.replacingOccurrences(of: "HANGAR remote 1\n", with: "HANGAR client nc\nHANGAR tool tmux /usr/bin/tmux 3.4\n"))
+        info.report = parseServerReport(text.replacingOccurrences(of: "HANGAR remote \(hangarRemoteVersion)\n", with: "HANGAR client nc\nHANGAR tool tmux /usr/bin/tmux 3.4\n"))
         #expect(remoteAddWarnings(info) == [
             "hangar-remote missing or outdated on server; open Hangar → Server to install",
             "socket forwarding refused by server, agent statuses unavailable",

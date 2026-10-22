@@ -53,6 +53,8 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     static let maxAttempts = 10
     /// The check prints ~1 KB; a flood from the server is cut here.
     static let maxCheckOutput = 262_144
+    /// Any other command's stdout/stderr (git, `cat` of an integration file) from the untrusted server.
+    static let maxOutput = 64 << 20
 
     @ObservationIgnored private let paths: SSHPaths
     @ObservationIgnored private let sshPath: String
@@ -111,7 +113,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
 
     /// Commands on the host; while it is not connected they fail at once instead of dialing ssh directly.
     public func runner(_ host: String) -> Runner {
-        let ssh = Runner.ssh(host: host, controlPath: paths.controlPath(host), sshPath: sshPath)
+        let ssh = Runner.ssh(host: host, controlPath: paths.controlPath(host), sshPath: sshPath, maxOutput: Self.maxOutput)
         return Runner { [weak self] args, cwd in
             guard await self?.state(host) == .connected else { throw RemoteHostError.notConnected(host) }
             return try await ssh.run(args, cwd)

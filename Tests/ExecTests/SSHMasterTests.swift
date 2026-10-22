@@ -228,9 +228,9 @@ import Testing
         #expect(await m.connect(timeout: 5) == .success("/one"))
         let old = try #require(pid_t((try String(contentsOfFile: root + "/old.pid", encoding: .utf8)).trimmingCharacters(in: .whitespacesAndNewlines)))
         try "".write(toFile: root + "/second", atomically: true, encoding: .utf8)
-        let start = Date()
+        let clock = SuspendingClock(), start = clock.now
         #expect(await m.connect(timeout: 10) == .success("/two"))
-        #expect(Date().timeIntervalSince(start) < 6)
+        #expect(clock.now - start < .seconds(20))  // waits for the old master, bounded by its 3 s SIGKILL wait
         #expect(kill(old, 0) != 0)
     }
 

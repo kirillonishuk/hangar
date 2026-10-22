@@ -157,6 +157,28 @@ import Workspace
         #expect(app.activeDiff?.selectedRowId == nil)
     }
 
+    /// A subfolder project: the diff tab's path is relative to the subfolder, ↩ opens the file under it.
+    @Test func subfolderDiffOpensInEditor() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
+        try "one\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
+        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try "one\ntwo\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
+        app.inspector.show(taskId: t, root: repo.repo + "/sub", baseBranch: { nil })
+        await settle(app.inspector)
+        #expect(app.inspector.changes?.files.map(\.path) == ["s.txt"])
+        app.openDiff(path: "s.txt")
+        await settle(app.inspector)
+        let two = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
+        app.selectDiffRow(two)
+        var opened: (String, Int?)?
+        app.onOpenInEditor = { opened = ($0, $1) }
+        app.openActiveDiffInEditor()
+        #expect(opened?.0 == repo.repo + "/sub/s.txt")
+        #expect(opened?.1 == 2)
+    }
+
     @Test func diffKeyRouting() {
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: false, editingText: false) == nil)
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: true, editingText: false) == .up)

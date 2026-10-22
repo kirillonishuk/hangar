@@ -12,9 +12,21 @@ extension Git {
         try await inspect(["rev-parse", "--absolute-git-dir"]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    public func status(limit: Int = 5_000) async throws -> StatusResult {
-        let out = try await inspect(["status", "--porcelain=v2", "-z", "--untracked-files=all", "--find-renames"])
-        return parseStatusV2(out, limit: limit)
+    /// The top level and the folder's place under it: `apps/web/` for a project in a subfolder (#44), "" at the top.
+    public func location() async throws -> (top: String, prefix: String) {
+        let lines = try await inspect(["rev-parse", "--show-toplevel", "--show-prefix"]).split(separator: "\n", omittingEmptySubsequences: false)
+        return (String(lines.first ?? ""), lines.count > 1 ? String(lines[1]) : "")
+    }
+
+    /// `prefix` (from `location`): only entries under it, relative to it — porcelain paths are always top-relative.
+    public func status(limit: Int = 5_000, prefix: String = "") async throws -> StatusResult {
+        let scope = prefix.isEmpty ? [] : ["--", ":(top,literal)" + prefix]
+        let out = try await inspect(["status", "--porcelain=v2", "-z", "--untracked-files=all", "--find-renames"] + scope)
+        var r = parseStatusV2(out, limit: limit)
+        guard !prefix.isEmpty else { return r }
+        func strip(_ p: String) -> String { p.hasPrefix(prefix) ? String(p.dropFirst(prefix.count)) : p }
+        r.entries = r.entries.map { StatusEntry(path: strip($0.path), origPath: $0.origPath.map(strip), change: $0.change) }
+        return r
     }
 
     /// The common git-dir: the main repository's for a linked worktree, else the same as `gitDir`.
@@ -22,18 +34,17 @@ extension Git {
         try await inspect(["rev-parse", "--path-format=absolute", "--git-common-dir"]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Ignored entries relative to the top level; a wholly ignored directory comes as one `dir/` (not descended into).
+    /// Ignored entries under the folder, relative to the top level; a wholly ignored directory comes as one `dir/` (not descended into).
     public func ignoredPaths() async throws -> [String] {
-        let out = try await inspect(["status", "--porcelain=v2", "-z", "--ignored=matching", "--untracked-files=normal"])
+        let out = try await inspect(["status", "--porcelain=v2", "-z", "--ignored=matching", "--untracked-files=normal", "--", "."])
         return out.split(separator: "\0", omittingEmptySubsequences: true).compactMap { $0.hasPrefix("! ") ? String($0.dropFirst(2)) : nil }
     }
 
-    /// Tracked + untracked, not ignored; paths relative to the repository root.
+    /// Tracked + untracked, not ignored, under the folder (`ls-files` lists its cwd); paths relative to it.
     public func listFiles(limit: Int = FileListing.limit) async throws -> FileListing {
-        let root = try await toplevel()
         // `-s`: "<mode> <sha> <stage>\t<path>" (mode 120000 = symlink); works on every git, unlike `--format`.
-        let tracked = try await inspect(["ls-files", "-c", "-s", "-z"], cwd: root)
-        let others = try await inspect(["ls-files", "-o", "--exclude-standard", "-z"], cwd: root)
+        let tracked = try await inspect(["ls-files", "-c", "-s", "-z"])
+        let others = try await inspect(["ls-files", "-o", "--exclude-standard", "-z"])
         var seen = Set<Substring>()  // unmerged entries are listed once per stage
         var paths: [String] = []
         var dirLinks = Set<String>()
@@ -43,7 +54,7 @@ extension Git {
             if paths.count == limit { truncated = true; return false }
             let path = String(p)
             paths.append(path)
-            if link, runner.isLocal, isDirectoryLink(root + "/" + path) { dirLinks.insert(path) }
+            if link, runner.isLocal, isDirectoryLink(repo + "/" + path) { dirLinks.insert(path) }
             return true
         }
         for line in tracked.split(separator: "\0", omittingEmptySubsequences: true) {
@@ -66,7 +77,8 @@ extension Git {
 
     // MARK: Changes
 
-    /// `status`: the caller's own result (the inspector already ran it), else one is run here for the untracked files.
+    /// Changes under the folder, paths relative to it. `status`: the caller's own result (the inspector already ran it,
+    /// with the folder's prefix), else one is run here for the untracked files.
     public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil) async throws -> ChangeSet {
         var effective = mode
         var baseMissing = false
@@ -89,9 +101,10 @@ extension Git {
             }
         }
         let rev = from!
-        // `--`: a file named like the rev (`HEAD`) is otherwise "ambiguous argument".
-        let names = parseNameStatus(try await inspect(["diff", "--name-status", "-z", "--find-renames", rev, "--"]))
-        let stats = parseNumstat(try await inspect(["diff", "--numstat", "-z", "--find-renames", rev, "--"]))
+        // `--`: a file named like the rev (`HEAD`) is otherwise "ambiguous argument". `--relative` + `.`: only the
+        // folder, paths relative to it (a no-op at the top level); a rename from outside it shows as added.
+        let names = parseNameStatus(try await inspect(["diff", "--name-status", "-z", "--find-renames", "--relative", rev, "--", "."]))
+        let stats = parseNumstat(try await inspect(["diff", "--numstat", "-z", "--find-renames", "--relative", rev, "--", "."]))
         var byPath: [String: NumstatEntry] = [:]
         for s in stats { byPath[s.path] = s }
         var files = names.map { f -> ChangedFile in
@@ -100,7 +113,7 @@ extension Git {
             return f
         }
         let st: StatusResult
-        if let given { st = given } else { st = try await status(limit: limit) }
+        if let given { st = given } else { st = try await status(limit: limit, prefix: location().prefix) }
         // `git rm --cached x`: deleted in the diff and untracked in status — keep the diff's entry.
         let listed = Set(files.map(\.path))
         for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
@@ -131,13 +144,13 @@ extension Git {
         return parseUnifiedDiff(try await inspect(args, ok: ok))
     }
 
-    private func inspect(_ args: [String], cwd: String? = nil, ok: Set<Int32> = [0]) async throws -> String {
-        try await inspectRun(args, cwd: cwd, ok: ok).stdout
+    private func inspect(_ args: [String], ok: Set<Int32> = [0]) async throws -> String {
+        try await inspectRun(args, ok: ok).stdout
     }
 
-    private func inspectRun(_ args: [String], cwd: String? = nil, ok: Set<Int32> = [0]) async throws -> RunResult {
+    private func inspectRun(_ args: [String], ok: Set<Int32> = [0]) async throws -> RunResult {
         let full = ["--no-optional-locks"] + args
-        let r = try await runner.run(["git"] + full, cwd ?? repo)
+        let r = try await runner.run(["git"] + full, repo)
         guard ok.contains(r.status) else {
             throw GitError(args: full, status: r.status, stderr: r.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }

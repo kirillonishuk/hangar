@@ -29,6 +29,18 @@ import Testing
                 { try? FileManager.default.removeItem(atPath: root) })
     }
 
+    /// A one-off ssh stand-in (ignores its argv) for stdout/stderr shapes the shared fake cannot produce.
+    private func script(_ body: String) async throws -> (SSHMaster, String, () -> Void) {
+        let root = NSTemporaryDirectory() + "hangar-sshm-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        let path = root + "/ssh"
+        try ("#!/bin/sh\n[ \"$1\" = warm ] && exit 0\n" + body).write(toFile: path, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        _ = try await Runner.local.run([path, "warm"], "/")
+        return (SSHMaster(host: "dev", controlPath: root + "/cm", sshPath: path), root,
+                { try? FileManager.default.removeItem(atPath: root) })
+    }
+
     /// Test-only wait for an async side effect (the code under test never polls).
     private func waitUntil(_ seconds: Double, _ cond: () async -> Bool) async -> Bool {
         let end = Date().addingTimeInterval(seconds)
@@ -44,6 +56,7 @@ import Testing
         private var items: [SSHFailure] = []
         func add(_ f: SSHFailure) { lock.lock(); items.append(f); lock.unlock() }
         var count: Int { lock.lock(); defer { lock.unlock() }; return items.count }
+        var first: SSHFailure? { lock.lock(); defer { lock.unlock() }; return items.first }
     }
 
     @Test func connectReturnsHome() async throws {
@@ -155,5 +168,53 @@ import Testing
         #expect(sshFailure(status: 255, stderr: "warn\nConnection to x closed by remote host.\n") == .exited(255, "Connection to x closed by remote host."))
         if case .exited(_, let s) = sshFailure(status: 1, stderr: String(repeating: "z", count: 500)) { #expect(s.count == 300) }
         else { Issue.record("not exited") }
+    }
+
+    @Test func markerSplitAndNoiseBeforeIt() async throws {
+        let (m, _, cleanup) = try await script("""
+        echo 'Welcome to box'; echo 'rc: HANGAR-READY /no'; echo '  HANGAR-READY /indented'
+        printf 'HANGAR-REA'; sleep 0.2; printf 'DY /srv/u\\n'; exec cat >/dev/null
+        """)
+        defer { cleanup(); m.exit() }
+        #expect(await m.connect(timeout: 5) == .success("/srv/u"))
+    }
+
+    @Test func preReadyStderrDoesNotClassifyLaterDrop() async throws {
+        let (m, _, cleanup) = try await script("""
+        echo 'Banner: never type your passphrase here' >&2
+        echo 'bash: /etc/profile.d/x.sh: Permission denied' >&2
+        printf 'HANGAR-READY /h\\n'; sleep 0.3
+        echo 'client_loop: send disconnect: Broken pipe' >&2; exit 255
+        """)
+        defer { cleanup() }
+        let lost = Counter()
+        m.onExit = { lost.add($0) }
+        #expect(await m.connect(timeout: 5) == .success("/h"))
+        #expect(await waitUntil(3) { lost.count == 1 })
+        #expect(lost.first == .unreachable("client_loop: send disconnect: Broken pipe"))
+    }
+
+    @Test func reconnectWaitsForOldMaster() async throws {
+        // Ignores SIGTERM: only the SIGKILL fallback ends it.
+        let (m, root, cleanup) = try await script("""
+        if [ -f "$(dirname "$0")/second" ]; then printf 'HANGAR-READY /two\\n'; exec cat >/dev/null; fi
+        trap '' TERM; echo $$ > "$(dirname "$0")/old.pid"
+        printf 'HANGAR-READY /one\\n'; while :; do sleep 0.1; done
+        """)
+        defer { cleanup(); m.exit() }
+        #expect(await m.connect(timeout: 5) == .success("/one"))
+        let old = try #require(pid_t((try String(contentsOfFile: root + "/old.pid", encoding: .utf8)).trimmingCharacters(in: .whitespacesAndNewlines)))
+        try "".write(toFile: root + "/second", atomically: true, encoding: .utf8)
+        let start = Date()
+        #expect(await m.connect(timeout: 10) == .success("/two"))
+        #expect(Date().timeIntervalSince(start) < 6)
+        #expect(kill(old, 0) != 0)
+    }
+
+    @Test func diagnosticsNotSubstrings() {
+        #expect(sshFailure(status: 255, stderr: "kirill@box: Permission denied (publickey).\n") == .auth("kirill@box: Permission denied (publickey)."))
+        #expect(sshFailure(status: 255, stderr: "bash: /x: Permission denied\nConnection to x closed.\n") == .exited(255, "Connection to x closed."))
+        #expect(sshFailure(status: 255, stderr: "motd: the build timed out\nx\n") == .exited(255, "x"))
+        #expect(sshFailure(status: 255, stderr: "Timeout, server box not responding.\n") == .unreachable("Timeout, server box not responding."))
     }
 }

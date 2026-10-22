@@ -123,6 +123,3 @@
 - Не сделанные пункты «final wave» из ревью этапа:
   - `hangar-remote`: `socat -T2` вместо `-t2` (`RemoteScript.swift`), чтобы молчащий сокет не держал hook; `resetsAt` ≤ now+30 дней (необязательно).
   - Классификация ssh-ошибок: `: Permission denied (` сузить до списка методов ssh; в `.unreachable` добавить `Network is unreachable`, `Connection closed/reset by`, `kex_exchange_identification`, `packet_write_wait` (`SSHMaster.swift`).
-  - Attach без гонки: `attach -d`, иначе файл кода выхода, иначе `new-session` (`RemoteLaunch.swift`).
-  - `isRepository` (`NewTaskModel.swift`) и `directoryExists` (`ProjectSettingsSheet.swift`) глотают ошибку хоста: офлайн-хост выглядит как «не репозиторий» / «папка не найдена», а не «нет связи»; перезагрузка инспектора по `inspectorHostConnected` — только когда он виден.
-  - SSHMasterTests: `exitDuringReconnectStopsNewChild` при падении (`guard … return` до `kill`) оставляет TERM-стойкий фейковый мастер. Только у падающего прогона, зелёные не текут.

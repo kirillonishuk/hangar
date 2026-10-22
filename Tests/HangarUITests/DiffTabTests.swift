@@ -235,4 +235,25 @@ import Workspace
         #expect(items.count == 8)
         #expect(Set(items.map(\.id)).count == items.count)
     }
+
+    /// The row selected in `before` (by index) found again in `after` by its id, as after a refresh.
+    private func follow(_ before: String, _ index: Int, _ after: String) -> Int? {
+        let head = "diff --git a/f b/f\n--- a/f\n+++ b/f\n"
+        let cache = DiffContentCache()
+        let id = cache.content(.loaded(parseUnifiedDiff(head + before)), origPath: nil).items[index].id
+        return cache.content(.loaded(parseUnifiedDiff(head + after)), origPath: nil).indexById[id]
+    }
+
+    @Test func selectionStaysOnIdenticalLineWhenLinesInsertedAbove() {
+        // The second added `}`; another `}` is inserted at the top of the same hunk.
+        #expect(follow("@@ -1,1 +1,5 @@\n+x\n+}\n+y\n+}\n end\n", 4,
+                       "@@ -1,1 +1,6 @@\n+}\n+x\n+}\n+y\n+}\n end\n") == 5)
+        // The last context `}`; a new hunk with a context `}` appears above.
+        let hunk = "@@ -10,3 +10,3 @@\n }\n-a\n+b\n }\n"
+        let shifted = "@@ -1,2 +1,3 @@\n x\n+y\n }\n@@ -10,3 +11,3 @@\n }\n-a\n+b\n }\n"
+        #expect(follow(hunk, 4, shifted) == 8)
+        #expect(follow(hunk, 1, shifted) == 5)
+        // The hunk header itself (its new start moved).
+        #expect(follow(hunk, 0, shifted) == 4)
+    }
 }

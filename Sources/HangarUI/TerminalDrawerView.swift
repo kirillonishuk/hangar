@@ -144,8 +144,9 @@ import Workspace
         app.perform { $0.setDrawerHeight(taskId: id, Double(clamped)) }
     }
 
-    /// The shell of the selected task, if its surface exists.
-    var currentSurface: NSView? { task.flatMap { leafViews[$0.id] }?.surface }
+    /// Focus target of the selected task's shell: its surface, or the leaf itself while it has none
+    /// (folder missing, host down), so ⌘W still sees the drawer focused and never closes the tab.
+    var currentSurface: NSView? { task.flatMap { leafViews[$0.id] }.map { $0.surface ?? $0 } }
 
     /// Leaf view holding keyboard focus (for ↩ relaunch and the focus return).
     var focusedLeaf: LeafView? {

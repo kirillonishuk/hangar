@@ -258,6 +258,21 @@ import Workspace
         #expect(await waitUntil { !h.app.inspector.offline && h.app.inspector.changes != nil })
     }
 
+    /// The host coming back reloads the offline inspector only while it is shown (a hidden one loads when shown).
+    @Test func hiddenInspectorNotReloadedOnConnect() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h, connect: false)
+        let (_, _) = watch(h, select: s.task)
+        await settle(h)
+        #expect(h.app.inspector.offline)
+        h.app.perform { $0.inspectorVisible = false }
+        let inspectorGit = { FakeSSH.calls(h.log).filter { ($0.last ?? "").contains("--no-optional-locks") }.count }
+        #expect(await h.remote.connect("dev") == .connected)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await settle(h)
+        #expect(inspectorGit() == 0)
+    }
+
     @Test func remoteNoGitShowsNotice() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)

@@ -170,6 +170,21 @@ import Workspace
         #expect(kills(h, dev.leaf) == 1)
     }
 
+    /// A kill that didn't reach tmux (ssh 255: the link failed under it) is queued again for the next connect.
+    @Test func failedKillIsQueuedAgain() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        let dev = h.leaf("dev")
+        try h.flag("fail", "refused")
+        h.app.archive(taskId: h.app.location(ofLeaf: dev.leaf)!.task)
+        #expect(await waitUntil { kills(h, dev.leaf) == 1 })
+        try FileManager.default.removeItem(atPath: h.fakeDir + "/fail")
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        h.remote.disconnect("dev")
+        #expect(await h.remote.connect("dev") == .connected)
+        #expect(await waitUntil { kills(h, dev.leaf) == 2 })
+    }
+
     @Test func lastProjectRemovesHost() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         // The fake's `-O exit` kills the last master started: "other" goes offline before "dev" connects.

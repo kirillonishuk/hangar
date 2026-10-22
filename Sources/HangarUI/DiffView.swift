@@ -12,7 +12,7 @@ enum DiffRow: Equatable, Identifiable {
     case notice(String)
 
     /// Kind + text, not line numbers, so a line keeps it when lines are inserted above. Identical lines share it:
-    /// `DiffContent.Item.id` adds the occurrence.
+    /// `diffRowIds` adds the base position and the occurrence.
     var id: String {
         switch self {
         case .meta(let s): "m" + s
@@ -95,6 +95,38 @@ func openTarget(rows: [DiffRow], selected: Int?) -> Int? {
     return line
 }
 
+/// `-a` of `@@ -a,b +c,d @@`.
+private func oldStart(_ header: String) -> Int? {
+    header.firstMatch(of: /-(\d+)/).flatMap { Int($0.1) }
+}
+
+/// Unique row ids that survive lines inserted above (the selection follows them across reloads). Worktree edits keep
+/// the base side, so a context/deleted line is keyed by its base line, an added one by the base line it follows, a hunk
+/// by its base start; identical keys are counted from the end, so an insertion above does not shift them.
+func diffRowIds(_ rows: [DiffRow]) -> [String] {
+    var after = 0
+    let keys = rows.map { row -> String in
+        switch row {
+        case .hunk(let h):
+            let start = oldStart(h) ?? 0
+            after = start - 1
+            return "h\(start)"
+        case .line(let l):
+            if l.kind != .added, let old = l.oldLine { after = old }
+            return "\(after)" + row.id
+        case .meta, .notice: return row.id
+        }
+    }
+    var occurrences: [String: Int] = [:]
+    var ids = keys
+    for i in keys.indices.reversed() {
+        let n = occurrences[keys[i], default: 0]
+        occurrences[keys[i]] = n + 1
+        ids[i] = "\(n)#" + keys[i]
+    }
+    return ids
+}
+
 /// Rows of one load with their stable ids and the widths, computed once per `DiffState` (not per redraw).
 struct DiffContent {
     struct Item: Identifiable {
@@ -128,13 +160,10 @@ let diffTabWidth = 4
         var c = DiffContent()
         c.version = content.version + 1
         c.rows = diffRows(state, origPath: origPath)
-        var occurrences: [String: Int] = [:]
+        let ids = diffRowIds(c.rows)
         c.items.reserveCapacity(c.rows.count)
         for (i, row) in c.rows.enumerated() {
-            let key = row.id
-            let n = occurrences[key, default: 0]
-            occurrences[key] = n + 1
-            let id = "\(n)#" + key  // unique: the n-th row with this kind and text
+            let id = ids[i]
             c.items.append(.init(id: id, index: i, row: row))
             c.indexById[id] = i
             if case .line(let l) = row {

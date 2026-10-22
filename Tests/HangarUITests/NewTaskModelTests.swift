@@ -126,10 +126,13 @@ import Workspace
 
     /// git can't have both `release` and `release/1.2` (a ref is a file or a folder): such a verbatim name → slug.
     @Test func verbatimNameClashingWithAPrefixFallsBackToSlug() async throws {
-        let t = try await repo()
+        let t = try await TempRepo.offMain {
+            let t = try TempRepo()
+            try t.git("branch", "Release", in: t.repo)
+            try t.git("branch", "hotfix/x/y", in: t.repo)
+            return t
+        }
         defer { t.cleanup() }
-        try t.git("branch", "Release", in: t.repo)
-        try t.git("branch", "hotfix/x/y", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         await m.load()
         m.name = "release/1.2"  // an existing branch is a `/`-prefix of it (case-insensitive, as on disk)

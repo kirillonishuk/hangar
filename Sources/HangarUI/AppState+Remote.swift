@@ -54,8 +54,10 @@ extension AppState {
     }
 
     /// The inspector of the visible remote task showed «not connected»: its host is back, load again (no FSEvents there).
+    /// Hidden (and no diff tab shown, as `InspectorWatch`): nothing runs; showing it loads.
     private func inspectorHostConnected(_ host: String) {
-        guard inspector.offline, let task = selectedTask, project(task.projectId)?.host == host else { return }
+        guard state.inspectorVisible || activeDiff != nil, inspector.offline, let task = selectedTask,
+              project(task.projectId)?.host == host else { return }
         inspector.refresh(.all)
     }
 
@@ -109,7 +111,13 @@ extension AppState {
             let queued = remove ? pendingKills.removeValue(forKey: host) ?? [] : []
             let runner = remote.runner(host)
             Task {
-                for id in ids + queued { _ = try? await runner.run(killSessionArgs(id), "") }
+                var failed: [UUID] = []
+                // Thrown (the host dropped meanwhile) or 255 (ssh itself failed): tmux never got it, so it waits again.
+                for id in ids + queued {
+                    let r = try? await runner.run(killSessionArgs(id), "")
+                    if r == nil || r?.status == 255 { failed.append(id) }
+                }
+                if !failed.isEmpty { pendingKills[host, default: []].formUnion(failed) }
                 if remove, !state.projects.contains(where: { $0.host == host }) { remote.remove(host) }
             }
         }

@@ -335,23 +335,29 @@ import Workspace
     }
 
     @Test func quitDecisionOrder() {
-        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: false, systemShutdown: false) == .terminateNow)
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, systemShutdown: false) == .ask(3))
-        #expect(quitDecision(creating: false, working: 3, confirmed: true, asking: false, systemShutdown: false) == .terminateNow)
-        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: false, systemShutdown: false) == .cancelCreating)
-        #expect(quitDecision(creating: true, working: 0, confirmed: true, asking: false, systemShutdown: false) == .cancelCreating)
+        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: false, forced: false) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, forced: false) == .ask(3))
+        #expect(quitDecision(creating: false, working: 3, confirmed: true, asking: false, forced: false) == .terminateNow)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: false, forced: false) == .cancelCreating)
+        #expect(quitDecision(creating: true, working: 0, confirmed: true, asking: false, forced: false) == .cancelCreating)
     }
 
     /// A second ⌘Q / close while the confirm sheet is up is refused, never a second sheet or a pending reply.
     @Test func quitWhileAskingIsRefused() {
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, systemShutdown: false) == .alreadyAsking)
-        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: true, systemShutdown: false) == .cancelCreating)
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, systemShutdown: true) == .terminateNow)
-        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: true, systemShutdown: false) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, forced: false) == .alreadyAsking)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: true, forced: false) == .cancelCreating)
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: true, forced: true) == .terminateNow)
+        #expect(quitDecision(creating: false, working: 0, confirmed: false, asking: true, forced: false) == .terminateNow)
     }
 
-    @Test func systemShutdownNeverAsks() {
-        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, systemShutdown: true) == .terminateNow)
+    /// Logout/shutdown and SIGTERM quit at once: no confirm sheet, not even for a worktree being created.
+    @Test func forcedQuitNeverAsks() {
+        #expect(quitDecision(creating: false, working: 3, confirmed: false, asking: false, forced: true) == .terminateNow)
+        #expect(quitDecision(creating: true, working: 3, confirmed: false, asking: true, forced: true) == .terminateNow)
+        #expect(isForcedQuit(sigterm: true, reason: nil))
+        #expect(isForcedQuit(sigterm: false, reason: OSType(kAEShutDown)))
+        #expect(!isForcedQuit(sigterm: false, reason: OSType(kAEQuitAll)))
+        #expect(!isForcedQuit(sigterm: false, reason: nil))
         #expect(isSystemShutdown(reason: OSType(kAELogOut)))
         #expect(isSystemShutdown(reason: OSType(kAEReallyLogOut)))
         #expect(isSystemShutdown(reason: OSType(kAERestart)))

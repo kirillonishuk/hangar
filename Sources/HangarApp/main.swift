@@ -15,6 +15,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     var appState: AppState?
     var server: ControlServer?
+    /// `kill -TERM` (logout of a launchd job, a script): quit through `applicationWillTerminate`, never ask.
+    private var sigtermReceived = false
+    private var sigterm: DispatchSourceSignal?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        signal(SIGTERM, SIG_IGN)  // the default action would kill the app before the state is saved
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                self?.sigtermReceived = true
+                NSApp.terminate(nil)
+            }
+        }
+        source.resume()
+        sigterm = source
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -88,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 0x7768793F = keyAEQuitReason ('why?')
         let reason = NSAppleEventManager.shared().currentAppleEvent?
             .attributeDescriptor(forKeyword: AEKeyword(0x7768793F))?.enumCodeValue
-        switch wc.currentQuitDecision(systemShutdown: isSystemShutdown(reason: reason)) {
+        switch wc.currentQuitDecision(forced: isForcedQuit(sigterm: sigtermReceived, reason: reason)) {
         case .terminateNow: return .terminateNow
         case .cancelCreating:
             wc.notifyCreatingTask()

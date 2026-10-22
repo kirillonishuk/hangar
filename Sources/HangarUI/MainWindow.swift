@@ -584,9 +584,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// For `applicationShouldTerminate`.
-    public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
+    public func currentQuitDecision(forced: Bool = false) -> QuitDecision {
         quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.quitWorkingCount, confirmed: quitConfirmed,
-                     asking: quitAlertShown, systemShutdown: systemShutdown)
+                     asking: quitAlertShown, forced: forced)
     }
 
     /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).

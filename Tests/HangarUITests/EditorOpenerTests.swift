@@ -1,3 +1,4 @@
+@testable import Exec
 import Foundation
 import Testing
 @testable import HangarUI
@@ -79,5 +80,36 @@ import Workspace
         var asked: [UUID] = []
         _ = editorRoute(task: withEditor, isHelix: true, quotable: true) { asked.append($0); return .running }
         #expect(asked == [ed.id])
+    }
+
+    /// A launch that met a missing folder is retried by ↩ (and by opening a file) once the folder is back,
+    /// with the context it had. No Ghostty in tests: a launch only builds its spec.
+    @Test func missingFolderLeafRelaunches() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-missing-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let previous = LaunchMode(restoring: false, initialPrompt: nil)
+        for first in [LaunchContext.restored(inResumeSet: true), .relaunch(previous: previous, exitCode: 1)] {
+            var contexts: [LaunchContext] = []
+            var keeps: [Bool] = []
+            let view = LeafView(leafId: UUID())
+            view.onRelaunch = { keeps.append($0) }
+            view.start(first) { ctx in
+                contexts.append(ctx)
+                guard FileManager.default.fileExists(atPath: dir) else { throw LaunchError.missingCwd(dir) }
+                return (LaunchSpec(command: "true", cwd: dir, env: [:]), previous)
+            }
+            #expect(view.needsRelaunch)
+            #expect(view.controlState == .failed)
+            view.relaunch(focus: false)  // still missing: tried again, still waiting for ↩
+            #expect(contexts == [first, first])
+            #expect(view.needsRelaunch)
+            #expect(keeps.isEmpty)
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            view.relaunch(focus: false)
+            #expect(contexts == [first, first, first])
+            // A relaunch after an exit resets the status like any ↩; a launch that never ran keeps it.
+            if case .relaunch = first { #expect(keeps == [false]) } else { #expect(keeps == [true]) }
+            try FileManager.default.removeItem(atPath: dir)
+        }
     }
 }

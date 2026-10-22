@@ -65,6 +65,38 @@ import Testing
         guard case .loaded = store.load() else { Issue.record("expected .loaded"); return }
     }
 
+    @Test func danglingSymlinkIsBackedUpLikeCorrupt() throws {
+        let dir = tempDir()
+        let fm = FileManager.default
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("state.json")
+        let target = dir.appendingPathComponent("gone.json").path
+        try fm.createSymbolicLink(atPath: file.path, withDestinationPath: target)
+        let store = StateStore(directory: dir)
+        guard case .recoveredFromCorrupt(let backup) = store.load() else {
+            Issue.record("expected .recoveredFromCorrupt"); return
+        }
+        // The link itself is moved aside, never deleted.
+        #expect(try fm.destinationOfSymbolicLink(atPath: backup.path) == target)
+        #expect((try? fm.attributesOfItem(atPath: file.path)) == nil)
+        try store.saveNow(sample())
+        guard case .loaded = store.load() else { Issue.record("expected .loaded"); return }
+    }
+
+    @Test func danglingSymlinkReplacesOlderBackup() throws {
+        let dir = tempDir()
+        let fm = FileManager.default
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("old bak".utf8).write(to: dir.appendingPathComponent("state.json.bak"))
+        let file = dir.appendingPathComponent("state.json")
+        try fm.createSymbolicLink(atPath: file.path, withDestinationPath: "/nonexistent/hangar-state.json")
+        guard case .recoveredFromCorrupt(let backup) = StateStore(directory: dir).load() else {
+            Issue.record("expected .recoveredFromCorrupt"); return
+        }
+        #expect(try fm.destinationOfSymbolicLink(atPath: backup.path) == "/nonexistent/hangar-state.json")
+        #expect((try? fm.attributesOfItem(atPath: file.path)) == nil)
+    }
+
     @Test func debouncedSavesCoalesce() async throws {
         let dir = tempDir()
         let store = StateStore(directory: dir, debounce: .milliseconds(50))

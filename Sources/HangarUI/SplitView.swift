@@ -131,6 +131,9 @@ final class RatioSplitView: HangarSplitView {
 
     func setHeader(_ text: String) { header.stringValue = text }
 
+    /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
+    override var acceptsFirstResponder: Bool { surface == nil }
+
     /// Starts the surface; a launch error (missing folder) shows in the bar instead.
     func start(_ context: LaunchContext, make: @escaping (LaunchContext) throws -> (LaunchSpec, LaunchMode)) {
         self.make = make
@@ -311,6 +314,8 @@ final class RatioSplitView: HangarSplitView {
     override func mouseDown(with event: NSEvent) {
         if !bar.isHidden, needsRelaunch || canReconnect, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
             activateBar()
+        } else if surface == nil {
+            window?.makeFirstResponder(self)
         } else {
             super.mouseDown(with: event)
         }

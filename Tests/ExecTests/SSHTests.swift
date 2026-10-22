@@ -164,10 +164,12 @@ import Testing
         let f = try fake(); defer { f.cleanup() }
         let runner = Runner.ssh(host: "dev", controlPath: "/tmp/x", sshPath: f.ssh.path)
         try "x".write(toFile: f.dir + "/file", atomically: true, encoding: .utf8)
-        #expect(await directoryExists(f.dir, runner: runner))
-        #expect(await !directoryExists(f.dir + "/file", runner: runner))
-        #expect(await !directoryExists(f.dir + "/nope", runner: runner))
-        #expect(await directoryExists(f.dir, runner: .local))
+        #expect(try await directoryExists(f.dir, runner: runner))
+        #expect(try await !directoryExists(f.dir + "/file", runner: runner))
+        #expect(try await !directoryExists(f.dir + "/nope", runner: runner))
+        #expect(try await directoryExists(f.dir, runner: .local))
+        // A runner that can't run (host not connected) is an error, not "no such folder".
+        await #expect(throws: CancellationError.self) { try await directoryExists("/", runner: Runner { _, _ in throw CancellationError() }) }
     }
 
     @Test func runnerIsLocalFlag() {

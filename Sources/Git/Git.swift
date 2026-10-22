@@ -39,8 +39,9 @@ public struct Git: Sendable {
 
     // MARK: Probes (non-zero exit is an answer, not an error; read-only, so `--no-optional-locks` as in the inspector)
 
-    public func isRepository() async -> Bool {
-        guard let r = try? await runner.run(["git", "--no-optional-locks", "rev-parse", "--is-inside-work-tree"], repo) else { return false }
+    /// Throws when the command can't run at all (e.g. the host is not connected): that is not "no repository".
+    public func isRepository() async throws -> Bool {
+        let r = try await runner.run(["git", "--no-optional-locks", "rev-parse", "--is-inside-work-tree"], repo)
         return r.status == 0 && r.stdout.trimmed == "true"
     }
 

@@ -106,7 +106,7 @@ public struct RemoteTarget: Equatable, Sendable {
     }
 }
 
-/// `test -d` through the runner (local or remote); any failure counts as "no".
-public func directoryExists(_ path: String, runner: Runner) async -> Bool {
-    (try? await runner.run(["test", "-d", path], "/"))?.status == 0
+/// `test -d` through the runner (local or remote); a runner that can't run (host not connected) throws.
+public func directoryExists(_ path: String, runner: Runner) async throws -> Bool {
+    try await runner.run(["test", "-d", path], "/").status == 0
 }

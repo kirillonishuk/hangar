@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Git
 import Testing
@@ -139,6 +140,16 @@ import Workspace
         #expect(m.branch == "hotfix/z")
         m.name = "release/1.2"
         #expect(await m.create(skipFetch: false) == .worktree(path: t.repo + ".worktrees/release-1.2", branch: "release-1.2", base: "origin/main"))
+    }
+
+    /// A host that isn't connected is «not connected», not «not a repository».
+    @Test func offlineHostIsNotNotARepository() async {
+        let project = Project(name: "p", location: .ssh(host: "dev", path: "/srv/app"), worktreeByDefault: true)
+        let git = Git(repo: "/srv/app", runner: Runner { _, _ in throw RemoteHostError.notConnected("dev") })
+        let m = NewTaskModel(project: project, git: git, taskBranches: [])
+        await m.load()
+        #expect(m.availability == .hostOffline("dev"))
+        #expect(!m.worktree)
     }
 
     @Test func branchLikeNameIsSuggestedVerbatim() async throws {

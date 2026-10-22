@@ -179,7 +179,7 @@ import Exec
         let dir = NSTemporaryDirectory() + "hangar-git-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: dir) }
-        #expect(await Git(repo: dir).isRepository() == false)
+        #expect(try await Git(repo: dir).isRepository() == false)
     }
 
     @Test func gitErrorDescriptionIsStderr() {

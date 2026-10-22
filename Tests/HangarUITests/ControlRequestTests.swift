@@ -184,6 +184,17 @@ import Workspace
         #expect(app.state.tasks.count == 3)
     }
 
+    /// tasks.create with a worktree on a host that isn't connected: says so in English, not "not a git repository".
+    @Test func worktreeOnOfflineHost() async throws {
+        let app = try makeApp { s in _ = s.addRemoteProject(name: "srv", host: "dev", path: "/srv/app") }
+        defer { cleanup() }
+        // Never a real ssh: the host is never connected, and this ssh could not dial anyway.
+        app.remote = app.makeRemoteHosts(paths: SSHPaths(stateDir: dir.path), sshPath: "/usr/bin/false", isActive: { false })
+        let e = await error(app, .tasksCreate(project: "srv", name: "Other", worktree: true, base: nil, prompt: nil))
+        #expect(e?.code == .failed && e?.message == "host dev is not connected")
+        #expect(app.state.tasks.isEmpty)
+    }
+
     @Test func archiveResolvesStrictly() async throws {
         let t = try await repoWithCommit()
         defer { t.cleanup() }

@@ -226,6 +226,7 @@ extension AppState {
         switch model.availability {
         case .notRepository: return failed("not a git repository")
         case .noCommits: return failed("repository has no commits")
+        case .hostOffline(let host): return failed(RemoteHostError.notConnected(host).description)
         case .loading, .ready: break
         }
         if let base {

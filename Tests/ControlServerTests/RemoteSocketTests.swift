@@ -267,7 +267,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
 
     @Test func scriptParsesAsPOSIX() throws {
         let lines = hangarRemoteScript.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 1)
+        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 2)
         let r = try Remote()
         for shell in shells {
             let p = Process()
@@ -277,7 +277,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
             p.waitUntilExit()
             #expect(p.terminationStatus == 0, "\(shell)")
             let v = try r.run(["version"], shell: shell, env: ["PATH": r.path()])
-            #expect(v.code == 0 && v.out == "1\n")
+            #expect(v.code == 0 && v.out == "2\n")
         }
     }
 
@@ -299,6 +299,14 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         #expect(decode(#"{"v":1,"type":"statusline","len":0}"#, "{}") == .failure(.badField))
         #expect(decode(#"{"v":1,"type":"event","len":0}"#) == .failure(.unknownType))
         #expect(decode("nope") == .failure(.badJSON))
+        let far = Int(Date().timeIntervalSince1970) + 365 * 86_400
+        let usage = decode(#"{"v":1,"type":"statusline","len":0}"#, #"{"rate_limits":{"seven_day":{"resets_at":\#(far)}}}"#)
+        guard case let .success(.usage(u)) = usage, let got = u.windows.first?.resetsAt else { Issue.record("\(usage)"); return }
+        #expect(got <= Date().timeIntervalSince1970 + 30 * 86_400)
+    }
+
+    @Test func socatHasTotalIdleTimeout() {
+        #expect(hangarRemoteScript.contains("socat -T2 - "))
     }
 }
 

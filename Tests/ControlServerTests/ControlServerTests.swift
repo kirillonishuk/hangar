@@ -458,18 +458,50 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         #expect(((object?["result"] as? [String: Any])?["text"] as? String)?.utf8.count == 900_000)
     }
 
-    /// A connection still draining a reply is not idle: a slow reader (a loaded machine) gets the whole response.
+    /// The idle deadline restarts on every write the reader accepts: a reader that keeps reading, slower than the
+    /// whole timeout in total, gets the whole response.
     @Test func slowReaderOutlivesIdleTimeout() async throws {
         let dir = SocketDir(), inbox = Inbox()
-        let server = try startServer(dir, inbox, idleTimeout: 0.3) { id, _ in screen(id, bytes: 900_000) }
+        let server = try startServer(dir, inbox, idleTimeout: 1) { id, _ in screen(id, bytes: 900_000) }
         defer { server.stop() }
         let raw = try RawClient(dir.path, timeout: mainBound)
         raw.send(request(4, "tabs.read", #"{"tab":"t"}"#))
-        try await Task.sleep(for: .seconds(1.5))  // the reply fills the socket buffer; the rest waits in the outbox
-        let replies = await raw.read(lines: 1).replies
-        #expect(replies.count == 1)
-        let object = replies.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        let fd = raw.fd
+        // A socket-buffer's worth every 20 ms: seconds for the whole reply, never a 1 s gap.
+        let data = await offPool { () -> Data in
+            var buf = Data(), chunk = [UInt8](repeating: 0, count: 32_768)
+            while !buf.contains(0x0A) {
+                let n = Darwin.read(fd, &chunk, chunk.count)
+                if n <= 0 { break }
+                buf.append(chunk, count: n)
+                usleep(20_000)
+            }
+            return buf
+        }
+        let line = String(decoding: data, as: UTF8.self).split(separator: "\n").first.map(String.init) ?? ""
+        let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
         #expect(((object?["result"] as? [String: Any])?["text"] as? String)?.utf8.count == 900_000)
+    }
+
+    /// A reader that stopped (a CLI suspended with ^Z) is dropped `idleTimeout` after its last progress, so stalled
+    /// replies cannot hold every slot and lock out hooks and the status line.
+    @Test func stalledReadersAreDroppedAndFreeTheirSlots() async throws {
+        let dir = SocketDir(), inbox = Inbox()
+        let server = try startServer(dir, inbox, idleTimeout: 0.3) { id, _ in screen(id, bytes: 900_000) }
+        defer { server.stop() }
+        let stalled = try (0..<ControlServer.maxConnections).map { _ in try RawClient(dir.path) }
+        for (i, c) in stalled.enumerated() { c.send(request(i + 1, "tabs.read", #"{"tab":"t"}"#)) }
+        // All slots hold a reply that is never read; a new client is served once they are dropped.
+        let deadline = SuspendingClock.now + .seconds(mainBound)
+        var served = false
+        while !served, SuspendingClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(200))
+            let fresh = try RawClient(dir.path, timeout: 2)
+            fresh.send(line(event()))
+            served = await fresh.read(lines: 1).replies == [#"{"ok":true}"#]
+        }
+        #expect(served)
+        withExtendedLifetime(stalled) {}
     }
 
     @Test func responseAfterDisconnectDropped() async throws {

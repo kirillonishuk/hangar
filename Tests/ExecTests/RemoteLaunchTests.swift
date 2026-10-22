@@ -44,8 +44,16 @@ import Workspace
 
         func read(_ name: String) -> String { (try? String(contentsOfFile: root + "/" + name, encoding: .utf8)) ?? "" }
 
-        func tmux(_ args: [String]) async throws -> RunResult {
-            try await runProcess(RemoteLaunchTests.tmuxPath ?? "/usr/bin/tmux", args, cwd: "/", env: env)
+        /// Hangar's own tmux server (`-L hangar`) on the isolated `TMUX_TMPDIR`.
+        func tmux(_ args: [String]) async throws -> RunResult { try await argv(["tmux", "-L", "hangar"] + args) }
+
+        /// A `tmux …` argv as the server would run it (e.g. `killSessionArgs`).
+        func argv(_ argv: [String]) async throws -> RunResult {
+            try await runProcess(RemoteLaunchTests.tmuxPath ?? "/usr/bin/tmux", Array(argv.dropFirst()), cwd: "/", env: env)
+        }
+
+        func clients() async -> [pid_t] {
+            ((try? await tmux(["list-clients", "-F", "#{client_pid}"]).stdout) ?? "").split(separator: "\n").compactMap { pid_t($0) }
         }
 
         /// The tab command in a pty (tmux needs a terminal), as Ghostty would run it; returns its exit code.
@@ -54,26 +62,36 @@ import Workspace
             var e = env
             e["HANGAR_T_CMD"] = command
             e["HANGAR_T_CODE"] = code
-            _ = try await runProcess("/usr/bin/script", ["-q", "/dev/null", "/bin/sh", "-c", #"eval "$HANGAR_T_CMD"; echo $? > "$HANGAR_T_CODE""#],
-                                     cwd: "/", env: e)
+            // A deadline: a broken script must fail the test, not hang it (cancel kills `script`, its pty hangs up the rest).
+            let run = Task { try await runProcess("/usr/bin/script", ["-q", "/dev/null", "/bin/sh", "-c", #"eval "$HANGAR_T_CMD"; echo $? > "$HANGAR_T_CODE""#],
+                                                  cwd: "/", env: e) }
+            let timer = Task { try await Task.sleep(nanoseconds: 60_000_000_000); run.cancel() }
+            _ = try? await run.value
+            timer.cancel()
             return Int32((try? String(contentsOfFile: code, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? -999
         }
 
         /// Runs `body`, then always kills the isolated tmux server and removes the root.
         static func with(_ body: (Fixture) async throws -> Void) async throws {
             let f = try Fixture()
+            // The first exec of a fresh script is slow on macOS (security scan), worse under load.
+            _ = try? await runProcess(f.login, ["-c", "true"], cwd: "/", env: f.env)
+            _ = try? await runProcess(f.ssh, ["--", "dev", "true"], cwd: "/", env: f.env)
             do { try await body(f) } catch { await f.cleanup(); throw error }
             await f.cleanup()
         }
 
         func cleanup() async {
-            if RemoteLaunchTests.tmuxPath != nil { _ = try? await tmux(["kill-server"]) }
+            if RemoteLaunchTests.tmuxPath != nil {
+                _ = try? await tmux(["kill-server"])
+                _ = try? await argv(["tmux", "kill-server"])
+            }
             try? FileManager.default.removeItem(atPath: root)
         }
     }
 
     /// Test-only wait for an async side effect; SuspendingClock survives Mac sleep.
-    private func waitUntil(_ seconds: Double = 20, _ cond: () async -> Bool) async -> Bool {
+    private func waitUntil(_ seconds: Double = 40, _ cond: () async -> Bool) async -> Bool {
         let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
         while clock.now < end {
             if await cond() { return true }
@@ -126,7 +144,7 @@ import Workspace
 
         let editor = Leaf(kind: .editor, cwd: "/srv", openFile: "/srv/a b.txt", openLine: 3)
         #expect(agentCommand(for: editor, agent: { $0.rawValue }, editor: "hx", shell: "sh", restoring: false, initialPrompt: nil) == "hx '/srv/a b.txt:3'")
-        #expect(killSessionArgs(leaf.id) == ["tmux", "kill-session", "-t", "=" + name])
+        #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 
     @Test func reattachMode() {
@@ -170,13 +188,16 @@ import Workspace
         for pid in clients.split(separator: "\n").compactMap({ pid_t($0) }) { kill(pid, SIGHUP) }
         #expect(try await first.value == 255)
         #expect(try await f.tmux(["has-session", "-t", "=" + name]).status == 0)
+        // The user's own default server is another server: its kill-server leaves the agent alone.
+        _ = try await f.argv(["tmux", "new-session", "-d", "-s", "mine", "sleep 30"])
+        _ = try await f.argv(["tmux", "kill-server"])
+        #expect(try await f.tmux(["has-session", "-t", "=" + name]).status == 0)
 
         let second = Task { try await f.run(cmd) }
         #expect(await waitUntil { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
         #expect(try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout == pane)
         #expect(f.read("started") == "started\n")
-        let args = killSessionArgs(leaf)
-        #expect(try await f.tmux(Array(args.dropFirst())).status == 0)
+        #expect(try await f.argv(killSessionArgs(leaf)).status == 0)
         _ = try await second.value
         #expect(try await f.tmux(["has-session", "-t", "=" + name]).status != 0)
     } }
@@ -192,7 +213,7 @@ import Workspace
         #expect(await waitUntil { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
         _ = try await f.tmux(["detach-client", "-s", "=" + remoteSessionName(detached)])
         #expect(try await d.value == 255)
-        _ = try await f.tmux(Array(killSessionArgs(detached).dropFirst()))
+        _ = try await f.argv(killSessionArgs(detached))
 
         // The agent exits with 5 while no client is attached: the next launch reports 5 and starts nothing.
         let leaf = UUID(), name = remoteSessionName(leaf), go = f.root + "/go", marker = f.root + "/started5"
@@ -207,5 +228,56 @@ import Workspace
         #expect(try await f.run(cmd) == 5)
         #expect(try await f.tmux(["has-session", "-t", "=" + name]).status != 0)
         #expect(f.read("started5") == "started\n")
+    } }
+
+    /// tmux format-expands `-c`: the folder must reach the pane only through the script's own `cd`.
+    @Test(.enabled(if: tmuxPath != nil)) func paneStartsInOddFolders() async throws { try await Fixture.with { f in
+        for (i, name) in ["my#Dir", "#S", "x#{pane_id}", "a;"].enumerated() {
+            let dir = f.home + "/" + name, out = f.root + "/pwd-\(i)"
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let code = try await f.run(command(f, leaf: UUID(), cwd: dir, agent: "pwd -P > \(shellQuote(out))"))
+            #expect(code == 0, "\(name)")
+            let expected = try await runProcess("/bin/sh", ["-c", "cd \"$1\" && pwd -P", "sh", dir], cwd: "/", env: f.env).stdout
+            #expect(f.read("pwd-\(i)") == expected, "\(name)")
+        }
+    } }
+
+    /// A stored code counts only when the session is gone; an unreadable one is "exit status lost" (254).
+    @Test(.enabled(if: tmuxPath != nil)) func exitFileGuards() async throws { try await Fixture.with { f in
+        for (text, code) in [("", 254), ("abc", 254), ("7", 7)] as [(String, Int32)] {
+            let leaf = UUID()
+            let file = f.home + "/.hangar/run/" + remoteSessionName(leaf) + ".exit"
+            try FileManager.default.createDirectory(atPath: f.home + "/.hangar/run", withIntermediateDirectories: true)
+            try text.write(toFile: file, atomically: true, encoding: .utf8)
+            #expect(try await f.run(command(f, leaf: leaf, agent: "exit 9")) == code, "'\(text)'")
+            #expect(!FileManager.default.fileExists(atPath: file))
+        }
+
+        // A live session wins over a leftover file: the launch attaches.
+        let leaf = UUID(), name = remoteSessionName(leaf)
+        let cmd = command(f, leaf: leaf, agent: "sleep 30")
+        let first = Task { try await f.run(cmd) }
+        #expect(await waitUntil { await !f.clients().isEmpty })
+        for pid in await f.clients() { kill(pid, SIGHUP) }
+        #expect(try await first.value == 255)
+        try "7".write(toFile: f.home + "/.hangar/run/" + name + ".exit", atomically: true, encoding: .utf8)
+        let second = Task { try await f.run(cmd) }
+        #expect(await waitUntil { await !f.clients().isEmpty })
+        _ = try await f.argv(killSessionArgs(leaf))
+        #expect(try await second.value != 7)
+    } }
+
+    /// A second client of the same leaf (a reconnect while the old connection lingers) takes over: the old one
+    /// is detached at once, so only the live client reads the agent's code.
+    @Test(.enabled(if: tmuxPath != nil)) func newClientTakesOver() async throws { try await Fixture.with { f in
+        let leaf = UUID(), go = f.root + "/go"
+        let cmd = command(f, leaf: leaf, agent: "while [ ! -f \(shellQuote(go)) ]; do sleep 0.05; done; exit 6")
+        let old = Task { try await f.run(cmd) }
+        #expect(await waitUntil { await f.clients().count == 1 })
+        let new = Task { try await f.run(cmd) }
+        #expect(try await old.value == 255)
+        #expect(await waitUntil { await f.clients().count == 1 })
+        try "".write(toFile: go, atomically: true, encoding: .utf8)
+        #expect(try await new.value == 6)
     } }
 }

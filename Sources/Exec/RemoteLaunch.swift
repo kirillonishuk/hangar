@@ -5,7 +5,8 @@ import Workspace
 public func remoteSessionName(_ leaf: UUID) -> String { "hangar-" + leaf.uuidString.lowercased() }
 
 /// Runs on the host through `Runner.ssh`; `=` makes tmux match the name exactly, not as a prefix.
-public func killSessionArgs(_ leaf: UUID) -> [String] { ["tmux", "kill-session", "-t", "=" + remoteSessionName(leaf)] }
+/// `-L hangar`: Hangar's own tmux server, so the user's `kill-server` on the default one never ends agents.
+public func killSessionArgs(_ leaf: UUID) -> [String] { ["tmux", "-L", "hangar", "kill-session", "-t", "=" + remoteSessionName(leaf)] }
 
 /// A remote tab: `ssh -t` through the host's master into the leaf's tmux session (or straight into the agent without tmux).
 /// Exit codes: the agent's own (255 → 254), 254 for a missing folder, 255 = the session did not end (lost or detached).
@@ -49,14 +50,20 @@ cd "$cwd" 2>/dev/null || { echo "hangar: no such folder: $cwd" >&2; exit 254; }
 
 """#
 
-/// An exit file means the agent ended (maybe while no client was attached): report it, start nothing.
-/// tmux gets the pane command as argv (no shell parses it) and `-A` attaches to a live session as is.
+/// No session but an exit file: the agent ended (maybe while no client was attached) — report it, start nothing;
+/// an empty or garbled file is "exit status lost" (254), never success.
+/// tmux gets the pane command as argv (no shell parses it); `-A` attaches to a live session as is and `-D` detaches
+/// any other client, so a lingering old connection never reads the code. No `-c`: tmux format-expands it (`#`, `;`),
+/// the pane starts in the client's folder from the `cd` above.
+/// A file next to a live session is stale (the brief's guard): dropped before attaching.
 /// The pane writes the agent's code; no file after the client returns = detached or lost.
+// shortcut: a client detached by `-D` in the same instant the agent exits may still read the code; harmless for one view per leaf
 let remoteTmuxScript = remoteScriptPrologue + #"""
-if [ -f "$f" ]; then c=$(cat "$f"); rm -f "$f"; exit "${c:-0}"; fi
-mkdir -p "${f%/*}"
-tmux new-session -A -s "$s" -c "$cwd" /bin/sh -c 'export HANGAR_TAB_ID="$1" HANGAR_LEAF_ID="$2" HANGAR_SOCKET="$3"; "${SHELL:-/bin/sh}" -l -i -c "$4"; c=$?; [ $c = 255 ] && c=254; echo $c > "$5"' sh "$tab" "$leaf" "$sock" "$cmd" "$f" \; set-option -t "=$s" status off
-if [ -f "$f" ]; then c=$(cat "$f"); rm -f "$f"; exit "${c:-0}"; fi
+code() { c=$(cat "$f" 2>/dev/null); rm -f "$f"; case $c in ''|*[!0-9]*) c=254 ;; esac; exit "$c"; }
+if ! tmux -L hangar has-session -t "=$s" 2>/dev/null && [ -f "$f" ]; then code; fi
+rm -f "$f"; mkdir -p "${f%/*}"
+tmux -L hangar new-session -A -D -s "$s" /bin/sh -c 'export HANGAR_TAB_ID="$1" HANGAR_LEAF_ID="$2" HANGAR_SOCKET="$3"; "${SHELL:-/bin/sh}" -l -i -c "$4"; c=$?; [ $c = 255 ] && c=254; echo $c > "$5"' sh "$tab" "$leaf" "$sock" "$cmd" "$f" \; set-option -t "=$s" status off
+if [ -f "$f" ]; then code; fi
 exit 255
 """#
 

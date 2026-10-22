@@ -63,6 +63,8 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored private var git: @Sendable (String) -> Git = { Git(repo: $0) }
     @ObservationIgnored private var remote = false
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
+    /// The task whose data is loaded (kept while the inspector is hidden, so another selected task must not use it).
+    var shownTaskId: UUID? { context.taskId }
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
     /// `baseBranch()` once asked (`.some(nil)`: there is none); asked again on every `show` and `baseChanged`.
     @ObservationIgnored private var knownBase: String??

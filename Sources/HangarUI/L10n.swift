@@ -108,6 +108,7 @@ import Workspace
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case integrationMCP, copyCommand, commandCopied, mcpHint
+        case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
@@ -341,6 +342,13 @@ import Workspace
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }
     // Inspector (`%d` keys take Int32: String(format:) reads 32 bits)
+    /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
+    static func fileCount(_ n: Int) -> String {
+        let n10 = n % 10, n100 = n % 100
+        let key: Key = n10 == 1 && n100 != 11 ? .fileCountOne : (2...4).contains(n10) && !(12...14).contains(n100) ? .fileCountFew : .fileCountMany
+        return f(key, Int32(clamping: n))
+    }
+    static var statusShowChanges: String { s(.statusShowChanges) }
     static var segmentFiles: String { s(.segmentFiles) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }

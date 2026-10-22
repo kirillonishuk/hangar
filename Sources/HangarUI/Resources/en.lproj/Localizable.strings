@@ -202,6 +202,10 @@
 "moveToApplications" = "Move Hangar to Applications and open it again";
 "integrationChecking" = "Checking…";
 "segmentFiles" = "Files";
+"fileCountOne" = "%d file";
+"fileCountFew" = "%d files";
+"fileCountMany" = "%d files";
+"statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
 "changesHintBase" = "Compared with base branch %@";
 "changesHintToBase" = "⌥B — compare with %@";

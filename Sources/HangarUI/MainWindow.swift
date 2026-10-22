@@ -23,16 +23,18 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Titlebar row, tab bar row, terminal area.
+/// Titlebar row, tab bar row, terminal area, task status line.
 final class TaskColumnController: NSViewController {
     let terminalArea: TerminalArea
     private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
+    private let statusBar: NSHostingView<TaskStatusBar>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
+        statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -42,7 +44,8 @@ final class TaskColumnController: NSViewController {
         let v = NSView()
         titleBar.sizingOptions = []
         tabBar.sizingOptions = []
-        for sub in [titleBar, tabBar, terminalArea] as [NSView] {
+        statusBar.sizingOptions = []
+        for sub in [titleBar, tabBar, terminalArea, statusBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -58,7 +61,11 @@ final class TaskColumnController: NSViewController {
             terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            terminalArea.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
         ])
         view = v
     }

@@ -145,6 +145,8 @@ public enum Theme {
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
     public static let statusBarHeight: CGFloat = 22
+    /// Gap between the task status line's parts (DESIGN.md «Строка состояния»).
+    public static let statusBarGap: CGFloat = 14
     /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
     public static let drawerBarHeight: CGFloat = 26
     public static let drawerGrabHeight: CGFloat = 5

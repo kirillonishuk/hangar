@@ -92,10 +92,11 @@ final class RatioSplitView: HangarSplitView {
     /// The launch that met `.notConnected`, made again by `resumeIfWaiting` once the host is up.
     private var waiting: LaunchContext?
     var isWaitingForHost: Bool { waiting != nil }
-    /// The leaf's host was given up on or disconnected (set with `host`): the waiting bar offers «Переподключиться».
-    var hostDown: () -> Bool = { false }
+    /// Set with `host`: the bar text when the host is not on its way (given up, disconnected, retry paused) — then the
+    /// waiting bar offers «Переподключиться»; nil while it is connecting.
+    var reconnectText: () -> String? = { nil }
     var onReconnect: (() -> Void)?
-    var canReconnect: Bool { waiting != nil && hostDown() }
+    var canReconnect: Bool { waiting != nil && reconnectText() != nil }
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
@@ -151,7 +152,7 @@ final class RatioSplitView: HangarSplitView {
         } catch LaunchError.notConnected(let host) {
             waiting = context
             // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
-            barText = { [weak self] in self?.hostDown() == true ? L10n.hostGaveUp(host) : L10n.hostNotConnected(host) }
+            barText = { [weak self] in self?.reconnectText() ?? L10n.hostNotConnected(host) }
             refreshText()
         } catch {
             setBar(L10n.launchFailed(String(describing: error)))

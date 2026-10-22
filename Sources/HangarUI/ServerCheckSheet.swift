@@ -24,8 +24,11 @@ struct ServerCheckSheet: View {
             HStack(spacing: Theme.statusDot) {
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
+                // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
                     .buttonStyle(SheetButton(primary: false))
+                    .disabled(model.phase == .installing)
+                    .opacity(model.phase == .installing ? Theme.disabledButtonOpacity : 1)
                     // Esc belongs to the install terminal while it runs.
                     .keyboardShortcut(model.phase == .installing ? nil : .cancelAction)
                 InstallButton(model: model, primary: true)

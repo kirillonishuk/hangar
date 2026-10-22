@@ -195,7 +195,7 @@ import Workspace
         let dev = h.leaf("dev")
         let view = LeafView(leafId: dev.leaf)
         view.host = "dev"
-        view.hostDown = { [app = h.app] in app.hostDown("dev") }
+        view.reconnectText = { [app = h.app] in app.hostReconnectText("dev") }
         var reconnects = 0
         view.onReconnect = { reconnects += 1 }
         h.app.onHostChange = { _ in view.refreshText() }  // as TerminalArea does
@@ -211,6 +211,22 @@ import Workspace
         h.app.reconnect(host: "dev")
         #expect(await waitUntil { h.state() == .connected })
         #expect(!view.canReconnect)
+    }
+
+    @Test func pausedHostLeafIsCalm() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        h.active = false
+        h.killMaster()
+        #expect(await waitUntil { h.remote.hosts["dev"]?.retryPaused == true })
+        let dev = h.leaf("dev")
+        let view = LeafView(leafId: dev.leaf)
+        h.app.wireHost(view)
+        // The launch meets the paused host: no «connecting…», the calm text with the reconnect action.
+        start(view, h, leaf: leaf(h, dev.leaf), tab: dev.tab, context: .created(prompt: nil), into: Launches())
+        #expect(view.isWaitingForHost)
+        #expect(view.canReconnect)
+        #expect(view.barString == L10n.hostPausedBar("dev"))
     }
 
     @Test func reconnectAction() async throws {

@@ -10,8 +10,8 @@ struct IntegrationSheet: View {
     let onCancel: () -> Void
 
     private var path: String { plan.displayPath ?? tildePath(plan.url.path) }
-    /// Where the backup goes: next to the real file (a remote one: next to the path itself).
-    private var backupBase: String { plan.displayPath ?? tildePath(plan.resolved.path) }
+    /// Where the backup goes: next to the real file (a remote one: its target as resolved on the server).
+    private var backupBase: String { plan.backupDisplayPath ?? tildePath(plan.resolved.path) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

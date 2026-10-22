@@ -143,6 +143,40 @@ import Workspace
         #expect(m.message?.contains("dev:") == true)
     }
 
+    @Test func writesTheRawPathItRead() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
+        await m.refresh()
+        var plan = try #require(await m.integrationPlan(.claude, install: true))
+        // The path as read on the server wins over the URL's normalized one.
+        let raw = h.home + "/raw dir/settings.json"
+        plan.displayPath = "dev:" + raw
+        plan.url = URL(fileURLWithPath: h.home + "/elsewhere/settings.json")
+        #expect(await m.applyIntegration(plan))
+        #expect(FileManager.default.fileExists(atPath: raw))
+        #expect(!FileManager.default.fileExists(atPath: h.home + "/elsewhere/settings.json"))
+    }
+
+    @Test func symlinkedFileBacksUpNextToTarget() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: h.home + "/dotfiles", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: h.home + "/.claude", withIntermediateDirectories: true)
+        try "{}\n".write(toFile: h.home + "/dotfiles/settings.json", atomically: true, encoding: .utf8)
+        try fm.createSymbolicLink(atPath: h.home + "/.claude/settings.json", withDestinationPath: "../dotfiles/settings.json")
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
+        await m.refresh()
+        let plan = try #require(await m.integrationPlan(.claude, install: true))
+        #expect(plan.displayPath == "dev:" + h.home + "/.claude/settings.json")
+        #expect(plan.backupDisplayPath == "dev:" + h.home + "/.claude/../dotfiles/settings.json")
+        #expect(await m.applyIntegration(plan))
+        #expect(try fm.contentsOfDirectory(atPath: h.home + "/dotfiles").contains { $0.hasPrefix("settings.json.hangar-backup-") })
+        let type = try fm.attributesOfItem(atPath: h.home + "/.claude/settings.json")[.type] as? FileAttributeType
+        #expect(type == .typeSymbolicLink)
+    }
+
     @Test func remoteProjectFindsPath() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try FileManager.default.createDirectory(atPath: h.home + "/proj", withIntermediateDirectories: true)

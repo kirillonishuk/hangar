@@ -267,3 +267,4 @@
 "integrationShortInstalled" = "Установлена";
 "integrationShortOutdated" = "Устарела";
 "removeEllipsis" = "Удалить…";
+"hostPausedBar" = "Нет связи с %@ · ↩ переподключиться";

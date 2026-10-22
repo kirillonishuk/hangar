@@ -82,7 +82,9 @@ final class RatioSplitView: HangarSplitView {
     private(set) var exitCode: Int32?
     /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
     private(set) var failed = false
-    var needsRelaunch: Bool { exitCode != nil || failed }
+    /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
+    private var missingFolder: LaunchContext?
+    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil }
     /// A new surface replaced the old one; `keepsStatus`: the same agent goes on (reattach, a launch that never ran).
     var onRelaunch: ((_ keepsStatus: Bool) -> Void)?
     /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (#47).
@@ -142,13 +144,15 @@ final class RatioSplitView: HangarSplitView {
         guard let make else { return false }
         do {
             waiting = nil
+            missingFolder = nil
             let (spec, mode) = try make(context)
             self.mode = mode
             setBar(nil)
             launch(spec)
             return true
         } catch LaunchError.missingCwd(let path) {
-            setBar(L10n.folderMissing(path))
+            missingFolder = context
+            setBar("\(L10n.folderMissing(path)) · \(L10n.relaunchHint)")
         } catch LaunchError.notConnected(let host) {
             waiting = context
             // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
@@ -198,13 +202,20 @@ final class RatioSplitView: HangarSplitView {
     /// ↩ on an exited or failed leaf: launch again with a mode computed for this relaunch (decision #41;
     /// `focus: false` for background retries).
     func relaunch(focus: Bool = true) {
-        guard needsRelaunch, let mode else { return }
-        let reattach = isDetached
-        let code = failed ? nil : exitCode
+        guard needsRelaunch else { return }
+        let context: LaunchContext
+        if let missingFolder {
+            context = missingFolder
+        } else {
+            guard let mode else { return }
+            context = isDetached ? .reattach(previous: mode) : .relaunch(previous: mode, exitCode: failed ? nil : exitCode)
+        }
+        // Only a relaunch after a run resets the status; a reattach or a launch that never ran keeps it.
+        let keepsStatus: Bool = if case .relaunch = context { false } else { true }
         exitCode = nil
         failed = false
         isDetached = false
-        guard run(reattach ? .reattach(previous: mode) : .relaunch(previous: mode, exitCode: code)) else {
+        guard run(context) else {
             // No new process (missing folder): drop the dead surface so CLI/MCP never paste into it (`failed`).
             surface?.onChildExit = nil
             surface?.removeFromSuperview()
@@ -213,7 +224,7 @@ final class RatioSplitView: HangarSplitView {
         }
         uiLog.info("relaunch leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if focus, !failed { window?.makeFirstResponder(surface) }
-        onRelaunch?(reattach)
+        onRelaunch?(keepsStatus)
     }
 
     /// The host connected: the launch that waited for it runs now (with its own context: a first prompt is still sent).

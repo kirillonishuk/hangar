@@ -149,7 +149,7 @@ import Workspace
         #expect(h.app.quitWorkingCount == 0)
         h.app.handle(.event(EventMessage(tab: local.tab, leaf: local.leaf, kind: .prompt)))
         #expect(h.app.quitWorkingCount == 1)
-        #expect(quitDecision(creating: false, working: h.app.quitWorkingCount, confirmed: false, asking: false, systemShutdown: false) == .ask(1))
+        #expect(quitDecision(creating: false, working: h.app.quitWorkingCount, confirmed: false, asking: false, forced: false) == .ask(1))
     }
 
     @Test func killsWaitForTheHost() async throws {

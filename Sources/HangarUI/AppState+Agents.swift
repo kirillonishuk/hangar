@@ -202,11 +202,16 @@ public func isSystemShutdown(reason: OSType?) -> Bool {
         .contains { OSType($0) == reason }
 }
 
-/// A system-initiated quit never asks (the user chose it, state is saved anyway); otherwise a worktree being
+/// Logout/restart/shutdown or SIGTERM: the quit must go through without a sheet nobody would answer.
+public func isForcedQuit(sigterm: Bool, reason: OSType?) -> Bool {
+    sigterm || isSystemShutdown(reason: reason)
+}
+
+/// A forced quit (`isForcedQuit`) never asks (state is saved anyway); otherwise a worktree being
 /// created wins (quitting would leave it half-made); then working agents, unless already confirmed.
 /// `asking`: the confirm sheet is already up, so a repeated ⌘Q/close is refused (no second sheet, no pending reply).
-public func quitDecision(creating: Bool, working: Int, confirmed: Bool, asking: Bool, systemShutdown: Bool) -> QuitDecision {
-    if systemShutdown { return .terminateNow }
+public func quitDecision(creating: Bool, working: Int, confirmed: Bool, asking: Bool, forced: Bool) -> QuitDecision {
+    if forced { return .terminateNow }
     if creating { return .cancelCreating }
     guard working > 0, !confirmed else { return .terminateNow }
     return asking ? .alreadyAsking : .ask(working)

@@ -22,10 +22,12 @@ func classify(_ events: [FSEvent], root: String, gitDir: String?, commonDir: Str
     var result: RefreshParts = []
     for (path, flags) in events {
         if isIgnored(path, root: root, ignored: ignored) { continue }
+        // New ignore rules change the listing, the ignored set and the status at once. Before RootChanged: an
+        // ancestor's `.gitignore` of a subfolder project is a watched file path, an atomic save replaces it.
+        if path.hasSuffix("/.gitignore") { return .all }
         // WatchRoot also reports a watched git path (packed-refs, refs) appearing or being replaced as RootChanged.
         if flags & FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged) != 0, path != root { result.formUnion(.status); continue }
         if flags & rescan != 0 { return .all }
-        // New ignore rules change the listing, the ignored set and the status at once.
         if let gitDir, let rel = inside(path, gitDir) {
             if rel == "info/exclude" { return .all }
             if !rel.hasSuffix(".lock"), ["index", "HEAD", "packed-refs", "MERGE_HEAD", "refs"].contains(first(rel)) { result.formUnion(.status) }
@@ -36,7 +38,6 @@ func classify(_ events: [FSEvent], root: String, gitDir: String?, commonDir: Str
             if !rel.hasSuffix(".lock"), ["packed-refs", "refs"].contains(first(rel)) { result.formUnion(.status) }
             continue
         }
-        if path.hasSuffix("/.gitignore") { return .all }
         result.formUnion(flags & tree != 0 ? .all : .status)
     }
     return result
@@ -56,11 +57,23 @@ func isIgnored(_ path: String, root: String, ignored: Set<String>) -> Bool {
 
 /// The root, plus the git-dir when it lives elsewhere (a linked worktree's is under the main repository),
 /// plus the common git-dir's refs and `info/exclude` for a linked worktree (branches and shared rules live there).
-func watchPaths(root: String, gitDir: String?, commonDir: String? = nil) -> [String] {
-    guard let gitDir, gitDir != root, !gitDir.hasPrefix(root + "/") else { return [root] }
-    var paths = [root, gitDir]
-    if let commonDir, commonDir != gitDir, commonDir != root, !commonDir.hasPrefix(root + "/") {
-        paths += [commonDir + "/refs", commonDir + "/packed-refs", commonDir + "/info/exclude"]
+/// A subfolder project (`root` under the top level `top`): not the whole repository, but the ancestors' `.gitignore`
+/// files, whose rules apply to the subfolder too.
+func watchPaths(root: String, gitDir: String?, commonDir: String? = nil, top: String? = nil) -> [String] {
+    var paths = [root]
+    if let gitDir, gitDir != root, !gitDir.hasPrefix(root + "/") {
+        paths.append(gitDir)
+        if let commonDir, commonDir != gitDir, commonDir != root, !commonDir.hasPrefix(root + "/") {
+            paths += [commonDir + "/refs", commonDir + "/packed-refs", commonDir + "/info/exclude"]
+        }
+    }
+    if let top, root.hasPrefix(top + "/") {
+        var dir = top
+        paths.append(dir + "/.gitignore")
+        for part in root.dropFirst(top.count + 1).split(separator: "/").dropLast() {
+            dir += "/" + part
+            paths.append(dir + "/.gitignore")
+        }
     }
     return paths
 }

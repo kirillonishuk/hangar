@@ -137,6 +137,38 @@ import Exec
         #expect(try await Git(repo: wt).gitDir().contains("/worktrees/"))
     }
 
+    /// A project in `apps/web` of a monorepo: every inspector command covers only that folder, paths relative to it.
+    @Test func subfolderNarrowsToProject() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try write(t, ".gitignore", "dist/\n")
+        try write(t, "apps/web/w.txt", "one\n"); try write(t, "apps/api/b.txt"); try write(t, "root.txt")
+        try t.git("add", ".", in: t.repo); try t.git("commit", "-q", "-m", "mono", in: t.repo)
+        try write(t, "apps/web/w.txt", "two\n"); try write(t, "apps/web/new.txt"); try write(t, "apps/web/dist/x")
+        try write(t, "apps/api/b.txt", "changed\n"); try write(t, "apps/api/u.txt"); try write(t, "a.txt", "changed\n")
+        try write(t, "apps/api/dist/y")
+        try t.git("mv", "root.txt", "apps/web/moved.txt", in: t.repo)  // a rename from outside shows as added
+        let g = Git(repo: t.repo + "/apps/web")
+        let loc = try await g.location()
+        #expect(loc.top == String(cString: realpath(t.repo, nil)))
+        #expect(loc.prefix == "apps/web/")
+        #expect(try await g.listFiles().paths.sorted() == ["moved.txt", "new.txt", "w.txt"])
+        let st = try await g.status(prefix: loc.prefix)
+        #expect(Set(st.entries.map(\.path)) == ["w.txt", "new.txt", "moved.txt"])
+        #expect(try await g.ignoredPaths() == ["apps/web/dist/"])
+        let cs = try await g.changedFiles(.uncommitted, status: st)
+        #expect(Set(cs.files.map { "\($0.change) \($0.path)" }) == ["modified w.txt", "untracked new.txt", "added moved.txt"])
+        #expect(cs.files.allSatisfy { $0.origPath == nil })
+        #expect(Set(try await g.changedFiles(.uncommitted).files.map(\.path)) == ["w.txt", "new.txt", "moved.txt"])
+        for f in cs.files {
+            guard case .text(let hunks, _, _) = try await g.diff(file: f, from: cs.from) else { Issue.record("\(f.path)"); continue }
+            #expect(!hunks.isEmpty, "\(f.path)")
+        }
+        // At the top level nothing changes: the whole repository, top-relative.
+        let top = Git(repo: t.repo)
+        #expect(try await top.location().prefix == "")
+        #expect(try await top.status(prefix: "").entries.contains { $0.path == "apps/api/u.txt" })
+    }
+
     @Test func inspectorCommandsDoNotWriteIndex() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let index = t.repo + "/.git/index"

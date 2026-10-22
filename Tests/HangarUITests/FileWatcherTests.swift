@@ -1,5 +1,6 @@
 import CoreServices
 import Foundation
+import os
 import Testing
 @testable import HangarUI
 
@@ -99,6 +100,33 @@ import Testing
         #expect(watchPaths(root: "/r/main", gitDir: "/r/main/.git", commonDir: "/r/main/.git") == ["/r/main"])
     }
 
+    /// A subfolder project: the subfolder, the git-dir and the ancestors' `.gitignore` files — not the whole repository.
+    @Test func watchPathsForSubfolder() {
+        #expect(watchPaths(root: "/r/m/apps/web", gitDir: "/r/m/.git", commonDir: "/r/m/.git", top: "/r/m")
+            == ["/r/m/apps/web", "/r/m/.git", "/r/m/.gitignore", "/r/m/apps/.gitignore"])
+        #expect(watchPaths(root: "/r/wt/apps", gitDir: "/r/m/.git/worktrees/wt", commonDir: "/r/m/.git", top: "/r/wt")
+            == ["/r/wt/apps", "/r/m/.git/worktrees/wt", "/r/m/.git/refs", "/r/m/.git/packed-refs", "/r/m/.git/info/exclude",
+                "/r/wt/.gitignore"])
+        #expect(watchPaths(root: "/r/m", gitDir: "/r/m/.git", commonDir: "/r/m/.git", top: "/r/m") == ["/r/m"])
+    }
+
+    /// An ancestor's `.gitignore` (outside the watched subfolder) saved atomically arrives as RootChanged: everything.
+    @Test func ancestorGitignoreReloadsAll() {
+        let rootChanged = FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged)
+        #expect(classify([(path: "/r/m/.gitignore", flags: rootChanged)], root: "/r/m/apps/web", gitDir: "/r/m/.git") == .all)
+        #expect(classify([(path: "/r/m/apps/.gitignore", flags: modified)], root: "/r/m/apps/web", gitDir: "/r/m/.git") == .all)
+    }
+
+    @Test func subfolderOfRepository() throws {
+        let base = realPath(NSTemporaryDirectory()) + "/hangar-sub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: base) }
+        try FileManager.default.createDirectory(atPath: base + "/repo/.git", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: base + "/repo/apps/web", withIntermediateDirectories: true)
+        #expect(subfolderInRepository(base + "/repo/apps/web") == "apps/web")
+        #expect(subfolderInRepository(base + "/repo") == nil)
+        #expect(subfolderInRepository(base) == nil)
+    }
+
     @Test func realPathResolvesPrivate() {
         #expect(realPath("/tmp") == "/private/tmp")
         #expect(realPath("/nonexistent-hangar-x") == "/nonexistent-hangar-x")
@@ -142,6 +170,37 @@ import Testing
         for i in 0..<20 { try "y".write(toFile: "\(root)/g\(i).txt", atomically: false, encoding: .utf8) }
         try await Task.sleep(for: .milliseconds(1500))
         #expect(counter.n == before)
+    }
+
+    /// Live: a sibling folder of the subfolder is silent; the top `.gitignore` saved atomically reloads everything.
+    @Test func subfolderWatcherSkipsSiblings() async throws {
+        let base = NSTemporaryDirectory() + "hangar-fsw-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: base + "/apps/web", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: base + "/apps/api", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: base + "/.git", withIntermediateDirectories: true)
+        try "dist/\n".write(toFile: base + "/.gitignore", atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: base) }
+        let top = realPath(base), root = top + "/apps/web"
+        let counter = Counter()
+        // The fixture's own creation events may still arrive after the start: only the delivered paths are checked.
+        let seen = OSAllocatedUnfairLock(initialState: [String]())
+        let watcher = FileWatcher(paths: watchPaths(root: root, gitDir: top + "/.git", commonDir: top + "/.git", top: top),
+                                  onChange: { counter.n += 1; counter.last.formUnion($0) },
+                                  classify: { events in
+                                      seen.withLock { $0 += events.map(\.path) }
+                                      return classify(events, root: root, gitDir: top + "/.git", commonDir: top + "/.git") })
+        defer { watcher.stop() }
+        try await Task.sleep(for: .milliseconds(500))
+        for i in 0..<10 { try "x".write(toFile: "\(top)/apps/api/f\(i).txt", atomically: false, encoding: .utf8) }
+        try "x".write(toFile: "\(top)/r.txt", atomically: false, encoding: .utf8)
+        try "x".write(toFile: "\(root)/w.txt", atomically: false, encoding: .utf8)
+        for _ in 0..<100 where !seen.withLock({ $0.contains(root + "/w.txt") }) { try await Task.sleep(for: .milliseconds(100)) }
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(seen.withLock { $0.filter { $0.contains("/apps/api") || $0.hasSuffix("/r.txt") } }.isEmpty)
+        counter.last = []
+        try "dist/\nbuild/\n".write(toFile: base + "/.gitignore", atomically: true, encoding: .utf8)
+        for _ in 0..<100 where counter.last != .all { try await Task.sleep(for: .milliseconds(100)) }
+        #expect(counter.last == .all)
     }
 
     @Test func renamedRootReloadsAll() async throws {

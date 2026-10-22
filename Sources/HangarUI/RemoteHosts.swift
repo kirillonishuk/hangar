@@ -42,8 +42,6 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
 @MainActor @Observable public final class RemoteHosts {
     public private(set) var hosts: [String: HostInfo] = [:]
     @ObservationIgnored public var onConnected: ((String) -> Void)?
-    /// The master dropped; statuses are kept (the caller decides nothing else yet).
-    @ObservationIgnored public var onLost: ((String) -> Void)?
     /// Reconnect gave up or was refused (auth, unsupported shell): the host's leaves are no longer running anything we see.
     @ObservationIgnored public var onUnreachable: ((String) -> Void)?
     /// Any change of a host's info (AppKit views that don't observe, e.g. a leaf's «connecting» bar).
@@ -172,7 +170,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         }
     }
 
-    /// App quit: every master gets `-O exit`, host sockets go, timers are cancelled; no `onLost`.
+    /// App quit: every master gets `-O exit`, host sockets go, timers are cancelled; no reconnect.
     public func stopAll() {
         for (host, link) in links {
             close(link, host)
@@ -314,7 +312,6 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
             return
         }
         set(host) { $0.forwarding = false }
-        onLost?(host)
         link.reconnecting = true
         link.attempts = 0
         switch f {

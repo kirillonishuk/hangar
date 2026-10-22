@@ -39,7 +39,7 @@ enum FakeSSH {
           exit 255
         fi
         # exec: killing the fake ssh must not leave a stray sleep behind.
-        if [ -f "$D/hang" ]; then exec sleep 600; fi
+        if [ -f "$D/hang" ]; then exec sleep 300; fi
         [ -n "$master" ] && echo $$ > "$D/master.pid" && echo $$ > "$D/master-$host.pid"
         export HOME="$D/home"
         cd "$HOME" || exit 255

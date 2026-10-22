@@ -43,6 +43,7 @@ import Workspace
         var active = true
         var scheduled: [(delay: Duration, body: @MainActor () -> Void)] = []
         var connected: [String] = [], lost: [String] = [], unreachable: [String] = []
+        private var seen: [String: HostState] = [:]
 
         init() async throws {
             // Short root: the master and host sockets must fit sun_path without the shared /tmp/hangar-<uid> fallback.
@@ -88,7 +89,18 @@ import Workspace
                                              isActive: { [weak self] in self?.active ?? false })
             let wiredConnected = app.remote.onConnected
             app.remote.onConnected = { [weak self] in self?.connected.append($0); wiredConnected?($0) }
-            app.remote.onLost = { [weak self] in self?.lost.append($0) }
+            // A loss = a host leaving `.connected` for anything but a user/quit `.disconnected`.
+            let wiredChange = app.remote.onChange
+            app.remote.onChange = { [weak self] host in
+                if let self {
+                    let now = remote.hosts[host]?.state
+                    if seen[host] == .connected, let now, now != .connected, now != .disconnected { lost.append(host) }
+                    seen[host] = now
+                }
+                wiredChange?(host)
+            }
+            // Under parallel load the check (a dozen processes) can take far longer than in the app.
+            app.remote.checkTimeout = 120
             let wired = app.remote.onUnreachable
             app.remote.onUnreachable = { [weak self] in self?.unreachable.append($0); wired?($0) }
         }
@@ -118,7 +130,7 @@ import Workspace
         /// A `git` (the check's first tool) whose `--version` hangs, so the check does; its pid → `<root>/tool.pid`.
         func hangingGit() async throws {
             let git = bin + "/git"
-            try "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho $$ > \(shellQuote(root + "/tool.pid"))\nexec sleep 600\n"
+            try "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho $$ > \(shellQuote(root + "/tool.pid"))\nexec sleep 300\n"
                 .write(toFile: git, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: git)
             // The first exec of a fresh script is slow on macOS (security scan): it would outlast the check deadline.
@@ -275,7 +287,7 @@ import Workspace
         try h.flag("hang")
         defer { try? FileManager.default.removeItem(atPath: h.fakeDir + "/hang") }
         h.remote.didWake()
-        #expect(await waitUntil { h.lost == ["dev"] })  // the fake hangs 600 s
+        #expect(await waitUntil { h.lost == ["dev"] })  // the fake hangs 300 s
         #expect(h.state() == .reconnecting(attempt: 1))
     }
 
@@ -326,8 +338,8 @@ import Workspace
     @Test func hangingCheckTimesOut() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await h.hangingGit()
-        h.remote.checkTimeout = 10  // reaches the tool under load, far below the 600 s hang
-        // Without the deadline the check would wait for the fake's 600 s and the host would connect.
+        h.remote.checkTimeout = 10  // reaches the tool under load, far below the 300 s hang
+        // Without the deadline the check would wait for the fake's 300 s and the host would connect.
         #expect(await h.remote.connect("dev") == .unreachable("server check timed out"))
         #expect(h.connected.isEmpty)
         // The kill reaches the hanging tool too (SIGKILL escalation after 2 s).

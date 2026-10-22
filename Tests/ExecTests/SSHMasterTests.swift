@@ -25,8 +25,7 @@ import Testing
         // The first exec of a fresh script is slow on macOS (security scan); time bounds below are about our code.
         _ = try await Runner.local.run([s.path, "-O", "check", "--", "dev"], "/")
         try? FileManager.default.removeItem(atPath: s.log)
-        return (Fake(dir: root + "/fake", ssh: s.path, log: s.log, home: s.home, cp: root + "/cm"),
-                { try? FileManager.default.removeItem(atPath: root) })
+        return (Fake(dir: root + "/fake", ssh: s.path, log: s.log, home: s.home, cp: root + "/cm"), { Self.cleanup(root) })
     }
 
     /// A one-off ssh stand-in (ignores its argv) for stdout/stderr shapes the shared fake cannot produce.
@@ -37,8 +36,19 @@ import Testing
         try ("#!/bin/sh\n[ \"$1\" = warm ] && exit 0\n" + body).write(toFile: path, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
         _ = try await Runner.local.run([path, "warm"], "/")
-        return (SSHMaster(host: "dev", controlPath: root + "/cm", sshPath: path), root,
-                { try? FileManager.default.removeItem(atPath: root) })
+        return (SSHMaster(host: "dev", controlPath: root + "/cm", sshPath: path), root, { Self.cleanup(root) })
+    }
+
+    /// Runs in `defer`, so also when a test fails early: SIGKILLs every process started from the fake's folder
+    /// (masters, TERM-proof loops), then removes it.
+    private static func cleanup(_ root: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        p.arguments = ["-9", "-f", root]
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        if (try? p.run()) != nil { p.waitUntilExit() }
+        try? FileManager.default.removeItem(atPath: root)
     }
 
     /// Test-only wait for an async side effect (the code under test never polls).
@@ -92,7 +102,7 @@ import Testing
         let (f, cleanup) = try await fake(); defer { cleanup() }
         try f.flag("hang")
         let m = f.master()
-        // The fake hangs 600 s, so finishing well before that proves the deadline fired.
+        // The fake hangs 300 s, so finishing well before that proves the deadline fired.
         let clock = SuspendingClock(), start = clock.now
         #expect(await m.connect(timeout: 0.5) == .failure(.unreachable("timed out")))
         #expect(clock.now - start < .seconds(20))
@@ -150,7 +160,7 @@ import Testing
         try f.flag("hang")
         let clock = SuspendingClock(), start = clock.now
         #expect(await !m.probe(timeout: 0.3))
-        #expect(clock.now - start < .seconds(20))  // the fake hangs 600 s
+        #expect(clock.now - start < .seconds(20))  // the fake hangs 300 s
     }
 
     /// `exit()` while `connect` still waits for the old master to go: the new child must not be left running.
@@ -161,7 +171,7 @@ import Testing
         echo $$ >> "$(dirname "$0")/pids"
         trap '' TERM
         printf 'HANGAR-READY /h\\n'
-        while :; do sleep 1; done
+        i=0; while [ $i -lt 300 ]; do sleep 1; i=$((i + 1)); done
         """)
         defer { cleanup() }
         #expect(await m.connect(timeout: 30) == .success("/h"))
@@ -171,7 +181,6 @@ import Testing
         guard case .failure = await again.value else { Issue.record("reconnect after exit() succeeded"); return }
         let pids = ((try? String(contentsOfFile: root + "/pids", encoding: .utf8)) ?? "").split(separator: "\n").compactMap { pid_t($0) }
         #expect(await waitUntil(20) { pids.allSatisfy { kill($0, 0) != 0 } })
-        for p in pids { kill(p, SIGKILL) }  // a failing run must not leave a TERM-proof loop behind
     }
 
     @Test func readyLineValidated() {
@@ -222,7 +231,7 @@ import Testing
         let (m, root, cleanup) = try await script("""
         if [ -f "$(dirname "$0")/second" ]; then printf 'HANGAR-READY /two\\n'; exec cat >/dev/null; fi
         trap '' TERM; echo $$ > "$(dirname "$0")/old.pid"
-        printf 'HANGAR-READY /one\\n'; while :; do sleep 0.1; done
+        printf 'HANGAR-READY /one\\n'; i=0; while [ $i -lt 3000 ]; do sleep 0.1; i=$((i + 1)); done
         """)
         defer { cleanup(); m.exit() }
         #expect(await m.connect(timeout: 5) == .success("/one"))

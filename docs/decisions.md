@@ -184,3 +184,5 @@
 - [ ] `codex resume <id>` восстанавливает сессию — codex не установлен, проверка отложена.
 - [x] Окружение: установлены zig@0.15 (keg-only), helix и Metal Toolchain — с согласия пользователя; codex отсутствует.
 - [x] SSH (этап 6): закрыто решением #47 — `StreamLocalBindUnlink` обходится `rm -f` сокета перед `-O forward`; версии tmux на целевых серверах — ручная проверка.
+
+#NN-ssh-hardening. **2026-10-23 — Жёстче на границах ssh (этап 6).** `hangar-remote` через socat — `-T2` (общий таймаут простоя, молчащий проброшенный сокет не держит hook), версия скрипта 2. `resetsAt` лимитов обрезается до «сейчас + 30 дней» в общем декодере (локальный и удалённый сокет): дальняя дата держала бы окно «полным». `sshFailure`: auth — только форма ssh `[user@host: ]Permission denied (<методы>).` целой строкой (`Error: Permission denied (os error 13)` — не auth); unreachable — ещё `Network is unreachable`, `Connection closed by`, `Connection reset by`, `kex_exchange_identification:`, `packet_write_wait:`.

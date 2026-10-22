@@ -109,7 +109,11 @@ public enum ControlMessage: Equatable, Sendable {
                     guard p.isFinite else { return .failure(.badField) }
                     m.windows[i].usedPercent = min(max(p, 0), 100)
                 }
-                if let r = m.windows[i].resetsAt, !(r > 0 && r < 8_589_934_592) { return .failure(.badField) }
+                if let r = m.windows[i].resetsAt {
+                    guard r > 0 && r < 8_589_934_592 else { return .failure(.badField) }
+                    // A far-future reset (bad clock, hostile writer) would keep the window "full" for good.
+                    m.windows[i].resetsAt = min(r, Date().timeIntervalSince1970 + 30 * 86_400)
+                }
             }
             return .success(.usage(m))
         default:

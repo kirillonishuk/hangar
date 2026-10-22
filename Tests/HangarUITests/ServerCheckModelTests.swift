@@ -79,7 +79,7 @@ import Workspace
         #expect(try String(contentsOfFile: file, encoding: .utf8) == hangarRemoteScript)
         let mode = try FileManager.default.attributesOfItem(atPath: file)[.posixPermissions] as? NSNumber
         #expect(mode?.intValue == 0o700)
-        #expect(m.report?.remoteVersion == 1)
+        #expect(m.report?.remoteVersion == hangarRemoteVersion)
         #expect(m.plan.steps.isEmpty)
         #expect(m.phase == .ready)
         // The writes and the check go over the master; it stays up.

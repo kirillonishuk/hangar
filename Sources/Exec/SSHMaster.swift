@@ -12,13 +12,15 @@ func sshFailure(status: Int32, stderr: String) -> SSHFailure {
     let lines = stderr.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     let line = String((lines.last ?? "").prefix(300))
     let auth = lines.contains { l in
-        l.hasPrefix("Permission denied (") || l.contains(": Permission denied (") || l.hasPrefix("Host key verification failed")
+        // ssh's own form: `[user@host: ]Permission denied (publickey,password).`, not e.g. `(os error 13)`.
+        l.wholeMatch(of: /(\S+@\S+: )?Permission denied \([a-z,-]+\)\./) != nil || l.hasPrefix("Host key verification failed")
             || ((l.hasPrefix("Load key") || l.hasPrefix("Enter passphrase")) && l.contains("passphrase"))
     }
     if auth { return .auth(line) }
     let network = lines.contains { l in
-        (l.hasPrefix("ssh:") && ["Could not resolve", "Connection refused", "timed out", "No route"].contains { l.contains($0) })
-            || l.hasPrefix("client_loop:") || l.hasPrefix("Timeout, server") || l.hasPrefix("Connection timed out")
+        (l.hasPrefix("ssh:") && ["Could not resolve", "Connection refused", "timed out", "No route", "Network is unreachable"].contains { l.contains($0) })
+            || ["client_loop:", "Timeout, server", "Connection timed out", "Connection closed by", "Connection reset by",
+                "kex_exchange_identification:", "packet_write_wait:"].contains { l.hasPrefix($0) }
     }
     return network ? .unreachable(line) : .exited(status, line)
 }

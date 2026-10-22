@@ -29,10 +29,11 @@ final class SocketDir {
     }
 }
 
-/// Runs a blocking wait (socket read, child exit) on a GCD thread. The cooperative pool has one thread per core:
-/// tests blocking it while the server waits for a busy main actor stall every async test in the run.
+/// Runs a blocking wait (socket read, child exit) on its own thread. Not the cooperative pool (one thread per core:
+/// blocking it stalls every async test) nor GCD's global queue: its ~64 threads fill up with other suites' blocking
+/// waits under a full run, and a block queued behind them starts seconds late (a slow reader then misses its deadline).
 func offPool<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
-    await withCheckedContinuation { c in DispatchQueue.global().async { c.resume(returning: body()) } }
+    await withCheckedContinuation { c in Thread { c.resume(returning: body()) }.start() }
 }
 
 /// Raw test client: reads the server's replies, which ControlClient deliberately ignores.
@@ -630,7 +631,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         }
         #expect(rc == 0 && listen(fd, 1) == 0)
         // A fake server: it answers whatever arrives with a request-shaped error that has no id.
-        DispatchQueue.global().async {
+        Thread {
             let peer = accept(fd, nil, nil)
             var chunk = [UInt8](repeating: 0, count: 4096)
             while true {
@@ -640,7 +641,7 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
             let reply = Array(#"{"id":null,"error":{"code":"bad-request","message":"nope"}}"#.utf8 + [0x0A])
             _ = Darwin.write(peer, reply, reply.count)
             close(peer)
-        }
+        }.start()
         let path = dir.path
         let result = await Task.detached { ControlClient.request(.projectsList, to: path, timeout: mainBound) }.value
         #expect(result == .failure(ControlError(code: .badRequest, message: "nope")))

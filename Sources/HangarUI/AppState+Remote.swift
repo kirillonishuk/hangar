@@ -13,6 +13,7 @@ extension AppState {
         let hosts = RemoteHosts(paths: paths, sshPath: sshPath, schedule: schedule, isActive: isActive,
                                 hasWorking: { [weak self] in self?.hasWorking(host: $0) ?? false },
                                 onMessage: { [weak self] in self?.handleRemote(host: $0, $1) })
+        hosts.onConnected = { [weak self] in self?.onHostConnected?($0) }
         hosts.onUnreachable = { [weak self] host in
             guard let self else { return }
             for id in liveLeafIds where remoteLeafHost(id) == host { signal(.relaunched, leaf: id) }
@@ -37,6 +38,35 @@ extension AppState {
             return project(task.projectId)?.host
         }
         return nil
+    }
+
+    /// Live leaves of remote projects → host; empty (and cheap) without remote projects.
+    func liveRemoteLeaves() -> [UUID: String] {
+        guard state.projects.contains(where: { $0.host != nil }) else { return [:] }
+        var result: [UUID: String] = [:]
+        for task in state.tasks where !task.archived {
+            guard let host = project(task.projectId)?.host else { continue }
+            for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) { result[leaf.id] = host }
+        }
+        return result
+    }
+
+    /// Closed, archived or deleted remote leaves: their tmux sessions go (quitting never comes here).
+    // shortcut: without a connection the session stays on the server (runner fails fast); kill on reconnect is a followup
+    func killSessions(of leaves: [UUID: String]) {
+        for (id, host) in leaves {
+            let runner = remote.runner(host)
+            Task { _ = try? await runner.run(killSessionArgs(id), "") }
+        }
+    }
+
+    /// Working leaves ⌘Q asks about: a remote one in tmux keeps running on the server after quit.
+    var quitWorkingCount: Int {
+        statuses.leaves.filter { id, status in
+            guard status.state == .working else { return false }
+            guard let host = remoteLeafHost(id) else { return true }
+            return remote.hosts[host]?.report?.tmux != true
+        }.count
     }
 
     func hasWorking(host: String) -> Bool {

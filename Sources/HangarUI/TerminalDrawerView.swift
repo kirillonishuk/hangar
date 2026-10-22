@@ -188,6 +188,7 @@ import Workspace
 
     private func makeLeafView(taskId: UUID, leaf: Leaf) {
         let view = LeafView(leafId: leaf.id)
+        view.host = app.remoteLeafHost(leaf.id)
         leafViews[taskId] = view
         addSubview(view, positioned: .below, relativeTo: bar)  // in the window before the surface exists
         view.onExit = { [weak self] code in
@@ -202,8 +203,8 @@ import Workspace
         view.onFocus = { [weak self] in self?.app.signal(.focused, leaf: leaf.id) }
         view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
         view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
-        view.onRelaunch = { [weak self] in
-            self?.app.signal(.relaunched, leaf: leaf.id)
+        view.onRelaunch = { [weak self] keepsStatus in
+            if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
             self?.sync()
         }
@@ -222,6 +223,9 @@ import Workspace
         for view in leafViews.values { view.frame = body }
         window?.invalidateCursorRects(for: self)
     }
+
+    /// For `hostConnected`.
+    var leaves: [LeafView] { Array(leafViews.values) }
 
     /// Display wake: one retry for shells whose surface failed (same as tab leaves).
     func retryFailedLeaves() {

@@ -8,7 +8,11 @@ public struct LaunchSpec: Equatable, Sendable {
     public var env: [String: String]
 }
 
-public enum LaunchError: Error, Equatable { case missingCwd(String) }
+public enum LaunchError: Error, Equatable {
+    case missingCwd(String)
+    /// A remote project's host has no live master yet; the leaf waits for `onConnected`.
+    case notConnected(host: String)
+}
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),
 /// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions #26, #27).
@@ -21,7 +25,8 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     }
     let userShellQuoted = shellQuote(userShell)
     let shell = shellQuote(posixShell(userShell))
-    let inner = innerCommand(for: leaf, config: config, shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
+    let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue }, editor: config.editor,
+                             shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
                       cwd: leaf.cwd,
@@ -46,9 +51,10 @@ public func posixShell(_ userShell: String) -> String {
     return posix.contains((userShell as NSString).lastPathComponent) ? userShell : "/bin/zsh"
 }
 
-private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
-                          restoring: Bool, initialPrompt: String?) -> String {
-    func agent(_ kind: LeafKind) -> String { config.agentCommands[kind] ?? kind.rawValue }
+/// What the tab runs inside its shell, for local and remote launches alike; `agent` names the CLI per kind
+/// (locally `[agents]` from the config, on a server the bare name).
+public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: String, shell: String,
+                         restoring: Bool, initialPrompt: String?) -> String {
     // A known id is used only when resuming: a fresh start after a failed `--resume <id>` ignores it.
     // state.json is editable: an id that is not valid falls back to the no-id resume instead of reaching argv.
     let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
@@ -56,12 +62,12 @@ private func innerCommand(for leaf: Leaf, config: HangarConfig, shell: String,
     case .shell:
         return "\(shell) -l -i"
     case .editor:
-        guard let file = leaf.openFile else { return config.editor }
+        guard let file = leaf.openFile else { return editor }
         let path = file.hasPrefix("-") ? "./" + file : file
-        guard let line = leaf.openLine, line >= 1 else { return "\(config.editor) \(shellQuote(path))" }
-        if isHelix(config.editor) { return "\(config.editor) \(shellQuote("\(path):\(line)"))" }
-        if ["nvim", "vim"].contains(editorName(config.editor)) { return "\(config.editor) +\(line) \(shellQuote(path))" }
-        return "\(config.editor) \(shellQuote(path))"
+        guard let line = leaf.openLine, line >= 1 else { return "\(editor) \(shellQuote(path))" }
+        if isHelix(editor) { return "\(editor) \(shellQuote("\(path):\(line)"))" }
+        if ["nvim", "vim"].contains(editorName(editor)) { return "\(editor) +\(line) \(shellQuote(path))" }
+        return "\(editor) \(shellQuote(path))"
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }
@@ -96,6 +102,9 @@ public enum LaunchContext: Equatable, Sendable {
     case restored(inResumeSet: Bool)
     /// ↩ or wake retry; `exitCode` nil = the surface never started (nothing ran).
     case relaunch(previous: LaunchMode, exitCode: Int32?)
+    /// A remote tab whose session outlived its client (connection lost, detach): the session is attached again;
+    /// if it is gone, agents resume instead of starting over.
+    case reattach(previous: LaunchMode)
 }
 
 /// Relaunch never re-sends the prompt; a failed resume starts fresh (else "No conversation found" loops),
@@ -105,6 +114,8 @@ public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
     case .created(let prompt): return LaunchMode(restoring: false, initialPrompt: prompt)
     case .restored(let inSet): return LaunchMode(restoring: inSet, initialPrompt: nil)
     case .relaunch(let previous, nil): return previous
+    case .reattach(let previous):
+        return LaunchMode(restoring: leaf.kind == .claude || leaf.kind == .codex || previous.restoring, initialPrompt: nil)
     case .relaunch(let previous, let code?):
         let isAgent = leaf.kind == .claude || leaf.kind == .codex
         let resumeFailed = isAgent && previous.restoring && code != 0

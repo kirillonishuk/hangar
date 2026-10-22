@@ -542,7 +542,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert:
     /// with one already up, `then(false)` right away. `then` is always called exactly once.
     public func confirmQuit(then: @escaping @MainActor (Bool) -> Void) {
-        guard let window, let text = quitConfirmation(working: app.workingLeafCount) else { then(true); return }
+        guard let window, let text = quitConfirmation(working: app.quitWorkingCount) else { then(true); return }
         guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
         let alert = NSAlert()
@@ -563,7 +563,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// For `applicationShouldTerminate`.
     public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
-        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.workingLeafCount, confirmed: quitConfirmed,
+        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.quitWorkingCount, confirmed: quitConfirmed,
                      asking: quitAlertShown, systemShutdown: systemShutdown)
     }
 

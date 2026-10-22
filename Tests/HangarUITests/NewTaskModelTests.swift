@@ -19,9 +19,9 @@ import Workspace
     private func emptyRepo() async throws -> TempRepo { try await TempRepo.offMain { try TempRepo(emptyWithBranch: "main") } }
 
     /// Generous: parallel tests' fixtures run git synchronously on the main actor.
-    private func wait(until condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(20)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    private func wait(_ seconds: Int = 20, until condition: () -> Bool) async throws {
+        let clock = SuspendingClock(), deadline = clock.now + .seconds(seconds)
+        while !condition(), clock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
     }
 
     @Test func branchFollowsNameUntilEdited() async throws {
@@ -251,22 +251,23 @@ import Workspace
         defer { t.cleanup() }
         // A remote that never answers (the helper just sleeps).
         try t.git("config", "protocol.ext.allow", "always", in: t.repo)
-        try t.git("remote", "set-url", "origin", "ext::sleep 30", in: t.repo)
+        try t.git("remote", "set-url", "origin", "ext::sleep 120", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         let loading = Task { await m.load() }
-        try await wait { m.fetch == .running }
+        // Long deadlines: under a full parallel run load() and create's first awaits wait for busy git spawns.
+        try await wait(90) { m.fetch == .running }
         #expect(m.fetch == .running)
         await m.refresh()  // no-op while running
         #expect(m.fetch == .running)
         m.name = "t"
         let creating = Task { await m.create(skipFetch: false) }
-        try await wait { m.creating }
-        let started = ContinuousClock.now
+        try await wait(90) { m.creating }
+        let clock = SuspendingClock(), started = clock.now
         m.cancelFetch()
         #expect(m.fetch == .cancelled)
         await loading.value
         #expect(await creating.value == nil)
-        #expect(ContinuousClock.now - started < .seconds(15))  // well under the helper's 30 s
+        #expect(clock.now - started < .seconds(60))  // well under the helper's 120 s
         #expect(m.fetch == .cancelled)
 
         // While creating: ↻ starts no fetch, and edits made during create's awaits don't change what is created.

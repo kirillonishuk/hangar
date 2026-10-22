@@ -112,11 +112,14 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     }
 
     /// Commands on the host; while it is not connected they fail at once instead of dialing ssh directly.
+    /// They run with the login PATH of the last check, where it found git and tmux (before any check: sshd's PATH).
     public func runner(_ host: String) -> Runner {
-        let ssh = Runner.ssh(host: host, controlPath: paths.controlPath(host), sshPath: sshPath, maxOutput: Self.maxOutput)
+        let (controlPath, sshPath) = (paths.controlPath(host), sshPath)
         return Runner { [weak self] args, cwd in
-            guard await self?.state(host) == .connected else { throw RemoteHostError.notConnected(host) }
-            return try await ssh.run(args, cwd)
+            guard let self, await state(host) == .connected else { throw RemoteHostError.notConnected(host) }
+            let path = await loginPath(host)
+            return try await Runner.ssh(host: host, controlPath: controlPath, sshPath: sshPath, maxOutput: Self.maxOutput, path: path)
+                .run(args, cwd)
         }
     }
 
@@ -183,6 +186,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     // MARK: Private
 
     private func state(_ host: String) -> HostState { hosts[host]?.state ?? .disconnected }
+    private func loginPath(_ host: String) -> String? { hosts[host]?.report?.path }
 
     private func set(_ host: String, _ change: (inout HostInfo) -> Void) {
         var info = hosts[host] ?? HostInfo()

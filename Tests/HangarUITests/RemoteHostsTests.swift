@@ -60,7 +60,9 @@ import Workspace
                 // the server check never starts a tool of this Mac outside /usr/bin, /bin and the test's own bin.
                 // `<root>/shell`, if present, names another login shell (the csh test).
                 let login = bin + "/login-sh"
-                try "#!/bin/sh\nshift 3\nexec /bin/sh -c \"$1\"\n".write(toFile: login, atomically: true, encoding: .utf8)
+                // `<root>/login-bin` is only on the login PATH (empty unless a test puts tools there).
+                try "#!/bin/sh\nPATH=\(shellQuote(root + "/login-bin")):$PATH; export PATH\nshift 3\nexec /bin/sh -c \"$1\"\n"
+                    .write(toFile: login, atomically: true, encoding: .utf8)
                 try "#!/bin/sh\nexit 0\n".write(toFile: bin + "/tcsh", atomically: true, encoding: .utf8)
                 let wrapper = "#!/bin/sh\nSHELL=\(shellQuote(login))\n[ -f \(shellQuote(root + "/shell")) ] && SHELL=$(cat \(shellQuote(root + "/shell")))\n"
                     + "export SHELL PATH=\(shellQuote(bin)):/usr/bin:/bin\nexec \(shellQuote(f.path)) \"$@\"\n"
@@ -135,6 +137,23 @@ import Workspace
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: git)
             // The first exec of a fresh script is slow on macOS (security scan): it would outlast the check deadline.
             try await RemoteHostsTests.run(git, ["warm"])
+        }
+
+        /// `tmux` and `git` only the login PATH has; each call → `<root>/tools.log` as `<tool> <args>`.
+        func loginTools() async throws {
+            let dir = root + "/login-bin"
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            for (tool, version) in [("tmux", "tmux 3.4"), ("git", "git version 9.9")] {
+                let script = "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho \"\(tool) $*\" >> \(shellQuote(root + "/tools.log"))\n"
+                    + "case $1 in -V|--version) echo '\(version)' ;; esac\nexit 0\n"
+                try script.write(toFile: dir + "/" + tool, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir + "/" + tool)
+                try await RemoteHostsTests.run(dir + "/" + tool, ["warm"])
+            }
+        }
+
+        func toolCalls() -> [String] {
+            ((try? String(contentsOfFile: root + "/tools.log", encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
         }
 
         /// The only leaf of the project named `name`.
@@ -343,10 +362,26 @@ import Workspace
         #expect(r.stdout.utf8.count == RemoteHosts.maxOutput && RemoteHosts.maxOutput == 64 << 20)
     }
 
+    /// One PATH rule (#47): commands run with the login PATH the check saw, so tools only it has are found.
+    @Test func commandsUseLoginPath() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await h.loginTools()
+        #expect(await h.remote.connect("dev") == .connected)
+        let report = try #require(h.remote.hosts["dev"]?.report)
+        #expect(report.path?.hasPrefix(h.root + "/login-bin:") == true)
+        #expect(report.tools[.git]?.path == h.root + "/login-bin/git" && report.tmux)
+        let p = try #require(h.app.state.projects.first { $0.host == "dev" })
+        _ = try await h.app.git(for: p, repo: h.home).currentBranch()
+        #expect(h.toolCalls().contains { $0.hasPrefix("git ") && $0.contains("symbolic-ref") })
+        let dev = h.leaf("dev")
+        h.app.killSessions(of: [dev.leaf: "dev"])
+        #expect(await waitUntil { h.toolCalls().contains("tmux -L hangar kill-session -t =" + remoteSessionName(dev.leaf)) })
+    }
+
     @Test func hangingCheckTimesOut() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await h.hangingGit()
-        h.remote.checkTimeout = 10  // reaches the tool under load, far below the 300 s hang
+        h.remote.checkTimeout = 30  // reaches the tool under load, far below the 300 s hang
         // Without the deadline the check would wait for the fake's 300 s and the host would connect.
         #expect(await h.remote.connect("dev") == .unreachable("server check timed out"))
         #expect(h.connected.isEmpty)
@@ -405,7 +440,7 @@ import Workspace
     @Test func disconnectDuringConnect() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await h.hangingGit()
-        h.remote.checkTimeout = 10  // the old attempt ends when it fires
+        h.remote.checkTimeout = 30  // the old attempt ends when it fires (reaches the tool under load)
         let first = Task { await h.remote.connect("dev") }
         #expect(await waitUntil { h.pid("tool.pid") != nil })
         h.remote.disconnect("dev")

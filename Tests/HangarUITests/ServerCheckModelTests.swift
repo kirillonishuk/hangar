@@ -43,7 +43,7 @@ import Workspace
         // A multi-line argument spans several log lines: one call = all its lines.
         let calls = FakeSSH.calls(h.log).map { $0.joined(separator: "\n") }
         #expect(calls.filter { $0.contains("HANGAR_CHECK") }.count == 1)
-        #expect(calls.allSatisfy { $0.contains("HANGAR_CHECK") || $0.contains("' sh '' cat ") })
+        #expect(calls.allSatisfy { $0.contains("HANGAR_CHECK") || $0.contains(" '' cat ") })
         #expect(runs.steps.isEmpty)
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped whenever the script below changes; the host check compares it with the installed copy's second line.
-public let hangarRemoteVersion = 1
+public let hangarRemoteVersion = 2
 
 /// `~/.hangar/bin/hangar-remote` on an ssh host: the same argv as `hangar event` / `hangar statusline`.
 /// No JSON in sh: a header line plus the raw payload bytes; the Mac parses them (RemoteMessage).
@@ -41,7 +41,7 @@ s.sendall(sys.stdin.buffer.read())
 s.recv(256)' "$HANGAR_SOCKET"
     elif command -v socat >/dev/null 2>&1; then
       # shortcut: a socket path with `,` or `:` would be misread by socat, ~/.hangar/hangar.sock has neither
-      { printf '%s\n' "$h"; printf %s "$p"; } | socat -t2 - "UNIX-CONNECT:$HANGAR_SOCKET"
+      { printf '%s\n' "$h"; printf %s "$p"; } | socat -T2 - "UNIX-CONNECT:$HANGAR_SOCKET"
     elif command -v nc >/dev/null 2>&1; then
       { printf '%s\n' "$h"; printf %s "$p"; } | nc -U -w 2 "$HANGAR_SOCKET"
     fi

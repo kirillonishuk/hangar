@@ -145,6 +145,8 @@ import Workspace
         let r = try await ok(app, .tasksCreate(project: "repo", name: "Fix login", worktree: true, base: "main", prompt: nil), TaskResult.self)
         #expect(r.task.mode == "worktree" && r.task.branch == "fix-login" && r.task.base == "main")
         #expect(FileManager.default.fileExists(atPath: r.task.path))
+        let j = try await ok(app, .tasksCreate(project: "repo", name: "feat/JS-13333", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        #expect(j.task.branch == "feat/JS-13333" && j.task.path == t.repo + ".worktrees/feat-js-13333")
         #expect(app.controlCreating == 0)
         // The sheet's remembered choice is the user's, not the CLI's.
         let repoProject = try #require(app.state.projects.first { $0.name == "repo" })
@@ -166,7 +168,7 @@ import Workspace
         let notGit = await error(app, .tasksCreate(project: "plain", name: "Other", worktree: true, base: nil, prompt: nil))
         #expect(notGit?.code == .failed && notGit?.message == "not a git repository")
         #expect(app.controlCreating == 0)
-        #expect(app.state.tasks.count == 2)
+        #expect(app.state.tasks.count == 3)
     }
 
     @Test func archiveResolvesStrictly() async throws {

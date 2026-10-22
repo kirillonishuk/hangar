@@ -32,6 +32,18 @@ public func branchSlug(_ name: String) -> String {
     return trimmed.isEmpty ? "task" : trimmed
 }
 
+/// A name to use as the branch verbatim: only `[A-Za-z0-9._/-]` (so no space, control, `~^:?*[\\`, `@{`, and nothing a
+/// shell or URL quotes), plus the rest of `git check-ref-format --branch` rules, in Swift since it runs per keystroke.
+/// shortcut: other characters git accepts (Cyrillic, `!`, `@`) still give the slug; widen if users ask.
+public func isBranchName(_ name: String) -> Bool {
+    guard !name.isEmpty, name != "HEAD", !name.hasPrefix("-"), !name.hasSuffix("."), !name.contains("..") else { return false }
+    guard name.unicodeScalars.allSatisfy({ ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0)
+        || "._/-".unicodeScalars.contains($0) }) else { return false }
+    return name.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
+        !$0.isEmpty && !$0.hasPrefix(".") && !$0.hasSuffix(".lock")
+    }
+}
+
 /// Default: `<dirname>/<basename>.worktrees/<slug>`; with `root`: `<root>/<slug>`.
 public func worktreePath(projectPath: String, root: String?, branch: String) -> String {
     let slug = branchSlug(branch)

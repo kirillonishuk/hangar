@@ -125,6 +125,30 @@ import Workspace
         #expect(m2.branchError == L10n.branchExists("pochinit-login"))
     }
 
+    @Test func branchLikeNameIsSuggestedVerbatim() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t, worktreeByDefault: true)
+        await m.load()
+        m.name = "  feat/JS-13333 "
+        #expect(m.branch == "feat/JS-13333")
+        m.name = "Fix login"
+        #expect(m.branch == "fix-login")
+        m.name = "feat//x"
+        #expect(m.branch == "feat-x")
+        m.name = "feat/JS-13333"
+        let mode = await m.create(skipFetch: false)
+        #expect(mode == .worktree(path: t.repo + ".worktrees/feat-js-13333", branch: "feat/JS-13333", base: "origin/main"))
+
+        // Differs only in case: same folder (and same ref file on a case-insensitive disk) → suffix, not a clash.
+        let m2 = model(t, worktreeByDefault: true)
+        await m2.load()
+        m2.name = "feat/js-13333"
+        #expect(m2.branch == "feat/js-13333-2")
+        let mode2 = await m2.create(skipFetch: false)
+        #expect(mode2 == .worktree(path: t.repo + ".worktrees/feat-js-13333-2", branch: "feat/js-13333-2", base: "origin/main"))
+    }
+
     @Test func createMakesWorktreeFromBase() async throws {
         let t = try await repo()
         defer { t.cleanup() }

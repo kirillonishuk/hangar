@@ -1,3 +1,4 @@
+import AppKit
 import Exec
 import Foundation
 import Git
@@ -41,25 +42,63 @@ import Workspace
         #expect(model.changes?.files.count == 2)
     }
 
-    /// A project in `sub/` of a repository: paths are top-relative, so git must run at the top level.
+    /// A project in `sub/` of a repository: Files, Changes and diffs cover only `sub/`, paths relative to it.
     @Test func subfolderProjectShowsDiffs() async throws {
         let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
-        try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: repo.repo + "/sub/d", withIntermediateDirectories: true)
         try write("one\n", repo.repo + "/sub/t.txt")
         try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
         try write("two\n", repo.repo + "/sub/t.txt")
-        try write("new\n", repo.repo + "/sub/n.txt")
+        try write("new\n", repo.repo + "/sub/d/n.txt")
+        try write("outside\n", repo.repo + "/a.txt")
+        try write("outside\n", repo.repo + "/o.txt")
         let model = InspectorModel()
         model.show(taskId: UUID(), root: repo.repo + "/sub", baseBranch: { nil })
         await settle(model)
-        #expect(Set(model.changes?.files.map(\.path) ?? []) == ["sub/t.txt", "sub/n.txt"])
-        for path in ["sub/t.txt", "sub/n.txt"] {
+        #expect(model.root == repo.repo + "/sub")
+        #expect(Set(model.changes?.files.map(\.path) ?? []) == ["t.txt", "d/n.txt"])
+        #expect(model.tree.children(of: "")?.map(\.name).sorted() == ["d", "t.txt"])
+        #expect(model.badges == ["t.txt": .modified, "d/n.txt": .untracked])
+        for path in ["t.txt", "d/n.txt"] {
             model.loadDiff(path: path)
             await settle(model)
             guard case .loaded(.text(let hunks, _, _)) = model.diff else { Issue.record("\(path): \(model.diff)"); continue }
             #expect(!hunks.isEmpty, "\(path)")
         }
+    }
+
+    /// A worktree task of a subfolder project: the same subfolder inside the worktree.
+    @Test func worktreeTaskOfSubfolderProject() async throws {
+        let repo = try await TempRepo.offMain()
+        defer { repo.cleanup() }
+        try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
+        try write("one\n", repo.repo + "/sub/t.txt")
+        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        let wt = repo.worktrees + "/wt"
+        try FileManager.default.createDirectory(atPath: repo.worktrees, withIntermediateDirectories: true)
+        try repo.git("worktree", "add", "-q", "-b", "wtb", wt, in: repo.repo)
+        try write("two\n", wt + "/sub/t.txt")
+        try write("outside\n", wt + "/a.txt")
+        var s = WorkspaceState()
+        let p = s.addProject(name: "sub", path: repo.repo + "/sub")
+        let t = s.addTask(projectId: p, name: "wt", mode: .worktree(path: wt, branch: "wtb", base: "main"))
+        let dir = NSTemporaryDirectory() + "hangar-sub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let app = AppState(state: s, store: StateStore(directory: URL(fileURLWithPath: dir + "/state")),
+                           config: HangarConfig(), configURL: URL(fileURLWithPath: dir + "/config.toml"))
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
+        let watch = InspectorWatch(app: app, window: window)
+        watch.windowVisible = { true }
+        app.perform { $0.inspectorVisible = true }
+        app.select(taskId: t)
+        watch.update()
+        await settle(app.inspector)
+        #expect(app.inspector.root == wt + "/sub")
+        #expect(app.inspector.changes?.files.map(\.path) == ["t.txt"])
+        #expect(app.inspector.tree.children(of: "")?.map(\.name) == ["t.txt"])
+        _ = window
     }
 
     @Test func toggleModeReloads() async throws {

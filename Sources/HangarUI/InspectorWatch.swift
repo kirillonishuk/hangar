@@ -3,8 +3,8 @@ import Git
 import Workspace
 
 /// Keeps the inspector fed with the visible task only: while the inspector is shown, the window is on screen
-/// (not occluded, not minimized) and a task is selected, it shows that task and watches its root (the repository's
-/// top level for a subfolder project) and git-dir. A remote task has no FSEvents (#47): it reloads on show, when the
+/// (not occluded, not minimized) and a task is selected, it shows that task and watches its root (only the subfolder
+/// for a subfolder project, #44) and git-dir. A remote task has no FSEvents (#47): it reloads on show, when the
 /// window becomes key and when an agent is done.
 /// Otherwise the stream is stopped — no callbacks, no loads. No timers.
 @MainActor final class InspectorWatch {
@@ -40,9 +40,14 @@ import Workspace
     deinit { for o in observers { NotificationCenter.default.removeObserver(o) } }
 
     private func root(of task: HangarTask) -> String? {
+        let project = app.project(task.projectId)
         switch task.mode {
-        case .worktree(let path, _, _): path
-        case .mainFolder: app.project(task.projectId)?.path
+        case .worktree(let path, _, _):
+            // A subfolder project: the same subfolder inside the worktree (local only; a remote one shows the whole worktree).
+            guard let project, project.host == nil, let sub = subfolderInRepository(project.path),
+                  FileManager.default.fileExists(atPath: path + "/" + sub) else { return path }
+            return path + "/" + sub
+        case .mainFolder: return project?.path
         }
     }
 
@@ -74,19 +79,19 @@ import Workspace
             let git = Git(repo: root)
             let gitDir = try? await git.gitDir()
             let commonDir = gitDir == nil ? nil : try? await git.commonDir()
-            // A project in a subfolder of a repository: status and the listing cover the whole top level, so watch it.
+            // A project in a subfolder of a repository: the ancestors' `.gitignore` files, up to the top level.
             let top = gitDir == nil ? nil : try? await git.toplevel()
             guard let self, gen == self.generation else { return }
-            self.start(root: top ?? root, gitDir: gitDir, commonDir: commonDir)
+            self.start(root: root, top: top, gitDir: gitDir, commonDir: commonDir)
         }
     }
 
-    private func start(root: String, gitDir: String?, commonDir: String?) {
+    private func start(root: String, top: String?, gitDir: String?, commonDir: String?) {
         // FSEvents reports real paths (/var → /private/var, symlinked project folders).
         let realRoot = realPath(root)
         let realGit = gitDir.map(realPath), realCommon = commonDir.map(realPath)
         let ignored = app.inspector.ignored
-        watcher = FileWatcher(paths: watchPaths(root: realRoot, gitDir: realGit, commonDir: realCommon),
+        watcher = FileWatcher(paths: watchPaths(root: realRoot, gitDir: realGit, commonDir: realCommon, top: top.map(realPath)),
                               onChange: { [weak self] parts in self?.app.inspector.refresh(parts) },
                               classify: { classify($0, root: realRoot, gitDir: realGit, commonDir: realCommon, ignored: ignored.paths) })
         uiLog.info("watch start root=\(root, privacy: .public)")
@@ -112,4 +117,16 @@ import Workspace
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
         if leaves.contains(where: { $0.id == leaf }) { app.inspector.refresh(.status) }
     }
+}
+
+/// `apps/web` for a folder below its repository's top level, nil at the top or outside a repository.
+/// shortcut: the top is the nearest ancestor with `.git` on this Mac's disk (sync, unlike `rev-parse`); a `GIT_DIR`
+/// setup counts as no subfolder — change when such projects appear.
+func subfolderInRepository(_ path: String) -> String? {
+    var dir = path
+    while dir != "/", !dir.isEmpty {
+        if FileManager.default.fileExists(atPath: dir + "/.git") { return dir == path ? nil : String(path.dropFirst(dir.count + 1)) }
+        dir = (dir as NSString).deletingLastPathComponent
+    }
+    return nil
 }

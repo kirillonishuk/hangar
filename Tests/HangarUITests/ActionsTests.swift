@@ -253,6 +253,20 @@ import Workspace
         #expect(responderKind(isText: false, inTerminalArea: false, isDiff: false) == .other)
     }
 
+    @Test func drawerWithoutSurfaceHoldsFocus() throws {
+        let (app, _, a, _) = try makeApp()
+        app.select(taskId: a)
+        cleanup()  // missing folder: the shell never starts, the leaf has no surface
+        let drawer = TerminalDrawer(app: app)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView?.addSubview(drawer)
+        app.perform { $0.toggleDrawer(taskId: a) }
+        drawer.sync()
+        // ⌘W then sees `drawerFocused` (collapses the drawer), not the tab.
+        #expect(window.makeFirstResponder(drawer.currentSurface))
+        #expect(drawer.focusedLeaf != nil)
+    }
+
     @Test func worktreeRootInputValidation() {
         L10n.language = .en
         #expect(worktreeRootInput("") == .success(nil))

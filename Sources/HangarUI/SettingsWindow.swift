@@ -29,17 +29,23 @@ import Workspace
 
     func present(over parent: NSWindow?) {
         guard let window else { return }
-        if !window.isVisible, let parent {
-            let p = parent.frame
-            window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.maxY - window.frame.height - Theme.settingsTopOffset))
+        // Already open (⌘, again): only bring it forward, keep the typed draft.
+        if !window.isVisible {
+            if let parent {
+                let p = parent.frame
+                window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.maxY - window.frame.height - Theme.settingsTopOffset))
+            }
+            model.externalEditor = model.app.config.externalEditor ?? ""
         }
-        model.externalEditor = model.app.config.externalEditor ?? ""
         let integration = model.integration
         Task { await integration.refresh() }
         window.makeKeyAndOrderFront(nil)
     }
 
     /// The external-editor field saves on ↩ / focus loss; closing the window must not drop a typed value.
+    func windowShouldClose(_ sender: NSWindow) -> Bool { model.shouldClose() }
+
+    /// Closes that skip `windowShouldClose` (app quit) still save the draft.
     func windowWillClose(_ notification: Notification) { model.commitExternalEditor() }
 }
 
@@ -48,6 +54,8 @@ import Workspace
     let app: AppState
     var externalEditor = ""
     var error: String?
+    /// The draft whose save failed on close (the user has seen the error).
+    private var refusedDraft: String?
     let integration: IntegrationModel
     /// Shown in the consent sheet; nothing is written until it is confirmed.
     var pendingPlan: IntegrationPlan?
@@ -81,19 +89,28 @@ import Workspace
         integration.message = L10n.commandCopied
     }
 
-    func commitExternalEditor() {
-        let value = externalEditor.trimmingCharacters(in: .whitespaces)
-        guard value != (app.config.externalEditor ?? "") else { return }
-        save { try app.setConfig("external_editor", value) { $0.externalEditor = value.isEmpty ? nil : value } }
+    /// False when saving the draft fails: the window stays open with the error; closing again with the same draft closes.
+    func shouldClose() -> Bool {
+        if commitExternalEditor() { refusedDraft = nil; return true }
+        defer { refusedDraft = externalEditor }
+        return refusedDraft == externalEditor
     }
 
-    func save(_ change: () throws -> Void) {
+    @discardableResult func commitExternalEditor() -> Bool {
+        let value = externalEditor.trimmingCharacters(in: .whitespaces)
+        guard value != (app.config.externalEditor ?? "") else { return true }
+        return save { try app.setConfig("external_editor", value) { $0.externalEditor = value.isEmpty ? nil : value } }
+    }
+
+    @discardableResult func save(_ change: () throws -> Void) -> Bool {
         do {
             try change()
             error = nil
+            return true
         } catch {
             uiLog.error("config write failed: \(String(describing: error), privacy: .public)")
             self.error = L10n.saveFailed(error.localizedDescription)
+            return false
         }
     }
 }
@@ -129,7 +146,7 @@ struct SettingsView: View {
                         .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
                         .focused($editingExternal)
-                        .onSubmit(model.commitExternalEditor)
+                        .onSubmit { model.commitExternalEditor() }
                         .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                 }
                 row(L10n.notificationsTitle) {

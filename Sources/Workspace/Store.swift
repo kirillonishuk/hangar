@@ -9,7 +9,7 @@ public enum LoadResult: Equatable, Sendable {
 }
 
 /// Persists `WorkspaceState` to `directory/state.json`: atomic writes, debounced saves,
-/// corrupt files moved to `state.json.bak`. Main-actor isolated; no timers (a sleeping Task only while a save is pending).
+/// corrupt files (and a dangling symlink) moved to `state.json.bak`. Main-actor isolated; no timers (a sleeping Task only while a save is pending).
 @MainActor
 public final class StateStore {
     private let directory: URL
@@ -38,22 +38,20 @@ public final class StateStore {
     public func load() -> LoadResult {
         readOnly = false
         let fm = FileManager.default
-        guard fm.fileExists(atPath: fileURL.path) else { return .empty }
-        let data: Data
-        do { data = try Data(contentsOf: fileURL) } catch {
-            return lockDown("cannot read state.json: \(error)")
-        }
-        if let state = try? JSONDecoder().decode(WorkspaceState.self, from: data) {
-            return .loaded(state)
-        }
-        do {
-            if fm.fileExists(atPath: backupURL.path) {
-                _ = try fm.replaceItemAt(backupURL, withItemAt: fileURL)
-            } else {
-                try fm.moveItem(at: fileURL, to: backupURL)
+        // attributesOfItem does not follow a final symlink: a dangling state.json is "there" but corrupt.
+        guard (try? fm.attributesOfItem(atPath: fileURL.path)) != nil else { return .empty }
+        if fm.fileExists(atPath: fileURL.path) {
+            let data: Data
+            do { data = try Data(contentsOf: fileURL) } catch {
+                return lockDown("cannot read state.json: \(error)")
             }
-        } catch {
-            return lockDown("cannot back up corrupt state.json: \(error)")
+            if let state = try? JSONDecoder().decode(WorkspaceState.self, from: data) {
+                return .loaded(state)
+            }
+        }
+        // rename(2) moves the item itself (a symlink stays a link) and atomically replaces an older .bak.
+        guard rename(fileURL.path, backupURL.path) == 0 else {
+            return lockDown("cannot back up corrupt state.json: \(String(cString: strerror(errno)))")
         }
         return .recoveredFromCorrupt(backup: backupURL)
     }

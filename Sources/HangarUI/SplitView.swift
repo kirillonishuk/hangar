@@ -78,6 +78,7 @@ final class RatioSplitView: HangarSplitView {
     private let headerLine = NSView()
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
+    private let barFill = HoverFill(lit: Theme.hover)
     /// Non-nil while the process has exited with a failure (↩ relaunches).
     private(set) var exitCode: Int32?
     /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
@@ -113,7 +114,7 @@ final class RatioSplitView: HangarSplitView {
         wantsLayer = true
         layer?.backgroundColor = Theme.panel.cgColor
         for label in [header, bar] {
-            label.font = .systemFont(ofSize: Theme.fontSize.small)
+            label.font = .systemFont(ofSize: Theme.fontSize.counter)
             label.textColor = Theme.text3
             label.lineBreakMode = .byTruncatingTail
         }
@@ -123,7 +124,7 @@ final class RatioSplitView: HangarSplitView {
             line.wantsLayer = true
             line.layer?.backgroundColor = Theme.line.cgColor
         }
-        [header, headerLine, bar, barLine].forEach(addSubview)
+        [header, headerLine, barFill, bar, barLine].forEach(addSubview)
         header.isHidden = true
         headerLine.isHidden = true
         setBar(nil)
@@ -302,6 +303,7 @@ final class RatioSplitView: HangarSplitView {
         bar.stringValue = text ?? ""
         bar.isHidden = text == nil
         barLine.isHidden = text == nil
+        barFill.isHidden = text == nil
         needsLayout = true
         window?.invalidateCursorRects(for: self)
     }
@@ -347,6 +349,8 @@ final class RatioSplitView: HangarSplitView {
             let h = Theme.statusBarHeight
             bottom -= h
             barLine.frame = NSRect(x: 0, y: bottom, width: bounds.width, height: 1)
+            barFill.frame = NSRect(x: 0, y: bottom, width: bounds.width, height: h)
+            barFill.enabled = needsRelaunch || canReconnect
             let th = ceil(bar.intrinsicContentSize.height)
             bar.frame = NSRect(x: px, y: bottom + (h - th) / 2, width: max(0, bounds.width - 2 * px), height: th)
         }
@@ -702,6 +706,18 @@ final class RatioSplitView: HangarSplitView {
         }
     }
 
+    /// ⌘⌥ + arrow: focus the pane on that side of the focused one; false when there is none (or the drawer / diff has the keys).
+    func focusSplit(_ direction: SplitDirection) -> Bool {
+        guard drawer.focusedLeaf == nil, app.activeDiff == nil, let tab = activeTab, let current = focusedLeaf else { return false }
+        var frames: [UUID: CGRect] = [:]
+        for leaf in tab.root.leaves {
+            if let view = leafViews[leaf.id], view.window != nil { frames[leaf.id] = view.convert(view.bounds, to: nil) }
+        }
+        guard let next = splitNeighbour(of: current.leafId, in: frames, toward: direction), let view = leafViews[next] else { return false }
+        window?.makeFirstResponder(view.surface ?? view)
+        return true
+    }
+
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {
         guard let leaf = focusedLeaf, leaf.needsRelaunch || leaf.canReconnect else { return false }
@@ -724,6 +740,35 @@ final class RatioSplitView: HangarSplitView {
         }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
     }
     #endif
+}
+
+/// The pane next to `id` toward `direction` (window coordinates, y up): it must lie past that edge and overlap it on the
+/// other axis; the nearest wins, then the one sharing the longest edge, then the leftmost / topmost.
+func splitNeighbour(of id: UUID, in frames: [UUID: CGRect], toward direction: SplitDirection) -> UUID? {
+    guard let a = frames[id] else { return nil }
+    let slop: CGFloat = 2  // the 1 pt divider between panes
+    func gap(_ b: CGRect) -> CGFloat? {
+        let d: CGFloat, overlap: Bool
+        switch direction {
+        case .left: (d, overlap) = (a.minX - b.maxX, b.minY < a.maxY && b.maxY > a.minY)
+        case .right: (d, overlap) = (b.minX - a.maxX, b.minY < a.maxY && b.maxY > a.minY)
+        case .up: (d, overlap) = (b.minY - a.maxY, b.minX < a.maxX && b.maxX > a.minX)
+        case .down: (d, overlap) = (a.minY - b.maxY, b.minX < a.maxX && b.maxX > a.minX)
+        }
+        return overlap && d > -slop ? max(d, 0) : nil
+    }
+    func shared(_ b: CGRect) -> CGFloat {
+        switch direction {
+        case .left, .right: min(a.maxY, b.maxY) - max(a.minY, b.minY)
+        case .up, .down: min(a.maxX, b.maxX) - max(a.minX, b.minX)
+        }
+    }
+    let candidates = frames.compactMap { key, b in key == id ? nil : gap(b).map { (key, b, $0) } }
+    return candidates.min { l, r in
+        if l.2 != r.2 { return l.2 < r.2 }
+        if shared(l.1) != shared(r.1) { return shared(l.1) > shared(r.1) }
+        return l.1.minX != r.1.minX ? l.1.minX < r.1.minX : l.1.maxY > r.1.maxY
+    }?.0
 }
 
 /// A host connected (`remote.onConnected`): its leaves waiting for it launch, detached ones reattach.

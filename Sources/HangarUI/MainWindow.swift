@@ -29,9 +29,19 @@ final class TaskColumnController: NSViewController {
     private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
     private let statusBar: NSHostingView<TaskStatusBar>
+    /// «Задача в архиве · Отменить» over the bottom of the terminals.
+    let archiveUndo = ArchiveUndo()
+    private let toast: NSHostingView<UndoToastView>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
+        // Undo selects the task again only if the archive left nothing selected (it was the selected one).
+        toast = NSHostingView(rootView: UndoToastView(undo: archiveUndo) { [weak app] id in
+            guard let app, app.state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
+            let reselect = app.selectedTask == nil
+            app.restore(taskId: id)
+            if reselect { app.select(taskId: id) }
+        })
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
@@ -45,7 +55,8 @@ final class TaskColumnController: NSViewController {
         titleBar.sizingOptions = []
         tabBar.sizingOptions = []
         statusBar.sizingOptions = []
-        for sub in [titleBar, tabBar, terminalArea, statusBar] as [NSView] {
+        toast.sizingOptions = [.intrinsicContentSize]
+        for sub in [titleBar, tabBar, terminalArea, statusBar, toast] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -66,6 +77,8 @@ final class TaskColumnController: NSViewController {
             statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
+            toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
+            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
         ])
         view = v
     }
@@ -370,7 +383,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             confirmWithCheckbox: { [weak self] message, info, button, checkbox, then in
                 self?.confirm(message, info, button, checkbox: checkbox, then)
             },
-            showError: { [weak self] message, info in self?.showError(message, info) })
+            showError: { [weak self] message, info in self?.showError(message, info) },
+            didArchive: { [weak self] id in self?.column.archiveUndo.show(id) })
     }
 
     private var firstResponderKind: FirstResponderKind {
@@ -407,6 +421,23 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .addProject: chooseProjectKind()
         case .settings: showSettings(nil)
         case .limits: app.toggleLimitsPopover()
+        case .prevTab: cycleTab(-1)
+        case .nextTab: cycleTab(1)
+        case .focusSplit(let direction):
+            if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
+        }
+    }
+
+    /// ⌃Tab / ⌃⇧Tab: the task's tabs, then its diff tab, wrapping.
+    private func cycleTab(_ offset: Int) {
+        guard let task = app.selectedTask else { return }
+        let diff = app.diffTabs[task.id]
+        let slots = task.tabs.map { TabSlot.tab($0.id) } + (diff == nil ? [] : [.diff])
+        let current: TabSlot? = diff?.active == true ? .diff : task.activeTabId.map { .tab($0) }
+        switch cycled(slots, from: current, by: offset) {
+        case .tab(let id): app.activate(tabId: id)
+        case .diff: app.activateDiff()
+        case nil: break
         }
     }
 

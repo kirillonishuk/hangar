@@ -55,7 +55,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 24)
+        #expect(Shortcut.allCases.count == 30)
     }
 }
 

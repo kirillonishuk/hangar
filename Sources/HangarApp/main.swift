@@ -156,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startGhostty(background: String?) {
         while true {
             do {
-                try GhosttyApp.shared.start(background: background)
+                try GhosttyApp.shared.start(background: background, padding: (x: Theme.terminalPaddingX, y: Theme.terminalPaddingY))
                 return
             } catch {
                 let alert = NSAlert()

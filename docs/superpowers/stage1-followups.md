@@ -122,3 +122,4 @@
 - Не сделанные пункты «final wave» из ревью этапа:
   - ~~`hangar-remote`: `socat -T2` вместо `-t2`; `resetsAt` ≤ now+30 дней~~ — сделано (#49).
   - ~~Классификация ssh-ошибок (`Permission denied (` по методам ssh, больше причин `.unreachable`)~~ — сделано (#49).
+- CLI/MCP tests have no headroom at machine load >8 (main-actor backlog > 10 s CLI timeout); options: load-tolerant test timeout or fewer @MainActor suites.

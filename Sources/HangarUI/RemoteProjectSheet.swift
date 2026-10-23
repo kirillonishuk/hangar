@@ -125,31 +125,22 @@ struct RemoteProjectSheet: View {
         VStack(spacing: 0) {
             CardRow(label: L10n.hostLabel, first: true) {
                 TextField("", text: $model.host, prompt: Text(L10n.hostPlaceholder).foregroundStyle(Theme.ui.text3))
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(Theme.ui.sheetText)
+                    .modifier(CardField())
                     .focused($focus, equals: .host)
                     .onSubmit { focus = .path }
                 if !model.configHosts.isEmpty {
-                    Menu {
-                        ForEach(model.configHosts, id: \.self) { h in Button(h) { model.host = h; focus = .path } }
-                    } label: { Image(nsImage: Icon.chevronDown.image).renderingMode(.template) }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .fixedSize()
-                        .pointingHand()
+                    HostMenu(hosts: model.configHosts) { h in model.host = h; focus = .path }
                 }
             }
             CardRow(label: L10n.pathLabel) {
                 TextField("", text: $model.path)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                    .foregroundStyle(Theme.ui.sheetText)
+                    .modifier(CardField(mono: true))
                     .focused($focus, equals: .path)
                     .onSubmit(primary)
             }
         }
         .disabled(model.phase == .connecting)
-        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+        .sheetCard()
     }
 
     @ViewBuilder private var status: some View {
@@ -160,7 +151,7 @@ struct RemoteProjectSheet: View {
                 Text(L10n.hostConnecting).foregroundStyle(Theme.ui.text3)
             }
             .font(.system(size: Theme.fontSize.tab))
-            .padding(.top, Theme.statusDot)
+            .padding(.top, Theme.sheetMessageTop)
         case .failed(let text, let mono):
             Text(verbatim: text)
                 .font(.system(size: Theme.fontSize.tab, design: mono ? .monospaced : .default))
@@ -168,13 +159,13 @@ struct RemoteProjectSheet: View {
                 .lineLimit(Theme.errorMaxLines)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
-                .padding(.top, Theme.statusDot)
+                .padding(.top, Theme.sheetMessageTop)
         default: EmptyView()
         }
     }
 
     private var footer: some View {
-        HStack(spacing: Theme.statusDot) {
+        HStack(spacing: Theme.sheetButtonGap) {
             Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
             Spacer(minLength: 0)
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
@@ -203,5 +194,26 @@ struct RemoteProjectSheet: View {
         } else if model.canConnect {
             Task { await model.connect() }
         }
+    }
+}
+
+/// ▾ after the host field: `Host` names of the ssh config; hover fill + hand like the sheets' other icon buttons.
+private struct HostMenu: View {
+    let hosts: [String]
+    let pick: (String) -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Menu {
+            ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
+        } label: { Image(nsImage: Icon.chevronDown.image).renderingMode(.template) }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .frame(width: Theme.sheetIconButtonSize, height: Theme.sheetIconButtonSize)
+            .background(RoundedRectangle(cornerRadius: Theme.railItemRadius).fill(hover ? Theme.ui.sheetHover : .clear))
+            .contentShape(Rectangle())
+            .pointingHand()
+            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 }

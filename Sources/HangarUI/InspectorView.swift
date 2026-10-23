@@ -49,18 +49,94 @@ struct InspectorView: View {
     }
 
     private func segmentItem(_ title: String, _ value: InspectorModel.Segment) -> some View {
-        let on = model.segment == value
-        return Text(title)
+        SegmentItem(title: title, on: model.segment == value) { model.segment = value }
+    }
+}
+
+/// One half of the Files / Changes segment; an inactive half lights up on hover.
+private struct SegmentItem: View {
+    let title: String
+    let on: Bool
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let lit = hover && !on
+        Text(title)
             .font(.system(size: Theme.fontSize.segment))
             .lineLimit(1)
-            .foregroundStyle(on ? Theme.ui.textStrong : Theme.ui.text2)
+            .foregroundStyle(on ? Theme.ui.textStrong : lit ? Theme.ui.text : Theme.ui.text2)
             .padding(.vertical, Theme.segmentItemPaddingV)
             .frame(maxWidth: .infinity)
-            .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.control : .clear))
+            .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.control : lit ? Theme.ui.hover : .clear))
             .contentShape(Rectangle())
-            .onTapGesture { model.segment = value }
+            .onTapGesture(perform: action)
             .pointingHand(!on)
+            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
             .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// Context menu of a Files / Changes row (Pane «File previews»); Finder sees only this Mac's disk.
+enum FileMenuItem: Equatable, CaseIterable {
+    case openInHelix, revealInFinder, copyPath, copyRelativePath
+
+    static func items(remote: Bool) -> [FileMenuItem] { allCases.filter { !remote || $0 != .revealInFinder } }
+
+    /// Pasteboard text of the copy items (a remote path as `host:path`, like the sidebar's «Скопировать путь»).
+    func copied(root: String, relative: String, host: String?) -> String? {
+        switch self {
+        case .copyPath: (host.map { $0 + ":" } ?? "") + root + "/" + relative
+        case .copyRelativePath: relative
+        case .openInHelix, .revealInFinder: nil
+        }
+    }
+
+    @MainActor var title: String {
+        switch self {
+        case .openInHelix: L10n.openInHelix
+        case .revealInFinder: L10n.revealInFinder
+        case .copyPath: L10n.copyPath
+        case .copyRelativePath: L10n.copyRelativePath
+        }
+    }
+
+    var icon: Icon {
+        switch self {
+        case .openInHelix: .editor
+        case .revealInFinder: .finder
+        case .copyPath, .copyRelativePath: .copy
+        }
+    }
+}
+
+/// The menu items for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
+struct FileMenu: View {
+    let app: AppState
+    let relative: String
+    let opens: Bool
+
+    var body: some View {
+        let host = remoteHost(app)
+        if let root = app.inspector.root {
+            ForEach(FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }, id: \.self) { item in
+                Button { perform(item, root: root, host: host) } label: {
+                    Label { Text(item.title) } icon: { Image(nsImage: item.icon.image) }
+                }
+            }
+        }
+    }
+
+    private func perform(_ item: FileMenuItem, root: String, host: String?) {
+        let path = root + "/" + relative
+        switch item {
+        case .openInHelix: app.openInEditor(path: path, line: nil)
+        case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        case .copyPath, .copyRelativePath:
+            guard let text = item.copied(root: root, relative: relative, host: host) else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
     }
 }
 
@@ -103,6 +179,7 @@ private struct FilesList: View {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
                         FileRow(row: row, change: model.badges[row.entry.path], action: action(row))
+                            .contextMenu { FileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
                     }
                 }
                 .padding(.vertical, Theme.fileRowPaddingV)
@@ -172,6 +249,7 @@ private struct ChangesList: View {
                         if changes.files.isEmpty { notice(L10n.noChanges) }
                         ForEach(changes.files) { file in
                             ChangeRow(file: file, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
+                                .contextMenu { FileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
                         hint(changes)
                     }
@@ -190,19 +268,33 @@ private struct ChangesList: View {
             if changes.baseMissing { return (Text(L10n.changesHintUncommitted), nil) }
             return (Text(L10n.changesHintUncommitted), model.baseName.map(L10n.changesHintToBase))
         }()
+        ChangesHint(first: lines.0, second: lines.1) { model.toggleMode() }
+    }
+}
+
+/// What is compared and what ⌥B switches to: one line each (truncated, never wrapped); clickable when it offers a switch.
+private struct ChangesHint: View {
+    let first: Text
+    let second: String?
+    let toggle: () -> Void
+    @State private var hover = false
+
+    var body: some View {
         VStack(alignment: .leading, spacing: Theme.changesHintLineGap) {
-            lines.0
-            if let second = lines.1 { Text(second) }
+            first
+            if let second { Text(second) }
         }
+        .lineLimit(1)
+        .truncationMode(.middle)
         .font(.system(size: Theme.fontSize.counter))
-        .foregroundStyle(Theme.ui.text3)
-        .fixedSize(horizontal: false, vertical: true)
+        .foregroundStyle(hover && second != nil ? Theme.ui.text2 : Theme.ui.text3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.rowPaddingH)
         .padding(.top, Theme.changesHintTop)
         .contentShape(Rectangle())
-        .onTapGesture { if lines.1 != nil { model.toggleMode() } }
-        .pointingHand(lines.1 != nil)
+        .onTapGesture { if second != nil { toggle() } }
+        .pointingHand(second != nil)
+        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 }
 

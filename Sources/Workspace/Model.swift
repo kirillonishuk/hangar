@@ -361,6 +361,14 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].activeTabId = tabs.isEmpty ? nil : tabs[min(t, tabs.count - 1)].id
     }
 
+    /// Drag-reorder in the tab bar: the tab goes to index `to` (clamped); the array order is what gets saved.
+    public mutating func moveTab(taskId: UUID, tabId: UUID, to index: Int) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let from = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        let tab = tasks[i].tabs.remove(at: from)
+        tasks[i].tabs.insert(tab, at: min(max(index, 0), tasks[i].tabs.count))
+    }
+
     /// Splits the leaf, focuses the new leaf and returns its id (a fresh id if the target is not found).
     @discardableResult
     public mutating func split(taskId: UUID, tabId: UUID, leafId: UUID, axis: Axis, kind: LeafKind) -> UUID {

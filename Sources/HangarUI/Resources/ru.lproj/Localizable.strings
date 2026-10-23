@@ -207,10 +207,10 @@
 "fileCountMany" = "%d файлов";
 "statusShowChanges" = "Показать изменения";
 "segmentChanges" = "Changes %d";
-"changesHintBase" = "Сравнение с базовой веткой %@";
+"changesHintBase" = "База: %@";
 "changesHintToBase" = "⌥B — сравнить с %@";
 "changesHintUncommitted" = "Только незакоммиченное";
-"changesHintToUncommitted" = "⌥B — только незакоммиченное";
+"changesHintToUncommitted" = "⌥B — незакоммиченное";
 "baseMissing" = "Базовая ветка %@ не найдена — показано незакоммиченное";
 "noChanges" = "Нет изменений";
 "statusTruncated" = "Показаны первые %d изменений";
@@ -272,3 +272,8 @@
 "integrationShortOutdated" = "Устарела";
 "removeEllipsis" = "Удалить…";
 "hostPausedBar" = "Нет связи с %@ · ↩ переподключиться";
+"openInHelix" = "Открыть в Helix";
+"copyRelativePath" = "Скопировать относительный путь";
+"taskArchived" = "Задача в архиве";
+"undoArchive" = "Отменить";
+"keepAwakeShort" = "Не засыпать";

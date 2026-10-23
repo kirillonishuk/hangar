@@ -234,6 +234,18 @@ struct DiffView: View {
     }
 }
 
+/// A clickable diff line (click selects, double click opens in hx) lights up under the pointer.
+private struct LineHover: ViewModifier {
+    let enabled: Bool
+    @State private var hover = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay { if enabled && hover { Theme.ui.hover.opacity(Theme.diffHoverOpacity).allowsHitTesting(false) } }
+            .onHover { h in if enabled { withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } } }
+    }
+}
+
 /// Redrawn only when the load or the selection changes (closures are not compared).
 private struct DiffLines: View, Equatable {
     let content: DiffContent
@@ -261,6 +273,7 @@ private struct DiffLines: View, Equatable {
                             .contentShape(Rectangle())
                             .onTapGesture { tap(item) }
                             .pointingHand(item.row.isClickable)
+                            .modifier(LineHover(enabled: item.row.isClickable))
                     }
                 }
                 .padding(.bottom, Theme.Diff.headerPaddingV)

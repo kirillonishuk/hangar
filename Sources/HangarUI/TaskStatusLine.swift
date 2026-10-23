@@ -42,14 +42,7 @@ struct TaskStatusBar: View {
         HStack(spacing: Theme.statusBarGap) {
             if let line {
                 if let branch = line.branch { Text(verbatim: branch).truncationMode(.middle) }
-                if let changes = line.changes {
-                    Text(verbatim: changes)
-                        .contentShape(Rectangle())
-                        .onTapGesture { showChanges() }
-                        .pointingHand()
-                        .help(L10n.statusShowChanges)
-                        .accessibilityAddTraits(.isButton)
-                }
+                if let changes = line.changes { ChangesCounter(text: changes, action: showChanges) }
                 if let host = line.host { Text(verbatim: host).truncationMode(.middle) }
                 Spacer(minLength: 0)
                 if let agent = line.agent { Text(verbatim: agent).layoutPriority(1) }
@@ -80,5 +73,23 @@ struct TaskStatusBar: View {
     private func showChanges() {
         app.inspector.segment = .changes
         if !app.state.inspectorVisible { app.perform { $0.inspectorVisible = true } }
+    }
+}
+
+/// `+N −M · K файлов`: a link — `text3`, `text2` under the pointer.
+private struct ChangesCounter: View {
+    let text: String
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Text(verbatim: text)
+            .foregroundStyle(hover ? Theme.ui.text2 : Theme.ui.text3)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .pointingHand()
+            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+            .help(L10n.statusShowChanges)
+            .accessibilityAddTraits(.isButton)
     }
 }

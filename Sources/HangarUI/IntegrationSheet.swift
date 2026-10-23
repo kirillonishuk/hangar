@@ -37,10 +37,10 @@ struct IntegrationSheet: View {
             }
             if let error {
                 Text(verbatim: error).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
-                    .padding(.top, Theme.railInset)
+                    .padding(.top, Theme.sheetLineGap)
             }
 
-            HStack(spacing: Theme.statusDot) {
+            HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
                 Button(L10n.cancel, action: onCancel)
@@ -71,7 +71,7 @@ struct IntegrationSheet: View {
         let lines = VStack(alignment: .leading, spacing: 0) {
             ForEach(plan.diff.indices, id: \.self) { i in line(plan.diff[i]) }
         }
-        .padding(.vertical, Theme.railInset)
+        .padding(.vertical, Theme.sheetLineGap)
         return ViewThatFits(in: .vertical) {
             lines
             ScrollView(.vertical) { lines }.frame(height: Theme.Diff.maxHeight)

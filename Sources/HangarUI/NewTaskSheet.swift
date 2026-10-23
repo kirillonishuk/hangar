@@ -16,7 +16,7 @@ struct NewTaskSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.statusDot) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
                 Text(L10n.newTask)
                     .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
                     .foregroundStyle(Theme.ui.sheetText)
@@ -64,7 +64,7 @@ struct NewTaskSheet: View {
 
     private var card: some View {
         VStack(spacing: 0) {
-            row(L10n.worktreeLabel, first: true) {
+            CardRow(label: L10n.worktreeLabel, first: true) {
                 Text(worktreeHint).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: Theme.cardRowGap)
                 Toggle("", isOn: $model.worktree)
@@ -75,7 +75,7 @@ struct NewTaskSheet: View {
                     .disabled(model.availability != .ready || model.creating)
                     .pointingHand(model.availability == .ready && !model.creating)
             }
-            row(L10n.fromBranch) {
+            CardRow(label: L10n.fromBranch) {
                 BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
                              taskBranches: model.taskBranches, defaultOption: nil)
                 Spacer(minLength: Theme.cardRowGap)
@@ -83,12 +83,10 @@ struct NewTaskSheet: View {
             }
             .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
             .disabled(!model.worktree)
-            row(L10n.newBranch) {
+            CardRow(label: L10n.newBranch) {
                 if model.worktree {
                     TextField("", text: $model.branch)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .modifier(CardField(mono: true))
                         .focused($focus, equals: .branch)
                         .disabled(model.creating)
                         .onSubmit { focus = .message }
@@ -103,7 +101,7 @@ struct NewTaskSheet: View {
             }
             .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
         }
-        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+        .sheetCard()
     }
 
     private var worktreeHint: String {
@@ -134,17 +132,6 @@ struct NewTaskSheet: View {
         }
     }
 
-    private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
-        HStack(spacing: Theme.cardRowGap) {
-            Text(label).foregroundStyle(Theme.ui.text2).frame(width: Theme.cardLabelWidth, alignment: .leading)
-            HStack(spacing: Theme.pickGap) { value() }
-        }
-        .frame(maxWidth: .infinity, minHeight: Theme.dropdownRowHeight, alignment: .leading)
-        .padding(.vertical, Theme.cardRowPaddingV)
-        .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
-    }
-
     // MARK: Errors
 
     /// Under the card: bad branch, failed/cancelled fetch (stderr + «Повторить» / «Создать без fetch»), git stderr.
@@ -156,7 +143,7 @@ struct NewTaskSheet: View {
                 case .failed(let stderr):
                     Text(L10n.fetchFailed).foregroundStyle(Theme.ui.failed)
                     stderrText(stderr)
-                    HStack(spacing: Theme.statusDot) {
+                    HStack(spacing: Theme.sheetButtonGap) {
                         Button(L10n.retry) { Task { await model.refresh() } }
                             .buttonStyle(SheetButton(primary: false))
                             .disabled(model.creating)
@@ -164,13 +151,13 @@ struct NewTaskSheet: View {
                     }
                 case .cancelled:
                     Text(L10n.fetchCancelled).foregroundStyle(Theme.ui.text3)
-                    HStack(spacing: Theme.statusDot) { createWithoutFetch }
+                    HStack(spacing: Theme.sheetButtonGap) { createWithoutFetch }
                 default: EmptyView()
                 }
                 if let stderr = model.createError { stderrText(stderr) }
             }
             .font(.system(size: Theme.fontSize.tab))
-            .padding(.top, hasErrors ? Theme.statusDot : 0)
+            .padding(.top, hasErrors ? Theme.sheetMessageTop : 0)
         }
     }
 
@@ -201,7 +188,7 @@ struct NewTaskSheet: View {
     // MARK: Footer
 
     private var footer: some View {
-        HStack(spacing: Theme.statusDot) {
+        HStack(spacing: Theme.sheetButtonGap) {
             Text(footerHint).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
             Spacer(minLength: 0)
             Button(L10n.cancel, action: cancel)
@@ -263,17 +250,33 @@ struct SheetField: ViewModifier {
     }
 }
 
+/// Sheet / settings button: `primary` fill or `button`; lighter on hover (120 ms), hand only while enabled.
 struct SheetButton: ButtonStyle {
     let primary: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(primary ? Theme.ui.selectionText : Theme.ui.sheetText)
-            .padding(.vertical, Theme.buttonPaddingV)
-            .padding(.horizontal, Theme.buttonPaddingH)
-            .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                .fill(primary ? Theme.ui.primary : Theme.ui.button))
-            .opacity(configuration.isPressed ? Theme.pressedOpacity : 1)
-            .pointingHand()
+        Body(label: configuration.label, primary: primary, pressed: configuration.isPressed)
+    }
+
+    private struct Body<Label: View>: View {
+        let label: Label
+        let primary: Bool
+        let pressed: Bool
+        @Environment(\.isEnabled) private var enabled
+        @State private var hover = false
+
+        var body: some View {
+            label
+                .foregroundStyle(primary ? Theme.ui.selectionText : Theme.ui.sheetText)
+                .padding(.vertical, Theme.buttonPaddingV)
+                .padding(.horizontal, Theme.buttonPaddingH)
+                .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
+                    .fill(primary ? Theme.ui.primary : Theme.ui.button)
+                    .brightness(hover && enabled ? Theme.sheetButtonHoverBrightness : 0))
+                .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
+                .opacity(pressed ? Theme.pressedOpacity : 1)
+                .pointingHand(enabled)
+                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        }
     }
 }

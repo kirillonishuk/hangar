@@ -21,7 +21,7 @@ struct ServerCheckSheet: View {
                 .padding(.bottom, Theme.sheetHeaderBottom)
             ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
                 .padding(.top, Theme.sheetNameTop)
-            HStack(spacing: Theme.statusDot) {
+            HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
@@ -100,7 +100,7 @@ struct ServerCheckView: View {
             integrations(r).padding(.top, Theme.sheetGap)
             warnings(r)
             planBlock.padding(.top, Theme.sheetGap)
-            if case .failed(let message) = model.phase { errorText(message).padding(.top, Theme.statusDot) }
+            if case .failed(let message) = model.phase { errorText(message).padding(.top, Theme.sheetMessageTop) }
         }
         // The sheet never outgrows its window: past the budget the report scrolls (the terminal keeps its size).
         let limit = max(Theme.serverReportMinHeight,
@@ -155,7 +155,7 @@ struct ServerCheckView: View {
                 }
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+        .sheetCard()
     }
 
     // MARK: Integrations
@@ -169,7 +169,7 @@ struct ServerCheckView: View {
                 integrationValue(.codex, r)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+        .sheetCard()
     }
 
     @ViewBuilder private func integrationValue(_ target: IntegrationTarget, _ r: ServerReport) -> some View {
@@ -204,7 +204,7 @@ struct ServerCheckView: View {
     @ViewBuilder private func warnings(_ r: ServerReport) -> some View {
         let lines = (r.socketClient == nil ? [L10n.noStatusClient] : []) + (model.forwarding ? [] : [L10n.forwardFailed])
         if !lines.isEmpty || model.integrationError != nil && model.pendingPlan == nil || model.message != nil {
-            VStack(alignment: .leading, spacing: Theme.railInset) {
+            VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 ForEach(lines, id: \.self) { Text($0).foregroundStyle(Theme.ui.waiting) }
                 if model.pendingPlan == nil, let error = model.integrationError { Text(verbatim: error).foregroundStyle(Theme.ui.failed) }
                 if let message = model.message { Text(verbatim: message).foregroundStyle(Theme.ui.text2) }
@@ -212,13 +212,13 @@ struct ServerCheckView: View {
             .font(.system(size: Theme.fontSize.tab))
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, Theme.statusDot)
+            .padding(.top, Theme.sheetMessageTop)
         }
     }
 
     private var planBlock: some View {
-        VStack(alignment: .leading, spacing: Theme.statusDot) {
-            HStack(spacing: Theme.statusDot) {
+        VStack(alignment: .leading, spacing: Theme.sheetMessageTop) {
+            HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.installPlanTitle).foregroundStyle(Theme.ui.text2)
                 Spacer(minLength: 0)
                 if embedded, !model.plan.steps.isEmpty { InstallButton(model: model, primary: false) }
@@ -228,11 +228,11 @@ struct ServerCheckView: View {
             }
             if !model.plan.steps.isEmpty {
                 // Verbatim: exactly what the terminal (and the stdin write) will run.
-                VStack(alignment: .leading, spacing: Theme.statusDot) {
+                VStack(alignment: .leading, spacing: Theme.planCommandGap) {
                     // By title, not index: the plan shrinks after an install while the old rows are still diffed.
                     ForEach(model.plan.steps, id: \.title) { step in
                         Text(verbatim: step.command)
-                            .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
                             .foregroundStyle(Theme.ui.text2)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -240,7 +240,7 @@ struct ServerCheckView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .padding(.vertical, Theme.railInset * 2)
+                .padding(.vertical, Theme.planPaddingV)
                 .padding(.horizontal, Theme.fieldPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
                 .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
@@ -264,32 +264,6 @@ struct ServerCheckView: View {
             .lineLimit(Theme.errorMaxLines)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
-    }
-}
-
-/// One row of a sheet card (new-task-v4 `.r`): fixed-width label `text2`, the value after it.
-struct CardRow<Value: View>: View {
-    let label: String
-    var mono = false
-    /// Report rows (read-only text): tighter, so the whole server fits the sheet.
-    var compact = false
-    var labelWidth = Theme.cardLabelWidth
-    var first = false
-    @ViewBuilder var value: Value
-
-    var body: some View {
-        HStack(spacing: Theme.cardRowGap) {
-            Text(verbatim: label)
-                .font(.system(size: Theme.fontSize.sheetRow, design: mono ? .monospaced : .default))
-                .foregroundStyle(Theme.ui.text2)
-                .frame(width: labelWidth, alignment: .leading)
-            HStack(spacing: Theme.pickGap) { value }
-        }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: compact ? 0 : Theme.dropdownRowHeight, alignment: .leading)
-        .padding(.vertical, compact ? Theme.reportRowPaddingV : Theme.cardRowPaddingV)
-        .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
     }
 }
 

@@ -124,3 +124,77 @@ struct EmptyStateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+/// One item of a small fixed menu (host row, «+ проект»): shown as an NSMenu at the pointer on click, and as
+/// SwiftUI items in the context / `…` menus.
+struct MenuEntry {
+    let title: String
+    let icon: Icon
+    var enabled = true
+    let action: () -> Void
+}
+
+/// Host row: «Переподключиться» (while not connected), «Проверить сервер» (connected), «Отключиться».
+@MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
+    let state = app.remote.hosts[host]?.state ?? .disconnected
+    let down = state == .disconnected || { if case .unreachable = state { true } else { false } }()
+    return [
+        MenuEntry(title: L10n.reconnect, icon: .refresh, enabled: state != .connected) { app.reconnect(host: host) },
+        MenuEntry(title: L10n.checkServer, icon: .sshHost, enabled: state == .connected) { ctx.checkServer(host) },
+        MenuEntry(title: L10n.disconnect, icon: .close, enabled: !down) { app.remote.disconnect(host) },
+    ]
+}
+
+/// The menu at the pointer (a click on a whole row; SwiftUI's `Menu` can't take a row as its label).
+@MainActor func popUpMenu(_ items: [MenuEntry], at point: NSPoint = NSEvent.mouseLocation, in view: NSView? = nil) {
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    for entry in items {
+        let item = ClosureMenuItem(title: entry.title, handler: entry.action)
+        item.image = entry.icon.image
+        item.isEnabled = entry.enabled
+        menu.addItem(item)
+    }
+    menu.popUp(positioning: nil, at: point, in: view)
+}
+
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+
+    @available(*, unavailable) required init(coder: NSCoder) { fatalError() }
+
+    @objc private func fire() { handler() }
+}
+
+struct MenuItemsView: View {
+    let items: [MenuEntry]
+
+    var body: some View {
+        ForEach(items, id: \.title) { item in
+            Button { item.action() } label: {
+                Label { Text(verbatim: item.title) } icon: { Image(nsImage: item.icon.image) }
+            }
+            .disabled(!item.enabled)
+        }
+    }
+}
+
+/// Hover `…` with the same items.
+struct MenuButton: View {
+    let items: [MenuEntry]
+
+    var body: some View {
+        Menu { MenuItemsView(items: items) } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .pointingHand()
+            .help(L10n.more)
+    }
+}

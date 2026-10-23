@@ -15,6 +15,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     var appState: AppState?
     var server: ControlServer?
+    /// `kill -TERM` (logout of a launchd job, a script): quit through `applicationWillTerminate`, never ask.
+    private var sigtermReceived = false
+    private var sigterm: DispatchSourceSignal?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        signal(SIGTERM, SIG_IGN)  // the default action would kill the app before the state is saved
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated {
+                self?.sigtermReceived = true
+                NSApp.terminate(nil)
+            }
+        }
+        source.resume()
+        sigterm = source
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -51,6 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.claudeSettingsURL = env["HANGAR_CLAUDE_SETTINGS"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude/settings.json")
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
         app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
+        if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
+        if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
@@ -58,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         wc.enableNotifications()
         appState = app
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.appState?.remote.didWake() }
+        }
         if activateAllowed { NSApp.activate(ignoringOtherApps: true) }
         if let text = loadAlert(for: result), let window = wc.window {
             let alert = NSAlert()
@@ -83,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 0x7768793F = keyAEQuitReason ('why?')
         let reason = NSAppleEventManager.shared().currentAppleEvent?
             .attributeDescriptor(forKeyword: AEKeyword(0x7768793F))?.enumCodeValue
-        switch wc.currentQuitDecision(systemShutdown: isSystemShutdown(reason: reason)) {
+        switch wc.currentQuitDecision(forced: isForcedQuit(sigterm: sigtermReceived, reason: reason)) {
         case .terminateNow: return .terminateNow
         case .cancelCreating:
             wc.notifyCreatingTask()
@@ -96,10 +117,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        appState?.remote.appBecameActive()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        appState?.remote.stopAll()
         server?.stop()
         appState?.keepAwake.stop()
         appState?.saveNow()
+        // ghostty_surface_free waits for the child with no timeout: one that ignores SIGHUP would hang quit. State is saved and the server stopped by now.
+        Thread.detachNewThread { sleep(3); _exit(0) }
+        TerminalSurfaceView.freeAll()  // last: blocks until every tab's child has exited
     }
 
     /// The socket doubles as the single-instance lock: a live one means another Hangar owns this state dir.

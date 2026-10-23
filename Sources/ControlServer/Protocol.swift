@@ -109,12 +109,67 @@ public enum ControlMessage: Equatable, Sendable {
                     guard p.isFinite else { return .failure(.badField) }
                     m.windows[i].usedPercent = min(max(p, 0), 100)
                 }
-                if let r = m.windows[i].resetsAt, !(r > 0 && r < 8_589_934_592) { return .failure(.badField) }
+                if let r = m.windows[i].resetsAt {
+                    guard r > 0 && r < 8_589_934_592 else { return .failure(.badField) }
+                    // A far-future reset (bad clock, hostile writer) would keep the window "full" for good.
+                    m.windows[i].resetsAt = min(r, Date().timeIntervalSince1970 + 30 * 86_400)
+                }
             }
             return .success(.usage(m))
         default:
             return .failure(.unknownType)
         }
+    }
+}
+
+/// The ssh host socket (`ControlServer(remote: true)`): one header line + exactly `len` raw payload bytes per connection.
+/// `{"v":1,"type":"hook","tab":…,"leaf":…,"kind":…,"session":…?,"len":N}` | `{"v":1,"type":"statusline","len":N}`.
+/// Trust boundary: any process of that account on the server can write here; only status updates come out.
+public enum RemoteMessage {
+    static let maxHeader = 4096
+    static let maxPayload = 262_144
+
+    enum Header: Equatable {
+        case message(length: Int)
+        /// A request line: answered with `unknown-method`, never run.
+        case request(id: Int?)
+        case invalid(ProtocolError)
+    }
+
+    static func header(_ line: Data) -> Header {
+        guard line.count <= maxHeader else { return .invalid(.tooLarge) }
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return .invalid(.badJSON) }
+        if object["method"] != nil { return .request(id: object["id"].flatMap(ControlCall.wireInt)) }
+        guard object["v"].flatMap(ControlCall.wireInt) == 1 else { return .invalid(.badVersion) }
+        guard ["hook", "statusline"].contains(object["type"] as? String) else { return .invalid(.unknownType) }
+        guard let len = object["len"].flatMap(ControlCall.wireInt), len >= 0 else { return .invalid(.badField) }
+        return len > maxPayload ? .invalid(.tooLarge) : .message(length: len)
+    }
+
+    public static func decode(header: Data, payload: Data) -> Result<ControlMessage, ProtocolError> {
+        switch Self.header(header) {
+        case .request: return .failure(.badRequest)
+        case let .invalid(e): return .failure(e)
+        case .message: break
+        }
+        let object = (try? JSONSerialization.jsonObject(with: header) as? [String: Any]) ?? [:]
+        let message: ControlMessage
+        if object["type"] as? String == "hook" {
+            guard let tab = (object["tab"] as? String).flatMap(UUID.init(uuidString:)),
+                  let leaf = (object["leaf"] as? String).flatMap(UUID.init(uuidString:)),
+                  let kind = object["kind"] as? String else { return .failure(.badField) }
+            let session = validSessionId(object["session"] as? String)
+            guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: session.map { ["--session", $0] } ?? [], payload: payload)
+            else { return .failure(.badField) }
+            m.message = m.message.map { String($0.prefix(500)) }
+            message = .event(m)
+        } else {
+            let windows = statuslineWindows(payload)
+            guard !windows.isEmpty else { return .failure(.badField) }
+            message = .usage(UsageMessage(agent: "claude", windows: windows))
+        }
+        // Same field limits as the main socket: re-read through its decoder.
+        return ControlMessage.decode(message.encoded().dropLast())
     }
 }
 
@@ -206,13 +261,17 @@ public struct ProjectInfo: Codable, Equatable, Sendable {
     public var id: UUID
     public var name: String
     public var path: String
+    /// Remote: its host is not given up on (its disk is not stat'ed from the Mac); local: the folder exists.
     public var exists: Bool
+    /// ssh host of a remote project; nil (absent in JSON) for a local one.
+    public var host: String?
 
-    public init(id: UUID, name: String, path: String, exists: Bool) {
+    public init(id: UUID, name: String, path: String, exists: Bool, host: String? = nil) {
         self.id = id
         self.name = name
         self.path = path
         self.exists = exists
+        self.host = host
     }
 }
 
@@ -257,9 +316,11 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     public var branch: String?
     public var base: String?
     public var tabs: [TabInfo]
+    /// The TERMINAL drawer's shell once it was first shown; its id is a `tab` ref (decision #45).
+    public var drawer: LeafInfo?
 
     public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
-                branch: String?, base: String?, tabs: [TabInfo]) {
+                branch: String?, base: String?, tabs: [TabInfo], drawer: LeafInfo? = nil) {
         self.id = id
         self.name = name
         self.project = project
@@ -270,6 +331,7 @@ public struct TaskInfo: Codable, Equatable, Sendable {
         self.branch = branch
         self.base = base
         self.tabs = tabs
+        self.drawer = drawer
     }
 }
 
@@ -281,9 +343,12 @@ public struct ProjectsResult: Codable, Equatable, Sendable {
 public struct ProjectAddResult: Codable, Equatable, Sendable {
     public var project: ProjectInfo
     public var added: Bool
-    public init(project: ProjectInfo, added: Bool) {
+    /// Remote only: what the server lacks (nothing is installed from CLI/MCP); nil (absent in JSON) for a local project.
+    public var warnings: [String]?
+    public init(project: ProjectInfo, added: Bool, warnings: [String]? = nil) {
         self.project = project
         self.added = added
+        self.warnings = warnings
     }
 }
 

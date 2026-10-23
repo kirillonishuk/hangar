@@ -6,7 +6,7 @@ import Workspace
 /// Logic of the new-task sheet: worktree toggle, base branch, background fetch, branch validation, worktree creation.
 /// git runs only on open (`load`), on ↻ (`refresh`) and before create; no timers.
 @MainActor @Observable final class NewTaskModel {
-    enum Availability: Equatable { case loading, notRepository, noCommits, ready }
+    enum Availability: Equatable { case loading, notRepository, noCommits, ready, hostOffline(String) }
     enum FetchState: Equatable { case idle, running, done, failed(String), cancelled, noRemote }
 
     var name = "" {
@@ -58,7 +58,13 @@ import Workspace
 
     func load() async {
         availability = .loading
-        guard await git.isRepository() else {
+        let isRepository: Bool
+        do { isRepository = try await git.isRepository() } catch RemoteHostError.notConnected(let host) {
+            availability = .hostOffline(host)
+            worktree = false
+            return
+        } catch { isRepository = false }
+        guard isRepository else {
             availability = .notRepository
             worktree = false
             return
@@ -204,19 +210,27 @@ import Workspace
         return nil
     }
 
-    /// Slug of `name`; if that branch (local, or remote of the same name) or its worktree folder exists, `-2`, `-3`, …
+    /// `name` itself if it has `/`, is a branch name and doesn't start with a remote (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
+    /// remote of the same name; case-insensitive, as refs on macOS' disk) or its worktree folder exists, `-2`, `-3`, …
     private func suggestBranch() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var suggestion = ""
         if !trimmed.isEmpty {
-            let slug = branchSlug(trimmed)
             let taken = Set(branches.map { b in
-                guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name }
-                return String(b.name.dropFirst(r.count + 1))
+                guard b.isRemote, let r = remotes.first(where: { b.name.hasPrefix($0 + "/") }) else { return b.name.lowercased() }
+                return String(b.name.dropFirst(r.count + 1)).lowercased()
             })
+            // `origin/x` as a local branch would be ambiguous with the remote-tracking one; `release/1.2` next to
+            // `release` (or `a` next to `a/b`) can't exist at all: a ref is either a file or a folder.
+            let lower = trimmed.lowercased()
+            let verbatim = trimmed.contains("/") && isBranchName(trimmed)
+                && !remotes.contains(String(trimmed.prefix { $0 != "/" }))
+                && !taken.contains { lower.hasPrefix($0 + "/") || $0.hasPrefix(lower + "/") }
+            let slug = verbatim ? trimmed : branchSlug(trimmed)
             suggestion = slug
             var n = 1
-            while taken.contains(suggestion) || FileManager.default.fileExists(
+            // A remote folder can't be stat'ed here (and runs on every keystroke): `worktree add` reports a taken one.
+            while taken.contains(suggestion.lowercased()) || project.host == nil && FileManager.default.fileExists(
                 atPath: worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: suggestion)) {
                 n += 1
                 suggestion = "\(slug)-\(n)"

@@ -17,9 +17,14 @@ import ControlServer
              .call(.tabsSend(tab: "x", text: nil, keys: [.escape, .down]), json: false)),
             (["tabs", "read", "--tab", "x", "--lines", "20", "--json"], .call(.tabsRead(tab: "x", lines: 20), json: true)),
             (["tabs", "read", "--tab", "x"], .call(.tabsRead(tab: "x", lines: 100), json: false)),
+            // A drawer leaf id is a plain `--tab` ref.
+            (["tabs", "read", "--tab", "55556666"], .call(.tabsRead(tab: "55556666", lines: 100), json: false)),
             (["tabs", "open", "--kind", "codex", "--task", "t", "--prompt", "go"], .call(.tabsOpen(task: "t", kind: .codex, prompt: "go"), json: false)),
             (["projects", "add", "../x"], .call(.projectsAdd(path: "/tmp/a/x"), json: false)),
             (["projects", "add", "/abs/./y/"], .call(.projectsAdd(path: "/abs/y"), json: false)),
+            // A server path stays as typed: no local cwd, `~` is the server's home.
+            (["projects", "add", "--host", "dev", "~/app"], .call(.projectsAdd(path: "~/app", host: "dev"), json: false)),
+            (["projects", "add", "rel", "--host", "u@h", "--json"], .call(.projectsAdd(path: "rel", host: "u@h"), json: true)),
             (["projects", "list", "--json"], .call(.projectsList, json: true)),
             (["tasks", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
             (["tasks", "list"], .call(.tasksList(project: nil), json: false)),
@@ -49,6 +54,7 @@ import ControlServer
             ["projects", "add"],
             ["projects", "add", ""],
             ["projects", "add", "a", "b"],
+            ["projects", "add", "a", "--host"],
             ["projects", "list", "extra"],
             ["projects", "frob"],
             ["tasks", "create", "--project", "p", "--project", "q", "--name", "N"],
@@ -87,12 +93,17 @@ import ControlServer
                                 TabInfo(id: t1, kind: .claude, title: "Claude", status: "working", leaves: []),
                                 TabInfo(id: t2, kind: .shell, title: "zsh", status: "idle", leaves: []),
                             ])
-        let data = try JSONEncoder().encode(TasksResult(tasks: [task]))
+        var withDrawer = task
+        withDrawer.drawer = LeafInfo(id: UUID(uuidString: "55556666-0000-0000-0000-000000000004")!, kind: .shell, status: "idle")
+        let data = try JSONEncoder().encode(TasksResult(tasks: [withDrawer]))
         #expect(formatHuman(.tasksList(project: nil), result: data) == """
         abcdef12  working  web/Fix login  ⎇ fix-login
             11112222  claude  working  Claude
             33334444  shell  idle  zsh
+            55556666  drawer  idle  TERMINAL
         """)
+        // No drawer shell yet: no key in the JSON, no line.
+        #expect(!String(decoding: try JSONEncoder().encode(task), as: UTF8.self).contains("drawer"))
 
         let main = TaskInfo(id: taskId, name: "N", project: UUID(), projectName: "web", status: "idle", mode: "main-folder",
                             path: "/w", branch: nil, base: nil, tabs: [TabInfo(id: t1, kind: .claude, title: "C", status: "idle", leaves: [])])
@@ -104,10 +115,17 @@ import ControlServer
 
         let p = ProjectInfo(id: taskId, name: "web", path: "/src/web", exists: true)
         #expect(formatHuman(.projectsList, result: try JSONEncoder().encode(ProjectsResult(projects: [p]))) == "abcdef12  web  /src/web")
+        let remote = ProjectInfo(id: taskId, name: "app", path: "/srv/app", exists: true, host: "dev")
+        #expect(formatHuman(.projectsList, result: try JSONEncoder().encode(ProjectsResult(projects: [remote]))) == "abcdef12  app  dev:/srv/app")
         #expect(formatHuman(.projectsAdd(path: "/src/web"), result: try JSONEncoder().encode(ProjectAddResult(project: p, added: false)))
                 == "abcdef12-0000-0000-0000-000000000001  /src/web  (already added)")
         #expect(formatHuman(.projectsAdd(path: "/src/web"), result: try JSONEncoder().encode(ProjectAddResult(project: p, added: true)))
                 == "abcdef12-0000-0000-0000-000000000001  /src/web")
+        let onHost = ProjectAddResult(project: remote, added: true, warnings: ["tmux missing on server; open Hangar → Server to install"])
+        #expect(formatHuman(.projectsAdd(path: "~/app", host: "dev"), result: try JSONEncoder().encode(onHost))
+                == "abcdef12-0000-0000-0000-000000000001  dev:/srv/app\nwarning: tmux missing on server; open Hangar → Server to install")
+        #expect(requestTimeout(.projectsAdd(path: "~/app", host: "dev")) >= 60)
+        #expect(requestTimeout(.projectsAdd(path: "/a")) == 10)
         let tab = TabInfo(id: t1, kind: .shell, title: "zsh", status: "idle", leaves: [])
         #expect(formatHuman(.tabsOpen(task: "t", kind: .shell, prompt: nil), result: try JSONEncoder().encode(TabResult(task: taskId, tab: tab)))
                 == "tab 11112222-0000-0000-0000-000000000002")

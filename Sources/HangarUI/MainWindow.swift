@@ -23,16 +23,18 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Titlebar row, tab bar row, terminal area.
+/// Titlebar row, tab bar row, terminal area, task status line.
 final class TaskColumnController: NSViewController {
     let terminalArea: TerminalArea
     private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
+    private let statusBar: NSHostingView<TaskStatusBar>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
+        statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -42,7 +44,8 @@ final class TaskColumnController: NSViewController {
         let v = NSView()
         titleBar.sizingOptions = []
         tabBar.sizingOptions = []
-        for sub in [titleBar, tabBar, terminalArea] as [NSView] {
+        statusBar.sizingOptions = []
+        for sub in [titleBar, tabBar, terminalArea, statusBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -58,7 +61,11 @@ final class TaskColumnController: NSViewController {
             terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            terminalArea.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
         ])
         view = v
     }
@@ -80,6 +87,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sheetWindow: NSWindow?
     private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
+    /// The open «Удалённый проект» / «Сервер» sheet's models (debug hooks drive them).
+    private(set) var remoteProjectModel: RemoteProjectModel?
+    private(set) var serverModel: ServerCheckModel?
+    private(set) var remoteProjectAdd: ((String, String) -> Void)?
     #if DEBUG
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
@@ -159,7 +170,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 if self.app.renaming == nil, let window = self.window, window.firstResponder === window { self.column.terminalArea.focusActiveLeaf() }
             }
         }
-        column.terminalArea.onAddProject = { [weak self] in self?.chooseProject() }
+        column.terminalArea.onAddProject = { [weak self] in self?.chooseProjectKind() }
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()
@@ -346,7 +357,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var ctx: ActionContext {
         ActionContext(
             app: app,
-            addProject: { [weak self] in self?.chooseProject() },
+            addProject: { [weak self] in self?.chooseProjectKind() },
+            addLocalProject: { [weak self] in self?.chooseProject() },
+            addRemoteProject: { [weak self] in self?.presentRemoteProject() },
+            checkServer: { [weak self] host in self?.presentServer(host) },
             newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
             toggleSidebar: { [weak self] in self?.toggleSidebar() },
@@ -390,7 +404,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .nextTask: app.selectTask(offset: 1)
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
-        case .addProject: chooseProject()
+        case .addProject: chooseProjectKind()
         case .settings: showSettings(nil)
         case .limits: app.toggleLimitsPopover()
         }
@@ -466,6 +480,21 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: Projects, tasks
 
+    /// «+ проект», ⌘⇧N, the empty state: «Локальная папка…» / «Удалённый (SSH)…» at the pointer (keyboard: mid-window).
+    private func chooseProjectKind(thenNewTask: Bool = false) {
+        guard let window, window.attachedSheet == nil, let content = window.contentView else { return }
+        let items = [
+            MenuEntry(title: L10n.addLocalProject, icon: .project) { [weak self] in self?.chooseProject(thenNewTask: thenNewTask) },
+            MenuEntry(title: L10n.addRemoteProject, icon: .sshHost) { [weak self] in self?.presentRemoteProject(thenNewTask: thenNewTask) },
+        ]
+        let mouse = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp].contains(NSApp.currentEvent?.type)
+        if mouse {
+            popUpMenu(items)
+        } else {
+            popUpMenu(items, at: NSPoint(x: content.bounds.midX, y: content.bounds.midY), in: content)
+        }
+    }
+
     /// `thenNewTask`: "+ Новая задача" with no projects — the new-task sheet follows the added project.
     private func chooseProject(thenNewTask: Bool = false) {
         guard let window else { return }
@@ -488,12 +517,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask?.projectId ?? app.state.projects.last?.id
-        guard let id, let project = app.project(id) else { chooseProject(thenNewTask: true); return }
+        guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
-        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: app.taskBranches(id))
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id))
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
@@ -542,7 +571,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert:
     /// with one already up, `then(false)` right away. `then` is always called exactly once.
     public func confirmQuit(then: @escaping @MainActor (Bool) -> Void) {
-        guard let window, let text = quitConfirmation(working: app.workingLeafCount) else { then(true); return }
+        guard let window, let text = quitConfirmation(working: app.quitWorkingCount) else { then(true); return }
         guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
         let alert = NSAlert()
@@ -562,9 +591,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// For `applicationShouldTerminate`.
-    public func currentQuitDecision(systemShutdown: Bool = false) -> QuitDecision {
-        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.workingLeafCount, confirmed: quitConfirmed,
-                     asking: quitAlertShown, systemShutdown: systemShutdown)
+    public func currentQuitDecision(forced: Bool = false) -> QuitDecision {
+        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.quitWorkingCount, confirmed: quitConfirmed,
+                     asking: quitAlertShown, forced: forced)
     }
 
     /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).
@@ -575,6 +604,63 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         alert.messageText = L10n.creatingWorktreeWait
         alert.addButton(withTitle: L10n.ok)
         alert.beginSheetModal(for: host)
+    }
+
+    private func makeSheet(over window: NSWindow) -> NSWindow {
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
+                             styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        sheet.backgroundColor = Theme.sheet
+        sheet.appearance = window.appearance
+        return sheet
+    }
+
+    private func begin<V: View>(_ sheet: NSWindow, _ view: V, on window: NSWindow) {
+        let host = NSHostingController(rootView: view)
+        host.sizingOptions = [.preferredContentSize]
+        sheet.contentViewController = host
+        sheetWindow = sheet
+        window.beginSheet(sheet)
+    }
+
+    /// «Удалённый проект»: connect, find the folder, show the server; «Добавить» adds the project.
+    func presentRemoteProject(thenNewTask: Bool = false) {
+        guard let window, window.attachedSheet == nil else { return }
+        let sheet = makeSheet(over: window)
+        let model = RemoteProjectModel(remote: app.remote, configHosts: app.configHosts(),
+                                       release: { [weak self] in self?.app.releaseUnusedHost($0) })
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+            self.remoteProjectModel = nil
+            self.remoteProjectAdd = nil
+        }
+        let add: (String, String) -> Void = { [weak self] host, path in
+            close()
+            guard let self else { return }
+            let id = self.app.addRemoteProject(host: host, path: path)
+            if thenNewTask { DispatchQueue.main.async { self.presentNewTask(projectId: id) } }
+        }
+        remoteProjectModel = model
+        remoteProjectAdd = add
+        let height = window.contentLayoutRect.height
+        begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
+    }
+
+    /// «Сервер <host>»: the check again, the plan, installs and the server's integrations.
+    func presentServer(_ host: String) {
+        guard let window, window.attachedSheet == nil else { return }
+        let sheet = makeSheet(over: window)
+        let model = ServerCheckModel(host: host, remote: app.remote, run: ServerCheckModel.sshRun(remote: app.remote, host: host))
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+            self.serverModel = nil
+        }
+        serverModel = model
+        Task { await model.refresh() }
+        begin(sheet, ServerCheckSheet(model: model, windowHeight: window.contentLayoutRect.height, onClose: close), on: window)
     }
 
     private func presentProjectSettings(_ id: UUID) {
@@ -588,7 +674,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: Git(repo: project.path), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
             close()
             self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
             // The visible task's diff base may be this project's default.

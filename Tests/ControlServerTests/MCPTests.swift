@@ -73,12 +73,19 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         }
         #expect(byName["tasks_archive"]?["required"] as? [String] == ["task", "yes"])
         #expect(byName["projects_list"]?["required"] as? [String] == [])
+        #expect(byName["projects_add"]?["required"] as? [String] == ["path"])
+        let host = (byName["projects_add"]?["properties"] as? [String: Any])?["host"] as? [String: Any]
+        #expect(host?["type"] as? String == "string")
         let send = byName["tabs_send"]?["properties"] as? [String: Any]
         let keys = send?["keys"] as? [String: Any]
         #expect(keys?["type"] as? String == "array")
         #expect(keys?["maxItems"] as? Int == 32)
         #expect((keys?["items"] as? [String: Any])?["enum"] as? [String] == SendKey.allCases.map(\.rawValue))
         #expect((send?["text"] as? [String: Any])?["maxLength"] as? Int == ControlMethod.maxText)
+        for tool in ["tabs_send", "tabs_read"] {
+            let tab = (byName[tool]?["properties"] as? [String: Any])?["tab"] as? [String: Any]
+            #expect((tab?["description"] as? String)?.contains("drawer") == true, "\(tool)")
+        }
         let lines = (byName["tabs_read"]?["properties"] as? [String: Any])?["lines"] as? [String: Any]
         #expect(lines?["type"] as? String == "integer")
         #expect(lines?["minimum"] as? Int == 1)

@@ -229,6 +229,8 @@ public enum Theme {
     public static let inlineGap: CGFloat = 6
     /// Least gap between a row's text and its trailing buttons.
     public static let rowEndGap: CGFloat = 8
+    /// Fade (row background, transparent → opaque) before the trailing actions overlaid on a task row.
+    public static let rowActionsFade: CGFloat = 16
     public static let projectTileRadius: CGFloat = 6
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4

@@ -345,19 +345,9 @@ struct SidebarView: View {
                     if case .worktree = task.mode {
                         IconView(icon: .worktree, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
                     }
-                    // Always laid out (opacity, not `if`): hovering doesn't shift the name or the worktree icon.
-                    MoreButton { ActionMenuItems(target: target, ctx: ctx) }
-                        .opacity(hover ? 1 : 0)
-                        .allowsHitTesting(hover)
-                    Button { app.setPinned(task.id, !task.pinned) } label: {
-                        IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
-                            .padding(Theme.railInset)
-                    }
-                    .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                    .opacity(task.pinned || hover ? 1 : 0)
-                    .allowsHitTesting(task.pinned || hover)
-                    .help(task.pinned ? L10n.unpin : L10n.pin)
                 }
+                // Overlaid, not laid out: the name keeps the full width and nothing reflows on hover.
+                .overlay(alignment: .trailing) { taskActions(task, target: target, selected: selected, hover: hover) }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
@@ -369,6 +359,32 @@ struct SidebarView: View {
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+    }
+
+    /// `…` and pin at the row's trailing edge (on hover/selection; the pin also while pinned), over a short fade
+    /// in the row's own background so they cover the name's end instead of taking width from it.
+    private func taskActions(_ task: HangarTask, target: ActionTarget, selected: Bool, hover: Bool) -> some View {
+        let showMenu = hover || selected
+        // Not over the inline rename field.
+        let shown = (showMenu || task.pinned) && app.renaming != target
+        let bg = HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)
+        return HStack(spacing: 0) {
+            LinearGradient(colors: [bg.opacity(0), bg], startPoint: .leading, endPoint: .trailing)
+                .frame(width: Theme.rowActionsFade)
+                .allowsHitTesting(false)
+            HStack(spacing: Theme.inlineGap) {
+                if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
+                Button { app.setPinned(task.id, !task.pinned) } label: {
+                    IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
+                        .padding(Theme.railInset)
+                }
+                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                .help(task.pinned ? L10n.unpin : L10n.pin)
+            }
+            .background(bg)
+        }
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
     }
 
     // MARK: Archived

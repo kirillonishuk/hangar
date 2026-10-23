@@ -14,6 +14,14 @@ import Testing
         #expect(HoverPalette.standard.fill(selected: false, pressed: false, hover: true, interactive: true) == Theme.ui.hover)
     }
 
+    /// The trailing-actions fade matches what the row shows underneath.
+    @Test func rowBackgroundUnderOverlay() {
+        let p = HoverPalette.sidebar
+        #expect(p.background(selected: false, hover: false, base: Theme.ui.sidebar) == Theme.ui.sidebar)
+        #expect(p.background(selected: false, hover: true, base: Theme.ui.sidebar) == Theme.ui.sidebarHover)
+        #expect(p.background(selected: true, hover: true, base: Theme.ui.sidebar) == Theme.ui.selection)
+    }
+
     @Test func sidebarHoverIsLighterThanSidebar() {
         func luminance(_ c: NSColor) -> CGFloat { c.redComponent + c.greenComponent + c.blueComponent }
         #expect(luminance(Theme.sidebarHover) > luminance(Theme.sidebar))

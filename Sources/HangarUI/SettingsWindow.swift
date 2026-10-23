@@ -134,7 +134,7 @@ struct SettingsView: View {
                     }
                 }
                 row(L10n.editor) {
-                    Segment(selection: app.config.editor, options: editorOptions.map { ($0, $0) }) { editor in
+                    Segment(selection: app.config.editor, options: editorOptions.map { ($0, ($0 as NSString).lastPathComponent) }) { editor in
                         save { try app.setConfig("editor", editor) { $0.editor = editor } }
                     }
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
@@ -173,7 +173,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+            .sheetCard()
 
             HStack(spacing: 0) {
                 if let error = model.error {
@@ -209,7 +209,7 @@ struct SettingsView: View {
         let status = integrationStatus(target)
         let integration = model.integration
         HStack(spacing: Theme.cardRowGap) {
-            VStack(alignment: .leading, spacing: Theme.railInset) {
+            VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 Text(verbatim: status.text)
                     .foregroundStyle(status.color)
                     .lineLimit(3)
@@ -220,7 +220,7 @@ struct SettingsView: View {
                 }
                 if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
                     Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
-                        .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                        .font(.system(size: Theme.fontSize.counter, design: .monospaced))
                         .foregroundStyle(Theme.ui.text3)
                         .lineLimit(1).truncationMode(.middle)
                 }
@@ -238,11 +238,11 @@ struct SettingsView: View {
     @ViewBuilder private var mcpValue: some View {
         if let cli = model.integration.cli {
             let commands = mcpAddCommands(cli: cli)
-            VStack(alignment: .leading, spacing: Theme.railInset) {
+            VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 ForEach([commands.claude, commands.codex], id: \.self) { command in
                     HStack(alignment: .top, spacing: Theme.cardRowGap) {
                         Text(verbatim: command)
-                            .font(.system(size: Theme.fontSize.small, design: .monospaced))
+                            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
                             .foregroundStyle(Theme.ui.text2)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -258,7 +258,10 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } else {
+            // A message, not a label: wraps like the integration rows' status instead of truncating.
             Text(L10n.integrationNeedsApp).foregroundStyle(Theme.ui.text3)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -296,15 +299,7 @@ struct SettingsView: View {
     private func save(_ change: () throws -> Void) { model.save(change) }
 
     private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
-        HStack(spacing: Theme.cardRowGap) {
-            Text(label).foregroundStyle(Theme.ui.text2).frame(width: Theme.settingsLabelWidth, alignment: .leading)
-            value()
-        }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, Theme.cardRowPaddingV)
-        .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
+        CardRow(label: label, labelWidth: Theme.settingsCardLabelWidth, first: first, value: value)
     }
 }
 
@@ -313,6 +308,7 @@ private struct Segment<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
     let choose: (Value) -> Void
+    @State private var hovered: Int?
 
     var body: some View {
         HStack(spacing: Theme.segmentPadding) {
@@ -321,14 +317,16 @@ private struct Segment<Value: Equatable>: View {
                 let on = value == selection
                 Button { if !on { choose(value) } } label: {
                     Text(title)
-                        .foregroundStyle(on ? Theme.ui.textStrong : Theme.ui.text2)
+                        .foregroundStyle(on ? Theme.ui.textStrong : hovered == i ? Theme.ui.text : Theme.ui.text2)
                         .padding(.vertical, Theme.segmentItemPaddingV)
                         .padding(.horizontal, Theme.segmentItemPaddingH)
-                        .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius).fill(on ? Theme.ui.control : .clear))
+                        .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
+                            .fill(on ? Theme.ui.control : hovered == i ? Theme.ui.hover : .clear))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .pointingHand(!on)
+                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hovered = h ? i : (hovered == i ? nil : hovered) } }
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

@@ -144,8 +144,8 @@ struct BranchList: View {
         if !rows.isEmpty {
             Text(title)
                 .textCase(.uppercase)
-                .tracking(Theme.fontSize.small * Theme.fontSize.projectTracking)
-                .font(.system(size: Theme.fontSize.small))
+                .tracking(Theme.fontSize.counter * Theme.fontSize.projectTracking)
+                .font(.system(size: Theme.fontSize.counter))
                 .foregroundStyle(Theme.ui.text3)
                 .frame(maxWidth: .infinity, minHeight: Theme.dropdownSectionHeight, alignment: .bottomLeading)
                 .padding(.horizontal, Theme.dropdownPaddingH)
@@ -155,14 +155,14 @@ struct BranchList: View {
 
     private func row(_ id: String, _ title: String, meta: BranchPickerItem.Meta?) -> some View {
         let on = highlight == id
-        return HStack(spacing: Theme.statusDot) {
+        return HStack(spacing: Theme.dropdownItemGap) {
             Text(title)
                 .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                 .foregroundStyle(on ? Theme.ui.selectionText : Theme.ui.text)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
             if let meta {
-                Text(metaText(meta)).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                Text(metaText(meta)).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
             }
         }
         .lineLimit(1)

@@ -207,7 +207,7 @@
 "fileCountMany" = "%d files";
 "statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
-"changesHintBase" = "Compared with base branch %@";
+"changesHintBase" = "Base: %@";
 "changesHintToBase" = "⌥B — compare with %@";
 "changesHintUncommitted" = "Uncommitted only";
 "changesHintToUncommitted" = "⌥B — uncommitted only";
@@ -272,3 +272,8 @@
 "integrationShortOutdated" = "Outdated";
 "removeEllipsis" = "Remove…";
 "hostPausedBar" = "No connection to %@ · ↩ reconnect";
+"openInHelix" = "Open in Helix";
+"copyRelativePath" = "Copy Relative Path";
+"taskArchived" = "Task archived";
+"undoArchive" = "Undo";
+"keepAwakeShort" = "Keep awake";

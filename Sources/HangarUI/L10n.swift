@@ -110,6 +110,7 @@ import Workspace
         case integrationMCP, copyCommand, commandCopied, mcpHint
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case openInHelix, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
@@ -354,6 +355,11 @@ import Workspace
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
     static var segmentFiles: String { s(.segmentFiles) }
+    static var openInHelix: String { s(.openInHelix) }
+    static var copyRelativePath: String { s(.copyRelativePath) }
+    static var taskArchived: String { s(.taskArchived) }
+    static var undoArchive: String { s(.undoArchive) }
+    static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
     static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }

@@ -31,6 +31,8 @@ enum ActionTarget: Equatable {
     var confirmWithCheckbox: (String, String, String, String, @escaping (Bool) -> Void) -> Void = { _, _, _, _, _ in }
     /// message, details.
     var showError: (String, String) -> Void = { _, _ in }
+    /// A task was archived from a menu or ⌘⇧W: the undo toast.
+    var didArchive: (UUID) -> Void = { _ in }
 }
 
 /// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts (and later ⌘K) read it here.
@@ -147,7 +149,9 @@ enum Action: CaseIterable {
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in
                 ctx.showError(L10n.openFailed(editorName(editor)), details)
             }
-        case (.archive, .task(let id)): app.archive(taskId: id)
+        case (.archive, .task(let id)):
+            app.archive(taskId: id)
+            ctx.didArchive(id)
         case (.restore, .task(let id)): app.restore(taskId: id)
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }

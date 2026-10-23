@@ -159,11 +159,12 @@ struct SettingsView: View {
                         save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
                     }
                 }
-                row(L10n.keepAwakeTitle) {
+                row(L10n.keepAwakeShort) {
                     Segment(selection: app.config.keepAwake, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
                         save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                     }
                 }
+                .help(L10n.keepAwakeTitle)
                 row(L10n.integrationClaude) { integrationValue(.claude) }
                 row(L10n.integrationCodex) { integrationValue(.codex) }
                 row(L10n.integrationMCP) { mcpValue }

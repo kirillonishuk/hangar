@@ -165,6 +165,8 @@ struct HoverPalette: Sendable {
 
     static let standard = HoverPalette(hover: Theme.ui.hover, pressed: Theme.ui.pressed)
     static let sidebar = HoverPalette(hover: Theme.ui.sidebarHover, pressed: Theme.ui.sidebarPressed)
+    static let sheet = HoverPalette(hover: Theme.ui.sheetHover, pressed: Theme.ui.pressed)
+    static let strong = HoverPalette(hover: Theme.ui.hoverStrong, pressed: Theme.ui.pressed)
 
     /// Rows without an action (section headers, …) get no hover/press fill.
     func fill(selected: Bool, pressed: Bool, hover: Bool, interactive: Bool) -> Color {

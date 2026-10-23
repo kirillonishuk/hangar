@@ -201,19 +201,11 @@ struct RemoteProjectSheet: View {
 private struct HostMenu: View {
     let hosts: [String]
     let pick: (String) -> Void
-    @State private var hover = false
 
     var body: some View {
-        Menu {
+        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: "") {
             ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
-        } label: { Image(nsImage: Icon.chevronDown.image).renderingMode(.template) }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .frame(width: Theme.sheetIconButtonSize, height: Theme.sheetIconButtonSize)
-            .background(RoundedRectangle(cornerRadius: Theme.railItemRadius).fill(hover ? Theme.ui.sheetHover : .clear))
-            .contentShape(Rectangle())
-            .pointingHand()
-            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        }
+        .environment(\.hoverPalette, .sheet)
     }
 }

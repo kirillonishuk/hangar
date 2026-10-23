@@ -491,7 +491,7 @@ private struct KeepAwakeRow: View {
             GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                 IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
             } expanded: {
-                Text(L10n.keepAwakeTitle).lineLimit(1).truncationMode(.tail)
+                Text(L10n.keepAwakeShort).lineLimit(1).truncationMode(.tail)
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(app.config.keepAwake ? Theme.ui.text2 : Theme.ui.text3)
             } rail: { EmptyView() }

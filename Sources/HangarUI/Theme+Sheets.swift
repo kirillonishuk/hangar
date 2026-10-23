@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Sheet and settings-window tokens (DESIGN.md «Лист», «Окно настроек»); the rest of `Theme` lives in Theme.swift.
 extension Theme {
-    /// Longest settings label in one line: «Не засыпать, пока агенты работают» at `sheetRow` is ~236.
-    public static let settingsCardLabelWidth: CGFloat = 240
+    /// Longest settings label in one line: «Уведомления о лимитах» at `sheetRow` is ~158 (ru).
+    public static let settingsCardLabelWidth: CGFloat = 164
     /// Project settings: «Ветка по умолчанию» (~136) on one line.
     public static let projectCardLabelWidth: CGFloat = 140
     /// Card row content height: a segment, a picker or a `SheetButton` fits, so text-only rows are as tall.

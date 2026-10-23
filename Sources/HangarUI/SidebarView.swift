@@ -64,6 +64,7 @@ struct SidebarView: View {
             .clipped()
         }
         .font(.system(size: Theme.fontSize.sidebarRow))
+        .environment(\.hoverPalette, .sidebar)
         .background(Theme.ui.sidebar)
         .ignoresSafeArea()
     }
@@ -79,7 +80,7 @@ struct SidebarView: View {
                 HStack(spacing: 0) {
                     Text(L10n.newTask).foregroundStyle(Theme.ui.textStrong)
                     Spacer(minLength: 0)
-                    Text("⌘N").font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text2)
+                    ShortcutHint(text: "⌘N")
                 }
             } rail: { EmptyView() }
             .contentShape(Rectangle())
@@ -124,7 +125,7 @@ struct SidebarView: View {
                             .opacity(info?.needsAttention == true ? 1 : 0)
                     }
             } expanded: {
-                HStack(spacing: Theme.railInset * 1.5) {
+                HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: host).lineLimit(1).truncationMode(.middle)
                         .font(.system(size: Theme.fontSize.base))
                         .foregroundStyle(Theme.ui.textRow)
@@ -132,7 +133,9 @@ struct SidebarView: View {
                     Text(hostStatusLabel(info)).lineLimit(1)
                         .font(.system(size: Theme.fontSize.counter))
                         .foregroundStyle(Theme.ui.text3)
-                    MenuButton(items: items).opacity(hover ? 1 : 0)
+                    MoreButton { MenuItemsView(items: items) }
+                        .opacity(hover ? 1 : 0)
+                        .allowsHitTesting(hover)
                 }
             } rail: { EmptyView() }
         }
@@ -170,6 +173,14 @@ struct SidebarView: View {
 
     /// Remembered as the F2 target; the keyboard stays with the terminal.
     private func clicked(_ target: ActionTarget) { app.chromeClicked(target) }
+
+    /// The context menu's actions as entries for `popUpMenu`.
+    private func actionEntries(_ target: ActionTarget) -> [MenuEntry] {
+        Action.list(for: target, app: app).map { action in
+            MenuEntry(title: action.title(for: target, app: app), icon: action.icon,
+                      enabled: action.isEnabled(for: target, app: app)) { action.perform(target, ctx) }
+        }
+    }
 
     // MARK: Reorder
 
@@ -243,40 +254,49 @@ struct SidebarView: View {
                         onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
-                    IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
-                        .frame(width: Theme.smallIconSize)
-                        .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
-                    Group {
-                        if app.renaming == target {
-                            RenameField(app: app, target: target)
-                        } else {
-                            Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
+                    HStack(spacing: 0) {
+                        IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
+                            .frame(width: Theme.smallIconSize)
+                            .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
+                        Group {
+                            if app.renaming == target {
+                                RenameField(app: app, target: target)
+                            } else {
+                                Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
+                            }
+                        }
+                        .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
+                        .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
+                        // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
+                        if let host = project.host, app.renaming != target {
+                            HStack(spacing: Theme.railInset) {
+                                IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                                Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                                    .font(.system(size: Theme.fontSize.counter))
+                                    .foregroundStyle(Theme.ui.text3)
+                            }
+                            .padding(.leading, Theme.inlineGap)
+                            .layoutPriority(-1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    // As on task rows: overlaid on hover, so the name keeps the full width.
+                    .overlay(alignment: .trailing) {
+                        RowActions(shown: hover && app.renaming != target,
+                                   background: HoverPalette.sidebar.background(selected: false, hover: hover, base: Theme.ui.sidebar)) {
+                            MoreButton { ActionMenuItems(target: target, ctx: ctx) }
+                            if exists {
+                                Button { ctx.newTask(project.id) } label: {
+                                    IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
+                                }
+                                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                                .help(L10n.newTaskIn(project.name))
+                            }
                         }
                     }
-                    .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
-                    .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
-                    // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
-                    if let host = project.host, app.renaming != target {
-                        HStack(spacing: Theme.railInset) {
-                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
-                            Text(verbatim: host).lineLimit(1).truncationMode(.middle)
-                                .font(.system(size: Theme.fontSize.counter))
-                                .foregroundStyle(Theme.ui.text3)
-                        }
-                        .padding(.leading, Theme.railInset * 1.5)
-                        .layoutPriority(-1)
-                    }
-                    Spacer(minLength: Theme.statusDot)
-                    MoreMenu(target: target, ctx: ctx).opacity(hover ? 1 : 0)
-                    if exists {
-                        Button { ctx.newTask(project.id) } label: {
-                            IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
-                        }
-                        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                        .opacity(hover ? 1 : 0)
-                        .help(L10n.newTaskIn(project.name))
-                    } else if project.host == nil {
+                    if !exists, project.host == nil {
                         Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                            .padding(.leading, Theme.rowEndGap)
                     }
                 }
                 .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
@@ -316,10 +336,10 @@ struct SidebarView: View {
                         },
                         doubleAction: { Action.rename.perform(target, ctx) },
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd) { hover in
-            GutterRow(collapsed: collapsed) {
+            GutterRow(collapsed: collapsed, railReplacesMarker: true) {
                 StatusDot(state: dot)
             } expanded: {
-                HStack(spacing: Theme.railInset * 1.5) {
+                HStack(spacing: Theme.inlineGap) {
                     if app.renaming == target {
                         RenameField(app: app, target: target)
                     } else {
@@ -332,25 +352,11 @@ struct SidebarView: View {
                     if case .worktree = task.mode {
                         IconView(icon: .worktree, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
                     }
-                    if hover { MoreMenu(target: target, ctx: ctx) }
-                    if task.pinned || hover {
-                        Button { app.setPinned(task.id, !task.pinned) } label: {
-                            IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
-                        }
-                        .buttonStyle(.plain)
-                        .pointingHand()
-                        .help(task.pinned ? L10n.unpin : L10n.pin)
-                    }
                 }
+                // Overlaid, not laid out: the name keeps the full width and nothing reflows on hover.
+                .overlay(alignment: .trailing) { taskActions(task, target: target, selected: selected, hover: hover) }
             } rail: {
-                Text(monogram(task.name))
-                    .font(.system(size: Theme.fontSize.small, weight: .semibold))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .overlay(alignment: .topTrailing) {
-                        StatusDot(state: dot, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
-                            .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
-                    }
+                RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
@@ -360,6 +366,23 @@ struct SidebarView: View {
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+    }
+
+    /// `…` and pin at the row's trailing edge (on hover/selection; the pin also while pinned), over a short fade
+    /// in the row's own background so they cover the name's end instead of taking width from it.
+    private func taskActions(_ task: HangarTask, target: ActionTarget, selected: Bool, hover: Bool) -> some View {
+        let showMenu = hover || selected
+        // Not over the inline rename field.
+        let shown = (showMenu || task.pinned) && app.renaming != target
+        return RowActions(shown: shown, background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
+            if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
+            Button { app.setPinned(task.id, !task.pinned) } label: {
+                IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
+                    .padding(Theme.railInset)
+            }
+            .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+            .help(task.pinned ? L10n.unpin : L10n.pin)
+        }
     }
 
     // MARK: Archived
@@ -372,7 +395,7 @@ struct SidebarView: View {
                     GutterRow(collapsed: collapsed) {
                         IconView(icon: .archive)
                     } expanded: {
-                        HStack(spacing: Theme.railInset * 1.5) {
+                        HStack(spacing: Theme.inlineGap) {
                             Text(L10n.sectionArchived).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                             Text("\(archived.count)").font(.system(size: Theme.fontSize.counter))
                             Spacer(minLength: 0)
@@ -384,9 +407,13 @@ struct SidebarView: View {
                 }
                 if archiveOpen {
                     ForEach(archived) { task in
-                        HoverRow { _ in
-                            GutterRow(collapsed: collapsed) { EmptyView() } expanded: {
-                                HStack(spacing: Theme.railInset * 1.5) {
+                        let target = ActionTarget.task(task.id)
+                        // A click opens the same menu as right-click (restore / delete), at the pointer like the host row.
+                        HoverRow(action: { popUpMenu(actionEntries(target)) }) { _ in
+                            GutterRow(collapsed: collapsed) {
+                                StatusDot(state: app.displayState(of: task))
+                            } expanded: {
+                                HStack(spacing: Theme.inlineGap) {
                                     Text(task.name).lineLimit(1)
                                     Text(app.project(task.projectId)?.name ?? "").lineLimit(1).foregroundStyle(Theme.ui.text3)
                                 }
@@ -394,7 +421,7 @@ struct SidebarView: View {
                                 .foregroundStyle(Theme.ui.text2)
                             } rail: { EmptyView() }
                         }
-                        .contextMenu { ActionMenuItems(target: .task(task.id), ctx: ctx) }
+                        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
                     }
                 }
             }
@@ -413,8 +440,8 @@ struct SidebarView: View {
             if !app.limitRows.isEmpty {
                 if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
             }
-            // The Settings row's ☕ is clipped in the rail: there it gets its own row above, Settings/Collapse stay put.
-            if collapsed { KeepAwakeButton(app: app, rail: true) }
+            // ☕ has its own row in both modes: collapsing never adds or removes a row, so the bottom group stays put.
+            KeepAwakeRow(app: app, collapsed: collapsed)
             HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)
@@ -422,16 +449,10 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
-                        KeepAwakeButton(app: app)
-                        Menu {
+                        MoreButton {
                             Button(L10n.addLocalProject, action: ctx.addLocalProject)
                             Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
-                        } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
-                            .menuStyle(.borderlessButton)
-                            .menuIndicator(.hidden)
-                            .fixedSize()
-                            .pointingHand()
-                            .help(L10n.more)
+                        }
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
@@ -445,7 +466,7 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         Text(L10n.collapse)
                         Spacer(minLength: 0)
-                        Text("⌘0")
+                        ShortcutHint(text: "⌘0")
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
@@ -459,26 +480,21 @@ struct SidebarView: View {
     }
 }
 
-/// ☕ in the Settings row, or its own row in the rail: accent while the sleep assertion is held; click toggles `keep_awake`.
-private struct KeepAwakeButton: View {
+/// ☕ row above Settings (both modes): accent while the sleep assertion is held; click toggles `keep_awake`.
+private struct KeepAwakeRow: View {
     let app: AppState
-    var rail = false
+    let collapsed: Bool
 
     var body: some View {
         let keep = app.keepAwake
-        let icon = IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
-        Group {
-            if rail {
-                HoverRow(action: toggle) { _ in
-                    GutterRow(collapsed: true, height: Theme.footerRowHeight) { icon } expanded: { EmptyView() } rail: { EmptyView() }
-                }
-            } else {
-                Button(action: toggle) {
-                    icon.frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-            }
+        HoverRow(action: toggle) { _ in
+            GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
+                IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
+            } expanded: {
+                Text(L10n.keepAwakeTitle).lineLimit(1).truncationMode(.tail)
+                    .font(.system(size: Theme.fontSize.sidebarFooter))
+                    .foregroundStyle(app.config.keepAwake ? Theme.ui.text2 : Theme.ui.text3)
+            } rail: { EmptyView() }
         }
         .help(L10n.keepAwakeHelp(enabled: app.config.keepAwake, held: keep.held, working: keep.working))
         .accessibilityLabel(L10n.keepAwakeTitle)
@@ -490,20 +506,22 @@ private struct KeepAwakeButton: View {
     }
 }
 
-/// Hover `…` on a row: the same items as its context menu.
-private struct MoreMenu: View {
-    let target: ActionTarget
-    let ctx: ActionContext
+/// Hover actions overlaid on a row's trailing edge: a short fade in the row's background, then the buttons on it.
+private struct RowActions<Content: View>: View {
+    let shown: Bool
+    let background: Color
+    @ViewBuilder var content: Content
 
     var body: some View {
-        Menu { ActionMenuItems(target: target, ctx: ctx) } label: {
-            Image(nsImage: Icon.more.image).renderingMode(.template)
+        HStack(spacing: 0) {
+            LinearGradient(colors: [background.opacity(0), background], startPoint: .leading, endPoint: .trailing)
+                .frame(width: Theme.rowActionsFade)
+                .allowsHitTesting(false)
+            HStack(spacing: Theme.inlineGap) { content }
+                .background(background)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .pointingHand()
-        .help(L10n.more)
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
     }
 }
 

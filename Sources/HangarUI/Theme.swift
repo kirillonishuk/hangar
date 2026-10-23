@@ -47,6 +47,14 @@ public enum Theme {
     public static let hover = ns(0x1d2533)
     public static let hoverStrong = ns(0x2b3444)  // "+ New Task" button
     public static let pressed = ns(0x192030)
+    /// Sidebar (and popovers on `sheet`): hover lighter than `sidebar`, pressed darker (DESIGN.md «Состояния»).
+    public static let sidebarHover = ns(0x283246)
+    public static let sidebarPressed = ns(0x1b2333)
+    /// Rail task monogram tile (icons-sidebar.html `.mono`), selected variant on a `selection` row.
+    public static let railTile = ns(0x283246)
+    public static let railTileBorder = ns(0x343f55)
+    public static let railTileSelected = ns(0x34466a)
+    public static let railTileSelectedBorder = ns(0x46598a)
     public static let button = ns(0x2b3444)
     public static let claudeBrand = ns(0xd97757)
     /// Terminal background handed to Ghostty unless the user's Ghostty config sets one.
@@ -92,6 +100,12 @@ public enum Theme {
         public static let selectionText = Color(nsColor: Theme.selectionText)
         public static let hover = Color(nsColor: Theme.hover)
         public static let pressed = Color(nsColor: Theme.pressed)
+        public static let sidebarHover = Color(nsColor: Theme.sidebarHover)
+        public static let sidebarPressed = Color(nsColor: Theme.sidebarPressed)
+        public static let railTile = Color(nsColor: Theme.railTile)
+        public static let railTileBorder = Color(nsColor: Theme.railTileBorder)
+        public static let railTileSelected = Color(nsColor: Theme.railTileSelected)
+        public static let railTileSelectedBorder = Color(nsColor: Theme.railTileSelectedBorder)
         public static let button = Color(nsColor: Theme.button)
         public static let controlBorderStrong = Color(nsColor: Theme.controlBorderStrong)
     }
@@ -108,7 +122,8 @@ public enum Theme {
         public static let tab: CGFloat = 12.5
         public static let footer: CGFloat = 12
         public static let segment: CGFloat = 12
-        public static let small: CGFloat = 11
+        /// The floor: nothing smaller except limit badges (11).
+        public static let small: CGFloat = 11.5
         public static let counter: CGFloat = 11.5
         // Sidebar, as in Pane: section headers, rows, bottom buttons.
         public static let section: CGFloat = 11.5
@@ -191,7 +206,6 @@ public enum Theme {
     public static let sidebarGutter: CGFloat = 44
     public static let gutterMarkerX: CGFloat = 20
     public static let gutterTextX: CGFloat = 32
-    public static let railTextX: CGFloat = 27
     public static let sectionTextX: CGFloat = 10
     public static let projectChevronX: CGFloat = 10
     public static let projectTextX: CGFloat = 20
@@ -204,6 +218,19 @@ public enum Theme {
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
     public static let projectTileSize: CGFloat = 24
+    /// Rail task monogram tile, centred in the rail.
+    public static let railTileSize: CGFloat = 22
+    public static let railTileBorderWidth: CGFloat = 1
+    /// Rail section header: a short `line` separator in a 12 pt row (icons-sidebar.html `.rail .hd`).
+    public static let railHeaderHeight: CGFloat = 12
+    public static let railHeaderLine: CGFloat = 24
+    public static let railHeaderLineWidth: CGFloat = 1
+    /// Gap between inline parts of a row (name · project, icon · host).
+    public static let inlineGap: CGFloat = 6
+    /// Least gap between a row's text and its trailing buttons.
+    public static let rowEndGap: CGFloat = 8
+    /// Fade (row background, transparent → opaque) before the trailing actions overlaid on a task row.
+    public static let rowActionsFade: CGFloat = 16
     public static let projectTileRadius: CGFloat = 6
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4
@@ -244,8 +271,6 @@ public enum Theme {
     public static let cardRowPaddingV: CGFloat = 9
     public static let cardRowPaddingH: CGFloat = 12
     public static let cardRowGap: CGFloat = 10
-    /// Settings labels are longer than the new-task ones (e.g. "Terminal background").
-    public static let settingsLabelWidth: CGFloat = 150
     public static let segmentRadius: CGFloat = 7
     public static let segmentPadding: CGFloat = 2
     public static let segmentItemRadius: CGFloat = 5
@@ -262,7 +287,7 @@ public enum Theme {
     public static let pickPaddingV: CGFloat = 3
     public static let pickPaddingH: CGFloat = 8
     public static let pickGap: CGFloat = 6
-    public static let pickChevronSize: CGFloat = 9
+    public static let pickChevronSize: CGFloat = 10
     /// ↻ next to «обновлено …».
     public static let sheetIconButtonSize: CGFloat = 22
     // Branch picker dropdown
@@ -317,11 +342,11 @@ extension Theme {
             }
         }
 
-        public static let nameWidth: CGFloat = 46
-        public static let nameFont: CGFloat = 11
+        public static let nameWidth: CGFloat = 50
+        public static let nameFont: CGFloat = 11.5
         public static let blockBar: CGFloat = 4
         public static let barGap: CGFloat = 3
-        public static let percentFont: CGFloat = 10.5
+        public static let percentFont: CGFloat = 11.5
         public static let percentWidth: CGFloat = 34
         public static let rowGap: CGFloat = 8
         public static let rowPaddingV: CGFloat = 5
@@ -334,7 +359,7 @@ extension Theme {
         public static let popoverBar: CGFloat = 6
         public static let itemGap: CGFloat = 12
         public static let agentFont: CGFloat = 13
-        public static let badgeFont: CGFloat = 10
+        public static let badgeFont: CGFloat = 11
         public static let badgePaddingH: CGFloat = 7
         public static let badgePaddingV: CGFloat = 1
     }
@@ -373,6 +398,17 @@ extension Theme {
         public static let hunkPaddingV: CGFloat = 2
         /// The clicked line: `selection` over its add/del background.
         public static let selectedOpacity: Double = 0.7
+
+        /// Syntax colors: muted on `bg`, readable over the add/del tints; plain text stays `text`.
+        static func syntax(_ kind: SyntaxKind) -> Color {
+            switch kind {
+            case .keyword: c(0xb79bd9)
+            case .string: c(0xa9c48f)
+            case .comment: c(0x75819a)
+            case .number: c(0xd5a274)
+            case .type: c(0xdcc283)
+            }
+        }
 
         /// `?` as added, `R` as modified, `U` as deleted.
         public static func badge(_ c: FileChange) -> Color {

@@ -19,7 +19,9 @@ extension MainWindowController {
         guard let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_PROJECT"] else { return }
         // Empty path: hooks without a project (empty-state checks).
         if !path.isEmpty, !app.state.projects.contains(where: { $0.path == path }) { app.addProject(path: path) }
-        DistributedNotificationCenter.default().addObserver(forName: .init("dev.hangar.debug"), object: nil, queue: .main) { [weak self] note in
+        // HANGAR_DEBUG_CHANNEL scopes the hook, so parallel debug instances don't run each other's commands.
+        let channel = ProcessInfo.processInfo.environment["HANGAR_DEBUG_CHANNEL"].map { ".\($0)" } ?? ""
+        DistributedNotificationCenter.default().addObserver(forName: .init("dev.hangar.debug" + channel), object: nil, queue: .main) { [weak self] note in
             let command = note.object as? String ?? ""
             MainActor.assumeIsolated { self?.debugCommand(command) }
         }
@@ -72,6 +74,8 @@ extension MainWindowController {
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
             "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
+            "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
+            "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down),
         ]
         switch parts.first ?? "" {
         case "task":

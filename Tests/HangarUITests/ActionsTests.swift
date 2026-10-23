@@ -79,8 +79,8 @@ import Workspace
         #expect(shortcut(keyCode: 13, modifiers: [.command, .shift]) == .archiveTask)
         #expect(shortcut(keyCode: 11, modifiers: .command) == .toggleSidebar)  // B
         #expect(shortcut(keyCode: 45, modifiers: [.command, .shift]) == .addProject)
-        #expect(shortcut(keyCode: 126, modifiers: [.command, .option, .numericPad, .function]) == .prevTask)  // ↑
-        #expect(shortcut(keyCode: 125, modifiers: [.command, .option]) == .nextTask)  // ↓
+        #expect(shortcut(keyCode: 126, modifiers: [.command, .option, .numericPad, .function]) == .focusSplit(.up))  // ↑: split, else task
+        #expect(shortcut(keyCode: 125, modifiers: [.command, .option]) == .focusSplit(.down))  // ↓
         #expect(shortcut(keyCode: 126, modifiers: .command) == nil)  // ⌘↑ stays with the terminal
         #expect(Action.rename.shortcut == .rename)
         #expect(Action.archive.shortcut == .archiveTask)

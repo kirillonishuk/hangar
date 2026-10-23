@@ -145,21 +145,33 @@ struct DiffContent {
     var maxChars = 0
     /// Bumped on every recompute (cheap equality for the list).
     var version = 0
+    /// nil: unknown language, not text, or too large to color.
+    var highlighter: DiffHighlighter?
 }
 
 /// shortcut: tabs shown as 4 spaces (Helix's default), when the editor's tab width is known — use it.
 let diffTabWidth = 4
 
+/// A diff line as shown (and highlighted): tabs expanded.
+func diffDisplayText(_ text: String) -> String {
+    text.contains("\t") ? text.replacingOccurrences(of: "\t", with: String(repeating: " ", count: diffTabWidth)) : text
+}
+
+/// shortcut: bigger diffs stay plain (bounded work on main), raise when highlighting moves off main.
+let diffHighlightMaxBytes = 1_000_000
+
 @MainActor final class DiffContentCache {
-    private var key: (state: DiffState, origPath: String?)?
+    private var key: (state: DiffState, origPath: String?, path: String)?
     private var content = DiffContent()
 
-    func content(_ state: DiffState, origPath: String?) -> DiffContent {
-        if let key, key.origPath == origPath, key.state == state { return content }
-        key = (state, origPath)
+    /// `path` picks the highlighting language.
+    func content(_ state: DiffState, origPath: String?, path: String = "") -> DiffContent {
+        if let key, key.origPath == origPath, key.path == path, key.state == state { return content }
+        key = (state, origPath, path)
         var c = DiffContent()
         c.version = content.version + 1
         c.rows = diffRows(state, origPath: origPath)
+        var bytes = 0
         let ids = diffRowIds(c.rows)
         c.items.reserveCapacity(c.rows.count)
         for (i, row) in c.rows.enumerated() {
@@ -170,11 +182,15 @@ let diffTabWidth = 4
                 if l.kind == .added { c.added += 1 } else if l.kind == .deleted { c.deleted += 1 }
                 let tabs = l.text.utf8.reduce(0) { $1 == 9 ? $0 + 1 : $0 }
                 c.maxChars = max(c.maxChars, l.text.count + tabs * (diffTabWidth - 1))
+                bytes += l.text.utf8.count
             } else if case .hunk(let h) = row {
                 c.maxChars = max(c.maxChars, h.count)
             }
         }
         if case .loaded(.text) = state { c.isText = true }
+        if c.isText, bytes <= diffHighlightMaxBytes, let lang = syntaxLanguage(forPath: path) {
+            c.highlighter = DiffHighlighter(lang: lang, rows: c.rows)
+        }
         content = c
         return content
     }
@@ -218,6 +234,18 @@ struct DiffView: View {
     }
 }
 
+/// A clickable diff line (click selects, double click opens in hx) lights up under the pointer.
+private struct LineHover: ViewModifier {
+    let enabled: Bool
+    @State private var hover = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay { if enabled && hover { Theme.ui.hover.opacity(Theme.diffHoverOpacity).allowsHitTesting(false) } }
+            .onHover { h in if enabled { withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } } }
+    }
+}
+
 /// Redrawn only when the load or the selection changes (closures are not compared).
 private struct DiffLines: View, Equatable {
     let content: DiffContent
@@ -240,10 +268,12 @@ private struct DiffLines: View, Equatable {
             ScrollView([.vertical, .horizontal]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(content.items) { item in
-                        DiffRowView(row: item.row, selected: item.index == selected, width: width)
+                        // Only rows the lazy stack renders are highlighted.
+                        DiffRowView(row: item.row, highlighted: highlighted(item), selected: item.index == selected, width: width)
                             .contentShape(Rectangle())
                             .onTapGesture { tap(item) }
                             .pointingHand(item.row.isClickable)
+                            .modifier(LineHover(enabled: item.row.isClickable))
                     }
                 }
                 .padding(.bottom, Theme.Diff.headerPaddingV)
@@ -251,6 +281,11 @@ private struct DiffLines: View, Equatable {
             // A two-axis scroll view starts centered (and centers smaller content): start at the top left.
             .defaultScrollAnchor(.topLeading)
         }
+    }
+
+    private func highlighted(_ item: DiffContent.Item) -> AttributedString? {
+        guard let h = content.highlighter, case .line(let l) = item.row else { return nil }
+        return h.text(at: item.index, diffDisplayText(l.text))
     }
 
     /// One tap handler: a separate count-2 gesture would delay every single click.
@@ -272,6 +307,8 @@ private extension DiffRow {
 
 private struct DiffRowView: View {
     let row: DiffRow
+    /// The line's text with syntax colors (nil: plain).
+    let highlighted: AttributedString?
     let selected: Bool
     /// The background reaches the right edge (or the longest line).
     let width: CGFloat
@@ -308,7 +345,9 @@ private struct DiffRowView: View {
                 Text(verbatim: line.kind == .added ? "+" : line.kind == .deleted ? "-" : "")
                     .foregroundStyle(line.kind == .added ? Theme.Diff.addMarker : Theme.Diff.delMarker)
                     .frame(width: Theme.Diff.markerWidth, alignment: .leading)
-                Text(verbatim: line.text.replacingOccurrences(of: "\t", with: String(repeating: " ", count: diffTabWidth)))
+                Group {
+                    if let highlighted { Text(highlighted) } else { Text(verbatim: diffDisplayText(line.text)) }
+                }
                     .foregroundStyle(Theme.ui.text)
                     .padding(.trailing, Theme.Diff.headerPaddingH)
             }

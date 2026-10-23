@@ -68,7 +68,7 @@ extension AppState {
 
     private func content(of tab: DiffTab) -> DiffContent {
         let state = inspector.diffPath == tab.path ? inspector.diff : .loading
-        return diffCache.content(state, origPath: inspector.changes?.files.first { $0.path == tab.path }?.origPath)
+        return diffCache.content(state, origPath: inspector.changes?.files.first { $0.path == tab.path }?.origPath, path: tab.path)
     }
 
     /// A new load of the open diff (set as `inspector.onDiffApplied`): a selected line that is gone (⌥B, edits) is unselected.

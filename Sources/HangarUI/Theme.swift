@@ -374,6 +374,17 @@ extension Theme {
         /// The clicked line: `selection` over its add/del background.
         public static let selectedOpacity: Double = 0.7
 
+        /// Syntax colors: muted on `bg`, readable over the add/del tints; plain text stays `text`.
+        static func syntax(_ kind: SyntaxKind) -> Color {
+            switch kind {
+            case .keyword: c(0xb79bd9)
+            case .string: c(0xa9c48f)
+            case .comment: c(0x75819a)
+            case .number: c(0xd5a274)
+            case .type: c(0xdcc283)
+            }
+        }
+
         /// `?` as added, `R` as modified, `U` as deleted.
         public static func badge(_ c: FileChange) -> Color {
             switch c {

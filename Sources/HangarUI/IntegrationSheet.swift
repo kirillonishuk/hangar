@@ -9,7 +9,9 @@ struct IntegrationSheet: View {
     let onApply: () -> Void
     let onCancel: () -> Void
 
-    private var path: String { tildePath(plan.url.path) }
+    private var path: String { plan.displayPath ?? tildePath(plan.url.path) }
+    /// Where the backup goes: next to the real file (a remote one: its target as resolved on the server).
+    private var backupBase: String { plan.backupDisplayPath ?? tildePath(plan.resolved.path) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,7 +30,7 @@ struct IntegrationSheet: View {
 
             if plan.original != nil {
                 // The real name gets the write time; the pattern shows where the copy goes.
-                Text(verbatim: L10n.backupWillBeCreated(tildePath(plan.resolved.path) + ".hangar-backup-yyyyMMdd-HHmmss"))
+                Text(verbatim: L10n.backupWillBeCreated(backupBase + ".hangar-backup-yyyyMMdd-HHmmss"))
                     .font(.system(size: Theme.fontSize.tab))
                     .foregroundStyle(Theme.ui.text3)
                     .padding(.top, Theme.sheetGap)

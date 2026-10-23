@@ -27,8 +27,8 @@ private func alive(_ pid: String) -> Bool {
 }
 /// Bounded poll (no fixed sleeps): true as soon as `cond` holds, false after `seconds`.
 private func waitUntil(_ seconds: Double = 10, _ cond: () -> Bool) async -> Bool {
-    let end = Date().addingTimeInterval(seconds)
-    while Date() < end {
+    let end = SuspendingClock.now + .seconds(seconds)
+    while SuspendingClock.now < end {
         if cond() { return true }
         try? await Task.sleep(for: .milliseconds(20))
     }
@@ -91,12 +91,14 @@ private func pgrepCount(_ marker: String) -> Int {
     let dir = try tmpDir(); defer { try? FileManager.default.removeItem(at: dir) }
     let marker = String(Int.random(in: 600_000...899_999))
     let hang = try script("touch \(dir.path)/started\nsleep \(marker)\n", in: dir)
-    let t0 = Date()
+    let t0 = SuspendingClock.now
     await #expect(throws: (any Error).self) {
         try await CodexUsageReader(executable: hang, timeout: .milliseconds(500)).read(now: now)
     }
-    // Killed at the 0.5 s timeout, not after the 600 000 s sleep; slack for a loaded test machine.
-    #expect(Date().timeIntervalSince(t0) < 6)
+    // Killed at the 0.5 s timeout, not after the ≥600 000 s sleep. Under load the timer task and the resume wait for
+    // a busy cooperative pool for seconds, so the bound only proves "long before the hang"; the suspending clock
+    // ignores a system sleep during the run.
+    #expect(SuspendingClock.now - t0 < .seconds(20))
     // The script ran (otherwise the kill proves nothing) and its sleep grandchild is gone too (group kill).
     let started = await waitUntil { FileManager.default.fileExists(atPath: dir.path + "/started") }
     #expect(started)

@@ -180,6 +180,43 @@ import Testing
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).inspectorWidth == 300)
     }
 
+    @Test func remoteLocationRoundTrip() throws {
+        let p = Project(name: "app", location: .ssh(host: "dev", path: "/srv/app"))
+        let data = try JSONEncoder().encode(p)
+        #expect(String(decoding: data, as: UTF8.self).contains(#""ssh":{"#))
+        let back = try JSONDecoder().decode(Project.self, from: data)
+        #expect(back == p)
+        #expect(back.host == "dev")
+        #expect(back.path == "/srv/app")
+    }
+
+    @Test func oldLocalStillDecodes() throws {
+        let id = UUID().uuidString
+        let json = #"{"projects":[{"id":"\#(id)","name":"a","location":{"local":{"path":"/a"}}}],"tasks":[],"inspectorVisible":true}"#
+        let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(s.projects.first?.location == .local(path: "/a"))
+        #expect(s.projects.first?.host == nil)
+        #expect(s.projects.first?.path == "/a")
+    }
+
+    @Test func addRemoteProjectDedupes() {
+        var s = WorkspaceState()
+        let a = s.addRemoteProject(name: "app", host: "dev", path: "/srv/app")
+        let b = s.addRemoteProject(name: "app2", host: "dev", path: "/srv/app")
+        let c = s.addRemoteProject(name: "app", host: "prod", path: "/srv/app")
+        #expect(a == b)
+        #expect(a != c)
+        #expect(s.projects.count == 2)
+        #expect(s.projects.first { $0.id == c }?.location == .ssh(host: "prod", path: "/srv/app"))
+    }
+
+    @Test func setPathKeepsHost() {
+        var s = WorkspaceState()
+        let p = s.addRemoteProject(name: "app", host: "dev", path: "/srv/app")
+        s.updateProject(id: p, name: "app", path: "/srv/new", baseBranch: nil, worktreeRoot: nil)
+        #expect(s.projects.first?.location == .ssh(host: "dev", path: "/srv/new"))
+    }
+
     @Test func leafOpenLineRoundTrip() throws {
         let l = Leaf(kind: .editor, cwd: "/r", openFile: "/r/a", openLine: 12)
         #expect(try JSONDecoder().decode(Leaf.self, from: JSONEncoder().encode(l)).openLine == 12)

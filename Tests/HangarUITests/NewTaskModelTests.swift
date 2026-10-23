@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Git
 import Testing
@@ -15,15 +16,13 @@ import Workspace
     }
 
     // Fixtures run git synchronously: build them off the main actor so other suites' main-actor tasks keep running.
-    private func repo() async throws -> TempRepo { try await Task.detached { try TempRepo() }.value }
-    private func emptyRepo() async throws -> TempRepo {
-        try await Task.detached { try TempRepo(emptyWithBranch: "main") }.value
-    }
+    private func repo() async throws -> TempRepo { try await TempRepo.offMain() }
+    private func emptyRepo() async throws -> TempRepo { try await TempRepo.offMain { try TempRepo(emptyWithBranch: "main") } }
 
     /// Generous: parallel tests' fixtures run git synchronously on the main actor.
-    private func wait(until condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(20)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+    private func wait(_ seconds: Int = 20, until condition: () -> Bool) async throws {
+        let clock = SuspendingClock(), deadline = clock.now + .seconds(seconds)
+        while !condition(), clock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
     }
 
     @Test func branchFollowsNameUntilEdited() async throws {
@@ -123,6 +122,65 @@ import Workspace
         #expect(await m2.create(skipFetch: false) == nil)
         #expect(m2.branch == "pochinit-login")
         #expect(m2.branchError == L10n.branchExists("pochinit-login"))
+    }
+
+    /// git can't have both `release` and `release/1.2` (a ref is a file or a folder): such a verbatim name → slug.
+    @Test func verbatimNameClashingWithAPrefixFallsBackToSlug() async throws {
+        let t = try await TempRepo.offMain {
+            let t = try TempRepo()
+            try t.git("branch", "Release", in: t.repo)
+            try t.git("branch", "hotfix/x/y", in: t.repo)
+            return t
+        }
+        defer { t.cleanup() }
+        let m = model(t, worktreeByDefault: true)
+        await m.load()
+        m.name = "release/1.2"  // an existing branch is a `/`-prefix of it (case-insensitive, as on disk)
+        #expect(m.branch == "release-1.2")
+        m.name = "hotfix/x"  // it is a `/`-prefix of an existing branch
+        #expect(m.branch == "hotfix-x")
+        m.name = "hotfix/z"
+        #expect(m.branch == "hotfix/z")
+        m.name = "release/1.2"
+        #expect(await m.create(skipFetch: false) == .worktree(path: t.repo + ".worktrees/release-1.2", branch: "release-1.2", base: "origin/main"))
+    }
+
+    /// A host that isn't connected is «not connected», not «not a repository».
+    @Test func offlineHostIsNotNotARepository() async {
+        let project = Project(name: "p", location: .ssh(host: "dev", path: "/srv/app"), worktreeByDefault: true)
+        let git = Git(repo: "/srv/app", runner: Runner { _, _ in throw RemoteHostError.notConnected("dev") })
+        let m = NewTaskModel(project: project, git: git, taskBranches: [])
+        await m.load()
+        #expect(m.availability == .hostOffline("dev"))
+        #expect(!m.worktree)
+    }
+
+    @Test func branchLikeNameIsSuggestedVerbatim() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t, worktreeByDefault: true)
+        await m.load()
+        m.name = "  feat/JS-13333 "
+        #expect(m.branch == "feat/JS-13333")
+        m.name = "Fix login"
+        #expect(m.branch == "fix-login")
+        m.name = "feat//x"
+        #expect(m.branch == "feat-x")
+        m.name = "Refactor"  // no `/`: a single word keeps the slug
+        #expect(m.branch == "refactor")
+        m.name = "origin/feature-x"  // starts with a remote: verbatim would shadow origin/feature-x
+        #expect(m.branch == "origin-feature-x")
+        m.name = "feat/JS-13333"
+        let mode = await m.create(skipFetch: false)
+        #expect(mode == .worktree(path: t.repo + ".worktrees/feat-js-13333", branch: "feat/JS-13333", base: "origin/main"))
+
+        // Differs only in case: same folder (and same ref file on a case-insensitive disk) → suffix, not a clash.
+        let m2 = model(t, worktreeByDefault: true)
+        await m2.load()
+        m2.name = "feat/js-13333"
+        #expect(m2.branch == "feat/js-13333-2")
+        let mode2 = await m2.create(skipFetch: false)
+        #expect(mode2 == .worktree(path: t.repo + ".worktrees/feat-js-13333-2", branch: "feat/js-13333-2", base: "origin/main"))
     }
 
     @Test func createMakesWorktreeFromBase() async throws {
@@ -225,22 +283,23 @@ import Workspace
         defer { t.cleanup() }
         // A remote that never answers (the helper just sleeps).
         try t.git("config", "protocol.ext.allow", "always", in: t.repo)
-        try t.git("remote", "set-url", "origin", "ext::sleep 30", in: t.repo)
+        try t.git("remote", "set-url", "origin", "ext::sleep 120", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         let loading = Task { await m.load() }
-        try await wait { m.fetch == .running }
+        // Long deadlines: under a full parallel run load() and create's first awaits wait for busy git spawns.
+        try await wait(90) { m.fetch == .running }
         #expect(m.fetch == .running)
         await m.refresh()  // no-op while running
         #expect(m.fetch == .running)
         m.name = "t"
         let creating = Task { await m.create(skipFetch: false) }
-        try await wait { m.creating }
-        let started = ContinuousClock.now
+        try await wait(90) { m.creating }
+        let clock = SuspendingClock(), started = clock.now
         m.cancelFetch()
         #expect(m.fetch == .cancelled)
         await loading.value
         #expect(await creating.value == nil)
-        #expect(ContinuousClock.now - started < .seconds(15))  // well under the helper's 30 s
+        #expect(clock.now - started < .seconds(60))  // well under the helper's 120 s
         #expect(m.fetch == .cancelled)
 
         // While creating: ↻ starts no fetch, and edits made during create's awaits don't change what is created.

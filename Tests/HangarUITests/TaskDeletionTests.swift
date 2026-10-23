@@ -59,7 +59,9 @@ import Workspace
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeDirty])
         // The forced removal runs in a Task started by the confirm callback.
-        for _ in 0..<100 where app.state.tasks.contains(where: { $0.id == id }) { try await Task.sleep(for: .milliseconds(50)) }
+        // Generous: under a full parallel run its git calls wait for busy spawns (5 s was seen to be too short).
+        let clock = SuspendingClock(), end = clock.now + .seconds(60)
+        while clock.now < end, app.state.tasks.contains(where: { $0.id == id }) { try await Task.sleep(for: .milliseconds(50)) }
         #expect(!exists(wt) && !app.state.tasks.contains { $0.id == id })
     }
 
@@ -90,7 +92,9 @@ import Workspace
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeIgnored])
         #expect(calls.infos.first?.contains(".env") == true)
-        for _ in 0..<100 where app.state.tasks.contains(where: { $0.id == id }) { try await Task.sleep(for: .milliseconds(50)) }
+        // Generous: under a full parallel run its git calls wait for busy spawns (5 s was seen to be too short).
+        let clock = SuspendingClock(), end = clock.now + .seconds(60)
+        while clock.now < end, app.state.tasks.contains(where: { $0.id == id }) { try await Task.sleep(for: .milliseconds(50)) }
         #expect(!exists(wt) && !app.state.tasks.contains { $0.id == id })
     }
 

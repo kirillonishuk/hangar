@@ -72,6 +72,19 @@ import Workspace
         #expect(list.projects.map(\.exists) == [true, false])
     }
 
+    @Test func projectsListHost() async throws {
+        // The remote project's path exists on this Mac: `projects add` of it still makes a new local project.
+        let path = try folder("same")
+        var remote = UUID()
+        let app = try makeApp { remote = $0.addRemoteProject(name: "app", host: "dev", path: path) }
+        defer { cleanup() }
+        let list = try await ok(app, .projectsList, ProjectsResult.self)
+        #expect(list.projects.map(\.host) == ["dev"])
+        #expect(list.projects[0].exists)  // the host was never given up on
+        let added = try await ok(app, .projectsAdd(path: path), ProjectAddResult.self)
+        #expect(added.added && added.project.id != remote && added.project.host == nil)
+    }
+
     @Test func tasksListShape() async throws {
         var ids: (p: UUID, q: UUID, a: UUID, b: UUID, archived: UUID, tab: UUID, claude: UUID) = (UUID(), UUID(), UUID(), UUID(), UUID(), UUID(), UUID())
         let pPath = try folder("p"), qPath = try folder("q")
@@ -145,6 +158,8 @@ import Workspace
         let r = try await ok(app, .tasksCreate(project: "repo", name: "Fix login", worktree: true, base: "main", prompt: nil), TaskResult.self)
         #expect(r.task.mode == "worktree" && r.task.branch == "fix-login" && r.task.base == "main")
         #expect(FileManager.default.fileExists(atPath: r.task.path))
+        let j = try await ok(app, .tasksCreate(project: "repo", name: "feat/JS-13333", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        #expect(j.task.branch == "feat/JS-13333" && j.task.path == t.repo + ".worktrees/feat-js-13333")
         #expect(app.controlCreating == 0)
         // The sheet's remembered choice is the user's, not the CLI's.
         let repoProject = try #require(app.state.projects.first { $0.name == "repo" })
@@ -166,7 +181,18 @@ import Workspace
         let notGit = await error(app, .tasksCreate(project: "plain", name: "Other", worktree: true, base: nil, prompt: nil))
         #expect(notGit?.code == .failed && notGit?.message == "not a git repository")
         #expect(app.controlCreating == 0)
-        #expect(app.state.tasks.count == 2)
+        #expect(app.state.tasks.count == 3)
+    }
+
+    /// tasks.create with a worktree on a host that isn't connected: says so in English, not "not a git repository".
+    @Test func worktreeOnOfflineHost() async throws {
+        let app = try makeApp { s in _ = s.addRemoteProject(name: "srv", host: "dev", path: "/srv/app") }
+        defer { cleanup() }
+        // Never a real ssh: the host is never connected, and this ssh could not dial anyway.
+        app.remote = app.makeRemoteHosts(paths: SSHPaths(stateDir: dir.path), sshPath: "/usr/bin/false", isActive: { false })
+        let e = await error(app, .tasksCreate(project: "srv", name: "Other", worktree: true, base: nil, prompt: nil))
+        #expect(e?.code == .failed && e?.message == "host dev is not connected")
+        #expect(app.state.tasks.isEmpty)
     }
 
     @Test func archiveResolvesStrictly() async throws {
@@ -255,7 +281,6 @@ import Workspace
         #expect(fake.sent.last?.leaf == ids.first && fake.sent.last?.text == "hi" && fake.sent.last?.keys == [.enter])
         let second = try await ok(app, .tabsSend(tab: String(ids.second.uuidString.prefix(8)), text: nil, keys: [.ctrlC]), SendResult.self)
         #expect(second.leaf == ids.second && fake.sent.last?.leaf == ids.second && fake.sent.last?.text == nil)
-        #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notFound)
         #expect(fake.started.isEmpty)
 
         fake.states = [.notStarted, .running]
@@ -277,6 +302,49 @@ import Workspace
         fake.states = [.notStarted, .failed]
         #expect(await error(app, .tabsSend(tab: ids.tab.uuidString, text: "x", keys: []))?.code == .failed)
         #expect(fake.sent.count == sentCount)
+    }
+
+    /// The TERMINAL drawer's shell: listed in tasks.list, its leaf id works as the `tab` ref (decision #45).
+    @Test func drawerLeafAddressable() async throws {
+        var ids = (a: UUID(), b: UUID(), drawer: UUID(), oldDrawer: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            ids.a = s.addTask(projectId: p, name: "A")
+            s.addTab(taskId: ids.a, kind: .claude)
+            s.toggleDrawer(taskId: ids.a)
+            ids.drawer = s.tasks[0].drawer.leaf!.id
+            ids.b = s.addTask(projectId: p, name: "B")
+            let old = s.addTask(projectId: p, name: "old")
+            s.toggleDrawer(taskId: old)
+            ids.oldDrawer = s.tasks.first { $0.id == old }!.drawer.leaf!.id
+            s.archiveTask(id: old)
+        }
+        defer { cleanup() }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+
+        let list = try await ok(app, .tasksList(project: nil), TasksResult.self)
+        let a = try #require(list.tasks.first { $0.id == ids.a })
+        #expect(a.drawer?.id == ids.drawer && a.drawer?.kind == .shell)
+        #expect(a.tabs.allSatisfy { !$0.leaves.contains { $0.id == ids.drawer } })
+        #expect(list.tasks.first { $0.id == ids.b }?.drawer == nil)
+
+        // Never shown since launch: started hidden first, like a tab.
+        fake.states = [.notStarted, .running]
+        let r = try await ok(app, .tabsSend(tab: ids.drawer.uuidString, text: "ls", keys: [.enter]), SendResult.self)
+        #expect(r.tab == ids.drawer && r.leaf == ids.drawer)
+        #expect(fake.started == [ids.drawer])
+        #expect(fake.sent.last?.leaf == ids.drawer && fake.sent.last?.text == "ls")
+        fake.states = [.notStarted, .starting]
+        #expect(await error(app, .tabsSend(tab: ids.drawer.uuidString, text: "x", keys: []))?.code == .notStarted)
+
+        fake.screen = "$ ls\nfoo\n"
+        let read = try await ok(app, .tabsRead(tab: String(ids.drawer.uuidString.prefix(8)), lines: 10), ScreenResult.self)
+        #expect(read.tab == ids.drawer && read.leaf == ids.drawer && read.text == "$ ls\nfoo")
+
+        // Archived tasks' drawers are never found.
+        #expect(await error(app, .tabsRead(tab: ids.oldDrawer.uuidString, lines: 10))?.code == .notFound)
     }
 
     @Test func waitingLeafAcceptsSend() async throws {

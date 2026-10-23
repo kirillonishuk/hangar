@@ -46,7 +46,8 @@ import Workspace
 
     @Test func launchUsesLoginShell() throws {
         let s = try spec(leaf(.claude))
-        #expect(s.command == #"/bin/zsh -l -i -c 'claude; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c'"#)
+        // Backslashes sit outside the single quotes (shellQuote, fish-safe).
+        #expect(s.command == #"/bin/zsh -l -i -c 'claude; c=$?; printf "'\\'e]133;C'\\'a'\\'e]133;D;%d'\\'a" $c; exit $c'"#)
         #expect(s.cwd == cwd)
         #expect(try inner(spec(leaf(.shell))) == "/bin/zsh -l -i")
         #expect(try inner(s) == "claude")
@@ -54,7 +55,7 @@ import Workspace
 
     @Test func exitCodeWrapperPresent() throws {
         let s = try spec(leaf(.claude))
-        #expect(s.command.contains(#"c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#))
+        #expect(try script(s).contains(#"c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#))
         #expect(!s.command.contains("exec"))
     }
 

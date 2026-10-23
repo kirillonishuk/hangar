@@ -40,6 +40,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onUsageAlerts: (([UsageAlert]) -> Void)?
     /// A codex turn ended: time to refresh its limits (wired to `refreshCodexUsage(afterTurn: true)` in init).
     @ObservationIgnored var onCodexTurn: (() -> Void)?
+    /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
+    @ObservationIgnored var onHostConnected: ((String) -> Void)?
     /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
@@ -109,6 +111,19 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
+    /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
+    @ObservationIgnored public var sshPath = "/usr/bin/ssh"
+    /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
+    @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
+    /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
+    // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
+    @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
+    /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
+    @ObservationIgnored var onHostChange: ((String) -> Void)?
+    /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
+    @ObservationIgnored public lazy var remote: RemoteHosts = makeRemoteHosts(
+        paths: SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent), sshPath: sshPath,
+        isActive: { NSApp?.isActive ?? false })
     /// Ghostty took this background at launch; a change applies after restart.
     @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 
@@ -152,9 +167,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
+        let remoteBefore = liveRemoteLeaves()
+        let hostsBefore = Set(state.projects.compactMap(\.host))
         mutate(&state)
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
+        // A host whose last project went is forgotten (after its sessions are killed).
+        killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
@@ -180,7 +199,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if case .worktree(_, _, let base) = task.mode { return base }
         guard let project = project(task.projectId) else { return nil }
         if let last = project.lastBaseBranch { return last }
-        return try? await Git(repo: project.path).defaultBranch()
+        return try? await git(for: project).defaultBranch()
     }
 
     /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.
@@ -238,6 +257,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let leaf = self.leaf(id: leaf.id) ?? leaf
         let mode = launchMode(for: leaf, context)
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
+        if let host = remoteLeafHost(leaf.id) {
+            guard let target = remote.target(host) else {
+                Task { await remote.connect(host) }
+                throw LaunchError.notConnected(host: host)
+            }
+            return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target, editor: config.editor,
+                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt), mode)
+        }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
                                   userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt)
         return (spec, mode)

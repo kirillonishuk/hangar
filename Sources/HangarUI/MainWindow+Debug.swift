@@ -1,5 +1,7 @@
 #if DEBUG
 import AppKit
+import Exec
+import Git
 import SwiftUI
 import Usage
 import Workspace
@@ -277,11 +279,43 @@ extension MainWindowController {
                 if let task = app.selectedTask {
                     let root: String? = if case .worktree(let p, _, _) = task.mode { p } else { app.project(task.projectId)?.path }
                     let app = self.app
-                    m.show(taskId: task.id, root: root, baseBranch: { await app.baseBranch(of: task) })
+                    let runner = app.project(task.projectId).map(app.runner(for:)) ?? .local
+                    m.show(taskId: task.id, root: root, git: { Git(repo: $0, runner: runner) }, remote: !runner.isLocal,
+                           baseBranch: { await app.baseBranch(of: task) })
                 }
             default: break
             }
             uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public) diffPath=\(m.diffPath ?? "-", privacy: .public) diff=\(Self.describe(m.diff), privacy: .public) diffTab=\(self.app.selectedTask.flatMap { self.app.diffTabs[$0.id] }.map { "\($0.path) active=\($0.active) row=\(self.app.activeDiffSelection.map(String.init) ?? "-")" } ?? "-", privacy: .public) rows=\(self.app.activeDiffContent.rows.count) open=\(self.app.activeDiff.flatMap { _ in openTarget(rows: self.app.activeDiffContent.rows, selected: self.app.activeDiffSelection) }.map(String.init) ?? "-", privacy: .public) responder=\(self.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
+        case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)
+            let v = arg.split(separator: " ").compactMap { Double($0) }
+            if v.count == 2 { window?.setContentSize(NSSize(width: v[0], height: v[1])); window?.center() }
+        case "remote":
+            // remote sheet | fill <host> <path> | connect | add | server <host> | refresh | spec <file> | install | review claude|codex [remove] | confirm | snap <file> | close | dump
+            let f = arg.split(separator: " ").map(String.init)
+            let m = remoteProjectModel
+            let server = serverModel ?? m?.server
+            switch f.first ?? "" {
+            case "sheet": presentRemoteProject()
+            case "fill": if f.count == 3 { m?.host = f[1]; m?.path = f[2] }
+            case "connect": if let m { Task { await m.connect() } }
+            case "add": if let m, let path = m.foundPath { remoteProjectAdd?(m.host, path) }
+            case "server": if f.count == 2 { presentServer(f[1]) }
+            case "spec": if f.count == 2 { try? server?.terminalSpec()?.command.write(toFile: f[1], atomically: true, encoding: .utf8) }
+            case "refresh": if let server { Task { await server.refresh() } }
+            case "review": if let server { Task { await server.review(f.count > 1 && f[1] == "codex" ? .codex : .claude, install: !(f.count > 2 && f[2] == "remove")) } }
+            case "confirm": if let server { Task { await server.confirmPlan() } }  // = «Применить» in the diff sheet
+            case "snap":  // the diff sheet on top of the remote sheet
+                guard f.count == 2, let view = window?.attachedSheet?.attachedSheet?.contentView,
+                      let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { break }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: f[1]))
+            case "install": server?.startInstall()  // = «Установить» (the user's confirmation)
+            case "close": if let sheet = window?.attachedSheet { window?.endSheet(sheet) }  // debug only: models stay until the next sheet
+            default: break
+            }
+            let hosts = app.remote.hosts.map { "\($0.key)=\($0.value.state) attention=\($0.value.needsAttention)" }
+            uiLog.info("remote hosts=\(hosts, privacy: .public) phase=\(String(describing: server?.phase), privacy: .public) report=\(server?.report.map { "remote=\($0.remoteVersion ?? 0) tools=\($0.tools.keys.map(\.rawValue).sorted())" } ?? "-", privacy: .public)")
+            uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) claude=\(String(describing: server?.claude), privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

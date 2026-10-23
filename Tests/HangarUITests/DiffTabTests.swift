@@ -10,7 +10,7 @@ import Workspace
 
     /// A selected task on a temp repo with three changed files (a.txt, b.txt, c.txt); the inspector has loaded it.
     private func makeApp() async throws -> (AppState, TempRepo, task: UUID) {
-        let repo = try TempRepo()
+        let repo = try await TempRepo.offMain()
         try repo.commit(file: "b.txt", on: "main")
         try repo.commit(file: "c.txt", on: "main")
         for f in ["a.txt", "b.txt", "c.txt"] { try "changed\n".write(toFile: repo.repo + "/" + f, atomically: true, encoding: .utf8) }
@@ -157,6 +157,28 @@ import Workspace
         #expect(app.activeDiff?.selectedRowId == nil)
     }
 
+    /// A subfolder project: the diff tab's path is relative to the subfolder, ↩ opens the file under it.
+    @Test func subfolderDiffOpensInEditor() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
+        try "one\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
+        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try "one\ntwo\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
+        app.inspector.show(taskId: t, root: repo.repo + "/sub", baseBranch: { nil })
+        await settle(app.inspector)
+        #expect(app.inspector.changes?.files.map(\.path) == ["s.txt"])
+        app.openDiff(path: "s.txt")
+        await settle(app.inspector)
+        let two = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
+        app.selectDiffRow(two)
+        var opened: (String, Int?)?
+        app.onOpenInEditor = { opened = ($0, $1) }
+        app.openActiveDiffInEditor()
+        #expect(opened?.0 == repo.repo + "/sub/s.txt")
+        #expect(opened?.1 == 2)
+    }
+
     @Test func diffKeyRouting() {
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: false, editingText: false) == nil)
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: true, editingText: false) == .up)
@@ -234,5 +256,26 @@ import Workspace
         let items = DiffContentCache().content(.loaded(parseUnifiedDiff(diff)), origPath: nil).items
         #expect(items.count == 8)
         #expect(Set(items.map(\.id)).count == items.count)
+    }
+
+    /// The row selected in `before` (by index) found again in `after` by its id, as after a refresh.
+    private func follow(_ before: String, _ index: Int, _ after: String) -> Int? {
+        let head = "diff --git a/f b/f\n--- a/f\n+++ b/f\n"
+        let cache = DiffContentCache()
+        let id = cache.content(.loaded(parseUnifiedDiff(head + before)), origPath: nil).items[index].id
+        return cache.content(.loaded(parseUnifiedDiff(head + after)), origPath: nil).indexById[id]
+    }
+
+    @Test func selectionStaysOnIdenticalLineWhenLinesInsertedAbove() {
+        // The second added `}`; another `}` is inserted at the top of the same hunk.
+        #expect(follow("@@ -1,1 +1,5 @@\n+x\n+}\n+y\n+}\n end\n", 4,
+                       "@@ -1,1 +1,6 @@\n+}\n+x\n+}\n+y\n+}\n end\n") == 5)
+        // The last context `}`; a new hunk with a context `}` appears above.
+        let hunk = "@@ -10,3 +10,3 @@\n }\n-a\n+b\n }\n"
+        let shifted = "@@ -1,2 +1,3 @@\n x\n+y\n }\n@@ -10,3 +11,3 @@\n }\n-a\n+b\n }\n"
+        #expect(follow(hunk, 4, shifted) == 8)
+        #expect(follow(hunk, 1, shifted) == 5)
+        // The hunk header itself (its new start moved).
+        #expect(follow(hunk, 0, shifted) == 4)
     }
 }

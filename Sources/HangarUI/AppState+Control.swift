@@ -1,4 +1,5 @@
 import ControlServer
+import Exec
 import Foundation
 import Git
 import Workspace
@@ -6,7 +7,7 @@ import Workspace
 /// What CLI/MCP commands need from the terminals (Ghostty surfaces live in the views, not in the model).
 struct TerminalAccess {
     /// Starts the tab's surfaces hidden if they never ran (a `--prompt` agent must not wait to be shown).
-    var start: (UUID /* tab */) -> Void
+    var start: (UUID /* tab, or a drawer leaf */) -> Void
     /// One check for send and read, so both answer the same way.
     var state: (UUID /* leaf */) -> LeafState
     /// Only called on a `running` leaf.
@@ -26,13 +27,17 @@ extension AppState {
         case .projectsList:
             return .ok(id, ProjectsResult(projects: state.projects.map(projectInfo)))
 
-        case .projectsAdd(let raw):
+        case .projectsAdd(let raw, .some(let host)):
+            return await addRemote(id, path: raw, host: host)
+
+        case .projectsAdd(let raw, nil):
             let path = (raw as NSString).standardizingPath
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
                 return fail(ControlError(code: .notFound, message: "no such directory"))
             }
-            if let existing = state.projects.first(where: { ($0.path as NSString).standardizingPath == path }) {
+            // A remote project with the same path is another folder.
+            if let existing = state.projects.first(where: { $0.host == nil && ($0.path as NSString).standardizingPath == path }) {
                 return .ok(id, ProjectAddResult(project: projectInfo(existing), added: false))
             }
             let added = addProject(path: path)
@@ -135,6 +140,28 @@ extension AppState {
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
 
+    /// The «Удалённый проект» sheet without the sheet: connect (with the server check), `pwd -P` on the server, add.
+    /// Nothing is installed here; what the server lacks comes back as warnings. A failure lets go of a host no project uses.
+    private func addRemote(_ id: Int, path: String, host raw: String) async -> ControlResponse {
+        guard let host = validSSHHost(raw) else { return ControlResponse(id: id, body: .failure(ControlError(code: .badParams, message: "invalid host"))) }
+        func fail(_ code: ControlErrorCode, _ message: String) -> ControlResponse {
+            releaseUnusedHost(host)
+            return ControlResponse(id: id, body: .failure(ControlError(code: code, message: message)))
+        }
+        guard await remote.connect(host) == .connected, let info = remote.hosts[host], let home = info.home else {
+            let info = remote.hosts[host]
+            if info?.authFailed == true { return fail(.failed, "auth failed: run ssh \(host) in Terminal, then retry") }
+            if info?.unsupportedShell != nil { return fail(.failed, "unsupported login shell (csh/tcsh)") }
+            return fail(.failed, "host not connected")
+        }
+        guard let real = await remoteRealPath(path, home: home, runner: remote.runner(host)) else {
+            return fail(.notFound, "folder not found on server")
+        }
+        let added = !state.projects.contains { $0.location == .ssh(host: host, path: real) }
+        let project = project(addRemoteProject(host: host, path: real))!
+        return .ok(id, ProjectAddResult(project: projectInfo(project), added: added, warnings: remoteAddWarnings(remote.hosts[host] ?? info)))
+    }
+
     /// A never-started leaf is started hidden first (a `--prompt`-less tab may never have been shown).
     private func leafState(_ target: (tab: UUID, leaf: UUID)) -> LeafState {
         guard let terminals else { return .notStarted }
@@ -144,15 +171,16 @@ extension AppState {
         return terminals.state(target.leaf)
     }
 
-    /// `--tab`: a tab id (→ its focused leaf) or a leaf id, among non-archived tasks; TERMINAL panel leaves are not addressable
-    /// (shortcut: no drawer refs, add one if orchestrators need the panel shell).
+    /// `--tab`: a tab id (→ its focused leaf), a leaf id or a drawer leaf id (its own tab, like its HANGAR_TAB_ID),
+    /// among non-archived tasks.
     private func resolveLeaf(_ ref: String) -> Result<(tab: UUID, leaf: UUID), ControlError> {
-        let tabs = state.tasks.filter { !$0.archived }.flatMap(\.tabs)
+        let tasks = state.tasks.filter { !$0.archived }
         var targets: [UUID: (tab: UUID, leaf: UUID)] = [:]
-        for tab in tabs {
+        for tab in tasks.flatMap(\.tabs) {
             targets[tab.id] = (tab.id, tab.focusedLeafId)
             for leaf in tab.root.leaves { targets[leaf.id] = (tab.id, leaf.id) }
         }
+        for leaf in tasks.compactMap(\.drawer.leaf) { targets[leaf.id] = (leaf.id, leaf.id) }
         return resolveRef(ref, in: targets.keys.sorted { $0.uuidString < $1.uuidString }.map { RefCandidate(id: $0, names: []) })
             .map { targets[$0]! }
             .mapError { refError($0, ref, "tab") }
@@ -174,7 +202,8 @@ extension AppState {
         if case .worktree(let p, _, let b) = task.mode { (path, base, mode) = (p, b, "worktree") }
         return TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
                         status: displayState(of: task).rawValue, mode: mode, path: path, branch: task.branch, base: base,
-                        tabs: task.tabs.map(tabInfo))
+                        tabs: task.tabs.map(tabInfo),
+                        drawer: task.drawer.leaf.map { LeafInfo(id: $0.id, kind: tabKind($0.kind), status: displayState(ofLeaf: $0.id, kind: $0.kind).rawValue) })
     }
 
     private func tabInfo(_ tab: Tab) -> TabInfo {
@@ -195,9 +224,7 @@ extension AppState {
     }
 
     private func projectInfo(_ p: Project) -> ProjectInfo {
-        var isDir: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: p.path, isDirectory: &isDir) && isDir.boolValue
-        return ProjectInfo(id: p.id, name: p.name, path: p.path, exists: exists)
+        ProjectInfo(id: p.id, name: p.name, path: p.path, exists: isAvailable(p), host: p.host)
     }
 
     private func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
@@ -222,11 +249,12 @@ extension AppState {
     /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path; a failed fetch fails.
     private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<TaskMode, ControlError> {
         let failed = { (message: String) in Result<TaskMode, ControlError>.failure(ControlError(code: .failed, message: message)) }
-        let model = NewTaskModel(project: project, git: Git(repo: project.path), taskBranches: taskBranches(project.id))
+        let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))
         await model.load()
         switch model.availability {
         case .notRepository: return failed("not a git repository")
         case .noCommits: return failed("repository has no commits")
+        case .hostOffline(let host): return failed(RemoteHostError.notConnected(host).description)
         case .loading, .ready: break
         }
         if let base {
@@ -245,6 +273,17 @@ extension AppState {
         let branchError = model.branchError.map { _ in branchProblemMessage(model.branch, branches: model.branches) }
         return failed(model.createError ?? branchError ?? fetchError ?? "worktree was not created")
     }
+}
+
+/// `projects.add --host`: the sidebar warning's reasons (`HostInfo.needsAttention`) as fixed English lines.
+func remoteAddWarnings(_ info: HostInfo) -> [String] {
+    guard let r = info.report else { return [] }
+    let install = "; open Hangar → Server to install"
+    var out = r.missingRequired.map { "\($0.rawValue) missing on server" + install }
+    if r.remoteOutdated(current: hangarRemoteVersion) { out.append("hangar-remote missing or outdated on server" + install) }
+    if r.socketClient == nil { out.append("no socket client (python3, socat or nc) on server, agent statuses unavailable" + install) }
+    if !info.forwarding { out.append("socket forwarding refused by server, agent statuses unavailable") }
+    return out
 }
 
 /// English counterpart of `NewTaskModel`'s branch problems (empty, already exists, else invalid).

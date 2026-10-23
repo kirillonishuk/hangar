@@ -144,8 +144,9 @@ import Workspace
         app.perform { $0.setDrawerHeight(taskId: id, Double(clamped)) }
     }
 
-    /// The shell of the selected task, if its surface exists.
-    var currentSurface: NSView? { task.flatMap { leafViews[$0.id] }?.surface }
+    /// Focus target of the selected task's shell: its surface, or the leaf itself while it has none
+    /// (folder missing, host down), so ⌘W still sees the drawer focused and never closes the tab.
+    var currentSurface: NSView? { task.flatMap { leafViews[$0.id] }.map { $0.surface ?? $0 } }
 
     /// Leaf view holding keyboard focus (for ↩ relaunch and the focus return).
     var focusedLeaf: LeafView? {
@@ -186,8 +187,17 @@ import Workspace
         window?.invalidateCursorRects(for: self)
     }
 
+    /// CLI/MCP on a drawer shell not shown since launch: start it hidden (rendering paused), like a tab's leaves.
+    func startHidden(leafId: UUID) {
+        guard let task = app.state.tasks.first(where: { !$0.archived && $0.drawer.leaf?.id == leafId }),
+              let leaf = task.drawer.leaf, leafViews[task.id] == nil else { return }
+        makeLeafView(taskId: task.id, leaf: leaf)
+        sync()
+    }
+
     private func makeLeafView(taskId: UUID, leaf: Leaf) {
         let view = LeafView(leafId: leaf.id)
+        app.wireHost(view)
         leafViews[taskId] = view
         addSubview(view, positioned: .below, relativeTo: bar)  // in the window before the surface exists
         view.onExit = { [weak self] code in
@@ -202,8 +212,8 @@ import Workspace
         view.onFocus = { [weak self] in self?.app.signal(.focused, leaf: leaf.id) }
         view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
         view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
-        view.onRelaunch = { [weak self] in
-            self?.app.signal(.relaunched, leaf: leaf.id)
+        view.onRelaunch = { [weak self] keepsStatus in
+            if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
             self?.sync()
         }
@@ -218,10 +228,14 @@ import Workspace
         bar.frame = NSRect(x: 0, y: 0, width: bounds.width, height: barH)
         topLine.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
         handle.frame = NSRect(x: 0, y: 0, width: bounds.width, height: Theme.drawerGrabHeight)
-        let body = NSRect(x: 0, y: barH, width: bounds.width, height: max(0, bounds.height - barH))
+        // Collapsed: a shell started hidden by CLI/MCP keeps the panel's size, not 0 rows.
+        let body = NSRect(x: 0, y: barH, width: bounds.width, height: bounds.height > barH ? bounds.height - barH : panelHeight)
         for view in leafViews.values { view.frame = body }
         window?.invalidateCursorRects(for: self)
     }
+
+    /// For `hostConnected`.
+    var leaves: [LeafView] { Array(leafViews.values) }
 
     /// Display wake: one retry for shells whose surface failed (same as tab leaves).
     func retryFailedLeaves() {

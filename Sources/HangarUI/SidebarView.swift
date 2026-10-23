@@ -50,7 +50,7 @@ struct SidebarView: View {
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         pinnedSection
-                        // SSH HOSTS section slot: stage 6.
+                        hostsSection
                         projectsSection
                         archivedSection
                     }
@@ -96,6 +96,55 @@ struct SidebarView: View {
             SectionHeader(title: L10n.sectionPinned, collapsed: collapsed)
             ForEach(pinned) { task in taskRow(task, projectName: app.project(task.projectId)?.name, indent: false) }
         }
+    }
+
+    // MARK: SSH hosts
+
+    /// Hidden without remote projects. A row: server icon, host, state `text3`; a waiting dot when the server needs attention.
+    @ViewBuilder private var hostsSection: some View {
+        let hosts = app.sshHosts
+        if !hosts.isEmpty {
+            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed)
+            ForEach(hosts, id: \.self) { host in hostRow(host) }
+        }
+    }
+
+    private func hostRow(_ host: String) -> some View {
+        let info = app.remote.hosts[host]
+        let items = hostMenuItems(host, app: app, ctx: ctx)
+        return HoverRow(action: { popUpMenu(items) }) { hover in
+            GutterRow(collapsed: collapsed) {
+                IconView(icon: .sshHost, size: Theme.hostIconSize)
+                    .overlay(alignment: .topTrailing) {
+                        // The same corner dot as a rail monogram's: visible in both modes, nothing moves.
+                        Circle().fill(Theme.ui.waiting)
+                            .frame(width: Theme.railDot, height: Theme.railDot)
+                            .background(Circle().fill(Theme.ui.sidebar).padding(-Theme.railDotBorder))
+                            .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+                            .opacity(info?.needsAttention == true ? 1 : 0)
+                    }
+            } expanded: {
+                HStack(spacing: Theme.railInset * 1.5) {
+                    Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                        .font(.system(size: Theme.fontSize.base))
+                        .foregroundStyle(Theme.ui.textRow)
+                    Spacer(minLength: 0)
+                    Text(hostStatusLabel(info)).lineLimit(1)
+                        .font(.system(size: Theme.fontSize.counter))
+                        .foregroundStyle(Theme.ui.text3)
+                    MenuButton(items: items).opacity(hover ? 1 : 0)
+                }
+            } rail: { EmptyView() }
+        }
+        .help(hostHelp(host, info))
+        .contextMenu { MenuItemsView(items: items) }
+    }
+
+    /// Why the host is not connected (or that its server needs attention).
+    private func hostHelp(_ host: String, _ info: HostInfo?) -> String {
+        if info?.needsAttention == true { return L10n.serverTitle(host) + " · " + L10n.checkServer }
+        guard let info, info.state != .connected else { return host }
+        return host + " · " + hostFailure(host, info).text
     }
 
     // MARK: Projects
@@ -183,7 +232,8 @@ struct SidebarView: View {
     }
 
     private func projectRow(_ project: Project) -> some View {
-        let exists = folderExists(project.path)
+        // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
+        let exists = app.isAvailable(project)
         let target = ActionTarget.project(project.id)
         let handlers = dragHandlers(target)
         return HoverRow(action: {
@@ -205,6 +255,17 @@ struct SidebarView: View {
                     }
                     .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
                     .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
+                    // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
+                    if let host = project.host, app.renaming != target {
+                        HStack(spacing: Theme.railInset) {
+                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                            Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                                .font(.system(size: Theme.fontSize.counter))
+                                .foregroundStyle(Theme.ui.text3)
+                        }
+                        .padding(.leading, Theme.railInset * 1.5)
+                        .layoutPriority(-1)
+                    }
                     Spacer(minLength: Theme.statusDot)
                     MoreMenu(target: target, ctx: ctx).opacity(hover ? 1 : 0)
                     if exists {
@@ -214,7 +275,7 @@ struct SidebarView: View {
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                         .opacity(hover ? 1 : 0)
                         .help(L10n.newTaskIn(project.name))
-                    } else {
+                    } else if project.host == nil {
                         Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
                     }
                 }
@@ -233,7 +294,8 @@ struct SidebarView: View {
             .opacity(exists ? 1 : Theme.inactiveOpacity)
             .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
         }
-        .help(collapsed ? project.name : (exists ? project.path : L10n.folderMissing(project.path)))
+        .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
+              ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
     }
 
@@ -244,6 +306,8 @@ struct SidebarView: View {
         let selected = task.id == app.state.selectedTaskId
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
+        // As a project whose folder is missing: the host was given up on.
+        let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         // Pinned rows mix projects, so only rows inside a project group reorder.
         let handlers = indent ? dragHandlers(target) : nil
         return HoverRow(selected: selected, action: {
@@ -290,6 +354,7 @@ struct SidebarView: View {
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
             .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+            .opacity(offline ? Theme.inactiveOpacity : 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
@@ -348,6 +413,8 @@ struct SidebarView: View {
             if !app.limitRows.isEmpty {
                 if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
             }
+            // The Settings row's ☕ is clipped in the rail: there it gets its own row above, Settings/Collapse stay put.
+            if collapsed { KeepAwakeButton(app: app, rail: true) }
             HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
                     IconView(icon: .settings)
@@ -357,7 +424,8 @@ struct SidebarView: View {
                         Spacer(minLength: 0)
                         KeepAwakeButton(app: app)
                         Menu {
-                            Button(L10n.addProjectEllipsis, action: ctx.addProject)
+                            Button(L10n.addLocalProject, action: ctx.addLocalProject)
+                            Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
                         } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
                             .menuStyle(.borderlessButton)
                             .menuIndicator(.hidden)
@@ -391,25 +459,34 @@ struct SidebarView: View {
     }
 }
 
-/// ☕ in the Settings row: accent while the sleep assertion is held; click toggles `keep_awake`.
+/// ☕ in the Settings row, or its own row in the rail: accent while the sleep assertion is held; click toggles `keep_awake`.
 private struct KeepAwakeButton: View {
     let app: AppState
+    var rail = false
 
     var body: some View {
         let keep = app.keepAwake
-        Button {
-            let on = !app.config.keepAwake
-            do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
-        } label: {
-            IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
-                .frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight)
-                .contentShape(Rectangle())
+        let icon = IconView(icon: .keepAwake, tint: keep.held ? Theme.ui.accent : Theme.ui.text3)
+        Group {
+            if rail {
+                HoverRow(action: toggle) { _ in
+                    GutterRow(collapsed: true, height: Theme.footerRowHeight) { icon } expanded: { EmptyView() } rail: { EmptyView() }
+                }
+            } else {
+                Button(action: toggle) {
+                    icon.frame(width: Theme.footerRowHeight, height: Theme.footerRowHeight).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+            }
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .help(!app.config.keepAwake ? L10n.keepAwakeOffHelp
-              : !keep.held ? L10n.keepAwakeIdleHelp
-              : keep.working > 0 ? L10n.keepAwakeActiveHelp(keep.working) : L10n.keepAwakeGraceHelp)
+        .help(L10n.keepAwakeHelp(enabled: app.config.keepAwake, held: keep.held, working: keep.working))
+        .accessibilityLabel(L10n.keepAwakeTitle)
+    }
+
+    private func toggle() {
+        let on = !app.config.keepAwake
+        do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
     }
 }
 

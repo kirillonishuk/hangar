@@ -179,7 +179,7 @@ import Exec
         let dir = NSTemporaryDirectory() + "hangar-git-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: dir) }
-        #expect(await Git(repo: dir).isRepository() == false)
+        #expect(try await Git(repo: dir).isRepository() == false)
     }
 
     @Test func gitErrorDescriptionIsStderr() {
@@ -211,5 +211,30 @@ import Exec
         #expect(!FileManager.default.fileExists(atPath: t.repo + "/-wt"))
         do { try await g.removeWorktree(path: "-nope", force: false); Issue.record("expected GitError") }
         catch let e as GitError { #expect(e.stderr.contains("is not a working tree")) }
+    }
+    @Test func gitOverSSH() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let ssh = try FakeSSH.make(dir: t.root + "/fake")
+        let remote = Git(repo: t.repo, runner: .ssh(host: "dev", controlPath: t.root + "/cm", sshPath: ssh.path))
+        let local = Git(repo: t.repo)
+        try "x".write(toFile: t.repo + "/new it's.txt", atomically: true, encoding: .utf8)
+        #expect(try await remote.currentBranch() == "main")
+        #expect(try await remote.currentBranch() == local.currentBranch())
+        #expect(try await remote.status() == local.status())
+        #expect(await remote.lastFetch() == nil)
+        try await local.fetch(remote: "origin")
+        try "x".write(toFile: t.repo + "/.git/FETCH_HEAD", atomically: true, encoding: .utf8)
+        let mtime = try #require(FileManager.default.attributesOfItem(atPath: t.repo + "/.git/FETCH_HEAD")[.modificationDate] as? Date)
+        let got = try #require(await remote.lastFetch())
+        #expect(abs(got.timeIntervalSince(mtime)) <= 1)
+        #expect(FakeSSH.calls(ssh.log).count >= 4)
+    }
+
+    @Test func lastFetchLocalUsesRunner() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let g = Git(repo: t.repo)
+        #expect(await g.lastFetch() == nil)
+        try "".write(toFile: t.repo + "/.git/FETCH_HEAD", atomically: true, encoding: .utf8)
+        #expect(await g.lastFetch() == nil)
     }
 }

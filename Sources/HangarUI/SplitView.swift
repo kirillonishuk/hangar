@@ -82,8 +82,23 @@ final class RatioSplitView: HangarSplitView {
     private(set) var exitCode: Int32?
     /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
     private(set) var failed = false
-    var needsRelaunch: Bool { exitCode != nil || failed }
-    var onRelaunch: (() -> Void)?
+    /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
+    private var missingFolder: LaunchContext?
+    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil }
+    /// A new surface replaced the old one; `keepsStatus`: the same agent goes on (reattach, a launch that never ran).
+    var onRelaunch: ((_ keepsStatus: Bool) -> Void)?
+    /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (#47).
+    var host: String?
+    /// The client of a remote session exited with 255 (connection lost, detach); ↩ or the reconnect reattaches.
+    private(set) var isDetached = false
+    /// The launch that met `.notConnected`, made again by `resumeIfWaiting` once the host is up.
+    private var waiting: LaunchContext?
+    var isWaitingForHost: Bool { waiting != nil }
+    /// Set with `host`: the bar text when the host is not on its way (given up, disconnected, retry paused) — then the
+    /// waiting bar offers «Переподключиться»; nil while it is connecting.
+    var reconnectText: () -> String? = { nil }
+    var onReconnect: (() -> Void)?
+    var canReconnect: Bool { waiting != nil && reconnectText() != nil }
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
@@ -118,6 +133,9 @@ final class RatioSplitView: HangarSplitView {
 
     func setHeader(_ text: String) { header.stringValue = text }
 
+    /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
+    override var acceptsFirstResponder: Bool { surface == nil }
+
     /// Starts the surface; a launch error (missing folder) shows in the bar instead.
     func start(_ context: LaunchContext, make: @escaping (LaunchContext) throws -> (LaunchSpec, LaunchMode)) {
         self.make = make
@@ -128,13 +146,21 @@ final class RatioSplitView: HangarSplitView {
     private func run(_ context: LaunchContext) -> Bool {
         guard let make else { return false }
         do {
+            waiting = nil
+            missingFolder = nil
             let (spec, mode) = try make(context)
             self.mode = mode
             setBar(nil)
             launch(spec)
             return true
         } catch LaunchError.missingCwd(let path) {
-            setBar(L10n.folderMissing(path))
+            missingFolder = context
+            setBar("\(L10n.folderMissing(path)) · \(L10n.relaunchHint)")
+        } catch LaunchError.notConnected(let host) {
+            waiting = context
+            // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
+            barText = { [weak self] in self?.reconnectText() ?? L10n.hostNotConnected(host) }
+            refreshText()
         } catch {
             setBar(L10n.launchFailed(String(describing: error)))
         }
@@ -163,9 +189,15 @@ final class RatioSplitView: HangarSplitView {
         }
     }
 
-    private func childExited(_ code: Int32) {
+    func childExited(_ code: Int32) {
         if code == 0 { onExit?(0); return }
         exitCode = code
+        if host != nil, code == 255 {
+            // Not an exit of the agent: no `.exited`, the leaf and its status stay.
+            isDetached = true
+            setBar(L10n.sessionDetached)
+            return
+        }
         setBar("\(code == -1 ? L10n.exited : L10n.exitedWithCode(code)) · \(L10n.relaunchHint)")
         onExit?(code)
     }
@@ -173,11 +205,20 @@ final class RatioSplitView: HangarSplitView {
     /// ↩ on an exited or failed leaf: launch again with a mode computed for this relaunch (decision #41;
     /// `focus: false` for background retries).
     func relaunch(focus: Bool = true) {
-        guard needsRelaunch, let mode else { return }
-        let code = failed ? nil : exitCode
+        guard needsRelaunch else { return }
+        let context: LaunchContext
+        if let missingFolder {
+            context = missingFolder
+        } else {
+            guard let mode else { return }
+            context = isDetached ? .reattach(previous: mode) : .relaunch(previous: mode, exitCode: failed ? nil : exitCode)
+        }
+        // Only a relaunch after a run resets the status; a reattach or a launch that never ran keeps it.
+        let keepsStatus: Bool = if case .relaunch = context { false } else { true }
         exitCode = nil
         failed = false
-        guard run(.relaunch(previous: mode, exitCode: code)) else {
+        isDetached = false
+        guard run(context) else {
             // No new process (missing folder): drop the dead surface so CLI/MCP never paste into it (`failed`).
             surface?.onChildExit = nil
             surface?.removeFromSuperview()
@@ -186,7 +227,14 @@ final class RatioSplitView: HangarSplitView {
         }
         uiLog.info("relaunch leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if focus, !failed { window?.makeFirstResponder(surface) }
-        onRelaunch?()
+        onRelaunch?(keepsStatus)
+    }
+
+    /// The host connected: the launch that waited for it runs now (with its own context: a first prompt is still sent).
+    func resumeIfWaiting() {
+        guard let context = waiting, run(context) else { return }
+        uiLog.info("resumed leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
+        onRelaunch?(true)
     }
 
     /// For CLI/MCP (decision #45); the view starts its surface on creation, so no surface means the launch could not happen.
@@ -228,7 +276,7 @@ final class RatioSplitView: HangarSplitView {
         }
         uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
         if !failed { window?.makeFirstResponder(surface) }
-        onRelaunch?()
+        onRelaunch?(false)
     }
 
     /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
@@ -258,16 +306,27 @@ final class RatioSplitView: HangarSplitView {
         window?.invalidateCursorRects(for: self)
     }
 
-    /// The ↩ bar of an exited/failed leaf is clickable (relaunch).
+    #if DEBUG
+    var barString: String? { bar.isHidden ? nil : bar.stringValue }
+    #endif
+
+    /// ↩ or a click on the bar: relaunch an exited/failed leaf, or reconnect the host a waiting one gave up on.
+    func activateBar() {
+        if canReconnect { onReconnect?() } else { relaunch() }
+    }
+
+    /// The ↩ bar of an exited/failed leaf (or of one whose host gave up) is clickable.
     override func resetCursorRects() {
-        if !bar.isHidden, needsRelaunch { addCursorRect(bar.frame.union(barLine.frame), cursor: .pointingHand) }
+        if !bar.isHidden, needsRelaunch || canReconnect { addCursorRect(bar.frame.union(barLine.frame), cursor: .pointingHand) }
     }
 
     override var isFlipped: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        if !bar.isHidden, needsRelaunch, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
-            relaunch()
+        if !bar.isHidden, needsRelaunch || canReconnect, bar.frame.contains(convert(event.locationInWindow, from: nil)) {
+            activateBar()
+        } else if surface == nil {
+            window?.makeFirstResponder(self)
         } else {
             super.mouseDown(with: event)
         }
@@ -328,11 +387,19 @@ final class RatioSplitView: HangarSplitView {
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
         app.onOpenInEditor = { [weak self] path, line in self?.openInEditor(path: path, line: line) }
+        app.onHostConnected = { [weak self] host in
+            guard let self else { return }
+            hostConnected(host: host, leaves: Array(leafViews.values) + drawer.leaves)
+        }
+        app.onHostChange = { [weak self] host in
+            guard let self else { return }
+            for view in Array(leafViews.values) + drawer.leaves where view.host == host { view.refreshText() }
+        }
         app.terminals = TerminalAccess(
-            start: { [weak self] in self?.startHidden(tabId: $0) },
-            state: { [weak self] in self?.leafViews[$0]?.controlState ?? .notStarted },
-            send: { [weak self] in self?.leafViews[$0]?.send(text: $1, keys: $2) },
-            read: { [weak self] in self?.leafViews[$0]?.surface?.screenText() })
+            start: { [weak self] in self?.startHidden(tabId: $0); self?.drawer.startHidden(leafId: $0) },
+            state: { [weak self] in self?.controlLeaf($0)?.controlState ?? .notStarted },
+            send: { [weak self] in self?.controlLeaf($0)?.send(text: $1, keys: $2) },
+            read: { [weak self] in self?.controlLeaf($0)?.surface?.screenText() })
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
@@ -500,6 +567,7 @@ final class RatioSplitView: HangarSplitView {
         // Lazy: surfaces of a tab start the first time it is shown.
         for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
             let view = LeafView(leafId: leaf.id)
+            app.wireHost(view)
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
             view.onTitle = { [weak self] title in
@@ -516,8 +584,8 @@ final class RatioSplitView: HangarSplitView {
             }
             view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
             view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
-            view.onRelaunch = { [weak self] in
-                self?.app.signal(.relaunched, leaf: leaf.id)
+            view.onRelaunch = { [weak self] keepsStatus in
+                if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
                 self?.sync()
             }
@@ -532,6 +600,11 @@ final class RatioSplitView: HangarSplitView {
         guard let tab = app.state.tasks.filter({ !$0.archived }).flatMap(\.tabs).first(where: { $0.id == tabId }) else { return }
         show(tab)
         sync()
+    }
+
+    /// A tab leaf or a task's drawer shell (CLI/MCP refs, decision #45).
+    private func controlLeaf(_ leafId: UUID) -> LeafView? {
+        leafViews[leafId] ?? drawer.leaves.first { $0.leafId == leafId }
     }
 
     private func leafExited(_ leafId: UUID, code: Int32) {
@@ -616,7 +689,9 @@ final class RatioSplitView: HangarSplitView {
             window?.makeFirstResponder(surface)
             surface.sendKey(.escape)
             // In one terminal read `Esc :` is Alt-: without the kitty protocol: the rest goes in a later read.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak surface] in
+            // Through tmux on a server, `escape-time` (up to 500 ms) would still merge them (#47).
+            let pause = app.remoteLeafHost(leaf) == nil ? 0.05 : 0.6
+            DispatchQueue.main.asyncAfter(deadline: .now() + pause) { [weak surface] in
                 guard let surface else { return }
                 for command in commands {
                     surface.sendKey(.colon)
@@ -629,8 +704,8 @@ final class RatioSplitView: HangarSplitView {
 
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {
-        guard let leaf = focusedLeaf, leaf.needsRelaunch else { return false }
-        leaf.relaunch()
+        guard let leaf = focusedLeaf, leaf.needsRelaunch || leaf.canReconnect else { return false }
+        leaf.activateBar()
         return true
     }
 
@@ -649,4 +724,11 @@ final class RatioSplitView: HangarSplitView {
         }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
     }
     #endif
+}
+
+/// A host connected (`remote.onConnected`): its leaves waiting for it launch, detached ones reattach.
+@MainActor func hostConnected(host: String, leaves: [LeafView]) {
+    for view in leaves where view.host == host {
+        if view.isDetached { view.relaunch(focus: false) } else { view.resumeIfWaiting() }
+    }
 }

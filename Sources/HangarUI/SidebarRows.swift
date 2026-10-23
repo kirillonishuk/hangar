@@ -1,3 +1,4 @@
+import AgentStatus
 import SwiftUI
 
 /// One sidebar row. The marker (dot/icon) sits at `Theme.gutterMarkerX` in both expanded and rail mode;
@@ -6,6 +7,8 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     let collapsed: Bool
     var height = Theme.railRowHeight
     var textX = Theme.gutterTextX
+    /// The rail content replaces the marker (task rows: one dot, on the monogram tile).
+    var railReplacesMarker = false
     @ViewBuilder var marker: Marker
     @ViewBuilder var expanded: Expanded
     @ViewBuilder var rail: Rail
@@ -15,8 +18,10 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
             marker
                 .frame(width: Theme.iconSize, height: Theme.iconSize)
                 .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2)
+                .opacity(railReplacesMarker && collapsed ? 0 : 1)
+            // Centred in the rail, like the project tile.
             rail
-                .padding(.leading, Theme.railTextX)
+                .frame(width: Theme.sidebarRailWidth)
                 .opacity(collapsed ? 1 : 0)
             expanded
                 .padding(.leading, textX)
@@ -28,7 +33,8 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     }
 }
 
-/// Section header (caps, `text3`, 11.5 semibold, tracked): fades out in rail mode but keeps its height so rows don't jump.
+/// Section header (caps, `text3`, 11.5 semibold, tracked). In the rail it becomes a short `line` separator 12 high;
+/// the height animates together with the sidebar width, so rows glide instead of jumping.
 struct SectionHeader: View {
     let title: String
     let collapsed: Bool
@@ -38,6 +44,7 @@ struct SectionHeader: View {
     var plus: (() -> Void)?
 
     var body: some View {
+        // No action → no hover fill; `hover` only reveals `+`.
         HoverRow { hover in
             HStack(spacing: 0) {
                 Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
@@ -53,12 +60,74 @@ struct SectionHeader: View {
             .foregroundStyle(Theme.ui.text3)
             .padding(.leading, Theme.sectionTextX)
             .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
-            .frame(height: Theme.projectRowHeight)
+            .frame(height: collapsed ? Theme.railHeaderHeight : Theme.projectRowHeight)
+            .clipped()
             .opacity(collapsed ? 0 : 1)
-            .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Theme.ui.line)
+                    .frame(width: Theme.railHeaderLine, height: Theme.railHeaderLineWidth)
+                    .padding(.leading, (Theme.sidebarRailWidth - Theme.railHeaderLine) / 2)
+                    .opacity(collapsed ? 1 : 0)
+            }
         }
         .allowsHitTesting(!collapsed)
-        .padding(.top, Theme.sectionGap)
+        .padding(.top, collapsed ? 0 : Theme.sectionGap)
+        .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
+    }
+}
+
+/// Fill, border and text of a rail monogram tile.
+struct RailTileStyle: Equatable {
+    let fill: Color
+    let border: Color
+    let text: Color
+
+    init(fill: Color, border: Color, text: Color) {
+        self.fill = fill
+        self.border = border
+        self.text = text
+    }
+
+    init(selected: Bool) {
+        self = selected
+            ? RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.selectionText)
+            : RailTileStyle(fill: Theme.ui.railTile, border: Theme.ui.railTileBorder, text: Theme.ui.textRow)
+    }
+}
+
+/// Rail task tile: 22×22 monogram centred in the rail, status dot in its top-right corner (icons-sidebar.html `.mono`).
+struct RailTile: View {
+    let text: String
+    let state: AgentState
+    let selected: Bool
+
+    var body: some View {
+        let style = RailTileStyle(selected: selected)
+        let shape = RoundedRectangle(cornerRadius: Theme.projectTileRadius)
+        Text(text)
+            .font(.system(size: Theme.fontSize.small, weight: .semibold))
+            .foregroundStyle(style.text)
+            .lineLimit(1)
+            .fixedSize()
+            .frame(width: Theme.railTileSize, height: Theme.railTileSize)
+            .background(shape.fill(style.fill))
+            .overlay(shape.strokeBorder(style.border, lineWidth: Theme.railTileBorderWidth))
+            .overlay(alignment: .topTrailing) {
+                StatusDot(state: state, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
+                    .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+            }
+            .animation(Motion.ease(Theme.selectionFade), value: selected)
+    }
+}
+
+/// Key hint at a row's end («⌘N», «⌘0», «⌘⇧N»): one size and color everywhere.
+struct ShortcutHint: View {
+    let text: String
+
+    var body: some View {
+        Text(verbatim: text)
+            .font(.system(size: Theme.fontSize.footer).monospacedDigit())
+            .foregroundStyle(Theme.ui.text3)
     }
 }
 
@@ -118,7 +187,7 @@ struct EmptyStateView: View {
                 .padding(.horizontal, Theme.buttonPaddingH)
             }
             .buttonStyle(FilledRowStyle())
-            Text("⌘⇧N").font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
+            ShortcutHint(text: "⌘⇧N")
         }
         .font(.system(size: Theme.fontSize.sidebarRow))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -185,15 +254,22 @@ struct MenuItemsView: View {
     }
 }
 
-/// Hover `…` with the same items.
-struct MenuButton: View {
-    let items: [MenuEntry]
+/// The `…` menu of sidebar rows and the Settings row: hover fill and pointing hand, like the `+` next to it.
+struct MoreButton<Items: View>: View {
+    @ViewBuilder var items: Items
+    @Environment(\.hoverPalette) private var palette
+    @State private var hover = false
 
     var body: some View {
-        Menu { MenuItemsView(items: items) } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
+        Menu { items } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+            .padding(Theme.railInset)
+            .background(RoundedRectangle(cornerRadius: Theme.railItemRadius)
+                .fill(palette.fill(selected: false, pressed: false, hover: hover, interactive: true)))
+            .contentShape(Rectangle())
+            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
             .pointingHand()
             .help(L10n.more)
     }

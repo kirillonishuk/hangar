@@ -11,7 +11,7 @@ struct TitleBarView: View {
     var body: some View {
         ZStack {
             if let task = app.selectedTask {
-                HStack(spacing: Theme.railInset * 1.5) {
+                HStack(spacing: Theme.inlineGap) {
                     Text(app.project(task.projectId)?.name ?? "").foregroundStyle(Theme.ui.text2)
                     Text("·").foregroundStyle(Theme.ui.text3)
                     Text(task.name).foregroundStyle(Theme.ui.textStrong)
@@ -48,7 +48,6 @@ struct TitleBarView: View {
 struct TabBarView: View {
     let app: AppState
     var ctx: ActionContext
-    @State private var plusHover = false
     /// Widths of the task's tabs (measured), for the drop index.
     @State private var widths: [UUID: CGFloat] = [:]
     @State private var drag: (tab: UUID, dx: CGFloat)?
@@ -111,24 +110,13 @@ struct TabBarView: View {
     }
 
     private var addMenu: some View {
-        Menu {
+        MoreButton(icon: .newTask, radius: Theme.tabRadius, padding: Theme.tabPaddingV, help: L10n.newTabHelp) {
             item("Claude", .claude)
             item("Codex", .codex)
             item("Helix", .editor)
             item("Shell", .shell)
-        } label: {
-            Image(nsImage: Icon.newTask.image).renderingMode(.template)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .padding(.vertical, Theme.tabPaddingV)
-        .padding(.horizontal, Theme.tabPaddingV)
-        .background(RoundedRectangle(cornerRadius: Theme.tabRadius).fill(plusHover ? Theme.ui.hover : .clear))
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { plusHover = h } }
         .padding(.bottom, Theme.railInset)
-        .help(L10n.newTabHelp)
     }
 
     private func item(_ title: String, _ kind: LeafKind) -> some View {
@@ -163,16 +151,14 @@ private struct TabCloseButton: View {
         Button(action: action) {
             IconView(icon: .close, active: active || hover, size: Theme.smallIconSize)
                 .padding(Theme.tabCloseInset)
-                .background(RoundedRectangle(cornerRadius: Theme.tabCloseRadius).fill(hover ? Theme.ui.hoverStrong : .clear))
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .pointingHand()
+        .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
+        .environment(\.hoverPalette, .strong)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .opacity(hover ? 1 : tabHover ? Theme.closeOpacity : 0)
         // The hover box grows into the tab's padding, so the tab keeps its size.
         .padding(.vertical, -Theme.tabCloseInset)
-        .padding(.leading, Theme.statusDot - Theme.tabCloseInset)
+        .padding(.leading, Theme.rowEndGap - Theme.tabCloseInset)
         .padding(.trailing, -Theme.tabCloseInset)
         .help(help)
     }
@@ -201,7 +187,7 @@ struct TabItem: View {
         HStack(spacing: 0) {
             let dot = app.displayState(of: tab)
             if app.showsDot(tab, state: dot) {
-                StatusDot(state: dot).padding(.trailing, Theme.statusDot)
+                StatusDot(state: dot).padding(.trailing, Theme.rowEndGap)
             }
             if let kind = tab.root.leaves.first?.kind {
                 IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)

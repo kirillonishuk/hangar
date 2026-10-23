@@ -314,7 +314,7 @@ private struct ChangeRow: View {
         let name = (file.path as NSString).lastPathComponent
         let dir = (file.path as NSString).deletingLastPathComponent
         HoverRow(selected: selected, action: action) { _ in
-            HStack(spacing: Theme.railInset * 1.5) {
+            HStack(spacing: Theme.inlineGap) {
                 Text(name)
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)

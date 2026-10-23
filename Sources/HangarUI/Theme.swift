@@ -271,8 +271,6 @@ public enum Theme {
     public static let cardRowPaddingV: CGFloat = 9
     public static let cardRowPaddingH: CGFloat = 12
     public static let cardRowGap: CGFloat = 10
-    /// Settings labels are longer than the new-task ones (e.g. "Terminal background").
-    public static let settingsLabelWidth: CGFloat = 150
     public static let segmentRadius: CGFloat = 7
     public static let segmentPadding: CGFloat = 2
     public static let segmentItemRadius: CGFloat = 5

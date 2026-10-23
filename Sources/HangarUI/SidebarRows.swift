@@ -254,23 +254,30 @@ struct MenuItemsView: View {
     }
 }
 
-/// The `…` menu of sidebar rows and the Settings row: hover fill and pointing hand, like the `+` next to it.
+/// The `…` menu of sidebar rows and the Settings row (also the tab bar `+` and the host ▾): hover fill and pointing hand.
+/// `size` fixes a square hit box; otherwise `padding` surrounds the icon.
 struct MoreButton<Items: View>: View {
+    var icon: Icon = .more
+    var radius = Theme.railItemRadius
+    var padding = Theme.railInset
+    var size: CGFloat?
+    var help = L10n.more
     @ViewBuilder var items: Items
     @Environment(\.hoverPalette) private var palette
     @State private var hover = false
 
     var body: some View {
-        Menu { items } label: { Image(nsImage: Icon.more.image).renderingMode(.template) }
+        Menu { items } label: { Image(nsImage: icon.image).renderingMode(.template) }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .padding(Theme.railInset)
-            .background(RoundedRectangle(cornerRadius: Theme.railItemRadius)
+            .frame(width: size, height: size)
+            .padding(size == nil ? padding : 0)
+            .background(RoundedRectangle(cornerRadius: radius)
                 .fill(palette.fill(selected: false, pressed: false, hover: hover, interactive: true)))
             .contentShape(Rectangle())
             .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
             .pointingHand()
-            .help(L10n.more)
+            .help(help)
     }
 }

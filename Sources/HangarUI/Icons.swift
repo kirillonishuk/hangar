@@ -67,7 +67,8 @@ enum Icon {
         }
     }
 
-    var isBrand: Bool { brand != nil }
+    /// Only when the logo loaded: the SF Symbol fallback (no bundle) stays a template, or it draws black.
+    var isBrand: Bool { brand.map { Self.logo($0.file) != nil } ?? false }
 
     /// SF Symbols are template images (tinted by the caller); brand logos come pre-tinted.
     var image: NSImage {
@@ -156,7 +157,29 @@ struct StatusDot: View {
     }
 }
 
-/// Rows, tabs and small buttons: hover (white 5%, 120 ms fade), pressed slightly darker, selection fades in 150 ms.
+/// Hover/pressed fills for the surface a control sits on: `standard` on `bg`, `sidebar` on `sidebar`/`sheet`
+/// (there `hover` would be darker than the background).
+struct HoverPalette: Sendable {
+    let hover: Color
+    let pressed: Color
+
+    static let standard = HoverPalette(hover: Theme.ui.hover, pressed: Theme.ui.pressed)
+    static let sidebar = HoverPalette(hover: Theme.ui.sidebarHover, pressed: Theme.ui.sidebarPressed)
+
+    /// Rows without an action (section headers, …) get no hover/press fill.
+    func fill(selected: Bool, pressed: Bool, hover: Bool, interactive: Bool) -> Color {
+        if selected { return Theme.ui.selection }
+        guard interactive else { return .clear }
+        if pressed { return self.pressed }
+        return hover ? self.hover : .clear
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var hoverPalette = HoverPalette.standard
+}
+
+/// Rows, tabs and small buttons: hover (lighter, 120 ms fade), pressed slightly darker, selection fades in 150 ms.
 struct HoverButtonStyle: ButtonStyle {
     var selected = false
     var radius: CGFloat = 0
@@ -170,27 +193,23 @@ struct HoverButtonStyle: ButtonStyle {
         let pressed: Bool
         let selected: Bool
         let radius: CGFloat
+        @Environment(\.hoverPalette) private var palette
         @State private var hover = false
 
         var body: some View {
             label
                 .contentShape(Rectangle())
-                .background(RoundedRectangle(cornerRadius: radius).fill(fill))
+                .background(RoundedRectangle(cornerRadius: radius)
+                    .fill(palette.fill(selected: selected, pressed: pressed, hover: hover, interactive: true)))
                 .pointingHand()
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
                 .animation(Motion.ease(Theme.selectionFade), value: selected)
         }
-
-        private var fill: Color {
-            if selected { return Theme.ui.selection }
-            if pressed { return Theme.ui.pressed }
-            return hover ? Theme.ui.hover : .clear
-        }
     }
 }
 
-/// Row container with hover (white 5%, 120 ms) and pressed (darker) backgrounds; hands `hover` to the content
-/// so rows can reveal `+`/pin on hover. Tap fires on mouse up inside.
+/// Row container with hover (lighter, 120 ms) and pressed (darker) backgrounds — only when it has an action;
+/// hands `hover` to the content so rows can reveal `+`/pin on hover. Tap fires on mouse up inside.
 struct HoverRow<Content: View>: View {
     var selected = false
     var action: (() -> Void)?
@@ -200,16 +219,19 @@ struct HoverRow<Content: View>: View {
     var onDrag: ((CGFloat) -> Void)?
     var onDragEnd: ((CGFloat) -> Void)?
     @ViewBuilder var content: (_ hover: Bool) -> Content
+    @Environment(\.hoverPalette) private var palette
     @State private var hover = false
     @State private var pressed = false
     @State private var dragging = false
+
+    private var interactive: Bool { action != nil || doubleAction != nil }
 
     var body: some View {
         content(hover)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(fill)
-            .pointingHand(action != nil || doubleAction != nil)
+            .background(palette.fill(selected: selected, pressed: pressed, hover: hover, interactive: interactive))
+            .pointingHand(interactive)
             .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
             // Global space: the dragged row is offset while dragging, local translations would feed back.
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
@@ -231,12 +253,6 @@ struct HoverRow<Content: View>: View {
                     }
                 })
             .animation(Motion.ease(Theme.selectionFade), value: selected)
-    }
-
-    private var fill: Color {
-        if selected { return Theme.ui.selection }
-        if pressed { return Theme.ui.pressed }
-        return hover ? Theme.ui.hover : .clear
     }
 }
 

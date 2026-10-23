@@ -254,42 +254,49 @@ struct SidebarView: View {
                         onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
-                    IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
-                        .frame(width: Theme.smallIconSize)
-                        .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
-                    Group {
-                        if app.renaming == target {
-                            RenameField(app: app, target: target)
-                        } else {
-                            Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
+                    HStack(spacing: 0) {
+                        IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
+                            .frame(width: Theme.smallIconSize)
+                            .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
+                        Group {
+                            if app.renaming == target {
+                                RenameField(app: app, target: target)
+                            } else {
+                                Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
+                            }
+                        }
+                        .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
+                        .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
+                        // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
+                        if let host = project.host, app.renaming != target {
+                            HStack(spacing: Theme.railInset) {
+                                IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                                Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                                    .font(.system(size: Theme.fontSize.counter))
+                                    .foregroundStyle(Theme.ui.text3)
+                            }
+                            .padding(.leading, Theme.inlineGap)
+                            .layoutPriority(-1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    // As on task rows: overlaid on hover, so the name keeps the full width.
+                    .overlay(alignment: .trailing) {
+                        RowActions(shown: hover && app.renaming != target,
+                                   background: HoverPalette.sidebar.background(selected: false, hover: hover, base: Theme.ui.sidebar)) {
+                            MoreButton { ActionMenuItems(target: target, ctx: ctx) }
+                            if exists {
+                                Button { ctx.newTask(project.id) } label: {
+                                    IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
+                                }
+                                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                                .help(L10n.newTaskIn(project.name))
+                            }
                         }
                     }
-                    .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
-                    .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
-                    // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
-                    if let host = project.host, app.renaming != target {
-                        HStack(spacing: Theme.railInset) {
-                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
-                            Text(verbatim: host).lineLimit(1).truncationMode(.middle)
-                                .font(.system(size: Theme.fontSize.counter))
-                                .foregroundStyle(Theme.ui.text3)
-                        }
-                        .padding(.leading, Theme.inlineGap)
-                        .layoutPriority(-1)
-                    }
-                    Spacer(minLength: Theme.rowEndGap)
-                    MoreButton { ActionMenuItems(target: target, ctx: ctx) }
-                        .opacity(hover ? 1 : 0)
-                        .allowsHitTesting(hover)
-                    if exists {
-                        Button { ctx.newTask(project.id) } label: {
-                            IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
-                        }
-                        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                        .opacity(hover ? 1 : 0)
-                        .help(L10n.newTaskIn(project.name))
-                    } else if project.host == nil {
+                    if !exists, project.host == nil {
                         Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                            .padding(.leading, Theme.rowEndGap)
                     }
                 }
                 .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
@@ -367,24 +374,15 @@ struct SidebarView: View {
         let showMenu = hover || selected
         // Not over the inline rename field.
         let shown = (showMenu || task.pinned) && app.renaming != target
-        let bg = HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)
-        return HStack(spacing: 0) {
-            LinearGradient(colors: [bg.opacity(0), bg], startPoint: .leading, endPoint: .trailing)
-                .frame(width: Theme.rowActionsFade)
-                .allowsHitTesting(false)
-            HStack(spacing: Theme.inlineGap) {
-                if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
-                Button { app.setPinned(task.id, !task.pinned) } label: {
-                    IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
-                        .padding(Theme.railInset)
-                }
-                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                .help(task.pinned ? L10n.unpin : L10n.pin)
+        return RowActions(shown: shown, background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
+            if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
+            Button { app.setPinned(task.id, !task.pinned) } label: {
+                IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
+                    .padding(Theme.railInset)
             }
-            .background(bg)
+            .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+            .help(task.pinned ? L10n.unpin : L10n.pin)
         }
-        .opacity(shown ? 1 : 0)
-        .allowsHitTesting(shown)
     }
 
     // MARK: Archived
@@ -505,6 +503,25 @@ private struct KeepAwakeRow: View {
     private func toggle() {
         let on = !app.config.keepAwake
         do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
+    }
+}
+
+/// Hover actions overlaid on a row's trailing edge: a short fade in the row's background, then the buttons on it.
+private struct RowActions<Content: View>: View {
+    let shown: Bool
+    let background: Color
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(spacing: 0) {
+            LinearGradient(colors: [background.opacity(0), background], startPoint: .leading, endPoint: .trailing)
+                .frame(width: Theme.rowActionsFade)
+                .allowsHitTesting(false)
+            HStack(spacing: Theme.inlineGap) { content }
+                .background(background)
+        }
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
     }
 }
 

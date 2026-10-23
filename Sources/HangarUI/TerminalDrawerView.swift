@@ -4,8 +4,43 @@ import Exec
 import GhosttyBridge
 import Workspace
 
+/// Background of a clickable AppKit bar (TERMINAL, ↩ relaunch): `lit` while the pointer is over it, 120 ms fade.
+@MainActor final class HoverFill: NSView {
+    private let lit: NSColor
+    private var inside = false
+    /// Off: stays clear (the bar is not clickable right now).
+    var enabled = true { didSet { if enabled != oldValue { apply(animated: false) } } }
+
+    init(lit: NSColor) {
+        self.lit = lit
+        super.init(frame: .zero)
+        wantsLayer = true
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self))
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }  // clicks belong to the bar
+    override func mouseEntered(with event: NSEvent) { inside = true; apply(animated: true) }
+    override func mouseExited(with event: NSEvent) { inside = false; apply(animated: true) }
+
+    private func apply(animated: Bool) {
+        guard let layer else { return }
+        let color = (inside && enabled ? lit : .clear).cgColor
+        if animated, !Motion.reduced {
+            let fade = CABasicAnimation(keyPath: "backgroundColor")
+            fade.fromValue = layer.presentation()?.backgroundColor ?? layer.backgroundColor
+            fade.toValue = color
+            fade.duration = Theme.hoverFade
+            layer.add(fade, forKey: "hover")
+        }
+        layer.backgroundColor = color
+    }
+}
+
 /// The drawer's top bar: terminal icon, "TERMINAL", chevron. The whole bar is clickable.
 @MainActor final class DrawerBarView: NSView {
+    private let fill = HoverFill(lit: Theme.hoverStrong)
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
     private let chevron = NSImageView()
@@ -19,10 +54,10 @@ import Workspace
         layer?.backgroundColor = Theme.bottomBar.cgColor
         icon.image = Icon.shell.image
         icon.contentTintColor = Theme.text2
-        label.font = .systemFont(ofSize: Theme.fontSize.small, weight: .semibold)
+        label.font = .systemFont(ofSize: Theme.fontSize.counter, weight: .semibold)
         label.textColor = Theme.text2
         chevron.contentTintColor = Theme.text3
-        [icon, label, chevron].forEach(addSubview)
+        [fill, icon, label, chevron].forEach(addSubview)
         setAccessibilityRole(.button)
     }
 
@@ -38,6 +73,7 @@ import Workspace
 
     override func layout() {
         super.layout()
+        fill.frame = bounds
         let px = Theme.paneHeaderPaddingH
         let icon = Theme.iconSize
         self.icon.frame = NSRect(x: px, y: (bounds.height - icon) / 2, width: icon, height: icon)

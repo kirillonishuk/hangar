@@ -70,7 +70,7 @@ struct ProjectSettingsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.statusDot) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
                 Text(L10n.projectSettings)
                     .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
                     .foregroundStyle(Theme.ui.sheetText)
@@ -79,58 +79,10 @@ struct ProjectSettingsSheet: View {
             .padding(.top, Theme.sheetHeaderTop)
             .padding(.bottom, Theme.sheetHeaderBottom)
 
-            label(L10n.projectName)
-            TextField("", text: $name)
-                .focused($focus, equals: .name)
-                .onSubmit(save)
-                .modifier(SheetField(focused: focus == .name))
+            card.padding(.top, Theme.sheetNameTop)
+            messages
 
-            label(L10n.projectPath)
-            HStack(spacing: Theme.statusDot) {
-                TextField("", text: $path)
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                    .focused($focus, equals: .path)
-                    .onSubmit(save)
-                    .onChange(of: path) { error = nil }
-                    .modifier(SheetField(focused: focus == .path))
-                if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)) }
-            }
-            if let error {
-                Text(error).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
-                    .padding(.top, Theme.railInset)
-            }
-
-            if isGit == true {
-                label(L10n.defaultBranch)
-                BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
-                             defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
-                if let branchesError {
-                    Text(branchesError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
-                        .padding(.top, Theme.railInset)
-                }
-
-                label(L10n.worktreeFolder)
-                HStack(spacing: Theme.statusDot) {
-                    TextField("", text: $worktreeRoot, prompt: Text(defaultRootPlaceholder).foregroundStyle(Theme.ui.text3))
-                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                        .focused($focus, equals: .root)
-                        .onSubmit(save)
-                        .onChange(of: worktreeRoot) { rootError = nil }
-                        .modifier(SheetField(focused: focus == .root))
-                    if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)) }
-                }
-                if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
-                   worktreeRootInsideProject(root, project: path) {
-                    Text(L10n.worktreeRootInsideProject).font(.system(size: Theme.fontSize.tab))
-                        .foregroundStyle(Theme.ui.text3).padding(.top, Theme.railInset)
-                }
-                if let rootError {
-                    Text(rootError).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.failed)
-                        .padding(.top, Theme.railInset)
-                }
-            }
-
-            HStack(spacing: Theme.statusDot) {
+            HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
                 Button(L10n.cancel, action: onCancel)
@@ -148,15 +100,68 @@ struct ProjectSettingsSheet: View {
         .padding(.horizontal, Theme.sheetPaddingH)
         .frame(width: Theme.sheetWidth)
         .font(.system(size: Theme.fontSize.sheetRow))
+        .lineLimit(1)
         .background(Theme.ui.sheet)
         .onAppear { focus = .name }
         .task { await loadGit() }
     }
 
-    private func label(_ text: String) -> some View {
-        Text(text).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-            .padding(.top, Theme.sheetGap)
-            .padding(.bottom, Theme.railInset)
+    // MARK: Card
+
+    /// One card of rows (DESIGN.md «Правила»): name, path + «Выбрать…», then the git-only rows.
+    private var card: some View {
+        VStack(spacing: 0) {
+            CardRow(label: L10n.projectName, labelWidth: Theme.projectCardLabelWidth, first: true) {
+                TextField("", text: $name)
+                    .modifier(CardField())
+                    .focused($focus, equals: .name)
+                    .onSubmit(save)
+            }
+            CardRow(label: L10n.projectPath, labelWidth: Theme.projectCardLabelWidth) {
+                TextField("", text: $path)
+                    .modifier(CardField(mono: true))
+                    .focused($focus, equals: .path)
+                    .onSubmit(save)
+                    .onChange(of: path) { error = nil }
+                if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
+            }
+            if isGit == true {
+                CardRow(label: L10n.defaultBranch, labelWidth: Theme.projectCardLabelWidth) {
+                    BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
+                                 defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
+                    Spacer(minLength: 0)
+                }
+                CardRow(label: L10n.worktreeFolder, labelWidth: Theme.projectCardLabelWidth) {
+                    TextField("", text: $worktreeRoot, prompt: Text(defaultRootPlaceholder).foregroundStyle(Theme.ui.text3))
+                        .modifier(CardField(mono: true))
+                        .focused($focus, equals: .root)
+                        .onSubmit(save)
+                        .onChange(of: worktreeRoot) { rootError = nil }
+                    if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
+                }
+            }
+        }
+        .sheetCard()
+    }
+
+    /// Under the card, as in the new-task sheet: errors and the «inside the project» hint.
+    @ViewBuilder private var messages: some View {
+        if let error { message(error, Theme.ui.failed) }
+        if isGit == true {
+            if let branchesError { message(branchesError, Theme.ui.failed) }
+            if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
+               worktreeRootInsideProject(root, project: path) {
+                message(L10n.worktreeRootInsideProject, Theme.ui.text3)
+            }
+            if let rootError { message(rootError, Theme.ui.failed) }
+        }
+    }
+
+    private func message(_ text: String, _ color: Color) -> some View {
+        Text(verbatim: text).font(.system(size: Theme.fontSize.tab)).foregroundStyle(color)
+            .lineLimit(Theme.errorMaxLines)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, Theme.sheetMessageTop)
     }
 
     /// Default worktree folder for the current project path.

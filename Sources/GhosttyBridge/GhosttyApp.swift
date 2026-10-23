@@ -21,17 +21,17 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// Idempotent; must run before the first TerminalSurfaceView is created.
     /// `background` ("rrggbb") overrides the terminal background, including one set by the user's theme;
     /// all other colors still come from the user's Ghostty config (decision #36).
-    public func start(background: String? = nil) throws {
+    /// `padding` (pt) is Hangar's default `window-padding-x/y`: it loads before the user's files, so their own value wins.
+    public func start(background: String? = nil, padding: (x: Int, y: Int)? = nil) throws {
         guard app == nil else { return }
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
             throw GhosttyError.initFailed
         }
-        var override: URL?
-        if let background {
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-ghostty-overrides.conf")
-            if (try? "background = \(background)\n".write(to: file, atomically: true, encoding: .utf8)) != nil { override = file }
+        let override = background.flatMap { Self.writeConfig("hangar-ghostty-overrides.conf", "background = \($0)\n") }
+        let defaults = padding.flatMap {
+            Self.writeConfig("hangar-ghostty-defaults.conf", "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n")
         }
-        let cfg = Self.makeConfig(override: override)
+        let cfg = Self.makeConfig(defaults: defaults, override: override)
         ghosttyLog.info("terminal background: \(override == nil ? "Ghostty config" : "Hangar \(background ?? "")", privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
             let message = String(cString: ghostty_config_get_diagnostic(cfg, i).message)
@@ -60,9 +60,16 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         }
     }
 
-    /// The override loads after the user's files, so it wins over their config and theme.
-    private static func makeConfig(override: URL?) -> ghostty_config_t? {
+    /// A config file of Hangar's own in the temp directory (never the user's Ghostty config); nil if it can't be written.
+    private static func writeConfig(_ name: String, _ text: String) -> URL? {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        return (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil ? file : nil
+    }
+
+    /// `defaults` load before the user's files (theirs win), `override` after them (it wins over their config and theme).
+    private static func makeConfig(defaults: URL?, override: URL?) -> ghostty_config_t? {
         let cfg = ghostty_config_new()
+        if let defaults { defaults.path.withCString { ghostty_config_load_file(cfg, $0) } }
         ghostty_config_load_default_files(cfg)
         ghostty_config_load_recursive_files(cfg)
         if let override { override.path.withCString { ghostty_config_load_file(cfg, $0) } }

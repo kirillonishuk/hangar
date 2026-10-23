@@ -126,6 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server?.stop()
         appState?.keepAwake.stop()
         appState?.saveNow()
+        // ghostty_surface_free waits for the child with no timeout: one that ignores SIGHUP would hang quit. State is saved and the server stopped by now.
+        Thread.detachNewThread { sleep(3); _exit(0) }
         TerminalSurfaceView.freeAll()  // last: blocks until every tab's child has exited
     }
 

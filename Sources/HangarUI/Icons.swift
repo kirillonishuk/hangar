@@ -173,6 +173,11 @@ struct HoverPalette: Sendable {
         if pressed { return self.pressed }
         return hover ? self.hover : .clear
     }
+
+    /// The opaque color a row shows (its fill over `base`), for overlays that must blend into it.
+    func background(selected: Bool, hover: Bool, base: Color) -> Color {
+        selected ? Theme.ui.selection : hover ? self.hover : base
+    }
 }
 
 extension EnvironmentValues {

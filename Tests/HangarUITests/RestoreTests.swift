@@ -70,6 +70,22 @@ import Workspace
         #expect(resumeSet(for: s) == Set(ids))
     }
 
+    /// `--continue` picks the latest chat of a cwd on one machine: the same path on another host is another chat.
+    @Test func samePathOnDifferentHostsBothContinue() {
+        var s = WorkspaceState()
+        let a = s.addRemoteProject(name: "a", host: "dev1", path: "/srv/app")
+        let b = s.addRemoteProject(name: "b", host: "dev2", path: "/srv/app")
+        let l = s.addProject(name: "l", path: "/srv/app")
+        var ids: [UUID] = []
+        for p in [a, b, l] {
+            let t = s.addTask(projectId: p, name: "t")
+            let leaf = Leaf(kind: .claude, cwd: "/srv/app")
+            s.tasks[s.tasks.firstIndex { $0.id == t }!].tabs = [Tab(title: "claude", root: .leaf(leaf), focusedLeafId: leaf.id)]
+            ids.append(leaf.id)
+        }
+        #expect(resumeSet(for: s) == Set(ids))
+    }
+
     @Test func sessionIdAlwaysResumes() {
         let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"),
                               Leaf(kind: .claude, cwd: "/a", agentSessionId: "y")])

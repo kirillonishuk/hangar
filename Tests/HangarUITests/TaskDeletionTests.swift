@@ -52,6 +52,19 @@ import Workspace
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
+    /// A task whose worktree path is the main checkout: delete refuses, nothing is moved, the task stays.
+    @Test func mainCheckoutIsNeverRemoved() async throws {
+        let (t, app, _, _, calls, ctx) = try make()
+        defer { t.cleanup() }
+        let pid = app.state.projects[0].id
+        var bad = UUID()
+        app.perform { bad = $0.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main")) }
+        await deleteTaskPermanently(bad, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
+        #expect(calls.errors.map(\.0) == [L10n.worktreeRemoveFailed])
+        #expect(app.state.tasks.contains { $0.id == bad })
+        #expect(exists(t.repo + "/a.txt") && exists(t.repo + "/.git") && !exists(t.repo + ".hangar-removing"))
+    }
+
     @Test func dirtyAsksThenForces() async throws {
         let (t, app, id, wt, calls, ctx) = try make(answer: true)
         defer { t.cleanup() }

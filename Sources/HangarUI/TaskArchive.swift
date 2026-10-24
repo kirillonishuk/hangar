@@ -66,7 +66,7 @@ extension AppState {
         if wasSelected { select(taskId: id) }
     }
 
-    /// A worktree folder that is gone (removed by archive) or not a valid worktree is added back from its branch first; tabs reopen on unarchive.
+    /// A worktree folder that is gone (removed by archive) is added back from its branch first (`reviveWorktree`); tabs reopen on unarchive.
     /// `withoutWorktree`: the branch is gone and the user agreed to restore the task in the project folder.
     func restoreFromArchive(_ id: UUID, withoutWorktree: Bool = false) async -> RestoreOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && $0.archived }) else { return .restored }
@@ -78,14 +78,8 @@ extension AppState {
         } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
             let git = git(for: project), runner = runner(for: project)
             do {
-                if !(try await isWorktree(path, runner: runner)) {
-                    guard try await git.hasBranch(branch) else { return .branchMissing(branch) }
-                    // Half-removed by a quit mid `worktree remove` (an older build): it goes, as archive meant.
-                    if try await isDirectory(path, runner: runner) { try await removeWorktreeFolder(path, git: git, runner: runner) }
-                    // A folder deleted by hand leaves a registration that blocks `worktree add`.
-                    try await git.pruneWorktrees()
-                    try await git.addWorktree(path: path, existingBranch: branch)
-                }
+                let outcome = try await reviveWorktree(path, branch: branch, git: git, runner: runner)
+                guard outcome == .restored else { return outcome }
             } catch {
                 return .failed(error.localizedDescription)
             }

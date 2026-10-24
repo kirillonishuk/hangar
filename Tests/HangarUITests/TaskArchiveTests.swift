@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Testing
 import Git
@@ -224,6 +225,81 @@ import Workspace
         #expect(!archived(app, id))
         #expect(exists(wt + "/.git") && exists(wt + "/work.txt") && !exists(wt + "/src/left.txt"))
         #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
+    }
+
+    /// `.git` is there but git rejects the folder and `worktree repair` can't fix it: nothing is deleted.
+    @Test func restoreLeavesBrokenFolderWithGitInPlace() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        await archiveTask(id, ctx: ctx)
+        try FileManager.default.createDirectory(atPath: wt, withIntermediateDirectories: true)
+        try "junk".write(toFile: wt + "/.git", atomically: true, encoding: .utf8)
+        try "mine".write(toFile: wt + "/notes.txt", atomically: true, encoding: .utf8)
+        let outcome = await app.restoreFromArchive(id)
+        #expect(outcome == .failed("\(wt) is not a valid worktree, left in place"))
+        #expect(archived(app, id))
+        #expect(exists(wt + "/notes.txt") && exists(wt + "/.git"))
+    }
+
+    /// A broken `.git` link is fixed by `git worktree repair`; the folder and its files stay.
+    @Test func restoreRepairsBrokenGitLink() async throws {
+        let (t, app, id, _, wt, _, _) = try await make()
+        defer { t.cleanup() }
+        app.archive(taskId: id)
+        try "mine".write(toFile: wt + "/notes.txt", atomically: true, encoding: .utf8)
+        try "gitdir: /bogus/worktrees/x".write(toFile: wt + "/.git", atomically: true, encoding: .utf8)
+        #expect(await app.restoreFromArchive(id) == .restored)
+        #expect(!archived(app, id) && exists(wt + "/notes.txt"))
+        #expect(try t.git("rev-parse", "--is-inside-work-tree", in: wt) == "true")
+    }
+
+    /// Same rules over ssh: the tombstone case still goes, a broken folder with `.git` stays.
+    @Test func remoteRestoreKeepsBrokenFolder() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        await archiveTask(id, ctx: ctx)
+        let ssh = try FakeSSH.make(dir: t.root + "/fake")
+        let runner = Runner.ssh(host: "dev", controlPath: t.root + "/cm", sshPath: ssh.path)
+        let git = Git(repo: t.repo, runner: runner)
+        try FileManager.default.createDirectory(atPath: wt + "/src", withIntermediateDirectories: true)
+        try "junk".write(toFile: wt + "/.git", atomically: true, encoding: .utf8)
+        #expect(try await reviveWorktree(wt, branch: "x", git: git, runner: runner) == .failed("\(wt) is not a valid worktree, left in place"))
+        #expect(exists(wt + "/.git") && exists(wt + "/src"))
+        try FileManager.default.removeItem(atPath: wt + "/.git")
+        #expect(try await reviveWorktree(wt, branch: "x", git: git, runner: runner) == .restored)
+        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
+        #expect(!exists(wt + "/src"))
+        _ = app
+    }
+
+    /// A task whose "worktree" is the project's main checkout never gets its folder moved.
+    @Test func archiveRefusesMainCheckout() async throws {
+        let (t, app, _, _, _, _, _) = try await make()
+        defer { t.cleanup() }
+        let pid = app.state.projects[0].id
+        var bad = UUID()
+        app.perform { bad = $0.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main")) }
+        let outcome = await app.archiveRemovingWorktree(bad, force: true)
+        guard case .worktreeKept = outcome else { Issue.record("\(outcome)"); return }
+        #expect(exists(t.repo + "/a.txt") && exists(t.repo + "/.git"))
+        #expect(!exists(t.repo + ".hangar-removing"))
+    }
+
+    /// Over ssh: the main folder and a plain repo are refused, a linked worktree goes.
+    @Test func remoteRemovalOnlyForLinkedWorktrees() async throws {
+        let (t, _, _, _, wt, _, _) = try await make()
+        defer { t.cleanup() }
+        let ssh = try FakeSSH.make(dir: t.root + "/fake")
+        let runner = Runner.ssh(host: "dev", controlPath: t.root + "/cm", sshPath: ssh.path)
+        let git = Git(repo: t.repo, runner: runner)
+        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(t.repo, git: git, runner: runner) }
+        #expect(exists(t.repo + "/a.txt") && !exists(t.repo + ".hangar-removing"))
+        let plain = t.root + "/plain"
+        _ = try t.git("init", "-q", plain, in: t.root)
+        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(plain, git: git, runner: runner) }
+        #expect(exists(plain + "/.git"))
+        try await removeWorktreeFolder(wt, git: git, runner: runner).value
+        #expect(!exists(wt))
     }
 
     /// The undo toast hands the id to `onUndo` (the window restores through `restoreArchivedTask`).

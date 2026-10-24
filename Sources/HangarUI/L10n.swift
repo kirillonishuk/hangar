@@ -121,6 +121,7 @@ import Workspace
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
+        case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -454,6 +455,13 @@ import Workspace
     static func installFailed(_ code: Int32) -> String { f(.installFailed, code) }
     static var close: String { s(.close) }
     static func hostGaveUp(_ arg: String) -> String { f(.hostGaveUp, arg) }
+    // «<host> · терминал» (#NN-ssh-shell)
+    static var connectToHost: String { s(.connectToHost) }
+    static var connectHostTitle: String { s(.connectHostTitle) }
+    static var openTerminal: String { s(.openTerminal) }
+    static var closeTerminal: String { s(.closeTerminal) }
+    static func hostTerminal(_ host: String) -> String { f(.hostTerminal, host) }
+    static var plainSSHHint: String { s(.plainSSHHint) }
 
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }

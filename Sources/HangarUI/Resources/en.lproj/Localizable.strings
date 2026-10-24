@@ -299,3 +299,9 @@
 "afterCreateSuggestedHelp" = "Suggested from the lockfile. Turn on to run it in a shell tab of the new worktree; it is then saved to the project";
 "copyingEntry" = "Copying %@…";
 "copyFailed" = "hangar: not copied %@";
+"connectToHost" = "Connect to Host…";
+"connectHostTitle" = "Connect to Host";
+"openTerminal" = "Open Terminal";
+"closeTerminal" = "Close Terminal";
+"hostTerminal" = "%@ · terminal";
+"plainSSHHint" = "Plain ssh — closes when the connection drops";

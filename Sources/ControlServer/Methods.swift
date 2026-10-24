@@ -37,6 +37,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case tabsOpen = "tabs.open", tabsSend = "tabs.send", tabsRead = "tabs.read", tasksArchive = "tasks.archive"
     case doctor
     case tasksRestore = "tasks.restore"
+    case sshOpen = "ssh.open"
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
@@ -60,6 +61,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived task. A worktree task's folder is re-created from its kept branch; fails if that branch is gone."
+        case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
         }
     }
 
@@ -116,6 +118,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             ]
         case .tasksRestore:
             return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived task id (or unique prefix) or name.")]
+        case .sshOpen:
+            return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
         }
     }
 }
@@ -132,6 +136,8 @@ public enum ControlCall: Equatable, Sendable {
     case tasksArchive(task: String, force: Bool = false)
     case doctor
     case tasksRestore(task: String)
+    /// `host`: checked with `validSSHHost` by the app.
+    case sshOpen(host: String)
 
     public static let defaultLines = 100
 
@@ -147,6 +153,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksArchive: .tasksArchive
         case .doctor: .doctor
         case .tasksRestore: .tasksRestore
+        case .sshOpen: .sshOpen
         }
     }
 
@@ -177,6 +184,7 @@ public enum ControlCall: Equatable, Sendable {
             p = ["task": task, "yes": true]
             if force { p["force"] = true }
         case let .tasksRestore(task): p = ["task": task]
+        case let .sshOpen(host): p = ["host": host]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -285,6 +293,7 @@ public enum ControlCall: Equatable, Sendable {
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }
             return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
         case .tasksRestore: return .tasksRestore(task: v.strings["task"]!)
+        case .sshOpen: return .sshOpen(host: v.strings["host"]!)
         }
     }
 

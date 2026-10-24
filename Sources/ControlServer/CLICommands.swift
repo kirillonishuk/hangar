@@ -18,6 +18,7 @@ usage:
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
   hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, tasks_list, tabs_read, doctor)
@@ -44,17 +45,22 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
+    case "ssh": Grammar(positionals: 1...1)
     default: nil
     }
 }
 
+/// `ssh` is the one single-word command; the rest are `<noun> <verb>`.
+private func commandWords(_ args: [String]) -> Int { args.first == "ssh" ? 1 : 2 }
+
 public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
-    let command = args.prefix(2).joined(separator: " ")
-    guard args.count >= 2, let g = grammar(command) else {
+    let n = commandWords(args)
+    let command = args.prefix(n).joined(separator: " ")
+    guard args.count >= n, let g = grammar(command) else {
         return .usage("unknown command \"\(command)\"")
     }
     var values: [String: String] = [:], flags: Set<String> = [], keys: [SendKey] = [], words: [String] = []
-    var json = false, rest = args.dropFirst(2)[...], flagsEnded = false
+    var json = false, rest = args.dropFirst(n)[...], flagsEnded = false
     while let a = rest.popFirst() {
         if flagsEnded || !a.hasPrefix("--") { words.append(a); continue }
         if a == "--" { flagsEnded = true; continue }
@@ -106,6 +112,8 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         guard let raw = required("kind") else { return missing("kind") }
         guard let kind = TabKind(rawValue: raw) else { return .usage("--kind must be one of: \(TabKind.allCases.map(\.rawValue).joined(separator: ", "))") }
         call = .tabsOpen(task: task, kind: kind, prompt: values["--prompt"])
+    case "ssh":
+        call = .sshOpen(host: words[0])
     case "tabs send":
         guard let tab = required("tab") else { return missing("tab") }
         if flags.contains("--enter") { keys.append(.enter) }
@@ -190,6 +198,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = (try? d.decode(DoctorReport.self, from: result)).map(formatDoctor)
     case .tasksRestore:
         text = (try? d.decode(TaskResult.self, from: result)).map { "restored \(id($0.task.id))" }
+    case .sshOpen:
+        text = (try? d.decode(TabResult.self, from: result)).map { "tab \(id($0.tab.id))" }
     case .tasksArchive:
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
     }
@@ -206,9 +216,10 @@ public func errorJSON(_ e: ControlError) -> Data {
 
 /// Whether a failed parse should still answer in JSON: `--json` as a flag, not as the value of `--task` etc.
 public func jsonRequested(_ args: [String]) -> Bool {
-    let command = args.prefix(2).joined(separator: " ")
-    guard args.count >= 2, let g = grammar(command) else { return args.prefix(while: { $0 != "--" }).contains("--json") }
-    var rest = args.dropFirst(2)[...]
+    let n = commandWords(args)
+    let command = args.prefix(n).joined(separator: " ")
+    guard args.count >= n, let g = grammar(command) else { return args.prefix(while: { $0 != "--" }).contains("--json") }
+    var rest = args.dropFirst(n)[...]
     while let a = rest.popFirst(), a != "--" {
         if a == "--json" { return true }
         if g.values.contains(a) || g.repeated.contains(a) { _ = rest.popFirst() }

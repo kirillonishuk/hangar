@@ -10,7 +10,12 @@ struct TitleBarView: View {
 
     var body: some View {
         ZStack {
-            if let task = app.selectedTask {
+            if let task = app.selectedTask, let host = app.state.hostShell(ofTask: task.id)?.host {
+                Text(verbatim: L10n.hostTerminal(host)).foregroundStyle(Theme.ui.textStrong)
+                    .font(.system(size: Theme.fontSize.tabTaskTitle))
+                    .lineLimit(1)
+                    .allowsHitTesting(false)
+            } else if let task = app.selectedTask {
                 HStack(spacing: Theme.inlineGap) {
                     Text(app.project(task.projectId)?.name ?? "").foregroundStyle(Theme.ui.text2)
                     Text("·").foregroundStyle(Theme.ui.text3)
@@ -89,7 +94,7 @@ struct TabBarView: View {
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
             }
             if let diff { DiffTabItem(app: app, tab: diff, fixed: fixed) }
-            addMenu
+            addMenu(shellOnly: app.isHostShellTask(task.id))
         }
     }
 
@@ -109,11 +114,14 @@ struct TabBarView: View {
         if let slot { app.perform { $0.moveTab(taskId: task.id, tabId: tab, to: slot.index) } }
     }
 
-    private var addMenu: some View {
+    /// A host's terminal (#NN-ssh-shell) holds only ssh shells: its menu offers just Shell.
+    private func addMenu(shellOnly: Bool) -> some View {
         MoreButton(icon: .add, radius: Theme.tabRadius, padding: Theme.tabPaddingV, help: L10n.help(L10n.newTabHelp, .newTab)) {
-            item("Claude", .claude)
-            item("Codex", .codex)
-            item("Helix", .editor)
+            if !shellOnly {
+                item("Claude", .claude)
+                item("Codex", .codex)
+                item("Helix", .editor)
+            }
             item("Shell", .shell)
         }
         .padding(.bottom, Theme.railInset)
@@ -230,7 +238,8 @@ struct TabItem: View {
                 onDragEnd(value.translation.width)
             })
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
-        .help(L10n.help(app.tabLabel(tab), (1...9).contains(number) ? .tab(number) : nil))
+        .help(L10n.help(app.tabLabel(tab), (1...9).contains(number) ? .tab(number) : nil)
+              + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
         .pointingHand(app.renaming != target)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)

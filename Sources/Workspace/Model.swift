@@ -262,11 +262,15 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var sidebarCollapsed: Bool
     /// Last inspector width (clamped to 180...480 by the view).
     public var inspectorWidth: Double
+    /// Plain ssh logins without a project (#NN-ssh-shell); their tasks sit in `tasks` with the shell's id as `projectId`.
+    public var hostShells: [HostShell]
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220) {
+                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220,
+                hostShells: [HostShell] = []) {
         self.projects = projects
+        self.hostShells = hostShells
         self.tasks = tasks
         self.selectedTaskId = selectedTaskId
         self.inspectorVisible = inspectorVisible
@@ -276,7 +280,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth
+        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -288,7 +292,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
-                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220)
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220,
+                  hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [])
         assignMissingPorts()
     }
 
@@ -364,6 +369,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             assertionFailure("addTab: unknown task")
             return UUID()
         }
+        // A host's terminal holds only ssh shells.
+        let kind = isHostShellTask(tasks[i]) ? .shell : kind
         let leaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]), openFile: openFile, openLine: openLine)
         let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
         tasks[i].tabs.append(tab)
@@ -375,6 +382,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
         tasks[i].tabs.remove(at: t)
+        // A host's terminal lives only while it has tabs.
+        if tasks[i].tabs.isEmpty, let shell = hostShells.first(where: { $0.id == tasks[i].projectId }) {
+            return closeHostShell(host: shell.host)
+        }
         guard tasks[i].activeTabId == tabId else { return }
         let tabs = tasks[i].tabs
         tasks[i].activeTabId = tabs.isEmpty ? nil : tabs[min(t, tabs.count - 1)].id
@@ -397,7 +408,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             assertionFailure("split: unknown task, tab or leaf")
             return UUID()
         }
-        let newLeaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]))
+        let newLeaf = Leaf(kind: isHostShellTask(tasks[i]) ? .shell : kind, cwd: cwd(for: tasks[i]))
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf)
         tasks[i].tabs[t].focusedLeafId = newLeaf.id
         return newLeaf.id

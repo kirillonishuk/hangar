@@ -38,6 +38,11 @@ import ControlServer
             (["tasks", "restore", "--task", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
             (["tasks", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
             (["tasks", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
+            // `hangar ssh <host>` only opens the tab in the app (#NN-ssh-shell).
+            (["ssh", "box"], .call(.sshOpen(host: "box"), json: false)),
+            (["ssh", "--json", "u@h"], .call(.sshOpen(host: "u@h"), json: true)),
+            (["ssh"], .usage("missing argument")),
+            (["ssh", "a", "b"], .usage("unexpected argument \"b\"")),
         ]
         for (args, expected) in table {
             #expect(parseCLI(args, cwd: "/tmp/a/b") == expected, "\(args)")

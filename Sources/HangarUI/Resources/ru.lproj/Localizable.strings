@@ -299,3 +299,9 @@
 "afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке shell нового worktree и сохранится в проекте";
 "copyingEntry" = "Копирую %@…";
 "copyFailed" = "hangar: не скопировано %@";
+"connectToHost" = "Подключиться к хосту…";
+"connectHostTitle" = "Подключиться к хосту";
+"openTerminal" = "Открыть терминал";
+"closeTerminal" = "Закрыть терминал";
+"hostTerminal" = "%@ · терминал";
+"plainSSHHint" = "Обычный ssh — закроется при разрыве";

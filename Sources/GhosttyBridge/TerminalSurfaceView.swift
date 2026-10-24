@@ -31,6 +31,8 @@ public struct ClipboardPromptText: Sendable {
     public var onChildExit: ((Int32) -> Void)?  // -1 = exit code unknown
     /// Became first responder (click or programmatic focus).
     public var onFocus: (() -> Void)?
+    /// ⌘V: true = the owner handled it (e.g. sent ⌃V for an image), so no text paste.
+    public var onPaste: (() -> Bool)?
 
     // nonisolated(unsafe): freed in deinit, which is nonisolated; only touched on main.
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
@@ -188,10 +190,11 @@ public struct ClipboardPromptText: Sendable {
         case .down: k.keycode = 125
         case .left: k.keycode = 123
         case .right: k.keycode = 124
-        case .ctrlC, .ctrlD:
-            k.keycode = key == .ctrlC ? 8 : 2  // kVK_ANSI_C, kVK_ANSI_D
+        case .ctrlC, .ctrlD, .ctrlV:
+            let (code, ch): (UInt32, UInt8) = key == .ctrlC ? (8, UInt8(ascii: "c")) : key == .ctrlD ? (2, UInt8(ascii: "d")) : (9, UInt8(ascii: "v"))
+            k.keycode = code  // kVK_ANSI_C / D / V
             k.mods = GHOSTTY_MODS_CTRL
-            k.unshifted_codepoint = UInt32(UInt8(ascii: key == .ctrlC ? "c" : "d"))
+            k.unshifted_codepoint = UInt32(ch)
         case .colon:
             k.keycode = 41  // kVK_ANSI_Semicolon
             k.mods = GHOSTTY_MODS_SHIFT
@@ -419,4 +422,5 @@ public enum SurfaceKey: Sendable {
     case tab, backspace, up, down, left, right
     case ctrlC   // kVK_ANSI_C 8 + ctrl, codepoint "c"
     case ctrlD   // kVK_ANSI_D 2 + ctrl, codepoint "d"
+    case ctrlV   // kVK_ANSI_V 9 + ctrl, codepoint "v": claude/codex paste a clipboard image
 }

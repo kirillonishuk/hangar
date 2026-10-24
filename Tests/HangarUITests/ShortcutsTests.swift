@@ -22,7 +22,9 @@ import Testing
     }
 
     @Test func toggleDrawerShortcut() {
-        #expect(shortcut(keyCode: 50, modifiers: .control) == .toggleDrawer)  // ⌃` by keyCode: any layout
+        #expect(shortcut(keyCode: 38, modifiers: .command) == .toggleDrawer)  // ⌘J as in VS Code, by keyCode: ⌘О in the ru layout
+        #expect(shortcut(keyCode: 38, modifiers: [.command, .shift]) == nil)
+        #expect(shortcut(keyCode: 50, modifiers: .control) == .toggleDrawer)  // ⌃` stays, a silent alias
         #expect(shortcut(keyCode: 50, modifiers: []) == nil)
         #expect(shortcut(keyCode: 50, modifiers: [.control, .shift]) == nil)
         #expect(Action.toggleDrawer.shortcut == .toggleDrawer)
@@ -85,7 +87,7 @@ import Testing
         #expect(Shortcut.limits.label == "⇧⌘L")
         #expect(Shortcut.addProject.label == "⇧⌘N")
         #expect(Shortcut.tab(1).label == "⌘1")
-        #expect(Shortcut.toggleDrawer.label == "⌃`")
+        #expect(Shortcut.toggleDrawer.label == "⌘J")
         #expect(Shortcut.rename.label == "F2")
         #expect(Shortcut.prevTab.label == "⌃⇧Tab")
         #expect(Shortcut.focusSplit(.left).label == "⌥⌘←")
@@ -115,7 +117,7 @@ import Testing
         #expect(L10n.help("Закрепить", nil) == "Закрепить")
         L10n.language = .en
         #expect(L10n.help(L10n.limitsHelp, .limits) == "Subscription limits — ⇧⌘L")
-        #expect(L10n.help(L10n.drawerHelp, .toggleDrawer) == "Terminal — ⌃`")
+        #expect(L10n.help(L10n.drawerHelp, .toggleDrawer) == "Terminal — ⌘J")
         #expect(L10n.help("claude", .tab(1)) == "claude — ⌘1")
     }
 }

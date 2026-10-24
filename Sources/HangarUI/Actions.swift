@@ -277,7 +277,7 @@ extension Shortcut {
         case .splitRight: ("d", .command)
         case .splitDown: ("d", [.command, .shift])
         case .closeTab: ("w", .command)
-        case .toggleDrawer: ("`", .control)
+        case .toggleDrawer: ("j", .command)
         case .newTab: ("t", .command)
         case .revealInFinder: ("r", [.command, .option])
         case .copyPath: ("c", [.command, .option])
@@ -289,7 +289,7 @@ extension Shortcut {
 enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
 
 /// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
-/// splits are ignored, everything else (⌘T, ⌃`, ⌘1…9, …) works as usual.
+/// splits are ignored, everything else (⌘T, ⌘J, ⌘1…9, …) works as usual.
 /// While the diff tab is shown (`diffActive`, focus not in the drawer) splits are ignored too: they would split the hidden tab.
 func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool) -> DrawerRoute {
     if diffActive, !drawerFocused, sc == .splitRight || sc == .splitDown { return .ignore }

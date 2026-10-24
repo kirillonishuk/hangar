@@ -485,7 +485,7 @@ final class FillView: NSView {
         appliedDrawerHeight = total
     }
 
-    /// ⌃` and the bar: expand (focus goes into the shell) or collapse (focus returns to the tab if it was in the shell).
+    /// ⌘J (⌃`) and the bar: expand (focus goes into the shell) or collapse (focus returns to the tab if it was in the shell).
     func toggleDrawer(taskId: UUID) {
         let focusWasInDrawer = drawer.focusedLeaf != nil
         app.perform { $0.toggleDrawer(taskId: taskId) }

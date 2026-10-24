@@ -186,6 +186,46 @@ import Workspace
         #expect(archived(app, id))
     }
 
+    /// Crash-safe archive (#NN-crash-safe-archive): the folder leaves its place in one rename, so a quit mid-removal
+    /// leaves only `<path>.hangar-removing`, never a half folder at `<path>`.
+    @Test func archiveRenamesToTombstoneFirst() async throws {
+        let (t, app, id, _, wt, _, _) = try await make()
+        defer { t.cleanup() }
+        let outcome = await app.archiveRemovingWorktree(id, force: false)
+        #expect(outcome == .archived(worktreeRemoved: true))
+        #expect(!exists(wt))
+        #expect(try t.git("worktree", "list", in: t.repo).contains("/x\n") == false)
+        #expect(await waitUntil { !exists(wt + ".hangar-removing") })
+    }
+
+    /// Simulated quit before the background delete: the startup sweep removes the tombstone next to a known worktree
+    /// root, and only there.
+    @Test func startupSweepRemovesOnlyKnownTombstones() async throws {
+        let (t, app, _, _, wt, _, _) = try await make()
+        defer { t.cleanup() }
+        let fm = FileManager.default
+        let leftover = t.worktrees + "/old.hangar-removing", stranger = t.root + "/other/y.hangar-removing"
+        for d in [leftover + "/half", stranger] { try fm.createDirectory(atPath: d, withIntermediateDirectories: true) }
+        await app.sweepTombstones(host: nil)
+        #expect(!exists(leftover))
+        #expect(exists(stranger) && exists(wt + "/a.txt"))
+    }
+
+    /// An older build quit mid `worktree remove`: a partial folder without `.git` sits at the path. Restore re-creates it.
+    @Test func restoreRecreatesCorruptPartialFolder() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make()
+        defer { t.cleanup() }
+        try t.commit(file: "work.txt", on: "x", in: wt)
+        await archiveTask(id, ctx: ctx)
+        try FileManager.default.createDirectory(atPath: wt + "/src", withIntermediateDirectories: true)
+        try "half".write(toFile: wt + "/src/left.txt", atomically: true, encoding: .utf8)
+        await restoreArchivedTask(id, ctx: ctx)
+        #expect(calls.errors.isEmpty)
+        #expect(!archived(app, id))
+        #expect(exists(wt + "/.git") && exists(wt + "/work.txt") && !exists(wt + "/src/left.txt"))
+        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
+    }
+
     /// The undo toast hands the id to `onUndo` (the window restores through `restoreArchivedTask`).
     @Test func undoToastCallsOnUndo() {
         let undo = ArchiveUndo(delay: 60)

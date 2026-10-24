@@ -28,16 +28,17 @@ import Workspace
     case let .atRisk(dirty, ignored):
         // Cancel leaves everything as it was; the forced removal continues from the confirm callback.
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) {
-            Task { await removeWorktreeAndTask(id, path: path, branch: branch, force: true, ctx: ctx, git: git) }
+            Task { await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner) }
         }
     case .clean:
-        await removeWorktreeAndTask(id, path: path, branch: branch, force: false, ctx: ctx, git: git)
+        await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
     }
 }
 
-@MainActor private func removeWorktreeAndTask(_ id: UUID, path: String, branch: String, force: Bool, ctx: ActionContext, git: Git) async {
+@MainActor private func removeWorktreeAndTask(_ id: UUID, path: String, branch: String, ctx: ActionContext, git: Git, runner: Runner) async {
     do {
-        try await git.removeWorktree(path: path, force: force)
+        // The check above asked about losses; the tombstone rename itself never refuses.
+        try await removeWorktreeFolder(path, git: git, runner: runner)
     } catch {
         ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return

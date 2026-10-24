@@ -18,6 +18,7 @@ extension AppState {
             self?.flushKills(host)
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
+            Task { await self?.sweepTombstones(host: host) }
         }
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in

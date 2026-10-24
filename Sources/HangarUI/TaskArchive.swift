@@ -6,7 +6,7 @@ import Workspace
 /// Archive removes a worktree task's folder and keeps its branch; restore checks the branch out again (decision #NN-archive).
 enum ArchiveOutcome: Equatable {
     case archived(worktreeRemoved: Bool)
-    /// Archived, but `worktree remove` failed: the folder is still there (restore just unarchives).
+    /// Archived, but moving the folder away failed: the folder is still there (restore just unarchives).
     case worktreeKept(String)
     /// Nothing changed: removing the folder would lose these; ask, then call again with `force`.
     case atRisk(dirty: Bool, ignored: [String])
@@ -49,7 +49,7 @@ extension AppState {
         }
         guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("task not found") }
         do {
-            if check == .missing { try await git.pruneWorktrees() } else { try await git.removeWorktree(path: path, force: check != .clean) }
+            if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(path, git: git, runner: runner(for: project)) }
         } catch {
             return .worktreeKept(error.localizedDescription)
         }
@@ -66,7 +66,7 @@ extension AppState {
         if wasSelected { select(taskId: id) }
     }
 
-    /// A worktree folder that is gone (removed by archive) is added back from its branch first; tabs reopen on unarchive.
+    /// A worktree folder that is gone (removed by archive) or not a valid worktree is added back from its branch first; tabs reopen on unarchive.
     /// `withoutWorktree`: the branch is gone and the user agreed to restore the task in the project folder.
     func restoreFromArchive(_ id: UUID, withoutWorktree: Bool = false) async -> RestoreOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && $0.archived }) else { return .restored }
@@ -76,10 +76,12 @@ extension AppState {
             restore(taskId: id, fresh: true)
             return .restored
         } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
-            let git = git(for: project)
+            let git = git(for: project), runner = runner(for: project)
             do {
-                if !(try await isDirectory(path, runner: runner(for: project))) {
+                if !(try await isWorktree(path, runner: runner)) {
                     guard try await git.hasBranch(branch) else { return .branchMissing(branch) }
+                    // Half-removed by a quit mid `worktree remove` (an older build): it goes, as archive meant.
+                    if try await isDirectory(path, runner: runner) { try await removeWorktreeFolder(path, git: git, runner: runner) }
                     // A folder deleted by hand leaves a registration that blocks `worktree add`.
                     try await git.pruneWorktrees()
                     try await git.addWorktree(path: path, existingBranch: branch)

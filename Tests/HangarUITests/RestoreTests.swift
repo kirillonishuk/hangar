@@ -1,4 +1,5 @@
 import AppKit
+import Exec
 import Foundation
 import Testing
 @testable import HangarUI
@@ -50,6 +51,18 @@ import Workspace
         let set = resumeSet(for: s)
         #expect(set.contains(ids[0]))
         #expect(!set.contains(ids[1]))
+    }
+
+    /// ↩ after a clean exit relaunches with `--continue`: without a session id only the folder's first leaf may.
+    @Test func relaunchSecondClaudeSameCwdStartsFresh() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
+        let app = app(s)
+        let previous = LaunchMode(restoring: false, initialPrompt: nil)
+        let tabs = app.state.tasks[0].tabs
+        let second = try app.spec(for: tabs[1].root.leaves[0], tabId: tabs[1].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(!second.1.restoring)
+        let first = try app.spec(for: tabs[0].root.leaves[0], tabId: tabs[0].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(first.1.restoring)
     }
 
     @Test func differentCwdsBothContinue() {

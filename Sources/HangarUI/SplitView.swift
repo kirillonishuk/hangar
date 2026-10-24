@@ -277,6 +277,7 @@ final class RatioSplitView: HangarSplitView {
             case .right: surface.sendKey(.right)
             case .ctrlC: surface.sendKey(.ctrlC)
             case .ctrlD: surface.sendKey(.ctrlD)
+            case .interrupt: surface.sendKey(.escape)  // resolved per leaf kind by `AppState.respond`
             }
         }
     }

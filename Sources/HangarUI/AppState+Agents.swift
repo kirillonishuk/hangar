@@ -87,9 +87,30 @@ extension AppState {
         // Mutating `statuses` notifies observers even when nothing changes.
         guard fold(old, signal, agent: agent) != old else { return }
         if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) {
+            if t.to == .working {
+                for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }
+            }
             onTransition?(t)
             if t.to == .done { onLeafDone?(t.leaf) }
         }
+    }
+
+    /// `tabs send --wait`: true once the leaf turns `working`, false after `sendWaitTimeout` (no polling: `apply` wakes it).
+    func waitForWorking(_ leaf: UUID) async -> Bool {
+        if state(ofLeaf: leaf) == .working { return true }
+        let token = UUID(), timeout = sendWaitTimeout
+        return await withCheckedContinuation { c in
+            workingWaiters[token] = (leaf, c)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: timeout)
+                self?.finishWaiter(token, started: false)
+            }
+        }
+    }
+
+    /// Main actor: whichever comes first (the status or the timeout) resumes it once.
+    private func finishWaiter(_ token: UUID, started: Bool) {
+        workingWaiters.removeValue(forKey: token)?.done.resume(returning: started)
     }
 
     private func sessionAgent(_ kind: LeafKind) -> SessionAgent? {

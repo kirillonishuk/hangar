@@ -142,7 +142,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `hangar tasks list [--project]` | задачи со статусами (и лист панели TERMINAL — его id годится как `--tab`) |
 | `hangar tasks create --project P --name N [--worktree --base B] [--prompt T]` | создать задачу |
 | `hangar tabs open --task T --kind claude\|codex\|editor\|shell [--prompt T]` | новая вкладка |
-| `hangar tabs send --tab ID [<text>] [--enter] [--key K]…` | вставить текст, затем нажать клавиши (`enter`, `escape`, `tab`, `backspace`, `up`, `down`, `left`, `right`, `ctrl-c`, `ctrl-d`) |
+| `hangar tabs send --tab ID [<text>] [--enter] [--key K]… [--wait]` | вставить текст, затем нажать клавиши (`enter`, `escape`, `tab`, `backspace`, `up`, `down`, `left`, `right`, `ctrl-c`, `ctrl-d`, `interrupt`); `--wait` ждёт начала хода claude (решение #NN-pane-bugs) |
 | `hangar tabs read --tab ID [--lines N]` | последние N строк экрана (по умолчанию 100) |
 | `hangar tasks archive --task T --yes [--force]` | архивировать; worktree удаляется, ветка остаётся (#57); грязный worktree или ignored-файлы — отказ без `--force` (MCP `force: true`) |
 | `hangar doctor [--json]` | только чтение (#NN-doctor): приложение и сокет, версии CLI/приложения, claude/codex/helix с версиями, hooks в ~/.claude и ~/.codex, ресурсы Ghostty, ssh-хосты проектов (подключён, tmux, hangar-remote), keep-awake, свободное место у папки состояния; строка ok/warn/fail с подсказкой; код 1, если есть fail; MCP `doctor` |

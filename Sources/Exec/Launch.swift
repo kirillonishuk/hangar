@@ -23,7 +23,8 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
     }
-    let userShellQuoted = shellQuote(userShell)
+    let isZsh = (userShell as NSString).lastPathComponent == "zsh"
+    let userShellQuoted = (isZsh ? ghosttyZshIntegration : "") + shellQuote(userShell)
     let shell = shellQuote(posixShell(userShell))
     let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue }, editor: config.editor,
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
@@ -32,6 +33,17 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#NN-port)
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))", cwd: leaf.cwd, env: env)
 }
+
+/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#NN-shell-env).
+public func resolveUserShell(passwd: String?, env: String?) -> String {
+    if let passwd, !passwd.isEmpty { return passwd }
+    if let env, !env.isEmpty { return env }
+    return "/bin/zsh"
+}
+
+/// zsh prefix for the tab's interactive shell: Ghostty injects its integration (ZDOTDIR) only into the outer `-c` zsh,
+/// whose .zshenv then restores ZDOTDIR; `_ghostty_state` there means it was injected (not `shell-integration = none`).
+public let ghosttyZshIntegration = #"(( ${+_ghostty_state} )) && { [[ -n ${ZDOTDIR+x} ]] && export GHOSTTY_ZSH_ZDOTDIR="$ZDOTDIR"; export ZDOTDIR="$GHOSTTY_RESOURCES_DIR/shell-integration/zsh"; }; "#
 
 /// Basename of the first word of the editor command.
 private func editorName(_ command: String) -> String {

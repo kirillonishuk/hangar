@@ -49,8 +49,38 @@ import Workspace
         // Backslashes sit outside the single quotes (shellQuote, fish-safe).
         #expect(s.command == #"/bin/zsh -l -i -c 'claude; c=$?; printf "'\\'e]133;C'\\'a'\\'e]133;D;%d'\\'a" $c; exit $c'"#)
         #expect(s.cwd == cwd)
-        #expect(try inner(spec(leaf(.shell))) == "/bin/zsh -l -i")
+        #expect(try inner(spec(leaf(.shell))) == ghosttyZshIntegration + "/bin/zsh -l -i")
         #expect(try inner(s) == "claude")
+    }
+
+    /// The tab's shell is the account's login shell, as in Ghostty.app and login(1); `$SHELL` is the launcher's (#NN-shell-env).
+    @Test func userShellPrefersPasswd() {
+        #expect(resolveUserShell(passwd: "/bin/zsh", env: "/bin/bash") == "/bin/zsh")
+        #expect(resolveUserShell(passwd: nil, env: "/bin/bash") == "/bin/bash")
+        #expect(resolveUserShell(passwd: "", env: nil) == "/bin/zsh")
+        #expect(resolveUserShell(passwd: nil, env: "") == "/bin/zsh")
+    }
+
+    /// Ghostty injects its zsh integration into the outer `-c` shell only; the tab's interactive zsh gets it too.
+    @Test func zshShellTabGetsGhosttyIntegration() throws {
+        #expect(try script(spec(leaf(.shell), shell: "/bin/bash"), shell: "/bin/bash") == "/bin/bash -l -i" + wrapper)
+        let fish = try spec(leaf(.shell), shell: "/opt/homebrew/bin/fish")
+        #expect(!fish.command.contains("ZDOTDIR"))
+        #expect(try inner(spec(leaf(.shell), prompt: "make setup")) == "make setup\n" + ghosttyZshIntegration + "/bin/zsh -l -i")
+    }
+
+    func zsh(_ pre: String) throws -> String {
+        try sh("/bin/zsh -f -c " + shellQuote(pre + "; " + ghosttyZshIntegration + #"print -r -- "Z=${ZDOTDIR-unset} G=${GHOSTTY_ZSH_ZDOTDIR-unset}""#)).out
+    }
+
+    @Test func ghosttyIntegrationOnlyWhenOuterShellHasIt() throws {
+        // `_ghostty_state` is set by Ghostty's integration in the outer zsh; without it nothing changes.
+        #expect(try zsh("unset ZDOTDIR; export GHOSTTY_RESOURCES_DIR=/R") == "Z=unset G=unset\n")
+        #expect(try zsh("unset ZDOTDIR; export GHOSTTY_RESOURCES_DIR=/R; typeset -gi _ghostty_state")
+                == "Z=/R/shell-integration/zsh G=unset\n")
+        // The user's own ZDOTDIR is handed over: Ghostty's .zshenv restores it.
+        #expect(try zsh("export ZDOTDIR=/u GHOSTTY_RESOURCES_DIR=/R; typeset -gi _ghostty_state")
+                == "Z=/R/shell-integration/zsh G=/u\n")
     }
 
     @Test func exitCodeWrapperPresent() throws {
@@ -166,7 +196,7 @@ import Workspace
         #expect(c.command.hasPrefix("/bin/zsh -l -i -c '"))
         let sl = try spec(leaf(.shell), shell: fish)
         #expect(sl.command.hasPrefix("/bin/zsh -l -i -c '"))
-        #expect(sl.command.contains("/opt/homebrew/bin/fish -l -i"))
+        #expect(try script(sl).hasPrefix("/opt/homebrew/bin/fish -l -i;"))
         #expect(try spec(leaf(.claude), shell: "/bin/bash").command.hasPrefix("/bin/bash -l -i -c '"))
     }
 }

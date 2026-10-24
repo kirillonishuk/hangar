@@ -40,6 +40,9 @@ extension TerminalSurfaceView {
 
     public override func keyDown(with event: NSEvent) {
         guard let surface else { interpretKeyEvents([event]); return }
+        // ⌘V that skipped performKeyEquivalent (window not key) would hit Ghostty's own super+v paste.
+        if Int(event.keyCode) == kVK_ANSI_V, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+           onPaste?() == true { return }
 
         // Option-as-alt etc.: Ghostty decides which mods take part in text translation.
         let ghosttyTranslation = Self.flags(ghostty_surface_key_translation_mods(surface, Self.mods(event.modifierFlags)))
@@ -93,6 +96,7 @@ extension TerminalSurfaceView {
             case kVK_ANSI_A: "select_all"
             default: nil
             }
+            if Int(event.keyCode) == kVK_ANSI_V, onPaste?() == true { return true }
             if let binding {
                 _ = ghostty_surface_binding_action(surface, binding, UInt(binding.utf8.count))
                 return true
@@ -338,7 +342,7 @@ extension TerminalSurfaceView {
     // MARK: Edit menu actions (responder chain)
 
     @objc func copy(_ sender: Any?) { perform(binding: "copy_to_clipboard") }
-    @objc func paste(_ sender: Any?) { perform(binding: "paste_from_clipboard") }
+    @objc func paste(_ sender: Any?) { if onPaste?() != true { perform(binding: "paste_from_clipboard") } }
     @objc public override func selectAll(_ sender: Any?) { perform(binding: "select_all") }
 
     private func perform(binding: String) {

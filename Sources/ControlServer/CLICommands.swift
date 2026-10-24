@@ -18,6 +18,7 @@ usage:
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
+  hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
   hangar mcp   (MCP server over stdio)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
@@ -126,6 +127,8 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .projectsAdd(_, .some): 60
     // git status and `worktree remove` of a big folder (node_modules), possibly over ssh.
     case .tasksArchive: 120
+    // Login shell plus `--version` of each agent, ssh hosts' state.
+    case .doctor: 30
     default: 10
     }
 }
@@ -166,6 +169,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = ""
     case .tabsRead:
         text = (try? d.decode(ScreenResult.self, from: result))?.text
+    case .doctor:
+        text = (try? d.decode(DoctorReport.self, from: result)).map(formatDoctor)
     case .tasksArchive:
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
     }

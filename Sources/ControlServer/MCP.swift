@@ -69,7 +69,7 @@ public struct MCPSession {
 
     /// The enclosing app's version: the CLI is X.app/Contents/Helpers/hangar (often reached through a symlink), so
     /// `Bundle.main` has no Info.plist of its own.
-    static func appVersion(executable: URL) -> String {
+    public static func appVersion(executable: URL) -> String {
         let plist = executable.resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Info.plist")
         return NSDictionary(contentsOf: plist)?["CFBundleShortVersionString"] as? String ?? "dev"

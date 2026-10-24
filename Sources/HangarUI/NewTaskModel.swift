@@ -169,20 +169,27 @@ import Workspace
             createError = (error as? GitError)?.errorDescription ?? error.localizedDescription
             return nil
         }
-        setupScript = worktreeSetupScript(failures: await copyIgnored(into: path), command: project.setupCommand)
+        // A project without its own list / command gets its package manager's (from the lockfiles at the top).
+        var defaults: WorktreeDefaults?
+        if project.worktreeCopy == nil || project.setupCommand == nil {
+            defaults = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
+        }
+        let failures = await copyIgnored(project.worktreeCopy ?? defaults?.copy ?? [], into: path)
+        setupScript = worktreeSetupScript(failures: failures, command: project.setupCommand ?? defaults?.command)
         return .worktree(path: path, branch: branch, base: base)
     }
 
-    /// Copies the project's ignored items into the new worktree; a failure never undoes the worktree, it is reported.
-    private func copyIgnored(into path: String) async -> [String] {
-        let patterns = project.copyPatterns
+    /// Copies the ignored items `patterns` select from the main checkout's top into the new worktree (a whole
+    /// checkout, so the same relative place); a failure never undoes the worktree, it is reported.
+    private func copyIgnored(_ patterns: [String], into path: String) async -> [String] {
         guard !patterns.isEmpty else { return [] }
         defer { progress = nil }
         var failures: [String] = []
         do {
+            let top = try await git.toplevel()
             for entry in matchIgnored(patterns, try await git.ignoredEntries()) {
                 progress = entry
-                do { try await git.copyIgnored(entry, into: path) } catch {
+                do { try await git.copyIgnored(entry, from: top, into: path) } catch {
                     failures.append(entry + ": " + ((error as? GitError)?.errorDescription ?? error.localizedDescription))
                 }
             }

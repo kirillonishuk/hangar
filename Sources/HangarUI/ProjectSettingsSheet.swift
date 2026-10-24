@@ -50,7 +50,9 @@ struct ProjectSettingsSheet: View {
     @State private var worktreeRoot: String
     @State private var copyText: String
     @State private var setupCommand: String
-    /// A project without its own list shows what the default list finds in the main folder; saved unchanged, it stays nil.
+    /// A project without its own list / command shows its package manager's defaults (the list: only what exists in
+    /// the main checkout); saved unchanged, they stay nil and follow the lockfile.
+    @State private var defaults: WorktreeDefaults?
     @State private var suggestedCopy: String?
     @State private var error: String?
     @State private var rootError: String?
@@ -156,7 +158,7 @@ struct ProjectSettingsSheet: View {
                 .help(L10n.worktreeRootHint(rootShown))
                 CardRow(label: L10n.worktreeCopy, labelWidth: Theme.projectCardLabelWidth) {
                     // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
-                    TextField("", text: $copyText, prompt: Text(verbatim: project.worktreeCopy == nil ? defaultWorktreeCopy.joined(separator: ", ") : "")
+                    TextField("", text: $copyText, prompt: Text(verbatim: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "")
                         .foregroundStyle(Theme.ui.text3))
                         .modifier(CardField(mono: true))
                         .focused($focus, equals: .copy)
@@ -207,13 +209,17 @@ struct ProjectSettingsSheet: View {
         return defaultRootPlaceholder
     }
 
-    /// Reads branches without fetching; a project without its own copy list gets the default items found in its folder.
+    /// Reads branches without fetching, then fills what the project leaves to its package manager's defaults.
     private func loadGit() async {
         await loadBranches()
-        guard isGit == true, project.worktreeCopy == nil, let entries = try? await git.ignoredEntries() else { return }
-        let found = defaultWorktreeCopy.filter { !matchIgnored([$0], entries).isEmpty }.joined(separator: ", ")
-        suggestedCopy = found
-        if copyText.isEmpty { copyText = found }
+        guard isGit == true, project.worktreeCopy == nil || project.setupCommand == nil else { return }
+        let found = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
+        defaults = found
+        if project.setupCommand == nil, setupCommand.isEmpty { setupCommand = found.command ?? "" }
+        guard project.worktreeCopy == nil, let entries = try? await git.ignoredEntries() else { return }
+        let present = found.copy.filter { !matchIgnored([$0], entries).isEmpty }.joined(separator: ", ")
+        suggestedCopy = present
+        if copyText.isEmpty { copyText = present }
     }
 
     /// Reads branches without fetching.
@@ -232,7 +238,7 @@ struct ProjectSettingsSheet: View {
         var setup = WorktreeSetup(copy: project.worktreeCopy, command: project.setupCommand)  // hidden rows keep what is stored
         if isGit == true {
             setup = WorktreeSetup(copy: project.worktreeCopy == nil && copyText == (suggestedCopy ?? "") ? nil : worktreeCopyInput(copyText),
-                                  command: setupCommand)
+                                  command: project.setupCommand == nil && setupCommand == (defaults?.command ?? "") ? nil : setupCommand)
             switch worktreeRootInput(worktreeRoot, remote: remote) {
             case .success(let value): root = value
             case .failure(let e): rootError = e.message; return

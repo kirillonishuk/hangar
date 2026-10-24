@@ -207,6 +207,7 @@ struct NewTaskSheet: View {
     }
 
     private var footerHint: String {
+        if let entry = model.progress { return L10n.copyingEntry(entry) }
         if !model.worktree, let branch = model.currentBranch { return L10n.currentBranch(branch) }
         return L10n.escCancel
     }

@@ -526,6 +526,7 @@ import Testing
         let json = #"{"id":"\#(id)","name":"a","location":{"local":{"path":"/r"}}}"#
         let p = try JSONDecoder().decode(Project.self, from: Data(json.utf8))
         #expect(p.worktreeByDefault == false && p.worktreeRoot == nil)
+        #expect(p.worktreeCopy == nil && p.setupCommand == nil)
         var s = WorkspaceState(projects: [p])
         s.projects[0].worktreeRoot = "/wt"
         s.projects[0].worktreeByDefault = true
@@ -574,5 +575,19 @@ import Testing
         let before = s
         s.setAgentSessionId(leafId: UUID(), "s3")
         #expect(s == before)
+    }
+
+    @Test func worktreeSetupIsStoredTrimmed() throws {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "a", path: "/r")
+        s.setWorktreeSetup(id: p, copy: [" .env* ", "", "node_modules"], command: "  npm i ")
+        #expect(s.projects[0].worktreeCopy == [".env*", "node_modules"])
+        #expect(s.projects[0].setupCommand == "npm i")
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)) == s)
+        s.setWorktreeSetup(id: p, copy: [], command: " ")
+        #expect(s.projects[0].worktreeCopy == [])     // empty = copy nothing
+        #expect(s.projects[0].setupCommand == "")     // blank = no command (nil would be the default one)
+        s.setWorktreeSetup(id: p, copy: nil, command: nil)
+        #expect(s.projects[0].worktreeCopy == nil && s.projects[0].setupCommand == nil)
     }
 }

@@ -60,7 +60,9 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: St
     let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
     switch leaf.kind {
     case .shell:
-        return "\(shell) -l -i"
+        // A new worktree's setup script (decision #NN-worktree-setup) runs first; the shell stays for the user.
+        guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
+        return "\(script)\n\(shell) -l -i"
     case .editor:
         guard let file = leaf.openFile else { return editor }
         let path = file.hasPrefix("-") ? "./" + file : file

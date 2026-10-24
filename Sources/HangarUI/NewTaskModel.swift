@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Git
 import Observation
@@ -30,6 +31,10 @@ import Workspace
     /// git's stderr of a failed `worktree add`.
     private(set) var createError: String?
     private(set) var creating = false
+    /// The entry being copied into the new worktree («Копирую node_modules…»).
+    private(set) var progress: String?
+    /// For the new worktree's shell tab after a create: failed copies, then the project's setup command; nil = no tab.
+    private(set) var setupScript: String?
     let taskBranches: Set<String>
 
     @ObservationIgnored private let project: Project
@@ -144,6 +149,7 @@ import Workspace
         creating = true
         defer { creating = false }
         createError = nil
+        setupScript = nil
         if !skipFetch, !fetchedThisOpen {
             if fetch == .running { await fetchSettled() } else { await runFetch() }
             switch fetch {
@@ -163,7 +169,34 @@ import Workspace
             createError = (error as? GitError)?.errorDescription ?? error.localizedDescription
             return nil
         }
+        // A project without its own list / command gets its package manager's (from the lockfiles at the top).
+        var defaults: WorktreeDefaults?
+        if project.worktreeCopy == nil || project.setupCommand == nil {
+            defaults = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
+        }
+        let failures = await copyIgnored(project.worktreeCopy ?? defaults?.copy ?? [], into: path)
+        setupScript = worktreeSetupScript(failures: failures, command: project.setupCommand ?? defaults?.command)
         return .worktree(path: path, branch: branch, base: base)
+    }
+
+    /// Copies the ignored items `patterns` select from the main checkout's top into the new worktree (a whole
+    /// checkout, so the same relative place); a failure never undoes the worktree, it is reported.
+    private func copyIgnored(_ patterns: [String], into path: String) async -> [String] {
+        guard !patterns.isEmpty else { return [] }
+        defer { progress = nil }
+        var failures: [String] = []
+        do {
+            let top = try await git.toplevel()
+            for entry in matchIgnored(patterns, try await git.ignoredEntries()) {
+                progress = entry
+                do { try await git.copyIgnored(entry, from: top, into: path) } catch {
+                    failures.append(entry + ": " + ((error as? GitError)?.errorDescription ?? error.localizedDescription))
+                }
+            }
+        } catch {
+            failures.append((error as? GitError)?.errorDescription ?? error.localizedDescription)
+        }
+        return failures
     }
 
     // MARK: Private
@@ -241,4 +274,12 @@ import Workspace
         suggesting = false
         branchError = nil
     }
+}
+
+/// What the new worktree's shell tab runs first: each failed copy printed to stderr, then the setup command.
+/// nil = nothing to run (no tab). Newlines, not `;`: a command ending in a `#` comment would swallow what follows.
+@MainActor func worktreeSetupScript(failures: [String], command: String?) -> String? {
+    let command = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let lines = failures.map { "printf '%s\\n' " + shellQuote(L10n.copyFailed($0)) + " >&2" } + (command.isEmpty ? [] : [command])
+    return lines.isEmpty ? nil : lines.joined(separator: "\n")
 }

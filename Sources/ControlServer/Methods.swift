@@ -38,6 +38,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case doctor
     case tasksRestore = "tasks.restore"
     case sshOpen = "ssh.open"
+    case linksCreate = "links.create"
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
@@ -62,6 +63,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived task. A worktree task's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
+        case .linksCreate: "Get a hangar:// link to a task, a tab or a project. Clicking it in Hangar only selects and focuses it; nothing runs."
         }
     }
 
@@ -120,6 +122,12 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived task id (or unique prefix) or name.")]
         case .sshOpen:
             return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
+        case .linksCreate:
+            return [
+                ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at."),
+                ParamSpec(name: "ref", type: ref, required: true,
+                          summary: "Task or project id (or unique prefix) or name; for a tab, a tab or leaf id from tasks_list (or unique prefix)."),
+            ]
         }
     }
 }
@@ -138,6 +146,7 @@ public enum ControlCall: Equatable, Sendable {
     case tasksRestore(task: String)
     /// `host`: checked with `validSSHHost` by the app.
     case sshOpen(host: String)
+    case linksCreate(kind: LinkKind, ref: String)
 
     public static let defaultLines = 100
 
@@ -154,6 +163,7 @@ public enum ControlCall: Equatable, Sendable {
         case .doctor: .doctor
         case .tasksRestore: .tasksRestore
         case .sshOpen: .sshOpen
+        case .linksCreate: .linksCreate
         }
     }
 
@@ -185,6 +195,7 @@ public enum ControlCall: Equatable, Sendable {
             if force { p["force"] = true }
         case let .tasksRestore(task): p = ["task": task]
         case let .sshOpen(host): p = ["host": host]
+        case let .linksCreate(kind, ref): p = ["kind": kind.rawValue, "ref": ref]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -294,6 +305,7 @@ public enum ControlCall: Equatable, Sendable {
             return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
         case .tasksRestore: return .tasksRestore(task: v.strings["task"]!)
         case .sshOpen: return .sshOpen(host: v.strings["host"]!)
+        case .linksCreate: return .linksCreate(kind: LinkKind(rawValue: v.strings["kind"]!)!, ref: v.strings["ref"]!)
         }
     }
 

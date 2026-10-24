@@ -445,6 +445,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .settings: showSettings(nil)
         case .inspectorFiles: app.showInspector(.files)
         case .inspectorChanges: app.showInspector(.changes)
+        case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
         case .prevTab: cycleTab(-1)
         case .nextTab: cycleTab(1)
@@ -572,6 +573,20 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
         }
         column.terminalArea.focus(leafId: leafId)
+    }
+
+    /// A clicked `hangar://` link (#NN-links): select and bring the window up; a tab link focuses its terminal.
+    public func openLink(_ url: URL) {
+        guard let target = app.openLink(url) else { return }
+        if case .tab(let task, let tab) = target,
+           let leaf = app.state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab })?.focusedLeafId {
+            reveal(leafId: leaf)
+            return
+        }
+        if let window {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }

@@ -71,6 +71,9 @@
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
 "portCopy" = "Порт: %ld (копировать)";
+"copyLink" = "Скопировать ссылку";
+"attentionOnly" = "Только ждущие";
+"nobodyWaiting" = "Никто не ждёт";
 "openIn" = "Открыть в %@";
 "openFailed" = "Не удалось открыть в %@";
 "deletePermanently" = "Удалить навсегда";

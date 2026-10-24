@@ -182,6 +182,12 @@ extension AppState {
             }
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
+
+        case let .linksCreate(kind, ref):
+            switch linkTarget(kind, ref) {
+            case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
+            case .failure(let e): return fail(e)
+            }
         }
     }
 
@@ -304,14 +310,14 @@ extension AppState {
         ProjectInfo(id: p.id, name: p.name, path: p.path, exists: isAvailable(p), host: p.host)
     }
 
-    private func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
+    func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
         resolveRef(ref, in: state.projects.map { RefCandidate(id: $0.id, names: [$0.name, $0.path]) })
             .mapError { refError($0, ref, "project") }
     }
 
     /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
     /// Hosts' terminals (#NN-ssh-shell, not in `tasks list`) are never found.
-    private func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
+    func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
         resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !state.hostShells.contains { $0.id == t.projectId } }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
             .mapError { refError($0, ref, archived ? "archived task" : "task") }
@@ -343,7 +349,7 @@ extension AppState {
         return out
     }
 
-    private func refError(_ e: RefError, _ ref: String, _ what: String) -> ControlError {
+    func refError(_ e: RefError, _ ref: String, _ what: String) -> ControlError {
         switch e {
         case .notFound: ControlError(code: .notFound, message: "no \(what) \"\(ref)\"")
         case .ambiguous(let ids):

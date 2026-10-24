@@ -264,11 +264,13 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var inspectorWidth: Double
     /// Plain ssh logins without a project (#NN-ssh-shell); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
+    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#NN-attention).
+    public var attentionOnly: Bool
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
                 sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220,
-                hostShells: [HostShell] = []) {
+                hostShells: [HostShell] = [], attentionOnly: Bool = false) {
         self.projects = projects
         self.hostShells = hostShells
         self.tasks = tasks
@@ -277,10 +279,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         self.sidebarWidth = sidebarWidth
         self.sidebarCollapsed = sidebarCollapsed
         self.inspectorWidth = inspectorWidth
+        self.attentionOnly = attentionOnly
     }
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
+        case attentionOnly
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -293,7 +297,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
                   inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220,
-                  hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [])
+                  hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
+                  attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         assignMissingPorts()
     }
 

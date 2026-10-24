@@ -49,7 +49,7 @@ struct SidebarView: View {
                 newTaskButton(visibleWidth: geo.size.width)
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
-                        pinnedSection
+                        if !app.state.attentionOnly { pinnedSection }
                         hostsSection
                         projectsSection
                         archivedSection
@@ -195,14 +195,27 @@ struct SidebarView: View {
     // MARK: Projects
 
     @ViewBuilder private var projectsSection: some View {
+        let filtering = app.state.attentionOnly
+        let groups = filtering ? app.attentionGroups() : []
         SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.help(L10n.addProject, .addProject),
-                      plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject)
-        ForEach(app.state.projects) { project in
+                      plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject,
+                      filterOn: filtering, filterHelp: L10n.help(L10n.attentionOnly, .attentionFilter),
+                      filter: { app.perform { $0.attentionOnly.toggle() } })
+        if filtering && groups.isEmpty {
+            Text(L10n.nobodyWaiting)
+                .font(.system(size: Theme.fontSize.sidebarRow))
+                .foregroundStyle(Theme.ui.text3)
+                .lineLimit(1)
+                .padding(.leading, Theme.sectionTextX)
+                .frame(maxWidth: .infinity, minHeight: Theme.railRowHeight, alignment: .leading)
+                .opacity(collapsed ? 0 : 1)
+        }
+        ForEach(filtering ? groups.map(\.project) : app.state.projects) { project in
             // One block per project, so a dragged project moves with its tasks.
             VStack(spacing: 0) {
                 projectRow(project)
                 if !project.collapsed {
-                    ForEach(app.groupTasks(project.id)) { task in
+                    ForEach(filtering ? groups.first { $0.project.id == project.id }?.tasks ?? [] : app.groupTasks(project.id)) { task in
                         taskRow(task, projectName: nil, indent: true)
                             .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
                     }
@@ -293,7 +306,8 @@ struct SidebarView: View {
                             clicked(target)
                             app.setCollapsed(projectId: project.id, !project.collapsed)
                         },
-                        onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
+                        // The filtered list is not the real order: no reordering while it is on.
+                        onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -371,7 +385,7 @@ struct SidebarView: View {
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         // Pinned rows mix projects, so only rows inside a project group reorder.
-        let handlers = indent ? dragHandlers(target) : nil
+        let handlers = indent && !app.state.attentionOnly ? dragHandlers(target) : nil
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.select(taskId: task.id)

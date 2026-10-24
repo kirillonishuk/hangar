@@ -26,6 +26,7 @@
 "diffUnavailable" = "Нет данных об изменениях";
 "newTabHelp" = "Новая вкладка";
 "closeTabHelp" = "Закрыть вкладку";
+"allTabsHelp" = "Все вкладки";
 "taskNamePlaceholder" = "название задачи";
 "firstMessagePlaceholder" = "Первое сообщение для %@ (необязательно)…";
 "escCancel" = "esc — отмена";

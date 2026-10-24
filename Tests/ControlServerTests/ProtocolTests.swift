@@ -210,6 +210,8 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
                 == .success(.tabsSend(tab: "t", text: "a[201~bc\td\ne\rf", keys: [])))
         badParams("tabs.send", #"{"tab":"t","text":"\u001b"}"#)
         #expect(decode("tabs.send", #"{"tab":"t","text":"\u001b","keys":["enter"]}"#) == .success(.tabsSend(tab: "t", text: nil, keys: [.enter])))
+        #expect(decode("tabs.send", #"{"tab":"t","text":"a","keys":["enter","interrupt"],"wait":true}"#)
+                == .success(.tabsSend(tab: "t", text: "a", keys: [.enter, .interrupt], wait: true)))
     }
 
     @Test func nameRejectsInvisibleSeparators() {

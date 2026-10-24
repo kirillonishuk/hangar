@@ -112,7 +112,7 @@ import Workspace
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInHelix, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
-        case archiveAnyway, archiveFailed, restoreFailed, branchGone, branchGoneInfo, restoreWithoutWorktree
+        case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
@@ -394,6 +394,7 @@ import Workspace
     static var archiveAnyway: String { s(.archiveAnyway) }
     static var archiveFailed: String { s(.archiveFailed) }
     static var restoreFailed: String { s(.restoreFailed) }
+    static var orphanKept: String { s(.orphanKept) }
     static func branchGone(_ name: String) -> String { f(.branchGone, name) }
     static var branchGoneInfo: String { s(.branchGoneInfo) }
     static var restoreWithoutWorktree: String { s(.restoreWithoutWorktree) }

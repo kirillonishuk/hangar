@@ -64,12 +64,14 @@ extension AppState {
             case .success(let t): taskId = t
             case .failure(let e): return fail(e)
             }
-            switch await restoreFromArchive(taskId) {
-            case .restored:
+            let outcome = await restoreFromArchive(taskId)
+            switch outcome {
+            case .restored, .restoredKeeping:
                 guard let task = state.tasks.first(where: { $0.id == taskId && !$0.archived }) else {
                     return fail(ControlError(code: .notFound, message: "task \"\(ref)\" is gone"))
                 }
-                return .ok(id, TaskResult(task: taskInfo(task)))
+                let note = if case .restoredKeeping(let orphan) = outcome { "the folder without .git was kept as \(orphan)" } else { String?.none }
+                return .ok(id, TaskResult(task: taskInfo(task), note: note))
             case .branchMissing(let branch):
                 return fail(ControlError(code: .failed, message: "branch \"\(branch)\" is gone, the worktree cannot be re-created; "
                                          + "restore it in Hangar to keep the task in the project folder"))

@@ -286,6 +286,7 @@
 "archiveAnyway" = "Archive anyway";
 "archiveFailed" = "Couldn't archive the task";
 "restoreFailed" = "Couldn't restore the task";
+"orphanKept" = "The folder without .git was kept as";
 "branchGone" = "Branch “%@” no longer exists";
 "branchGoneInfo" = "The worktree can't be re-created. Restore the task in the project folder?";
 "restoreWithoutWorktree" = "Restore without worktree";

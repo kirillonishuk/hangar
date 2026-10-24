@@ -1,5 +1,6 @@
 import AgentStatus
 import AppKit
+import ControlServer
 import Exec
 import Git
 import Integration
@@ -120,6 +121,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
     // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
+    /// `tabs send --wait` callers waiting for their leaf to turn `working`, by waiter token.
+    @ObservationIgnored var workingWaiters: [UUID: (leaf: UUID, done: CheckedContinuation<Bool, Never>)] = [:]
+    /// How long `tabs send --wait` waits for the turn to start; tests shorten it.
+    @ObservationIgnored var sendWaitTimeout: Duration = .seconds(ControlMethod.sendWaitSeconds)
     /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
     @ObservationIgnored var onHostChange: ((String) -> Void)?
     /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
@@ -263,7 +268,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         let leaf = self.leaf(id: leaf.id) ?? leaf
-        let mode = launchMode(for: leaf, context)
+        var mode = launchMode(for: leaf, context)
+        // ↩ resumes too: a second agent leaf in the folder without a session id would `--continue` the first one's chat.
+        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
         // Tabs and the drawer alike get the task's port (#NN-port).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
@@ -280,7 +287,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return (spec, mode)
     }
 
-    private func leaf(id: UUID) -> Leaf? {
+    func leaf(id: UUID) -> Leaf? {
         for task in state.tasks {
             if task.drawer.leaf?.id == id { return task.drawer.leaf }
             for tab in task.tabs { if let leaf = tab.root.leaf(id: id) { return leaf } }

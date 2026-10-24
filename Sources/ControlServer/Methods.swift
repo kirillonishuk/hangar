@@ -5,6 +5,8 @@ public enum TabKind: String, CaseIterable, Codable, Sendable { case claude, code
 public enum SendKey: String, CaseIterable, Codable, Sendable {
     case enter, escape, tab, backspace, up, down, left, right
     case ctrlC = "ctrl-c", ctrlD = "ctrl-d"
+    /// Stops the running turn: Esc in claude/codex, Ctrl-C in a shell or editor (resolved per leaf by the app).
+    case interrupt
 }
 
 public enum ParamType: Sendable {
@@ -40,6 +42,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public static let maxText = 32_768
     public static let maxPrompt = 16_384
     public static let maxNameChars = 200
+    public static let sendWaitSeconds = 10
 
     public var summary: String {
         switch self {
@@ -48,7 +51,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksList: "List tasks with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project."
         case .tasksCreate: "Create a task in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
-        case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
+        case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission. Result status: sent, queued (claude was already working; it runs after the current turn), started / not-started-yet (with wait). Enter into a working codex is refused (busy): wait for it or send keys [interrupt] first."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
         case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
@@ -86,7 +89,10 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [
                 ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a task's drawer leaf id from tasks_list (or unique prefix)."),
                 ParamSpec(name: "text", type: .string(maxBytes: Self.maxText), required: false, summary: "Text to paste."),
-                ParamSpec(name: "keys", type: .list(of: SendKey.allCases.map(\.rawValue), max: 32), required: false, summary: "Keys to press after the text."),
+                ParamSpec(name: "keys", type: .list(of: SendKey.allCases.map(\.rawValue), max: 32), required: false,
+                          summary: "Keys to press after the text; interrupt = Esc for claude/codex, Ctrl-C for a shell."),
+                ParamSpec(name: "wait", type: .bool, required: false,
+                          summary: "Wait up to \(Self.sendWaitSeconds) s for a claude tab to report the turn started (status working)."),
             ]
         case .tabsRead:
             return [
@@ -111,7 +117,7 @@ public enum ControlCall: Equatable, Sendable {
     case tasksList(project: String?)
     case tasksCreate(project: String, name: String, worktree: Bool, base: String?, prompt: String?)
     case tabsOpen(task: String, kind: TabKind, prompt: String?)
-    case tabsSend(tab: String, text: String?, keys: [SendKey])
+    case tabsSend(tab: String, text: String?, keys: [SendKey], wait: Bool = false)
     case tabsRead(tab: String, lines: Int)
     case tasksArchive(task: String, force: Bool = false)
     case doctor
@@ -147,10 +153,11 @@ public enum ControlCall: Equatable, Sendable {
         case let .tabsOpen(task, kind, prompt):
             p = ["task": task, "kind": kind.rawValue]
             p["prompt"] = prompt
-        case let .tabsSend(tab, text, keys):
+        case let .tabsSend(tab, text, keys, wait):
             p = ["tab": tab]
             p["text"] = text
             if !keys.isEmpty { p["keys"] = keys.map(\.rawValue) }
+            if wait { p["wait"] = true }
         case let .tabsRead(tab, lines): p = ["tab": tab, "lines": lines]
         case let .tasksArchive(task, force):
             p = ["task": task, "yes": true]
@@ -257,7 +264,7 @@ public enum ControlCall: Equatable, Sendable {
                 .reduce(into: "") { $0.unicodeScalars.append($1) }
             if text?.isEmpty == true { text = nil }
             guard text != nil || !keys.isEmpty else { throw bad("pass \"text\" or \"keys\"") }
-            return .tabsSend(tab: v.strings["tab"]!, text: text, keys: keys)
+            return .tabsSend(tab: v.strings["tab"]!, text: text, keys: keys, wait: v.bools["wait"] ?? false)
         case .tabsRead: return .tabsRead(tab: v.strings["tab"]!, lines: v.ints["lines"] ?? defaultLines)
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }

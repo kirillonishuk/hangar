@@ -143,6 +143,8 @@ import Workspace
         #expect(started == [b.tabs[0].id])
         #expect(app.launchContext(for: b.tabs[0].root.leaves[0].id) == .created(prompt: "hi"))
         #expect(app.controlCreating == 0)
+        // Pane #968: the agent may stop on its folder-trust dialog; Hangar never answers it.
+        #expect(r.note?.contains("trust") == true)
     }
 
     @Test func createWorktree() async throws {
@@ -257,10 +259,11 @@ import Workspace
         /// Answered in order, then `.running`.
         var states: [LeafState] = []
         var screen: String?
+        var onSend: (() -> Void)?
         var access: TerminalAccess {
             TerminalAccess(start: { self.started.append($0) },
                            state: { _ in self.states.isEmpty ? .running : self.states.removeFirst() },
-                           send: { leaf, text, keys in self.sent.append((leaf, text, keys)) },
+                           send: { leaf, text, keys in self.sent.append((leaf, text, keys)); self.onSend?() },
                            read: { _ in self.screen })
         }
     }
@@ -396,6 +399,70 @@ import Workspace
         #expect(app.state(ofLeaf: ids.leaf) == .waiting)
         _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: nil, keys: [.enter]), SendResult.self)
         #expect(app.state(ofLeaf: ids.leaf) == .waiting)
+    }
+
+    private func agentApp(_ kind: LeafKind) throws -> (AppState, tab: UUID, leaf: UUID, FakeTerminals) {
+        var ids = (tab: UUID(), leaf: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            let a = s.addTask(projectId: p, name: "A")
+            ids.tab = s.addTab(taskId: a, kind: kind)
+            ids.leaf = s.tasks[0].tabs[0].root.leaves[0].id
+        }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+        app.sendWaitTimeout = .milliseconds(50)
+        return (app, ids.tab, ids.leaf, fake)
+    }
+
+    /// Pane #302/#723: `wait` confirms the turn started (claude's UserPromptSubmit hook → working).
+    @Test func sendWaitConfirmsStart() async throws {
+        let (app, tab, leaf, fake) = try agentApp(.claude)
+        defer { cleanup() }
+        let plain = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter]), SendResult.self)
+        #expect(plain.status == "sent" && plain.hint == nil)
+
+        app.sendWaitTimeout = .seconds(5)
+        fake.onSend = { Task { @MainActor in app.handle(.event(EventMessage(tab: tab, leaf: leaf, kind: .prompt))) } }
+        let started = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter], wait: true), SendResult.self)
+        #expect(started.status == "started")
+
+        // Already working: claude queues the input.
+        fake.onSend = nil
+        let queued = try await ok(app, .tabsSend(tab: tab.uuidString, text: "more", keys: [.enter], wait: true), SendResult.self)
+        #expect(queued.status == "queued" && queued.hint != nil)
+    }
+
+    @Test func sendWaitTimesOut() async throws {
+        let (app, tab, _, _) = try agentApp(.claude)
+        defer { cleanup() }
+        let r = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter], wait: true), SendResult.self)
+        #expect(r.status == "not-started-yet" && r.hint?.contains("tabs read") == true)
+    }
+
+    /// Pane #945/#496: Enter into a working codex is refused; codex reports no turn start, so `wait` cannot confirm.
+    @Test func codexBusyAndWait() async throws {
+        let (app, tab, _, fake) = try agentApp(.codex)
+        defer { cleanup() }
+        fake.screen = "› fix it\n\n• Working (3s • esc to interrupt)\n"
+        let busy = await error(app, .tabsSend(tab: tab.uuidString, text: "next", keys: [.enter]))
+        #expect(busy?.code == .busy && busy?.message.contains("interrupt") == true)
+        #expect(fake.sent.isEmpty)
+        // Keys without Enter (an interrupt) still go through.
+        _ = try await ok(app, .tabsSend(tab: tab.uuidString, text: nil, keys: [.interrupt]), SendResult.self)
+        #expect(fake.sent.last?.keys == [.escape])
+
+        fake.screen = "› \n"
+        let r = try await ok(app, .tabsSend(tab: tab.uuidString, text: "go", keys: [.enter], wait: true), SendResult.self)
+        #expect(r.status == "sent" && r.hint?.contains("codex") == true)
+    }
+
+    @Test func interruptKeyPerKind() async throws {
+        let (app, tab, _, fake) = try agentApp(.shell)
+        defer { cleanup() }
+        _ = try await ok(app, .tabsSend(tab: tab.uuidString, text: nil, keys: [.interrupt, .enter]), SendResult.self)
+        #expect(fake.sent.last?.keys == [.ctrlC, .enter])
     }
 
     @Test func tabsReadLastLines() async throws {

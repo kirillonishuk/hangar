@@ -15,7 +15,7 @@ usage:
   hangar tasks create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
   hangar tasks archive --task T --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
-  hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
+  hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
@@ -40,7 +40,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "tasks archive": Grammar(values: ["--task"], flags: ["--yes", "--force"])
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
-    case "tabs send": Grammar(values: ["--tab"], flags: ["--enter"], repeated: ["--key"], positionals: 0...Int.max)
+    case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     default: nil
     }
@@ -106,7 +106,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         if flags.contains("--enter") { keys.append(.enter) }
         let text = words.isEmpty ? nil : words.joined(separator: " ")
         guard text != nil || !keys.isEmpty else { return .usage("nothing to send: pass text, --key or --enter") }
-        call = .tabsSend(tab: tab, text: text, keys: keys)
+        call = .tabsSend(tab: tab, text: text, keys: keys, wait: flags.contains("--wait"))
     default:  // tabs read
         guard let tab = required("tab") else { return missing("tab") }
         var lines = ControlCall.defaultLines
@@ -129,6 +129,7 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .tasksArchive: 120
     // Login shell plus `--version` of each agent, ssh hosts' state.
     case .doctor: 30
+    case .tabsSend(_, _, _, true): Double(ControlMethod.sendWaitSeconds + 10)
     default: 10
     }
 }
@@ -161,12 +162,15 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         }
     case .tasksCreate:
         text = (try? d.decode(TaskResult.self, from: result)).map { r in
-            "task \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "")
+            "task \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "") + (r.note.map { "\nnote: " + $0 } ?? "")
         }
     case .tabsOpen:
         text = (try? d.decode(TabResult.self, from: result)).map { "tab \(id($0.tab.id))" }
     case .tabsSend:
-        text = ""
+        // A plain `sent` prints nothing, as before `status` existed.
+        text = (try? d.decode(SendResult.self, from: result)).map { r in
+            r.status == "sent" && r.hint == nil ? "" : r.status + (r.hint.map { ": " + $0 } ?? "")
+        }
     case .tabsRead:
         text = (try? d.decode(ScreenResult.self, from: result))?.text
     case .doctor:

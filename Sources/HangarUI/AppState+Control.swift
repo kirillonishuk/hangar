@@ -80,7 +80,11 @@ extension AppState {
             guard let task = state.tasks.first(where: { $0.id == created.task }) else {
                 return fail(ControlError(code: .failed, message: "task was not created"))
             }
-            return .ok(id, TaskResult(task: taskInfo(task)))
+            // Pane #968: a new folder makes the agent ask to trust it first; that is the user's call, never answered here.
+            let agentTab = task.tabs.first?.root.leaves.first.map { $0.kind == .claude || $0.kind == .codex } ?? false
+            let note = agentTab ? "\(config.defaultAgent.rawValue) may ask to trust the folder on first open; "
+                + "the user answers that in the tab (check with tabs read). The prompt is a launch argument, not typed in, so the dialog does not eat it" : nil
+            return .ok(id, TaskResult(task: taskInfo(task), note: note))
 
         case let .tasksArchive(ref, force):
             let taskId: UUID
@@ -123,7 +127,7 @@ extension AppState {
             }
             return .ok(id, TabResult(task: taskId, tab: tabInfo(tab)))
 
-        case let .tabsSend(ref, text, keys):
+        case let .tabsSend(ref, text, keys, wait):
             let target: (tab: UUID, leaf: UUID)
             switch resolveLeaf(ref) {
             case .success(let t): target = t
@@ -131,8 +135,7 @@ extension AppState {
             }
             switch leafState(target) {
             case .running:
-                terminals?.send(target.leaf, text, keys)
-                return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
+                return await send(id, target, text: text, keys: keys, wait: wait)
             case .notStarted, .starting: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
             case .failed: return fail(Self.couldNotStart)
@@ -154,6 +157,36 @@ extension AppState {
     }
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// `tabs send` on a running leaf (Pane #302/#723/#945): Enter into a working codex is refused, into a working
+    /// claude it is queued by claude; `wait` waits for claude's UserPromptSubmit hook (status working).
+    private func send(_ id: Int, _ target: (tab: UUID, leaf: UUID), text: String?, keys raw: [SendKey], wait: Bool) async -> ControlResponse {
+        let kind = leaf(id: target.leaf)?.kind ?? .shell
+        let agent = kind == .claude || kind == .codex
+        let keys = raw.map { $0 == .interrupt ? (agent ? .escape : .ctrlC) : $0 }
+        let submits = keys.contains(.enter), working = state(ofLeaf: target.leaf) == .working
+        if kind == .codex, submits, working || codexBusy(terminals?.read(target.leaf)) {
+            return ControlResponse(id: id, body: .failure(ControlError(code: .busy, message:
+                "codex is working; Enter now may queue or drop the message. Retry when the tab's status is done, or send keys [interrupt] first")))
+        }
+        terminals?.send(target.leaf, text, keys)
+        var result = SendResult(tab: target.tab, leaf: target.leaf)
+        guard submits else { return .ok(id, result) }
+        if kind == .claude, working {
+            result.status = "queued"
+            result.hint = "claude was working; the message runs after the current turn (keys [interrupt] stop it)"
+        } else if wait, kind == .claude {
+            if await waitForWorking(target.leaf) {
+                result.status = "started"
+            } else {
+                result.status = "not-started-yet"
+                result.hint = "no turn start within \(ControlMethod.sendWaitSeconds) s: check the screen with tabs read (a dialog may be open, or Hangar's Claude hooks are not installed)"
+            }
+        } else if wait, kind == .codex {
+            result.hint = "codex reports no turn start; check the screen with tabs read"
+        }
+        return .ok(id, result)
+    }
 
     /// The «Удалённый проект» sheet without the sheet: connect (with the server check), `pwd -P` on the server, add.
     /// Nothing is installed here; what the server lacks comes back as warnings. A failure lets go of a host no project uses.
@@ -307,6 +340,13 @@ func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
     if branch.isEmpty { return "task name gives an empty branch name" }
     if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return "branch \"\(branch)\" already exists" }
     return "invalid branch name \"\(branch)\""
+}
+
+/// Codex has no turn-start event (decision #43), so its working state is read off the screen.
+/// shortcut: matches codex's status line "esc to interrupt"; change when codex gets hooks.
+func codexBusy(_ screen: String?) -> Bool {
+    guard let screen else { return false }
+    return screenTail(screen, lines: 15).text.lowercased().contains("esc to interrupt")
 }
 
 /// `tabs.read`: the last `lines` lines without trailing blank ones, at most 512 KiB (cut from the start).

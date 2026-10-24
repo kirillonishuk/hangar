@@ -5,6 +5,8 @@ import SwiftUI
 /// The «Задача в архиве · Отменить» toast: one at a time, hides after `delay` by a one-shot work item (no polling).
 @MainActor @Observable final class ArchiveUndo {
     private(set) var taskId: UUID?
+    /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).
+    @ObservationIgnored var onUndo: (UUID) -> Void = { _ in }
     @ObservationIgnored private var hide: DispatchWorkItem?
     @ObservationIgnored private let delay: TimeInterval
     /// Runs the hide item after the delay (tests run it by hand).

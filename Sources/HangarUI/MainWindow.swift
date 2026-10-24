@@ -30,18 +30,14 @@ final class TaskColumnController: NSViewController {
     let tabBar: NSHostingView<TabBarView>
     private let statusBar: NSHostingView<TaskStatusBar>
     /// «Задача в архиве · Отменить» over the bottom of the terminals.
-    let archiveUndo = ArchiveUndo()
+    let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
-        // Undo selects the task again only if the archive left nothing selected (it was the selected one).
-        toast = NSHostingView(rootView: UndoToastView(undo: archiveUndo) { [weak app] id in
-            guard let app, app.state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
-            let reselect = app.selectedTask == nil
-            app.restore(taskId: id)
-            if reselect { app.select(taskId: id) }
-        })
+        let undo = ArchiveUndo()
+        archiveUndo = undo
+        toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
@@ -164,6 +160,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        // Undo selects the task again only if the archive left nothing selected (it was the selected one).
+        column.archiveUndo.onUndo = { [weak self] id in
+            guard let self else { return }
+            let reselect = self.app.selectedTask == nil
+            Task { await restoreArchivedTask(id, ctx: self.ctx, reselect: reselect) }
+        }
         splitView.onDragEnd = { [weak self, weak splitView] in
             switch splitView?.draggedDivider {
             case 0: self?.sidebarDragEnded()

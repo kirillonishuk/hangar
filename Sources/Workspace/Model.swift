@@ -447,6 +447,20 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].archived = false
     }
 
+    /// Restore without its worktree (the branch is gone): a main-folder task whose leaves move from the worktree to the project.
+    public mutating func detachWorktree(taskId: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, _, _) = tasks[i].mode else { return }
+        tasks[i].mode = .mainFolder
+        let folder = cwd(for: tasks[i])
+        func move(_ leaf: Leaf) -> Leaf {
+            var leaf = leaf
+            if leaf.cwd == path || leaf.cwd.hasPrefix(path + "/") { leaf.cwd = folder + leaf.cwd.dropFirst(path.count) }
+            return leaf
+        }
+        for tab in tasks[i].tabs.indices { tasks[i].tabs[tab].root = tasks[i].tabs[tab].root.mapLeaves(move) }
+        tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
+    }
+
     /// Names are trimmed; an empty name is ignored.
     public mutating func renameTask(id: UUID, name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -151,10 +151,8 @@ enum Action: CaseIterable {
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in
                 ctx.showError(L10n.openFailed(editorName(editor)), details)
             }
-        case (.archive, .task(let id)):
-            app.archive(taskId: id)
-            ctx.didArchive(id)
-        case (.restore, .task(let id)): app.restore(taskId: id)
+        case (.archive, .task(let id)): Task { await archiveTask(id, ctx: ctx) }
+        case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
             guard case .worktree = task.mode, let project = app.project(task.projectId) else {

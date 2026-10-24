@@ -13,7 +13,7 @@ usage:
   hangar projects add <path> [--host H] [--json]   (with --host: a path on the server, quote ~ so the local shell keeps it)
   hangar tasks list [--project P] [--json]
   hangar tasks create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
-  hangar tasks archive --task T --yes [--json]
+  hangar tasks archive --task T --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
@@ -37,7 +37,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "projects add": Grammar(values: ["--host"], positionals: 1...1)
     case "tasks list": Grammar(values: ["--project"])
     case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
-    case "tasks archive": Grammar(values: ["--task"], flags: ["--yes"])
+    case "tasks archive": Grammar(values: ["--task"], flags: ["--yes", "--force"])
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
@@ -94,7 +94,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
     case "tasks archive":
         guard let task = required("task") else { return missing("task") }
         guard flags.contains("--yes") else { return .confirmRequired("refusing to archive without --yes") }
-        call = .tasksArchive(task: task)
+        call = .tasksArchive(task: task, force: flags.contains("--force"))
     case "tabs open":
         guard let task = required("task") else { return missing("task") }
         guard let raw = required("kind") else { return missing("kind") }
@@ -124,6 +124,8 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     switch call {
     case .tasksCreate: 300
     case .projectsAdd(_, .some): 60
+    // git status and `worktree remove` of a big folder (node_modules), possibly over ssh.
+    case .tasksArchive: 120
     default: 10
     }
 }
@@ -165,7 +167,7 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
     case .tabsRead:
         text = (try? d.decode(ScreenResult.self, from: result))?.text
     case .tasksArchive:
-        text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" }
+        text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
     }
     return text ?? String(decoding: result, as: UTF8.self)
 }

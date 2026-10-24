@@ -170,7 +170,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
 
     private func markRestored(_ tasks: [HangarTask]) {
-        let resuming = resumeSet(for: tasks)
+        let resuming = resumeSet(for: tasks, host: { id in self.state.projects.first { $0.id == id }?.host })
         for task in tasks {
             for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
                 restoredLeaves[leaf.id] = resuming.contains(leaf.id)
@@ -541,25 +541,28 @@ func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting 
 
 /// Leaves of `tasks` that start with `restoring: true` (at startup: all live tasks; on unarchive: that task).
 /// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so among
-/// claude/codex leaves without an id only the first per (kind, cwd) continues; later ones start fresh.
-/// Leaves with an id always resume; shell and editor leaves are always restored.
-func resumeSet(for state: WorkspaceState) -> Set<UUID> { resumeSet(for: state.tasks.filter { !$0.archived }) }
+/// claude/codex leaves without an id only the first per (kind, host, cwd) continues; later ones start fresh.
+/// Leaves with an id always resume; shell and editor leaves are always restored. `host`: a project's ssh host, nil if local.
+func resumeSet(for state: WorkspaceState) -> Set<UUID> {
+    resumeSet(for: state.tasks.filter { !$0.archived }, host: { id in state.projects.first { $0.id == id }?.host })
+}
 
-func resumeSet(for tasks: [HangarTask]) -> Set<UUID> {
-    struct Key: Hashable { var kind: LeafKind; var cwd: String }
+func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
+    struct Key: Hashable { var kind: LeafKind; var host: String?; var cwd: String }
     var claimed = Set<Key>()
     var result = Set<UUID>()
-    func visit(_ leaf: Leaf) {
+    func visit(_ leaf: Leaf, host: String?) {
         switch leaf.kind {
         case .shell, .editor: result.insert(leaf.id)
         case .claude, .codex:
             if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
-            if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
+            if claimed.insert(Key(kind: leaf.kind, host: host, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }
     for task in tasks {
-        for tab in task.tabs { tab.root.leaves.forEach(visit) }
-        if let leaf = task.drawer.leaf { visit(leaf) }
+        let host = host(task.projectId)
+        for tab in task.tabs { tab.root.leaves.forEach { visit($0, host: host) } }
+        if let leaf = task.drawer.leaf { visit(leaf, host: host) }
     }
     return result
 }

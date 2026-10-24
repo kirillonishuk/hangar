@@ -29,7 +29,7 @@ public struct GitError: Error, LocalizedError, Equatable, Sendable {
 /// Thin wrapper over the `git` CLI. Every command is an argv array run through `Runner` with cwd = `repo`;
 /// output is parsed from machine-readable formats only.
 public struct Git: Sendable {
-    let repo: String
+    public let repo: String
     let runner: Runner
 
     public init(repo: String, runner: Runner = .local) {
@@ -154,6 +154,11 @@ public struct Git: Sendable {
 
     public func removeWorktree(path: String, force: Bool) async throws {
         try await exec(["worktree", "remove"] + (force ? ["--force"] : []) + ["--", path])
+    }
+
+    /// Fixes the links between a worktree and the main repo (the worktree's `.git` file, the admin dir's `gitdir`).
+    public func repairWorktree(path: String) async throws {
+        try await exec(["worktree", "repair", "--", path])
     }
 
     public func pruneWorktrees() async throws {

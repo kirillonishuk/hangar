@@ -51,6 +51,15 @@ public func matchIgnored(_ patterns: [String], _ entries: [String]) -> [String] 
     }
 }
 
+/// Ignored folders a package manager or build re-creates (`node_modules`, `.venv`, `vendor/bundle`, `.turbo`, `dist`):
+/// removing a worktree's copy loses nothing.
+public func isReinstallable(_ ignored: String) -> Bool {
+    var e = ignored
+    while e.hasSuffix("/") { e.removeLast() }
+    let name = e.split(separator: "/").last.map(String.init) ?? e
+    return ["node_modules", ".venv", ".turbo", "dist"].contains(name) || e == "vendor/bundle" || e.hasSuffix("/vendor/bundle")
+}
+
 extension Git {
     /// Ignored, untracked entries of the whole repository, relative to its top, without a trailing `/`. An ignored
     /// folder is one entry: git does not descend into it (nor through symlinks), so every entry lies inside the repo.
@@ -71,21 +80,52 @@ extension Git {
     /// Copies `entry` of the main checkout (`top`, from `toplevel()`) into the same place in `worktree` on the runner's
     /// machine: an APFS clone (`cp -c`) here, `cp --reflink=auto` on a server, else a plain copy. Symlinks are copied
     /// as they are (a relative pnpm link keeps resolving inside the copy), never followed.
-    /// A missing source or an existing destination is skipped.
+    /// A missing source or an existing destination is skipped. A destination whose folders pass through a symlink
+    /// (the base branch may track one pointing anywhere) or resolve outside the worktree is refused.
     public func copyIgnored(_ entry: String, from top: String, into worktree: String) async throws {
         let (fast, plain) = runner.isLocal ? ("cp -cpR", "cp -pR") : ("cp -a --reflink=auto", "cp -a")
         // The destination did not exist, so removing a half-made first attempt touches nothing of the user's.
         let script = """
-        s=$1 d=$2
+        s=$1 d=$2 w=$3 r=$4 p=$3
+        while case $r in */*) true ;; *) false ;; esac; do
+          p=$p/${r%%/*} r=${r#*/}
+          if [ -L "$p" ]; then echo "symlink in the destination: $p" >&2; exit 1; fi
+        done
         if [ -e "$d" ] || [ -L "$d" ] || { [ ! -e "$s" ] && [ ! -L "$s" ]; }; then exit 0; fi
         mkdir -p -- "${d%/*}" || exit 1
+        case "$(cd -P -- "${d%/*}" && pwd -P)/" in
+          "$(cd -P -- "$w" && pwd -P)"/*) ;;
+          *) echo "destination outside the worktree: $d" >&2; exit 1 ;;
+        esac
         \(fast) -- "$s" "$d" 2>/dev/null && exit 0
         rm -rf -- "$d"
         exec \(plain) -- "$s" "$d"
         """
-        let args = ["/bin/sh", "-c", script, "sh", top + "/" + entry, worktree + "/" + entry]
+        let args = ["/bin/sh", "-c", script, "sh", top + "/" + entry, worktree + "/" + entry, worktree, entry]
         let r = try await runner.run(args, repo)
         guard r.status == 0 else { throw GitError(args: ["cp", entry], status: r.status, stderr: r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    }
+
+    /// Of `ignored` (`ignoredFiles(path: worktree)`), what removing `worktree` would really lose, items missing from the
+    /// main checkout (`top`) first: not reinstallable folders (`isReinstallable`) nor regular files identical (`cmp -s`,
+    /// on the runner's machine) to the same path in `top`, i.e. copies made by worktree setup.
+    public func ignoredAtRisk(_ ignored: [String], worktree: String, top: String) async throws -> [String] {
+        let candidates = ignored.filter { !isReinstallable($0) }
+        guard !candidates.isEmpty else { return [] }
+        // Per item: `u` = not in the main checkout, `d` = there but different (or not a plain file), nothing = a copy.
+        let script = """
+        w=$1 t=$2; shift 2
+        for e; do
+          if [ ! -e "$t/$e" ] && [ ! -L "$t/$e" ]; then printf 'u%s\\0' "$e"
+          elif [ -f "$w/$e" ] && [ ! -L "$w/$e" ] && [ -f "$t/$e" ] && [ ! -L "$t/$e" ] && cmp -s -- "$w/$e" "$t/$e"; then :
+          else printf 'd%s\\0' "$e"; fi
+        done
+        """
+        let args = ["/bin/sh", "-c", script, "sh", worktree, top] + candidates
+        let r = try await runner.run(args, worktree)
+        guard r.status == 0 else { throw GitError(args: ["cmp"], status: r.status, stderr: r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        let items = r.stdout.split(separator: "\0").map(String.init)
+        return items.filter { $0.hasPrefix("u") }.map { String($0.dropFirst()) } + items.filter { $0.hasPrefix("d") }.map { String($0.dropFirst()) }
     }
 
     private func lines(_ args: [String]) async throws -> [String] {

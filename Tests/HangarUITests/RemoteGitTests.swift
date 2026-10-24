@@ -236,14 +236,16 @@ import Workspace
         #expect(!FileManager.default.fileExists(atPath: s.server + ".worktrees/keep"))
     }
 
-    /// Archive on a host: the server's worktree is checked (ignored .env → asked), removed with the branch kept,
-    /// the tab's tmux session killed; restore re-creates the worktree there. The Mac's decoy is never touched.
+    /// Archive on a host: the tab's tmux session is killed (awaited) before the server's worktree is checked; its .env
+    /// is a copy of the main folder's (`cmp` on the server), so nothing is asked; removed with the branch kept;
+    /// restore re-creates the worktree there. The Mac's decoy is never touched.
     @Test func remoteArchiveRemovesServerWorktree() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)
         try await RemoteHostsTests.offMain {
             try Self.git(["worktree", "add", "-q", "-b", "wip", s.server + ".worktrees/wip", "main"], in: s.server)
             try "SECRET=1".write(toFile: s.server + ".worktrees/wip/.env", atomically: true, encoding: .utf8)
+            try "SECRET=1".write(toFile: s.server + "/.env", atomically: true, encoding: .utf8)
         }
         let before = Self.snapshot(h.root + "/mac")
         var id = UUID(), leaf = UUID()
@@ -259,8 +261,13 @@ import Workspace
         Action.archive.perform(.task(id), ctx)
         #expect(await waitUntil { h.app.state.tasks.first { $0.id == id }?.archived == true })
         #expect(await waitUntil { !FileManager.default.fileExists(atPath: s.server + ".worktrees/wip") })
-        #expect(calls.confirms == [L10n.worktreeIgnored] && calls.errors.isEmpty)
+        #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
         #expect(await waitUntil { log(h).contains("kill-session") && log(h).contains("hangar-\(leaf.uuidString.lowercased())") })
+        let lines = FakeSSH.calls(h.log).compactMap(\.last)
+        let kill = try #require(lines.firstIndex { $0.contains("kill-session") })
+        let status = try #require(lines.firstIndex { $0.contains("status --porcelain") })
+        #expect(kill < status)  // stopped first, then checked
+        #expect(try String(contentsOfFile: h.log, encoding: .utf8).contains("cmp -s"))
         #expect(FileManager.default.fileExists(atPath: s.server + "/.git/refs/heads/wip"))
 
         Action.restore.perform(.task(id), ctx)

@@ -184,6 +184,25 @@ import Workspace
         #expect(app.state.tasks.count == 3)
     }
 
+    /// CLI/MCP never run the lockfile's suggested command (no consent); a command saved to the project runs.
+    @Test func createWorktreeRunsOnlySavedSetup() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        try await Task.detached { try t.commit(file: "pnpm-lock.yaml", on: "main") }.value
+        var project = UUID()
+        let app = try makeApp { s in project = s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let plain = try await ok(app, .tasksCreate(project: "repo", name: "a", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        #expect(app.state.tasks.first { $0.id == plain.task.id }?.tabs.count == 1)
+        #expect(app.project(project)?.setupCommand == nil)
+        app.perform { $0.setWorktreeSetup(id: project, copy: nil, command: "pnpm i") }
+        let saved = try await ok(app, .tasksCreate(project: "repo", name: "b", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        let task = try #require(app.state.tasks.first { $0.id == saved.task.id })
+        #expect(task.tabs.count == 2)
+        let shell = try #require(task.tabs.last?.root.leaves.first)
+        #expect(app.launchContext(for: shell.id) == .created(prompt: "pnpm i"))
+    }
+
     /// tasks.create with a worktree on a host that isn't connected: says so in English, not "not a git repository".
     @Test func worktreeOnOfflineHost() async throws {
         let app = try makeApp { s in _ = s.addRemoteProject(name: "srv", host: "dev", path: "/srv/app") }

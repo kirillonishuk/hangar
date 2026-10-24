@@ -291,6 +291,8 @@
 "worktreeCopy" = "Copy into worktree";
 "worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";
 "setupCommand" = "Setup command";
-"setupCommandHelp" = "Runs at the new worktree's top in a shell tab after the copy. Default comes from the lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline); blank = none";
+"setupCommandHelp" = "Runs at the new worktree's top in a shell tab after the copy. Blank = none; the lockfile's command (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) is only suggested";
+"afterCreate" = "After creating";
+"afterCreateSuggestedHelp" = "Suggested from the lockfile. Turn on to run it in a shell tab of the new worktree; it is then saved to the project";
 "copyingEntry" = "Copying %@…";
 "copyFailed" = "hangar: not copied %@";

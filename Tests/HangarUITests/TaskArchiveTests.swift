@@ -92,6 +92,44 @@ import Workspace
         #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
+    /// Ignores `.env`, `node_modules`, `*.db` on branch x; the main folder has `.env` (`SECRET=1`).
+    private func ignoreSetup(_ t: TempRepo, _ wt: String) throws {
+        try ".env\nnode_modules/\n*.db\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)
+        _ = try t.git("add", ".gitignore", in: wt)
+        _ = try t.git("commit", "-q", "-m", "ignore", in: wt)
+        try "SECRET=1".write(toFile: t.repo + "/.env", atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(atPath: wt + "/node_modules/pkg", withIntermediateDirectories: true)
+        try "x".write(toFile: wt + "/node_modules/pkg/index.js", atomically: true, encoding: .utf8)
+    }
+
+    /// A fresh worktree holding only what setup copied (`.env` as in the main folder) and reinstallable `node_modules`.
+    @Test func copiesAndReinstallablesArchiveWithoutConfirm() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
+        defer { t.cleanup() }
+        try ignoreSetup(t, wt)
+        try "SECRET=1".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
+        await archiveTask(id, ctx: ctx)
+        #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
+        #expect(archived(app, id) && !exists(wt))
+    }
+
+    /// A new local DB and a changed `.env` would be lost: asked, the new one listed first. Declined: the task stays
+    /// unarchived and its tabs (stopped before the check) relaunch lazily, as after a restart.
+    @Test func realLossAsksUniqueFirstAndDeclineRelaunchesLazily() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
+        defer { t.cleanup() }
+        try ignoreSetup(t, wt)
+        try "CHANGED=1".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
+        try "db".write(toFile: wt + "/dev.db", atomically: true, encoding: .utf8)
+        let leaf = try #require(app.state.tasks.first { $0.id == id }?.tabs.first?.root.leaves.first)
+        await archiveTask(id, ctx: ctx)
+        #expect(calls.confirms == [L10n.worktreeIgnored])
+        #expect(calls.infos.first?.contains("dev.db, .env") == true)
+        #expect(calls.infos.first?.contains("node_modules") == false)
+        #expect(!archived(app, id) && exists(wt + "/dev.db"))
+        #expect(app.launchContext(for: leaf.id) == .restored(inResumeSet: true))
+    }
+
     @Test func restoreRecreatesWorktreeFromBranch() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
@@ -119,6 +157,12 @@ import Workspace
     @Test func branchGoneOffersMainFolder() async throws {
         let (t, app, id, _, _, calls, ctx) = try await make(answer: true)
         defer { t.cleanup() }
+        var claude = UUID()
+        app.perform { s in
+            _ = s.addTab(taskId: id, kind: .claude)
+            claude = s.tasks.first { $0.id == id }!.tabs.last!.root.leaves[0].id
+            s.setAgentSessionId(leafId: claude, "0b6c4a52-7c1e-4c1a-9a55-3f1a2b3c4d5e")
+        }
         await archiveTask(id, ctx: ctx)
         _ = try t.git("branch", "-D", "x", in: t.repo)
         await restoreArchivedTask(id, ctx: ctx)
@@ -127,6 +171,9 @@ import Workspace
         let task = try #require(app.state.tasks.first { $0.id == id })
         #expect(task.mode == .mainFolder)
         #expect(task.tabs.flatMap(\.root.leaves).allSatisfy { $0.cwd == t.repo })
+        // Detached leaves start fresh: no `--resume <id>` / `--continue` into another task's conversation.
+        #expect(task.tabs.flatMap(\.root.leaves).allSatisfy { $0.agentSessionId == nil })
+        #expect(app.launchContext(for: claude) == .created(prompt: nil))
     }
 
     @Test func branchGoneDeclinedStaysArchived() async throws {

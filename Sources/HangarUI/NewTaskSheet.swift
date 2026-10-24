@@ -100,6 +100,28 @@ struct NewTaskSheet: View {
                 }
             }
             .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            // Always there (no jump when the lockfile is read); a suggestion stays off until turned on.
+            CardRow(label: L10n.afterCreate) {
+                if let command = model.setupCommand {
+                    Text(verbatim: command).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                        .foregroundStyle(Theme.ui.sheetText)
+                        .truncationMode(.middle)
+                    Spacer(minLength: Theme.cardRowGap)
+                    Toggle("", isOn: $model.runSetup)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .tint(Theme.ui.primary)
+                        .disabled(!model.worktree || model.creating)
+                        .pointingHand(model.worktree && !model.creating)
+                } else {
+                    Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                        .foregroundStyle(Theme.ui.sheetText)
+                    Spacer(minLength: 0)
+                }
+            }
+            .help(model.setupSuggested ? L10n.afterCreateSuggestedHelp : "")
+            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
         }
         .sheetCard()
     }

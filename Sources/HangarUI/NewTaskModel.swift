@@ -33,8 +33,16 @@ import Workspace
     private(set) var creating = false
     /// The entry being copied into the new worktree («Копирую node_modules…»).
     private(set) var progress: String?
-    /// For the new worktree's shell tab after a create: failed copies, then the project's setup command; nil = no tab.
+    /// For the new worktree's shell tab after a create: failed copies, then the setup command if `runSetup`; nil = no tab.
     private(set) var setupScript: String?
+    /// The «После создания» row: the project's saved command, else (no own one) the lockfile's suggestion; nil = no row content.
+    private(set) var setupCommand: String?
+    /// Only a saved command runs by default; a suggestion runs (and is saved to the project) once the user turns it on.
+    var runSetup: Bool
+    /// `setupCommand` is the lockfile's suggestion, not the project's own.
+    var setupSuggested: Bool { project.setupCommand == nil && setupCommand != nil }
+    /// After a create that ran a suggestion: save it to the project (the user's opt-in).
+    private(set) var commandToSave: String?
     let taskBranches: Set<String>
 
     @ObservationIgnored private let project: Project
@@ -54,6 +62,9 @@ import Workspace
         self.git = git
         self.taskBranches = taskBranches
         worktree = project.worktreeByDefault
+        let saved = project.setupCommand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        setupCommand = saved.isEmpty ? nil : saved
+        runSetup = !saved.isEmpty
     }
 
     var canCreate: Bool {
@@ -89,6 +100,7 @@ import Workspace
         } else {
             base = defaultBase
         }
+        if project.setupCommand == nil { setupCommand = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? []).command }
         availability = .ready
         if !branchEdited { suggestBranch() }
         // The sheet closed while loading: its fetch would outlive it (`runFetch`'s task doesn't inherit cancellation).
@@ -150,6 +162,7 @@ import Workspace
         defer { creating = false }
         createError = nil
         setupScript = nil
+        commandToSave = nil
         if !skipFetch, !fetchedThisOpen {
             if fetch == .running { await fetchSettled() } else { await runFetch() }
             switch fetch {
@@ -169,13 +182,13 @@ import Workspace
             createError = (error as? GitError)?.errorDescription ?? error.localizedDescription
             return nil
         }
-        // A project without its own list / command gets its package manager's (from the lockfiles at the top).
-        var defaults: WorktreeDefaults?
-        if project.worktreeCopy == nil || project.setupCommand == nil {
-            defaults = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
-        }
-        let failures = await copyIgnored(project.worktreeCopy ?? defaults?.copy ?? [], into: path)
-        setupScript = worktreeSetupScript(failures: failures, command: project.setupCommand ?? defaults?.command)
+        // A project without its own list gets its package manager's (from the lockfiles at the top).
+        var copy = project.worktreeCopy
+        if copy == nil { copy = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? []).copy }
+        let failures = await copyIgnored(copy ?? [], into: path)
+        let command = runSetup ? setupCommand : nil
+        setupScript = worktreeSetupScript(failures: failures, command: command)
+        if project.setupCommand == nil { commandToSave = command }
         return .worktree(path: path, branch: branch, base: base)
     }
 

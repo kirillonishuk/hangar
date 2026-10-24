@@ -22,23 +22,32 @@ enum RestoreOutcome: Equatable {
 }
 
 extension AppState {
-    /// The check runs before anything changes, so an offline host or a failed check archives nothing.
-    /// Archiving first stops the task's tabs (and kills remote tmux sessions) before the folder goes.
+    /// The task's tabs stop first (archived: surfaces close, remote tmux sessions are killed and awaited), so nothing
+    /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
+    /// unarchived again, its tabs relaunch lazily as after a restart.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("task not found") }
         guard case .worktree(let path, _, _) = task.mode, let project = project(task.projectId) else {
             archive(taskId: id)
             return .archived(worktreeRemoved: false)
         }
+        // Offline: the check can't run; stopping first would only queue kills for tabs that stay.
+        if let host = project.host, remote.hosts[host]?.state != .connected { return .failed(RemoteHostError.notConnected(host).description) }
+        let wasSelected = state.selectedTaskId == id
+        archive(taskId: id)
+        for kill in lastKills { await kill.value }
         let git = git(for: project), check: WorktreeCheck
         do {
             check = try await checkWorktree(path, git: git, runner: runner(for: project))
         } catch {
+            unarchiveKept(id, wasSelected: wasSelected)
             return .failed(error.localizedDescription)
         }
-        if case let .atRisk(dirty, ignored) = check, !force { return .atRisk(dirty: dirty, ignored: ignored) }
-        guard state.tasks.contains(where: { $0.id == id && !$0.archived }) else { return .failed("task not found") }
-        archive(taskId: id)
+        if case let .atRisk(dirty, ignored) = check, !force {
+            unarchiveKept(id, wasSelected: wasSelected)
+            return .atRisk(dirty: dirty, ignored: ignored)
+        }
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("task not found") }
         do {
             if check == .missing { try await git.pruneWorktrees() } else { try await git.removeWorktree(path: path, force: check != .clean) }
         } catch {
@@ -47,12 +56,25 @@ extension AppState {
         return .archived(worktreeRemoved: true)
     }
 
+    /// The archive didn't go ahead: the task is back (still archived only if something else unarchived it meanwhile).
+    private func unarchiveKept(_ id: UUID, wasSelected: Bool) {
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
+        let leaves = Set(state.tasks.filter { $0.id == id }.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) + [$0.drawer.leaf?.id].compactMap { $0 } })
+        // A kill that failed waits for the reconnect; these tabs are live again.
+        for host in pendingKills.keys { pendingKills[host]?.subtract(leaves) }
+        restore(taskId: id)
+        if wasSelected { select(taskId: id) }
+    }
+
     /// A worktree folder that is gone (removed by archive) is added back from its branch first; tabs reopen on unarchive.
     /// `withoutWorktree`: the branch is gone and the user agreed to restore the task in the project folder.
     func restoreFromArchive(_ id: UUID, withoutWorktree: Bool = false) async -> RestoreOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && $0.archived }) else { return .restored }
         if withoutWorktree {
             perform { $0.detachWorktree(taskId: id) }
+            guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .restored }
+            restore(taskId: id, fresh: true)
+            return .restored
         } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
             let git = git(for: project)
             do {

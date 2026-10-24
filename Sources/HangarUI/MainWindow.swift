@@ -574,8 +574,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
                                 onCreate: { [weak self] name, message, mode in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode,
-                                                         setup: model.setupScript)
+                                    guard let app = self?.app else { return }
+                                    // Turning the suggested command on is the opt-in: it becomes the project's own.
+                                    if let command = model.commandToSave, let p = app.project(id) {
+                                        app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
+                                    }
+                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)

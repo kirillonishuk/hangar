@@ -158,8 +158,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         self.configURL = configURL
         launchTerminalBackground = config.terminalBackground
         L10n.language = config.language
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? ""
-        userShell = shell.isEmpty ? "/bin/zsh" : shell
+        userShell = resolveUserShell(passwd: getpwuid(getuid())?.pointee.pw_shell.map { String(cString: $0) },
+                                     env: ProcessInfo.processInfo.environment["SHELL"])
         self.socketPath = socketPath
         markRestored(state.tasks.filter { !$0.archived })
         codexRead = lazyCodexRead()

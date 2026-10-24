@@ -60,7 +60,7 @@ import Testing
          PaletteItem(task: c, name: "Release notes", project: "docs")]
     }
     private let files = ["Sources/Billing/Service.swift", "README.md", "docs/billing.md"]
-    private let commands: [PaletteItem] = [PaletteItem(command: .newTask, title: "New Task"),
+    private let commands: [PaletteItem] = [PaletteItem(command: .newTask, title: "New Session"),
                                            PaletteItem(command: .settings, title: "Settings")]
 
     private func kinds(_ s: [PaletteSection]) -> [PaletteItem.Kind] { s.map(\.kind) }
@@ -79,11 +79,11 @@ import Testing
     @Test func leadingAngleSwitchesToCommands() {
         let all = paletteSections(query: ">", tasks: tasks, files: files, commands: commands)
         #expect(kinds(all) == [.command])
-        #expect(all[0].items.map(\.title) == ["New Task", "Settings"])
+        #expect(all[0].items.map(\.title) == ["New Session", "Settings"])
         let s = paletteSections(query: ">set", tasks: tasks, files: files, commands: commands)
         #expect(s.first?.items.map(\.title) == ["Settings"])
         #expect(s.first?.items.first?.positions == [0, 1, 2])  // offsets in the title, without the «>»
-        #expect(paletteSections(query: "> new", tasks: tasks, files: files, commands: commands).first?.items.first?.title == "New Task")
+        #expect(paletteSections(query: "> new", tasks: tasks, files: files, commands: commands).first?.items.first?.title == "New Session")
         // Only a leading «>» switches.
         #expect(paletteCommandQuery("a>") == nil)
         #expect(paletteCommandQuery(">x") == "x")

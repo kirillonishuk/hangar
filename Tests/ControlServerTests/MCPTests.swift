@@ -60,7 +60,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         var s = session(FakeApp())
         let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
         let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "tasks_list", "tasks_create", "tabs_open", "tabs_send", "tabs_read", "tasks_archive", "doctor", "tasks_restore", "ssh_open", "links_create"])
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "sessions_list", "sessions_create", "tabs_open", "tabs_send", "tabs_read", "sessions_archive", "doctor", "sessions_restore", "ssh_open", "links_create"])
         var byName: [String: [String: Any]] = [:]
         for t in tools {
             let schema = try #require(t["inputSchema"] as? [String: Any])
@@ -71,7 +71,11 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
             #expect(t["description"] is String)
             byName[t["name"] as! String] = schema
         }
-        #expect(byName["tasks_archive"]?["required"] as? [String] == ["task", "yes"])
+        #expect(byName["sessions_archive"]?["required"] as? [String] == ["session", "yes"])
+        #expect(byName["tabs_open"]?["required"] as? [String] == ["session", "kind"])
+        for (name, schema) in byName {
+            #expect((schema["properties"] as? [String: Any])?["task"] == nil, "\(name)")
+        }
         #expect(byName["projects_list"]?["required"] as? [String] == [])
         #expect(byName["projects_add"]?["required"] as? [String] == ["path"])
         let host = (byName["projects_add"]?["properties"] as? [String: Any])?["host"] as? [String: Any]
@@ -92,9 +96,9 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect(lines?["maximum"] as? Int == 5000)
         let kind = (byName["tabs_open"]?["properties"] as? [String: Any])?["kind"] as? [String: Any]
         #expect(kind?["enum"] as? [String] == TabKind.allCases.map(\.rawValue))
-        let yes = (byName["tasks_archive"]?["properties"] as? [String: Any])?["yes"] as? [String: Any]
+        let yes = (byName["sessions_archive"]?["properties"] as? [String: Any])?["yes"] as? [String: Any]
         #expect(yes?["type"] as? String == "boolean")
-        let force = (byName["tasks_archive"]?["properties"] as? [String: Any])?["force"] as? [String: Any]
+        let force = (byName["sessions_archive"]?["properties"] as? [String: Any])?["force"] as? [String: Any]
         #expect(force?["type"] as? String == "boolean")
     }
 
@@ -102,7 +106,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         let app = FakeApp()
         app.reply = .success(Data(#"{"tasks":[]}"#.utf8))
         var s = session(app)
-        let r = try object(s.handle(call("tasks_list", "{}")))
+        let r = try object(s.handle(call("sessions_list", "{}")))
         #expect(r["id"] as? Int == 5)
         let (text, isError) = toolResult(r)
         #expect(text == #"{"tasks":[]}"#)
@@ -116,14 +120,14 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
     @Test func toolsCallErrors() throws {
         let app = FakeApp()
         var s = session(app)
-        let noYes = toolResult(try object(s.handle(call("tasks_archive", #"{"task":"t"}"#))))
+        let noYes = toolResult(try object(s.handle(call("sessions_archive", #"{"session":"t"}"#))))
         #expect(noYes.isError == true)
         #expect(noYes.text?.contains("yes: true") == true)
         #expect(app.calls.isEmpty)
 
         let badLines = toolResult(try object(s.handle(call("tabs_read", #"{"tab":"x","lines":"5"}"#))))
         #expect(badLines.isError == true)
-        let extra = toolResult(try object(s.handle(call("tasks_list", #"{"frob":1}"#))))
+        let extra = toolResult(try object(s.handle(call("sessions_list", #"{"frob":1}"#))))
         #expect(extra.isError == true)
         #expect(app.calls.isEmpty)
 
@@ -136,7 +140,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         let unknown = try object(s.handle(call("tabs_close", #"{"tab":"x"}"#)))
         #expect((unknown["error"] as? [String: Any])?["code"] as? Int == -32602)
         #expect(unknown["result"] == nil)
-        let notObject = try object(s.handle(call("tasks_list", "[1]")))
+        let notObject = try object(s.handle(call("sessions_list", "[1]")))
         #expect((notObject["error"] as? [String: Any])?["code"] as? Int == -32602)
         #expect(app.calls.count == 1)
     }
@@ -150,16 +154,38 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         }
         let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
         let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.map { $0["name"] as? String } == ["projects_list", "tasks_list", "tabs_read", "doctor"])
-        for name in ["tasks_archive", "tabs_send", "tasks_create", "tasks_restore", "projects_add", "tabs_open"] {
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "sessions_list", "tabs_read", "doctor"])
+        for name in ["sessions_archive", "tabs_send", "sessions_create", "sessions_restore", "projects_add", "tabs_open",
+                     "tasks_archive", "tasks_create", "tasks_restore"] {
             let refused = try object(s.handle(call(name, #"{"task":"t","yes":true}"#)))
             let message = (refused["error"] as? [String: Any])?["message"] as? String
             #expect(message?.contains("read-only") == true, "\(name)")
         }
         #expect(app.calls.isEmpty)
+        _ = try object(s.handle(call("sessions_list", "{}")))
         _ = try object(s.handle(call("tasks_list", "{}")))
-        #expect(app.calls == [.tasksList(project: nil)])
+        #expect(app.calls == [.tasksList(project: nil), .tasksList(project: nil)])
         #expect(Set(ControlMethod.allCases.filter(\.readOnly)) == [.projectsList, .tasksList, .tabsRead, .doctor])
+    }
+
+    /// Pre-rename `tasks_*` names and the `task` argument stay callable (#NN-sessions); `session` is the listed name.
+    @Test func legacyTaskNamesStillWork() throws {
+        let app = FakeApp()
+        app.reply = .success(Data(#"{"tasks":[]}"#.utf8))
+        var s = session(app)
+        for (name, args) in [("tasks_list", "{}"), ("tasks_archive", #"{"task":"t","yes":true}"#), ("tasks_restore", #"{"task":"t"}"#),
+                             ("sessions_restore", #"{"task":"t"}"#), ("tabs_open", #"{"session":"t","kind":"shell"}"#),
+                             ("tasks_create", #"{"project":"p","name":"N"}"#)] {
+            #expect(toolResult(try object(s.handle(call(name, args)))).isError == false, "\(name)")
+        }
+        #expect(app.calls == [.tasksList(project: nil), .tasksArchive(task: "t"), .tasksRestore(task: "t"), .tasksRestore(task: "t"),
+                              .tabsOpen(task: "t", kind: .shell, prompt: nil),
+                              .tasksCreate(project: "p", name: "N", worktree: false, base: nil, prompt: nil)])
+        let both = toolResult(try object(s.handle(call("sessions_restore", #"{"session":"a","task":"b"}"#))))
+        #expect(both.isError == true)
+        #expect(app.calls.count == 6)
+        #expect(ControlMethod.tasksList.toolName == "sessions_list" && ControlMethod.tasksList.legacyToolName == "tasks_list")
+        #expect(ControlMethod.tabsOpen.toolName == ControlMethod.tabsOpen.legacyToolName)
     }
 
     @Test func protocolErrors() throws {

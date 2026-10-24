@@ -83,8 +83,8 @@
   .ttl span { color:var(--tx3); font-weight:400; }
 </style>
 
-<h2>Стиль A v2 — сайдбар главный, вкладки внутри задачи</h2>
-<p class="subtitle">Сайдбар на всю высоту окна (светофор над ним). Справа — область выбранной задачи: её собственная полоса вкладок, терминалы, инспектор и строка состояния.</p>
+<h2>Стиль A v2 — сайдбар главный, вкладки внутри сессии</h2>
+<p class="subtitle">Сайдбар на всю высоту окна (светофор над ним). Справа — область выбранной сессии: её собственная полоса вкладок, терминалы, инспектор и строка состояния.</p>
 
 <h3>1. Основной экран</h3>
 <div class="win shell" style="height:420px"><div class="side"><div class="lights"><div class="dots"><i></i><i></i><i></i></div></div><div class="proj">shop-api <span>+</span></div><div class="task"><span class="st wait"></span>fix-auth<span class="wt">⎇</span></div><div class="task on"><span class="st run"></span>refactor-db<span class="wt">⎇</span></div><div class="task"><span class="st done"></span>add-metrics<span class="wt"></span></div><div style="height:8px"></div><div class="proj">web-front <span>+</span></div><div class="task"><span class="st idle"></span>landing<span class="wt"></span></div><div class="task"><span class="st err"></span>ssr-crash<span class="wt"></span></div><div style="height:8px"></div><div class="foot"><span>+ проект</span><span>⌘K</span></div></div>
@@ -182,8 +182,8 @@
   </div>
 </div>
 
-<h3>Вариант заголовка задачи</h3>
+<h3>Вариант заголовка сессии</h3>
 <div class="options">
-  <div class="option" data-choice="title-inline" onclick="toggleSelect(this)"><div class="letter">1</div><div class="content"><h3>Название задачи слева от вкладок</h3><p>Как на макетах выше: «refactor-db ⎇ | claude codex zsh +»</p></div></div>
+  <div class="option" data-choice="title-inline" onclick="toggleSelect(this)"><div class="letter">1</div><div class="content"><h3>Название сессии слева от вкладок</h3><p>Как на макетах выше: «refactor-db ⎇ | claude codex zsh +»</p></div></div>
   <div class="option" data-choice="title-none" onclick="toggleSelect(this)"><div class="letter">2</div><div class="content"><h3>Только вкладки</h3><p>Название видно лишь по подсветке в сайдбаре — максимум места под вкладки</p></div></div>
 </div>

@@ -148,7 +148,7 @@ struct ShortcutHint: View {
     }
 }
 
-/// "+ Новая задача" fill (`hoverStrong`). With `width` the fill follows the visible sidebar width (content is laid
+/// "+ Новая сессия" fill (`hoverStrong`). With `width` the fill follows the visible sidebar width (content is laid
 /// out wider and clipped in rail mode); without it the fill hugs the label (empty-state button).
 struct FilledRowStyle: ButtonStyle {
     var width: CGFloat?
@@ -182,7 +182,7 @@ struct FilledRowStyle: ButtonStyle {
     }
 }
 
-/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая задача") and the ⇧⌘N hint.
+/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая сессия") and the ⇧⌘N hint.
 struct EmptyStateView: View {
     let addProject: () -> Void
 

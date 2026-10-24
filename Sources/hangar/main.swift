@@ -186,7 +186,7 @@ let argv = Array(CommandLine.arguments.dropFirst())
 switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
-case "projects", "tasks", "tabs", "ssh", "link": exit(runCommand(argv))
+case "projects", "sessions", "tasks", "tabs", "ssh", "link": exit(runCommand(argv))
 case "doctor": exit(runDoctor(argv))
 case "mcp" where argv.count == 1: exit(runMCP(readOnly: false))
 case "mcp" where argv == ["mcp", "--read-only"]: exit(runMCP(readOnly: true))

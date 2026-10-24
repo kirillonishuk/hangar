@@ -225,7 +225,7 @@ private let statusFixture = Data("""
                                                     ])])
         let s = try fakeApp(dir, calls) { id, _ in .ok(id, expected) }
         defer { s.stop() }
-        let r = try await runOffMain(["tasks", "list", "--json"], socket: dir.socket)
+        let r = try await runOffMain(["sessions", "list", "--json"], socket: dir.socket)
         #expect(r.status == 0, "\(String(decoding: r.err, as: UTF8.self))")
         #expect(try JSONDecoder().decode(TasksResult.self, from: r.out) == expected)
         #expect(String(decoding: r.out, as: UTF8.self).contains("\n  "))  // pretty-printed
@@ -267,10 +267,10 @@ private let statusFixture = Data("""
         let dir = TempDir(), calls = CallLog()
         let s = try fakeApp(dir, calls) { id, _ in .ok(id, ArchiveResult(task: UUID(), archived: true)) }
         defer { s.stop() }
-        let r = try await runOffMain(["tasks", "archive", "--task", "t"], socket: dir.socket)
+        let r = try await runOffMain(["sessions", "archive", "--session", "t"], socket: dir.socket)
         #expect(r.status == 2)
         #expect(String(decoding: r.err, as: UTF8.self).contains("--yes"))
-        let bad = try await runOffMain(["tasks", "list", "--frob"], socket: dir.socket)
+        let bad = try await runOffMain(["sessions", "list", "--frob"], socket: dir.socket)
         #expect(bad.status == 2 && !bad.err.isEmpty && bad.out.isEmpty)
         try await Task.sleep(for: .milliseconds(100))
         #expect(calls.calls.isEmpty)
@@ -278,18 +278,18 @@ private let statusFixture = Data("""
 
     @Test @MainActor func cliAppError() async throws {
         let dir = TempDir(), calls = CallLog()
-        let s = try fakeApp(dir, calls) { id, _ in ControlResponse(id: id, body: .failure(ControlError(code: .notFound, message: "no task \"x\""))) }
+        let s = try fakeApp(dir, calls) { id, _ in ControlResponse(id: id, body: .failure(ControlError(code: .notFound, message: "no session \"x\""))) }
         defer { s.stop() }
-        let r = try await runOffMain(["tabs", "open", "--task", "x", "--kind", "shell"], socket: dir.socket)
+        let r = try await runOffMain(["tabs", "open", "--session", "x", "--kind", "shell"], socket: dir.socket)
         #expect(r.status == 1)
-        #expect(String(decoding: r.err, as: UTF8.self) == "hangar: no task \"x\"\n")
+        #expect(String(decoding: r.err, as: UTF8.self) == "hangar: no session \"x\"\n")
         #expect(r.out.isEmpty)
-        let j = try await runOffMain(["tabs", "open", "--task", "x", "--kind", "shell", "--json"], socket: dir.socket)
+        let j = try await runOffMain(["tabs", "open", "--session", "x", "--kind", "shell", "--json"], socket: dir.socket)
         #expect(j.status == 1 && j.out.isEmpty)
         let object = try JSONSerialization.jsonObject(with: j.err) as? [String: Any]
         let error = object?["error"] as? [String: Any]
         #expect(error?["code"] as? String == "not-found")
-        #expect(error?["message"] as? String == "no task \"x\"")
+        #expect(error?["message"] as? String == "no session \"x\"")
         #expect(calls.calls == [.tabsOpen(task: "x", kind: .shell, prompt: nil), .tabsOpen(task: "x", kind: .shell, prompt: nil)])
     }
 
@@ -320,8 +320,8 @@ private let statusFixture = Data("""
         let error = (try JSONSerialization.jsonObject(with: r.err) as? [String: Any])?["error"] as? [String: Any]
         #expect(error?["code"] as? String == "bad-params")
         #expect(error?["message"] as? String == "unknown flag \"--frob\"")
-        // `--json` as the value of --task is not json mode.
-        let plain = try run(["tasks", "archive", "--task", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
+        // `--json` as the value of --session is not json mode.
+        let plain = try run(["sessions", "archive", "--session", "--json"], env: ["HANGAR_SOCKET": dir.socket], stdin: nil)
         #expect(plain.status == 2)
         #expect(String(decoding: plain.err, as: UTF8.self) == "hangar: refusing to archive without --yes\n")
     }
@@ -334,7 +334,7 @@ private let statusFixture = Data("""
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#,
             #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
             #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
-            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tasks_list","arguments":{}}}"#,
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sessions_list","arguments":{}}}"#,
         ].joined(separator: "\n") + "\n"
         let socket = dir.socket
         let r = try await runOffMain(["mcp"], env: ["HANGAR_SOCKET": socket], stdin: Data(input.utf8))

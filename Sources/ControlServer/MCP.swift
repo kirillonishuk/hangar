@@ -49,17 +49,23 @@ public struct MCPSession {
         case "tools/list":
             return Self.result(id, ["tools": Self.tools(methods)])
         case "tools/call":
-            guard let name = params["name"] as? String, let m = ControlMethod.allCases.first(where: { $0.toolName == name }) else {
+            guard let name = params["name"] as? String,
+                  let m = ControlMethod.allCases.first(where: { $0.toolName == name || $0.legacyToolName == name }) else {
                 return Self.error(id, -32602, "unknown tool \"\(((params["name"] as? String) ?? "").prefix(64))\"")
             }
             guard methods.contains(m) else {
                 return Self.error(id, -32602, "tool \"\(name)\" is not available: this Hangar MCP server runs with --read-only")
             }
-            let arguments: [String: Any]
+            var arguments: [String: Any]
             switch params["arguments"] {
             case nil, is NSNull: arguments = [:]
             case let a as [String: Any]: arguments = a
             default: return Self.error(id, -32602, "\"arguments\" must be an object")
+            }
+            // `session` is the listed name of the control param `task`; `task` stays accepted (#NN-sessions).
+            if let session = arguments.removeValue(forKey: "session") {
+                guard arguments["task"] == nil else { return Self.result(id, Self.toolText("pass \"session\" or \"task\", not both", isError: true)) }
+                arguments["task"] = session
             }
             let outcome = ControlCall.decode(method: m.rawValue, params: arguments).flatMap(call)
             switch outcome {
@@ -112,6 +118,8 @@ public struct MCPSession {
 
     // MARK: tools
 
+    private static func schemaName(_ param: String) -> String { param == "task" ? "session" : param }
+
     private static func tools(_ methods: [ControlMethod]) -> [[String: Any]] {
         methods.map { m in
         var properties: [String: Any] = [:]
@@ -125,10 +133,10 @@ public struct MCPSession {
             case let .list(options, max): schema = ["type": "array", "items": ["type": "string", "enum": options], "maxItems": max]
             }
             schema["description"] = p.summary
-            properties[p.name] = schema
+            properties[schemaName(p.name)] = schema
         }
         return ["name": m.toolName, "description": m.summary, "inputSchema": [
-            "type": "object", "properties": properties, "required": m.params.filter(\.required).map(\.name), "additionalProperties": false,
+            "type": "object", "properties": properties, "required": m.params.filter(\.required).map { schemaName($0.name) }, "additionalProperties": false,
         ] as [String: Any]]
         }
     }

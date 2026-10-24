@@ -187,6 +187,13 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(String(decoding: ControlCall.tasksArchive(task: "t").paramsJSON(), as: UTF8.self).contains(#""yes":true"#))
     }
 
+    /// The socket keeps `tasks.*` method names and the `task` param after the UI rename to sessions (#NN-sessions).
+    @Test func socketNamesStayStable() {
+        #expect(ControlCall.tasksList(project: nil).method.rawValue == "tasks.list")
+        #expect(ControlCall.tasksArchive(task: "t").method.rawValue == "tasks.archive")
+        #expect(String(decoding: ControlCall.tasksRestore(task: "t").paramsJSON(), as: UTF8.self) == #"{"task":"t"}"#)
+    }
+
     @Test func missingIdIsBadRequest() {
         for l in [#"{"v":1,"method":"projects.list","params":{}}"#, #"{"v":1,"id":"7","method":"projects.list"}"#,
                   #"{"v":1,"id":-1,"method":"projects.list"}"#, #"{"v":1,"id":1.5,"method":"projects.list"}"#,
@@ -202,8 +209,8 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         let ok = String(decoding: ControlResponse.ok(3, ArchiveResult(task: u, archived: true)).encoded(), as: UTF8.self)
         #expect(ok.hasSuffix("\n") && ok.dropLast().contains("\n") == false)
         #expect(ok.hasPrefix(#"{"id":3,"result":{"#) && ok.contains(#""archived":true"#) && ok.contains(tab))
-        let err = ControlResponse(id: 3, body: .failure(ControlError(code: .notFound, message: #"no task "x""#)))
-        #expect(String(decoding: err.encoded(), as: UTF8.self) == #"{"id":3,"error":{"code":"not-found","message":"no task \"x\""}}"# + "\n")
+        let err = ControlResponse(id: 3, body: .failure(ControlError(code: .notFound, message: #"no session "x""#)))
+        #expect(String(decoding: err.encoded(), as: UTF8.self) == #"{"id":3,"error":{"code":"not-found","message":"no session \"x\""}}"# + "\n")
         let nilId = ControlResponse(id: nil, body: .failure(ControlError(code: .badRequest, message: "m")))
         #expect(String(decoding: nilId.encoded(), as: UTF8.self).hasPrefix(#"{"id":null,"error":"#))
     }

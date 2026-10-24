@@ -38,6 +38,7 @@ import ControlServer
     }
 
     @Test func cliPrintsLinks() {
+        #expect(parseCLI(["link", "session", "0f3a"], cwd: "/") == .call(.linksCreate(kind: .task, ref: "0f3a"), json: false))
         #expect(parseCLI(["link", "task", "0f3a"], cwd: "/") == .call(.linksCreate(kind: .task, ref: "0f3a"), json: false))
         #expect(parseCLI(["link", "tab", "ab12", "--json"], cwd: "/") == .call(.linksCreate(kind: .tab, ref: "ab12"), json: true))
         #expect(parseCLI(["link", "project", "app"], cwd: "/") == .call(.linksCreate(kind: .project, ref: "app"), json: false))

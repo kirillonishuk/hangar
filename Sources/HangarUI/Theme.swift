@@ -45,7 +45,7 @@ public enum Theme {
     public static let sheetText = ns(0xffffff)
     public static let selectionText = ns(0xffffff)
     public static let hover = ns(0x1d2533)
-    public static let hoverStrong = ns(0x2b3444)  // "+ New Task" button
+    public static let hoverStrong = ns(0x2b3444)  // "+ New Session" button
     public static let pressed = ns(0x192030)
     /// Sidebar (and popovers on `sheet`): hover lighter than `sidebar`, pressed darker (DESIGN.md «Состояния»).
     public static let sidebarHover = ns(0x283246)

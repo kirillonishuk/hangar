@@ -172,7 +172,7 @@ import Workspace
         #expect(punct.task.branch == "task")
         #expect(app.controlCreating == 0)
         // Wire messages are English, never L10n.
-        #expect(branchProblemMessage("", branches: []) == "task name gives an empty branch name")
+        #expect(branchProblemMessage("", branches: []) == "session name gives an empty branch name")
         #expect(branchProblemMessage("main", branches: [Branch(name: "main", isRemote: false, lastCommit: Date())]) == #"branch "main" already exists"#)
         #expect(branchProblemMessage("a..b", branches: []) == #"invalid branch name "a..b""#)
 

@@ -219,8 +219,11 @@ struct DiffView: View {
 
     private func header(_ path: String, _ content: DiffContent) -> some View {
         HStack(spacing: Theme.Diff.headerGap) {
-            Text(verbatim: path).foregroundStyle(Theme.ui.textStrong).fontWeight(.medium)
-                .lineLimit(1).truncationMode(.head)
+            HStack(spacing: Theme.iconGap) {
+                FileIconView(name: (path as NSString).lastPathComponent)
+                Text(verbatim: path).foregroundStyle(Theme.ui.textStrong).fontWeight(.medium)
+                    .lineLimit(1).truncationMode(.head)
+            }
             if content.isText {
                 Text(verbatim: "+\(content.added)").foregroundStyle(Theme.Diff.badgeA)
                 Text(verbatim: "−\(content.deleted)").foregroundStyle(Theme.Diff.badgeD)

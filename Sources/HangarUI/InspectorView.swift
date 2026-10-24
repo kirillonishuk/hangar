@@ -212,6 +212,7 @@ private struct FileRow: View {
                 } else {
                     Color.clear.frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
                 }
+                FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(Theme.ui.textRow)
@@ -315,6 +316,7 @@ private struct ChangeRow: View {
         let dir = (file.path as NSString).deletingLastPathComponent
         HoverRow(selected: selected, action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
+                FileIconView(name: name)
                 Text(name)
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)

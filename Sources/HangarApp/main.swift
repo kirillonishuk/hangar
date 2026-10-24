@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state: WorkspaceState
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
         let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
+        Task { await app.sweepTombstones(host: nil) }  // an archive cut short by the last quit
         #if DEBUG
         // Debug runs never touch the real ~/.claude / ~/.codex: overrides, else a throwaway temp copy.
         let env = ProcessInfo.processInfo.environment
@@ -76,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         wc.enableNotifications()
         appState = app
+        for url in pendingLinks { wc.openLink(url) }
+        pendingLinks = []
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.appState?.remote.didWake() }
         }
@@ -115,6 +118,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             wc.confirmQuit { NSApp.reply(toApplicationShouldTerminate: $0) }
             return .terminateLater
         }
+    }
+
+    /// `hangar://` links (#66). A cold launch may deliver them before the window exists: kept until it does.
+    private var pendingLinks: [URL] = []
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let wc = windowController else { pendingLinks += urls; return }
+        for url in urls { wc.openLink(url) }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

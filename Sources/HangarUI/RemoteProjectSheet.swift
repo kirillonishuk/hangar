@@ -198,12 +198,12 @@ struct RemoteProjectSheet: View {
 }
 
 /// ▾ after the host field: `Host` names of the ssh config; hover fill + hand like the sheets' other icon buttons.
-private struct HostMenu: View {
+struct HostMenu: View {
     let hosts: [String]
     let pick: (String) -> Void
 
     var body: some View {
-        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: "") {
+        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: L10n.hostsMenuHelp) {
             ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
         }
         .environment(\.hoverPalette, .sheet)

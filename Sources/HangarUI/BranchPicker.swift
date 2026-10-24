@@ -55,7 +55,7 @@ struct BranchPicker: View {
     var body: some View {
         Button { open.toggle() } label: {
             HStack(spacing: Theme.pickGap) {
-                IconView(icon: .worktree, size: Theme.smallIconSize)
+                IconView(icon: .branch, size: Theme.smallIconSize)
                 Text(selection ?? defaultOption ?? "—")
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                     .foregroundStyle(Theme.ui.sheetText)
@@ -192,9 +192,10 @@ struct BranchList: View {
 
 /// Search field that hands ↑/↓/↩/Esc to the list instead of the field editor (SwiftUI's TextField moves the caret);
 /// focused when the popover opens.
-private struct PickerSearchField: NSViewRepresentable {
+struct PickerSearchField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
+    var font = NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)
     let onMove: (Int) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
@@ -204,10 +205,10 @@ private struct PickerSearchField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.font = .monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)
+        field.font = font
         field.textColor = Theme.sheetText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
-            .foregroundColor: Theme.text3, .font: NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular),
+            .foregroundColor: Theme.text3, .font: font,
         ])
         field.cell?.usesSingleLineMode = true
         field.delegate = context.coordinator
@@ -216,7 +217,11 @@ private struct PickerSearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
-        if field.stringValue != text { field.stringValue = text }
+        if field.stringValue != text {
+            field.stringValue = text
+            // Set from outside (⇧⌘P puts «>»): the caret after it, not the whole text selected.
+            field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }

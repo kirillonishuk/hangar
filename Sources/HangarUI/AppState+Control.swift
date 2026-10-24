@@ -27,6 +27,9 @@ extension AppState {
         case .projectsList:
             return .ok(id, ProjectsResult(projects: state.projects.map(projectInfo)))
 
+        case .doctor:
+            return .ok(id, await doctorResult())
+
         case .projectsAdd(let raw, .some(let host)):
             return await addRemote(id, path: raw, host: host)
 
@@ -43,7 +46,7 @@ extension AppState {
             let added = addProject(path: path)
             return .ok(id, ProjectAddResult(project: projectInfo(project(added)!), added: true))
 
-        case .tasksList(let ref):
+        case let .tasksList(ref, withGit):
             var projects = state.projects
             if let ref {
                 switch resolveProject(ref) {
@@ -51,7 +54,27 @@ extension AppState {
                 case .failure(let e): return fail(e)
                 }
             }
-            return .ok(id, TasksResult(tasks: projects.flatMap { state.tasks(in: $0.id) }.map(taskInfo)))
+            var infos = projects.flatMap { state.tasks(in: $0.id) }.map(taskInfo)
+            if withGit { infos = await addingGitStatus(infos) }
+            return .ok(id, TasksResult(tasks: infos))
+
+        case let .tasksRestore(ref):
+            let taskId: UUID
+            switch resolveTask(ref, archived: true) {
+            case .success(let t): taskId = t
+            case .failure(let e): return fail(e)
+            }
+            switch await restoreFromArchive(taskId) {
+            case .restored:
+                guard let task = state.tasks.first(where: { $0.id == taskId && !$0.archived }) else {
+                    return fail(ControlError(code: .notFound, message: "task \"\(ref)\" is gone"))
+                }
+                return .ok(id, TaskResult(task: taskInfo(task)))
+            case .branchMissing(let branch):
+                return fail(ControlError(code: .failed, message: "branch \"\(branch)\" is gone, the worktree cannot be re-created; "
+                                         + "restore it in Hangar to keep the task in the project folder"))
+            case .failed(let details): return fail(ControlError(code: .failed, message: details))
+            }
 
         case let .tasksCreate(ref, name, worktree, base, prompt):
             let projectId: UUID
@@ -59,32 +82,46 @@ extension AppState {
             case .success(let p): projectId = p
             case .failure(let e): return fail(e)
             }
-            var mode = TaskMode.mainFolder
+            var mode = TaskMode.mainFolder, setup: String?
             if worktree, let project = project(projectId) {
                 switch await countingCreation({ await worktreeMode(project, name: name, base: base) }) {
-                case .success(let m): mode = m
+                case .success(let m): (mode, setup) = m
                 case .failure(let e): return fail(e)
                 }
-                // Removed while git ran: the worktree stays on disk like after an archive.
+                // Removed while git ran: the worktree stays on disk.
                 guard self.project(projectId) != nil else {
                     var left = ""
                     if case .worktree(let path, let branch, _) = mode { left = "; worktree left at \(path) (branch \(branch))" }
                     return fail(ControlError(code: .notFound, message: "project \"\(ref)\" was removed while creating the worktree" + left))
                 }
             }
-            let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false)
+            let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false, setup: setup)
             terminals?.start(created.tab)
             guard let task = state.tasks.first(where: { $0.id == created.task }) else {
                 return fail(ControlError(code: .failed, message: "task was not created"))
             }
-            return .ok(id, TaskResult(task: taskInfo(task)))
+            // Pane #968: a new folder makes the agent ask to trust it first; that is the user's call, never answered here.
+            let agentTab = task.tabs.first?.root.leaves.first.map { $0.kind == .claude || $0.kind == .codex } ?? false
+            let note = agentTab ? "\(config.defaultAgent.rawValue) may ask to trust the folder on first open; "
+                + "the user answers that in the tab (check with tabs read). The prompt is a launch argument, not typed in, so the dialog does not eat it" : nil
+            return .ok(id, TaskResult(task: taskInfo(task), note: note))
 
-        case .tasksArchive(let ref):
+        case let .tasksArchive(ref, force):
+            let taskId: UUID
             switch resolveTask(ref) {
-            case .success(let t):
-                archive(taskId: t)
-                return .ok(id, ArchiveResult(task: t, archived: true))
+            case .success(let t): taskId = t
             case .failure(let e): return fail(e)
+            }
+            switch await archiveRemovingWorktree(taskId, force: force) {
+            case .archived(let removed): return .ok(id, ArchiveResult(task: taskId, archived: true, worktreeRemoved: removed))
+            case .worktreeKept(let details):
+                return fail(ControlError(code: .failed, message: "task archived, but the worktree was not removed: \(details)"))
+            case let .atRisk(dirty, ignored):
+                let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
+                let what = [dirty ? "uncommitted changes" : nil, ignored.isEmpty ? nil : "ignored files (\(shown))"].compactMap { $0 }
+                return fail(ControlError(code: .confirmRequired, message: "worktree has \(what.joined(separator: " and ")) that archiving would delete; "
+                                         + "pass --force (MCP: force: true) to archive anyway"))
+            case .failed(let details): return fail(ControlError(code: .failed, message: details))
             }
 
         case let .tabsOpen(ref, kind, prompt):
@@ -99,7 +136,9 @@ extension AppState {
                 let previous = s.tasks[i].activeTabId
                 tabId = s.addTab(taskId: taskId, kind: leafKind(kind))
                 if let previous { s.tasks[i].activeTabId = previous }
-                let message = prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                // Agents only: a shell runs its launch prompt as commands (worktree setup), never the wire's text.
+                let agent = kind == .claude || kind == .codex
+                let message = agent ? prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" : ""
                 if !message.isEmpty, let leaf = s.tasks[i].tabs.last?.root.leaves.first { pendingPrompts[leaf.id] = message }
             }
             terminals?.start(tabId)
@@ -108,7 +147,16 @@ extension AppState {
             }
             return .ok(id, TabResult(task: taskId, tab: tabInfo(tab)))
 
-        case let .tabsSend(ref, text, keys):
+        case let .sshOpen(host):
+            // Shown: the user asked for a shell to work in (no project, so no `select: false` as for tasks).
+            guard let opened = openHostShell(host) else { return fail(ControlError(code: .badParams, message: "invalid host")) }
+            terminals?.start(opened.tab)
+            guard let tab = state.tasks.first(where: { $0.id == opened.task })?.tabs.first(where: { $0.id == opened.tab }) else {
+                return fail(ControlError(code: .failed, message: "tab was not created"))
+            }
+            return .ok(id, TabResult(task: opened.task, tab: tabInfo(tab)))
+
+        case let .tabsSend(ref, text, keys, wait):
             let target: (tab: UUID, leaf: UUID)
             switch resolveLeaf(ref) {
             case .success(let t): target = t
@@ -116,8 +164,7 @@ extension AppState {
             }
             switch leafState(target) {
             case .running:
-                terminals?.send(target.leaf, text, keys)
-                return .ok(id, SendResult(tab: target.tab, leaf: target.leaf))
+                return await send(id, target, text: text, keys: keys, wait: wait)
             case .notStarted, .starting: return fail(ControlError(code: .notStarted, message: "tab is starting, retry"))
             case .exited: return fail(ControlError(code: .exited, message: "process has exited; relaunch the tab"))
             case .failed: return fail(Self.couldNotStart)
@@ -135,10 +182,46 @@ extension AppState {
             }
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
+
+        case let .linksCreate(kind, ref):
+            switch linkTarget(kind, ref) {
+            case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
+            case .failure(let e): return fail(e)
+            }
         }
     }
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// `tabs send` on a running leaf (Pane #302/#723/#945): Enter into a working codex is refused, into a working
+    /// claude it is queued by claude; `wait` waits for claude's UserPromptSubmit hook (status working).
+    private func send(_ id: Int, _ target: (tab: UUID, leaf: UUID), text: String?, keys raw: [SendKey], wait: Bool) async -> ControlResponse {
+        let kind = leaf(id: target.leaf)?.kind ?? .shell
+        let agent = kind == .claude || kind == .codex
+        let keys = raw.map { $0 == .interrupt ? (agent ? .escape : .ctrlC) : $0 }
+        let submits = keys.contains(.enter), working = state(ofLeaf: target.leaf) == .working
+        if kind == .codex, submits, working || codexBusy(terminals?.read(target.leaf)) {
+            return ControlResponse(id: id, body: .failure(ControlError(code: .busy, message:
+                "codex is working; Enter now may queue or drop the message. Retry when the tab's status is done, or send keys [interrupt] first")))
+        }
+        terminals?.send(target.leaf, text, keys)
+        var result = SendResult(tab: target.tab, leaf: target.leaf)
+        guard submits else { return .ok(id, result) }
+        if kind == .claude, working {
+            result.status = "queued"
+            result.hint = "claude was working; the message runs after the current turn (keys [interrupt] stop it)"
+        } else if wait, kind == .claude {
+            if await waitForWorking(target.leaf) {
+                result.status = "started"
+            } else {
+                result.status = "not-started-yet"
+                result.hint = "no turn start within \(ControlMethod.sendWaitSeconds) s: check the screen with tabs read (a dialog may be open, or Hangar's Claude hooks are not installed)"
+            }
+        } else if wait, kind == .codex {
+            result.hint = "codex reports no turn start; check the screen with tabs read"
+        }
+        return .ok(id, result)
+    }
 
     /// The «Удалённый проект» sheet without the sheet: connect (with the server check), `pwd -P` on the server, add.
     /// Nothing is installed here; what the server lacks comes back as warnings. A failure lets go of a host no project uses.
@@ -227,18 +310,46 @@ extension AppState {
         ProjectInfo(id: p.id, name: p.name, path: p.path, exists: isAvailable(p), host: p.host)
     }
 
-    private func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
+    func resolveProject(_ ref: String) -> Result<UUID, ControlError> {
         resolveRef(ref, in: state.projects.map { RefCandidate(id: $0.id, names: [$0.name, $0.path]) })
             .mapError { refError($0, ref, "project") }
     }
 
-    /// Archived tasks are never found (decision #45).
-    private func resolveTask(_ ref: String) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { !$0.archived }.map { RefCandidate(id: $0.id, names: [$0.name]) })
-            .mapError { refError($0, ref, "task") }
+    /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
+    /// Hosts' terminals (#64, not in `tasks list`) are never found.
+    func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
+        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !state.hostShells.contains { $0.id == t.projectId } }
+            .map { RefCandidate(id: $0.id, names: [$0.name]) })
+            .mapError { refError($0, ref, archived ? "archived task" : "task") }
     }
 
-    private func refError(_ e: RefError, _ ref: String, _ what: String) -> ControlError {
+    /// `tasks.list --git`: per task, in parallel. The inspector's loaded changes of the shown task are reused;
+    /// a task whose git fails (not a repository, host offline) just gets no git fields.
+    private func addingGitStatus(_ infos: [TaskInfo]) async -> [TaskInfo] {
+        var jobs: [(index: Int, git: Git, base: String?, cached: ChangeSet?)] = []
+        for (i, info) in infos.enumerated() {
+            guard let task = state.tasks.first(where: { $0.id == info.id }), let project = project(task.projectId) else { continue }
+            let mode: DiffMode = info.base.map { .base($0) } ?? .uncommitted
+            let cached = inspector.shownTaskId == info.id && inspector.changes?.mode == mode ? inspector.changes : nil
+            jobs.append((i, git(for: project, repo: info.path), info.base, cached))
+        }
+        var out = infos
+        await withTaskGroup(of: (Int, TaskGitStatus?).self) { group in
+            for job in jobs {
+                group.addTask { (job.index, try? await taskGitStatus(job.git, base: job.base, cached: job.cached)) }
+            }
+            for await (i, status) in group {
+                guard let status else { continue }
+                out[i].changes = status.changes
+                out[i].dirty = status.dirty
+                out[i].ahead = status.ahead
+                out[i].behind = status.behind
+            }
+        }
+        return out
+    }
+
+    func refError(_ e: RefError, _ ref: String, _ what: String) -> ControlError {
         switch e {
         case .notFound: ControlError(code: .notFound, message: "no \(what) \"\(ref)\"")
         case .ambiguous(let ids):
@@ -246,9 +357,10 @@ extension AppState {
         }
     }
 
-    /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path; a failed fetch fails.
-    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<TaskMode, ControlError> {
-        let failed = { (message: String) in Result<TaskMode, ControlError>.failure(ControlError(code: .failed, message: message)) }
+    /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path, copy; a failed fetch fails.
+    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
+        typealias R = Result<(TaskMode, setup: String?), ControlError>
+        let failed = { (message: String) in R.failure(ControlError(code: .failed, message: message)) }
         let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))
         await model.load()
         switch model.availability {
@@ -266,13 +378,31 @@ extension AppState {
         guard model.base != nil else { return failed("no default branch; pass base") }
         model.worktree = true
         model.name = name
-        if let mode = await model.create(skipFetch: false) { return .success(mode) }
+        if let mode = await model.create(skipFetch: false) { return .success((mode, model.setupScript)) }
         var fetchError: String?
         if case .failed(let message) = model.fetch { fetchError = message }
         // branchError is L10n text for the sheet; the wire gets fixed English.
         let branchError = model.branchError.map { _ in branchProblemMessage(model.branch, branches: model.branches) }
         return failed(model.createError ?? branchError ?? fetchError ?? "worktree was not created")
     }
+}
+
+struct TaskGitStatus {
+    var changes: ChangesInfo
+    var dirty: Bool
+    var ahead: Int?
+    var behind: Int?
+}
+
+/// The inspector's Changes count (vs the merge-base with `base`, else HEAD), dirty from `status`, ahead/behind `base`.
+func taskGitStatus(_ git: Git, base: String?, cached: ChangeSet?) async throws -> TaskGitStatus {
+    let status = try await git.status(prefix: git.location().prefix)
+    let set: ChangeSet
+    if let cached { set = cached } else { set = try await git.changedFiles(base.map { .base($0) } ?? .uncommitted, status: status) }
+    let changes = ChangesInfo(added: set.files.reduce(0) { $0 + ($1.added ?? 0) }, removed: set.files.reduce(0) { $0 + ($1.deleted ?? 0) },
+                              files: set.files.count)
+    let counts = base == nil ? nil : try? await git.aheadBehind(base: base!)
+    return TaskGitStatus(changes: changes, dirty: !status.entries.isEmpty, ahead: counts?.ahead, behind: counts?.behind)
 }
 
 /// `projects.add --host`: the sidebar warning's reasons (`HostInfo.needsAttention`) as fixed English lines.
@@ -291,6 +421,13 @@ func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
     if branch.isEmpty { return "task name gives an empty branch name" }
     if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return "branch \"\(branch)\" already exists" }
     return "invalid branch name \"\(branch)\""
+}
+
+/// Codex has no turn-start event (decision #43), so its working state is read off the screen.
+/// shortcut: matches codex's status line "esc to interrupt"; change when codex gets hooks.
+func codexBusy(_ screen: String?) -> Bool {
+    guard let screen else { return false }
+    return screenTail(screen, lines: 15).text.lowercased().contains("esc to interrupt")
 }
 
 /// `tabs.read`: the last `lines` lines without trailing blank ones, at most 512 KiB (cut from the start).

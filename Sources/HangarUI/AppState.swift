@@ -1,5 +1,6 @@
 import AgentStatus
 import AppKit
+import ControlServer
 import Exec
 import Git
 import Integration
@@ -16,7 +17,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     public private(set) var state: WorkspaceState
     /// Changed live from Settings (each change is also written to `configURL`).
     public private(set) var config: HangarConfig {
-        didSet { if config.keepAwake != oldValue.keepAwake { updateKeepAwake() } }
+        didSet {
+            if config.keepAwake != oldValue.keepAwake { updateKeepAwake() }
+            if config.dockBadge != oldValue.dockBadge { updateDockBadge() }
+        }
     }
     /// Runtime-only (not persisted): last terminal title per leaf.
     var leafTitles: [UUID: String] = [:]
@@ -25,7 +29,18 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
-    var statuses = StatusBoard() { didSet { updateKeepAwake() } }
+    var statuses = StatusBoard() {
+        didSet {
+            updateKeepAwake()
+            updateDockBadge()
+        }
+    }
+    /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
+    @ObservationIgnored var onDockBadge: ((String) -> Void)?
+    /// A leaf started waiting: bounce the Dock once if the app is inactive (set by the window controller).
+    @ObservationIgnored var requestAttention: (() -> Void)?
+    /// The badge text last handed to `onDockBadge`.
+    @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
     @ObservationIgnored public lazy var keepAwake = KeepAwake()
     /// Subscription limits from the statusline / codex; in memory only.
@@ -99,6 +114,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
+    /// The remote tmux kills the last `perform` started.
+    @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -115,9 +132,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
     @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
+    /// `Host` names of the ssh config for the SSH HOSTS section (#64); read at launch and on activation.
+    var configHostList: [String] = []
     /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
     // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
+    /// `tabs send --wait` callers waiting for their leaf to turn `working`, by waiter token.
+    @ObservationIgnored var workingWaiters: [UUID: (leaf: UUID, done: CheckedContinuation<Bool, Never>)] = [:]
+    /// How long `tabs send --wait` waits for the turn to start; tests shorten it.
+    @ObservationIgnored var sendWaitTimeout: Duration = .seconds(ControlMethod.sendWaitSeconds)
     /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
     @ObservationIgnored var onHostChange: ((String) -> Void)?
     /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
@@ -135,8 +158,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         self.configURL = configURL
         launchTerminalBackground = config.terminalBackground
         L10n.language = config.language
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? ""
-        userShell = shell.isEmpty ? "/bin/zsh" : shell
+        userShell = resolveUserShell(passwd: getpwuid(getuid())?.pointee.pw_shell.map { String(cString: $0) },
+                                     env: ProcessInfo.processInfo.environment["SHELL"])
         self.socketPath = socketPath
         markRestored(state.tasks.filter { !$0.archived })
         codexRead = lazyCodexRead()
@@ -147,7 +170,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
 
     private func markRestored(_ tasks: [HangarTask]) {
-        let resuming = resumeSet(for: tasks)
+        let resuming = resumeSet(for: tasks, host: { id in self.state.projects.first { $0.id == id }?.host })
         for task in tasks {
             for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
                 restoredLeaves[leaf.id] = resuming.contains(leaf.id)
@@ -173,7 +196,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
-        killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
@@ -202,7 +225,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return try? await git(for: project).defaultBranch()
     }
 
-    /// Branches of the project's worktree tasks (archived too: archive keeps the worktree), labelled in the base picker.
+    /// Branches of the project's worktree tasks (archived too: archive keeps the branch), labelled in the base picker.
     func taskBranches(_ projectId: UUID) -> Set<String> {
         Set(state.tasks.filter { $0.projectId == projectId }.compactMap(\.branch))
     }
@@ -231,6 +254,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
+    /// The task's `HANGAR_PORT` (#60); projects and tabs have none.
+    func port(of target: ActionTarget) -> Int? {
+        guard case .task(let id) = target else { return nil }
+        return state.tasks.first { $0.id == id }?.port
+    }
+
     func path(of target: ActionTarget) -> String? {
         switch target {
         case .project(let id): return project(id)?.path
@@ -255,22 +284,31 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         let leaf = self.leaf(id: leaf.id) ?? leaf
-        let mode = launchMode(for: leaf, context)
+        var mode = launchMode(for: leaf, context)
+        // ↩ resumes too: a second agent leaf in the folder without a session id would `--continue` the first one's chat.
+        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
+        // Tabs and the drawer alike get the task's port (#60).
+        let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
+        if let host = hostShellHost(ofLeaf: leaf.id) {
+            // state.json is editable: a host that is not safe on an ssh command line never launches.
+            guard let host = validSSHHost(host) else { throw LaunchError.missingCwd(host) }
+            return (sshShellSpec(host: host, sshPath: sshPath), mode)
+        }
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {
                 Task { await remote.connect(host) }
                 throw LaunchError.notConnected(host: host)
             }
             return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target, editor: config.editor,
-                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt), mode)
+                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
-                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt)
+                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port)
         return (spec, mode)
     }
 
-    private func leaf(id: UUID) -> Leaf? {
+    func leaf(id: UUID) -> Leaf? {
         for task in state.tasks {
             if task.drawer.leaf?.id == id { return task.drawer.leaf }
             for tab in task.tabs { if let leaf = tab.root.leaf(id: id) { return leaf } }
@@ -301,8 +339,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
     /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
     @discardableResult
-    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true) -> (task: UUID, tab: UUID) {
+    /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's.
+    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
+                    setup: String? = nil) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
+        var setupTab: UUID?
         perform { s in
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
             var base: String?
@@ -317,7 +358,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {
                 pendingPrompts[leaf.id] = message
             }
+            if let setup, let i = s.tasks.firstIndex(where: { $0.id == task }) {
+                let shell = s.addTab(taskId: task, kind: .shell)
+                s.tasks[i].activeTabId = tab
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                setupTab = shell
+            }
         }
+        if let setupTab { terminals?.start(setupTab) }
         return created
     }
 
@@ -360,9 +408,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func moveProject(_ id: UUID, to index: Int) { perform { $0.moveProject(id: id, to: index) } }
     func archive(taskId: UUID) { perform { $0.archiveTask(id: taskId) } }
     /// Unarchived agents resume like at startup (their surfaces were closed by the archive).
-    func restore(taskId: UUID) {
+    /// `fresh` (detached from its worktree): the leaves start anew instead of resuming.
+    func restore(taskId: UUID, fresh: Bool = false) {
         perform { $0.restoreTask(id: taskId) }
-        markRestored(state.tasks.filter { $0.id == taskId })
+        let tasks = state.tasks.filter { $0.id == taskId }
+        if fresh {
+            for leaf in tasks.flatMap({ $0.tabs.flatMap(\.root.leaves) + [$0.drawer.leaf].compactMap { $0 } }) { restoredLeaves[leaf.id] = nil }
+        } else {
+            markRestored(tasks)
+        }
     }
     func setPinned(_ taskId: UUID, _ pinned: Bool) { perform { $0.setPinned(taskId: taskId, pinned) } }
     func setCollapsed(projectId: UUID, _ collapsed: Bool) { perform { $0.setProjectCollapsed(id: projectId, collapsed) } }
@@ -386,6 +440,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         guard selectedTask != nil else { return }
         deactivateDiff()  // the editor tab (also a new one) is shown instead
         onOpenInEditor?(path, line)
+    }
+
+    /// ⌥⌘1 / ⌥⌘2 and the status line's change counter: shows the inspector on that segment. Changes only for git
+    /// projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
+    func showInspector(_ segment: InspectorModel.Segment) {
+        guard let task = selectedTask else { return }
+        if segment == .changes, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        inspector.segment = segment
+        if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }
 
     /// ⌘1…9: n-th tab of the selected task.
@@ -444,6 +507,18 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
+    /// Unarchived tasks whose combined state is waiting (archived leaves already dropped their status).
+    var waitingTaskCount: Int { state.tasks.filter { !$0.archived && state(of: $0) == .waiting }.count }
+
+    /// Called on status and setting changes only (no timer); hands the label over only when it changes.
+    func updateDockBadge() {
+        guard let onDockBadge else { return }
+        let label = dockBadgeLabel(waiting: waitingTaskCount, enabled: config.dockBadge)
+        guard label != dockBadge else { return }
+        dockBadge = label
+        onDockBadge(label)
+    }
+
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }
         L10n.language = language
@@ -451,6 +526,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         didChange?()
     }
 }
+
+/// `NSDockTile.badgeLabel`: the count, or "" (no badge) at 0 or when turned off.
+func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting > 0 ? String(waiting) : "" }
 
 /// Text of the alert shown at launch for a problem with state.json; nil when there is nothing to tell.
 @MainActor public func loadAlert(for result: LoadResult) -> String? {
@@ -463,25 +541,28 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
 /// Leaves of `tasks` that start with `restoring: true` (at startup: all live tasks; on unarchive: that task).
 /// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so among
-/// claude/codex leaves without an id only the first per (kind, cwd) continues; later ones start fresh.
-/// Leaves with an id always resume; shell and editor leaves are always restored.
-func resumeSet(for state: WorkspaceState) -> Set<UUID> { resumeSet(for: state.tasks.filter { !$0.archived }) }
+/// claude/codex leaves without an id only the first per (kind, host, cwd) continues; later ones start fresh.
+/// Leaves with an id always resume; shell and editor leaves are always restored. `host`: a project's ssh host, nil if local.
+func resumeSet(for state: WorkspaceState) -> Set<UUID> {
+    resumeSet(for: state.tasks.filter { !$0.archived }, host: { id in state.projects.first { $0.id == id }?.host })
+}
 
-func resumeSet(for tasks: [HangarTask]) -> Set<UUID> {
-    struct Key: Hashable { var kind: LeafKind; var cwd: String }
+func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
+    struct Key: Hashable { var kind: LeafKind; var host: String?; var cwd: String }
     var claimed = Set<Key>()
     var result = Set<UUID>()
-    func visit(_ leaf: Leaf) {
+    func visit(_ leaf: Leaf, host: String?) {
         switch leaf.kind {
         case .shell, .editor: result.insert(leaf.id)
         case .claude, .codex:
             if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
-            if claimed.insert(Key(kind: leaf.kind, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
+            if claimed.insert(Key(kind: leaf.kind, host: host, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
         }
     }
     for task in tasks {
-        for tab in task.tabs { tab.root.leaves.forEach(visit) }
-        if let leaf = task.drawer.leaf { visit(leaf) }
+        let host = host(task.projectId)
+        for tab in task.tabs { tab.root.leaves.forEach { visit($0, host: host) } }
+        if let leaf = task.drawer.leaf { visit(leaf, host: host) }
     }
     return result
 }

@@ -49,7 +49,7 @@ struct SidebarView: View {
                 newTaskButton(visibleWidth: geo.size.width)
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
-                        pinnedSection
+                        if !app.state.attentionOnly { pinnedSection }
                         hostsSection
                         projectsSection
                         archivedSection
@@ -75,18 +75,18 @@ struct SidebarView: View {
     private func newTaskButton(visibleWidth: CGFloat) -> some View {
         Button { ctx.newTask(nil) } label: {
             GutterRow(collapsed: collapsed) {
-                IconView(icon: .newTask, active: true)
+                IconView(icon: .add, active: true)
             } expanded: {
                 HStack(spacing: 0) {
                     Text(L10n.newTask).foregroundStyle(Theme.ui.textStrong)
                     Spacer(minLength: 0)
-                    ShortcutHint(text: "⌘N")
+                    ShortcutHint(text: Shortcut.newTask.label)
                 }
             } rail: { EmptyView() }
             .contentShape(Rectangle())
         }
         .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * Theme.railInset))
-        .help(L10n.newTaskHelp)
+        .help(L10n.help(L10n.newTaskHelp, .newTask))
     }
 
     // MARK: Pinned
@@ -101,19 +101,26 @@ struct SidebarView: View {
 
     // MARK: SSH hosts
 
-    /// Hidden without remote projects. A row: server icon, host, state `text3`; a waiting dot when the server needs attention.
+    /// Hosts of remote projects, typed-in terminals and the ssh config (#64); hidden when there are none.
+    /// A row: server icon, host, state `text3` (project hosts only); a waiting dot when the server needs attention.
+    /// A host's terminal («<host> · терминал») sits right under its row.
     @ViewBuilder private var hostsSection: some View {
-        let hosts = app.sshHosts
+        let hosts = app.sidebarHosts
         if !hosts.isEmpty {
-            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed)
-            ForEach(hosts, id: \.self) { host in hostRow(host) }
+            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed, plusHelp: L10n.connectToHost, plus: ctx.connectHost)
+            ForEach(hosts, id: \.self) { host in
+                hostRow(host)
+                if let task = app.state.hostShellTask(host: host) { hostShellRow(task, host: host) }
+            }
         }
     }
 
     private func hostRow(_ host: String) -> some View {
         let info = app.remote.hosts[host]
         let items = hostMenuItems(host, app: app, ctx: ctx)
-        return HoverRow(action: { popUpMenu(items) }) { hover in
+        // Without projects the host has no master or state: a click logs in (or shows its terminal).
+        let known = app.sshHosts.contains(host)
+        return HoverRow(action: { if known { popUpMenu(items) } else { app.showHostShell(host) } }) { hover in
             GutterRow(collapsed: collapsed) {
                 IconView(icon: .sshHost, size: Theme.hostIconSize)
                     .overlay(alignment: .topTrailing) {
@@ -130,16 +137,51 @@ struct SidebarView: View {
                         .font(.system(size: Theme.fontSize.base))
                         .foregroundStyle(Theme.ui.textRow)
                     Spacer(minLength: 0)
-                    Text(hostStatusLabel(info)).lineLimit(1)
-                        .font(.system(size: Theme.fontSize.counter))
-                        .foregroundStyle(Theme.ui.text3)
+                    if known {
+                        Text(hostStatusLabel(info)).lineLimit(1)
+                            .font(.system(size: Theme.fontSize.counter))
+                            .foregroundStyle(Theme.ui.text3)
+                    }
                     MoreButton { MenuItemsView(items: items) }
                         .opacity(hover ? 1 : 0)
                         .allowsHitTesting(hover)
                 }
             } rail: { EmptyView() }
         }
-        .help(hostHelp(host, info))
+        .help(known ? hostHelp(host, info) : L10n.openTerminal)
+        .contextMenu { MenuItemsView(items: items) }
+    }
+
+    /// «<host> · терминал»: plain ssh shells (#64); its menu opens another tab or closes them all.
+    private func hostShellRow(_ task: HangarTask, host: String) -> some View {
+        let selected = task.id == app.state.selectedTaskId
+        let dot = app.displayState(of: task)
+        let name = L10n.hostTerminal(host)
+        let items = [MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) },
+                     MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
+        return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
+            GutterRow(collapsed: collapsed, railReplacesMarker: true) {
+                StatusDot(state: dot)
+            } expanded: {
+                HStack(spacing: Theme.inlineGap) {
+                    Text(verbatim: name).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .overlay(alignment: .trailing) {
+                    RowActions(shown: hover || selected,
+                               background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
+                        MoreButton { MenuItemsView(items: items) }
+                    }
+                }
+            } rail: {
+                RailTile(text: monogram(host), state: dot, selected: selected)
+            }
+            .font(.system(size: Theme.fontSize.sidebarRow))
+            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.rowWithStatus(name, dot))
+        .help(collapsed ? name : L10n.plainSSHHint)
         .contextMenu { MenuItemsView(items: items) }
     }
 
@@ -153,14 +195,27 @@ struct SidebarView: View {
     // MARK: Projects
 
     @ViewBuilder private var projectsSection: some View {
-        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject,
-                      plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject)
-        ForEach(app.state.projects) { project in
+        let filtering = app.state.attentionOnly
+        let groups = filtering ? app.attentionGroups() : []
+        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.help(L10n.addProject, .addProject),
+                      plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject,
+                      filterOn: filtering, filterHelp: L10n.help(L10n.attentionOnly, .attentionFilter),
+                      filter: { app.perform { $0.attentionOnly.toggle() } })
+        if filtering && groups.isEmpty {
+            Text(L10n.nobodyWaiting)
+                .font(.system(size: Theme.fontSize.sidebarRow))
+                .foregroundStyle(Theme.ui.text3)
+                .lineLimit(1)
+                .padding(.leading, Theme.sectionTextX)
+                .frame(maxWidth: .infinity, minHeight: Theme.railRowHeight, alignment: .leading)
+                .opacity(collapsed ? 0 : 1)
+        }
+        ForEach(filtering ? groups.map(\.project) : app.state.projects) { project in
             // One block per project, so a dragged project moves with its tasks.
             VStack(spacing: 0) {
                 projectRow(project)
                 if !project.collapsed {
-                    ForEach(app.groupTasks(project.id)) { task in
+                    ForEach(filtering ? groups.first { $0.project.id == project.id }?.tasks ?? [] : app.groupTasks(project.id)) { task in
                         taskRow(task, projectName: nil, indent: true)
                             .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
                     }
@@ -251,7 +306,8 @@ struct SidebarView: View {
                             clicked(target)
                             app.setCollapsed(projectId: project.id, !project.collapsed)
                         },
-                        onDrag: handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
+                        // The filtered list is not the real order: no reordering while it is on.
+                        onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
                     HStack(spacing: 0) {
@@ -287,7 +343,7 @@ struct SidebarView: View {
                             MoreButton { ActionMenuItems(target: target, ctx: ctx) }
                             if exists {
                                 Button { ctx.newTask(project.id) } label: {
-                                    IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
+                                    IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset)
                                 }
                                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                                 .help(L10n.newTaskIn(project.name))
@@ -329,7 +385,7 @@ struct SidebarView: View {
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         // Pinned rows mix projects, so only rows inside a project group reorder.
-        let handlers = indent ? dragHandlers(target) : nil
+        let handlers = indent && !app.state.attentionOnly ? dragHandlers(target) : nil
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.select(taskId: task.id)
@@ -350,7 +406,7 @@ struct SidebarView: View {
                     }
                     Spacer(minLength: 0)
                     if case .worktree = task.mode {
-                        IconView(icon: .worktree, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
+                        IconView(icon: .branch, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
                     }
                 }
                 // Overlaid, not laid out: the name keeps the full width and nothing reflows on hover.
@@ -377,7 +433,7 @@ struct SidebarView: View {
         return RowActions(shown: shown, background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
             if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
             Button { app.setPinned(task.id, !task.pinned) } label: {
-                IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
+                IconView(icon: .pin, active: selected, size: Theme.smallIconSize, tint: task.pinned ? Theme.ui.textStrong : nil)
                     .padding(Theme.railInset)
             }
             .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
@@ -405,6 +461,7 @@ struct SidebarView: View {
                         .foregroundStyle(Theme.ui.text3)
                     } rail: { EmptyView() }
                 }
+                .help(L10n.archiveToggleHelp)
                 if archiveOpen {
                     ForEach(archived) { task in
                         let target = ActionTarget.task(task.id)
@@ -449,30 +506,31 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
-                        MoreButton {
+                        MoreButton(help: L10n.help(L10n.addProject, .addProject)) {
                             Button(L10n.addLocalProject, action: ctx.addLocalProject)
                             Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
+                            Button(L10n.connectToHost, action: ctx.connectHost)
                         }
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            .help(L10n.settingsHelp)
+            .help(L10n.help(L10n.settingsHelp, .settings))
             HoverRow(action: ctx.toggleSidebar) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
-                    IconView(icon: .sidebarToggle)
+                    IconView(icon: .sidebarLeft)
                 } expanded: {
                     HStack(spacing: 0) {
                         Text(L10n.collapse)
                         Spacer(minLength: 0)
-                        ShortcutHint(text: "⌘0")
+                        ShortcutHint(text: Shortcut.toggleSidebar.label)
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            .help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp)
+            .help(L10n.help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp, .toggleSidebar))
         }
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)

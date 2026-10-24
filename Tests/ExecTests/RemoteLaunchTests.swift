@@ -147,6 +147,29 @@ import Workspace
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 
+    /// The plain login of «<host> · терминал» (#64): no master, no tmux, no remote command; ssh's own code comes back.
+    @Test func plainSSHShell() async throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(atPath: f.root) }
+        let spec = sshShellSpec(host: "my-box", sshPath: f.ssh)
+        #expect(spec.cwd == NSHomeDirectory() && spec.env.isEmpty)
+        let r = try await runProcess("/bin/sh", ["-c", spec.command], cwd: "/", env: f.env)
+        #expect(r.status == 0)
+        #expect(r.stdout.contains("\u{1b}]133;D;0"))
+        let argv = f.read("argv").split(separator: "\n").map(String.init)
+        #expect(f.read("term") == "xterm-256color")
+        #expect(argv.contains("-t"))
+        #expect(Array(argv.suffix(2)) == ["--", "my-box"])
+        #expect(!argv.contains("-S") && !argv.contains { $0.hasPrefix("ControlPath") || $0.hasPrefix("BatchMode") || $0.contains("tmux") })
+
+        // The connection drops: ssh's 255 is the tab's code (a local leaf: ↩ logs in again).
+        let failing = f.root + "/ssh-255"
+        try "#!/bin/sh\nexit 255\n".write(toFile: failing, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: failing)
+        let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing).command], cwd: "/", env: f.env)
+        #expect(lost.status == 255)
+    }
+
     @Test func reattachMode() {
         let previous = LaunchMode(restoring: false, initialPrompt: "hi")
         #expect(launchMode(for: Leaf(kind: .claude, cwd: "/a"), .reattach(previous: previous)) == LaunchMode(restoring: true, initialPrompt: nil))
@@ -176,6 +199,18 @@ import Workspace
             if code == 0 { #expect((try? String(contentsOfFile: f.home + "/leaf", encoding: .utf8)) == leaf.uuidString) }
         }
     }
+
+    /// The task's port reaches the remote tab's environment, with and without tmux (#60).
+    @Test func portReachesRemoteTab() async throws { try await Fixture.with { f in
+        for tmux in [false] + (RemoteLaunchTests.tmuxPath == nil ? [] : [true]) {
+            let out = f.root + "/port-\(tmux)"
+            let cmd = remoteTabCommand(target: f.target(tmux: tmux), tabId: UUID(), leafId: UUID(), cwd: f.home,
+                                       agentCommand: "printf '%s' \"$HANGAR_PORT\" > \(shellQuote(out))", port: 41234)
+            let code = tmux ? try await f.run(cmd) : try await runProcess("/bin/sh", ["-c", cmd], cwd: "/", env: f.env).status
+            #expect(code == 0, "tmux \(tmux)")
+            #expect(f.read("port-\(tmux)") == "41234", "tmux \(tmux)")
+        }
+    } }
 
     @Test(.enabled(if: tmuxPath != nil)) func tmuxSessionSurvivesClient() async throws { try await Fixture.with { f in
         let leaf = UUID(), name = remoteSessionName(leaf), marker = f.root + "/started"

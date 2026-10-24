@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="asbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c3852"/><stop offset="1" stop-color="#121826"/></linearGradient>
+<linearGradient id="assheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="asrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".02"/></linearGradient>
+<linearGradient id="asfg" gradientUnits="userSpaceOnUse" x1="0" y1="280" x2="0" y2="744"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd6e3"/></linearGradient>
+<linearGradient id="asac" gradientUnits="userSpaceOnUse" x1="0" y1="300" x2="0" y2="724"><stop offset="0" stop-color="#7cc0f5"/><stop offset="1" stop-color="#3b8fe6"/></linearGradient>
+</defs>
+<rect x="98" y="110" width="828" height="826" rx="187" fill="#000" fill-opacity=".035"/><rect x="96" y="112" width="832" height="828" rx="189" fill="#000" fill-opacity=".035"/><rect x="94" y="114" width="836" height="830" rx="191" fill="#000" fill-opacity=".035"/><rect x="92" y="116" width="840" height="832" rx="193" fill="#000" fill-opacity=".035"/><rect x="90" y="118" width="844" height="834" rx="195" fill="#000" fill-opacity=".035"/><rect x="88" y="120" width="848" height="836" rx="197" fill="#000" fill-opacity=".035"/><rect x="86" y="122" width="852" height="838" rx="199" fill="#000" fill-opacity=".035"/><rect x="84" y="124" width="856" height="840" rx="201" fill="#000" fill-opacity=".035"/>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#asbg)"/>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#assheen)"/>
+<rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#asrim)" stroke-width="4"/>
+<path d="M312 724V500A200 200 0 0 1 712 500V724" fill="none" stroke="url(#asfg)" stroke-width="80" stroke-linecap="round"/><path d="M474 540l84 70-84 70" fill="none" stroke="url(#asac)" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

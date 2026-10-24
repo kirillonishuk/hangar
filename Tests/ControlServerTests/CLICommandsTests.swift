@@ -15,6 +15,10 @@ import ControlServer
              .call(.tabsSend(tab: "ab12", text: "hi", keys: [.ctrlC, .enter]), json: false)),
             (["tabs", "send", "--tab", "x", "--key", "escape", "--key", "down"],
              .call(.tabsSend(tab: "x", text: nil, keys: [.escape, .down]), json: false)),
+            (["tabs", "send", "--tab", "x", "go", "--enter", "--wait"],
+             .call(.tabsSend(tab: "x", text: "go", keys: [.enter], wait: true), json: false)),
+            (["tabs", "send", "--tab", "x", "--key", "interrupt"],
+             .call(.tabsSend(tab: "x", text: nil, keys: [.interrupt]), json: false)),
             (["tabs", "read", "--tab", "x", "--lines", "20", "--json"], .call(.tabsRead(tab: "x", lines: 20), json: true)),
             (["tabs", "read", "--tab", "x"], .call(.tabsRead(tab: "x", lines: 100), json: false)),
             // A drawer leaf id is a plain `--tab` ref.
@@ -29,6 +33,16 @@ import ControlServer
             (["tasks", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
             (["tasks", "list"], .call(.tasksList(project: nil), json: false)),
             (["tasks", "archive", "--yes", "--task", "t"], .call(.tasksArchive(task: "t"), json: false)),
+            (["tasks", "archive", "--yes", "--force", "--task", "t"], .call(.tasksArchive(task: "t", force: true), json: false)),
+            (["tasks", "restore", "--task", "t"], .call(.tasksRestore(task: "t"), json: false)),
+            (["tasks", "restore", "--task", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
+            (["tasks", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
+            (["tasks", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
+            // `hangar ssh <host>` only opens the tab in the app (#64).
+            (["ssh", "box"], .call(.sshOpen(host: "box"), json: false)),
+            (["ssh", "--json", "u@h"], .call(.sshOpen(host: "u@h"), json: true)),
+            (["ssh"], .usage("missing argument")),
+            (["ssh", "a", "b"], .usage("unexpected argument \"b\"")),
         ]
         for (args, expected) in table {
             #expect(parseCLI(args, cwd: "/tmp/a/b") == expected, "\(args)")
@@ -109,6 +123,20 @@ import ControlServer
                             path: "/w", branch: nil, base: nil, tabs: [TabInfo(id: t1, kind: .claude, title: "C", status: "idle", leaves: [])])
         #expect(formatHuman(.tasksList(project: nil), result: try JSONEncoder().encode(TasksResult(tasks: [main])))
                 == "abcdef12  idle  web/N\n    11112222  claude  idle  C")
+        // `--git`: changes, dirty and ahead/behind on the task line; absent from JSON without it.
+        #expect(!String(decoding: try JSONEncoder().encode(main), as: UTF8.self).contains("changes"))
+        var withGit = task
+        withGit.changes = ChangesInfo(added: 12, removed: 3, files: 4)
+        withGit.dirty = true
+        withGit.ahead = 2
+        withGit.behind = 0
+        #expect(formatHuman(.tasksList(project: nil, git: true), result: try JSONEncoder().encode(TasksResult(tasks: [withGit])))
+                .hasPrefix("abcdef12  working  web/Fix login  ⎇ fix-login  +12 −3 in 4 files  dirty  ↑2 ↓0\n"))
+        #expect(formatHuman(.tasksRestore(task: "t"), result: try JSONEncoder().encode(TaskResult(task: main)))
+                == "restored abcdef12-0000-0000-0000-000000000001")
+        #expect(requestTimeout(.tasksRestore(task: "t")) >= 60)
+        #expect(requestTimeout(.tasksList(project: nil, git: true)) >= 30)
+        #expect(requestTimeout(.tasksList(project: nil)) == 10)
         let create = ControlCall.tasksCreate(project: "p", name: "N", worktree: false, base: nil, prompt: nil)
         #expect(formatHuman(create, result: try JSONEncoder().encode(TaskResult(task: main)))
                 == "task abcdef12-0000-0000-0000-000000000001 tab 11112222-0000-0000-0000-000000000002")
@@ -126,13 +154,19 @@ import ControlServer
                 == "abcdef12-0000-0000-0000-000000000001  dev:/srv/app\nwarning: tmux missing on server; open Hangar → Server to install")
         #expect(requestTimeout(.projectsAdd(path: "~/app", host: "dev")) >= 60)
         #expect(requestTimeout(.projectsAdd(path: "/a")) == 10)
+        #expect(requestTimeout(.tasksArchive(task: "t")) >= 60)
         let tab = TabInfo(id: t1, kind: .shell, title: "zsh", status: "idle", leaves: [])
         #expect(formatHuman(.tabsOpen(task: "t", kind: .shell, prompt: nil), result: try JSONEncoder().encode(TabResult(task: taskId, tab: tab)))
                 == "tab 11112222-0000-0000-0000-000000000002")
         #expect(formatHuman(.tabsSend(tab: "x", text: "a", keys: []), result: try JSONEncoder().encode(SendResult(tab: t1, leaf: t2))) == "")
+        #expect(formatHuman(.tabsSend(tab: "x", text: "a", keys: [], wait: true),
+                            result: try JSONEncoder().encode(SendResult(tab: t1, leaf: t2, status: "not-started-yet", hint: "h"))) == "not-started-yet: h")
+        #expect(requestTimeout(.tabsSend(tab: "x", text: "a", keys: [], wait: true)) > 10)
         #expect(formatHuman(.tabsRead(tab: "x", lines: 5), result: try JSONEncoder().encode(ScreenResult(tab: t1, leaf: t2, text: "$ ls\nfoo", lines: 2, truncated: false)))
                 == "$ ls\nfoo")
         #expect(formatHuman(.tasksArchive(task: "t"), result: try JSONEncoder().encode(ArchiveResult(task: taskId, archived: true)))
                 == "archived abcdef12-0000-0000-0000-000000000001")
+        #expect(formatHuman(.tasksArchive(task: "t"), result: try JSONEncoder().encode(ArchiveResult(task: taskId, archived: true, worktreeRemoved: true)))
+                == "archived abcdef12-0000-0000-0000-000000000001; worktree removed, branch kept")
     }
 }

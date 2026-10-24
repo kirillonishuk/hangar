@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
+        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -87,7 +87,8 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
-        case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case copyLink, attentionOnly, nobodyWaiting
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -107,10 +108,11 @@ import Workspace
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
-        case integrationMCP, copyCommand, commandCopied, mcpHint
+        case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInHelix, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
+        case archiveAnyway, archiveFailed, restoreFailed, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
@@ -118,6 +120,16 @@ import Workspace
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
+        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
+        case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
+        case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
+        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
+        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+    }
+
+    /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
+    static func help(_ title: String, _ shortcut: Shortcut?) -> String {
+        shortcut.map { "\(title) — \($0.label)" } ?? title
     }
 
     // Sidebar
@@ -127,6 +139,8 @@ import Workspace
     static var sectionSSHHosts: String { s(.sectionSSHHosts) }
     static var newTask: String { s(.newTask) }
     static var newTaskHelp: String { s(.newTaskHelp) }
+    static var archiveToggleHelp: String { s(.archiveToggleHelp) }
+    static var hostsMenuHelp: String { s(.hostsMenuHelp) }
     static func newTaskIn(_ project: String) -> String { f(.newTaskIn, project) }
     static var addProject: String { s(.addProject) }
     static var addProjectEllipsis: String { s(.addProjectEllipsis) }
@@ -164,6 +178,7 @@ import Workspace
     static var diffUnavailable: String { s(.diffUnavailable) }
     static var newTabHelp: String { s(.newTabHelp) }
     static var closeTabHelp: String { s(.closeTabHelp) }
+    static var allTabsHelp: String { s(.allTabsHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
     static func firstMessagePlaceholder(_ agent: String) -> String { f(.firstMessagePlaceholder, agent) }
     static var escCancel: String { s(.escCancel) }
@@ -277,6 +292,8 @@ import Workspace
     static var copyCommand: String { s(.copyCommand) }
     static var commandCopied: String { s(.commandCopied) }
     static var mcpHint: String { s(.mcpHint) }
+    static var dockBadgeTitle: String { s(.dockBadgeTitle) }
+    static var dockBadgeHelp: String { s(.dockBadgeHelp) }
     static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
     static var settingsUnsupported: String { s(.settingsUnsupported) }
     static var fileChanged: String { s(.fileChanged) }
@@ -306,10 +323,15 @@ import Workspace
     static var limitsShortcutHint: String { s(.limitsShortcutHint) }
     static var refresh: String { s(.refresh) }
     static var limitsHelp: String { s(.limitsHelp) }
+    static var refreshLimitsHelp: String { s(.refreshLimitsHelp) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
     static var copyPath: String { s(.copyPath) }
+    static func portCopy(_ port: Int) -> String { f(.portCopy, port) }
+    static var copyLink: String { s(.copyLink) }
+    static var attentionOnly: String { s(.attentionOnly) }
+    static var nobodyWaiting: String { s(.nobodyWaiting) }
     static func openIn(_ arg: String) -> String { f(.openIn, arg) }
     static func openFailed(_ arg: String) -> String { f(.openFailed, arg) }
     static var deletePermanently: String { s(.deletePermanently) }
@@ -343,6 +365,15 @@ import Workspace
     static var creatingWorktreeWait: String { s(.creatingWorktreeWait) }
     static var worktreeRootInsideProject: String { s(.worktreeRootInsideProject) }
     static var worktreeFolder: String { s(.worktreeFolder) }
+    static func worktreeRootHint(_ folder: String) -> String { f(.worktreeRootHint, folder) }
+    static var worktreeCopy: String { s(.worktreeCopy) }
+    static var worktreeCopyHelp: String { s(.worktreeCopyHelp) }
+    static var setupCommand: String { s(.setupCommand) }
+    static var setupCommandHelp: String { s(.setupCommandHelp) }
+    static var afterCreate: String { s(.afterCreate) }
+    static var afterCreateSuggestedHelp: String { s(.afterCreateSuggestedHelp) }
+    static func copyingEntry(_ entry: String) -> String { f(.copyingEntry, entry) }
+    static func copyFailed(_ reason: String) -> String { f(.copyFailed, reason) }
     static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }
@@ -354,11 +385,18 @@ import Workspace
         return f(key, Int32(clamping: n))
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
+    static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }
     static var copyRelativePath: String { s(.copyRelativePath) }
     static var taskArchived: String { s(.taskArchived) }
     static var undoArchive: String { s(.undoArchive) }
+    static var archiveAnyway: String { s(.archiveAnyway) }
+    static var archiveFailed: String { s(.archiveFailed) }
+    static var restoreFailed: String { s(.restoreFailed) }
+    static func branchGone(_ name: String) -> String { f(.branchGone, name) }
+    static var branchGoneInfo: String { s(.branchGoneInfo) }
+    static var restoreWithoutWorktree: String { s(.restoreWithoutWorktree) }
     static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
@@ -424,7 +462,57 @@ import Workspace
     static func installFailed(_ code: Int32) -> String { f(.installFailed, code) }
     static var close: String { s(.close) }
     static func hostGaveUp(_ arg: String) -> String { f(.hostGaveUp, arg) }
+    // «<host> · терминал» (#64)
+    static var connectToHost: String { s(.connectToHost) }
+    static var connectHostTitle: String { s(.connectHostTitle) }
+    static var openTerminal: String { s(.openTerminal) }
+    static var closeTerminal: String { s(.closeTerminal) }
+    static func hostTerminal(_ host: String) -> String { f(.hostTerminal, host) }
+    static var plainSSHHint: String { s(.plainSSHHint) }
 
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
+
+    // ⌘P quick open / ⇧⌘P command palette
+    static var paletteSearch: String { s(.paletteSearch) }
+    static var paletteEmpty: String { s(.paletteEmpty) }
+    static var paletteLoading: String { s(.paletteLoading) }
+    static func paletteSection(_ kind: PaletteItem.Kind) -> String {
+        switch kind {
+        case .task: s(.paletteTasks)
+        case .file: s(.paletteFiles)
+        case .command: s(.paletteCommands)
+        }
+    }
+    /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one.
+    static func command(_ sc: Shortcut) -> String {
+        switch sc {
+        case .newTask: newTask
+        case .addProject: addProject
+        case .newTab: newTabHelp
+        case .closeTab: closeTabHelp
+        case .splitRight: s(.splitRight)
+        case .splitDown: s(.splitDown)
+        case .archiveTask: s(.cmdArchiveTask)
+        case .rename: rename
+        case .prevTask: s(.cmdPrevTask)
+        case .nextTask: s(.cmdNextTask)
+        case .prevTab: s(.cmdPrevTab)
+        case .nextTab: s(.cmdNextTab)
+        case .toggleSidebar: s(.cmdToggleSidebar)
+        case .toggleInspector: s(.cmdToggleInspector)
+        case .inspectorFiles: showFiles
+        case .inspectorChanges: statusShowChanges
+        case .toggleDrawer: s(.drawerToggle)
+        case .limits: s(.limitsHelp)
+        case .revealInFinder: s(.revealInFinder)
+        case .copyPath: s(.copyPath)
+        case .settings: settings
+        case .quickOpen: s(.cmdQuickOpen)
+        case .commandPalette: s(.cmdCommandPalette)
+        case .attentionFilter: attentionOnly
+        case .tab(let n): "\(n)"
+        case .focusSplit: ""
+        }
+    }
 }

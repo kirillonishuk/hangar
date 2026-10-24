@@ -30,18 +30,14 @@ final class TaskColumnController: NSViewController {
     let tabBar: NSHostingView<TabBarView>
     private let statusBar: NSHostingView<TaskStatusBar>
     /// «Задача в архиве · Отменить» over the bottom of the terminals.
-    let archiveUndo = ArchiveUndo()
+    let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
 
     init(app: AppState) {
         terminalArea = TerminalArea(app: app)
-        // Undo selects the task again only if the archive left nothing selected (it was the selected one).
-        toast = NSHostingView(rootView: UndoToastView(undo: archiveUndo) { [weak app] id in
-            guard let app, app.state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
-            let reselect = app.selectedTask == nil
-            app.restore(taskId: id)
-            if reselect { app.select(taskId: id) }
-        })
+        let undo = ArchiveUndo()
+        archiveUndo = undo
+        toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
         titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
@@ -108,6 +104,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
     private var sidebarAnimation: Timer?
+    /// The open ⌘P / ⇧⌘P palette; nil when closed.
+    var palette: PaletteController?
+    private var paletteLoad: Task<Void, Never>?
+    /// The inspector root its files were taken from.
+    private var paletteRoot: String?
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)
@@ -164,6 +165,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        // Undo selects the task again only if the archive left nothing selected (it was the selected one).
+        column.archiveUndo.onUndo = { [weak self] id in
+            guard let self else { return }
+            let reselect = self.app.selectedTask == nil
+            Task { await restoreArchivedTask(id, ctx: self.ctx, reselect: reselect) }
+        }
         splitView.onDragEnd = { [weak self, weak splitView] in
             switch splitView?.draggedDivider {
             case 0: self?.sidebarDragEnded()
@@ -192,8 +199,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         installKeyMonitor()
         // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
         activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.app.refreshUsageClock() }
+            MainActor.assumeIsolated {
+                self?.app.refreshUsageClock()
+                // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
+                self?.app.reloadConfigHosts()
+            }
         }
+        app.reloadConfigHosts()
         #if DEBUG
         installDebugHooks()
         #endif
@@ -318,6 +330,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.toggleLimitsPopover()
             return true
         }
+        // The palette panel keeps its keys (typing, ↑↓, ↩, Esc); only ⌘P / ⇧⌘P reach it from here, to toggle.
+        if let palette, event.window === palette.panel {
+            let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags)
+            guard sc == .quickOpen || sc == .commandPalette else { return false }
+            if !event.isARepeat, let sc { perform(sc) }
+            return true
+        }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
@@ -351,7 +370,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
@@ -373,6 +392,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             addProject: { [weak self] in self?.chooseProjectKind() },
             addLocalProject: { [weak self] in self?.chooseProject() },
             addRemoteProject: { [weak self] in self?.presentRemoteProject() },
+            connectHost: { [weak self] in self?.presentConnectHost() },
             checkServer: { [weak self] host in self?.presentServer(host) },
             newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
@@ -412,19 +432,93 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         switch sc {
         case .newTask: presentNewTask(projectId: nil)
         case .newTab: app.addTab(.shell)
-        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer: break  // Action registry above (F2: handleKeyDown)
+        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer, .revealInFinder, .copyPath:
+            break  // Action registry above (F2: handleKeyDown)
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProjectKind()
+        // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it
+        // while a terminal has focus (Ghostty's default super+comma binding takes the key first). Drop this if that binding goes.
         case .settings: showSettings(nil)
+        case .inspectorFiles: app.showInspector(.files)
+        case .inspectorChanges: app.showInspector(.changes)
+        case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
         case .prevTab: cycleTab(-1)
         case .nextTab: cycleTab(1)
         case .focusSplit(let direction):
             if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
+        case .quickOpen: togglePalette(commands: false)
+        case .commandPalette: togglePalette(commands: true)
+        }
+    }
+
+    // MARK: Palette
+
+    /// ⌘P quick open (tasks, files; a typed `>` → commands), ⇧⌘P commands (the query starts as `>`), as in VS Code.
+    /// The same key again closes it, the other one switches.
+    func togglePalette(commands: Bool) {
+        if let palette {
+            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
+            return
+        }
+        guard let window, window.attachedSheet == nil else { return }
+        let tasks = (app.pinnedTasks + app.state.projects.flatMap { app.groupTasks($0.id) }).map { t in
+            PaletteItem(task: t.id, name: t.name, project: app.project(t.projectId)?.name ?? "")
+        }
+        let task = app.selectedTask
+        let project = task.flatMap { app.project($0.projectId) }
+        let root = task.flatMap { inspectorWatch?.root(of: $0) }
+        // The inspector's list when it has this task's; else one `ls-files` (capped) on first need, no watcher.
+        var files: [String]?
+        var load: (() -> Void)?
+        if let task, let project, let root {
+            if app.inspector.shownTaskId == task.id, app.inspector.root == root, app.inspector.tree.count > 0 {
+                files = paletteFiles(app.inspector.tree)
+            } else {
+                let git = app.git(for: project, repo: root)
+                load = { [weak self] in self?.loadPaletteFiles(git) }
+            }
+        } else {
+            files = []
+        }
+        let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
+                                 query: commands ? ">" : "", loadFiles: load)
+        paletteRoot = root
+        palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            self?.closePalette()
+            self?.choosePalette(item)
+        }, close: { [weak self] in self?.closePalette() })
+    }
+
+    /// The inspector's own listing (`git ls-files`), capped; a folder that is not a repository has no list here.
+    private func loadPaletteFiles(_ git: Git) {
+        paletteLoad = Task { [weak self] in
+            let listing = try? await git.listFiles(limit: paletteFileCap)
+            guard !Task.isCancelled, let self else { return }
+            self.palette?.model.setFiles(listing.map { l in l.paths.filter { !l.dirLinks.contains($0) } } ?? [])
+        }
+    }
+
+    func closePalette() {
+        guard let palette else { return }
+        self.palette = nil
+        paletteLoad?.cancel()
+        paletteLoad = nil
+        palette.dismiss()
+        if NSApp.isActive { window?.makeKey() }  // back to the responder the window had (terminal, field)
+    }
+
+    func choosePalette(_ item: PaletteItem) {
+        switch item.target {
+        case .task(let id):
+            app.select(taskId: id)
+            column.terminalArea.focusActiveLeaf()
+        case .file(let path): if let paletteRoot { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .command(let sc): perform(sc)
         }
     }
 
@@ -454,6 +548,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
     /// No-op outside an .app bundle.
     public func enableNotifications() {
+        // Dock badge and bounce: no bundle needed, so before the notifier's guard.
+        app.onDockBadge = { NSApp.dockTile.badgeLabel = $0 }
+        app.requestAttention = { if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) } }
+        app.updateDockBadge()
         guard let notifier = Notifier.makeIfAvailable() else { return }
         self.notifier = notifier
         notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }
@@ -475,6 +573,20 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
         }
         column.terminalArea.focus(leafId: leafId)
+    }
+
+    /// A clicked `hangar://` link (#66): select and bring the window up; a tab link focuses its terminal.
+    public func openLink(_ url: URL) {
+        guard let target = app.openLink(url) else { return }
+        if case .tab(let task, let tab) = target,
+           let leaf = app.state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab })?.focusedLeafId {
+            reveal(leafId: leaf)
+            return
+        }
+        if let window {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
@@ -517,6 +629,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let items = [
             MenuEntry(title: L10n.addLocalProject, icon: .project) { [weak self] in self?.chooseProject(thenNewTask: thenNewTask) },
             MenuEntry(title: L10n.addRemoteProject, icon: .sshHost) { [weak self] in self?.presentRemoteProject(thenNewTask: thenNewTask) },
+            MenuEntry(title: L10n.connectToHost, icon: .shell) { [weak self] in self?.presentConnectHost() },
         ]
         let mouse = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp].contains(NSApp.currentEvent?.type)
         if mouse {
@@ -547,7 +660,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = projectId ?? app.selectedTask?.projectId ?? app.state.projects.last?.id
+        let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
@@ -567,7 +680,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
                                 onCreate: { [weak self] name, message, mode in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode)
+                                    guard let app = self?.app else { return }
+                                    // Turning the suggested command on is the opt-in: it becomes the project's own.
+                                    if let command = model.commandToSave, let p = app.project(id) {
+                                        app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
+                                    }
+                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)
@@ -678,6 +796,22 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
     }
 
+    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#64).
+    func presentConnectHost() {
+        guard let window, window.attachedSheet == nil else { return }
+        let sheet = makeSheet(over: window)
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+        }
+        let view = ConnectHostSheet(configHosts: app.configHosts(), onConnect: { [weak self] host in
+            close()
+            self?.app.openHostShell(host)
+        }, onCancel: close)
+        begin(sheet, view, on: window)
+    }
+
     /// «Сервер <host>»: the check again, the plan, installs and the server's integrations.
     func presentServer(_ host: String) {
         guard let window, window.attachedSheet == nil else { return }
@@ -705,9 +839,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
             close()
-            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
+            self?.app.perform {
+                $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot)
+                $0.setWorktreeSetup(id: id, copy: setup.copy, command: setup.command)
+            }
             // The visible task's diff base may be this project's default.
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onCancel: close)

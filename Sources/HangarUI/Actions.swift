@@ -1,4 +1,5 @@
 import AppKit
+import ControlServer
 import Exec
 import Git
 import SwiftUI
@@ -17,6 +18,8 @@ enum ActionTarget: Equatable {
     var addProject: () -> Void = {}
     var addLocalProject: () -> Void = {}
     var addRemoteProject: () -> Void = {}
+    /// «Подключиться к хосту…»: a plain ssh shell without a project (#64).
+    var connectHost: () -> Void = {}
     /// «Сервер <host>» sheet.
     var checkServer: (String) -> Void = { _ in }
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
@@ -31,13 +34,13 @@ enum ActionTarget: Equatable {
     var confirmWithCheckbox: (String, String, String, String, @escaping (Bool) -> Void) -> Void = { _, _, _, _, _ in }
     /// message, details.
     var showError: (String, String) -> Void = { _, _ in }
-    /// A task was archived from a menu or ⌘⇧W: the undo toast.
+    /// A task was archived from a menu or ⇧⌘W: the undo toast.
     var didArchive: (UUID) -> Void = { _ in }
 }
 
-/// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts (and later ⌘K) read it here.
+/// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts and the ⇧⌘P palette read it here.
 enum Action: CaseIterable {
-    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, openInEditor
+    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
@@ -47,12 +50,14 @@ enum Action: CaseIterable {
         let reconnect: [Action] = app.project(of: target)?.host == nil ? [] : [.reconnect]
         switch target {
         case .task(let id):
+            // A host's terminal has its own row menu (open / close), none of a project task's actions.
+            if app.isHostShellTask(id) { return [] }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath] + editor + [.archive]
+            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
             return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath] + editor + [.removeProject]
         case .tab:
-            return [.rename, .splitRight, .splitDown, .closeTab]
+            return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
         }
     }
 
@@ -67,18 +72,20 @@ enum Action: CaseIterable {
         case .splitDown: .splitDown
         case .closeTab: .closeTab
         case .toggleDrawer: .toggleDrawer
+        case .revealInFinder: .revealInFinder
+        case .copyPath: .copyPath
         default: nil
         }
     }
 
     var icon: Icon {
         switch self {
-        case .newTask: .newTask
+        case .newTask: .add
         case .rename: .rename
         case .togglePin: .pin
         case .projectSettings: .settings
         case .revealInFinder: .finder
-        case .copyPath: .copy
+        case .copyPath, .copyPort, .copyLink: .copy
         case .openInEditor: .openExternal
         case .archive: .archive
         case .restore: .restore
@@ -88,7 +95,7 @@ enum Action: CaseIterable {
         case .splitDown: .splitDown
         case .closeTab: .close
         case .toggleDrawer: .shell
-        case .reconnect: .refresh
+        case .reconnect: .reconnect
         }
     }
 
@@ -101,6 +108,8 @@ enum Action: CaseIterable {
         case .projectSettings: L10n.projectSettingsEllipsis
         case .revealInFinder: L10n.revealInFinder
         case .copyPath: L10n.copyPath
+        case .copyPort: L10n.portCopy(app.port(of: target) ?? 0)
+        case .copyLink: L10n.copyLink
         case .openInEditor: L10n.openIn(editorName(app.config.externalEditor ?? ""))
         case .archive: L10n.archive
         case .restore: L10n.restore
@@ -115,13 +124,16 @@ enum Action: CaseIterable {
     }
 
     @MainActor func isEnabled(for target: ActionTarget, app: AppState) -> Bool {
-        switch self {
+        // Keyboard actions on a host's terminal: only its TERMINAL drawer (another ssh shell); ⇧⌘W, F2 and the rest do nothing.
+        if case .task(let id) = target, app.isHostShellTask(id) { return self == .toggleDrawer }
+        return switch self {
         // Sidebar rows can't host a text field in rail mode.
         case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
         case .newTask: app.isAvailable(target)
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
         case .copyPath: app.path(of: target) != nil
+        case .copyPort: app.port(of: target) != nil
         case .reconnect: app.project(of: target)?.host.map { app.remote.hosts[$0]?.state != .connected } ?? false
         // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
         case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
@@ -144,15 +156,21 @@ enum Action: CaseIterable {
             guard let path = app.path(of: target) else { return }
             ctx.pasteboard.clearContents()
             ctx.pasteboard.setString((app.project(of: target)?.host).map { "\($0):\(path)" } ?? path, forType: .string)
+        case (.copyPort, _):
+            guard let port = app.port(of: target) else { return }
+            ctx.pasteboard.clearContents()
+            ctx.pasteboard.setString(String(port), forType: .string)
+        case (.copyLink, .task), (.copyLink, .tab):
+            guard let link = LinkTarget(target)?.link else { return }
+            ctx.pasteboard.clearContents()
+            ctx.pasteboard.setString(link.url.absoluteString, forType: .string)
         case (.openInEditor, _):
             guard let editor = app.config.externalEditor, let path = app.path(of: target) else { return }
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in
                 ctx.showError(L10n.openFailed(editorName(editor)), details)
             }
-        case (.archive, .task(let id)):
-            app.archive(taskId: id)
-            ctx.didArchive(id)
-        case (.restore, .task(let id)): app.restore(taskId: id)
+        case (.archive, .task(let id)): Task { await archiveTask(id, ctx: ctx) }
+        case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
             guard case .worktree = task.mode, let project = app.project(task.projectId) else {
@@ -243,7 +261,7 @@ struct ActionMenuItems: View {
 }
 
 /// Shows the key in the menu (the key itself is handled by the window's key monitor, by keyCode).
-private struct MenuShortcutHint: ViewModifier {
+struct MenuShortcutHint: ViewModifier {
     let shortcut: Shortcut?
 
     func body(content: Content) -> some View {
@@ -259,7 +277,10 @@ extension Shortcut {
         case .splitRight: ("d", .command)
         case .splitDown: ("d", [.command, .shift])
         case .closeTab: ("w", .command)
-        case .toggleDrawer: ("`", .control)
+        case .toggleDrawer: ("j", .command)
+        case .newTab: ("t", .command)
+        case .revealInFinder: ("r", [.command, .option])
+        case .copyPath: ("c", [.command, .option])
         default: nil
         }
     }
@@ -268,7 +289,7 @@ extension Shortcut {
 enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
 
 /// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
-/// splits are ignored, everything else (⌘T, ⌃`, ⌘1…9, …) works as usual.
+/// splits are ignored, everything else (⌘T, ⌘J, ⌘1…9, …) works as usual.
 /// While the diff tab is shown (`diffActive`, focus not in the drawer) splits are ignored too: they would split the hidden tab.
 func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool) -> DrawerRoute {
     if diffActive, !drawerFocused, sc == .splitRight || sc == .splitDown { return .ignore }

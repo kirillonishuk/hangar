@@ -42,6 +42,10 @@ struct SectionHeader: View {
     /// `+` without hover (empty state: nothing else says how to add the first project).
     var plusAlwaysVisible = false
     var plus: (() -> Void)?
+    /// «Только ждущие» toggle (#67): a status dot, `waiting`-coloured and always shown while on.
+    var filterOn = false
+    var filterHelp = ""
+    var filter: (() -> Void)?
 
     var body: some View {
         // No action → no hover fill; `hover` only reveals `+`.
@@ -49,8 +53,21 @@ struct SectionHeader: View {
             HStack(spacing: 0) {
                 Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                 Spacer(minLength: 0)
+                if let filter {
+                    Button(action: filter) {
+                        Circle().fill(filterOn ? Theme.ui.waiting : Theme.ui.text3)
+                            .frame(width: Theme.statusDot, height: Theme.statusDot)
+                            .frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
+                            .padding(Theme.railInset)
+                    }
+                    .buttonStyle(HoverButtonStyle(selected: filterOn, radius: Theme.railItemRadius))
+                    .opacity(hover || filterOn ? 1 : 0)
+                    .help(filterHelp)
+                    .accessibilityLabel(filterHelp)
+                    .accessibilityAddTraits(filterOn ? .isSelected : [])
+                }
                 if let plus {
-                    Button(action: plus) { IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset) }
+                    Button(action: plus) { IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset) }
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                         .opacity(hover || plusAlwaysVisible ? 1 : 0)
                         .help(plusHelp)
@@ -120,7 +137,7 @@ struct RailTile: View {
     }
 }
 
-/// Key hint at a row's end («⌘N», «⌘0», «⌘⇧N»): one size and color everywhere.
+/// Key hint at a row's end («⌘N», «⌘0», «⇧⌘N»: `Shortcut.label`): one size and color everywhere.
 struct ShortcutHint: View {
     let text: String
 
@@ -165,7 +182,7 @@ struct FilledRowStyle: ButtonStyle {
     }
 }
 
-/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая задача") and the ⌘⇧N hint.
+/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая задача") and the ⇧⌘N hint.
 struct EmptyStateView: View {
     let addProject: () -> Void
 
@@ -180,14 +197,14 @@ struct EmptyStateView: View {
         VStack(spacing: Theme.sheetGap) {
             Button(action: addProject) {
                 HStack(spacing: Theme.iconGap) {
-                    IconView(icon: .newTask, active: true)
+                    IconView(icon: .add, active: true)
                     Text(L10n.addProject).foregroundStyle(Theme.ui.textStrong)
                 }
                 .padding(.vertical, Theme.tabPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
             }
             .buttonStyle(FilledRowStyle())
-            ShortcutHint(text: "⌘⇧N")
+            ShortcutHint(text: Shortcut.addProject.label)
         }
         .font(.system(size: Theme.fontSize.sidebarRow))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -203,14 +220,18 @@ struct MenuEntry {
     let action: () -> Void
 }
 
-/// Host row: «Переподключиться» (while not connected), «Проверить сервер» (connected), «Отключиться».
+/// Host row: «Открыть терминал» (a plain ssh shell, #64); a host of remote projects also «Переподключиться»
+/// (while not connected), «Проверить сервер» (connected), «Отключиться».
 @MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
+    let terminal = MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) }
+    guard app.sshHosts.contains(host) else { return [terminal] }
     let state = app.remote.hosts[host]?.state ?? .disconnected
     let down = state == .disconnected || { if case .unreachable = state { true } else { false } }()
     return [
-        MenuEntry(title: L10n.reconnect, icon: .refresh, enabled: state != .connected) { app.reconnect(host: host) },
-        MenuEntry(title: L10n.checkServer, icon: .sshHost, enabled: state == .connected) { ctx.checkServer(host) },
-        MenuEntry(title: L10n.disconnect, icon: .close, enabled: !down) { app.remote.disconnect(host) },
+        terminal,
+        MenuEntry(title: L10n.reconnect, icon: .reconnect, enabled: state != .connected) { app.reconnect(host: host) },
+        MenuEntry(title: L10n.checkServer, icon: .checkServer, enabled: state == .connected) { ctx.checkServer(host) },
+        MenuEntry(title: L10n.disconnect, icon: .disconnect, enabled: !down) { app.remote.disconnect(host) },
     ]
 }
 

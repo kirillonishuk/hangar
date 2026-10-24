@@ -111,7 +111,7 @@ struct LimitsBlock: View {
             ForEach(app.limitRows, id: \.agent) { row in
                 Button { app.limitsClicked() } label: { line(row.agent, row.usage) }
                     .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                    .help(L10n.limitsHelp)
+                    .help(L10n.help(L10n.limitsHelp, .limits))
             }
         }
         .padding(.vertical, Theme.Limit.blockPaddingV)
@@ -158,7 +158,7 @@ struct LimitsRailTile: View {
                 IconView(icon: .limits, tint: Theme.Limit.color(worst))
             } expanded: { EmptyView() } rail: { EmptyView() }
         }
-        .help(L10n.limitsHelp)
+        .help(L10n.help(L10n.limitsHelp, .limits))
         .accessibilityLabel(L10n.limitsHelp)
         .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }),
                  attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: Theme.sidebarRailWidth, height: Theme.footerRowHeight))),
@@ -168,7 +168,7 @@ struct LimitsRailTile: View {
     }
 }
 
-/// Plan, «обновлено …», each window with badge, percent, bar and reset time; ⌘⇧L hint and ↻.
+/// Plan, «обновлено …», each window with badge, percent, bar and reset time; ⇧⌘L hint and ↻.
 struct LimitsPopover: View {
     let app: AppState
 
@@ -181,7 +181,7 @@ struct LimitsPopover: View {
                     .padding(.vertical, Theme.Limit.itemGap / 2)
             }
             HStack {
-                Text(L10n.limitsShortcutHint)
+                Text(L10n.help(L10n.limitsShortcutHint, .limits))
                 Spacer(minLength: Theme.Limit.rowGap)
                 Button {
                     app.refreshUsageClock()
@@ -194,6 +194,7 @@ struct LimitsPopover: View {
                     .padding(.horizontal, Theme.railInset)
                 }
                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                .help(L10n.refreshLimitsHelp)
             }
             .font(.system(size: Theme.fontSize.small))
             .foregroundStyle(Theme.ui.text3)

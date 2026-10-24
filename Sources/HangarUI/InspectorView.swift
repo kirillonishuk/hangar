@@ -38,8 +38,8 @@ struct InspectorView: View {
     /// Equal halves, so a changing count never moves the other label.
     private var segment: some View {
         HStack(spacing: 0) {
-            segmentItem(L10n.segmentFiles, .files)
-            segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes)
+            segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
+            segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
         }
         .padding(Theme.segmentPadding)
         // As the settings segment: on `bg` a `panel` track alone would be invisible.
@@ -48,8 +48,8 @@ struct InspectorView: View {
         .animation(Motion.ease(Theme.selectionFade), value: model.segment)
     }
 
-    private func segmentItem(_ title: String, _ value: InspectorModel.Segment) -> some View {
-        SegmentItem(title: title, on: model.segment == value) { model.segment = value }
+    private func segmentItem(_ title: String, _ value: InspectorModel.Segment, help: String) -> some View {
+        SegmentItem(title: title, on: model.segment == value) { model.segment = value }.help(help)
     }
 }
 
@@ -212,6 +212,7 @@ private struct FileRow: View {
                 } else {
                     Color.clear.frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
                 }
+                FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(Theme.ui.textRow)
@@ -315,6 +316,7 @@ private struct ChangeRow: View {
         let dir = (file.path as NSString).deletingLastPathComponent
         HoverRow(selected: selected, action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
+                FileIconView(name: name)
                 Text(name)
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)

@@ -75,7 +75,9 @@ extension MainWindowController {
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
             "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
-            "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down),
+            "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
+            "inspectorChanges": .inspectorChanges, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
+            "quickOpen": .quickOpen, "commandPalette": .commandPalette,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -290,6 +292,25 @@ extension MainWindowController {
             default: break
             }
             uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public) diffPath=\(m.diffPath ?? "-", privacy: .public) diff=\(Self.describe(m.diff), privacy: .public) diffTab=\(self.app.selectedTask.flatMap { self.app.diffTabs[$0.id] }.map { "\($0.path) active=\($0.active) row=\(self.app.activeDiffSelection.map(String.init) ?? "-")" } ?? "-", privacy: .public) rows=\(self.app.activeDiffContent.rows.count) open=\(self.app.activeDiff.flatMap { _ in openTarget(rows: self.app.activeDiffContent.rows, selected: self.app.activeDiffSelection) }.map(String.init) ?? "-", privacy: .public) responder=\(self.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
+        case "palette":  // palette open|commands|close|type <query>|up|down|enter|snap <png>; state goes to the log
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let rest = f.count > 1 ? f[1] : ""
+            switch f.first ?? "" {
+            case "open": if palette == nil { togglePalette(commands: false) }
+            case "commands": if palette == nil { togglePalette(commands: true) }
+            case "close": closePalette()
+            case "type": palette?.model.setQuery(rest)
+            case "up": palette?.model.move(-1)
+            case "down": palette?.model.move(1)
+            case "enter": if let item = palette?.model.highlighted { closePalette(); choosePalette(item) }
+            case "snap":
+                guard let view = palette?.panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
+            default: break
+            }
+            let rows = palette?.model.sections.map { "\($0.kind):\($0.items.map(\.title))" } ?? []
+            uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) commands=\(self.palette?.model.isCommands ?? false, privacy: .public) loading=\(self.palette?.model.showsLoading ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
         case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)
             let v = arg.split(separator: " ").compactMap { Double($0) }
             if v.count == 2 { window?.setContentSize(NSSize(width: v[0], height: v[1])); window?.center() }
@@ -320,6 +341,19 @@ extension MainWindowController {
             let hosts = app.remote.hosts.map { "\($0.key)=\($0.value.state) attention=\($0.value.needsAttention)" }
             uiLog.info("remote hosts=\(hosts, privacy: .public) phase=\(String(describing: server?.phase), privacy: .public) report=\(server?.report.map { "remote=\($0.remoteVersion ?? 0) tools=\($0.tools.keys.map(\.rawValue).sorted())" } ?? "-", privacy: .public)")
             uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) claude=\(String(describing: server?.claude), privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
+        case "window":
+            // window minimize|restore|hide|unhide|out|front: occlusion changes without activating the app.
+            switch arg {
+            case "minimize": window?.miniaturize(nil)
+            case "restore": window?.deminiaturize(nil)
+            case "hide": NSApp.hide(nil)
+            case "unhide": NSApp.unhideWithoutActivation()
+            case "out": window?.orderOut(nil)
+            case "front": window?.orderFrontRegardless()
+            default: break
+            }
+            uiLog.info("window \(arg, privacy: .public) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) mini=\(self.window?.isMiniaturized ?? false) active=\(NSApp.isActive)")
+        case "check": try? column.terminalArea.debugCheck().write(toFile: arg, atomically: true, encoding: .utf8)  // check <file>
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

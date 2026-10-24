@@ -30,15 +30,33 @@ import Workspace
         #expect(Action.list(for: .task(archived), app: app) == [.restore, .deletePermanently])
     }
 
+    /// «Port: 41234 (copy)» copies the task's `HANGAR_PORT` (#60); the leaf's launch env carries it.
+    @Test func copyPortAndLaunchEnv() throws {
+        let (app, _, a, _) = try makeApp()
+        defer { cleanup() }
+        let port = try #require(app.state.tasks.first { $0.id == a }?.port)
+        #expect(Action.copyPort.title(for: .task(a), app: app) == L10n.portCopy(port))
+        let pb = NSPasteboard(name: .init("hangar-test-\(UUID())"))
+        var ctx = ActionContext(app: app)
+        ctx.pasteboard = pb
+        Action.copyPort.perform(.task(a), ctx)
+        #expect(pb.string(forType: .string) == String(port))
+        app.perform { _ = $0.addTab(taskId: a, kind: .shell) }
+        let task = try #require(app.state.tasks.first { $0.id == a })
+        let leaf = try #require(task.tabs.first?.root.leaves.first)
+        let (spec, _) = try app.spec(for: leaf, tabId: task.tabs[0].id, context: .created(prompt: nil))
+        #expect(spec.env["HANGAR_PORT"] == String(port))
+    }
+
     @Test func taskProjectAndTabActions() throws {
         let (app, p, a, _) = try makeApp(externalEditor: "zed")
         defer { cleanup() }
         #expect(Action.list(for: .task(a), app: app)
-            == [.rename, .togglePin, .revealInFinder, .copyPath, .openInEditor, .archive])
+            == [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink, .openInEditor, .archive])
         #expect(Action.list(for: .project(p), app: app)
             == [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .openInEditor, .removeProject])
         let tab = UUID()
-        #expect(Action.list(for: .tab(task: a, tab: tab), app: app) == [.rename, .splitRight, .splitDown, .closeTab])
+        #expect(Action.list(for: .tab(task: a, tab: tab), app: app) == [.rename, .copyLink, .splitRight, .splitDown, .closeTab])
         #expect(Action.openInEditor.title(for: .task(a), app: app) == L10n.openIn("Zed"))
     }
 
@@ -71,6 +89,20 @@ import Workspace
         app.perform { $0.tasks[0].mode = .worktree(path: "/wt/a", branch: "a", base: "main") }
         Action.copyPath.perform(.task(a), ctx)
         #expect(board.string(forType: .string) == "/wt/a")
+    }
+
+    @Test func copyLinkPutsHangarLinkOnPasteboard() throws {
+        let (app, _, a, _) = try makeApp()
+        defer { cleanup() }
+        let tab = UUID()
+        let board = NSPasteboard(name: .init("hangar-test-\(UUID())"))
+        defer { board.releaseGlobally() }
+        var ctx = ActionContext(app: app)
+        ctx.pasteboard = board
+        Action.copyLink.perform(.task(a), ctx)
+        #expect(board.string(forType: .string) == "hangar://task/\(a.uuidString.lowercased())")
+        Action.copyLink.perform(.tab(task: a, tab: tab), ctx)
+        #expect(board.string(forType: .string) == "hangar://tab/\(tab.uuidString.lowercased())")
     }
 
     @Test func shortcutsForActions() {

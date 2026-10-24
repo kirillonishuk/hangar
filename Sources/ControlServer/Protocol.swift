@@ -318,6 +318,14 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     public var tabs: [TabInfo]
     /// The TERMINAL drawer's shell once it was first shown; its id is a `tab` ref (decision #45).
     public var drawer: LeafInfo?
+    /// `tasks.list` with `git: true` only (absent otherwise, or when git failed): changes against the base
+    /// (merge-base, working tree included; HEAD without a base), as in the inspector's Changes.
+    public var changes: ChangesInfo?
+    /// Uncommitted changes or untracked files.
+    public var dirty: Bool?
+    /// Commits of HEAD not in the base / of the base not in HEAD; nil without a base.
+    public var ahead: Int?
+    public var behind: Int?
 
     public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
                 branch: String?, base: String?, tabs: [TabInfo], drawer: LeafInfo? = nil) {
@@ -332,6 +340,19 @@ public struct TaskInfo: Codable, Equatable, Sendable {
         self.base = base
         self.tabs = tabs
         self.drawer = drawer
+    }
+}
+
+public struct ChangesInfo: Codable, Equatable, Sendable {
+    /// Lines; binary files count 0.
+    public var added: Int
+    public var removed: Int
+    public var files: Int
+
+    public init(added: Int, removed: Int, files: Int) {
+        self.added = added
+        self.removed = removed
+        self.files = files
     }
 }
 
@@ -359,7 +380,12 @@ public struct TasksResult: Codable, Equatable, Sendable {
 
 public struct TaskResult: Codable, Equatable, Sendable {
     public var task: TaskInfo
-    public init(task: TaskInfo) { self.task = task }
+    /// E.g. the agent may first ask to trust the folder (Hangar never answers that for the user).
+    public var note: String?
+    public init(task: TaskInfo, note: String? = nil) {
+        self.task = task
+        self.note = note
+    }
 }
 
 public struct TabResult: Codable, Equatable, Sendable {
@@ -374,9 +400,14 @@ public struct TabResult: Codable, Equatable, Sendable {
 public struct SendResult: Codable, Equatable, Sendable {
     public var tab: UUID
     public var leaf: UUID
-    public init(tab: UUID, leaf: UUID) {
+    /// sent, queued (the agent was already working), started / not-started-yet (`wait`).
+    public var status: String
+    public var hint: String?
+    public init(tab: UUID, leaf: UUID, status: String = "sent", hint: String? = nil) {
         self.tab = tab
         self.leaf = leaf
+        self.status = status
+        self.hint = hint
     }
 }
 
@@ -398,8 +429,11 @@ public struct ScreenResult: Codable, Equatable, Sendable {
 public struct ArchiveResult: Codable, Equatable, Sendable {
     public var task: UUID
     public var archived: Bool
-    public init(task: UUID, archived: Bool) {
+    /// The worktree folder was removed (its branch is kept).
+    public var worktreeRemoved: Bool
+    public init(task: UUID, archived: Bool, worktreeRemoved: Bool = false) {
         self.task = task
         self.archived = archived
+        self.worktreeRemoved = worktreeRemoved
     }
 }

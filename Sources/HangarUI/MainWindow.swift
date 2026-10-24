@@ -104,6 +104,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
     private var sidebarAnimation: Timer?
+    /// The open ⌘P / ⇧⌘P palette; nil when closed.
+    var palette: PaletteController?
+    private var paletteLoad: Task<Void, Never>?
+    /// The inspector root its files were taken from.
+    private var paletteRoot: String?
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)
@@ -325,6 +330,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.toggleLimitsPopover()
             return true
         }
+        // The palette panel keeps its keys (typing, ↑↓, ↩, Esc); only ⌘P / ⇧⌘P reach it from here, to toggle.
+        if let palette, event.window === palette.panel {
+            let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags)
+            guard sc == .quickOpen || sc == .commandPalette else { return false }
+            if !event.isARepeat, let sc { perform(sc) }
+            return true
+        }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
@@ -358,7 +370,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
@@ -438,6 +450,74 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .nextTab: cycleTab(1)
         case .focusSplit(let direction):
             if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
+        case .quickOpen: togglePalette(commands: false)
+        case .commandPalette: togglePalette(commands: true)
+        }
+    }
+
+    // MARK: Palette
+
+    /// ⌘P quick open (tasks, files; a typed `>` → commands), ⇧⌘P commands (the query starts as `>`), as in VS Code.
+    /// The same key again closes it, the other one switches.
+    func togglePalette(commands: Bool) {
+        if let palette {
+            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
+            return
+        }
+        guard let window, window.attachedSheet == nil else { return }
+        let tasks = (app.pinnedTasks + app.state.projects.flatMap { app.groupTasks($0.id) }).map { t in
+            PaletteItem(task: t.id, name: t.name, project: app.project(t.projectId)?.name ?? "")
+        }
+        let task = app.selectedTask
+        let project = task.flatMap { app.project($0.projectId) }
+        let root = task.flatMap { inspectorWatch?.root(of: $0) }
+        // The inspector's list when it has this task's; else one `ls-files` (capped) on first need, no watcher.
+        var files: [String]?
+        var load: (() -> Void)?
+        if let task, let project, let root {
+            if app.inspector.shownTaskId == task.id, app.inspector.root == root, app.inspector.tree.count > 0 {
+                files = paletteFiles(app.inspector.tree)
+            } else {
+                let git = app.git(for: project, repo: root)
+                load = { [weak self] in self?.loadPaletteFiles(git) }
+            }
+        } else {
+            files = []
+        }
+        let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
+                                 query: commands ? ">" : "", loadFiles: load)
+        paletteRoot = root
+        palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            self?.closePalette()
+            self?.choosePalette(item)
+        }, close: { [weak self] in self?.closePalette() })
+    }
+
+    /// The inspector's own listing (`git ls-files`), capped; a folder that is not a repository has no list here.
+    private func loadPaletteFiles(_ git: Git) {
+        paletteLoad = Task { [weak self] in
+            let listing = try? await git.listFiles(limit: paletteFileCap)
+            guard !Task.isCancelled, let self else { return }
+            self.palette?.model.setFiles(listing.map { l in l.paths.filter { !l.dirLinks.contains($0) } } ?? [])
+        }
+    }
+
+    func closePalette() {
+        guard let palette else { return }
+        self.palette = nil
+        paletteLoad?.cancel()
+        paletteLoad = nil
+        palette.dismiss()
+        if NSApp.isActive { window?.makeKey() }  // back to the responder the window had (terminal, field)
+    }
+
+    func choosePalette(_ item: PaletteItem) {
+        switch item.target {
+        case .task(let id):
+            app.select(taskId: id)
+            column.terminalArea.focusActiveLeaf()
+        case .file(let path): if let paletteRoot { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .command(let sc): perform(sc)
         }
     }
 

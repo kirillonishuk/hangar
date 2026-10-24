@@ -351,7 +351,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
@@ -412,14 +412,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         switch sc {
         case .newTask: presentNewTask(projectId: nil)
         case .newTab: app.addTab(.shell)
-        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer: break  // Action registry above (F2: handleKeyDown)
+        case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer, .revealInFinder, .copyPath:
+            break  // Action registry above (F2: handleKeyDown)
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
         case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProjectKind()
+        // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it
+        // while a terminal has focus (Ghostty's default super+comma binding takes the key first). Drop this if that binding goes.
         case .settings: showSettings(nil)
+        case .inspectorFiles: app.showInspector(.files)
+        case .inspectorChanges: app.showInspector(.changes)
         case .limits: app.toggleLimitsPopover()
         case .prevTab: cycleTab(-1)
         case .nextTab: cycleTab(1)

@@ -31,7 +31,7 @@ enum ActionTarget: Equatable {
     var confirmWithCheckbox: (String, String, String, String, @escaping (Bool) -> Void) -> Void = { _, _, _, _, _ in }
     /// message, details.
     var showError: (String, String) -> Void = { _, _ in }
-    /// A task was archived from a menu or ⌘⇧W: the undo toast.
+    /// A task was archived from a menu or ⇧⌘W: the undo toast.
     var didArchive: (UUID) -> Void = { _ in }
 }
 
@@ -67,13 +67,15 @@ enum Action: CaseIterable {
         case .splitDown: .splitDown
         case .closeTab: .closeTab
         case .toggleDrawer: .toggleDrawer
+        case .revealInFinder: .revealInFinder
+        case .copyPath: .copyPath
         default: nil
         }
     }
 
     var icon: Icon {
         switch self {
-        case .newTask: .newTask
+        case .newTask: .add
         case .rename: .rename
         case .togglePin: .pin
         case .projectSettings: .settings
@@ -88,7 +90,7 @@ enum Action: CaseIterable {
         case .splitDown: .splitDown
         case .closeTab: .close
         case .toggleDrawer: .shell
-        case .reconnect: .refresh
+        case .reconnect: .reconnect
         }
     }
 
@@ -243,7 +245,7 @@ struct ActionMenuItems: View {
 }
 
 /// Shows the key in the menu (the key itself is handled by the window's key monitor, by keyCode).
-private struct MenuShortcutHint: ViewModifier {
+struct MenuShortcutHint: ViewModifier {
     let shortcut: Shortcut?
 
     func body(content: Content) -> some View {
@@ -260,6 +262,9 @@ extension Shortcut {
         case .splitDown: ("d", [.command, .shift])
         case .closeTab: ("w", .command)
         case .toggleDrawer: ("`", .control)
+        case .newTab: ("t", .command)
+        case .revealInFinder: ("r", [.command, .option])
+        case .copyPath: ("c", [.command, .option])
         default: nil
         }
     }

@@ -199,7 +199,10 @@ public enum Theme {
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32
-    public static let iconSize: CGFloat = 15
+    /// Icons v2 (decision #56): drawn on a 16 grid with a 1.5 pt line at every size.
+    public static let iconSize: CGFloat = 16
+    public static let iconGrid: CGFloat = 16
+    public static let iconStroke: CGFloat = 1.5
     public static let iconGap: CGFloat = 6
     public static let smallIconSize: CGFloat = 10
     /// Leading gutter of every sidebar row; its marker (dot/icon) is centered at `gutterMarkerX` in both modes.

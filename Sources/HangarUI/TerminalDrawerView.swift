@@ -65,8 +65,8 @@ import Workspace
 
     func update(expanded: Bool) {
         label.stringValue = L10n.drawerTitle
-        chevron.image = (expanded ? Icon.chevronDown : Icon.chevronUp).image
-        toolTip = L10n.drawerHelp
+        chevron.image = (expanded ? Icon.chevronDown : Icon.chevronUp).image(size: Theme.smallIconSize)
+        toolTip = L10n.help(L10n.drawerHelp, .toggleDrawer)
         setAccessibilityLabel(L10n.drawerTitle)
         needsLayout = true
     }

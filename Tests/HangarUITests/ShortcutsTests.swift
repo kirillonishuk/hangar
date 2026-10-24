@@ -55,7 +55,68 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 30)
+        #expect(Shortcut.allCases.count == 34)
+    }
+
+    /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
+    @Test func inspectorRevealAndCopyKeys() {
+        #expect(shortcut(keyCode: 18, modifiers: [.command, .option]) == .inspectorFiles)
+        #expect(shortcut(keyCode: 19, modifiers: [.command, .option]) == .inspectorChanges)
+        #expect(shortcut(keyCode: 15, modifiers: [.command, .option]) == .revealInFinder)
+        #expect(shortcut(keyCode: 8, modifiers: [.command, .option]) == .copyPath)
+        // ⌘1/⌘2 stay tabs; ⌥⌘3…9 are free.
+        #expect(shortcut(keyCode: 18, modifiers: .command) == .tab(1))
+        #expect(shortcut(keyCode: 19, modifiers: .command) == .tab(2))
+        #expect(shortcut(keyCode: 20, modifiers: [.command, .option]) == nil)
+        #expect(shortcut(keyCode: 15, modifiers: .command) == nil)
+        #expect(shortcut(keyCode: 8, modifiers: .command) == nil)  // ⌘C is the terminal's copy
+        #expect(Action.revealInFinder.shortcut == .revealInFinder)
+        #expect(Action.copyPath.shortcut == .copyPath)
+    }
+
+    /// ⌘B: the silent Pane-habit alias of ⌘0 (decision #39); labels show ⌘0 only.
+    @Test func sidebarAlias() {
+        #expect(shortcut(keyCode: 11, modifiers: .command) == .toggleSidebar)
+        #expect(Shortcut.toggleSidebar.label == "⌘0")
+    }
+
+    @Test func labelsUseMacModifierOrder() {
+        #expect(Shortcut.toggleInspector.label == "⌥⌘I")
+        #expect(Shortcut.limits.label == "⇧⌘L")
+        #expect(Shortcut.addProject.label == "⇧⌘N")
+        #expect(Shortcut.tab(1).label == "⌘1")
+        #expect(Shortcut.toggleDrawer.label == "⌃`")
+        #expect(Shortcut.rename.label == "F2")
+        #expect(Shortcut.prevTab.label == "⌃⇧Tab")
+        #expect(Shortcut.focusSplit(.left).label == "⌥⌘←")
+        #expect(Shortcut.revealInFinder.label == "⌥⌘R")
+        #expect(Shortcut.settings.label == "⌘,")
+        let order: [Character] = ["⌃", "⌥", "⇧", "⌘"]
+        for sc in Shortcut.allCases {
+            let mods = sc.label.prefix { order.contains($0) }
+            #expect(sc.label.count > mods.count, "\(sc): no key")
+            let ranks = mods.compactMap { order.firstIndex(of: $0) }
+            #expect(ranks == ranks.sorted() && Set(ranks).count == ranks.count, "\(sc): \(sc.label)")
+        }
+    }
+
+    /// Every key in `shortcut(keyCode:)` round-trips: the label is built from the same table the matcher reads.
+    @Test func everyShortcutMatchesItsOwnKey() {
+        for sc in Shortcut.allCases { #expect(shortcut(keyCode: sc.key.code, modifiers: sc.key.mods) == sc, "\(sc)") }
+    }
+
+    @Test @MainActor func tooltipFormat() {
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        #expect(L10n.help("Инспектор", .toggleInspector) == "Инспектор — ⌥⌘I")
+        #expect(L10n.help(L10n.inspectorHelp, .toggleInspector) == "Инспектор — ⌥⌘I")
+        #expect(L10n.help(L10n.newTabHelp, .newTab) == "Новая вкладка — ⌘T")
+        #expect(L10n.help(L10n.addProject, .addProject) == "Добавить проект — ⇧⌘N")
+        #expect(L10n.help("Закрепить", nil) == "Закрепить")
+        L10n.language = .en
+        #expect(L10n.help(L10n.limitsHelp, .limits) == "Subscription limits — ⇧⌘L")
+        #expect(L10n.help(L10n.drawerHelp, .toggleDrawer) == "Terminal — ⌃`")
+        #expect(L10n.help("claude", .tab(1)) == "claude — ⌘1")
     }
 }
 

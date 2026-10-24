@@ -118,6 +118,12 @@ import Workspace
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
+        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
+    }
+
+    /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
+    static func help(_ title: String, _ shortcut: Shortcut?) -> String {
+        shortcut.map { "\(title) — \($0.label)" } ?? title
     }
 
     // Sidebar
@@ -127,6 +133,8 @@ import Workspace
     static var sectionSSHHosts: String { s(.sectionSSHHosts) }
     static var newTask: String { s(.newTask) }
     static var newTaskHelp: String { s(.newTaskHelp) }
+    static var archiveToggleHelp: String { s(.archiveToggleHelp) }
+    static var hostsMenuHelp: String { s(.hostsMenuHelp) }
     static func newTaskIn(_ project: String) -> String { f(.newTaskIn, project) }
     static var addProject: String { s(.addProject) }
     static var addProjectEllipsis: String { s(.addProjectEllipsis) }
@@ -306,6 +314,7 @@ import Workspace
     static var limitsShortcutHint: String { s(.limitsShortcutHint) }
     static var refresh: String { s(.refresh) }
     static var limitsHelp: String { s(.limitsHelp) }
+    static var refreshLimitsHelp: String { s(.refreshLimitsHelp) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
@@ -354,6 +363,7 @@ import Workspace
         return f(key, Int32(clamping: n))
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
+    static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }
     static var copyRelativePath: String { s(.copyRelativePath) }

@@ -75,18 +75,18 @@ struct SidebarView: View {
     private func newTaskButton(visibleWidth: CGFloat) -> some View {
         Button { ctx.newTask(nil) } label: {
             GutterRow(collapsed: collapsed) {
-                IconView(icon: .newTask, active: true)
+                IconView(icon: .add, active: true)
             } expanded: {
                 HStack(spacing: 0) {
                     Text(L10n.newTask).foregroundStyle(Theme.ui.textStrong)
                     Spacer(minLength: 0)
-                    ShortcutHint(text: "⌘N")
+                    ShortcutHint(text: Shortcut.newTask.label)
                 }
             } rail: { EmptyView() }
             .contentShape(Rectangle())
         }
         .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * Theme.railInset))
-        .help(L10n.newTaskHelp)
+        .help(L10n.help(L10n.newTaskHelp, .newTask))
     }
 
     // MARK: Pinned
@@ -153,7 +153,7 @@ struct SidebarView: View {
     // MARK: Projects
 
     @ViewBuilder private var projectsSection: some View {
-        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.addProject,
+        SectionHeader(title: L10n.sectionProjects, collapsed: collapsed, plusHelp: L10n.help(L10n.addProject, .addProject),
                       plusAlwaysVisible: app.state.projects.isEmpty, plus: ctx.addProject)
         ForEach(app.state.projects) { project in
             // One block per project, so a dragged project moves with its tasks.
@@ -287,7 +287,7 @@ struct SidebarView: View {
                             MoreButton { ActionMenuItems(target: target, ctx: ctx) }
                             if exists {
                                 Button { ctx.newTask(project.id) } label: {
-                                    IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset)
+                                    IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset)
                                 }
                                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                                 .help(L10n.newTaskIn(project.name))
@@ -350,7 +350,7 @@ struct SidebarView: View {
                     }
                     Spacer(minLength: 0)
                     if case .worktree = task.mode {
-                        IconView(icon: .worktree, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
+                        IconView(icon: .branch, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
                     }
                 }
                 // Overlaid, not laid out: the name keeps the full width and nothing reflows on hover.
@@ -377,7 +377,7 @@ struct SidebarView: View {
         return RowActions(shown: shown, background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
             if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
             Button { app.setPinned(task.id, !task.pinned) } label: {
-                IconView(icon: task.pinned ? .pinned : .pin, active: selected, size: Theme.smallIconSize)
+                IconView(icon: .pin, active: selected, size: Theme.smallIconSize, tint: task.pinned ? Theme.ui.textStrong : nil)
                     .padding(Theme.railInset)
             }
             .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
@@ -405,6 +405,7 @@ struct SidebarView: View {
                         .foregroundStyle(Theme.ui.text3)
                     } rail: { EmptyView() }
                 }
+                .help(L10n.archiveToggleHelp)
                 if archiveOpen {
                     ForEach(archived) { task in
                         let target = ActionTarget.task(task.id)
@@ -449,7 +450,7 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
-                        MoreButton {
+                        MoreButton(help: L10n.help(L10n.addProject, .addProject)) {
                             Button(L10n.addLocalProject, action: ctx.addLocalProject)
                             Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
                         }
@@ -458,21 +459,21 @@ struct SidebarView: View {
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            .help(L10n.settingsHelp)
+            .help(L10n.help(L10n.settingsHelp, .settings))
             HoverRow(action: ctx.toggleSidebar) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
-                    IconView(icon: .sidebarToggle)
+                    IconView(icon: .sidebarLeft)
                 } expanded: {
                     HStack(spacing: 0) {
                         Text(L10n.collapse)
                         Spacer(minLength: 0)
-                        ShortcutHint(text: "⌘0")
+                        ShortcutHint(text: Shortcut.toggleSidebar.label)
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
                     .foregroundStyle(Theme.ui.text3)
                 } rail: { EmptyView() }
             }
-            .help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp)
+            .help(L10n.help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp, .toggleSidebar))
         }
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)

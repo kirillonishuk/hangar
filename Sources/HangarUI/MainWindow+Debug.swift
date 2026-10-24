@@ -75,7 +75,8 @@ extension MainWindowController {
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
             "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
-            "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down),
+            "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
+            "inspectorChanges": .inspectorChanges, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
         ]
         switch parts.first ?? "" {
         case "task":

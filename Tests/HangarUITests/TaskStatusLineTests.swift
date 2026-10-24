@@ -75,10 +75,23 @@ import Workspace
         #expect(statusAgentLeaf(of: task)?.id == codex.id)
         task.tabs[1].focusedLeafId = claude.id
         #expect(statusAgentLeaf(of: task)?.id == claude.id)
-        // A shell tab is active: the task's first agent.
+        // A shell has focus: no agent part (not some other tab's «claude · idle»).
         task.activeTabId = shellTab.id
-        #expect(statusAgentLeaf(of: task)?.id == claude.id)
+        #expect(statusAgentLeaf(of: task) == nil)
         task.tabs = [shellTab]
+        #expect(statusAgentLeaf(of: task) == nil)
+    }
+
+    @Test func shellPaneNextToAnAgentHidesTheAgent() {
+        let claude = Leaf(kind: .claude, cwd: "/")
+        let shell = Leaf(kind: .shell, cwd: "/")
+        let tab = Tab(title: "a", root: .split(axis: .horizontal, ratio: 0.5, first: .leaf(claude), second: .leaf(shell)),
+                      focusedLeafId: shell.id)
+        var task = HangarTask(projectId: UUID(), name: "t", order: 0, tabs: [tab], activeTabId: tab.id)
+        #expect(statusAgentLeaf(of: task) == nil)
+        task.tabs[0].focusedLeafId = claude.id
+        #expect(statusAgentLeaf(of: task)?.id == claude.id)
+        task.activeTabId = nil
         #expect(statusAgentLeaf(of: task) == nil)
     }
 }

@@ -55,7 +55,7 @@ struct BranchPicker: View {
     var body: some View {
         Button { open.toggle() } label: {
             HStack(spacing: Theme.pickGap) {
-                IconView(icon: .worktree, size: Theme.smallIconSize)
+                IconView(icon: .branch, size: Theme.smallIconSize)
                 Text(selection ?? defaultOption ?? "—")
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                     .foregroundStyle(Theme.ui.sheetText)

@@ -4,7 +4,7 @@
 "sectionArchived" = "АРХИВ";
 "sectionSSHHosts" = "SSH-ХОСТЫ";
 "newTask" = "Новая задача";
-"newTaskHelp" = "Новая задача ⌘N";
+"newTaskHelp" = "Новая задача";
 "newTaskIn" = "Новая задача в %@";
 "addProject" = "Добавить проект";
 "addProjectEllipsis" = "Добавить проект…";
@@ -15,17 +15,17 @@
 "archive" = "Архивировать";
 "folderMissing" = "папка не найдена";
 "folderMissingPath" = "папка не найдена: %@";
-"more" = "Ещё";
+"more" = "Действия";
 "settings" = "Настройки";
-"settingsHelp" = "Настройки ⌘,";
+"settingsHelp" = "Настройки";
 "settingsEllipsis" = "Настройки…";
 "collapse" = "Свернуть";
-"collapseSidebarHelp" = "Свернуть сайдбар ⌘0";
-"expandSidebarHelp" = "Развернуть сайдбар ⌘0";
-"inspectorHelp" = "Инспектор ⌘⌥I";
+"collapseSidebarHelp" = "Свернуть сайдбар";
+"expandSidebarHelp" = "Развернуть сайдбар";
+"inspectorHelp" = "Инспектор";
 "diffUnavailable" = "Нет данных об изменениях";
 "newTabHelp" = "Новая вкладка";
-"closeTabHelp" = "Закрыть вкладку ⌘W";
+"closeTabHelp" = "Закрыть вкладку";
 "taskNamePlaceholder" = "название задачи";
 "firstMessagePlaceholder" = "Первое сообщение для %@ (необязательно)…";
 "escCancel" = "esc — отмена";
@@ -98,7 +98,7 @@
 
 "drawerTitle" = "ТЕРМИНАЛ";
 "drawerToggle" = "Показать/скрыть терминал";
-"drawerHelp" = "Терминал ⌃`";
+"drawerHelp" = "Терминал";
 "stateCorrupt" = "Состояние повреждено, копия: %@";
 "stateUnreadable" = "Файл состояния не читается: %@. Hangar работает без сохранения.";
 "clipboardRead" = "Программа хочет прочитать буфер обмена";
@@ -168,9 +168,9 @@
 "limitReached" = "%@: лимит исчерпан";
 "limitBadgeAlmost" = "почти лимит";
 "limitBadgeFull" = "лимит исчерпан";
-"limitsShortcutHint" = "⌘⇧L — открыть/закрыть";
+"limitsShortcutHint" = "Открыть/закрыть";
 "refresh" = "обновить";
-"limitsHelp" = "Лимиты подписок (⌘⇧L)";
+"limitsHelp" = "Лимиты подписок";
 
 "integrationClaude" = "Claude Code";
 "integrationCodex" = "Codex";
@@ -224,7 +224,7 @@
 "diffRenamedFrom" = "Переименован из %@";
 "diffNotChanged" = "Файл больше не изменён";
 "diffNotAFile" = "Не файл: каталог или вложенный репозиторий";
-"diffTabHelp" = "Закрыть ⌘W";
+"diffTabHelp" = "Закрыть";
 "keepAwakeTitle" = "Не засыпать, пока агенты работают";
 "keepAwakeOffHelp" = "Не засыпать: выключено";
 "keepAwakeIdleHelp" = "Не засыпать, пока агенты работают";
@@ -277,3 +277,7 @@
 "taskArchived" = "Задача в архиве";
 "undoArchive" = "Отменить";
 "keepAwakeShort" = "Не засыпать";
+"archiveToggleHelp" = "Архив — показать/скрыть";
+"showFiles" = "Показать файлы";
+"hostsMenuHelp" = "Хосты из ~/.ssh/config";
+"refreshLimitsHelp" = "Обновить лимиты";

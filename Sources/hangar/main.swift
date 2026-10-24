@@ -162,7 +162,7 @@ let argv = Array(CommandLine.arguments.dropFirst())
 switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
-case "projects", "tasks", "tabs": exit(runCommand(argv))
+case "projects", "tasks", "tabs", "ssh": exit(runCommand(argv))
 case "mcp" where argv.count == 1: exit(runMCP())
 default:  // hooks always call `event`/`statusline`, so no hook sees this exit code
     FileHandle.standardError.write(Data((cliUsage + "\n").utf8))

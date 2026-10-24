@@ -115,6 +115,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
     @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
+    /// `Host` names of the ssh config for the SSH HOSTS section (#NN-ssh-shell); read at launch and on activation.
+    var configHostList: [String] = []
     /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
     // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
@@ -257,6 +259,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let leaf = self.leaf(id: leaf.id) ?? leaf
         let mode = launchMode(for: leaf, context)
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
+        if let host = hostShellHost(ofLeaf: leaf.id) {
+            // state.json is editable: a host that is not safe on an ssh command line never launches.
+            guard let host = validSSHHost(host) else { throw LaunchError.missingCwd(host) }
+            return (sshShellSpec(host: host, sshPath: sshPath), mode)
+        }
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {
                 Task { await remote.connect(host) }

@@ -120,6 +120,15 @@ extension AppState {
             }
             return .ok(id, TabResult(task: taskId, tab: tabInfo(tab)))
 
+        case let .sshOpen(host):
+            // Shown: the user asked for a shell to work in (no project, so no `select: false` as for tasks).
+            guard let opened = openHostShell(host) else { return fail(ControlError(code: .badParams, message: "invalid host")) }
+            terminals?.start(opened.tab)
+            guard let tab = state.tasks.first(where: { $0.id == opened.task })?.tabs.first(where: { $0.id == opened.tab }) else {
+                return fail(ControlError(code: .failed, message: "tab was not created"))
+            }
+            return .ok(id, TabResult(task: opened.task, tab: tabInfo(tab)))
+
         case let .tabsSend(ref, text, keys):
             let target: (tab: UUID, leaf: UUID)
             switch resolveLeaf(ref) {
@@ -244,9 +253,9 @@ extension AppState {
             .mapError { refError($0, ref, "project") }
     }
 
-    /// Archived tasks are never found (decision #45).
+    /// Archived tasks (decision #45) and hosts' terminals (#NN-ssh-shell, not in `tasks list`) are never found.
     private func resolveTask(_ ref: String) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { !$0.archived }.map { RefCandidate(id: $0.id, names: [$0.name]) })
+        resolveRef(ref, in: state.tasks.filter { t in !t.archived && !state.hostShells.contains { $0.id == t.projectId } }.map { RefCandidate(id: $0.id, names: [$0.name]) })
             .mapError { refError($0, ref, "task") }
     }
 

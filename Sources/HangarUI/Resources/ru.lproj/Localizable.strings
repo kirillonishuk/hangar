@@ -294,3 +294,9 @@
 "setupCommandHelp" = "Выполняется в корне нового worktree во вкладке shell после копирования. По умолчанию — по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline); пусто — без команды";
 "copyingEntry" = "Копирую %@…";
 "copyFailed" = "hangar: не скопировано %@";
+"connectToHost" = "Подключиться к хосту…";
+"connectHostTitle" = "Подключиться к хосту";
+"openTerminal" = "Открыть терминал";
+"closeTerminal" = "Закрыть терминал";
+"hostTerminal" = "%@ · терминал";
+"plainSSHHint" = "Обычный ssh — закроется при разрыве";

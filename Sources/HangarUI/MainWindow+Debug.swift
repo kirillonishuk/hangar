@@ -77,7 +77,7 @@ extension MainWindowController {
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
-            "palette": .palette, "paletteFiles": .paletteFiles,
+            "quickOpen": .quickOpen, "commandPalette": .commandPalette,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -292,12 +292,12 @@ extension MainWindowController {
             default: break
             }
             uiLog.info("inspector visible=\(self.app.state.inspectorVisible) width=\(self.inspectorItem.viewController.view.frame.width) state=\(self.app.state.inspectorWidth) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) git=\(m.isGit) root=\(m.root ?? "-", privacy: .public) rows=\(visibleRows(m.tree, expanded: m.expanded).map(\.id), privacy: .public) changes=\(m.changes?.files.map(\.path) ?? [], privacy: .public) mode=\(String(describing: m.changes?.mode), privacy: .public) base=\(m.baseName ?? "-", privacy: .public) error=\(m.error ?? "-", privacy: .public) diffPath=\(m.diffPath ?? "-", privacy: .public) diff=\(Self.describe(m.diff), privacy: .public) diffTab=\(self.app.selectedTask.flatMap { self.app.diffTabs[$0.id] }.map { "\($0.path) active=\($0.active) row=\(self.app.activeDiffSelection.map(String.init) ?? "-")" } ?? "-", privacy: .public) rows=\(self.app.activeDiffContent.rows.count) open=\(self.app.activeDiff.flatMap { _ in openTarget(rows: self.app.activeDiffContent.rows, selected: self.app.activeDiffSelection) }.map(String.init) ?? "-", privacy: .public) responder=\(self.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
-        case "palette":  // palette open|files|close|type <query>|up|down|enter|snap <png>; state goes to the log
+        case "palette":  // palette open|commands|close|type <query>|up|down|enter|snap <png>; state goes to the log
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             let rest = f.count > 1 ? f[1] : ""
             switch f.first ?? "" {
-            case "open": if palette == nil { togglePalette(filesOnly: false) }
-            case "files": if palette == nil { togglePalette(filesOnly: true) } else { palette?.model.setFilesOnly(true) }
+            case "open": if palette == nil { togglePalette(commands: false) }
+            case "commands": if palette == nil { togglePalette(commands: true) }
             case "close": closePalette()
             case "type": palette?.model.setQuery(rest)
             case "up": palette?.model.move(-1)
@@ -310,7 +310,7 @@ extension MainWindowController {
             default: break
             }
             let rows = palette?.model.sections.map { "\($0.kind):\($0.items.map(\.title))" } ?? []
-            uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) filesOnly=\(self.palette?.model.filesOnly ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
+            uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) commands=\(self.palette?.model.isCommands ?? false, privacy: .public) loading=\(self.palette?.model.showsLoading ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
         case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)
             let v = arg.split(separator: " ").compactMap { Double($0) }
             if v.count == 2 { window?.setContentSize(NSSize(width: v[0], height: v[1])); window?.center() }

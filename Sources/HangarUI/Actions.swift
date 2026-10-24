@@ -35,7 +35,7 @@ enum ActionTarget: Equatable {
     var didArchive: (UUID) -> Void = { _ in }
 }
 
-/// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts (and later ⌘K) read it here.
+/// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts and the ⇧⌘P palette read it here.
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect

@@ -121,7 +121,7 @@ import Workspace
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
-        case paletteSearch, paletteSearchFiles, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteNoFiles
+        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
     }
 
@@ -457,11 +457,10 @@ import Workspace
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
 
-    // ⌘K palette
+    // ⌘P quick open / ⇧⌘P command palette
     static var paletteSearch: String { s(.paletteSearch) }
-    static var paletteSearchFiles: String { s(.paletteSearchFiles) }
     static var paletteEmpty: String { s(.paletteEmpty) }
-    static var paletteNoFiles: String { s(.paletteNoFiles) }
+    static var paletteLoading: String { s(.paletteLoading) }
     static func paletteSection(_ kind: PaletteItem.Kind) -> String {
         switch kind {
         case .task: s(.paletteTasks)
@@ -493,8 +492,8 @@ import Workspace
         case .revealInFinder: s(.revealInFinder)
         case .copyPath: s(.copyPath)
         case .settings: settings
-        case .palette: paletteSearch
-        case .paletteFiles: paletteSearchFiles
+        case .quickOpen: s(.cmdQuickOpen)
+        case .commandPalette: s(.cmdCommandPalette)
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

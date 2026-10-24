@@ -425,7 +425,7 @@ extension Theme {
 }
 
 extension Theme {
-    // ⌘K palette (Pane/Raycast-like: one floating card over the window)
+    // ⌘P / ⇧⌘P palette (VS Code bindings, Pane/Raycast look: one floating card over the window)
     public static let paletteWidth: CGFloat = 580
     public static let paletteRadius: CGFloat = 12
     /// The card's top edge, as a fraction of the window height from its top.

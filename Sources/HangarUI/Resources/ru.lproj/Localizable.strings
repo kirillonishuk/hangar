@@ -296,8 +296,7 @@
 "afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке shell нового worktree и сохранится в проекте";
 "copyingEntry" = "Копирую %@…";
 "copyFailed" = "hangar: не скопировано %@";
-"paletteSearch" = "Задачи, файлы, команды…";
-"paletteSearchFiles" = "Файлы задачи…";
+"paletteSearch" = "Задачи и файлы; > — команды";
 "paletteTasks" = "Задачи";
 "paletteFiles" = "Файлы";
 "paletteCommands" = "Команды";
@@ -309,4 +308,6 @@
 "cmdNextTab" = "Следующая вкладка";
 "cmdToggleSidebar" = "Показать/скрыть сайдбар";
 "cmdToggleInspector" = "Показать/скрыть инспектор";
-"paletteNoFiles" = "Файлы берутся из инспектора — откройте его";
+"paletteLoading" = "загрузка…";
+"cmdQuickOpen" = "Перейти к задаче или файлу";
+"cmdCommandPalette" = "Команды";

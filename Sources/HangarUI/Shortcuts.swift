@@ -3,13 +3,13 @@ import AppKit
 public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
-    case inspectorFiles, inspectorChanges, revealInFinder, copyPath, palette, paletteFiles
+    case inspectorFiles, inspectorChanges, revealInFinder, copyPath, quickOpen, commandPalette
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
-            + [.inspectorFiles, .inspectorChanges, .revealInFinder, .copyPath, .palette, .paletteFiles]
+            + [.inspectorFiles, .inspectorChanges, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -43,9 +43,8 @@ public enum Shortcut: Equatable, CaseIterable {
         case .inspectorChanges: ([.command, .option], 19, "2")
         case .revealInFinder: ([.command, .option], 15, "R")
         case .copyPath: ([.command, .option], 8, "C")
-        // Before Ghostty: its default ⌘K clears the screen.
-        case .palette: (.command, 40, "K")
-        case .paletteFiles: (.command, 35, "P")
+        case .quickOpen: (.command, 35, "P")
+        case .commandPalette: ([.command, .shift], 35, "P")
         }
     }
 

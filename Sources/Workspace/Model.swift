@@ -16,9 +16,14 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var worktreeByDefault: Bool
     /// Parent folder for this project's worktrees; nil = the default location.
     public var worktreeRoot: String?
+    /// Gitignored paths/globs copied from the main folder into a new worktree; nil = `defaultWorktreeCopy`, [] = none.
+    public var worktreeCopy: [String]?
+    /// Run in a shell tab of a new worktree after the copy; nil = none.
+    public var setupCommand: String?
 
     public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
-                worktreeByDefault: Bool = false, worktreeRoot: String? = nil) {
+                worktreeByDefault: Bool = false, worktreeRoot: String? = nil, worktreeCopy: [String]? = nil,
+                setupCommand: String? = nil) {
         self.id = id
         self.name = name
         self.location = location
@@ -26,9 +31,13 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         self.collapsed = collapsed
         self.worktreeByDefault = worktreeByDefault
         self.worktreeRoot = worktreeRoot
+        self.worktreeCopy = worktreeCopy
+        self.setupCommand = setupCommand
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot }
+    private enum CodingKeys: String, CodingKey {
+        case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot, worktreeCopy, setupCommand
+    }
 
     /// `collapsed` and the worktree fields were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
@@ -38,8 +47,13 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
                   lastBaseBranch: try c.decodeIfPresent(String.self, forKey: .lastBaseBranch),
                   collapsed: try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false,
                   worktreeByDefault: try c.decodeIfPresent(Bool.self, forKey: .worktreeByDefault) ?? false,
-                  worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot))
+                  worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot),
+                  worktreeCopy: try c.decodeIfPresent([String].self, forKey: .worktreeCopy),
+                  setupCommand: try c.decodeIfPresent(String.self, forKey: .setupCommand))
     }
+
+    /// What a new worktree gets copied (decision #NN-worktree-setup).
+    public var copyPatterns: [String] { worktreeCopy ?? defaultWorktreeCopy }
 
     public var path: String {
         switch location {
@@ -53,6 +67,9 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         return nil
     }
 }
+
+/// Common gitignored items a JS/Python/Ruby project needs to run; only those that exist and are ignored are copied.
+public let defaultWorktreeCopy = [".env*", "node_modules", ".venv", "vendor/bundle"]
 
 public enum TaskMode: Codable, Equatable, Sendable {
     case mainFolder
@@ -496,6 +513,14 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let i = projects.firstIndex(where: { $0.id == projectId }) else { return }
         projects[i].worktreeByDefault = worktree
         if let base { projects[i].lastBaseBranch = base }
+    }
+
+    /// Blank entries are dropped; nil `copy` = the default list; a blank command = none.
+    public mutating func setWorktreeSetup(id: UUID, copy: [String]?, command: String?) {
+        guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
+        projects[i].worktreeCopy = copy?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let cmd = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        projects[i].setupCommand = cmd.isEmpty ? nil : cmd
     }
 
     /// Blank name keeps the old one; nil `baseBranch` = automatic (from origin/HEAD), stored as is; blank `worktreeRoot` resets to default (nil).

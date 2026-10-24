@@ -209,6 +209,13 @@ extension MainWindowController {
         case "sheet":  // sheet [<project index>]
             presentNewTask(projectId: Int(arg).flatMap { app.state.projects.indices.contains($0) ? app.state.projects[$0].id : nil })
         case "settings": showSettings(nil)
+        case "keepAwake":  // keepAwake on|off|working <n>: the ☕ row's states (working holds a real assertion until quit)
+            let f = arg.split(separator: " ").map(String.init)
+            switch f.first ?? "" {
+            case "on", "off": try? app.setConfig("keep_awake", flag: f[0] == "on") { $0.keepAwake = f[0] == "on" }
+            case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
+            default: break
+            }
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
         case "integration":

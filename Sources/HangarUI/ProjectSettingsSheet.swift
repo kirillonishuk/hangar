@@ -34,7 +34,7 @@ func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
     return expanded.hasPrefix("/") ? .success(expanded) : .failure(PathInputError(message: L10n.pathMustBeAbsolute))
 }
 
-/// Project settings (sheet 580, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
+/// Project settings (sheet 640: the wider label column, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
 /// A missing folder is shown as an error and nothing is saved. A remote project: paths are typed (no «Choose…»),
 /// the folder is checked on its host.
 struct ProjectSettingsSheet: View {
@@ -114,7 +114,7 @@ struct ProjectSettingsSheet: View {
             .padding(.top, Theme.sheetGap)
         }
         .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
+        .frame(width: Theme.projectSheetWidth)
         .font(.system(size: Theme.fontSize.sheetRow))
         .lineLimit(1)
         .background(Theme.ui.sheet)
@@ -134,10 +134,7 @@ struct ProjectSettingsSheet: View {
                     .onSubmit(save)
             }
             CardRow(label: L10n.projectPath, labelWidth: Theme.projectCardLabelWidth) {
-                TextField("", text: $path)
-                    .modifier(CardField(mono: true))
-                    .focused($focus, equals: .path)
-                    .onSubmit(save)
+                pathField($path, placeholder: "", field: .path)
                     .onChange(of: path) { error = nil }
                 if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
             }
@@ -148,28 +145,26 @@ struct ProjectSettingsSheet: View {
                     Spacer(minLength: 0)
                 }
                 CardRow(label: L10n.worktreeFolder, labelWidth: Theme.projectCardLabelWidth) {
-                    TextField("", text: $worktreeRoot, prompt: Text(defaultRootPlaceholder).foregroundStyle(Theme.ui.text3))
-                        .modifier(CardField(mono: true))
-                        .focused($focus, equals: .root)
-                        .onSubmit(save)
+                    pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root)
                         .onChange(of: worktreeRoot) { rootError = nil }
                     if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
                 }
                 .help(L10n.worktreeRootHint(rootShown))
                 CardRow(label: L10n.worktreeCopy, labelWidth: Theme.projectCardLabelWidth) {
                     // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
-                    TextField("", text: $copyText, prompt: Text(verbatim: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "")
-                        .foregroundStyle(Theme.ui.text3))
+                    TextField("", text: $copyText)
                         .modifier(CardField(mono: true))
+                        .modifier(CardPlaceholder(text: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "",
+                                                  shown: copyText.isEmpty))
                         .focused($focus, equals: .copy)
                         .onSubmit(save)
                 }
                 .help(L10n.worktreeCopyHelp)
                 CardRow(label: L10n.setupCommand, labelWidth: Theme.projectCardLabelWidth) {
                     // The lockfile's command is a placeholder only: it runs once typed in and saved (or turned on in the new-task sheet).
-                    TextField("", text: $setupCommand, prompt: Text(verbatim: project.setupCommand == nil ? defaults?.command ?? "" : "")
-                        .foregroundStyle(Theme.ui.text3))
+                    TextField("", text: $setupCommand)
                         .modifier(CardField(mono: true))
+                        .modifier(CardPlaceholder(text: suggestedCommand ?? "", shown: setupCommand.isEmpty))
                         .focused($focus, equals: .setup)
                         .onSubmit(save)
                 }
@@ -185,6 +180,8 @@ struct ProjectSettingsSheet: View {
         if isGit == true {
             if let branchesError { message(branchesError, Theme.ui.failed) }
             message(L10n.worktreeRootHint(rootShown), Theme.ui.text3)
+            // Shown for as long as the command is only suggested (not while typing): no jump.
+            if suggestedCommand != nil { message(L10n.setupCommandSuggested, Theme.ui.text3) }
             if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
                worktreeRootInsideProject(root, project: path) {
                 message(L10n.worktreeRootInsideProject, Theme.ui.text3)
@@ -200,6 +197,55 @@ struct ProjectSettingsSheet: View {
             .padding(.top, Theme.sheetMessageTop)
     }
 
+    /// The lockfile's command while the project has none of its own: a placeholder, never saved or run as is.
+    private var suggestedCommand: String? { project.setupCommand == nil ? defaults?.command : nil }
+
+    /// A path in a card row: unfocused, `~` + cut in the middle so the last components show (full path in the tooltip);
+    /// focused, the full text, editable and scrolling. The field stays underneath (only its text is hidden), so nothing moves.
+    private func pathField(_ text: Binding<String>, placeholder: String, field: Field) -> some View {
+        let focused = focus == field
+        let value = text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let full = value.isEmpty ? placeholder : (remote ? value : (value as NSString).expandingTildeInPath)
+        let shown = remote ? full : abbreviatedHomePath(full)
+        return TextField("", text: text)
+            .foregroundStyle(focused ? Theme.ui.sheetText : .clear)
+            .modifier(CardField(mono: true))
+            .focused($focus, equals: field)
+            .onSubmit(save)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Text(verbatim: middleTruncatedPath(shown, maxLength: Int(geo.size.width / Self.monoCharWidth)))
+                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                        .foregroundStyle(value.isEmpty ? Theme.ui.text3 : Theme.ui.sheetText)
+                        .frame(maxHeight: .infinity, alignment: .leading)
+                }
+                .opacity(focused && !value.isEmpty ? 0 : 1)
+                .allowsHitTesting(false)
+            }
+            .help(full)
+    }
+
+    /// A `TextField` prompt ignores its colour here and reads as a value: the placeholder is drawn over the field instead.
+    private struct CardPlaceholder: ViewModifier {
+        let text: String
+        let shown: Bool
+
+        func body(content: Content) -> some View {
+            content.overlay(alignment: .leading) {
+                Text(verbatim: text).italic()
+                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    .foregroundStyle(Theme.ui.text3)
+                    .truncationMode(.middle)
+                    .opacity(shown ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// One character of the card's monospaced font (the cut is counted in characters).
+    private static let monoCharWidth = ("0" as NSString).size(withAttributes:
+        [.font: NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)]).width
+
     /// Default worktree folder for the current project path.
     private var defaultRootPlaceholder: String {
         (worktreePath(projectPath: path, root: nil, branch: "x") as NSString).deletingLastPathComponent
@@ -213,24 +259,25 @@ struct ProjectSettingsSheet: View {
 
     /// Reads branches without fetching, then fills what the project leaves to its package manager's defaults.
     private func loadGit() async {
-        await loadBranches()
-        guard isGit == true, project.worktreeCopy == nil || project.setupCommand == nil else { return }
+        guard await loadBranches() else { isGit = false; return }
+        guard project.worktreeCopy == nil || project.setupCommand == nil else { isGit = true; return }
         let found = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
         defaults = found
+        isGit = true  // after the defaults: the suggestion hint comes with the rows, not a moment later
         guard project.worktreeCopy == nil, let entries = try? await git.ignoredEntries() else { return }
         let present = found.copy.filter { !matchIgnored([$0], entries).isEmpty }.joined(separator: ", ")
         suggestedCopy = present
         if copyText.isEmpty { copyText = present }
     }
 
-    /// Reads branches without fetching.
-    private func loadBranches() async {
-        guard (try? await git.isRepository()) == true, await git.hasCommits() else { isGit = false; return }
+    /// Reads branches without fetching; false: not a repository with commits.
+    private func loadBranches() async -> Bool {
+        guard (try? await git.isRepository()) == true, await git.hasCommits() else { return false }
         do { branches = try await git.listBranches() } catch {
             branchesError = (error as? GitError)?.errorDescription ?? error.localizedDescription
         }
         defaultBase = try? await git.defaultBranch()
-        isGit = true
+        return true
     }
 
     private func save() {
@@ -274,7 +321,9 @@ struct ProjectSettingsSheet: View {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: worktreeRoot.isEmpty ? defaultRootPlaceholder : (worktreeRoot as NSString).expandingTildeInPath)
+        // The folder itself, else its nearest existing parent: a missing directoryURL makes the panel fall back elsewhere.
+        panel.directoryURL = URL(fileURLWithPath: panelStartDirectory(worktreeRoot, fallback: defaultRootPlaceholder, exists: folderExists),
+                                 isDirectory: true)
         if panel.runModal() == .OK, let url = panel.url { worktreeRoot = url.path }
     }
 
@@ -283,7 +332,9 @@ struct ProjectSettingsSheet: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: path)
+        // The current folder's parent, with the folder itself selected.
+        let current = panelStartDirectory(path, fallback: project.path, exists: folderExists)
+        panel.directoryURL = current == "/" ? URL(fileURLWithPath: "/") : URL(fileURLWithPath: current, isDirectory: false)
         // Modal over the sheet: a sheet can't host another sheet-modal panel.
         if panel.runModal() == .OK, let url = panel.url { path = url.path }
     }

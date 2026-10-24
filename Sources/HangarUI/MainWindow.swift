@@ -104,6 +104,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
     private var sidebarAnimation: Timer?
+    /// The open ⌘K palette; nil when closed.
+    var palette: PaletteController?
+    /// The inspector root its files were taken from.
+    private var paletteRoot: String?
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)
@@ -320,6 +324,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.toggleLimitsPopover()
             return true
         }
+        // The palette panel keeps its keys (typing, ↑↓, ↩, Esc); only ⌘K / ⌘P reach it from here, to toggle.
+        if let palette, event.window === palette.panel {
+            let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags)
+            guard sc == .palette || sc == .paletteFiles else { return false }
+            if !event.isARepeat, let sc { perform(sc) }
+            return true
+        }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
@@ -353,7 +364,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .palette, .paletteFiles]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
@@ -432,6 +443,49 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .nextTab: cycleTab(1)
         case .focusSplit(let direction):
             if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
+        case .palette: togglePalette(filesOnly: false)
+        case .paletteFiles: togglePalette(filesOnly: true)
+        }
+    }
+
+    // MARK: Palette
+
+    /// ⌘K: tasks, files, commands; ⌘P: files only. The same key again closes it, the other switches the mode.
+    func togglePalette(filesOnly: Bool) {
+        if let palette {
+            if palette.model.filesOnly == filesOnly { closePalette() } else { palette.model.setFilesOnly(filesOnly) }
+            return
+        }
+        guard let window, window.attachedSheet == nil else { return }
+        let tasks = (app.pinnedTasks + app.state.projects.flatMap { app.groupTasks($0.id) }).map { t in
+            PaletteItem(task: t.id, name: t.name, project: app.project(t.projectId)?.name ?? "")
+        }
+        // The inspector's list of the selected task, as loaded; no listing of our own.
+        let root = app.selectedTask != nil && app.inspector.shownTaskId == app.selectedTask?.id ? app.inspector.root : nil
+        let files = root == nil ? [] : paletteFiles(app.inspector.tree)
+        let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
+                                 filesOnly: filesOnly)
+        paletteRoot = root
+        palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            self?.closePalette()
+            self?.choosePalette(item)
+        }, close: { [weak self] in self?.closePalette() })
+    }
+
+    func closePalette() {
+        guard let palette else { return }
+        self.palette = nil
+        palette.dismiss()
+        if NSApp.isActive { window?.makeKey() }  // back to the responder the window had (terminal, field)
+    }
+
+    func choosePalette(_ item: PaletteItem) {
+        switch item.target {
+        case .task(let id):
+            app.select(taskId: id)
+            column.terminalArea.focusActiveLeaf()
+        case .file(let path): if let paletteRoot { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .command(let sc): perform(sc)
         }
     }
 

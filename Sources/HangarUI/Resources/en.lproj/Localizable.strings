@@ -296,3 +296,17 @@
 "afterCreateSuggestedHelp" = "Suggested from the lockfile. Turn on to run it in a shell tab of the new worktree; it is then saved to the project";
 "copyingEntry" = "Copying %@…";
 "copyFailed" = "hangar: not copied %@";
+"paletteSearch" = "Tasks, files, commands…";
+"paletteSearchFiles" = "Files of the task…";
+"paletteTasks" = "Tasks";
+"paletteFiles" = "Files";
+"paletteCommands" = "Commands";
+"paletteEmpty" = "No results";
+"cmdArchiveTask" = "Archive Task";
+"cmdPrevTask" = "Previous Task";
+"cmdNextTask" = "Next Task";
+"cmdPrevTab" = "Previous Tab";
+"cmdNextTab" = "Next Tab";
+"cmdToggleSidebar" = "Toggle Sidebar";
+"cmdToggleInspector" = "Toggle Inspector";
+"paletteNoFiles" = "Files come from the inspector — open it";

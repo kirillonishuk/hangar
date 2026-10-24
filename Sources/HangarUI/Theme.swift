@@ -424,6 +424,29 @@ extension Theme {
     }
 }
 
+extension Theme {
+    // ⌘K palette (Pane/Raycast-like: one floating card over the window)
+    public static let paletteWidth: CGFloat = 580
+    public static let paletteRadius: CGFloat = 12
+    /// The card's top edge, as a fraction of the window height from its top.
+    public static let paletteTopFraction: CGFloat = 0.16
+    public static let paletteQueryFont: CGFloat = 17
+    public static let paletteQueryPaddingV: CGFloat = 14
+    public static let palettePaddingH: CGFloat = 18
+    public static let paletteRowFont: CGFloat = 14
+    public static let paletteDetailFont: CGFloat = 12.5
+    public static let paletteRowHeight: CGFloat = 36
+    public static let paletteRowInset: CGFloat = 6
+    public static let paletteRowRadius: CGFloat = 7
+    public static let paletteSectionHeight: CGFloat = 28
+    public static let paletteMarker: CGFloat = 20
+    public static let paletteGap: CGFloat = 10
+    public static let paletteIconGap: CGFloat = 4
+    /// Fixed list height: the card never changes size while typing (no jumps).
+    public static let paletteListHeight: CGFloat = 384
+    public static let paletteFadeIn: Double = 0.12
+}
+
 /// One-shot animations only (no loops: zero work when idle); none when the user asked to reduce motion.
 @MainActor enum Motion {
     static var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }

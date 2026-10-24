@@ -30,11 +30,29 @@ import Workspace
         #expect(Action.list(for: .task(archived), app: app) == [.restore, .deletePermanently])
     }
 
+    /// «Port: 41234 (copy)» copies the task's `HANGAR_PORT` (#NN-port); the leaf's launch env carries it.
+    @Test func copyPortAndLaunchEnv() throws {
+        let (app, _, a, _) = try makeApp()
+        defer { cleanup() }
+        let port = try #require(app.state.tasks.first { $0.id == a }?.port)
+        #expect(Action.copyPort.title(for: .task(a), app: app) == L10n.portCopy(port))
+        let pb = NSPasteboard(name: .init("hangar-test-\(UUID())"))
+        var ctx = ActionContext(app: app)
+        ctx.pasteboard = pb
+        Action.copyPort.perform(.task(a), ctx)
+        #expect(pb.string(forType: .string) == String(port))
+        app.perform { _ = $0.addTab(taskId: a, kind: .shell) }
+        let task = try #require(app.state.tasks.first { $0.id == a })
+        let leaf = try #require(task.tabs.first?.root.leaves.first)
+        let (spec, _) = try app.spec(for: leaf, tabId: task.tabs[0].id, context: .created(prompt: nil))
+        #expect(spec.env["HANGAR_PORT"] == String(port))
+    }
+
     @Test func taskProjectAndTabActions() throws {
         let (app, p, a, _) = try makeApp(externalEditor: "zed")
         defer { cleanup() }
         #expect(Action.list(for: .task(a), app: app)
-            == [.rename, .togglePin, .revealInFinder, .copyPath, .openInEditor, .archive])
+            == [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .openInEditor, .archive])
         #expect(Action.list(for: .project(p), app: app)
             == [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .openInEditor, .removeProject])
         let tab = UUID()

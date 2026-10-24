@@ -70,6 +70,7 @@
 "saveFailed" = "Couldn't save config.toml: %@";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";
+"portCopy" = "Port: %ld (copy)";
 "openIn" = "Open in %@";
 "openFailed" = "Couldn't open in %@";
 "deletePermanently" = "Delete Permanently";

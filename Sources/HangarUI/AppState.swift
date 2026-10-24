@@ -233,6 +233,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
+    /// The task's `HANGAR_PORT` (#NN-port); projects and tabs have none.
+    func port(of target: ActionTarget) -> Int? {
+        guard case .task(let id) = target else { return nil }
+        return state.tasks.first { $0.id == id }?.port
+    }
+
     func path(of target: ActionTarget) -> String? {
         switch target {
         case .project(let id): return project(id)?.path
@@ -258,6 +264,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         let leaf = self.leaf(id: leaf.id) ?? leaf
         let mode = launchMode(for: leaf, context)
+        // Tabs and the drawer alike get the task's port (#NN-port).
+        let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {
@@ -265,10 +273,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
                 throw LaunchError.notConnected(host: host)
             }
             return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target, editor: config.editor,
-                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt), mode)
+                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
-                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt)
+                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port)
         return (spec, mode)
     }
 

@@ -87,7 +87,7 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
         case afterRestart, saveFailed
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
-        case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -321,6 +321,7 @@ import Workspace
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
     static var copyPath: String { s(.copyPath) }
+    static func portCopy(_ port: Int) -> String { f(.portCopy, port) }
     static func openIn(_ arg: String) -> String { f(.openIn, arg) }
     static func openFailed(_ arg: String) -> String { f(.openFailed, arg) }
     static var deletePermanently: String { s(.deletePermanently) }

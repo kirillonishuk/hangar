@@ -177,6 +177,18 @@ import Workspace
         }
     }
 
+    /// The task's port reaches the remote tab's environment, with and without tmux (#NN-port).
+    @Test func portReachesRemoteTab() async throws { try await Fixture.with { f in
+        for tmux in [false] + (RemoteLaunchTests.tmuxPath == nil ? [] : [true]) {
+            let out = f.root + "/port-\(tmux)"
+            let cmd = remoteTabCommand(target: f.target(tmux: tmux), tabId: UUID(), leafId: UUID(), cwd: f.home,
+                                       agentCommand: "printf '%s' \"$HANGAR_PORT\" > \(shellQuote(out))", port: 41234)
+            let code = tmux ? try await f.run(cmd) : try await runProcess("/bin/sh", ["-c", cmd], cwd: "/", env: f.env).status
+            #expect(code == 0, "tmux \(tmux)")
+            #expect(f.read("port-\(tmux)") == "41234", "tmux \(tmux)")
+        }
+    } }
+
     @Test(.enabled(if: tmuxPath != nil)) func tmuxSessionSurvivesClient() async throws { try await Fixture.with { f in
         let leaf = UUID(), name = remoteSessionName(leaf), marker = f.root + "/started"
         let cmd = command(f, leaf: leaf, agent: "echo started >> \(shellQuote(marker)); sleep 30")

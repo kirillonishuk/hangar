@@ -211,6 +211,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var activeTabId: UUID?
     public var pinned: Bool
     public var drawer: Drawer
+    /// `HANGAR_PORT` of its tabs (#NN-port); set when the task is added or an older state loads.
+    public var port: Int?
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -220,9 +222,10 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
 
     public init(id: UUID = UUID(), projectId: UUID, name: String, mode: TaskMode = .mainFolder,
                 order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false,
-                drawer: Drawer = Drawer()) {
+                drawer: Drawer = Drawer(), port: Int? = nil) {
         self.id = id
         self.projectId = projectId
+        self.port = port
         self.name = name
         self.mode = mode
         self.order = order
@@ -233,9 +236,9 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         self.drawer = drawer
     }
 
-    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer }
+    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port }
 
-    /// `pinned` and `drawer` were added later; older files decode with the default.
+    /// `pinned`, `drawer` and `port` were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), projectId: try c.decode(UUID.self, forKey: .projectId),
@@ -244,7 +247,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
                   tabs: try c.decode([Tab].self, forKey: .tabs),
                   activeTabId: try c.decodeIfPresent(UUID.self, forKey: .activeTabId),
                   pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false,
-                  drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer())
+                  drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer(),
+                  port: try c.decodeIfPresent(Int.self, forKey: .port))
     }
 }
 
@@ -285,6 +289,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
                   inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220)
+        assignMissingPorts()
     }
 
     // MARK: Projects / tasks
@@ -310,7 +315,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     @discardableResult
     public mutating func addTask(projectId: UUID, name: String, mode: TaskMode = .mainFolder) -> UUID {
         let order = (tasks.filter { $0.projectId == projectId }.map(\.order).max() ?? -1) + 1
-        let task = HangarTask(projectId: projectId, name: name, mode: mode, order: order)
+        var task = HangarTask(projectId: projectId, name: name, mode: mode, order: order)
+        task.port = taskPort(for: task.id, taken: Set(tasks.compactMap(\.port)))
         tasks.append(task)
         return task.id
     }

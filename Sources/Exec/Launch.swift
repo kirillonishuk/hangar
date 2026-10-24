@@ -18,7 +18,7 @@ public enum LaunchError: Error, Equatable {
 /// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions #26, #27).
 /// `-l -i` is needed so PATH matches the user's terminal (~/.local/bin is set in ~/.zshrc).
 public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socketPath: String,
-                       userShell: String, restoring: Bool, initialPrompt: String?) throws -> LaunchSpec {
+                       userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil) throws -> LaunchSpec {
     var isDir: ObjCBool = false
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
@@ -28,9 +28,9 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue }, editor: config.editor,
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
-    return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
-                      cwd: leaf.cwd,
-                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath])
+    var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
+    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#NN-port)
+    return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))", cwd: leaf.cwd, env: env)
 }
 
 /// Basename of the first word of the editor command.

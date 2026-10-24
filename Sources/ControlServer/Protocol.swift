@@ -359,7 +359,12 @@ public struct TasksResult: Codable, Equatable, Sendable {
 
 public struct TaskResult: Codable, Equatable, Sendable {
     public var task: TaskInfo
-    public init(task: TaskInfo) { self.task = task }
+    /// E.g. the agent may first ask to trust the folder (Hangar never answers that for the user).
+    public var note: String?
+    public init(task: TaskInfo, note: String? = nil) {
+        self.task = task
+        self.note = note
+    }
 }
 
 public struct TabResult: Codable, Equatable, Sendable {
@@ -374,9 +379,14 @@ public struct TabResult: Codable, Equatable, Sendable {
 public struct SendResult: Codable, Equatable, Sendable {
     public var tab: UUID
     public var leaf: UUID
-    public init(tab: UUID, leaf: UUID) {
+    /// sent, queued (the agent was already working), started / not-started-yet (`wait`).
+    public var status: String
+    public var hint: String?
+    public init(tab: UUID, leaf: UUID, status: String = "sent", hint: String? = nil) {
         self.tab = tab
         self.leaf = leaf
+        self.status = status
+        self.hint = hint
     }
 }
 

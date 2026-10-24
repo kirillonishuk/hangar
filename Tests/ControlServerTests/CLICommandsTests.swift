@@ -15,6 +15,10 @@ import ControlServer
              .call(.tabsSend(tab: "ab12", text: "hi", keys: [.ctrlC, .enter]), json: false)),
             (["tabs", "send", "--tab", "x", "--key", "escape", "--key", "down"],
              .call(.tabsSend(tab: "x", text: nil, keys: [.escape, .down]), json: false)),
+            (["tabs", "send", "--tab", "x", "go", "--enter", "--wait"],
+             .call(.tabsSend(tab: "x", text: "go", keys: [.enter], wait: true), json: false)),
+            (["tabs", "send", "--tab", "x", "--key", "interrupt"],
+             .call(.tabsSend(tab: "x", text: nil, keys: [.interrupt]), json: false)),
             (["tabs", "read", "--tab", "x", "--lines", "20", "--json"], .call(.tabsRead(tab: "x", lines: 20), json: true)),
             (["tabs", "read", "--tab", "x"], .call(.tabsRead(tab: "x", lines: 100), json: false)),
             // A drawer leaf id is a plain `--tab` ref.
@@ -132,6 +136,9 @@ import ControlServer
         #expect(formatHuman(.tabsOpen(task: "t", kind: .shell, prompt: nil), result: try JSONEncoder().encode(TabResult(task: taskId, tab: tab)))
                 == "tab 11112222-0000-0000-0000-000000000002")
         #expect(formatHuman(.tabsSend(tab: "x", text: "a", keys: []), result: try JSONEncoder().encode(SendResult(tab: t1, leaf: t2))) == "")
+        #expect(formatHuman(.tabsSend(tab: "x", text: "a", keys: [], wait: true),
+                            result: try JSONEncoder().encode(SendResult(tab: t1, leaf: t2, status: "not-started-yet", hint: "h"))) == "not-started-yet: h")
+        #expect(requestTimeout(.tabsSend(tab: "x", text: "a", keys: [], wait: true)) > 10)
         #expect(formatHuman(.tabsRead(tab: "x", lines: 5), result: try JSONEncoder().encode(ScreenResult(tab: t1, leaf: t2, text: "$ ls\nfoo", lines: 2, truncated: false)))
                 == "$ ls\nfoo")
         #expect(formatHuman(.tasksArchive(task: "t"), result: try JSONEncoder().encode(ArchiveResult(task: taskId, archived: true)))

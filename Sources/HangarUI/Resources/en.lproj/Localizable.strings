@@ -287,3 +287,10 @@
 "showFiles" = "Show files";
 "hostsMenuHelp" = "Hosts from ~/.ssh/config";
 "refreshLimitsHelp" = "Refresh limits";
+"worktreeRootHint" = "All worktrees of this project go here: %@/<branch>";
+"worktreeCopy" = "Copy into worktree";
+"worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";
+"setupCommand" = "Setup command";
+"setupCommandHelp" = "Runs at the new worktree's top in a shell tab after the copy. Default comes from the lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline); blank = none";
+"copyingEntry" = "Copying %@…";
+"copyFailed" = "hangar: not copied %@";

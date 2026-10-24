@@ -120,6 +120,7 @@ import Workspace
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
+        case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, copyingEntry, copyFailed
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -353,6 +354,13 @@ import Workspace
     static var creatingWorktreeWait: String { s(.creatingWorktreeWait) }
     static var worktreeRootInsideProject: String { s(.worktreeRootInsideProject) }
     static var worktreeFolder: String { s(.worktreeFolder) }
+    static func worktreeRootHint(_ folder: String) -> String { f(.worktreeRootHint, folder) }
+    static var worktreeCopy: String { s(.worktreeCopy) }
+    static var worktreeCopyHelp: String { s(.worktreeCopyHelp) }
+    static var setupCommand: String { s(.setupCommand) }
+    static var setupCommandHelp: String { s(.setupCommandHelp) }
+    static func copyingEntry(_ entry: String) -> String { f(.copyingEntry, entry) }
+    static func copyFailed(_ reason: String) -> String { f(.copyFailed, reason) }
     static var pathMustBeAbsolute: String { s(.pathMustBeAbsolute) }
     static func branchAuto(_ value: String) -> String { f(.branchAuto, value) }
     static var save: String { s(.save) }

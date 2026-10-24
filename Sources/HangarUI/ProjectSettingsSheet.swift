@@ -6,6 +6,14 @@ import Workspace
 
 struct PathInputError: Error, Equatable { let message: String }
 
+/// «Копировать в worktree» (nil = the default list) and «Команда после создания» as the sheet saves them.
+struct WorktreeSetup: Equatable { var copy: [String]?; var command: String? }
+
+/// The comma-separated field → entries; blank ones dropped.
+func worktreeCopyInput(_ text: String) -> [String] {
+    text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+}
+
 /// True if `root` is the project folder or lies inside it (worktrees would show up in the project's own tree).
 func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
     func trimmed(_ p: String) -> String {
@@ -33,13 +41,19 @@ struct ProjectSettingsSheet: View {
     let project: Project
     let git: Git
     let runner: Runner
-    let onSave: (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void
+    let onSave: (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void
     let onCancel: () -> Void
 
     @State private var name: String
     @State private var path: String
     @State private var baseBranch: String?
     @State private var worktreeRoot: String
+    @State private var copyText: String
+    @State private var setupCommand: String
+    /// A project without its own list / command shows its package manager's defaults (the list: only what exists in
+    /// the main checkout); saved unchanged, they stay nil and follow the lockfile.
+    @State private var defaults: WorktreeDefaults?
+    @State private var suggestedCopy: String?
     @State private var error: String?
     @State private var rootError: String?
     /// nil until git has answered; the git-only rows appear only for a repository with commits.
@@ -48,10 +62,10 @@ struct ProjectSettingsSheet: View {
     @State private var defaultBase: String?
     @State private var branchesError: String?
     @FocusState private var focus: Field?
-    private enum Field { case name, path, root }
+    private enum Field { case name, path, root, copy, setup }
 
     init(project: Project, git: Git, runner: Runner,
-         onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?) -> Void,
+         onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void,
          onCancel: @escaping () -> Void) {
         self.project = project
         self.git = git
@@ -62,6 +76,8 @@ struct ProjectSettingsSheet: View {
         _path = State(initialValue: project.path)
         _baseBranch = State(initialValue: project.lastBaseBranch)
         _worktreeRoot = State(initialValue: project.worktreeRoot ?? "")
+        _copyText = State(initialValue: project.worktreeCopy?.joined(separator: ", ") ?? "")
+        _setupCommand = State(initialValue: project.setupCommand ?? "")
     }
 
     private var remote: Bool { project.host != nil }
@@ -139,6 +155,23 @@ struct ProjectSettingsSheet: View {
                         .onChange(of: worktreeRoot) { rootError = nil }
                     if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
                 }
+                .help(L10n.worktreeRootHint(rootShown))
+                CardRow(label: L10n.worktreeCopy, labelWidth: Theme.projectCardLabelWidth) {
+                    // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
+                    TextField("", text: $copyText, prompt: Text(verbatim: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "")
+                        .foregroundStyle(Theme.ui.text3))
+                        .modifier(CardField(mono: true))
+                        .focused($focus, equals: .copy)
+                        .onSubmit(save)
+                }
+                .help(L10n.worktreeCopyHelp)
+                CardRow(label: L10n.setupCommand, labelWidth: Theme.projectCardLabelWidth) {
+                    TextField("", text: $setupCommand, prompt: Text(verbatim: "npm install").foregroundStyle(Theme.ui.text3))
+                        .modifier(CardField(mono: true))
+                        .focused($focus, equals: .setup)
+                        .onSubmit(save)
+                }
+                .help(L10n.setupCommandHelp)
             }
         }
         .sheetCard()
@@ -149,6 +182,7 @@ struct ProjectSettingsSheet: View {
         if let error { message(error, Theme.ui.failed) }
         if isGit == true {
             if let branchesError { message(branchesError, Theme.ui.failed) }
+            message(L10n.worktreeRootHint(rootShown), Theme.ui.text3)
             if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
                worktreeRootInsideProject(root, project: path) {
                 message(L10n.worktreeRootInsideProject, Theme.ui.text3)
@@ -169,8 +203,27 @@ struct ProjectSettingsSheet: View {
         (worktreePath(projectPath: path, root: nil, branch: "x") as NSString).deletingLastPathComponent
     }
 
-    /// Reads branches without fetching.
+    /// The folder new worktrees go to, as typed now (the default one while the field is blank or invalid).
+    private var rootShown: String {
+        if case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote) { return root }
+        return defaultRootPlaceholder
+    }
+
+    /// Reads branches without fetching, then fills what the project leaves to its package manager's defaults.
     private func loadGit() async {
+        await loadBranches()
+        guard isGit == true, project.worktreeCopy == nil || project.setupCommand == nil else { return }
+        let found = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
+        defaults = found
+        if project.setupCommand == nil, setupCommand.isEmpty { setupCommand = found.command ?? "" }
+        guard project.worktreeCopy == nil, let entries = try? await git.ignoredEntries() else { return }
+        let present = found.copy.filter { !matchIgnored([$0], entries).isEmpty }.joined(separator: ", ")
+        suggestedCopy = present
+        if copyText.isEmpty { copyText = present }
+    }
+
+    /// Reads branches without fetching.
+    private func loadBranches() async {
         guard (try? await git.isRepository()) == true, await git.hasCommits() else { isGit = false; return }
         do { branches = try await git.listBranches() } catch {
             branchesError = (error as? GitError)?.errorDescription ?? error.localizedDescription
@@ -182,7 +235,10 @@ struct ProjectSettingsSheet: View {
     private func save() {
         guard canSave else { return }
         var root: String?
+        var setup = WorktreeSetup(copy: project.worktreeCopy, command: project.setupCommand)  // hidden rows keep what is stored
         if isGit == true {
+            setup = WorktreeSetup(copy: project.worktreeCopy == nil && copyText == (suggestedCopy ?? "") ? nil : worktreeCopyInput(copyText),
+                                  command: project.setupCommand == nil && setupCommand == (defaults?.command ?? "") ? nil : setupCommand)
             switch worktreeRootInput(worktreeRoot, remote: remote) {
             case .success(let value): root = value
             case .failure(let e): rootError = e.message; return
@@ -195,7 +251,7 @@ struct ProjectSettingsSheet: View {
         let base = isGit == true ? baseBranch : project.lastBaseBranch
         guard remote else {
             guard folderExists(trimmed) else { error = L10n.folderMissing(trimmed); return }
-            onSave(name, trimmed, base, root)
+            onSave(name, trimmed, base, root, setup)
             return
         }
         // Nothing is saved unless the host says the folder is there; a host that isn't connected says so.
@@ -207,7 +263,7 @@ struct ProjectSettingsSheet: View {
             } catch {
                 self.error = L10n.folderMissing(trimmed); return
             }
-            onSave(name, trimmed, base, root)
+            onSave(name, trimmed, base, root, setup)
         }
     }
 

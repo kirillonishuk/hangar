@@ -87,7 +87,7 @@ import Workspace
         await archiveTask(id, ctx: ctx)
         #expect(calls.confirms == [L10n.worktreeIgnored])
         #expect(calls.infos.first?.contains(".env") == true)
-        #expect(await waitUntil { archived(app, id) && !exists(wt) })
+        #expect(await waitUntil { archived(app, id) && !exists(wt) && !calls.archived.isEmpty })
         #expect(calls.archived == [id])
         #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
     }

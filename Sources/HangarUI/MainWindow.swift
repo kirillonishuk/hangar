@@ -574,7 +574,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
                                 onCreate: { [weak self] name, message, mode in
                                     close()
-                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode)
+                                    self?.app.createTask(projectId: id, name: name, firstMessage: message, mode: mode,
+                                                         setup: model.setupScript)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)
@@ -712,9 +713,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
             close()
-            self?.app.perform { $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot) }
+            self?.app.perform {
+                $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot)
+                $0.setWorktreeSetup(id: id, copy: setup.copy, command: setup.command)
+            }
             // The visible task's diff base may be this project's default.
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onCancel: close)

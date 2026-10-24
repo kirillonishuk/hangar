@@ -462,7 +462,7 @@ import Workspace
     static func installFailed(_ code: Int32) -> String { f(.installFailed, code) }
     static var close: String { s(.close) }
     static func hostGaveUp(_ arg: String) -> String { f(.hostGaveUp, arg) }
-    // «<host> · терминал» (#NN-ssh-shell)
+    // «<host> · терминал» (#64)
     static var connectToHost: String { s(.connectToHost) }
     static var connectHostTitle: String { s(.connectHostTitle) }
     static var openTerminal: String { s(.openTerminal) }

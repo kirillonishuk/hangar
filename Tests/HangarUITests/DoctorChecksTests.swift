@@ -6,7 +6,7 @@ import ControlServer
 import Workspace
 @testable import HangarUI
 
-/// The app's checks of `hangar doctor` (#NN-doctor), from the values they read.
+/// The app's checks of `hangar doctor` (#61), from the values they read.
 @MainActor @Suite struct DoctorChecksTests {
     @Test func toolProbeSkipsNoise() {
         let out = "motd line\nHANGAR-DOCTOR\tclaude\t/opt/bin/claude\t2.1.3 (Claude Code)\nHANGAR-DOCTOR\tbad\nHANGAR-DOCTOR\thx\t/opt/hx\t\n"

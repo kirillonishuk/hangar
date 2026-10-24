@@ -38,7 +38,7 @@ import ControlServer
             (["tasks", "restore", "--task", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
             (["tasks", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
             (["tasks", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
-            // `hangar ssh <host>` only opens the tab in the app (#NN-ssh-shell).
+            // `hangar ssh <host>` only opens the tab in the app (#64).
             (["ssh", "box"], .call(.sshOpen(host: "box"), json: false)),
             (["ssh", "--json", "u@h"], .call(.sshOpen(host: "u@h"), json: true)),
             (["ssh"], .usage("missing argument")),

@@ -132,7 +132,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
     @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
-    /// `Host` names of the ssh config for the SSH HOSTS section (#NN-ssh-shell); read at launch and on activation.
+    /// `Host` names of the ssh config for the SSH HOSTS section (#64); read at launch and on activation.
     var configHostList: [String] = []
     /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
     // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
@@ -254,7 +254,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
-    /// The task's `HANGAR_PORT` (#NN-port); projects and tabs have none.
+    /// The task's `HANGAR_PORT` (#60); projects and tabs have none.
     func port(of target: ActionTarget) -> Int? {
         guard case .task(let id) = target else { return nil }
         return state.tasks.first { $0.id == id }?.port
@@ -287,7 +287,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         var mode = launchMode(for: leaf, context)
         // ↩ resumes too: a second agent leaf in the folder without a session id would `--continue` the first one's chat.
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
-        // Tabs and the drawer alike get the task's port (#NN-port).
+        // Tabs and the drawer alike get the task's port (#60).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
         if let host = hostShellHost(ofLeaf: leaf.id) {

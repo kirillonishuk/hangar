@@ -1,6 +1,6 @@
 import Foundation
 
-/// Per-task `HANGAR_PORT` (decision #NN-port): parallel worktrees run dev servers without clashing (`vite --port $HANGAR_PORT`).
+/// Per-task `HANGAR_PORT` (decision #60): parallel worktrees run dev servers without clashing (`vite --port $HANGAR_PORT`).
 public let taskPortRange = 41000...48999
 
 /// FNV-1a over the id's bytes: stable across launches (Swift's `hashValue` is seeded per process).

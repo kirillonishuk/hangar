@@ -211,7 +211,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var activeTabId: UUID?
     public var pinned: Bool
     public var drawer: Drawer
-    /// `HANGAR_PORT` of its tabs (#NN-port); set when the task is added or an older state loads.
+    /// `HANGAR_PORT` of its tabs (#60); set when the task is added or an older state loads.
     public var port: Int?
 
     /// Branch of a worktree task; nil for main-folder tasks.
@@ -262,9 +262,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var sidebarCollapsed: Bool
     /// Last inspector width (clamped to 180...480 by the view).
     public var inspectorWidth: Double
-    /// Plain ssh logins without a project (#NN-ssh-shell); their tasks sit in `tasks` with the shell's id as `projectId`.
+    /// Plain ssh logins without a project (#64); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
-    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#NN-attention).
+    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
     public var attentionOnly: Bool
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],

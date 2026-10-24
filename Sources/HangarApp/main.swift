@@ -120,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// `hangar://` links (#NN-links). A cold launch may deliver them before the window exists: kept until it does.
+    /// `hangar://` links (#66). A cold launch may deliver them before the window exists: kept until it does.
     private var pendingLinks: [URL] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {

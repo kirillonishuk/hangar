@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Per-task `HANGAR_PORT` (decision #NN-port): stable, derived from the id, unique among tasks, persisted.
+/// Per-task `HANGAR_PORT` (decision #60): stable, derived from the id, unique among tasks, persisted.
 @Suite struct TaskPortTests {
     @Test func derivedIsStableAndInRange() {
         let id = UUID(uuidString: "0B6C4A52-7C1E-4C1A-9A55-3F1A2B3C4D5E")!

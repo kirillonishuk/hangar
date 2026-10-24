@@ -1,6 +1,6 @@
 import Foundation
 
-/// `hangar doctor` / MCP `doctor` (decision #NN-doctor): a read-only health report, English, one line per check.
+/// `hangar doctor` / MCP `doctor` (decision #61): a read-only health report, English, one line per check.
 public enum DoctorLevel: String, Codable, Sendable { case ok, warn, fail }
 
 public struct DoctorCheck: Codable, Equatable, Sendable {

@@ -55,7 +55,7 @@ import Workspace
     }
 }
 
-/// What removing a worktree folder would lose; shared by delete and archive (decision #NN-archive).
+/// What removing a worktree folder would lose; shared by delete and archive (decision #57).
 enum WorktreeCheck: Equatable { case missing, clean, atRisk(dirty: Bool, ignored: [String]) }
 
 /// `runner`: the project's machine. Throws when the check itself fails (host down, git error).

@@ -42,7 +42,7 @@ struct SectionHeader: View {
     /// `+` without hover (empty state: nothing else says how to add the first project).
     var plusAlwaysVisible = false
     var plus: (() -> Void)?
-    /// «Только ждущие» toggle (#NN-attention): a status dot, `waiting`-coloured and always shown while on.
+    /// «Только ждущие» toggle (#67): a status dot, `waiting`-coloured and always shown while on.
     var filterOn = false
     var filterHelp = ""
     var filter: (() -> Void)?
@@ -220,7 +220,7 @@ struct MenuEntry {
     let action: () -> Void
 }
 
-/// Host row: «Открыть терминал» (a plain ssh shell, #NN-ssh-shell); a host of remote projects also «Переподключиться»
+/// Host row: «Открыть терминал» (a plain ssh shell, #64); a host of remote projects also «Переподключиться»
 /// (while not connected), «Проверить сервер» (connected), «Отключиться».
 @MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
     let terminal = MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) }

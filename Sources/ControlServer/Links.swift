@@ -2,7 +2,7 @@ import Foundation
 
 public enum LinkKind: String, CaseIterable, Codable, Sendable { case task, tab, project }
 
-/// `hangar://task|tab|project/<id or id prefix>` (#NN-links): opening one only selects/focuses, never runs anything.
+/// `hangar://task|tab|project/<id or id prefix>` (#66): opening one only selects/focuses, never runs anything.
 public struct HangarLink: Equatable, Sendable {
     public static let scheme = "hangar"
 

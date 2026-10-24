@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// «<host> · терминал» in the app (#NN-ssh-shell): plain `ssh -t` shells, never the host's master, check or tmux.
+/// «<host> · терминал» in the app (#64): plain `ssh -t` shells, never the host's master, check or tmux.
 /// On the RemoteHostsTests harness (fake ssh only); Ghostty is not started, so a launch only builds its spec.
 @MainActor @Suite struct HostShellUITests {
     typealias Harness = RemoteHostsTests.Harness

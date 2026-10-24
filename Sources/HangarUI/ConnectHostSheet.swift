@@ -1,7 +1,7 @@
 import Exec
 import SwiftUI
 
-/// «Подключиться к хосту…» (#NN-ssh-shell): a host (typed, or from the ssh config drop-down) → a plain ssh shell tab.
+/// «Подключиться к хосту…» (#64): a host (typed, or from the ssh config drop-down) → a plain ssh shell tab.
 /// Nothing is checked here: ssh itself asks for a password or reports the error in the tab.
 struct ConnectHostSheet: View {
     let configHosts: [String]

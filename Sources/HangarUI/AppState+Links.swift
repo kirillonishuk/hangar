@@ -2,7 +2,7 @@ import ControlServer
 import Foundation
 import Workspace
 
-/// What a `hangar://` link resolves to (#NN-links).
+/// What a `hangar://` link resolves to (#66).
 enum LinkTarget: Equatable {
     case task(UUID), tab(task: UUID, tab: UUID), project(UUID)
 

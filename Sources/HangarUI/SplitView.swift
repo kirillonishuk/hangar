@@ -94,7 +94,7 @@ final class FillView: NSView {
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
-    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#NN-image-paste).
+    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#70).
     var kind: LeafKind = .shell
     private(set) var surface: TerminalSurfaceView?
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
@@ -564,7 +564,7 @@ final class FillView: NSView {
             }
         }
 
-        // A host's terminal (#NN-ssh-shell) needs no project.
+        // A host's terminal (#64) needs no project.
         let nothing = state.projects.isEmpty && state.hostShells.isEmpty
         emptyState.isHidden = !nothing
         placeholder.isHidden = active != nil || diffShown || nothing

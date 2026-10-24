@@ -575,7 +575,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         column.terminalArea.focus(leafId: leafId)
     }
 
-    /// A clicked `hangar://` link (#NN-links): select and bring the window up; a tab link focuses its terminal.
+    /// A clicked `hangar://` link (#66): select and bring the window up; a tab link focuses its terminal.
     public func openLink(_ url: URL) {
         guard let target = app.openLink(url) else { return }
         if case .tab(let task, let tab) = target,
@@ -796,7 +796,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
     }
 
-    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#NN-ssh-shell).
+    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#64).
     func presentConnectHost() {
         guard let window, window.attachedSheet == nil else { return }
         let sheet = makeSheet(over: window)

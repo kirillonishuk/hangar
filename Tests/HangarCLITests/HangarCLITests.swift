@@ -242,7 +242,7 @@ private let statusFixture = Data("""
         #expect(r.seconds < 5)
     }
 
-    /// `hangar doctor` (#NN-doctor): the app's checks plus the CLI's lines; a fail → exit 1, warnings alone → 0.
+    /// `hangar doctor` (#61): the app's checks plus the CLI's lines; a fail → exit 1, warnings alone → 0.
     @Test @MainActor func doctorReportsAndExitCodes() async throws {
         let dir = TempDir(), calls = CallLog()
         let warn = DoctorCheck(name: "codex", level: .warn, detail: "`codex` not found", fix: "Install codex")

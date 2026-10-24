@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import ControlServer
 
-/// `hangar://` links (#NN-links): the only shapes the app acts on, everything else is ignored.
+/// `hangar://` links (#66): the only shapes the app acts on, everything else is ignored.
 @Suite struct LinksTests {
     private let id = "0f3a9c1e-1111-4222-8333-444455556666"
 

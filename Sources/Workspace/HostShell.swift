@@ -1,6 +1,6 @@
 import Foundation
 
-/// A plain ssh login to a host with no project (#NN-ssh-shell): its one task, «<host> · терминал», holds ssh shell tabs.
+/// A plain ssh login to a host with no project (#64): its one task, «<host> · терминал», holds ssh shell tabs.
 /// Kept out of `projects`, so project lists, the remote machinery (master, check, tmux) and CLI listings never see it.
 public struct HostShell: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID

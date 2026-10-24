@@ -3,7 +3,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Archive removes a worktree task's folder and keeps its branch; restore checks the branch out again (decision #NN-archive).
+/// Archive removes a worktree task's folder and keeps its branch; restore checks the branch out again (decision #57).
 enum ArchiveOutcome: Equatable {
     case archived(worktreeRemoved: Bool)
     /// Archived, but moving the folder away failed: the folder is still there (restore just unarchives).

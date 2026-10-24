@@ -3,7 +3,7 @@ import Exec
 import Foundation
 import Integration
 
-/// The app's part of `hangar doctor` (decision #NN-doctor). Read-only: nothing is written, installed or connected.
+/// The app's part of `hangar doctor` (decision #61). Read-only: nothing is written, installed or connected.
 extension AppState {
     func doctorResult() async -> DoctorResult {
         let cmds = [config.agentCommands[.claude] ?? "claude", config.agentCommands[.codex] ?? "codex", config.editor].map(firstWord)

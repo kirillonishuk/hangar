@@ -18,7 +18,7 @@ enum ActionTarget: Equatable {
     var addProject: () -> Void = {}
     var addLocalProject: () -> Void = {}
     var addRemoteProject: () -> Void = {}
-    /// «Подключиться к хосту…»: a plain ssh shell without a project (#NN-ssh-shell).
+    /// «Подключиться к хосту…»: a plain ssh shell without a project (#64).
     var connectHost: () -> Void = {}
     /// «Сервер <host>» sheet.
     var checkServer: (String) -> Void = { _ in }

@@ -94,6 +94,8 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect(kind?["enum"] as? [String] == TabKind.allCases.map(\.rawValue))
         let yes = (byName["tasks_archive"]?["properties"] as? [String: Any])?["yes"] as? [String: Any]
         #expect(yes?["type"] as? String == "boolean")
+        let force = (byName["tasks_archive"]?["properties"] as? [String: Any])?["force"] as? [String: Any]
+        #expect(force?["type"] as? String == "boolean")
     }
 
     @Test func toolsCallSuccess() throws {

@@ -321,6 +321,19 @@ extension MainWindowController {
             let hosts = app.remote.hosts.map { "\($0.key)=\($0.value.state) attention=\($0.value.needsAttention)" }
             uiLog.info("remote hosts=\(hosts, privacy: .public) phase=\(String(describing: server?.phase), privacy: .public) report=\(server?.report.map { "remote=\($0.remoteVersion ?? 0) tools=\($0.tools.keys.map(\.rawValue).sorted())" } ?? "-", privacy: .public)")
             uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) claude=\(String(describing: server?.claude), privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
+        case "window":
+            // window minimize|restore|hide|unhide|out|front: occlusion changes without activating the app.
+            switch arg {
+            case "minimize": window?.miniaturize(nil)
+            case "restore": window?.deminiaturize(nil)
+            case "hide": NSApp.hide(nil)
+            case "unhide": NSApp.unhideWithoutActivation()
+            case "out": window?.orderOut(nil)
+            case "front": window?.orderFrontRegardless()
+            default: break
+            }
+            uiLog.info("window \(arg, privacy: .public) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) mini=\(self.window?.isMiniaturized ?? false) active=\(NSApp.isActive)")
+        case "check": try? column.terminalArea.debugCheck().write(toFile: arg, atomically: true, encoding: .utf8)  // check <file>
         case "quit": NSApp.terminate(nil)  // runs applicationWillTerminate like ⌘Q
         case "dump":
             let tasks = app.state.tasks.map { t in

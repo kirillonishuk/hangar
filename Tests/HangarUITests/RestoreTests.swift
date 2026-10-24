@@ -156,4 +156,34 @@ import Workspace
         #expect(a.frame.width == 100)
         #expect(b.frame.height == 150)
     }
+
+    /// Fast task switches restart the drawer animation of the tab area; autoresizing a split through interrupted
+    /// animations drifted its height (live: a hidden split tab came back 1305 pt tall in a 1085 pt area, or 220 pt).
+    @Test func tabSplitFillsTabThroughInterruptedAnimations() {
+        let window = NSWindow(contentRect: NSRect(x: -3000, y: 0, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        let root = NSView(frame: window.contentView!.bounds)
+        root.wantsLayer = true
+        window.contentView!.addSubview(root)
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+        root.addSubview(content)
+        let tab = FillView(frame: content.bounds)
+        tab.autoresizingMask = [.width, .height]
+        content.addSubview(tab)
+        let split = RatioSplitView(axis: .horizontal, ratio: 0.5)
+        split.frame = tab.bounds
+        tab.addSubview(split)
+        split.addSubview(NSView())
+        split.addSubview(NSView())
+        for i in 0..<20 {
+            let h: CGFloat = i % 2 == 0 ? 380 : 500
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.2
+                content.animator().frame = NSRect(x: 0, y: 500 - h, width: 800, height: h)
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        #expect(content.frame.height == 500)
+        #expect(split.frame == tab.bounds)
+    }
 }

@@ -122,6 +122,8 @@ import Workspace
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
+        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
+        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -465,4 +467,46 @@ import Workspace
 
     public static var ok: String { s(.ok) }
     static func exitStatus(_ code: Int32) -> String { f(.exitStatus, code) }
+
+    // ⌘P quick open / ⇧⌘P command palette
+    static var paletteSearch: String { s(.paletteSearch) }
+    static var paletteEmpty: String { s(.paletteEmpty) }
+    static var paletteLoading: String { s(.paletteLoading) }
+    static func paletteSection(_ kind: PaletteItem.Kind) -> String {
+        switch kind {
+        case .task: s(.paletteTasks)
+        case .file: s(.paletteFiles)
+        case .command: s(.paletteCommands)
+        }
+    }
+    /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one.
+    static func command(_ sc: Shortcut) -> String {
+        switch sc {
+        case .newTask: newTask
+        case .addProject: addProject
+        case .newTab: newTabHelp
+        case .closeTab: closeTabHelp
+        case .splitRight: s(.splitRight)
+        case .splitDown: s(.splitDown)
+        case .archiveTask: s(.cmdArchiveTask)
+        case .rename: rename
+        case .prevTask: s(.cmdPrevTask)
+        case .nextTask: s(.cmdNextTask)
+        case .prevTab: s(.cmdPrevTab)
+        case .nextTab: s(.cmdNextTab)
+        case .toggleSidebar: s(.cmdToggleSidebar)
+        case .toggleInspector: s(.cmdToggleInspector)
+        case .inspectorFiles: showFiles
+        case .inspectorChanges: statusShowChanges
+        case .toggleDrawer: s(.drawerToggle)
+        case .limits: s(.limitsHelp)
+        case .revealInFinder: s(.revealInFinder)
+        case .copyPath: s(.copyPath)
+        case .settings: settings
+        case .quickOpen: s(.cmdQuickOpen)
+        case .commandPalette: s(.cmdCommandPalette)
+        case .tab(let n): "\(n)"
+        case .focusSplit: ""
+        }
+    }
 }

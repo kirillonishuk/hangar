@@ -39,7 +39,7 @@ import Workspace
 
     deinit { for o in observers { NotificationCenter.default.removeObserver(o) } }
 
-    private func root(of task: HangarTask) -> String? {
+    func root(of task: HangarTask) -> String? {
         let project = app.project(task.projectId)
         switch task.mode {
         case .worktree(let path, _, _):

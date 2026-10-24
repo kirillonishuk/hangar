@@ -83,6 +83,14 @@ final class RatioSplitView: HangarSplitView {
     }
 }
 
+/// Keeps every subview at its bounds: autoresizing through interrupted drawer animations (fast task switches)
+/// drifted a tab's split off its tab (a pane squeezed to the bottom, or taller than the area).
+final class FillView: NSView {
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        for view in subviews { view.frame = bounds }
+    }
+}
+
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
@@ -391,7 +399,7 @@ final class RatioSplitView: HangarSplitView {
     private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
     /// Tab content above the drawer.
-    private let content = NSView()
+    private let content = FillView()
     let drawer: TerminalDrawer
     private var appliedDrawerHeight: CGFloat = 0
     /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
@@ -582,7 +590,7 @@ final class RatioSplitView: HangarSplitView {
 
     private func show(_ tab: Tab) {
         if tabViews[tab.id] == nil {
-            let view = NSView(frame: content.bounds)
+            let view = FillView(frame: content.bounds)
             view.autoresizingMask = [.width, .height]
             content.addSubview(view)
             tabViews[tab.id] = view
@@ -757,6 +765,29 @@ final class RatioSplitView: HangarSplitView {
         return leafViews.map { id, view in
             "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-") failed=\(view.failed)"
         }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
+    }
+
+    /// Debug: every model leaf of a started tab against its view (orphaned or blank leaves show as problems).
+    func debugCheck() -> String {
+        var lines: [String] = []
+        for task in app.state.tasks where !task.archived {
+            for tab in task.tabs {
+                guard let tabView = tabViews[tab.id] else { lines.append("tab=\(tab.id.uuidString.prefix(8)) notStarted"); continue }
+                let tabOK = tabView.frame == content.bounds && tabView.subviews.allSatisfy { $0.frame == tabView.bounds }
+                lines.append("\(tabOK ? "ok" : "PROBLEM") tab=\(tab.id.uuidString.prefix(8)) task=\(task.name) content=\(content.frame.size) tab=\(tabView.frame) root=\(tabView.subviews.map(\.frame))")
+                for leaf in tab.root.leaves {
+                    guard let view = leafViews[leaf.id] else { lines.append("PROBLEM leaf=\(leaf.id.uuidString.prefix(8)) noView"); continue }
+                    let ok = view.surface?.isAlive == true && view.isDescendant(of: tabView) && view.window != nil
+                        && view.surface?.superview === view && view.frame.width > 0 && view.frame.height > 0
+                    lines.append("\(ok ? "ok" : "PROBLEM") leaf=\(leaf.id.uuidString.prefix(8)) task=\(task.name) alive=\(view.surface?.isAlive == true) inTab=\(view.isDescendant(of: tabView)) frame=\(Int(view.frame.width))x\(Int(view.frame.height)) exit=\(view.exitCode.map(String.init) ?? "-")")
+                }
+            }
+        }
+        let modelLeaves = Set(app.state.tasks.filter { !$0.archived }.flatMap(\.tabs).flatMap { $0.root.leaves.map(\.id) })
+        for id in leafViews.keys where !modelLeaves.contains(id) { lines.append("PROBLEM orphanView leaf=\(id.uuidString.prefix(8))") }
+        let orphanTabs = content.subviews.filter { v in v !== diffHost && !tabViews.values.contains { $0 === v } }
+        if !orphanTabs.isEmpty { lines.append("PROBLEM orphanTabViews=\(orphanTabs.count)") }
+        return lines.joined(separator: "\n")
     }
     #endif
 }

@@ -42,6 +42,10 @@ struct SectionHeader: View {
     /// `+` without hover (empty state: nothing else says how to add the first project).
     var plusAlwaysVisible = false
     var plus: (() -> Void)?
+    /// «Только ждущие» toggle (#NN-attention): a status dot, `waiting`-coloured and always shown while on.
+    var filterOn = false
+    var filterHelp = ""
+    var filter: (() -> Void)?
 
     var body: some View {
         // No action → no hover fill; `hover` only reveals `+`.
@@ -49,6 +53,19 @@ struct SectionHeader: View {
             HStack(spacing: 0) {
                 Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                 Spacer(minLength: 0)
+                if let filter {
+                    Button(action: filter) {
+                        Circle().fill(filterOn ? Theme.ui.waiting : Theme.ui.text3)
+                            .frame(width: Theme.statusDot, height: Theme.statusDot)
+                            .frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
+                            .padding(Theme.railInset)
+                    }
+                    .buttonStyle(HoverButtonStyle(selected: filterOn, radius: Theme.railItemRadius))
+                    .opacity(hover || filterOn ? 1 : 0)
+                    .help(filterHelp)
+                    .accessibilityLabel(filterHelp)
+                    .accessibilityAddTraits(filterOn ? .isSelected : [])
+                }
                 if let plus {
                     Button(action: plus) { IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset) }
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))

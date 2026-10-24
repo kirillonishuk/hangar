@@ -185,6 +185,14 @@ import Testing
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
     }
 
+    @Test func attentionFilterPersists() throws {
+        let json = #"{"projects":[],"tasks":[],"inspectorVisible":false}"#
+        var s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
+        #expect(s.attentionOnly == false)
+        s.attentionOnly = true
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).attentionOnly == true)
+    }
+
     @Test func oldStateWithoutInspectorWidthLoads() throws {
         let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
         var s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))

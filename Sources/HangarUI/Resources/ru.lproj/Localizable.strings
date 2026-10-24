@@ -70,6 +70,9 @@
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
+"copyLink" = "Скопировать ссылку";
+"attentionOnly" = "Только ждущие";
+"nobodyWaiting" = "Никто не ждёт";
 "openIn" = "Открыть в %@";
 "openFailed" = "Не удалось открыть в %@";
 "deletePermanently" = "Удалить навсегда";

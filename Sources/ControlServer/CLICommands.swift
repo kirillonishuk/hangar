@@ -17,6 +17,7 @@ usage:
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  hangar link task|tab|project <ref> [--json]   (prints a hangar:// link; opening it only selects, nothing runs)
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
   hangar mcp   (MCP server over stdio)
   hangar event <kind> [--session ID]
@@ -41,6 +42,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
+    case "link task", "link tab", "link project": Grammar(positionals: 1...1)
     default: nil
     }
 }
@@ -106,6 +108,8 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let text = words.isEmpty ? nil : words.joined(separator: " ")
         guard text != nil || !keys.isEmpty else { return .usage("nothing to send: pass text, --key or --enter") }
         call = .tabsSend(tab: tab, text: text, keys: keys)
+    case "link task", "link tab", "link project":
+        call = .linksCreate(kind: LinkKind(rawValue: args[1])!, ref: words[0])
     default:  // tabs read
         guard let tab = required("tab") else { return missing("tab") }
         var lines = ControlCall.defaultLines
@@ -168,6 +172,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = (try? d.decode(ScreenResult.self, from: result))?.text
     case .tasksArchive:
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
+    case .linksCreate:
+        text = (try? d.decode(LinkResult.self, from: result))?.url
     }
     return text ?? String(decoding: result, as: UTF8.self)
 }

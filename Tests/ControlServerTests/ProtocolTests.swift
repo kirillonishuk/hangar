@@ -112,7 +112,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             .tasksCreate(project: "app", name: "Fix", worktree: true, base: "main", prompt: "go"),
             .tabsOpen(task: "t1", kind: .shell, prompt: nil), .tabsOpen(task: "t1", kind: .claude, prompt: "hi"),
             .tabsSend(tab: "ab12", text: "ls", keys: [.enter, .ctrlC]), .tabsSend(tab: "ab12", text: nil, keys: [.up]),
-            .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"),
+            .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"), .linksCreate(kind: .task, ref: "t1"),
         ]
         #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))
         for call in calls {

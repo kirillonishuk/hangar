@@ -33,6 +33,7 @@ public struct ParamSpec: Sendable {
 public enum ControlMethod: String, CaseIterable, Sendable {
     case projectsList = "projects.list", projectsAdd = "projects.add", tasksList = "tasks.list", tasksCreate = "tasks.create"
     case tabsOpen = "tabs.open", tabsSend = "tabs.send", tabsRead = "tabs.read", tasksArchive = "tasks.archive"
+    case linksCreate = "links.create"
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
@@ -50,6 +51,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
+        case .linksCreate: "Get a hangar:// link to a task, a tab or a project. Clicking it in Hangar only selects and focuses it; nothing runs."
         }
     }
 
@@ -98,6 +100,12 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "force", type: .bool, required: false,
                           summary: "Remove the worktree even with uncommitted changes or ignored files; they are deleted."),
             ]
+        case .linksCreate:
+            return [
+                ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at."),
+                ParamSpec(name: "ref", type: ref, required: true,
+                          summary: "Task or project id (or unique prefix) or name; for a tab, a tab or leaf id from tasks_list (or unique prefix)."),
+            ]
         }
     }
 }
@@ -112,6 +120,7 @@ public enum ControlCall: Equatable, Sendable {
     case tabsSend(tab: String, text: String?, keys: [SendKey])
     case tabsRead(tab: String, lines: Int)
     case tasksArchive(task: String, force: Bool = false)
+    case linksCreate(kind: LinkKind, ref: String)
 
     public static let defaultLines = 100
 
@@ -125,6 +134,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tabsSend: .tabsSend
         case .tabsRead: .tabsRead
         case .tasksArchive: .tasksArchive
+        case .linksCreate: .linksCreate
         }
     }
 
@@ -151,6 +161,7 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksArchive(task, force):
             p = ["task": task, "yes": true]
             if force { p["force"] = true }
+        case let .linksCreate(kind, ref): p = ["kind": kind.rawValue, "ref": ref]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -257,6 +268,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }
             return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
+        case .linksCreate: return .linksCreate(kind: LinkKind(rawValue: v.strings["kind"]!)!, ref: v.strings["ref"]!)
         }
     }
 

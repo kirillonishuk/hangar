@@ -33,6 +33,7 @@ public struct ParamSpec: Sendable {
 public enum ControlMethod: String, CaseIterable, Sendable {
     case projectsList = "projects.list", projectsAdd = "projects.add", tasksList = "tasks.list", tasksCreate = "tasks.create"
     case tabsOpen = "tabs.open", tabsSend = "tabs.send", tabsRead = "tabs.read", tasksArchive = "tasks.archive"
+    case doctor
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
@@ -49,6 +50,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
+        case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         }
     }
@@ -56,7 +58,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public var params: [ParamSpec] {
         let ref = ParamType.string(maxBytes: 256)
         switch self {
-        case .projectsList:
+        case .projectsList, .doctor:
             return []
         case .projectsAdd:
             return [
@@ -112,6 +114,7 @@ public enum ControlCall: Equatable, Sendable {
     case tabsSend(tab: String, text: String?, keys: [SendKey])
     case tabsRead(tab: String, lines: Int)
     case tasksArchive(task: String, force: Bool = false)
+    case doctor
 
     public static let defaultLines = 100
 
@@ -125,13 +128,14 @@ public enum ControlCall: Equatable, Sendable {
         case .tabsSend: .tabsSend
         case .tabsRead: .tabsRead
         case .tasksArchive: .tasksArchive
+        case .doctor: .doctor
         }
     }
 
     public func paramsJSON() -> Data {
         var p: [String: Any] = [:]
         switch self {
-        case .projectsList: break
+        case .projectsList, .doctor: break
         case let .projectsAdd(path, host):
             p["path"] = path
             p["host"] = host
@@ -229,6 +233,7 @@ public enum ControlCall: Equatable, Sendable {
     private static func build(_ m: ControlMethod, _ v: Values) throws -> ControlCall {
         switch m {
         case .projectsList: return .projectsList
+        case .doctor: return .doctor
         case .projectsAdd:
             let path = v.strings["path"]!, host = v.strings["host"]
             guard host != nil || path.hasPrefix("/") else { throw bad("\"path\" must be absolute") }

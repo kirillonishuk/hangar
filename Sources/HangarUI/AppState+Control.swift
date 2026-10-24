@@ -27,6 +27,9 @@ extension AppState {
         case .projectsList:
             return .ok(id, ProjectsResult(projects: state.projects.map(projectInfo)))
 
+        case .doctor:
+            return .ok(id, await doctorResult())
+
         case .projectsAdd(let raw, .some(let host)):
             return await addRemote(id, path: raw, host: host)
 

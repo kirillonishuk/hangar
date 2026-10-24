@@ -99,6 +99,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
+    /// The remote tmux kills the last `perform` started.
+    @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -173,7 +175,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
-        killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
         if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
             lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
@@ -370,9 +372,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func moveProject(_ id: UUID, to index: Int) { perform { $0.moveProject(id: id, to: index) } }
     func archive(taskId: UUID) { perform { $0.archiveTask(id: taskId) } }
     /// Unarchived agents resume like at startup (their surfaces were closed by the archive).
-    func restore(taskId: UUID) {
+    /// `fresh` (detached from its worktree): the leaves start anew instead of resuming.
+    func restore(taskId: UUID, fresh: Bool = false) {
         perform { $0.restoreTask(id: taskId) }
-        markRestored(state.tasks.filter { $0.id == taskId })
+        let tasks = state.tasks.filter { $0.id == taskId }
+        if fresh {
+            for leaf in tasks.flatMap({ $0.tabs.flatMap(\.root.leaves) + [$0.drawer.leaf].compactMap { $0 } }) { restoredLeaves[leaf.id] = nil }
+        } else {
+            markRestored(tasks)
+        }
     }
     func setPinned(_ taskId: UUID, _ pinned: Bool) { perform { $0.setPinned(taskId: taskId, pinned) } }
     func setCollapsed(projectId: UUID, _ collapsed: Bool) { perform { $0.setProjectCollapsed(id: projectId, collapsed) } }

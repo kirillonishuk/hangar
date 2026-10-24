@@ -73,8 +73,10 @@ import Workspace
         }
     }
 
-    private func create(_ m: NewTaskModel, _ name: String) async throws -> String {
+    private func create(_ m: NewTaskModel, _ name: String, runSetup: Bool? = nil, base: String? = nil) async throws -> String {
         await m.load()
+        if let runSetup { m.runSetup = runSetup }
+        if let base { m.base = base }
         m.name = name
         guard case .worktree(let path, _, _)? = await m.create(skipFetch: false) else {
             Issue.record("worktree not created: \(m.createError ?? "-")")
@@ -126,18 +128,27 @@ import Workspace
         #expect(try String(contentsOfFile: wt + "/apps/cms/.env.local", encoding: .utf8) == "CMS=1")
         #expect(!exists(wt + "/node_modules") && !exists(wt + "/apps/saas/node_modules"))  // pnpm reinstalls from its store
         #expect(!exists(wt + "/dist") && !exists(wt + "/.turbo"))
-        #expect(m.setupScript == "pnpm install --frozen-lockfile --prefer-offline")
-        // An own (even empty) command wins over the default.
+        // The lockfile's command is only a suggestion: off until the user turns it on (then it is saved to the project).
+        #expect(m.setupCommand == "pnpm install --frozen-lockfile --prefer-offline" && !m.runSetup)
+        #expect(m.setupScript == nil && m.commandToSave == nil)
+        let on = model(t, copy: nil)
+        _ = try await create(on, "pn-on", runSetup: true)
+        #expect(on.setupScript == "pnpm install --frozen-lockfile --prefer-offline")
+        #expect(on.commandToSave == "pnpm install --frozen-lockfile --prefer-offline")
+        // A saved command runs by default and is not saved again; an own empty command suggests nothing.
+        let saved = model(t, copy: nil, command: "pnpm i")
+        _ = try await create(saved, "pn-saved")
+        #expect(saved.runSetup && saved.setupScript == "pnpm i" && saved.commandToSave == nil)
         let none = model(t, copy: nil, command: "")
         _ = try await create(none, "pn2")
-        #expect(none.setupScript == nil)
+        #expect(none.setupCommand == nil && none.setupScript == nil)
     }
 
     @Test func subfolderProjectCopiesFromTheRepoTop() async throws {
         let t = try await monorepo(lockfile: "pnpm-lock.yaml")
         defer { t.cleanup() }
         let m = model(t, copy: nil, location: .local(path: t.repo + "/apps/saas"), root: t.root + "/wt")
-        let wt = try await create(m, "sub")
+        let wt = try await create(m, "sub", runSetup: true)
         // The worktree is a whole checkout: the setup tab opens at its top, where the lockfile is.
         #expect(exists(wt + "/pnpm-lock.yaml"))
         #expect(exists(wt + "/.env") && exists(wt + "/apps/saas/.env") && exists(wt + "/apps/cms/.env.local"))
@@ -204,6 +215,33 @@ import Workspace
         #expect(!exists(parent + "/outside"))
         #expect(!exists(wt + "/outside") && !exists(wt + "/secret"))
         #expect(try FileManager.default.contentsOfDirectory(atPath: t.base + "/outside") == ["secret"])
+    }
+
+    /// The base branch tracks `cfg` as a symlink out of the project, the main checkout has a real `cfg/.env`:
+    /// the copy must not write through the worktree's symlink.
+    @Test func symlinkedDestinationIsRefused() async throws {
+        let t = try await TempRepo.offMain {
+            let t = try TempRepo()
+            let fm = FileManager.default
+            try ".env\n".write(toFile: t.repo + "/.gitignore", atomically: true, encoding: .utf8)
+            try t.git("add", ".gitignore", in: t.repo)
+            try t.git("commit", "-q", "-m", "ignore", in: t.repo)
+            try t.git("checkout", "-q", "-b", "evil", in: t.repo)
+            try fm.createDirectory(atPath: t.base + "/outside", withIntermediateDirectories: true)
+            try fm.createSymbolicLink(atPath: t.repo + "/cfg", withDestinationPath: t.base + "/outside")
+            try t.git("add", "cfg", in: t.repo)
+            try t.git("commit", "-q", "-m", "link", in: t.repo)
+            try t.git("checkout", "-q", "main", in: t.repo)
+            try fm.createDirectory(atPath: t.repo + "/cfg", withIntermediateDirectories: true)
+            try "SECRET=1".write(toFile: t.repo + "/cfg/.env", atomically: true, encoding: .utf8)
+            return t
+        }
+        defer { t.cleanup() }
+        let m = model(t, copy: [".env*"])
+        let wt = try await create(m, "s", base: "evil")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: wt + "/cfg") == t.base + "/outside")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: t.base + "/outside").isEmpty)
+        #expect(m.setupScript?.contains("cfg/.env") == true)  // reported as a failed copy
     }
 
     @Test func setupCommandIsQueued() async throws {

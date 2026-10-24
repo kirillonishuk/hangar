@@ -291,6 +291,8 @@
 "worktreeCopy" = "Копировать в worktree";
 "worktreeCopyHelp" = "Игнорируемые git файлы и папки, через запятую; маски вроде .env* ищутся во всём репозитории (кроме node_modules, dist, .turbo). Копируются клоном APFS (мгновенно, без лишнего места); отсутствующие пропускаются. С pnpm/yarn/bun node_modules не копируется — его ставит команда";
 "setupCommand" = "Команда после создания";
-"setupCommandHelp" = "Выполняется в корне нового worktree во вкладке shell после копирования. По умолчанию — по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline); пусто — без команды";
+"setupCommandHelp" = "Выполняется в корне нового worktree во вкладке shell после копирования. Пусто — без команды; команда по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) только предлагается";
+"afterCreate" = "После создания";
+"afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке shell нового worktree и сохранится в проекте";
 "copyingEntry" = "Копирую %@…";
 "copyFailed" = "hangar: не скопировано %@";

@@ -58,10 +58,12 @@ import Workspace
 enum WorktreeCheck: Equatable { case missing, clean, atRisk(dirty: Bool, ignored: [String]) }
 
 /// `runner`: the project's machine. Throws when the check itself fails (host down, git error).
+/// Reinstallable folders and setup's identical copies of main-folder files are not at risk (`Git.ignoredAtRisk`).
 func checkWorktree(_ path: String, git: Git, runner: Runner) async throws -> WorktreeCheck {
     guard try await isDirectory(path, runner: runner) else { return .missing }
     let dirty = try await git.isDirty(path: path)
-    let ignored = try await git.ignoredFiles(path: path)
+    var ignored = try await git.ignoredFiles(path: path)
+    if !ignored.isEmpty { ignored = try await git.ignoredAtRisk(ignored, worktree: path, top: try await git.toplevel()) }
     return dirty || !ignored.isEmpty ? .atRisk(dirty: dirty, ignored: ignored) : .clean
 }
 
@@ -74,7 +76,7 @@ func isDirectory(_ path: String, runner: Runner) async throws -> Bool {
 
 @MainActor func worktreeRiskTitle(dirty: Bool) -> String { dirty ? L10n.worktreeDirty : L10n.worktreeIgnored }
 
-/// Up to 5 ignored names (`.env`, local databases) so the user sees what goes.
+/// Up to 5 ignored names (`.env`, local databases), ones missing from the main folder first, so the user sees what goes.
 @MainActor func worktreeRiskInfo(ignored: [String]) -> String {
     let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
     return ignored.isEmpty ? L10n.worktreeDirtyInfo : L10n.worktreeIgnoredInfo(shown)

@@ -51,7 +51,7 @@ struct ProjectSettingsSheet: View {
     @State private var copyText: String
     @State private var setupCommand: String
     /// A project without its own list / command shows its package manager's defaults (the list: only what exists in
-    /// the main checkout); saved unchanged, they stay nil and follow the lockfile.
+    /// the main checkout, prefilled; the command: a placeholder, never run unless saved); saved unchanged, they stay nil.
     @State private var defaults: WorktreeDefaults?
     @State private var suggestedCopy: String?
     @State private var error: String?
@@ -166,7 +166,9 @@ struct ProjectSettingsSheet: View {
                 }
                 .help(L10n.worktreeCopyHelp)
                 CardRow(label: L10n.setupCommand, labelWidth: Theme.projectCardLabelWidth) {
-                    TextField("", text: $setupCommand, prompt: Text(verbatim: "npm install").foregroundStyle(Theme.ui.text3))
+                    // The lockfile's command is a placeholder only: it runs once typed in and saved (or turned on in the new-task sheet).
+                    TextField("", text: $setupCommand, prompt: Text(verbatim: project.setupCommand == nil ? defaults?.command ?? "" : "")
+                        .foregroundStyle(Theme.ui.text3))
                         .modifier(CardField(mono: true))
                         .focused($focus, equals: .setup)
                         .onSubmit(save)
@@ -215,7 +217,6 @@ struct ProjectSettingsSheet: View {
         guard isGit == true, project.worktreeCopy == nil || project.setupCommand == nil else { return }
         let found = WorktreeDefaults(lockfiles: (try? await git.lockfiles()) ?? [])
         defaults = found
-        if project.setupCommand == nil, setupCommand.isEmpty { setupCommand = found.command ?? "" }
         guard project.worktreeCopy == nil, let entries = try? await git.ignoredEntries() else { return }
         let present = found.copy.filter { !matchIgnored([$0], entries).isEmpty }.joined(separator: ", ")
         suggestedCopy = present
@@ -238,7 +239,7 @@ struct ProjectSettingsSheet: View {
         var setup = WorktreeSetup(copy: project.worktreeCopy, command: project.setupCommand)  // hidden rows keep what is stored
         if isGit == true {
             setup = WorktreeSetup(copy: project.worktreeCopy == nil && copyText == (suggestedCopy ?? "") ? nil : worktreeCopyInput(copyText),
-                                  command: project.setupCommand == nil && setupCommand == (defaults?.command ?? "") ? nil : setupCommand)
+                                  command: project.setupCommand == nil && setupCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : setupCommand)
             switch worktreeRootInput(worktreeRoot, remote: remote) {
             case .success(let value): root = value
             case .failure(let e): rootError = e.message; return

@@ -461,12 +461,14 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     }
 
     /// Restore without its worktree (the branch is gone): a main-folder task whose leaves move from the worktree to the project.
+    /// Session ids are dropped: the worktree's conversations don't belong in the project folder.
     public mutating func detachWorktree(taskId: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, _, _) = tasks[i].mode else { return }
         tasks[i].mode = .mainFolder
         let folder = cwd(for: tasks[i])
         func move(_ leaf: Leaf) -> Leaf {
             var leaf = leaf
+            leaf.agentSessionId = nil
             if leaf.cwd == path || leaf.cwd.hasPrefix(path + "/") { leaf.cwd = folder + leaf.cwd.dropFirst(path.count) }
             return leaf
         }

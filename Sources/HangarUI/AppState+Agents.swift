@@ -89,6 +89,7 @@ extension AppState {
         if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) {
             onTransition?(t)
             if t.to == .done { onLeafDone?(t.leaf) }
+            if t.to == .waiting, config.dockBadge { requestAttention?() }
         }
     }
 

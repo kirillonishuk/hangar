@@ -11,14 +11,15 @@ public let cliUsage = """
 usage:
   hangar projects list [--json]
   hangar projects add <path> [--host H] [--json]   (with --host: a path on the server, quote ~ so the local shell keeps it)
-  hangar tasks list [--project P] [--json]
+  hangar tasks list [--project P] [--git] [--json]   (--git: +added −removed lines and files vs the base, dirty, ↑ahead ↓behind)
   hangar tasks create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
   hangar tasks archive --task T --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
+  hangar tasks restore --task T [--json]   (an archived task; re-creates its worktree from the kept branch)
   hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
-  hangar mcp   (MCP server over stdio)
+  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, tasks_list, tabs_read)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """
@@ -35,7 +36,8 @@ private func grammar(_ command: String) -> Grammar? {
     switch command {
     case "projects list": Grammar()
     case "projects add": Grammar(values: ["--host"], positionals: 1...1)
-    case "tasks list": Grammar(values: ["--project"])
+    case "tasks list": Grammar(values: ["--project"], flags: ["--git"])
+    case "tasks restore": Grammar(values: ["--task"])
     case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "tasks archive": Grammar(values: ["--task"], flags: ["--yes", "--force"])
     case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
@@ -84,7 +86,10 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let path = words[0].hasPrefix("/") ? words[0] : cwd + "/" + words[0]
         call = .projectsAdd(path: URL(fileURLWithPath: path).standardized.path)
     case "tasks list":
-        call = .tasksList(project: values["--project"])
+        call = .tasksList(project: values["--project"], git: flags.contains("--git"))
+    case "tasks restore":
+        guard let task = required("task") else { return missing("task") }
+        call = .tasksRestore(task: task)
     case "tasks create":
         guard let project = required("project") else { return missing("project") }
         guard let name = required("name") else { return missing("name") }
@@ -126,6 +131,10 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .projectsAdd(_, .some): 60
     // git status and `worktree remove` of a big folder (node_modules), possibly over ssh.
     case .tasksArchive: 120
+    // `worktree add` of the kept branch (checkout of a big tree), possibly over ssh.
+    case .tasksRestore: 120
+    // A few git runs per task, possibly over ssh.
+    case .tasksList(_, true): 60
     default: 10
     }
 }
@@ -150,7 +159,11 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
     case .tasksList:
         text = (try? d.decode(TasksResult.self, from: result)).map { r in
             r.tasks.flatMap { t -> [String] in
-                var lines = ["\(id8(t.id))  \(t.status)  \(t.projectName)/\(t.name)" + (t.branch.map { "  ⎇ \($0)" } ?? "")]
+                var head = "\(id8(t.id))  \(t.status)  \(t.projectName)/\(t.name)" + (t.branch.map { "  ⎇ \($0)" } ?? "")
+                if let c = t.changes { head += "  +\(c.added) −\(c.removed) in \(c.files) file" + (c.files == 1 ? "" : "s") }
+                if t.dirty == true { head += "  dirty" }
+                if let a = t.ahead, let b = t.behind { head += "  ↑\(a) ↓\(b)" }
+                var lines = [head]
                 lines += t.tabs.map { "    \(id8($0.id))  \($0.kind.rawValue)  \($0.status)  \($0.title)" }
                 if let d = t.drawer { lines.append("    \(id8(d.id))  drawer  \(d.status)  TERMINAL") }
                 return lines
@@ -166,6 +179,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = ""
     case .tabsRead:
         text = (try? d.decode(ScreenResult.self, from: result))?.text
+    case .tasksRestore:
+        text = (try? d.decode(TaskResult.self, from: result)).map { "restored \(id($0.task.id))" }
     case .tasksArchive:
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
     }

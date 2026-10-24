@@ -188,7 +188,9 @@
 "integrationMCP" = "Hangar MCP server";
 "copyCommand" = "Copy";
 "commandCopied" = "Command copied";
-"mcpHint" = "Run it in a terminal — Hangar does not edit agent configs itself";
+"mcpHint" = "Run it in a terminal — Hangar does not edit agent configs itself. Add --read-only after mcp to allow only listing tasks and reading tabs";
+"dockBadgeTitle" = "Dock badge";
+"dockBadgeHelp" = "Number of tasks waiting for you on the Dock icon; the icon bounces once when a task starts waiting while Hangar is in the background";
 "settingsInvalidJSON" = "settings.json: JSON error on line %ld — fix the file manually";
 "settingsUnsupported" = "settings.json: unexpected structure — fix the file manually";
 "fileChanged" = "The file changed — review the changes again";

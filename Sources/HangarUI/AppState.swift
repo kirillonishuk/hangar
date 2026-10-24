@@ -16,7 +16,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     public private(set) var state: WorkspaceState
     /// Changed live from Settings (each change is also written to `configURL`).
     public private(set) var config: HangarConfig {
-        didSet { if config.keepAwake != oldValue.keepAwake { updateKeepAwake() } }
+        didSet {
+            if config.keepAwake != oldValue.keepAwake { updateKeepAwake() }
+            if config.dockBadge != oldValue.dockBadge { updateDockBadge() }
+        }
     }
     /// Runtime-only (not persisted): last terminal title per leaf.
     var leafTitles: [UUID: String] = [:]
@@ -25,7 +28,18 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
-    var statuses = StatusBoard() { didSet { updateKeepAwake() } }
+    var statuses = StatusBoard() {
+        didSet {
+            updateKeepAwake()
+            updateDockBadge()
+        }
+    }
+    /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
+    @ObservationIgnored var onDockBadge: ((String) -> Void)?
+    /// A leaf started waiting: bounce the Dock once if the app is inactive (set by the window controller).
+    @ObservationIgnored var requestAttention: (() -> Void)?
+    /// The badge text last handed to `onDockBadge`.
+    @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
     @ObservationIgnored public lazy var keepAwake = KeepAwake()
     /// Subscription limits from the statusline / codex; in memory only.
@@ -463,6 +477,18 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
+    /// Unarchived tasks whose combined state is waiting (archived leaves already dropped their status).
+    var waitingTaskCount: Int { state.tasks.filter { !$0.archived && state(of: $0) == .waiting }.count }
+
+    /// Called on status and setting changes only (no timer); hands the label over only when it changes.
+    func updateDockBadge() {
+        guard let onDockBadge else { return }
+        let label = dockBadgeLabel(waiting: waitingTaskCount, enabled: config.dockBadge)
+        guard label != dockBadge else { return }
+        dockBadge = label
+        onDockBadge(label)
+    }
+
     func setLanguage(_ language: Language) throws {
         try setConfig("language", language.rawValue) { $0.language = language }
         L10n.language = language
@@ -470,6 +496,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         didChange?()
     }
 }
+
+/// `NSDockTile.badgeLabel`: the count, or "" (no badge) at 0 or when turned off.
+func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting > 0 ? String(waiting) : "" }
 
 /// Text of the alert shown at launch for a problem with state.json; nil when there is nothing to tell.
 @MainActor public func loadAlert(for result: LoadResult) -> String? {

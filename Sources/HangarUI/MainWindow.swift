@@ -461,6 +461,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
     /// No-op outside an .app bundle.
     public func enableNotifications() {
+        // Dock badge and bounce: no bundle needed, so before the notifier's guard.
+        app.onDockBadge = { NSApp.dockTile.badgeLabel = $0 }
+        app.requestAttention = { if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) } }
+        app.updateDockBadge()
         guard let notifier = Notifier.makeIfAvailable() else { return }
         self.notifier = notifier
         notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }

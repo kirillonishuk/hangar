@@ -1,4 +1,5 @@
 import AppKit
+import ControlServer
 import Exec
 import Git
 import SwiftUI
@@ -39,7 +40,7 @@ enum ActionTarget: Equatable {
 
 /// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts and the ⇧⌘P palette read it here.
 enum Action: CaseIterable {
-    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, openInEditor
+    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
@@ -52,11 +53,11 @@ enum Action: CaseIterable {
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort] + editor + [.archive]
+            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
             return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath] + editor + [.removeProject]
         case .tab:
-            return [.rename, .splitRight, .splitDown, .closeTab]
+            return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
         }
     }
 
@@ -84,7 +85,7 @@ enum Action: CaseIterable {
         case .togglePin: .pin
         case .projectSettings: .settings
         case .revealInFinder: .finder
-        case .copyPath, .copyPort: .copy
+        case .copyPath, .copyPort, .copyLink: .copy
         case .openInEditor: .openExternal
         case .archive: .archive
         case .restore: .restore
@@ -108,6 +109,7 @@ enum Action: CaseIterable {
         case .revealInFinder: L10n.revealInFinder
         case .copyPath: L10n.copyPath
         case .copyPort: L10n.portCopy(app.port(of: target) ?? 0)
+        case .copyLink: L10n.copyLink
         case .openInEditor: L10n.openIn(editorName(app.config.externalEditor ?? ""))
         case .archive: L10n.archive
         case .restore: L10n.restore
@@ -158,6 +160,10 @@ enum Action: CaseIterable {
             guard let port = app.port(of: target) else { return }
             ctx.pasteboard.clearContents()
             ctx.pasteboard.setString(String(port), forType: .string)
+        case (.copyLink, .task), (.copyLink, .tab):
+            guard let link = LinkTarget(target)?.link else { return }
+            ctx.pasteboard.clearContents()
+            ctx.pasteboard.setString(link.url.absoluteString, forType: .string)
         case (.openInEditor, _):
             guard let editor = app.config.externalEditor, let path = app.path(of: target) else { return }
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in

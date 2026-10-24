@@ -19,6 +19,7 @@ usage:
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
+  hangar link task|tab|project <ref> [--json]   (prints a hangar:// link; opening it only selects, nothing runs)
   (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
   hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, tasks_list, tabs_read, doctor)
@@ -46,6 +47,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     case "ssh": Grammar(positionals: 1...1)
+    case "link task", "link tab", "link project": Grammar(positionals: 1...1)
     default: nil
     }
 }
@@ -120,6 +122,8 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let text = words.isEmpty ? nil : words.joined(separator: " ")
         guard text != nil || !keys.isEmpty else { return .usage("nothing to send: pass text, --key or --enter") }
         call = .tabsSend(tab: tab, text: text, keys: keys, wait: flags.contains("--wait"))
+    case "link task", "link tab", "link project":
+        call = .linksCreate(kind: LinkKind(rawValue: args[1])!, ref: words[0])
     default:  // tabs read
         guard let tab = required("tab") else { return missing("tab") }
         var lines = ControlCall.defaultLines
@@ -202,6 +206,8 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = (try? d.decode(TabResult.self, from: result)).map { "tab \(id($0.tab.id))" }
     case .tasksArchive:
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
+    case .linksCreate:
+        text = (try? d.decode(LinkResult.self, from: result))?.url
     }
     return text ?? String(decoding: result, as: UTF8.self)
 }

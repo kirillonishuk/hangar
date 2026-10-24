@@ -15,5 +15,12 @@
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>app.hangar.Hangar.link</string>
+            <key>CFBundleURLSchemes</key><array><string>hangar</string></array>
+        </dict>
+    </array>
 </dict>
 </plist>

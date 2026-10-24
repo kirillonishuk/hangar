@@ -77,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         wc.enableNotifications()
         appState = app
+        for url in pendingLinks { wc.openLink(url) }
+        pendingLinks = []
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.appState?.remote.didWake() }
         }
@@ -116,6 +118,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             wc.confirmQuit { NSApp.reply(toApplicationShouldTerminate: $0) }
             return .terminateLater
         }
+    }
+
+    /// `hangar://` links (#NN-links). A cold launch may deliver them before the window exists: kept until it does.
+    private var pendingLinks: [URL] = []
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let wc = windowController else { pendingLinks += urls; return }
+        for url in urls { wc.openLink(url) }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

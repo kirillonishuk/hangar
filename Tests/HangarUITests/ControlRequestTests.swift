@@ -212,11 +212,24 @@ import Workspace
         #expect(both?.message.contains(wt.task.id.uuidString) == true)
         #expect(app.state.tasks.allSatisfy { !$0.archived })
 
-        let r = try await ok(app, .tasksArchive(task: wt.task.id.uuidString), ArchiveResult.self)
-        #expect(r.task == wt.task.id && r.archived)
+        // Dirty: refused without force, nothing changes; with force the folder goes, the branch stays.
+        try "u".write(toFile: wt.task.path + "/untracked.txt", atomically: true, encoding: .utf8)
+        let dirty = await error(app, .tasksArchive(task: wt.task.id.uuidString))
+        #expect(dirty?.code == .confirmRequired)
+        #expect(dirty?.message.contains("--force") == true && dirty?.message.contains("uncommitted") == true)
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == false)
+        #expect(FileManager.default.fileExists(atPath: wt.task.path + "/untracked.txt"))
+
+        let r = try await ok(app, .tasksArchive(task: wt.task.id.uuidString, force: true), ArchiveResult.self)
+        #expect(r.task == wt.task.id && r.archived && r.worktreeRemoved)
         #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
-        #expect(FileManager.default.fileExists(atPath: wt.task.path))
+        #expect(!FileManager.default.fileExists(atPath: wt.task.path))
+        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(await error(app, .tasksArchive(task: wt.task.id.uuidString))?.code == .notFound)
+
+        // A main-folder task: just archived.
+        let plain = try await ok(app, .tasksArchive(task: "x"), ArchiveResult.self)
+        #expect(plain.archived && !plain.worktreeRemoved)
     }
     /// Records what the control handlers ask of the terminals.
     private final class FakeTerminals {

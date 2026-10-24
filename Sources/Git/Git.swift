@@ -138,6 +138,20 @@ public struct Git: Sendable {
         }
     }
 
+    /// Checks out a kept branch again (restore from archive, decision #NN-archive): no `-b`, nothing is created.
+    public func addWorktree(path: String, existingBranch: String) async throws {
+        try await exec(["worktree", "add", "--", path, existingBranch])
+    }
+
+    /// A git failure (not "no such branch") throws: restore must not offer dropping the worktree on a broken connection.
+    public func hasBranch(_ name: String) async throws -> Bool {
+        let args = ["--no-optional-locks", "rev-parse", "--verify", "--quiet", "refs/heads/" + name]
+        let r = try await runner.run(["git"] + args, repo)
+        if r.status == 0 { return true }
+        if r.status == 1 { return false }
+        throw GitError(args: args, status: r.status, stderr: r.stderr.trimmed)
+    }
+
     public func removeWorktree(path: String, force: Bool) async throws {
         try await exec(["worktree", "remove"] + (force ? ["--force"] : []) + ["--", path])
     }

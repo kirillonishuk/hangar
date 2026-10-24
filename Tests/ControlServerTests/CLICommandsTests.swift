@@ -29,6 +29,7 @@ import ControlServer
             (["tasks", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
             (["tasks", "list"], .call(.tasksList(project: nil), json: false)),
             (["tasks", "archive", "--yes", "--task", "t"], .call(.tasksArchive(task: "t"), json: false)),
+            (["tasks", "archive", "--yes", "--force", "--task", "t"], .call(.tasksArchive(task: "t", force: true), json: false)),
         ]
         for (args, expected) in table {
             #expect(parseCLI(args, cwd: "/tmp/a/b") == expected, "\(args)")
@@ -126,6 +127,7 @@ import ControlServer
                 == "abcdef12-0000-0000-0000-000000000001  dev:/srv/app\nwarning: tmux missing on server; open Hangar → Server to install")
         #expect(requestTimeout(.projectsAdd(path: "~/app", host: "dev")) >= 60)
         #expect(requestTimeout(.projectsAdd(path: "/a")) == 10)
+        #expect(requestTimeout(.tasksArchive(task: "t")) >= 60)
         let tab = TabInfo(id: t1, kind: .shell, title: "zsh", status: "idle", leaves: [])
         #expect(formatHuman(.tabsOpen(task: "t", kind: .shell, prompt: nil), result: try JSONEncoder().encode(TabResult(task: taskId, tab: tab)))
                 == "tab 11112222-0000-0000-0000-000000000002")
@@ -134,5 +136,7 @@ import ControlServer
                 == "$ ls\nfoo")
         #expect(formatHuman(.tasksArchive(task: "t"), result: try JSONEncoder().encode(ArchiveResult(task: taskId, archived: true)))
                 == "archived abcdef12-0000-0000-0000-000000000001")
+        #expect(formatHuman(.tasksArchive(task: "t"), result: try JSONEncoder().encode(ArchiveResult(task: taskId, archived: true, worktreeRemoved: true)))
+                == "archived abcdef12-0000-0000-0000-000000000001; worktree removed, branch kept")
     }
 }

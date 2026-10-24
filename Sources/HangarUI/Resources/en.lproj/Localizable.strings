@@ -276,4 +276,10 @@
 "copyRelativePath" = "Copy Relative Path";
 "taskArchived" = "Task archived";
 "undoArchive" = "Undo";
+"archiveAnyway" = "Archive anyway";
+"archiveFailed" = "Couldn't archive the task";
+"restoreFailed" = "Couldn't restore the task";
+"branchGone" = "Branch “%@” no longer exists";
+"branchGoneInfo" = "The worktree can't be re-created. Restore the task in the project folder?";
+"restoreWithoutWorktree" = "Restore without worktree";
 "keepAwakeShort" = "Keep awake";

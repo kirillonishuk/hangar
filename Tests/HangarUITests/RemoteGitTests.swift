@@ -236,6 +236,59 @@ import Workspace
         #expect(!FileManager.default.fileExists(atPath: s.server + ".worktrees/keep"))
     }
 
+    /// Archive on a host: the server's worktree is checked (ignored .env → asked), removed with the branch kept,
+    /// the tab's tmux session killed; restore re-creates the worktree there. The Mac's decoy is never touched.
+    @Test func remoteArchiveRemovesServerWorktree() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h)
+        try await RemoteHostsTests.offMain {
+            try Self.git(["worktree", "add", "-q", "-b", "wip", s.server + ".worktrees/wip", "main"], in: s.server)
+            try "SECRET=1".write(toFile: s.server + ".worktrees/wip/.env", atomically: true, encoding: .utf8)
+        }
+        let before = Self.snapshot(h.root + "/mac")
+        var id = UUID(), leaf = UUID()
+        h.app.perform { st in
+            id = st.addTask(projectId: s.project, name: "wip", mode: .worktree(path: s.mac + ".worktrees/wip", branch: "wip", base: "main"))
+            _ = st.addTab(taskId: id, kind: .shell)
+            leaf = st.tasks.first { $0.id == id }!.tabs[0].root.leaves[0].id
+        }
+        let calls = Calls()
+        var ctx = ActionContext(app: h.app)
+        ctx.confirm = { m, _, _, then in calls.confirms.append(m); then() }
+        ctx.showError = { calls.errors.append($0 + ": " + $1) }
+        Action.archive.perform(.task(id), ctx)
+        #expect(await waitUntil { h.app.state.tasks.first { $0.id == id }?.archived == true })
+        #expect(await waitUntil { !FileManager.default.fileExists(atPath: s.server + ".worktrees/wip") })
+        #expect(calls.confirms == [L10n.worktreeIgnored] && calls.errors.isEmpty)
+        #expect(await waitUntil { log(h).contains("kill-session") && log(h).contains("hangar-\(leaf.uuidString.lowercased())") })
+        #expect(FileManager.default.fileExists(atPath: s.server + "/.git/refs/heads/wip"))
+
+        Action.restore.perform(.task(id), ctx)
+        #expect(await waitUntil { h.app.state.tasks.first { $0.id == id }?.archived == false })
+        #expect(FileManager.default.fileExists(atPath: s.server + ".worktrees/wip/a.txt"))
+        #expect(calls.errors.isEmpty)
+        #expect(Self.snapshot(h.root + "/mac") == before)
+    }
+
+    /// Host down: archive is refused ("not connected"), nothing is archived half-way.
+    @Test func remoteArchiveOfflineRefused() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h, connect: false)
+        var id = UUID()
+        h.app.perform { st in
+            id = st.addTask(projectId: s.project, name: "old", mode: .worktree(path: s.mac + ".worktrees/old", branch: "old", base: "main"))
+        }
+        let calls = Calls()
+        var ctx = ActionContext(app: h.app)
+        ctx.confirm = { m, _, _, then in calls.confirms.append(m); then() }
+        ctx.showError = { calls.errors.append($0 + ": " + $1) }
+        Action.archive.perform(.task(id), ctx)
+        #expect(await waitUntil { calls.errors.count == 1 })
+        #expect(calls.errors.first?.contains("not connected") == true)
+        #expect(h.app.state.tasks.first { $0.id == id }?.archived == false)
+        #expect(calls.confirms.isEmpty)
+    }
+
     @Test func disconnectedIsCalm() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h, connect: false)

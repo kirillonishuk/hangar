@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp
+        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -174,6 +174,7 @@ import Workspace
     static var diffUnavailable: String { s(.diffUnavailable) }
     static var newTabHelp: String { s(.newTabHelp) }
     static var closeTabHelp: String { s(.closeTabHelp) }
+    static var allTabsHelp: String { s(.allTabsHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
     static func firstMessagePlaceholder(_ agent: String) -> String { f(.firstMessagePlaceholder, agent) }
     static var escCancel: String { s(.escCancel) }

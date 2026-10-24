@@ -258,10 +258,13 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var sidebarCollapsed: Bool
     /// Last inspector width (clamped to 180...480 by the view).
     public var inspectorWidth: Double
+    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#NN-attention).
+    public var attentionOnly: Bool
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220) {
+                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220,
+                attentionOnly: Bool = false) {
         self.projects = projects
         self.tasks = tasks
         self.selectedTaskId = selectedTaskId
@@ -269,10 +272,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         self.sidebarWidth = sidebarWidth
         self.sidebarCollapsed = sidebarCollapsed
         self.inspectorWidth = inspectorWidth
+        self.attentionOnly = attentionOnly
     }
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth
+        case attentionOnly
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -284,7 +289,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
-                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220)
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220,
+                  attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
     }
 
     // MARK: Projects / tasks

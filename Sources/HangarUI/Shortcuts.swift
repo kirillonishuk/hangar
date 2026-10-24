@@ -4,12 +4,14 @@ public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, revealInFinder, copyPath
+    case attentionFilter
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .revealInFinder, .copyPath]
+            + [.attentionFilter]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -43,6 +45,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .inspectorChanges: ([.command, .option], 19, "2")
         case .revealInFinder: ([.command, .option], 15, "R")
         case .copyPath: ([.command, .option], 8, "C")
+        case .attentionFilter: ([.command, .option], 3, "F")
         }
     }
 

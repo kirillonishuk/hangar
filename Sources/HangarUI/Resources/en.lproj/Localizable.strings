@@ -70,6 +70,9 @@
 "saveFailed" = "Couldn't save config.toml: %@";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";
+"copyLink" = "Copy Link";
+"attentionOnly" = "Waiting only";
+"nobodyWaiting" = "Nobody is waiting";
 "openIn" = "Open in %@";
 "openFailed" = "Couldn't open in %@";
 "deletePermanently" = "Delete Permanently";

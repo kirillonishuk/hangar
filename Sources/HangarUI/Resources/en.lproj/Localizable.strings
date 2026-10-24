@@ -4,7 +4,7 @@
 "sectionArchived" = "ARCHIVED";
 "sectionSSHHosts" = "SSH HOSTS";
 "newTask" = "New Task";
-"newTaskHelp" = "New Task ⌘N";
+"newTaskHelp" = "New task";
 "newTaskIn" = "New task in %@";
 "addProject" = "Add Project";
 "addProjectEllipsis" = "Add Project…";
@@ -15,17 +15,17 @@
 "archive" = "Archive";
 "folderMissing" = "folder not found";
 "folderMissingPath" = "folder not found: %@";
-"more" = "More";
+"more" = "Actions";
 "settings" = "Settings";
-"settingsHelp" = "Settings ⌘,";
+"settingsHelp" = "Settings";
 "settingsEllipsis" = "Settings…";
 "collapse" = "Collapse";
-"collapseSidebarHelp" = "Collapse sidebar ⌘0";
-"expandSidebarHelp" = "Expand sidebar ⌘0";
-"inspectorHelp" = "Inspector ⌘⌥I";
+"collapseSidebarHelp" = "Collapse sidebar";
+"expandSidebarHelp" = "Expand sidebar";
+"inspectorHelp" = "Inspector";
 "diffUnavailable" = "No change data available";
-"newTabHelp" = "New Tab";
-"closeTabHelp" = "Close Tab ⌘W";
+"newTabHelp" = "New tab";
+"closeTabHelp" = "Close tab";
 "taskNamePlaceholder" = "task name";
 "firstMessagePlaceholder" = "First message for %@ (optional)…";
 "escCancel" = "esc — cancel";
@@ -98,7 +98,7 @@
 
 "drawerTitle" = "TERMINAL";
 "drawerToggle" = "Toggle Terminal";
-"drawerHelp" = "Terminal ⌃`";
+"drawerHelp" = "Terminal";
 "stateCorrupt" = "State file is corrupt, backup: %@";
 "stateUnreadable" = "Can't read the state file: %@. Hangar runs without saving.";
 "clipboardRead" = "A program wants to read the clipboard";
@@ -168,9 +168,9 @@
 "limitReached" = "%@: limit reached";
 "limitBadgeAlmost" = "almost at limit";
 "limitBadgeFull" = "limit reached";
-"limitsShortcutHint" = "⌘⇧L — open/close";
+"limitsShortcutHint" = "Open/close";
 "refresh" = "refresh";
-"limitsHelp" = "Subscription limits (⌘⇧L)";
+"limitsHelp" = "Subscription limits";
 
 "integrationClaude" = "Claude Code";
 "integrationCodex" = "Codex";
@@ -224,7 +224,7 @@
 "diffRenamedFrom" = "Renamed from %@";
 "diffNotChanged" = "File is no longer changed";
 "diffNotAFile" = "Not a file: a directory or a nested repository";
-"diffTabHelp" = "Close ⌘W";
+"diffTabHelp" = "Close";
 "keepAwakeTitle" = "Keep awake while agents work";
 "keepAwakeOffHelp" = "Keep awake: off";
 "keepAwakeIdleHelp" = "Keep the Mac awake while agents work";
@@ -277,3 +277,7 @@
 "taskArchived" = "Task archived";
 "undoArchive" = "Undo";
 "keepAwakeShort" = "Keep awake";
+"archiveToggleHelp" = "Archive — show/hide";
+"showFiles" = "Show files";
+"hostsMenuHelp" = "Hosts from ~/.ssh/config";
+"refreshLimitsHelp" = "Refresh limits";

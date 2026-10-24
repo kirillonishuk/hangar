@@ -203,7 +203,7 @@ private struct HostMenu: View {
     let pick: (String) -> Void
 
     var body: some View {
-        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: "") {
+        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: L10n.hostsMenuHelp) {
             ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
         }
         .environment(\.hoverPalette, .sheet)

@@ -50,7 +50,7 @@ struct SectionHeader: View {
                 Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                 Spacer(minLength: 0)
                 if let plus {
-                    Button(action: plus) { IconView(icon: .newTask, size: Theme.smallIconSize).padding(Theme.railInset) }
+                    Button(action: plus) { IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset) }
                         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
                         .opacity(hover || plusAlwaysVisible ? 1 : 0)
                         .help(plusHelp)
@@ -120,7 +120,7 @@ struct RailTile: View {
     }
 }
 
-/// Key hint at a row's end («⌘N», «⌘0», «⌘⇧N»): one size and color everywhere.
+/// Key hint at a row's end («⌘N», «⌘0», «⇧⌘N»: `Shortcut.label`): one size and color everywhere.
 struct ShortcutHint: View {
     let text: String
 
@@ -165,7 +165,7 @@ struct FilledRowStyle: ButtonStyle {
     }
 }
 
-/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая задача") and the ⌘⇧N hint.
+/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая задача") and the ⇧⌘N hint.
 struct EmptyStateView: View {
     let addProject: () -> Void
 
@@ -180,14 +180,14 @@ struct EmptyStateView: View {
         VStack(spacing: Theme.sheetGap) {
             Button(action: addProject) {
                 HStack(spacing: Theme.iconGap) {
-                    IconView(icon: .newTask, active: true)
+                    IconView(icon: .add, active: true)
                     Text(L10n.addProject).foregroundStyle(Theme.ui.textStrong)
                 }
                 .padding(.vertical, Theme.tabPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
             }
             .buttonStyle(FilledRowStyle())
-            ShortcutHint(text: "⌘⇧N")
+            ShortcutHint(text: Shortcut.addProject.label)
         }
         .font(.system(size: Theme.fontSize.sidebarRow))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -208,9 +208,9 @@ struct MenuEntry {
     let state = app.remote.hosts[host]?.state ?? .disconnected
     let down = state == .disconnected || { if case .unreachable = state { true } else { false } }()
     return [
-        MenuEntry(title: L10n.reconnect, icon: .refresh, enabled: state != .connected) { app.reconnect(host: host) },
-        MenuEntry(title: L10n.checkServer, icon: .sshHost, enabled: state == .connected) { ctx.checkServer(host) },
-        MenuEntry(title: L10n.disconnect, icon: .close, enabled: !down) { app.remote.disconnect(host) },
+        MenuEntry(title: L10n.reconnect, icon: .reconnect, enabled: state != .connected) { app.reconnect(host: host) },
+        MenuEntry(title: L10n.checkServer, icon: .checkServer, enabled: state == .connected) { ctx.checkServer(host) },
+        MenuEntry(title: L10n.disconnect, icon: .disconnect, enabled: !down) { app.remote.disconnect(host) },
     ]
 }
 

@@ -388,6 +388,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         onOpenInEditor?(path, line)
     }
 
+    /// ⌥⌘1 / ⌥⌘2 and the status line's change counter: shows the inspector on that segment. Changes only for git
+    /// projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
+    func showInspector(_ segment: InspectorModel.Segment) {
+        guard let task = selectedTask else { return }
+        if segment == .changes, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        inspector.segment = segment
+        if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
+    }
+
     /// ⌘1…9: n-th tab of the selected task.
     func activate(tabNumber n: Int) {
         guard let task = selectedTask, task.tabs.indices.contains(n - 1) else { return }

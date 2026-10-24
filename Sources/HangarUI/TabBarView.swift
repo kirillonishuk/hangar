@@ -16,7 +16,7 @@ struct TitleBarView: View {
                     Text("·").foregroundStyle(Theme.ui.text3)
                     Text(task.name).foregroundStyle(Theme.ui.textStrong)
                     if let branch = task.branch {
-                        IconView(icon: .worktree, size: Theme.smallIconSize)
+                        IconView(icon: .branch, size: Theme.smallIconSize)
                         Text(branch).font(.system(size: Theme.fontSize.tab, design: .monospaced)).foregroundStyle(Theme.ui.text3)
                     }
                 }
@@ -31,7 +31,7 @@ struct TitleBarView: View {
                         .frame(width: Theme.titleButtonSize, height: Theme.titleButtonSize)
                 }
                 .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                .help(L10n.inspectorHelp)
+                .help(L10n.help(L10n.inspectorHelp, .toggleInspector))
                 .padding(.trailing, Theme.tabTitleTrailing)
             }
         }
@@ -77,8 +77,8 @@ struct TabBarView: View {
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             let diff = app.diffTabs[task.id]
             let slot = dropSlot(task)
-            ForEach(task.tabs) { tab in
-                TabItem(ctx: ctx, taskId: task.id, tab: tab, active: tab.id == task.activeTabId && diff?.active != true, fixed: fixed,
+            ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
+                TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i + 1, active: tab.id == task.activeTabId && diff?.active != true, fixed: fixed,
                         onDrag: { dx in drag = (tab.id, dx) }, onDragEnd: { dx in endDrag(task, tab: tab.id, dx: dx) })
                     .background(GeometryReader { g in Color.clear.preference(key: TabWidths.self, value: [tab.id: g.size.width]) })
                     .overlay(alignment: slot?.edge == .leading ? .leading : .trailing) {
@@ -110,7 +110,7 @@ struct TabBarView: View {
     }
 
     private var addMenu: some View {
-        MoreButton(icon: .newTask, radius: Theme.tabRadius, padding: Theme.tabPaddingV, help: L10n.newTabHelp) {
+        MoreButton(icon: .add, radius: Theme.tabRadius, padding: Theme.tabPaddingV, help: L10n.help(L10n.newTabHelp, .newTab)) {
             item("Claude", .claude)
             item("Codex", .codex)
             item("Helix", .editor)
@@ -121,6 +121,7 @@ struct TabBarView: View {
 
     private func item(_ title: String, _ kind: LeafKind) -> some View {
         Button { app.addTab(kind) } label: { Label { Text(title) } icon: { Image(nsImage: Icon.of(kind).image) } }
+            .modifier(MenuShortcutHint(shortcut: kind == .shell ? .newTab : nil))
     }
 }
 
@@ -168,6 +169,8 @@ struct TabItem: View {
     let ctx: ActionContext
     let taskId: UUID
     let tab: Workspace.Tab
+    /// Position in the bar: ⌘1…⌘9 select the first nine.
+    var number = 0
     let active: Bool
     var fixed = true
     var onDrag: (CGFloat) -> Void = { _ in }
@@ -197,7 +200,7 @@ struct TabItem: View {
             } else {
                 TabTitle(text: Self.clipped(app.tabLabel(tab)), fixed: fixed)
             }
-            TabCloseButton(active: active, tabHover: hover, help: L10n.closeTabHelp) { Action.closeTab.perform(target, ctx) }
+            TabCloseButton(active: active, tabHover: hover, help: L10n.help(L10n.closeTabHelp, .closeTab)) { Action.closeTab.perform(target, ctx) }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
@@ -227,13 +230,14 @@ struct TabItem: View {
                 onDragEnd(value.translation.width)
             })
         .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+        .help(L10n.help(app.tabLabel(tab), (1...9).contains(number) ? .tab(number) : nil))
         .pointingHand(app.renaming != target)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
     }
 }
 
-/// The temporary diff tab (DESIGN «Полоса вкладок»): `± <file>` in italics, no status dot, no context menu.
+/// The temporary diff tab (DESIGN «Полоса вкладок»): diff icon + `<file>` in italics, no status dot, no context menu.
 private struct DiffTabItem: View {
     let app: AppState
     let tab: DiffTab
@@ -242,8 +246,9 @@ private struct DiffTabItem: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            TabTitle(text: "± " + TabItem.clipped((tab.path as NSString).lastPathComponent), fixed: fixed).italic()
-            TabCloseButton(active: tab.active, tabHover: hover, help: L10n.diffTabHelp) { app.closeDiff() }
+            IconView(icon: .diff, active: tab.active).padding(.trailing, Theme.iconGap)
+            TabTitle(text: TabItem.clipped((tab.path as NSString).lastPathComponent), fixed: fixed).italic()
+            TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(tab.active ? Theme.ui.textStrong : Theme.ui.text2)

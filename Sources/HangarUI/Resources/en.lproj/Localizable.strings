@@ -294,3 +294,9 @@
 "setupCommandHelp" = "Runs at the new worktree's top in a shell tab after the copy. Default comes from the lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline); blank = none";
 "copyingEntry" = "Copying %@…";
 "copyFailed" = "hangar: not copied %@";
+"connectToHost" = "Connect to Host…";
+"connectHostTitle" = "Connect to Host";
+"openTerminal" = "Open Terminal";
+"closeTerminal" = "Close Terminal";
+"hostTerminal" = "%@ · terminal";
+"plainSSHHint" = "Plain ssh — closes when the connection drops";

@@ -33,6 +33,7 @@ public struct ParamSpec: Sendable {
 public enum ControlMethod: String, CaseIterable, Sendable {
     case projectsList = "projects.list", projectsAdd = "projects.add", tasksList = "tasks.list", tasksCreate = "tasks.create"
     case tabsOpen = "tabs.open", tabsSend = "tabs.send", tabsRead = "tabs.read", tasksArchive = "tasks.archive"
+    case sshOpen = "ssh.open"
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
@@ -50,6 +51,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
+        case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
         }
     }
 
@@ -98,6 +100,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "force", type: .bool, required: false,
                           summary: "Remove the worktree even with uncommitted changes or ignored files; they are deleted."),
             ]
+        case .sshOpen:
+            return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
         }
     }
 }
@@ -112,6 +116,8 @@ public enum ControlCall: Equatable, Sendable {
     case tabsSend(tab: String, text: String?, keys: [SendKey])
     case tabsRead(tab: String, lines: Int)
     case tasksArchive(task: String, force: Bool = false)
+    /// `host`: checked with `validSSHHost` by the app.
+    case sshOpen(host: String)
 
     public static let defaultLines = 100
 
@@ -125,6 +131,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tabsSend: .tabsSend
         case .tabsRead: .tabsRead
         case .tasksArchive: .tasksArchive
+        case .sshOpen: .sshOpen
         }
     }
 
@@ -151,6 +158,7 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksArchive(task, force):
             p = ["task": task, "yes": true]
             if force { p["force"] = true }
+        case let .sshOpen(host): p = ["host": host]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -257,6 +265,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }
             return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
+        case .sshOpen: return .sshOpen(host: v.strings["host"]!)
         }
     }
 

@@ -19,6 +19,16 @@ public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget, 
                       cwd: NSHomeDirectory(), env: [:])
 }
 
+/// «<host> · терминал» (#NN-ssh-shell): a plain interactive `ssh -t` login to the host's home — no master, no server
+/// check, no tmux — so a password or 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again).
+/// `host` must pass `validSSHHost`. ServerAlive ends a connection that died while the Mac slept instead of hanging.
+public func sshShellSpec(host: String, sshPath: String) -> LaunchSpec {
+    let ssh = [sshPath, "-t", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "--", host]
+    let script = "TERM=xterm-256color " + ssh.map(shellQuote).joined(separator: " ")
+        + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
+    return LaunchSpec(command: "/bin/sh -c " + shellQuote(script), cwd: NSHomeDirectory(), env: [:])
+}
+
 /// The local command line, wrapped like a local tab for the OSC 133 exit code (#26). Every value reaches the server
 /// as a quoted word and is read as a positional parameter, never spliced into code.
 func remoteTabCommand(target: RemoteTarget, tabId: UUID, leafId: UUID, cwd: String, agentCommand: String) -> String {

@@ -101,19 +101,26 @@ struct SidebarView: View {
 
     // MARK: SSH hosts
 
-    /// Hidden without remote projects. A row: server icon, host, state `text3`; a waiting dot when the server needs attention.
+    /// Hosts of remote projects, typed-in terminals and the ssh config (#NN-ssh-shell); hidden when there are none.
+    /// A row: server icon, host, state `text3` (project hosts only); a waiting dot when the server needs attention.
+    /// A host's terminal («<host> · терминал») sits right under its row.
     @ViewBuilder private var hostsSection: some View {
-        let hosts = app.sshHosts
+        let hosts = app.sidebarHosts
         if !hosts.isEmpty {
-            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed)
-            ForEach(hosts, id: \.self) { host in hostRow(host) }
+            SectionHeader(title: L10n.sectionSSHHosts, collapsed: collapsed, plusHelp: L10n.connectToHost, plus: ctx.connectHost)
+            ForEach(hosts, id: \.self) { host in
+                hostRow(host)
+                if let task = app.state.hostShellTask(host: host) { hostShellRow(task, host: host) }
+            }
         }
     }
 
     private func hostRow(_ host: String) -> some View {
         let info = app.remote.hosts[host]
         let items = hostMenuItems(host, app: app, ctx: ctx)
-        return HoverRow(action: { popUpMenu(items) }) { hover in
+        // Without projects the host has no master or state: a click logs in (or shows its terminal).
+        let known = app.sshHosts.contains(host)
+        return HoverRow(action: { if known { popUpMenu(items) } else { app.showHostShell(host) } }) { hover in
             GutterRow(collapsed: collapsed) {
                 IconView(icon: .sshHost, size: Theme.hostIconSize)
                     .overlay(alignment: .topTrailing) {
@@ -130,16 +137,51 @@ struct SidebarView: View {
                         .font(.system(size: Theme.fontSize.base))
                         .foregroundStyle(Theme.ui.textRow)
                     Spacer(minLength: 0)
-                    Text(hostStatusLabel(info)).lineLimit(1)
-                        .font(.system(size: Theme.fontSize.counter))
-                        .foregroundStyle(Theme.ui.text3)
+                    if known {
+                        Text(hostStatusLabel(info)).lineLimit(1)
+                            .font(.system(size: Theme.fontSize.counter))
+                            .foregroundStyle(Theme.ui.text3)
+                    }
                     MoreButton { MenuItemsView(items: items) }
                         .opacity(hover ? 1 : 0)
                         .allowsHitTesting(hover)
                 }
             } rail: { EmptyView() }
         }
-        .help(hostHelp(host, info))
+        .help(known ? hostHelp(host, info) : L10n.openTerminal)
+        .contextMenu { MenuItemsView(items: items) }
+    }
+
+    /// «<host> · терминал»: plain ssh shells (#NN-ssh-shell); its menu opens another tab or closes them all.
+    private func hostShellRow(_ task: HangarTask, host: String) -> some View {
+        let selected = task.id == app.state.selectedTaskId
+        let dot = app.displayState(of: task)
+        let name = L10n.hostTerminal(host)
+        let items = [MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) },
+                     MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
+        return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
+            GutterRow(collapsed: collapsed, railReplacesMarker: true) {
+                StatusDot(state: dot)
+            } expanded: {
+                HStack(spacing: Theme.inlineGap) {
+                    Text(verbatim: name).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .overlay(alignment: .trailing) {
+                    RowActions(shown: hover || selected,
+                               background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
+                        MoreButton { MenuItemsView(items: items) }
+                    }
+                }
+            } rail: {
+                RailTile(text: monogram(host), state: dot, selected: selected)
+            }
+            .font(.system(size: Theme.fontSize.sidebarRow))
+            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.rowWithStatus(name, dot))
+        .help(collapsed ? name : L10n.plainSSHHint)
         .contextMenu { MenuItemsView(items: items) }
     }
 
@@ -453,6 +495,7 @@ struct SidebarView: View {
                         MoreButton(help: L10n.help(L10n.addProject, .addProject)) {
                             Button(L10n.addLocalProject, action: ctx.addLocalProject)
                             Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
+                            Button(L10n.connectToHost, action: ctx.connectHost)
                         }
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))

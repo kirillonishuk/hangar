@@ -165,6 +165,12 @@ struct SettingsView: View {
                     }
                 }
                 .help(L10n.keepAwakeTitle)
+                row(L10n.dockBadgeTitle) {
+                    Segment(selection: app.config.dockBadge, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
+                    }
+                }
+                .help(L10n.dockBadgeHelp)
                 row(L10n.integrationClaude) { integrationValue(.claude) }
                 row(L10n.integrationCodex) { integrationValue(.codex) }
                 row(L10n.integrationMCP) { mcpValue }

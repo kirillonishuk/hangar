@@ -36,8 +36,12 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case projectsList = "projects.list", projectsAdd = "projects.add", tasksList = "tasks.list", tasksCreate = "tasks.create"
     case tabsOpen = "tabs.open", tabsSend = "tabs.send", tabsRead = "tabs.read", tasksArchive = "tasks.archive"
     case doctor
+    case tasksRestore = "tasks.restore"
 
     public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
+
+    /// Exposed by `hangar mcp --read-only`: listings and screen reads, nothing that changes Hangar or types into a terminal.
+    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor].contains(self) }
 
     public static let maxText = 32_768
     public static let maxPrompt = 16_384
@@ -48,13 +52,14 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         switch self {
         case .projectsList: "List the projects registered in Hangar."
         case .projectsAdd: "Register a folder as a Hangar project (idempotent). With host: a folder on that ssh server; Hangar connects and checks the server (up to ~1 min), installs nothing and returns warnings for missing tools."
-        case .tasksList: "List tasks with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project."
+        case .tasksList: "List tasks with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project. With git: true also changes against the base (+added −removed lines, files), dirty and ahead/behind the base (runs git per task)."
         case .tasksCreate: "Create a task in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission. Result status: sent, queued (claude was already working; it runs after the current turn), started / not-started-yet (with wait). Enter into a working codex is refused (busy): wait for it or send keys [interrupt] first."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
         case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
         case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
+        case .tasksRestore: "Restore an archived task. A worktree task's folder is re-created from its kept branch; fails if that branch is gone."
         }
     }
 
@@ -70,7 +75,10 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "host", type: .string(maxBytes: 255), required: false, summary: "ssh host (ssh config name or user@host) for a remote project."),
             ]
         case .tasksList:
-            return [ParamSpec(name: "project", type: ref, required: false, summary: "Project id (or unique prefix) or name.")]
+            return [
+                ParamSpec(name: "project", type: ref, required: false, summary: "Project id (or unique prefix) or name."),
+                ParamSpec(name: "git", type: .bool, required: false, summary: "Add changes, dirty and ahead/behind per task (slower: runs git)."),
+            ]
         case .tasksCreate:
             return [
                 ParamSpec(name: "project", type: ref, required: true, summary: "Project id (or unique prefix) or name."),
@@ -106,6 +114,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "force", type: .bool, required: false,
                           summary: "Remove the worktree even with uncommitted changes or ignored files; they are deleted."),
             ]
+        case .tasksRestore:
+            return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived task id (or unique prefix) or name.")]
         }
     }
 }
@@ -114,13 +124,14 @@ public enum ControlCall: Equatable, Sendable {
     case projectsList
     /// `host`: checked with `validSSHHost` by the app (Exec is not linked into the CLI).
     case projectsAdd(path: String, host: String? = nil)
-    case tasksList(project: String?)
+    case tasksList(project: String?, git: Bool = false)
     case tasksCreate(project: String, name: String, worktree: Bool, base: String?, prompt: String?)
     case tabsOpen(task: String, kind: TabKind, prompt: String?)
     case tabsSend(tab: String, text: String?, keys: [SendKey], wait: Bool = false)
     case tabsRead(tab: String, lines: Int)
     case tasksArchive(task: String, force: Bool = false)
     case doctor
+    case tasksRestore(task: String)
 
     public static let defaultLines = 100
 
@@ -135,6 +146,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tabsRead: .tabsRead
         case .tasksArchive: .tasksArchive
         case .doctor: .doctor
+        case .tasksRestore: .tasksRestore
         }
     }
 
@@ -145,7 +157,9 @@ public enum ControlCall: Equatable, Sendable {
         case let .projectsAdd(path, host):
             p["path"] = path
             p["host"] = host
-        case let .tasksList(project): p["project"] = project
+        case let .tasksList(project, git):
+            p["project"] = project
+            if git { p["git"] = true }
         case let .tasksCreate(project, name, worktree, base, prompt):
             p = ["project": project, "name": name, "worktree": worktree]
             p["base"] = base
@@ -162,6 +176,7 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksArchive(task, force):
             p = ["task": task, "yes": true]
             if force { p["force"] = true }
+        case let .tasksRestore(task): p = ["task": task]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -245,7 +260,7 @@ public enum ControlCall: Equatable, Sendable {
             let path = v.strings["path"]!, host = v.strings["host"]
             guard host != nil || path.hasPrefix("/") else { throw bad("\"path\" must be absolute") }
             return .projectsAdd(path: path, host: host)
-        case .tasksList: return .tasksList(project: v.strings["project"])
+        case .tasksList: return .tasksList(project: v.strings["project"], git: v.bools["git"] ?? false)
         case .tasksCreate:
             let name = v.strings["name"]!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard (1...ControlMethod.maxNameChars).contains(name.count) else { throw bad("\"name\" must be 1-\(ControlMethod.maxNameChars) characters") }
@@ -269,6 +284,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }
             return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
+        case .tasksRestore: return .tasksRestore(task: v.strings["task"]!)
         }
     }
 

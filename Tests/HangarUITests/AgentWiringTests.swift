@@ -368,6 +368,45 @@ import Workspace
         #expect(!isSystemShutdown(reason: nil))
     }
 
+    /// Dock badge = tasks waiting for the user, set only when the number changes; attention once per new wait.
+    @Test func dockBadgeCountsWaitingTasks() throws {
+        let app = makeApp([.claude, .claude])
+        app.perform { s in
+            let t = s.addTask(projectId: s.projects[0].id, name: "u")
+            s.addTab(taskId: t, kind: .claude)
+        }
+        var labels: [String] = [], attention = 0
+        app.onDockBadge = { labels.append($0) }
+        app.requestAttention = { attention += 1 }
+        func wait(_ task: Int, _ tab: Int) {
+            let t = app.state.tasks[task].tabs[tab]
+            app.handle(.event(EventMessage(tab: t.id, leaf: t.root.leaves[0].id, kind: .notification, notificationType: "permission_prompt")))
+        }
+        event(app, tab: 0, .prompt)
+        #expect(labels.isEmpty && attention == 0)
+        wait(0, 0)
+        #expect(labels == ["1"] && attention == 1)
+        wait(0, 1)  // same task: still one waiting task
+        #expect(labels == ["1"] && attention == 2)
+        wait(1, 0)
+        #expect(labels == ["1", "2"])
+        app.archive(taskId: app.state.tasks[1].id)
+        #expect(labels == ["1", "2", "1"])
+        event(app, tab: 0, .prompt)
+        event(app, tab: 1, .prompt)
+        #expect(labels == ["1", "2", "1", ""])
+        #expect(app.waitingTaskCount == 0)
+
+        try app.setConfig("dock_badge", flag: false) { $0.dockBadge = false }
+        wait(0, 0)
+        #expect(labels == ["1", "2", "1", ""] && attention == 3)
+        try app.setConfig("dock_badge", flag: true) { $0.dockBadge = true }
+        #expect(labels.last == "1")
+        #expect(dockBadgeLabel(waiting: 0, enabled: true) == "")
+        #expect(dockBadgeLabel(waiting: 3, enabled: true) == "3")
+        #expect(dockBadgeLabel(waiting: 3, enabled: false) == "")
+    }
+
     @Test func keepAwakeFollowsStatuses() throws {
         let app = makeApp([.claude])
         final class Log: @unchecked Sendable { var created: [String] = []; var released: [UInt32] = []; var delays: [Duration] = [] }

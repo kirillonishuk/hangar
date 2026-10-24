@@ -92,6 +92,7 @@ extension AppState {
             }
             onTransition?(t)
             if t.to == .done { onLeafDone?(t.leaf) }
+            if t.to == .waiting, config.dockBadge { requestAttention?() }
         }
     }
 

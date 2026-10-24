@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ControlServer
 
-/// `hangar doctor` / MCP `doctor` (decision #NN-doctor): the CLI side of the report.
+/// `hangar doctor` / MCP `doctor` (decision #61): the CLI side of the report.
 @Suite struct DoctorTests {
     private let agents = DoctorCheck(name: "claude", level: .ok, detail: "/usr/local/bin/claude 2.1.3")
     private let hooks = DoctorCheck(name: "claude hooks", level: .warn, detail: "not installed", fix: "Settings → Integrations → Install")

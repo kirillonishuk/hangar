@@ -30,11 +30,11 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
-    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#NN-port)
+    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#60)
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))", cwd: leaf.cwd, env: env)
 }
 
-/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#NN-shell-env).
+/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#71).
 public func resolveUserShell(passwd: String?, env: String?) -> String {
     if let passwd, !passwd.isEmpty { return passwd }
     if let env, !env.isEmpty { return env }
@@ -72,7 +72,7 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: St
     let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
     switch leaf.kind {
     case .shell:
-        // A new worktree's setup script (decision #NN-worktree-setup) runs first; the shell stays for the user.
+        // A new worktree's setup script (decision #58) runs first; the shell stays for the user.
         guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
         return "\(script)\n\(shell) -l -i"
     case .editor:

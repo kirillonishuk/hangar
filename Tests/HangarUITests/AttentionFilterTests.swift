@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Sidebar «Требуют внимания» (#NN-attention).
+/// Sidebar «Требуют внимания» (#67).
 @MainActor @Suite struct AttentionFilterTests {
     @Test func keepsWaitingAndFailedGroupedByProjectAndDropsEmptyProjects() {
         var s = WorkspaceState()

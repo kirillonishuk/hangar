@@ -2,7 +2,7 @@ import CoreGraphics
 import Testing
 @testable import HangarUI
 
-/// Tab bar geometry (decision #NN-tabs-overflow): min/max widths, overflow, scroll-into-view, wheel mapping.
+/// Tab bar geometry (decision #69): min/max widths, overflow, scroll-into-view, wheel mapping.
 @Suite struct TabStripTests {
     let lo = Theme.tabMinWidth, hi = Theme.tabMaxWidth, gap = Theme.tabGap
     /// `+` with its gap; the overflow chevron takes the same again.

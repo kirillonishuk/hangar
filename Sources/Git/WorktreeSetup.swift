@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// A project's «copy into worktree» list and setup command when it has none of its own (decision #NN-worktree-setup),
+/// A project's «copy into worktree» list and setup command when it has none of its own (decision #58),
 /// from the lockfiles at the repository top. pnpm/yarn/bun reinstall from their store (hardlinks, fast, no extra
 /// space), so `node_modules` is not cloned; npm (or no lockfile) clones it (APFS: no extra space) and installs nothing.
 public struct WorktreeDefaults: Equatable, Sendable {

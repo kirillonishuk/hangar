@@ -53,7 +53,7 @@ import Workspace
         #expect(try inner(s) == "claude")
     }
 
-    /// The tab's shell is the account's login shell, as in Ghostty.app and login(1); `$SHELL` is the launcher's (#NN-shell-env).
+    /// The tab's shell is the account's login shell, as in Ghostty.app and login(1); `$SHELL` is the launcher's (#71).
     @Test func userShellPrefersPasswd() {
         #expect(resolveUserShell(passwd: "/bin/zsh", env: "/bin/bash") == "/bin/zsh")
         #expect(resolveUserShell(passwd: nil, env: "/bin/bash") == "/bin/bash")

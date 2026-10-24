@@ -186,7 +186,7 @@ import Workspace
         #expect(archived(app, id))
     }
 
-    /// Crash-safe archive (#NN-crash-safe-archive): the folder leaves its place in one rename, so a quit mid-removal
+    /// Crash-safe archive (#59): the folder leaves its place in one rename, so a quit mid-removal
     /// leaves only `<path>.hangar-removing`, never a half folder at `<path>`.
     @Test func archiveRenamesToTombstoneFirst() async throws {
         let (t, app, id, _, wt, _, _) = try await make()

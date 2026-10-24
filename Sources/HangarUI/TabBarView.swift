@@ -49,7 +49,7 @@ struct TitleBarView: View {
     }
 }
 
-/// Tab bar geometry (decision #NN-tabs-overflow, as VS Code / Pane): widths, overflow, scroll-into-view, wheel.
+/// Tab bar geometry (decision #69, as VS Code / Pane): widths, overflow, scroll-into-view, wheel.
 enum TabStrip {
     struct Layout: Equatable {
         var widths: [CGFloat]
@@ -111,7 +111,7 @@ enum TabStrip {
 
 /// The selected task's tabs, the overflow chevron and `+` (Claude / Codex / Helix / Shell). Row below the titlebar.
 /// Tabs drag sideways to reorder (as sidebar rows: `dropIndex`, a 2 pt `accent` insertion line); the order is saved.
-/// Too many tabs for the bar: it scrolls (decision #NN-tabs-overflow); the chevron and `+` stay put at the right.
+/// Too many tabs for the bar: it scrolls (decision #69); the chevron and `+` stay put at the right.
 struct TabBarView: View {
     let app: AppState
     var ctx: ActionContext
@@ -312,7 +312,7 @@ struct TabBarView: View {
         }
     }
 
-    /// A host's terminal (#NN-ssh-shell) holds only ssh shells: its menu offers just Shell.
+    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell.
     private func addMenu(shellOnly: Bool) -> some View {
         MoreButton(icon: .add, radius: Theme.tabRadius, size: Theme.tabBarButton, help: L10n.help(L10n.newTabHelp, .newTab)) {
             if !shellOnly {

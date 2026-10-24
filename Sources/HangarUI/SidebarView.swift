@@ -101,7 +101,7 @@ struct SidebarView: View {
 
     // MARK: SSH hosts
 
-    /// Hosts of remote projects, typed-in terminals and the ssh config (#NN-ssh-shell); hidden when there are none.
+    /// Hosts of remote projects, typed-in terminals and the ssh config (#64); hidden when there are none.
     /// A row: server icon, host, state `text3` (project hosts only); a waiting dot when the server needs attention.
     /// A host's terminal («<host> · терминал») sits right under its row.
     @ViewBuilder private var hostsSection: some View {
@@ -152,7 +152,7 @@ struct SidebarView: View {
         .contextMenu { MenuItemsView(items: items) }
     }
 
-    /// «<host> · терминал»: plain ssh shells (#NN-ssh-shell); its menu opens another tab or closes them all.
+    /// «<host> · терминал»: plain ssh shells (#64); its menu opens another tab or closes them all.
     private func hostShellRow(_ task: HangarTask, host: String) -> some View {
         let selected = task.id == app.state.selectedTaskId
         let dot = app.displayState(of: task)

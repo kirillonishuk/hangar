@@ -1,6 +1,6 @@
 import Foundation
 
-/// ⌘P quick open / ⇧⌘P command palette logic (decision #NN-palette): fuzzy matching and ranking, no UI.
+/// ⌘P quick open / ⇧⌘P command palette logic (decision #65): fuzzy matching and ranking, no UI.
 
 /// Score (higher is better) and the matched character offsets of `text`, for highlighting.
 struct FuzzyMatch: Equatable {

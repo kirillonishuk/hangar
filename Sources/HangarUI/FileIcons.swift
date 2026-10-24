@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// File/folder icons of the inspector (decision #NN-file-icons): a VS Code icon theme (`FileIcons/icons.json`, the
+/// File/folder icons of the inspector (decision #68): a VS Code icon theme (`FileIcons/icons.json`, the
 /// dark/base set) resolved with VS Code's rules; the SVGs are drawn in their own colours.
 struct FileIconTheme: Sendable {
     private struct Definition: Decodable { var iconPath: String }

@@ -138,7 +138,7 @@ public struct Git: Sendable {
         }
     }
 
-    /// Checks out a kept branch again (restore from archive, decision #NN-archive): no `-b`, nothing is created.
+    /// Checks out a kept branch again (restore from archive, decision #57): no `-b`, nothing is created.
     public func addWorktree(path: String, existingBranch: String) async throws {
         try await exec(["worktree", "add", "--", path, existingBranch])
     }

@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// «Copy into new worktrees» + setup command (decision #NN-worktree-setup), on real temp repos.
+/// «Copy into new worktrees» + setup command (decision #58), on real temp repos.
 @MainActor @Suite struct WorktreeSetupTests {
     /// Repo with a committed `.gitignore` and typical ignored items next to tracked / untracked-not-ignored ones.
     private func repo() async throws -> TempRepo {

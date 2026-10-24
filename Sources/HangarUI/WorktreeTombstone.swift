@@ -3,7 +3,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Crash-safe worktree removal (decision #NN-crash-safe-archive): a quit mid-way leaves only `<path>.hangar-removing`.
+/// Crash-safe worktree removal (decision #59): a quit mid-way leaves only `<path>.hangar-removing`.
 let tombstoneSuffix = ".hangar-removing"
 
 /// One atomic rename to a sibling tombstone, `worktree prune`, then the tombstone is deleted in the background.

@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Workspace
 
-/// «<host> · терминал» (#NN-ssh-shell): plain `ssh -t` shells with no project. They are local leaves running ssh:
+/// «<host> · терминал» (#64): plain `ssh -t` shells with no project. They are local leaves running ssh:
 /// never the host's master, server check, tmux or kill queue (`remoteLeafHost` is nil for them).
 extension AppState {
     /// A new ssh shell tab on the host, shown; nil (nothing changes) for a host ssh must not be given.

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// «<host> · терминал» (#NN-ssh-shell): a per-host pseudo task of plain ssh shells, outside `projects`.
+/// «<host> · терминал» (#64): a per-host pseudo task of plain ssh shells, outside `projects`.
 @Suite struct HostShellTests {
     @Test func openCreatesTaskOnceAndAddsShellTabs() throws {
         var s = WorkspaceState()

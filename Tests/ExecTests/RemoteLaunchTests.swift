@@ -147,7 +147,7 @@ import Workspace
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 
-    /// The plain login of «<host> · терминал» (#NN-ssh-shell): no master, no tmux, no remote command; ssh's own code comes back.
+    /// The plain login of «<host> · терминал» (#64): no master, no tmux, no remote command; ssh's own code comes back.
     @Test func plainSSHShell() async throws {
         let f = try Fixture()
         defer { try? FileManager.default.removeItem(atPath: f.root) }
@@ -200,7 +200,7 @@ import Workspace
         }
     }
 
-    /// The task's port reaches the remote tab's environment, with and without tmux (#NN-port).
+    /// The task's port reaches the remote tab's environment, with and without tmux (#60).
     @Test func portReachesRemoteTab() async throws { try await Fixture.with { f in
         for tmux in [false] + (RemoteLaunchTests.tmuxPath == nil ? [] : [true]) {
             let out = f.root + "/port-\(tmux)"

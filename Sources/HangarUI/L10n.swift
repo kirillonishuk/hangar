@@ -509,6 +509,7 @@ import Workspace
         case .settings: settings
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
+        case .attentionFilter: attentionOnly
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

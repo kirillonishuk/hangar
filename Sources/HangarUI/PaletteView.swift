@@ -269,7 +269,7 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .rename: .rename
     case .prevTask: .chevronUp
     case .nextTask: .chevronDown
-    case .prevTab, .nextTab, .tab, .focusSplit, .quickOpen, .commandPalette: .chevronRight
+    case .prevTab, .nextTab, .tab, .focusSplit, .quickOpen, .commandPalette, .attentionFilter: .chevronRight
     case .toggleSidebar: .sidebarLeft
     case .toggleInspector: .sidebarRight
     case .inspectorChanges: .diff

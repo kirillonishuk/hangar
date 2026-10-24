@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import HangarUI
@@ -127,5 +128,32 @@ import Workspace
         #expect(app.launchContext(for: b.id) == .restored(inResumeSet: false))
         #expect(app.launchContext(for: c.id) == .restored(inResumeSet: true))
         #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))
+    }
+
+    /// A restored (or freshly split) tree keeps its saved ratios: NSSplitView's own layout pass must not
+    /// collapse a pane to 0 (live: a nested split showed one pane, a restored 0.39 split showed 0 / all).
+    @Test func nestedSplitKeepsRatiosThroughLayout() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 801, height: 401), styleMask: [.titled], backing: .buffered, defer: true)
+        let outer = RatioSplitView(axis: .horizontal, ratio: 0.25)
+        let inner = RatioSplitView(axis: .vertical, ratio: 0.75)
+        outer.frame = window.contentView!.bounds
+        window.contentView!.addSubview(outer)
+        let a = NSView(), b = NSView(), c = NSView()
+        outer.addSubview(a)
+        outer.addSubview(inner)
+        inner.addSubview(b)
+        inner.addSubview(c)
+        outer.adjustSubviews()
+        inner.adjustSubviews()
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(a.frame.width == 200)
+        #expect(inner.frame.width == 600)
+        #expect(b.frame.height == 300)
+        #expect(c.frame.height == 100)
+        // A window resize keeps the proportions.
+        window.setContentSize(NSSize(width: 401, height: 201))
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(a.frame.width == 100)
+        #expect(b.frame.height == 150)
     }
 }

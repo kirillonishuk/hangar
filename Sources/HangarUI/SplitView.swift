@@ -10,13 +10,17 @@ class HangarSplitView: NSSplitView {
     var onDragEnd: (() -> Void)?
     /// Index of the divider under the last mouse-down (nil: none); read in `onDragEnd`.
     private(set) var draggedDivider: Int?
+    /// True inside the divider tracking loop (mouse down → up).
+    private(set) var isTracking = false
 
     override var dividerColor: NSColor { Theme.line }
 
     override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         draggedDivider = (0..<max(0, arrangedSubviews.count - 1)).first { dividerHitRect($0).contains(p) }
+        isTracking = true
         super.mouseDown(with: event)  // runs the divider tracking loop until mouse up
+        isTracking = false
         onDragEnd?()
     }
 
@@ -46,8 +50,20 @@ final class RatioSplitView: HangarSplitView {
 
     private var total: CGFloat { (isVertical ? bounds.width : bounds.height) - dividerThickness }
 
+    // NSSplitView's own layout pass resizes panes by its holding priorities (a restored 0.39 split came out 0 / all,
+    // a nested split showed one pane): the ratio is re-applied after it, except while a divider drag is tracking.
+    override func layout() {
+        super.layout()
+        if !isTracking { applyRatio() }
+    }
+
     override func resizeSubviews(withOldSize oldSize: NSSize) {
         guard subviews.count == 2 else { return super.resizeSubviews(withOldSize: oldSize) }
+        applyRatio()
+    }
+
+    private func applyRatio() {
+        guard subviews.count == 2 else { return }
         let a = max(0, (total * ratio).rounded())
         let b = max(0, total - a)
         if isVertical {

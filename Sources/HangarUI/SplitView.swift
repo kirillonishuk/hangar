@@ -94,6 +94,8 @@ final class FillView: NSView {
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
+    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#NN-image-paste).
+    var kind: LeafKind = .shell
     private(set) var surface: TerminalSurfaceView?
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
@@ -199,6 +201,11 @@ final class FillView: NSView {
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
+        view.onPaste = { [weak self, weak view] in
+            guard let self, let view, pasteAction(kind: self.kind) == .ctrlV else { return false }
+            view.sendKey(.ctrlV)
+            return true
+        }
         if let old = surface {
             // Replacing an exited (or not yet drawn, `restart`) surface: removing it is a real close.
             old.removeFromSuperview()
@@ -598,6 +605,7 @@ final class FillView: NSView {
         // Lazy: surfaces of a tab start the first time it is shown.
         for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
             let view = LeafView(leafId: leaf.id)
+            view.kind = leaf.kind
             app.wireHost(view)
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists

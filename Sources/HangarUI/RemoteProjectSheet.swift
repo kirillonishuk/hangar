@@ -198,7 +198,7 @@ struct RemoteProjectSheet: View {
 }
 
 /// ▾ after the host field: `Host` names of the ssh config; hover fill + hand like the sheets' other icon buttons.
-private struct HostMenu: View {
+struct HostMenu: View {
     let hosts: [String]
     let pick: (String) -> Void
 

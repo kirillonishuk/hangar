@@ -549,8 +549,10 @@ final class RatioSplitView: HangarSplitView {
             }
         }
 
-        emptyState.isHidden = !state.projects.isEmpty
-        placeholder.isHidden = active != nil || diffShown || state.projects.isEmpty
+        // A host's terminal (#NN-ssh-shell) needs no project.
+        let nothing = state.projects.isEmpty && state.hostShells.isEmpty
+        emptyState.isHidden = !nothing
+        placeholder.isHidden = active != nil || diffShown || nothing
         placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.

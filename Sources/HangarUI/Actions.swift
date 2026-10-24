@@ -17,6 +17,8 @@ enum ActionTarget: Equatable {
     var addProject: () -> Void = {}
     var addLocalProject: () -> Void = {}
     var addRemoteProject: () -> Void = {}
+    /// «Подключиться к хосту…»: a plain ssh shell without a project (#NN-ssh-shell).
+    var connectHost: () -> Void = {}
     /// «Сервер <host>» sheet.
     var checkServer: (String) -> Void = { _ in }
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
@@ -47,6 +49,8 @@ enum Action: CaseIterable {
         let reconnect: [Action] = app.project(of: target)?.host == nil ? [] : [.reconnect]
         switch target {
         case .task(let id):
+            // A host's terminal has its own row menu (open / close), none of a project task's actions.
+            if app.isHostShellTask(id) { return [] }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
             return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort] + editor + [.archive]
         case .project:
@@ -118,7 +122,9 @@ enum Action: CaseIterable {
     }
 
     @MainActor func isEnabled(for target: ActionTarget, app: AppState) -> Bool {
-        switch self {
+        // Keyboard actions on a host's terminal: only its TERMINAL drawer (another ssh shell); ⇧⌘W, F2 and the rest do nothing.
+        if case .task(let id) = target, app.isHostShellTask(id) { return self == .toggleDrawer }
+        return switch self {
         // Sidebar rows can't host a text field in rail mode.
         case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
         case .newTask: app.isAvailable(target)

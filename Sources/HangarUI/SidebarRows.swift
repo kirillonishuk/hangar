@@ -203,11 +203,15 @@ struct MenuEntry {
     let action: () -> Void
 }
 
-/// Host row: «Переподключиться» (while not connected), «Проверить сервер» (connected), «Отключиться».
+/// Host row: «Открыть терминал» (a plain ssh shell, #NN-ssh-shell); a host of remote projects also «Переподключиться»
+/// (while not connected), «Проверить сервер» (connected), «Отключиться».
 @MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
+    let terminal = MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) }
+    guard app.sshHosts.contains(host) else { return [terminal] }
     let state = app.remote.hosts[host]?.state ?? .disconnected
     let down = state == .disconnected || { if case .unreachable = state { true } else { false } }()
     return [
+        terminal,
         MenuEntry(title: L10n.reconnect, icon: .reconnect, enabled: state != .connected) { app.reconnect(host: host) },
         MenuEntry(title: L10n.checkServer, icon: .checkServer, enabled: state == .connected) { ctx.checkServer(host) },
         MenuEntry(title: L10n.disconnect, icon: .disconnect, enabled: !down) { app.remote.disconnect(host) },

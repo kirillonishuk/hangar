@@ -113,7 +113,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             .tabsOpen(task: "t1", kind: .shell, prompt: nil), .tabsOpen(task: "t1", kind: .claude, prompt: "hi"),
             .tabsSend(tab: "ab12", text: "ls", keys: [.enter, .ctrlC]), .tabsSend(tab: "ab12", text: nil, keys: [.up]),
             .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"), .doctor,
-            .tasksRestore(task: "t1"), .tasksList(project: nil, git: true),
+            .tasksRestore(task: "t1"), .tasksList(project: nil, git: true), .sshOpen(host: "u@dev"),
         ]
         #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))
         for call in calls {
@@ -161,6 +161,8 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         badParams("tasks.create", #"{"project":"p","name":true}"#)
         badParams("tasks.create", #"{"project":"p","name":"n","worktree":1}"#)
         badParams("projects.list", #"{"x":1}"#)
+        badParams("ssh.open", #"{}"#)
+        badParams("ssh.open", #"{"host":""}"#)
         #expect(decode("tabs.read", #"{"tab":"t"}"#) == .success(.tabsRead(tab: "t", lines: 100)))
         // On a host the path is the server's: `~` and relative paths are resolved there.
         #expect(decode("projects.add", #"{"path":"rel/dir","host":"dev"}"#) == .success(.projectsAdd(path: "rel/dir", host: "dev")))

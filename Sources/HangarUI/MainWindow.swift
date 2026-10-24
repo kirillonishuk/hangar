@@ -194,8 +194,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         installKeyMonitor()
         // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
         activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.app.refreshUsageClock() }
+            MainActor.assumeIsolated {
+                self?.app.refreshUsageClock()
+                // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
+                self?.app.reloadConfigHosts()
+            }
         }
+        app.reloadConfigHosts()
         #if DEBUG
         installDebugHooks()
         #endif
@@ -375,6 +380,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             addProject: { [weak self] in self?.chooseProjectKind() },
             addLocalProject: { [weak self] in self?.chooseProject() },
             addRemoteProject: { [weak self] in self?.presentRemoteProject() },
+            connectHost: { [weak self] in self?.presentConnectHost() },
             checkServer: { [weak self] host in self?.presentServer(host) },
             newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
@@ -528,6 +534,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let items = [
             MenuEntry(title: L10n.addLocalProject, icon: .project) { [weak self] in self?.chooseProject(thenNewTask: thenNewTask) },
             MenuEntry(title: L10n.addRemoteProject, icon: .sshHost) { [weak self] in self?.presentRemoteProject(thenNewTask: thenNewTask) },
+            MenuEntry(title: L10n.connectToHost, icon: .shell) { [weak self] in self?.presentConnectHost() },
         ]
         let mouse = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp].contains(NSApp.currentEvent?.type)
         if mouse {
@@ -558,7 +565,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = projectId ?? app.selectedTask?.projectId ?? app.state.projects.last?.id
+        let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
@@ -692,6 +699,22 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         remoteProjectAdd = add
         let height = window.contentLayoutRect.height
         begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
+    }
+
+    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#NN-ssh-shell).
+    func presentConnectHost() {
+        guard let window, window.attachedSheet == nil else { return }
+        let sheet = makeSheet(over: window)
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+        }
+        let view = ConnectHostSheet(configHosts: app.configHosts(), onConnect: { [weak self] host in
+            close()
+            self?.app.openHostShell(host)
+        }, onCancel: close)
+        begin(sheet, view, on: window)
     }
 
     /// «Сервер <host>»: the check again, the plan, installs and the server's integrations.

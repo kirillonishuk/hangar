@@ -212,7 +212,8 @@ import Workspace
         #expect(exists(stranger) && exists(wt + "/a.txt"))
     }
 
-    /// An older build quit mid `worktree remove`: a partial folder without `.git` sits at the path. Restore re-creates it.
+    /// An older build quit mid `worktree remove`: a partial folder without `.git` sits at the path. Restore keeps it
+    /// aside as `<path>.hangar-orphan-<time>` (never deleted, the user is told) and re-creates the worktree.
     @Test func restoreRecreatesCorruptPartialFolder() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
@@ -221,7 +222,9 @@ import Workspace
         try FileManager.default.createDirectory(atPath: wt + "/src", withIntermediateDirectories: true)
         try "half".write(toFile: wt + "/src/left.txt", atomically: true, encoding: .utf8)
         await restoreArchivedTask(id, ctx: ctx)
-        #expect(calls.errors.isEmpty)
+        #expect(calls.errors.map(\.0) == [L10n.orphanKept])
+        let orphan = try #require(calls.errors.first?.1)
+        #expect(orphan.hasPrefix(wt + ".hangar-orphan-") && exists(orphan + "/src/left.txt"))
         #expect(!archived(app, id))
         #expect(exists(wt + "/.git") && exists(wt + "/work.txt") && !exists(wt + "/src/left.txt"))
         #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
@@ -253,7 +256,7 @@ import Workspace
         #expect(try t.git("rev-parse", "--is-inside-work-tree", in: wt) == "true")
     }
 
-    /// Same rules over ssh: the tombstone case still goes, a broken folder with `.git` stays.
+    /// Same rules over ssh: a broken folder with `.git` stays, one without is kept aside.
     @Test func remoteRestoreKeepsBrokenFolder() async throws {
         let (t, app, id, _, wt, _, ctx) = try await make()
         defer { t.cleanup() }
@@ -266,9 +269,10 @@ import Workspace
         #expect(try await reviveWorktree(wt, branch: "x", git: git, runner: runner) == .failed("\(wt) is not a valid worktree, left in place"))
         #expect(exists(wt + "/.git") && exists(wt + "/src"))
         try FileManager.default.removeItem(atPath: wt + "/.git")
-        #expect(try await reviveWorktree(wt, branch: "x", git: git, runner: runner) == .restored)
+        let outcome = try await reviveWorktree(wt, branch: "x", git: git, runner: runner)
+        guard case .restoredKeeping(let orphan) = outcome else { Issue.record("\(outcome)"); return }
         #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
-        #expect(!exists(wt + "/src"))
+        #expect(!exists(wt + "/src") && exists(orphan + "/src"))
         _ = app
     }
 

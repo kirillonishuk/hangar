@@ -556,7 +556,9 @@ func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
         case .shell, .editor: result.insert(leaf.id)
         case .claude, .codex:
             if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
-            if claimed.insert(Key(kind: leaf.kind, host: host, cwd: leaf.cwd)).inserted { result.insert(leaf.id) }
+            var cwd = leaf.cwd
+            while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }
+            if claimed.insert(Key(kind: leaf.kind, host: host, cwd: cwd)).inserted { result.insert(leaf.id) }
         }
     }
     for task in tasks {

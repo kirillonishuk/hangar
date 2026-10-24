@@ -19,6 +19,8 @@ enum RestoreOutcome: Equatable {
     /// Nothing changed: the kept branch is gone, the worktree can't be re-created.
     case branchMissing(String)
     case failed(String)
+    /// Restored; a non-empty folder without `.git` that sat at the path was kept under this name (never deleted).
+    case restoredKeeping(String)
 }
 
 extension AppState {
@@ -79,7 +81,13 @@ extension AppState {
             let git = git(for: project), runner = runner(for: project)
             do {
                 let outcome = try await reviveWorktree(path, branch: branch, git: git, runner: runner)
-                guard outcome == .restored else { return outcome }
+                switch outcome {
+                case .restored, .restoredKeeping: break
+                case .branchMissing, .failed: return outcome
+                }
+                guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return outcome }
+                restore(taskId: id)
+                return outcome
             } catch {
                 return .failed(error.localizedDescription)
             }
@@ -109,6 +117,9 @@ extension AppState {
 @MainActor func restoreArchivedTask(_ id: UUID, ctx: ActionContext, reselect: Bool = false, withoutWorktree: Bool = false) async {
     switch await ctx.app.restoreFromArchive(id, withoutWorktree: withoutWorktree) {
     case .restored: if reselect { ctx.app.select(taskId: id) }
+    case .restoredKeeping(let orphan):
+        if reselect { ctx.app.select(taskId: id) }
+        ctx.showError(L10n.orphanKept, orphan)
     case .branchMissing(let branch):
         ctx.confirm(L10n.branchGone(branch), L10n.branchGoneInfo, L10n.restoreWithoutWorktree) {
             Task { await restoreArchivedTask(id, ctx: ctx, reselect: reselect, withoutWorktree: true) }

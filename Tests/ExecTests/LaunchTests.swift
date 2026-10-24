@@ -143,6 +143,12 @@ import Workspace
         #expect(s.env == ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": l.id.uuidString, "HANGAR_SOCKET": "/tmp/h.sock"])
     }
 
+    @Test func envHasTaskPort() throws {
+        let s = try launchSpec(for: leaf(.shell), tabId: tab, config: HangarConfig(), socketPath: "/tmp/h.sock",
+                               userShell: "/bin/zsh", restoring: false, initialPrompt: nil, port: 41234)
+        #expect(s.env["HANGAR_PORT"] == "41234")
+    }
+
     @Test func envHasTabAndSocket() throws {
         let s = try spec(leaf(.shell))
         #expect(s.env["HANGAR_TAB_ID"] == tab.uuidString)

@@ -84,7 +84,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 
 Статусы: `working`, `waiting`, `done`, `failed`, `idle`.
 
-Каждая surface стартует с env `HANGAR_TAB_ID`, `HANGAR_LEAF_ID` (статус хранится на лист; событие с tab, не владеющим leaf, игнорируется), `HANGAR_SOCKET`. `hangar event <kind> [--session <id>]` отправляет событие; без `HANGAR_TAB_ID` молча выходит с кодом 0 (не ломает агентов вне Hangar).
+Каждая surface стартует с env `HANGAR_TAB_ID`, `HANGAR_LEAF_ID` (статус хранится на лист; событие с tab, не владеющим leaf, игнорируется), `HANGAR_SOCKET` и `HANGAR_PORT` — порт задачи (#NN-port: стабильный, из id задачи в 41000–48999, уникальный среди задач, хранится в модели; локально и на сервере; в меню задачи «Порт: N (копировать)»). `hangar event <kind> [--session <id>]` отправляет событие; без `HANGAR_TAB_ID` молча выходит с кодом 0 (не ломает агентов вне Hangar).
 
 - **Claude Code**: Hangar предлагает (с подтверждением и показом diff) добавить hooks в `~/.claude/settings.json`: `SessionStart` (id сессии), `UserPromptSubmit` → working, `PostToolUse` (matcher `*`) → working, `Notification` → waiting только для `permission_prompt`/`elicitation_dialog` (`idle_prompt` не трогает статус), `Stop` → done, `StopFailure` matcher `rate_limit` → failed + `limitReached`; у каждого `"timeout": 5` (#43). `session_id` из payload hook сохраняется в листе.
 - **Codex**: `notify` в `~/.codex/config.toml` → done (+ session id). `waiting` — по bell/OSC-уведомлению от surface. Точность проверяется на практике и дорабатывается.

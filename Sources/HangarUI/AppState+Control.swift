@@ -59,10 +59,10 @@ extension AppState {
             case .success(let p): projectId = p
             case .failure(let e): return fail(e)
             }
-            var mode = TaskMode.mainFolder
+            var mode = TaskMode.mainFolder, setup: String?
             if worktree, let project = project(projectId) {
                 switch await countingCreation({ await worktreeMode(project, name: name, base: base) }) {
-                case .success(let m): mode = m
+                case .success(let m): (mode, setup) = m
                 case .failure(let e): return fail(e)
                 }
                 // Removed while git ran: the worktree stays on disk like after an archive.
@@ -72,7 +72,7 @@ extension AppState {
                     return fail(ControlError(code: .notFound, message: "project \"\(ref)\" was removed while creating the worktree" + left))
                 }
             }
-            let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false)
+            let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false, setup: setup)
             terminals?.start(created.tab)
             guard let task = state.tasks.first(where: { $0.id == created.task }) else {
                 return fail(ControlError(code: .failed, message: "task was not created"))
@@ -99,7 +99,9 @@ extension AppState {
                 let previous = s.tasks[i].activeTabId
                 tabId = s.addTab(taskId: taskId, kind: leafKind(kind))
                 if let previous { s.tasks[i].activeTabId = previous }
-                let message = prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                // Agents only: a shell runs its launch prompt as commands (worktree setup), never the wire's text.
+                let agent = kind == .claude || kind == .codex
+                let message = agent ? prompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" : ""
                 if !message.isEmpty, let leaf = s.tasks[i].tabs.last?.root.leaves.first { pendingPrompts[leaf.id] = message }
             }
             terminals?.start(tabId)
@@ -246,9 +248,10 @@ extension AppState {
         }
     }
 
-    /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path; a failed fetch fails.
-    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<TaskMode, ControlError> {
-        let failed = { (message: String) in Result<TaskMode, ControlError>.failure(ControlError(code: .failed, message: message)) }
+    /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path, copy; a failed fetch fails.
+    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
+        typealias R = Result<(TaskMode, setup: String?), ControlError>
+        let failed = { (message: String) in R.failure(ControlError(code: .failed, message: message)) }
         let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))
         await model.load()
         switch model.availability {
@@ -266,7 +269,7 @@ extension AppState {
         guard model.base != nil else { return failed("no default branch; pass base") }
         model.worktree = true
         model.name = name
-        if let mode = await model.create(skipFetch: false) { return .success(mode) }
+        if let mode = await model.create(skipFetch: false) { return .success((mode, model.setupScript)) }
         var fetchError: String?
         if case .failed(let message) = model.fetch { fetchError = message }
         // branchError is L10n text for the sheet; the wire gets fixed English.

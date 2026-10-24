@@ -277,3 +277,10 @@
 "taskArchived" = "Task archived";
 "undoArchive" = "Undo";
 "keepAwakeShort" = "Keep awake";
+"worktreeRootHint" = "All worktrees of this project go here: %@/<branch>";
+"worktreeCopy" = "Copy into worktree";
+"worktreeCopyHelp" = "Git-ignored files and folders from the main folder, comma-separated; globs allowed (.env*). Copied as APFS clones (instant, no extra space); missing ones are skipped";
+"setupCommand" = "Setup command";
+"setupCommandHelp" = "Runs in a shell tab of the new worktree after the copy, e.g. npm install";
+"copyingEntry" = "Copying %@…";
+"copyFailed" = "hangar: not copied %@";

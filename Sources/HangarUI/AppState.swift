@@ -301,8 +301,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
     /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
     @discardableResult
-    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true) -> (task: UUID, tab: UUID) {
+    /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's.
+    func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
+                    setup: String? = nil) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
+        var setupTab: UUID?
         perform { s in
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
             var base: String?
@@ -317,7 +320,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {
                 pendingPrompts[leaf.id] = message
             }
+            if let setup, let i = s.tasks.firstIndex(where: { $0.id == task }) {
+                let shell = s.addTab(taskId: task, kind: .shell)
+                s.tasks[i].activeTabId = tab
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                setupTab = shell
+            }
         }
+        if let setupTab { terminals?.start(setupTab) }
         return created
     }
 

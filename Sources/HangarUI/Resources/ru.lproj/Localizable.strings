@@ -277,3 +277,10 @@
 "taskArchived" = "Задача в архиве";
 "undoArchive" = "Отменить";
 "keepAwakeShort" = "Не засыпать";
+"worktreeRootHint" = "Сюда создаются все worktree проекта: %@/<ветка>";
+"worktreeCopy" = "Копировать в worktree";
+"worktreeCopyHelp" = "Игнорируемые git файлы и папки из главной папки, через запятую; можно маски (.env*). Копируются клоном APFS (мгновенно, без лишнего места); отсутствующие пропускаются";
+"setupCommand" = "Команда после создания";
+"setupCommandHelp" = "Выполняется в новом worktree во вкладке shell после копирования, например npm install";
+"copyingEntry" = "Копирую %@…";
+"copyFailed" = "hangar: не скопировано %@";

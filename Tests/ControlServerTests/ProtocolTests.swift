@@ -112,7 +112,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             .tasksCreate(project: "app", name: "Fix", worktree: true, base: "main", prompt: "go"),
             .tabsOpen(task: "t1", kind: .shell, prompt: nil), .tabsOpen(task: "t1", kind: .claude, prompt: "hi"),
             .tabsSend(tab: "ab12", text: "ls", keys: [.enter, .ctrlC]), .tabsSend(tab: "ab12", text: nil, keys: [.up]),
-            .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"),
+            .tabsRead(tab: "ab12", lines: 100), .tasksArchive(task: "t1"), .tasksRestore(task: "t1"), .tasksList(project: nil, git: true),
         ]
         #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))
         for call in calls {
@@ -174,6 +174,13 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(decode("tasks.archive", #"{"task":"t","yes":true}"#) == .success(.tasksArchive(task: "t")))
         #expect(decode("tasks.archive", #"{"task":"t","yes":true,"force":true}"#) == .success(.tasksArchive(task: "t", force: true)))
         #expect(String(decoding: ControlCall.tasksArchive(task: "t", force: true).paramsJSON(), as: UTF8.self).contains(#""force":true"#))
+        // Restore is not destructive: no `yes`.
+        #expect(decode("tasks.restore", #"{"task":"t"}"#) == .success(.tasksRestore(task: "t")))
+        badParams("tasks.restore", #"{}"#)
+        badParams("tasks.restore", #"{"task":"t","yes":true}"#)
+        #expect(decode("tasks.list", #"{"git":true}"#) == .success(.tasksList(project: nil, git: true)))
+        #expect(decode("tasks.list", #"{}"#) == .success(.tasksList(project: nil, git: false)))
+        badParams("tasks.list", #"{"git":"yes"}"#)
         #expect(String(decoding: ControlCall.tasksArchive(task: "t").paramsJSON(), as: UTF8.self).contains(#""yes":true"#))
     }
 

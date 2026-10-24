@@ -107,7 +107,7 @@ import Workspace
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
         case integrationNeedsApp, settingsInvalidJSON, settingsUnsupported, fileChanged, codexConfigUnsupported, integrationWriteFailed
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
-        case integrationMCP, copyCommand, commandCopied, mcpHint
+        case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInHelix, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
@@ -287,6 +287,8 @@ import Workspace
     static var copyCommand: String { s(.copyCommand) }
     static var commandCopied: String { s(.commandCopied) }
     static var mcpHint: String { s(.mcpHint) }
+    static var dockBadgeTitle: String { s(.dockBadgeTitle) }
+    static var dockBadgeHelp: String { s(.dockBadgeHelp) }
     static func settingsInvalidJSON(_ line: Int) -> String { f(.settingsInvalidJSON, line) }
     static var settingsUnsupported: String { s(.settingsUnsupported) }
     static var fileChanged: String { s(.fileChanged) }

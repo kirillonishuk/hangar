@@ -10,10 +10,15 @@ public let maxMCPLine = 1_048_576
 /// Trust boundary: lines come from the agent; `arguments` go through `ControlCall.decode` like socket params.
 public struct MCPSession {
     private let call: (ControlCall) -> Result<Data, ControlError>
+    /// `hangar mcp --read-only`: only `ControlMethod.readOnly` tools are listed or run.
+    private let readOnly: Bool
 
-    public init(call: @escaping (ControlCall) -> Result<Data, ControlError>) {
+    public init(readOnly: Bool = false, call: @escaping (ControlCall) -> Result<Data, ControlError>) {
+        self.readOnly = readOnly
         self.call = call
     }
+
+    private var methods: [ControlMethod] { ControlMethod.allCases.filter { !readOnly || $0.readOnly } }
 
     /// The reply without a trailing newline (JSON has none inside); nil for notifications.
     public mutating func handle(_ line: Data) -> Data? {
@@ -42,10 +47,13 @@ public struct MCPSession {
         case "ping":
             return Self.result(id, [String: Any]())
         case "tools/list":
-            return Self.result(id, ["tools": Self.tools])
+            return Self.result(id, ["tools": Self.tools(methods)])
         case "tools/call":
             guard let name = params["name"] as? String, let m = ControlMethod.allCases.first(where: { $0.toolName == name }) else {
                 return Self.error(id, -32602, "unknown tool \"\(((params["name"] as? String) ?? "").prefix(64))\"")
+            }
+            guard methods.contains(m) else {
+                return Self.error(id, -32602, "tool \"\(name)\" is not available: this Hangar MCP server runs with --read-only")
             }
             let arguments: [String: Any]
             switch params["arguments"] {
@@ -104,8 +112,8 @@ public struct MCPSession {
 
     // MARK: tools
 
-    private static var tools: [[String: Any]] {
-        ControlMethod.allCases.map { m in
+    private static func tools(_ methods: [ControlMethod]) -> [[String: Any]] {
+        methods.map { m in
         var properties: [String: Any] = [:]
         for p in m.params {
             var schema: [String: Any]

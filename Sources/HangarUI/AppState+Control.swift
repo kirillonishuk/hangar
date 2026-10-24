@@ -43,7 +43,7 @@ extension AppState {
             let added = addProject(path: path)
             return .ok(id, ProjectAddResult(project: projectInfo(project(added)!), added: true))
 
-        case .tasksList(let ref):
+        case let .tasksList(ref, withGit):
             var projects = state.projects
             if let ref {
                 switch resolveProject(ref) {
@@ -51,7 +51,27 @@ extension AppState {
                 case .failure(let e): return fail(e)
                 }
             }
-            return .ok(id, TasksResult(tasks: projects.flatMap { state.tasks(in: $0.id) }.map(taskInfo)))
+            var infos = projects.flatMap { state.tasks(in: $0.id) }.map(taskInfo)
+            if withGit { infos = await addingGitStatus(infos) }
+            return .ok(id, TasksResult(tasks: infos))
+
+        case let .tasksRestore(ref):
+            let taskId: UUID
+            switch resolveTask(ref, archived: true) {
+            case .success(let t): taskId = t
+            case .failure(let e): return fail(e)
+            }
+            switch await restoreFromArchive(taskId) {
+            case .restored:
+                guard let task = state.tasks.first(where: { $0.id == taskId && !$0.archived }) else {
+                    return fail(ControlError(code: .notFound, message: "task \"\(ref)\" is gone"))
+                }
+                return .ok(id, TaskResult(task: taskInfo(task)))
+            case .branchMissing(let branch):
+                return fail(ControlError(code: .failed, message: "branch \"\(branch)\" is gone, the worktree cannot be re-created; "
+                                         + "restore it in Hangar to keep the task in the project folder"))
+            case .failed(let details): return fail(ControlError(code: .failed, message: details))
+            }
 
         case let .tasksCreate(ref, name, worktree, base, prompt):
             let projectId: UUID
@@ -244,10 +264,36 @@ extension AppState {
             .mapError { refError($0, ref, "project") }
     }
 
-    /// Archived tasks are never found (decision #45).
-    private func resolveTask(_ ref: String) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { !$0.archived }.map { RefCandidate(id: $0.id, names: [$0.name]) })
-            .mapError { refError($0, ref, "task") }
+    /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
+    private func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
+        resolveRef(ref, in: state.tasks.filter { $0.archived == archived }.map { RefCandidate(id: $0.id, names: [$0.name]) })
+            .mapError { refError($0, ref, archived ? "archived task" : "task") }
+    }
+
+    /// `tasks.list --git`: per task, in parallel. The inspector's loaded changes of the shown task are reused;
+    /// a task whose git fails (not a repository, host offline) just gets no git fields.
+    private func addingGitStatus(_ infos: [TaskInfo]) async -> [TaskInfo] {
+        var jobs: [(index: Int, git: Git, base: String?, cached: ChangeSet?)] = []
+        for (i, info) in infos.enumerated() {
+            guard let task = state.tasks.first(where: { $0.id == info.id }), let project = project(task.projectId) else { continue }
+            let mode: DiffMode = info.base.map { .base($0) } ?? .uncommitted
+            let cached = inspector.shownTaskId == info.id && inspector.changes?.mode == mode ? inspector.changes : nil
+            jobs.append((i, git(for: project, repo: info.path), info.base, cached))
+        }
+        var out = infos
+        await withTaskGroup(of: (Int, TaskGitStatus?).self) { group in
+            for job in jobs {
+                group.addTask { (job.index, try? await taskGitStatus(job.git, base: job.base, cached: job.cached)) }
+            }
+            for await (i, status) in group {
+                guard let status else { continue }
+                out[i].changes = status.changes
+                out[i].dirty = status.dirty
+                out[i].ahead = status.ahead
+                out[i].behind = status.behind
+            }
+        }
+        return out
     }
 
     private func refError(_ e: RefError, _ ref: String, _ what: String) -> ControlError {
@@ -286,6 +332,24 @@ extension AppState {
         let branchError = model.branchError.map { _ in branchProblemMessage(model.branch, branches: model.branches) }
         return failed(model.createError ?? branchError ?? fetchError ?? "worktree was not created")
     }
+}
+
+struct TaskGitStatus {
+    var changes: ChangesInfo
+    var dirty: Bool
+    var ahead: Int?
+    var behind: Int?
+}
+
+/// The inspector's Changes count (vs the merge-base with `base`, else HEAD), dirty from `status`, ahead/behind `base`.
+func taskGitStatus(_ git: Git, base: String?, cached: ChangeSet?) async throws -> TaskGitStatus {
+    let status = try await git.status(prefix: git.location().prefix)
+    let set: ChangeSet
+    if let cached { set = cached } else { set = try await git.changedFiles(base.map { .base($0) } ?? .uncommitted, status: status) }
+    let changes = ChangesInfo(added: set.files.reduce(0) { $0 + ($1.added ?? 0) }, removed: set.files.reduce(0) { $0 + ($1.deleted ?? 0) },
+                              files: set.files.count)
+    let counts = base == nil ? nil : try? await git.aheadBehind(base: base!)
+    return TaskGitStatus(changes: changes, dirty: !status.entries.isEmpty, ahead: counts?.ahead, behind: counts?.behind)
 }
 
 /// `projects.add --host`: the sidebar warning's reasons (`HostInfo.needsAttention`) as fixed English lines.

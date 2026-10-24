@@ -1,3 +1,5 @@
+import AppKit
+import Exec
 import Foundation
 import Testing
 @testable import HangarUI
@@ -51,8 +53,36 @@ import Workspace
         #expect(!set.contains(ids[1]))
     }
 
+    /// ↩ after a clean exit relaunches with `--continue`: without a session id only the folder's first leaf may.
+    @Test func relaunchSecondClaudeSameCwdStartsFresh() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
+        let app = app(s)
+        let previous = LaunchMode(restoring: false, initialPrompt: nil)
+        let tabs = app.state.tasks[0].tabs
+        let second = try app.spec(for: tabs[1].root.leaves[0], tabId: tabs[1].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(!second.1.restoring)
+        let first = try app.spec(for: tabs[0].root.leaves[0], tabId: tabs[0].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(first.1.restoring)
+    }
+
     @Test func differentCwdsBothContinue() {
         let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/b")])
+        #expect(resumeSet(for: s) == Set(ids))
+    }
+
+    /// `--continue` picks the latest chat of a cwd on one machine: the same path on another host is another chat.
+    @Test func samePathOnDifferentHostsBothContinue() {
+        var s = WorkspaceState()
+        let a = s.addRemoteProject(name: "a", host: "dev1", path: "/srv/app")
+        let b = s.addRemoteProject(name: "b", host: "dev2", path: "/srv/app")
+        let l = s.addProject(name: "l", path: "/srv/app")
+        var ids: [UUID] = []
+        for p in [a, b, l] {
+            let t = s.addTask(projectId: p, name: "t")
+            let leaf = Leaf(kind: .claude, cwd: "/srv/app")
+            s.tasks[s.tasks.firstIndex { $0.id == t }!].tabs = [Tab(title: "claude", root: .leaf(leaf), focusedLeafId: leaf.id)]
+            ids.append(leaf.id)
+        }
         #expect(resumeSet(for: s) == Set(ids))
     }
 
@@ -127,5 +157,62 @@ import Workspace
         #expect(app.launchContext(for: b.id) == .restored(inResumeSet: false))
         #expect(app.launchContext(for: c.id) == .restored(inResumeSet: true))
         #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))
+    }
+
+    /// A restored (or freshly split) tree keeps its saved ratios: NSSplitView's own layout pass must not
+    /// collapse a pane to 0 (live: a nested split showed one pane, a restored 0.39 split showed 0 / all).
+    @Test func nestedSplitKeepsRatiosThroughLayout() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 801, height: 401), styleMask: [.titled], backing: .buffered, defer: true)
+        let outer = RatioSplitView(axis: .horizontal, ratio: 0.25)
+        let inner = RatioSplitView(axis: .vertical, ratio: 0.75)
+        outer.frame = window.contentView!.bounds
+        window.contentView!.addSubview(outer)
+        let a = NSView(), b = NSView(), c = NSView()
+        outer.addSubview(a)
+        outer.addSubview(inner)
+        inner.addSubview(b)
+        inner.addSubview(c)
+        outer.adjustSubviews()
+        inner.adjustSubviews()
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(a.frame.width == 200)
+        #expect(inner.frame.width == 600)
+        #expect(b.frame.height == 300)
+        #expect(c.frame.height == 100)
+        // A window resize keeps the proportions.
+        window.setContentSize(NSSize(width: 401, height: 201))
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(a.frame.width == 100)
+        #expect(b.frame.height == 150)
+    }
+
+    /// Fast task switches restart the drawer animation of the tab area; autoresizing a split through interrupted
+    /// animations drifted its height (live: a hidden split tab came back 1305 pt tall in a 1085 pt area, or 220 pt).
+    @Test func tabSplitFillsTabThroughInterruptedAnimations() {
+        let window = NSWindow(contentRect: NSRect(x: -3000, y: 0, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        let root = NSView(frame: window.contentView!.bounds)
+        root.wantsLayer = true
+        window.contentView!.addSubview(root)
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+        root.addSubview(content)
+        let tab = FillView(frame: content.bounds)
+        tab.autoresizingMask = [.width, .height]
+        content.addSubview(tab)
+        let split = RatioSplitView(axis: .horizontal, ratio: 0.5)
+        split.frame = tab.bounds
+        tab.addSubview(split)
+        split.addSubview(NSView())
+        split.addSubview(NSView())
+        for i in 0..<20 {
+            let h: CGFloat = i % 2 == 0 ? 380 : 500
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.2
+                content.animator().frame = NSRect(x: 0, y: 500 - h, width: 800, height: h)
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        #expect(content.frame.height == 500)
+        #expect(split.frame == tab.bounds)
     }
 }

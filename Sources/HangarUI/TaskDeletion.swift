@@ -14,37 +14,31 @@ import Workspace
         app.perform { $0.deleteTask(id: id) }
         return
     }
-    let dirty: Bool, ignored: [String]
+    let check: WorktreeCheck
     do {
-        // 255: ssh itself failed, not `test`.
-        let probe = try await runner.run(["test", "-d", path], "/")
-        guard probe.status != 255 else { throw DeletionCheckFailed(message: probe.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        if probe.status != 0 {
-            _ = try? await git.pruneWorktrees()
-            await finishDeletion(id, branch: branch, ctx: ctx, git: git)
-            return
-        }
-        dirty = try await git.isDirty(path: path)
-        ignored = try await git.ignoredFiles(path: path)
+        check = try await checkWorktree(path, git: git, runner: runner)
     } catch {
         ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return
     }
-    if dirty || !ignored.isEmpty {
+    switch check {
+    case .missing:
+        _ = try? await git.pruneWorktrees()
+        await finishDeletion(id, branch: branch, ctx: ctx, git: git)
+    case let .atRisk(dirty, ignored):
         // Cancel leaves everything as it was; the forced removal continues from the confirm callback.
-        let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
-        let info = ignored.isEmpty ? L10n.worktreeDirtyInfo : L10n.worktreeIgnoredInfo(shown)
-        ctx.confirm(dirty ? L10n.worktreeDirty : L10n.worktreeIgnored, info, L10n.deleteAnyway) {
-            Task { await removeWorktreeAndTask(id, path: path, branch: branch, force: true, ctx: ctx, git: git) }
+        ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) {
+            Task { await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner) }
         }
-        return
+    case .clean:
+        await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
     }
-    await removeWorktreeAndTask(id, path: path, branch: branch, force: false, ctx: ctx, git: git)
 }
 
-@MainActor private func removeWorktreeAndTask(_ id: UUID, path: String, branch: String, force: Bool, ctx: ActionContext, git: Git) async {
+@MainActor private func removeWorktreeAndTask(_ id: UUID, path: String, branch: String, ctx: ActionContext, git: Git, runner: Runner) async {
     do {
-        try await git.removeWorktree(path: path, force: force)
+        // The check above asked about losses; the tombstone rename itself never refuses.
+        try await removeWorktreeFolder(path, git: git, runner: runner)
     } catch {
         ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return
@@ -59,6 +53,34 @@ import Workspace
     } catch {
         ctx.showError(L10n.branchKept(branch), error.localizedDescription)
     }
+}
+
+/// What removing a worktree folder would lose; shared by delete and archive (decision #57).
+enum WorktreeCheck: Equatable { case missing, clean, atRisk(dirty: Bool, ignored: [String]) }
+
+/// `runner`: the project's machine. Throws when the check itself fails (host down, git error).
+/// Reinstallable folders and setup's identical copies of main-folder files are not at risk (`Git.ignoredAtRisk`).
+func checkWorktree(_ path: String, git: Git, runner: Runner) async throws -> WorktreeCheck {
+    guard try await isDirectory(path, runner: runner) else { return .missing }
+    let dirty = try await git.isDirty(path: path)
+    var ignored = try await git.ignoredFiles(path: path)
+    if !ignored.isEmpty { ignored = try await git.ignoredAtRisk(ignored, worktree: path, top: try await git.toplevel()) }
+    return dirty || !ignored.isEmpty ? .atRisk(dirty: dirty, ignored: ignored) : .clean
+}
+
+/// `test -d` on the project's machine; 255 means ssh itself failed, not `test`.
+func isDirectory(_ path: String, runner: Runner) async throws -> Bool {
+    let probe = try await runner.run(["test", "-d", path], "/")
+    guard probe.status != 255 else { throw DeletionCheckFailed(message: probe.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    return probe.status == 0
+}
+
+@MainActor func worktreeRiskTitle(dirty: Bool) -> String { dirty ? L10n.worktreeDirty : L10n.worktreeIgnored }
+
+/// Up to 5 ignored names (`.env`, local databases), ones missing from the main folder first, so the user sees what goes.
+@MainActor func worktreeRiskInfo(ignored: [String]) -> String {
+    let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
+    return ignored.isEmpty ? L10n.worktreeDirtyInfo : L10n.worktreeIgnoredInfo(shown)
 }
 
 private struct DeletionCheckFailed: LocalizedError {

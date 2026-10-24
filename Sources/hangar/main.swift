@@ -126,9 +126,33 @@ func runCommand(_ args: [String]) -> Int32 {
     }
 }
 
+/// The app's part over the socket plus the CLI's own lines (socket, versions); exit 1 when a check fails.
+func collectDoctorReport() -> DoctorReport {
+    let app = ControlClient.request(.doctor, to: defaultSocketPath(), timeout: requestTimeout(.doctor))
+        .flatMap { data in
+            (try? JSONDecoder().decode(DoctorResult.self, from: data)).map { .success($0) }
+                ?? .failure(ControlError(code: .failed, message: "unreadable doctor answer from the app"))
+        }
+    return doctorReport(app: app, cliVersion: Bundle.main.executableURL.map(MCPSession.appVersion) ?? "dev")
+}
+
+func runDoctor(_ args: [String]) -> Int32 {
+    guard case let .call(_, json) = parseDoctorArgs(args) else {
+        FileHandle.standardError.write(Data("hangar: usage: hangar doctor [--json]\n".utf8))
+        return 2
+    }
+    let report = collectDoctorReport()
+    FileHandle.standardOutput.write((json ? doctorJSON(report) : Data(formatDoctor(report).utf8)) + Data("\n".utf8))
+    return report.exitCode
+}
+
 /// MCP over stdio: one JSON-RPC message per line until EOF, answered in order; stdout carries only replies.
-func runMCP() -> Int32 {
-    var session = MCPSession { call in ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) }
+func runMCP(readOnly: Bool) -> Int32 {
+    var session = MCPSession(readOnly: readOnly) { call in
+        // `doctor` answers even when the app is down: the report says so.
+        if call == .doctor { return .success(doctorJSON(collectDoctorReport())) }
+        return ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call))
+    }
     let out = FileHandle.standardOutput
     // An oversize line keeps only maxMCPLine + 1 bytes, enough for `handle` to answer -32600.
     var pending = Data()
@@ -162,8 +186,10 @@ let argv = Array(CommandLine.arguments.dropFirst())
 switch argv.first {
 case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
-case "projects", "tasks", "tabs": exit(runCommand(argv))
-case "mcp" where argv.count == 1: exit(runMCP())
+case "projects", "tasks", "tabs", "ssh", "link": exit(runCommand(argv))
+case "doctor": exit(runDoctor(argv))
+case "mcp" where argv.count == 1: exit(runMCP(readOnly: false))
+case "mcp" where argv == ["mcp", "--read-only"]: exit(runMCP(readOnly: true))
 default:  // hooks always call `event`/`statusline`, so no hook sees this exit code
     FileHandle.standardError.write(Data((cliUsage + "\n").utf8))
     exit(2)

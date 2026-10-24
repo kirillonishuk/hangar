@@ -16,8 +16,8 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 SHARE=vendor/ghostty-src/zig-out/share
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
-cp -R Resources/Icons "$APP/Contents/Resources/Icons"
-# SwiftPM resources (ru/en strings); L10n looks in Contents/Resources first.
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# SwiftPM resources (ru/en strings, FileIcons/); L10n looks in Contents/Resources first.
 cp -R "$BIN_DIR/Hangar_HangarUI.bundle" "$APP/Contents/Resources/Hangar_HangarUI.bundle"
 
 mkdir -p "$APP/Contents/Helpers"

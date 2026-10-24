@@ -3,50 +3,101 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Every icon in the UI: SF Symbols, one weight, `Theme.iconSize`. No symbol names outside this file.
-enum Icon {
-    case sidebarToggle, newTask, project, worktree, sshHost, claude, codex, editor, shell, diff, files, changes
-    case keepAwake, limits, settings, archive, search, splitRight, splitDown, close
-    case pin, pinned, chevronUp, chevronDown, chevronRight, more, sidebarRight
-    case rename, finder, copy, openExternal, restore, trash, remove, refresh
+/// Every icon in the UI (icons-v2.html, decision #56): line glyphs drawn in code on a 16 grid, 1.5 pt stroke at every
+/// size, round caps and joins; only the agents keep their brand logos. No glyph data outside this file.
+enum Icon: CaseIterable {
+    case sidebarLeft, sidebarRight, add, project, branch, sshHost, editor, shell, diff, keepAwake, limits, settings
+    case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
+    case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
+    case claude, codex
 
-    private var symbol: String {
+    /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
+    var glyph: [Stroke] {
         switch self {
-        case .sidebarToggle: "sidebar.left"
-        case .newTask: "plus"
-        case .project: "folder"
-        case .worktree: "arrow.triangle.branch"
-        case .sshHost: "server.rack"
-        case .claude: "sparkle"  // fallback when the bundled logo is unavailable
-        case .codex: "chevron.left.forwardslash.chevron.right"  // fallback
-        case .editor: "pencil"
-        case .shell: "terminal"
-        case .diff, .changes: "plus.forwardslash.minus"
-        case .files: "doc.text"
-        case .keepAwake: "cup.and.saucer"
-        case .limits: "gauge.with.dots.needle.33percent"
-        case .settings: "gearshape"
-        case .archive: "archivebox"
-        case .search: "magnifyingglass"
-        case .splitRight: "rectangle.split.2x1"
-        case .splitDown: "rectangle.split.1x2"
-        case .close: "xmark"
-        case .pin: "pin"
-        case .pinned: "pin.fill"
-        case .chevronUp: "chevron.up"
-        case .chevronDown: "chevron.down"
-        case .chevronRight: "chevron.right"
-        case .more: "ellipsis"
-        case .sidebarRight: "sidebar.right"
-        case .rename: "character.cursor.ibeam"
-        case .finder: "macwindow.on.rectangle"
-        case .copy: "doc.on.doc"
-        case .openExternal: "arrow.up.forward.app"
-        case .restore: "arrow.uturn.backward"
-        case .trash: "trash"
-        case .remove: "minus.circle"
-        case .refresh: "arrow.clockwise"
+        case .sidebarLeft: [.frame, .line(p(6, 2.75), p(6, 13.25))]
+        case .sidebarRight: [.frame, .line(p(10, 2.75), p(10, 13.25))]
+        case .add: [.line(p(8, 3), p(8, 13)), .line(p(3, 8), p(13, 8))]
+        case .project:
+            [.shape(p(1.75, 2.75, r: 2), p(6.35, 2.75), p(7.95, 4.5), p(14.25, 4.5, r: 2), p(14.25, 13.25, r: 2), p(1.75, 13.25, r: 2))]
+        case .branch:
+            [.line(p(4, 2.25), p(4, 10.25)), .circle(p(4, 12), 1.75), .circle(p(12, 4), 1.75),
+             .arc(from: p(12, 5.75), to: p(5.75, 12), r: 6.25, large: false, sweep: true)]
+        case .sshHost:
+            [.rect(1.75, 2.75, 12.5, 4.5, 2), .rect(1.75, 8.75, 12.5, 4.5, 2), .dot(p(4.75, 5)), .dot(p(4.75, 11))]
+        case .editor:
+            [.shape(p(10.5, 2.75), p(13.25, 5.5), p(5.5, 13.25), p(2.75, 13.25), p(2.75, 10.5)), .line(p(8.75, 4.5), p(11.5, 7.25))]
+        case .shell: [.frame, .line(p(4.75, 6.25), p(6.75, 8), p(4.75, 9.75)), .line(p(8.75, 10), p(11.25, 10))]
+        case .diff:
+            [.line(p(4.75, 2.5), p(4.75, 7)), .line(p(2.5, 4.75), p(7, 4.75)), .line(p(9, 11.25), p(13.5, 11.25)),
+             .line(p(12.5, 3.5), p(3.5, 12.5))]
+        case .keepAwake:
+            [.shape(p(2.75, 7), p(10.75, 7), p(10.75, 13.25, r: 3), p(2.75, 13.25, r: 3)),
+             .line(p(10.75, 8), p(13.25, 8, r: 1.75), p(13.25, 11.5, r: 1.75), p(10.75, 11.5)),
+             .line(p(5.25, 2.75), p(5.25, 4.5)), .line(p(8.25, 2.75), p(8.25, 4.5))]
+        case .limits:
+            [.arc(from: p(2.75, 12), to: p(13.25, 12), r: 5.75, large: true, sweep: true), .line(p(8, 9.65), p(10.9, 6.9)),
+             .circle(p(8, 9.65), 0.6)]
+        case .settings: [.shape(Self.gearTeeth.map { p($0.0, $0.1) }), .circle(p(8, 8), 2)]
+        case .archive:
+            [.rect(1.75, 2.75, 12.5, 3.25, 1), .line(p(3.25, 6), p(3.25, 13.25, r: 2), p(12.75, 13.25, r: 2), p(12.75, 6)),
+             .line(p(6.5, 8.75), p(9.5, 8.75))]
+        case .splitRight: [.frame, .line(p(8, 2.75), p(8, 13.25))]
+        case .splitDown: [.frame, .line(p(1.75, 8), p(14.25, 8))]
+        case .close: [.line(p(4, 4), p(12, 12)), .line(p(12, 4), p(4, 12))]
+        case .pin:
+            [.line(p(5.25, 2.75), p(10.75, 2.75)), .line(p(6.5, 2.75), p(6.5, 6.5), p(4.25, 9.25), p(11.75, 9.25), p(9.5, 6.5), p(9.5, 2.75)),
+             .line(p(8, 9.25), p(8, 13.25))]
+        case .chevronDown: [.line(p(4.5, 6.25), p(8, 9.75), p(11.5, 6.25))]
+        case .chevronUp: [.line(p(4.5, 9.75), p(8, 6.25), p(11.5, 9.75))]
+        case .chevronRight: [.line(p(6.25, 4.5), p(9.75, 8), p(6.25, 11.5))]
+        case .more: [.dot(p(3.5, 8)), .dot(p(8, 8)), .dot(p(12.5, 8))]
+        case .rename:
+            [.line(p(5.25, 4.75), p(1.75, 4.75, r: 2), p(1.75, 11.25, r: 2), p(5.25, 11.25)),
+             .line(p(10.75, 4.75), p(14.25, 4.75, r: 2), p(14.25, 11.25, r: 2), p(10.75, 11.25)),
+             .line(p(8, 2.75), p(8, 13.25)), .line(p(6.5, 2.75), p(9.5, 2.75)), .line(p(6.5, 13.25), p(9.5, 13.25))]
+        case .finder:
+            [.frame, .line(p(8.75, 2.75), p(7, 8.25), p(8.75, 8.25), p(8.25, 13.25)), .line(p(4.75, 5.75), p(4.75, 6.75)),
+             .line(p(11.25, 5.75), p(11.25, 6.75)), .quad(p(4.5, 10.25), p(8, 11.75), p(11.5, 10.25))]
+        case .copy:
+            [.rect(5.75, 5.75, 8.5, 7.5, 2), .line(p(10.25, 5.75), p(10.25, 2.75, r: 2), p(1.75, 2.75, r: 2), p(1.75, 11.25, r: 2), p(5.75, 11.25))]
+        case .openExternal:
+            [.line(p(14.25, 9.25), p(14.25, 13.25, r: 2), p(1.75, 13.25, r: 2), p(1.75, 2.75, r: 2), p(7.25, 2.75)),
+             .line(p(10.5, 2.75), p(14.25, 2.75), p(14.25, 6.5)), .line(p(14.25, 2.75), p(8.5, 8.5))]
+        case .restore:
+            [.line(p(5.5, 3.25), p(2.75, 6), p(5.5, 8.75)), .line(p(2.75, 6), p(13, 6, r: 3.5), p(13, 13, r: 3.5), p(6.5, 13))]
+        case .trash:
+            [.line(p(2.25, 4.25), p(13.75, 4.25)), .line(p(6, 4.25), p(6, 2.25, r: 1), p(10, 2.25, r: 1), p(10, 4.25)),
+             .line(p(3.75, 4.25), p(3.75, 13.25, r: 2), p(12.25, 13.25, r: 2), p(12.25, 4.25)),
+             .line(p(6.75, 7), p(6.75, 10.5)), .line(p(9.25, 7), p(9.25, 10.5))]
+        case .remove: [.circle(p(8, 8), 6.25), .line(p(5.25, 8), p(10.75, 8))]
+        case .refresh:
+            [.arc(from: p(14, 8), to: p(8, 2), r: 6, large: true, sweep: true),
+             .curve(p(8, 2), p(9.68, 2), p(11.29, 2.67), p(12.5, 3.83)), .line(p(12.5, 3.83), p(14, 5.33)),
+             .line(p(14, 2), p(14, 5.33), p(10.67, 5.33))]
+        case .reconnect:
+            [.line(p(5.75, 2.75), p(5.75, 5.75)), .line(p(10.25, 2.75), p(10.25, 5.75)),
+             .shape(p(3.75, 5.75), p(12.25, 5.75), p(12.25, 12, r: 4.25), p(3.75, 12, r: 4.25)), .line(p(8, 12), p(8, 13.25))]
+        case .disconnect: [.line(p(8, 2.75), p(8, 7.75)), .arc(from: p(4.5, 4.75), to: p(11.5, 4.75), r: 5, large: true, sweep: false)]
+        case .checkServer: [.circle(p(8, 8), 6.25), .line(p(5.25, 8.25), p(7.1, 10.1), p(10.75, 6.25))]
+        case .claude, .codex: []  // brand logos
         }
+    }
+
+    /// The approved symmetric gear of icons-sidebar.html: 8 teeth, outer r 6.31, inner r 4.62.
+    private static let gearTeeth: [(CGFloat, CGFloat)] = [
+        (12.59, 6.58), (14.31, 6.92), (14.31, 9.08), (12.59, 9.42), (12.25, 10.24), (13.23, 11.69), (11.69, 13.23), (10.24, 12.25),
+        (9.42, 12.59), (9.08, 14.31), (6.92, 14.31), (6.58, 12.59), (5.76, 12.25), (4.31, 13.23), (2.77, 11.69), (3.75, 10.24),
+        (3.41, 9.42), (1.69, 9.08), (1.69, 6.92), (3.41, 6.58), (3.75, 5.76), (2.77, 4.31), (4.31, 2.77), (5.76, 3.75),
+        (6.58, 3.41), (6.92, 1.69), (9.08, 1.69), (9.42, 3.41), (10.24, 3.75), (11.69, 2.77), (13.23, 4.31), (12.25, 5.76),
+    ]
+
+    /// All strokes as one path in the 16 grid (tests check the keylines on it).
+    var outline: NSBezierPath { path(scale: 1) }
+
+    private func path(scale: CGFloat) -> NSBezierPath {
+        let path = NSBezierPath()
+        for stroke in glyph { stroke.append(to: path, scale: scale) }
+        return path
     }
 
     static func of(_ kind: LeafKind) -> Icon {
@@ -58,48 +109,139 @@ enum Icon {
         }
     }
 
-    /// Agents use their brand logos (Simple Icons SVGs in Contents/Resources/Icons, decision #33), tinted.
-    private var brand: (file: String, tint: NSColor)? {
+    /// Agents use their brand logos drawn from embedded path data (BrandLogos.swift, decision #33), pre-tinted.
+    private var brand: (data: String, tint: NSColor)? {
         switch self {
-        case .claude: ("claude", Theme.claudeBrand)
-        case .codex: ("openai", Theme.textStrong)
+        case .claude: (BrandLogo.claude, Theme.claudeBrand)
+        case .codex: (BrandLogo.openai, Theme.textStrong)
         default: nil
         }
     }
 
-    /// Only when the logo loaded: the SF Symbol fallback (no bundle) stays a template, or it draws black.
-    var isBrand: Bool { brand.map { Self.logo($0.file) != nil } ?? false }
+    var isBrand: Bool { brand != nil }
 
-    /// SF Symbols are template images (tinted by the caller); brand logos come pre-tinted.
-    var image: NSImage {
-        if let brand, let logo = Self.logo(brand.file) { return Self.tinted(logo, brand.tint) }
-        let config = NSImage.SymbolConfiguration(pointSize: Theme.iconSize, weight: .regular)
-        // Without the bundle (swift run / tests) brand icons fall back to their SF Symbol.
-        let base = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage()
-        return base.withSymbolConfiguration(config) ?? base
-    }
+    /// For menus and AppKit views: the glyph at `Theme.iconSize`.
+    var image: NSImage { image(size: Theme.iconSize) }
 
-    static func color(active: Bool) -> NSColor { active ? Theme.textStrong : Theme.text2 }
-
-    @MainActor private static var logos: [String: NSImage] = [:]
-
-    private static func logo(_ name: String) -> NSImage? {
+    /// Glyphs are template images (tinted by the caller), drawn natively at `size` so the stroke stays 1.5 pt;
+    /// brand logos come pre-tinted. Cached per icon and size.
+    func image(size: CGFloat) -> NSImage {
         MainActor.assumeIsolated {
-            if let cached = logos[name] { return cached }
-            guard let url = Bundle.main.resourceURL?.appendingPathComponent("Icons/\(name).svg"),
-                  let image = NSImage(contentsOf: url) else { return nil }
-            logos[name] = image
+            let key = CacheKey(icon: self, size: size)
+            if let cached = Self.images[key] { return cached }
+            let image = render(size: size)
+            Self.images[key] = image
             return image
         }
     }
 
-    private static func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
-        let size = NSSize(width: Theme.iconSize, height: Theme.iconSize)
-        return NSImage(size: size, flipped: false) { rect in
-            image.draw(in: rect)
-            color.set()
-            rect.fill(using: .sourceAtop)
+    private func render(size: CGFloat) -> NSImage {
+        if let brand {
+            let path = BrandLogo.path(brand.data)
+            return NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
+                let t = NSAffineTransform()
+                t.scale(by: size / BrandLogo.viewBox)
+                path.transform(using: t as AffineTransform)
+                brand.tint.setFill()
+                path.fill()
+                return true
+            }
+        }
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
+            let path = self.path(scale: size / Theme.iconGrid)
+            path.lineWidth = Theme.iconStroke
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            NSColor.black.setStroke()
+            path.stroke()
             return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    static func color(active: Bool) -> NSColor { active ? Theme.textStrong : Theme.text2 }
+
+    private struct CacheKey: Hashable {
+        let icon: Icon
+        let size: CGFloat
+    }
+
+    @MainActor private static var images: [CacheKey: NSImage] = [:]
+}
+
+/// A point of the 16 grid; `r` rounds the corner a polyline makes there (the SVG `a r r` corners).
+struct GridPoint: Equatable {
+    let x: CGFloat
+    let y: CGFloat
+    var r: CGFloat = 0
+}
+
+private func p(_ x: CGFloat, _ y: CGFloat, r: CGFloat = 0) -> GridPoint { GridPoint(x: x, y: y, r: r) }
+
+/// One stroke of a glyph (the primitives the mockup's paths use; no SVG parser).
+enum Stroke: Equatable {
+    case poly([GridPoint], closed: Bool)
+    case rect(CGFloat, CGFloat, CGFloat, CGFloat, radius: CGFloat)
+    case circle(GridPoint, CGFloat)
+    /// SVG `A r r 0 large sweep to`, starting at `from`.
+    case arc(from: GridPoint, to: GridPoint, r: CGFloat, large: Bool, sweep: Bool)
+    case curve(GridPoint, GridPoint, GridPoint, GridPoint)
+    /// A round dot as wide as the stroke (the mockup's zero-length `h.01`).
+    case dot(GridPoint)
+
+    static func line(_ points: GridPoint...) -> Stroke { .poly(points, closed: false) }
+    static func shape(_ points: GridPoint...) -> Stroke { .poly(points, closed: true) }
+    static func shape(_ points: [GridPoint]) -> Stroke { .poly(points, closed: true) }
+    static func rect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat) -> Stroke { .rect(x, y, w, h, radius: r) }
+    /// The window frame most glyphs share: 1.75…14.25 × 2.75…13.25, radius 2.
+    static let frame = Stroke.rect(1.75, 2.75, 12.5, 10.5, 2)
+
+    /// SVG `Q`, as the equivalent cubic.
+    static func quad(_ a: GridPoint, _ c: GridPoint, _ b: GridPoint) -> Stroke {
+        .curve(a, p(a.x + 2 * (c.x - a.x) / 3, a.y + 2 * (c.y - a.y) / 3), p(b.x + 2 * (c.x - b.x) / 3, b.y + 2 * (c.y - b.y) / 3), b)
+    }
+
+    func append(to path: NSBezierPath, scale s: CGFloat) {
+        func pt(_ g: GridPoint) -> NSPoint { NSPoint(x: g.x * s, y: g.y * s) }
+        switch self {
+        case .poly(let points, let closed):
+            guard let first = points.first, let last = points.last else { return }
+            func corner(_ i: Int, next: GridPoint) {
+                if points[i].r > 0 { path.appendArc(from: pt(points[i]), to: pt(next), radius: points[i].r * s) } else { path.line(to: pt(points[i])) }
+            }
+            if closed {
+                // Start mid-edge so a rounded first corner is drawn like the others.
+                path.move(to: NSPoint(x: (first.x + last.x) / 2 * s, y: (first.y + last.y) / 2 * s))
+                for i in points.indices { corner(i, next: points[(i + 1) % points.count]) }
+                path.close()
+            } else {
+                path.move(to: pt(first))
+                for i in points.indices.dropFirst().dropLast() { corner(i, next: points[i + 1]) }
+                path.line(to: pt(last))
+            }
+        case .rect(let x, let y, let w, let h, let r):
+            path.append(NSBezierPath(roundedRect: NSRect(x: x * s, y: y * s, width: w * s, height: h * s), xRadius: r * s, yRadius: r * s))
+        case .circle(let c, let r):
+            path.append(NSBezierPath(ovalIn: NSRect(x: (c.x - r) * s, y: (c.y - r) * s, width: 2 * r * s, height: 2 * r * s)))
+        case .arc(let from, let to, let r, let large, let sweep):
+            // SVG endpoint → centre parameterisation (circle, no rotation).
+            let hx = (from.x - to.x) / 2, hy = (from.y - to.y) / 2
+            let d2 = hx * hx + hy * hy
+            let k = (large == sweep ? -1 : 1) * (max(0, r * r - d2) / d2).squareRoot()
+            let cx = k * hy, cy = -k * hx
+            let center = p(cx + (from.x + to.x) / 2, cy + (from.y + to.y) / 2)
+            let start = atan2(hy - cy, hx - cx) * 180 / .pi
+            let end = atan2(-hy - cy, -hx - cx) * 180 / .pi
+            path.move(to: pt(from))
+            // y points down here, so SVG's positive sweep is increasing angles (AppKit's counter-clockwise).
+            path.appendArc(withCenter: pt(center), radius: max(r, d2.squareRoot()) * s, startAngle: start, endAngle: end, clockwise: !sweep)
+        case .curve(let a, let c1, let c2, let b):
+            path.move(to: pt(a))
+            path.curve(to: pt(b), controlPoint1: pt(c1), controlPoint2: pt(c2))
+        case .dot(let c):
+            // A tiny circle stroked 1.5 wide is a round dot; a zero-length line may not draw.
+            path.append(NSBezierPath(ovalIn: NSRect(x: c.x * s - 0.05, y: c.y * s - 0.05, width: 0.1, height: 0.1)))
         }
     }
 }
@@ -112,7 +254,8 @@ struct IconView: View {
     var tint: Color?
 
     var body: some View {
-        Image(nsImage: icon.image)
+        // Glyphs are drawn at `size` (no scaling, the stroke stays 1.5 pt).
+        Image(nsImage: icon.image(size: size))
             .renderingMode(icon.isBrand ? .original : .template)
             .resizable()
             .scaledToFit()

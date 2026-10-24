@@ -23,14 +23,12 @@ import Workspace
     }
 }
 
-/// The agent whose status the line shows: the active tab's focused agent, else its first agent, else the task's first agent.
+/// The agent whose status the line shows: the active tab's focused pane, if it is an agent. A focused shell or
+/// editor shows no agent part (not «claude · неактивен» of some other pane).
 nonisolated func statusAgentLeaf(of task: HangarTask) -> Leaf? {
-    let isAgent = { (leaf: Leaf) in leaf.kind == .claude || leaf.kind == .codex }
-    if let tab = task.tabs.first(where: { $0.id == task.activeTabId }) {
-        if let focused = tab.root.leaf(id: tab.focusedLeafId), isAgent(focused) { return focused }
-        if let first = tab.root.leaves.first(where: isAgent) { return first }
-    }
-    return task.tabs.lazy.flatMap(\.root.leaves).first(where: isAgent)
+    guard let tab = task.tabs.first(where: { $0.id == task.activeTabId }),
+          let focused = tab.root.leaf(id: tab.focusedLeafId), focused.kind == .claude || focused.kind == .codex else { return nil }
+    return focused
 }
 
 /// Thin footer under the task's terminals (DESIGN.md «Строка состояния»). Always 22 high, so missing parts never move the terminal.
@@ -70,10 +68,7 @@ struct TaskStatusBar: View {
                               host: app.project(task.projectId)?.host, offline: model.shownTaskId == task.id && model.offline, agent: agent)
     }
 
-    private func showChanges() {
-        app.inspector.segment = .changes
-        if !app.state.inspectorVisible { app.perform { $0.inspectorVisible = true } }
-    }
+    private func showChanges() { app.showInspector(.changes) }
 }
 
 /// `+N −M · K файлов`: a link — `text3`, `text2` under the pointer.
@@ -89,7 +84,7 @@ private struct ChangesCounter: View {
             .onTapGesture(perform: action)
             .pointingHand()
             .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-            .help(L10n.statusShowChanges)
+            .help(L10n.help(L10n.statusShowChanges, .inspectorChanges))
             .accessibilityAddTraits(.isButton)
     }
 }

@@ -18,6 +18,7 @@ extension AppState {
             self?.flushKills(host)
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
+            Task { await self?.sweepTombstones(host: host) }
         }
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in
@@ -94,7 +95,9 @@ extension AppState {
     /// Closed, archived or deleted remote leaves: their tmux sessions go (quitting never comes here). While the host is
     /// not connected they wait in `pendingKills` for `onConnected`. A host in `removing` (its last project went) is
     /// removed after its kills; an offline one at once.
-    func killSessions(of leaves: [UUID: String], removing: Set<String> = []) {
+    /// Returns the running kills (archive awaits them before checking the worktree).
+    @discardableResult func killSessions(of leaves: [UUID: String], removing: Set<String> = []) -> [Task<Void, Never>] {
+        var kills: [Task<Void, Never>] = []
         var byHost: [String: [UUID]] = [:]
         for (id, host) in leaves { byHost[host, default: []].append(id) }
         for host in Set(byHost.keys).union(removing) {
@@ -110,7 +113,7 @@ extension AppState {
             }
             let queued = remove ? pendingKills.removeValue(forKey: host) ?? [] : []
             let runner = remote.runner(host)
-            Task {
+            kills.append(Task {
                 var failed: [UUID] = []
                 // Thrown (the host dropped meanwhile) or 255 (ssh itself failed): tmux never got it, so it waits again.
                 for id in ids + queued {
@@ -119,8 +122,9 @@ extension AppState {
                 }
                 if !failed.isEmpty { pendingKills[host, default: []].formUnion(failed) }
                 if remove, !state.projects.contains(where: { $0.host == host }) { remote.remove(host) }
-            }
+            })
         }
+        return kills
     }
 
     private func flushKills(_ host: String) {

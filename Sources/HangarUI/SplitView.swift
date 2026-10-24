@@ -10,13 +10,17 @@ class HangarSplitView: NSSplitView {
     var onDragEnd: (() -> Void)?
     /// Index of the divider under the last mouse-down (nil: none); read in `onDragEnd`.
     private(set) var draggedDivider: Int?
+    /// True inside the divider tracking loop (mouse down → up).
+    private(set) var isTracking = false
 
     override var dividerColor: NSColor { Theme.line }
 
     override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         draggedDivider = (0..<max(0, arrangedSubviews.count - 1)).first { dividerHitRect($0).contains(p) }
+        isTracking = true
         super.mouseDown(with: event)  // runs the divider tracking loop until mouse up
+        isTracking = false
         onDragEnd?()
     }
 
@@ -46,8 +50,20 @@ final class RatioSplitView: HangarSplitView {
 
     private var total: CGFloat { (isVertical ? bounds.width : bounds.height) - dividerThickness }
 
+    // NSSplitView's own layout pass resizes panes by its holding priorities (a restored 0.39 split came out 0 / all,
+    // a nested split showed one pane): the ratio is re-applied after it, except while a divider drag is tracking.
+    override func layout() {
+        super.layout()
+        if !isTracking { applyRatio() }
+    }
+
     override func resizeSubviews(withOldSize oldSize: NSSize) {
         guard subviews.count == 2 else { return super.resizeSubviews(withOldSize: oldSize) }
+        applyRatio()
+    }
+
+    private func applyRatio() {
+        guard subviews.count == 2 else { return }
         let a = max(0, (total * ratio).rounded())
         let b = max(0, total - a)
         if isVertical {
@@ -67,9 +83,19 @@ final class RatioSplitView: HangarSplitView {
     }
 }
 
+/// Keeps every subview at its bounds: autoresizing through interrupted drawer animations (fast task switches)
+/// drifted a tab's split off its tab (a pane squeezed to the bottom, or taller than the area).
+final class FillView: NSView {
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        for view in subviews { view.frame = bounds }
+    }
+}
+
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
+    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#70).
+    var kind: LeafKind = .shell
     private(set) var surface: TerminalSurfaceView?
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
@@ -175,6 +201,11 @@ final class RatioSplitView: HangarSplitView {
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
+        view.onPaste = { [weak self, weak view] in
+            guard let self, let view, pasteAction(kind: self.kind) == .ctrlV else { return false }
+            view.sendKey(.ctrlV)
+            return true
+        }
         if let old = surface {
             // Replacing an exited (or not yet drawn, `restart`) surface: removing it is a real close.
             old.removeFromSuperview()
@@ -261,6 +292,7 @@ final class RatioSplitView: HangarSplitView {
             case .right: surface.sendKey(.right)
             case .ctrlC: surface.sendKey(.ctrlC)
             case .ctrlD: surface.sendKey(.ctrlD)
+            case .interrupt: surface.sendKey(.escape)  // resolved per leaf kind by `AppState.respond`
             }
         }
     }
@@ -374,7 +406,7 @@ final class RatioSplitView: HangarSplitView {
     private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
     /// Tab content above the drawer.
-    private let content = NSView()
+    private let content = FillView()
     let drawer: TerminalDrawer
     private var appliedDrawerHeight: CGFloat = 0
     /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
@@ -453,7 +485,7 @@ final class RatioSplitView: HangarSplitView {
         appliedDrawerHeight = total
     }
 
-    /// ⌃` and the bar: expand (focus goes into the shell) or collapse (focus returns to the tab if it was in the shell).
+    /// ⌘J (⌃`) and the bar: expand (focus goes into the shell) or collapse (focus returns to the tab if it was in the shell).
     func toggleDrawer(taskId: UUID) {
         let focusWasInDrawer = drawer.focusedLeaf != nil
         app.perform { $0.toggleDrawer(taskId: taskId) }
@@ -532,8 +564,10 @@ final class RatioSplitView: HangarSplitView {
             }
         }
 
-        emptyState.isHidden = !state.projects.isEmpty
-        placeholder.isHidden = active != nil || diffShown || state.projects.isEmpty
+        // A host's terminal (#64) needs no project.
+        let nothing = state.projects.isEmpty && state.hostShells.isEmpty
+        emptyState.isHidden = !nothing
+        placeholder.isHidden = active != nil || diffShown || nothing
         placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
@@ -563,7 +597,7 @@ final class RatioSplitView: HangarSplitView {
 
     private func show(_ tab: Tab) {
         if tabViews[tab.id] == nil {
-            let view = NSView(frame: content.bounds)
+            let view = FillView(frame: content.bounds)
             view.autoresizingMask = [.width, .height]
             content.addSubview(view)
             tabViews[tab.id] = view
@@ -571,6 +605,7 @@ final class RatioSplitView: HangarSplitView {
         // Lazy: surfaces of a tab start the first time it is shown.
         for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
             let view = LeafView(leafId: leaf.id)
+            view.kind = leaf.kind
             app.wireHost(view)
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
@@ -738,6 +773,29 @@ final class RatioSplitView: HangarSplitView {
         return leafViews.map { id, view in
             "leaf=\(id.uuidString.prefix(8)) surface=\(view.surface != nil) hidden=\(view.surface?.isHidden ?? true) inWindow=\(view.window != nil) exit=\(view.exitCode.map(String.init) ?? "-") failed=\(view.failed)"
         }.sorted().joined(separator: "\n") + (drawers.isEmpty ? "" : "\n" + drawers)
+    }
+
+    /// Debug: every model leaf of a started tab against its view (orphaned or blank leaves show as problems).
+    func debugCheck() -> String {
+        var lines: [String] = []
+        for task in app.state.tasks where !task.archived {
+            for tab in task.tabs {
+                guard let tabView = tabViews[tab.id] else { lines.append("tab=\(tab.id.uuidString.prefix(8)) notStarted"); continue }
+                let tabOK = tabView.frame == content.bounds && tabView.subviews.allSatisfy { $0.frame == tabView.bounds }
+                lines.append("\(tabOK ? "ok" : "PROBLEM") tab=\(tab.id.uuidString.prefix(8)) task=\(task.name) content=\(content.frame.size) tab=\(tabView.frame) root=\(tabView.subviews.map(\.frame))")
+                for leaf in tab.root.leaves {
+                    guard let view = leafViews[leaf.id] else { lines.append("PROBLEM leaf=\(leaf.id.uuidString.prefix(8)) noView"); continue }
+                    let ok = view.surface?.isAlive == true && view.isDescendant(of: tabView) && view.window != nil
+                        && view.surface?.superview === view && view.frame.width > 0 && view.frame.height > 0
+                    lines.append("\(ok ? "ok" : "PROBLEM") leaf=\(leaf.id.uuidString.prefix(8)) task=\(task.name) alive=\(view.surface?.isAlive == true) inTab=\(view.isDescendant(of: tabView)) frame=\(Int(view.frame.width))x\(Int(view.frame.height)) exit=\(view.exitCode.map(String.init) ?? "-")")
+                }
+            }
+        }
+        let modelLeaves = Set(app.state.tasks.filter { !$0.archived }.flatMap(\.tabs).flatMap { $0.root.leaves.map(\.id) })
+        for id in leafViews.keys where !modelLeaves.contains(id) { lines.append("PROBLEM orphanView leaf=\(id.uuidString.prefix(8))") }
+        let orphanTabs = content.subviews.filter { v in v !== diffHost && !tabViews.values.contains { $0 === v } }
+        if !orphanTabs.isEmpty { lines.append("PROBLEM orphanTabViews=\(orphanTabs.count)") }
+        return lines.joined(separator: "\n")
     }
     #endif
 }

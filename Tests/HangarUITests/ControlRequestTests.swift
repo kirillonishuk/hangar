@@ -143,6 +143,8 @@ import Workspace
         #expect(started == [b.tabs[0].id])
         #expect(app.launchContext(for: b.tabs[0].root.leaves[0].id) == .created(prompt: "hi"))
         #expect(app.controlCreating == 0)
+        // Pane #968: the agent may stop on its folder-trust dialog; Hangar never answers it.
+        #expect(r.note?.contains("trust") == true)
     }
 
     @Test func createWorktree() async throws {
@@ -184,6 +186,25 @@ import Workspace
         #expect(app.state.tasks.count == 3)
     }
 
+    /// CLI/MCP never run the lockfile's suggested command (no consent); a command saved to the project runs.
+    @Test func createWorktreeRunsOnlySavedSetup() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        try await Task.detached { try t.commit(file: "pnpm-lock.yaml", on: "main") }.value
+        var project = UUID()
+        let app = try makeApp { s in project = s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let plain = try await ok(app, .tasksCreate(project: "repo", name: "a", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        #expect(app.state.tasks.first { $0.id == plain.task.id }?.tabs.count == 1)
+        #expect(app.project(project)?.setupCommand == nil)
+        app.perform { $0.setWorktreeSetup(id: project, copy: nil, command: "pnpm i") }
+        let saved = try await ok(app, .tasksCreate(project: "repo", name: "b", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        let task = try #require(app.state.tasks.first { $0.id == saved.task.id })
+        #expect(task.tabs.count == 2)
+        let shell = try #require(task.tabs.last?.root.leaves.first)
+        #expect(app.launchContext(for: shell.id) == .created(prompt: "pnpm i"))
+    }
+
     /// tasks.create with a worktree on a host that isn't connected: says so in English, not "not a git repository".
     @Test func worktreeOnOfflineHost() async throws {
         let app = try makeApp { s in _ = s.addRemoteProject(name: "srv", host: "dev", path: "/srv/app") }
@@ -212,11 +233,70 @@ import Workspace
         #expect(both?.message.contains(wt.task.id.uuidString) == true)
         #expect(app.state.tasks.allSatisfy { !$0.archived })
 
-        let r = try await ok(app, .tasksArchive(task: wt.task.id.uuidString), ArchiveResult.self)
-        #expect(r.task == wt.task.id && r.archived)
+        // Dirty: refused without force, nothing changes; with force the folder goes, the branch stays.
+        try "u".write(toFile: wt.task.path + "/untracked.txt", atomically: true, encoding: .utf8)
+        let dirty = await error(app, .tasksArchive(task: wt.task.id.uuidString))
+        #expect(dirty?.code == .confirmRequired)
+        #expect(dirty?.message.contains("--force") == true && dirty?.message.contains("uncommitted") == true)
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == false)
+        #expect(FileManager.default.fileExists(atPath: wt.task.path + "/untracked.txt"))
+
+        let r = try await ok(app, .tasksArchive(task: wt.task.id.uuidString, force: true), ArchiveResult.self)
+        #expect(r.task == wt.task.id && r.archived && r.worktreeRemoved)
         #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
-        #expect(FileManager.default.fileExists(atPath: wt.task.path))
+        #expect(!FileManager.default.fileExists(atPath: wt.task.path))
+        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(await error(app, .tasksArchive(task: wt.task.id.uuidString))?.code == .notFound)
+
+        // A main-folder task: just archived.
+        let plain = try await ok(app, .tasksArchive(task: "x"), ArchiveResult.self)
+        #expect(plain.archived && !plain.worktreeRemoved)
+    }
+
+    /// tasks.restore finds only archived tasks and re-creates the worktree from its kept branch.
+    @Test func restoreRecreatesWorktree() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        let app = try makeApp { s in s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let wt = try await ok(app, .tasksCreate(project: "repo", name: "y", worktree: true, base: nil, prompt: nil), TaskResult.self)
+        #expect(await error(app, .tasksRestore(task: "y"))?.code == .notFound)  // not archived
+        _ = try await ok(app, .tasksArchive(task: "y"), ArchiveResult.self)
+        #expect(!FileManager.default.fileExists(atPath: wt.task.path))
+
+        let r = try await ok(app, .tasksRestore(task: "y"), TaskResult.self)
+        #expect(r.task.id == wt.task.id && r.task.branch == "y")
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == false)
+        #expect(FileManager.default.fileExists(atPath: wt.task.path))
+
+        // Branch gone: nothing changes, the error says why.
+        _ = try await ok(app, .tasksArchive(task: "y"), ArchiveResult.self)
+        _ = try t.git("branch", "-D", "y", in: t.repo)
+        let gone = await error(app, .tasksRestore(task: "y"))
+        #expect(gone?.code == .failed && gone?.message.contains("branch") == true)
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
+    }
+
+    /// `git: true` adds changes vs base, dirty and ahead/behind; without it the list runs no git.
+    @Test func tasksListGitStatus() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        let app = try makeApp { s in s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let wt = try await ok(app, .tasksCreate(project: "repo", name: "z", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        try "one\ntwo\n".write(toFile: wt.task.path + "/b.txt", atomically: true, encoding: .utf8)
+        _ = try t.git("add", "b.txt", in: wt.task.path)
+        _ = try t.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "b", in: wt.task.path)
+        try "u".write(toFile: wt.task.path + "/new.txt", atomically: true, encoding: .utf8)
+
+        let plain = try await ok(app, .tasksList(project: nil), TasksResult.self)
+        #expect(plain.tasks[0].changes == nil && plain.tasks[0].dirty == nil && plain.tasks[0].ahead == nil)
+
+        let r = try await ok(app, .tasksList(project: nil, git: true), TasksResult.self)
+        let task = r.tasks[0]
+        #expect(task.changes == ChangesInfo(added: 2, removed: 0, files: 2))
+        #expect(task.dirty == true)
+        #expect(task.ahead == 1 && task.behind == 0)
     }
     /// Records what the control handlers ask of the terminals.
     private final class FakeTerminals {
@@ -225,10 +305,11 @@ import Workspace
         /// Answered in order, then `.running`.
         var states: [LeafState] = []
         var screen: String?
+        var onSend: (() -> Void)?
         var access: TerminalAccess {
             TerminalAccess(start: { self.started.append($0) },
                            state: { _ in self.states.isEmpty ? .running : self.states.removeFirst() },
-                           send: { leaf, text, keys in self.sent.append((leaf, text, keys)) },
+                           send: { leaf, text, keys in self.sent.append((leaf, text, keys)); self.onSend?() },
                            read: { _ in self.screen })
         }
     }
@@ -364,6 +445,70 @@ import Workspace
         #expect(app.state(ofLeaf: ids.leaf) == .waiting)
         _ = try await ok(app, .tabsSend(tab: ids.tab.uuidString, text: nil, keys: [.enter]), SendResult.self)
         #expect(app.state(ofLeaf: ids.leaf) == .waiting)
+    }
+
+    private func agentApp(_ kind: LeafKind) throws -> (AppState, tab: UUID, leaf: UUID, FakeTerminals) {
+        var ids = (tab: UUID(), leaf: UUID())
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            let a = s.addTask(projectId: p, name: "A")
+            ids.tab = s.addTab(taskId: a, kind: kind)
+            ids.leaf = s.tasks[0].tabs[0].root.leaves[0].id
+        }
+        let fake = FakeTerminals()
+        app.terminals = fake.access
+        app.sendWaitTimeout = .milliseconds(50)
+        return (app, ids.tab, ids.leaf, fake)
+    }
+
+    /// Pane #302/#723: `wait` confirms the turn started (claude's UserPromptSubmit hook → working).
+    @Test func sendWaitConfirmsStart() async throws {
+        let (app, tab, leaf, fake) = try agentApp(.claude)
+        defer { cleanup() }
+        let plain = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter]), SendResult.self)
+        #expect(plain.status == "sent" && plain.hint == nil)
+
+        app.sendWaitTimeout = .seconds(5)
+        fake.onSend = { Task { @MainActor in app.handle(.event(EventMessage(tab: tab, leaf: leaf, kind: .prompt))) } }
+        let started = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter], wait: true), SendResult.self)
+        #expect(started.status == "started")
+
+        // Already working: claude queues the input.
+        fake.onSend = nil
+        let queued = try await ok(app, .tabsSend(tab: tab.uuidString, text: "more", keys: [.enter], wait: true), SendResult.self)
+        #expect(queued.status == "queued" && queued.hint != nil)
+    }
+
+    @Test func sendWaitTimesOut() async throws {
+        let (app, tab, _, _) = try agentApp(.claude)
+        defer { cleanup() }
+        let r = try await ok(app, .tabsSend(tab: tab.uuidString, text: "hi", keys: [.enter], wait: true), SendResult.self)
+        #expect(r.status == "not-started-yet" && r.hint?.contains("tabs read") == true)
+    }
+
+    /// Pane #945/#496: Enter into a working codex is refused; codex reports no turn start, so `wait` cannot confirm.
+    @Test func codexBusyAndWait() async throws {
+        let (app, tab, _, fake) = try agentApp(.codex)
+        defer { cleanup() }
+        fake.screen = "› fix it\n\n• Working (3s • esc to interrupt)\n"
+        let busy = await error(app, .tabsSend(tab: tab.uuidString, text: "next", keys: [.enter]))
+        #expect(busy?.code == .busy && busy?.message.contains("interrupt") == true)
+        #expect(fake.sent.isEmpty)
+        // Keys without Enter (an interrupt) still go through.
+        _ = try await ok(app, .tabsSend(tab: tab.uuidString, text: nil, keys: [.interrupt]), SendResult.self)
+        #expect(fake.sent.last?.keys == [.escape])
+
+        fake.screen = "› \n"
+        let r = try await ok(app, .tabsSend(tab: tab.uuidString, text: "go", keys: [.enter], wait: true), SendResult.self)
+        #expect(r.status == "sent" && r.hint?.contains("codex") == true)
+    }
+
+    @Test func interruptKeyPerKind() async throws {
+        let (app, tab, _, fake) = try agentApp(.shell)
+        defer { cleanup() }
+        _ = try await ok(app, .tabsSend(tab: tab.uuidString, text: nil, keys: [.interrupt, .enter]), SendResult.self)
+        #expect(fake.sent.last?.keys == [.ctrlC, .enter])
     }
 
     @Test func tabsReadLastLines() async throws {

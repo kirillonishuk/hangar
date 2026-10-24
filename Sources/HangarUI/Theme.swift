@@ -195,11 +195,13 @@ public enum Theme {
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
     public static let dragThreshold: CGFloat = 4
-    public static let tabMaxChars = 32
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32
-    public static let iconSize: CGFloat = 15
+    /// Icons v2 (decision #56): drawn on a 16 grid with a 1.5 pt line at every size.
+    public static let iconSize: CGFloat = 16
+    public static let iconGrid: CGFloat = 16
+    public static let iconStroke: CGFloat = 1.5
     public static let iconGap: CGFloat = 6
     public static let smallIconSize: CGFloat = 10
     /// Leading gutter of every sidebar row; its marker (dot/icon) is centered at `gutterMarkerX` in both modes.
@@ -419,6 +421,29 @@ extension Theme {
             }
         }
     }
+}
+
+extension Theme {
+    // ⌘P / ⇧⌘P palette (VS Code bindings, Pane/Raycast look: one floating card over the window)
+    public static let paletteWidth: CGFloat = 580
+    public static let paletteRadius: CGFloat = 12
+    /// The card's top edge, as a fraction of the window height from its top.
+    public static let paletteTopFraction: CGFloat = 0.16
+    public static let paletteQueryFont: CGFloat = 17
+    public static let paletteQueryPaddingV: CGFloat = 14
+    public static let palettePaddingH: CGFloat = 18
+    public static let paletteRowFont: CGFloat = 14
+    public static let paletteDetailFont: CGFloat = 12.5
+    public static let paletteRowHeight: CGFloat = 36
+    public static let paletteRowInset: CGFloat = 6
+    public static let paletteRowRadius: CGFloat = 7
+    public static let paletteSectionHeight: CGFloat = 28
+    public static let paletteMarker: CGFloat = 20
+    public static let paletteGap: CGFloat = 10
+    public static let paletteIconGap: CGFloat = 4
+    /// Fixed list height: the card never changes size while typing (no jumps).
+    public static let paletteListHeight: CGFloat = 384
+    public static let paletteFadeIn: Double = 0.12
 }
 
 /// One-shot animations only (no loops: zero work when idle); none when the user asked to reduce motion.

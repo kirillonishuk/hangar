@@ -242,6 +242,27 @@ private let statusFixture = Data("""
         #expect(r.seconds < 5)
     }
 
+    /// `hangar doctor` (#61): the app's checks plus the CLI's lines; a fail → exit 1, warnings alone → 0.
+    @Test @MainActor func doctorReportsAndExitCodes() async throws {
+        let dir = TempDir(), calls = CallLog()
+        let warn = DoctorCheck(name: "codex", level: .warn, detail: "`codex` not found", fix: "Install codex")
+        let s = try fakeApp(dir, calls) { id, _ in .ok(id, DoctorResult(appVersion: "dev", checks: [warn])) }
+        defer { s.stop() }
+        let r = try await runOffMain(["doctor"], socket: dir.socket)
+        #expect(r.status == 0, "\(String(decoding: r.err, as: UTF8.self))")
+        let text = String(decoding: r.out, as: UTF8.self)
+        #expect(text.contains("ok    app") && text.contains("warn  codex") && text.contains("fix: Install codex"))
+        #expect(calls.calls == [.doctor])
+        let json = try await runOffMain(["doctor", "--json"], socket: dir.socket)
+        #expect(try JSONDecoder().decode(DoctorReport.self, from: json.out).checks.last == warn)
+
+        let down = TempDir()
+        let r2 = try run(["doctor", "--json"], env: ["HANGAR_SOCKET": down.socket], stdin: nil)
+        #expect(r2.status == 1)
+        let report = try JSONDecoder().decode(DoctorReport.self, from: r2.out)
+        #expect(!report.ok && report.checks.first?.name == "app" && report.checks.first?.level == .fail)
+    }
+
     @Test @MainActor func cliArchiveWithoutYes() async throws {
         let dir = TempDir(), calls = CallLog()
         let s = try fakeApp(dir, calls) { id, _ in .ok(id, ArchiveResult(task: UUID(), archived: true)) }

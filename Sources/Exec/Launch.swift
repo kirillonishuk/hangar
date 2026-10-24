@@ -18,20 +18,32 @@ public enum LaunchError: Error, Equatable {
 /// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions #26, #27).
 /// `-l -i` is needed so PATH matches the user's terminal (~/.local/bin is set in ~/.zshrc).
 public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socketPath: String,
-                       userShell: String, restoring: Bool, initialPrompt: String?) throws -> LaunchSpec {
+                       userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil) throws -> LaunchSpec {
     var isDir: ObjCBool = false
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
     }
-    let userShellQuoted = shellQuote(userShell)
+    let isZsh = (userShell as NSString).lastPathComponent == "zsh"
+    let userShellQuoted = (isZsh ? ghosttyZshIntegration : "") + shellQuote(userShell)
     let shell = shellQuote(posixShell(userShell))
     let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue }, editor: config.editor,
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
-    return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))",
-                      cwd: leaf.cwd,
-                      env: ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath])
+    var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
+    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#60)
+    return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))", cwd: leaf.cwd, env: env)
 }
+
+/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#71).
+public func resolveUserShell(passwd: String?, env: String?) -> String {
+    if let passwd, !passwd.isEmpty { return passwd }
+    if let env, !env.isEmpty { return env }
+    return "/bin/zsh"
+}
+
+/// zsh prefix for the tab's interactive shell: Ghostty injects its integration (ZDOTDIR) only into the outer `-c` zsh,
+/// whose .zshenv then restores ZDOTDIR; `_ghostty_state` there means it was injected (not `shell-integration = none`).
+public let ghosttyZshIntegration = #"(( ${+_ghostty_state} )) && { [[ -n ${ZDOTDIR+x} ]] && export GHOSTTY_ZSH_ZDOTDIR="$ZDOTDIR"; export ZDOTDIR="$GHOSTTY_RESOURCES_DIR/shell-integration/zsh"; }; "#
 
 /// Basename of the first word of the editor command.
 private func editorName(_ command: String) -> String {
@@ -60,7 +72,9 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: St
     let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
     switch leaf.kind {
     case .shell:
-        return "\(shell) -l -i"
+        // A new worktree's setup script (decision #58) runs first; the shell stays for the user.
+        guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
+        return "\(script)\n\(shell) -l -i"
     case .editor:
         guard let file = leaf.openFile else { return editor }
         let path = file.hasPrefix("-") ? "./" + file : file

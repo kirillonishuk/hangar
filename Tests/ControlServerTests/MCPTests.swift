@@ -60,7 +60,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         var s = session(FakeApp())
         let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
         let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "tasks_list", "tasks_create", "tabs_open", "tabs_send", "tabs_read", "tasks_archive"])
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "tasks_list", "tasks_create", "tabs_open", "tabs_send", "tabs_read", "tasks_archive", "doctor", "tasks_restore", "ssh_open", "links_create"])
         var byName: [String: [String: Any]] = [:]
         for t in tools {
             let schema = try #require(t["inputSchema"] as? [String: Any])
@@ -94,6 +94,8 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect(kind?["enum"] as? [String] == TabKind.allCases.map(\.rawValue))
         let yes = (byName["tasks_archive"]?["properties"] as? [String: Any])?["yes"] as? [String: Any]
         #expect(yes?["type"] as? String == "boolean")
+        let force = (byName["tasks_archive"]?["properties"] as? [String: Any])?["force"] as? [String: Any]
+        #expect(force?["type"] as? String == "boolean")
     }
 
     @Test func toolsCallSuccess() throws {
@@ -137,6 +139,27 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         let notObject = try object(s.handle(call("tasks_list", "[1]")))
         #expect((notObject["error"] as? [String: Any])?["code"] as? Int == -32602)
         #expect(app.calls.count == 1)
+    }
+
+    /// `hangar mcp --read-only`: only list/read tools are listed; a mutating one is refused before the app sees it.
+    @Test func readOnlyMode() throws {
+        let app = FakeApp()
+        var s = MCPSession(readOnly: true) { call in
+            app.calls.append(call)
+            return app.reply
+        }
+        let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
+        let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "tasks_list", "tabs_read", "doctor"])
+        for name in ["tasks_archive", "tabs_send", "tasks_create", "tasks_restore", "projects_add", "tabs_open"] {
+            let refused = try object(s.handle(call(name, #"{"task":"t","yes":true}"#)))
+            let message = (refused["error"] as? [String: Any])?["message"] as? String
+            #expect(message?.contains("read-only") == true, "\(name)")
+        }
+        #expect(app.calls.isEmpty)
+        _ = try object(s.handle(call("tasks_list", "{}")))
+        #expect(app.calls == [.tasksList(project: nil)])
+        #expect(Set(ControlMethod.allCases.filter(\.readOnly)) == [.projectsList, .tasksList, .tabsRead, .doctor])
     }
 
     @Test func protocolErrors() throws {

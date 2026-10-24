@@ -3,11 +3,59 @@ import AppKit
 public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
+    case inspectorFiles, inspectorChanges, revealInFinder, copyPath, quickOpen, commandPalette
+    case attentionFilter
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
+            + [.inspectorFiles, .inspectorChanges, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
+            + [.attentionFilter]
+    }
+
+    /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
+    /// One table for matching and labels, so a tooltip can't show a key that does something else.
+    var key: (mods: NSEvent.ModifierFlags, code: UInt16, symbol: String) {
+        switch self {
+        case .newTask: (.command, 45, "N")
+        case .addProject: ([.command, .shift], 45, "N")
+        case .newTab: (.command, 17, "T")
+        case .closeTab: (.command, 13, "W")
+        case .archiveTask: ([.command, .shift], 13, "W")
+        case .splitRight: (.command, 2, "D")
+        case .splitDown: ([.command, .shift], 2, "D")
+        case .tab(let n): (.command, digitKeyCodes.indices.contains(n - 1) ? digitKeyCodes[n - 1] : .max, "\(n)")
+        case .prevTask: ([.command, .shift], 33, "[")
+        case .nextTask: ([.command, .shift], 30, "]")
+        case .toggleInspector: ([.command, .option], 34, "I")
+        case .toggleSidebar: (.command, 29, "0")
+        case .settings: (.command, 43, ",")
+        case .rename: ([], 120, "F2")
+        case .toggleDrawer: (.command, 38, "J")  // as in VS Code
+        case .limits: ([.command, .shift], 37, "L")
+        case .prevTab: ([.control, .shift], 48, "Tab")
+        case .nextTab: (.control, 48, "Tab")
+        // ⌘ + arrows alone stay with the terminal.
+        case .focusSplit(.left): ([.command, .option], 123, "←")
+        case .focusSplit(.right): ([.command, .option], 124, "→")
+        case .focusSplit(.up): ([.command, .option], 126, "↑")
+        case .focusSplit(.down): ([.command, .option], 125, "↓")
+        case .inspectorFiles: ([.command, .option], 18, "1")
+        case .inspectorChanges: ([.command, .option], 19, "2")
+        case .revealInFinder: ([.command, .option], 15, "R")
+        case .copyPath: ([.command, .option], 8, "C")
+        case .quickOpen: (.command, 35, "P")
+        case .commandPalette: ([.command, .shift], 35, "P")
+        case .attentionFilter: ([.command, .option], 3, "F")
+        }
+    }
+
+    /// «⌥⌘I»: modifiers in the macOS menu order ⌃⌥⇧⌘, then the key.
+    var label: String {
+        let (mods, _, symbol) = key
+        let order: [(NSEvent.ModifierFlags, String)] = [(.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+        return order.filter { mods.contains($0.0) }.map(\.1).joined() + symbol
     }
 }
 
@@ -41,30 +89,9 @@ private let digitKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
 /// Matches physical keys (keyCode), not characters, so shortcuts work in the Russian layout.
 public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Shortcut? {
     let mods = modifiers.intersection([.command, .shift, .option, .control])
-    switch (mods, keyCode) {
-    case (.command, 45): return .newTask       // N
-    case ([.command, .shift], 45): return .addProject
-    case (.command, 17): return .newTab        // T
-    case (.command, 13): return .closeTab      // W
-    case (.command, 2): return .splitRight     // D
-    case ([.command, .shift], 2): return .splitDown
-    case ([.command, .shift], 33): return .prevTask   // [
-    case ([.command, .shift], 30): return .nextTask   // ]
-    case ([.command, .option], 34): return .toggleInspector  // I
-    case (.command, 29), (.command, 11): return .toggleSidebar  // 0, B (Pane habit)
-    case ([.command, .option], 123): return .focusSplit(.left)  // ← (⌘ + arrows alone stay with the terminal)
-    case ([.command, .option], 124): return .focusSplit(.right)  // →
-    case ([.command, .option], 126): return .focusSplit(.up)  // ↑ (no pane above: previous task)
-    case ([.command, .option], 125): return .focusSplit(.down)  // ↓ (no pane below: next task)
-    case (.control, 48): return .nextTab  // ⌃Tab
-    case ([.control, .shift], 48): return .prevTab  // ⌃⇧Tab
-    case ([.command, .shift], 13): return .archiveTask  // W
-    case ([.command, .shift], 37): return .limits  // L
-    case ([], 120): return .rename  // F2
-    case (.control, 50): return .toggleDrawer  // ⌃` (physical key left of 1)
-    case (.command, 43): return .settings  // ,
-    case (.command, _):
-        return digitKeyCodes.firstIndex(of: keyCode).map { .tab($0 + 1) }
-    default: return nil
-    }
+    // ⌘B: silent alias of ⌘0, a Pane habit (decision #39); labels show ⌘0 only.
+    if mods == .command, keyCode == 11 { return .toggleSidebar }
+    // ⌃` (physical key left of 1): silent alias of ⌘J, its original key (decision #72); labels show ⌘J only.
+    if mods == .control, keyCode == 50 { return .toggleDrawer }
+    return Shortcut.allCases.first { $0.key.mods == mods && $0.key.code == keyCode }
 }

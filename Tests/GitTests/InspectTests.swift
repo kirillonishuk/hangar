@@ -30,6 +30,19 @@ import Exec
         ])
     }
 
+    @Test func aheadBehindBase() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try t.git("checkout", "-q", "-b", "feat", in: t.repo)
+        try t.commit(file: "f1.txt", on: "feat")
+        try t.commit(file: "f2.txt", on: "feat")
+        try t.commit(file: "m.txt", on: "main")
+        try t.git("checkout", "-q", "feat", in: t.repo)
+        let r = try await Git(repo: t.repo).aheadBehind(base: "main")
+        #expect(r.ahead == 2 && r.behind == 1)
+        await #expect(throws: (any Error).self) { try await Git(repo: t.repo).aheadBehind(base: "nope") }
+        await #expect(throws: (any Error).self) { try await Git(repo: t.repo).aheadBehind(base: "--all") }
+    }
+
     @Test func statusParsesSpecialPaths() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let names = ["it's \"q\" %{x}.txt", "-dash.txt", "back`tick.txt", "папка/файл.txt"]

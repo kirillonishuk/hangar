@@ -17,6 +17,8 @@ public struct HangarConfig: Equatable, Sendable {
     public var limitNotifications = true
     /// Hold a sleep assertion while agents work (spec §5.2).
     public var keepAwake = true
+    /// Dock badge with the number of tasks waiting for the user, and a Dock bounce when one starts waiting out of focus.
+    public var dockBadge = true
 
     public enum TerminalBackground: String, Sendable { case hangar, theme }
 
@@ -51,11 +53,12 @@ public struct HangarConfig: Equatable, Sendable {
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let rawValue = line[line.index(after: eq)...]
-            if section.isEmpty, key == "notifications" || key == "limit_notifications" || key == "keep_awake" {
+            if section.isEmpty, key == "notifications" || key == "limit_notifications" || key == "keep_awake" || key == "dock_badge" {
                 let flag = try boolValue(rawValue, line: n + 1)
                 switch key {
                 case "notifications": config.notifications = flag
                 case "limit_notifications": config.limitNotifications = flag
+                case "dock_badge": config.dockBadge = flag
                 default: config.keepAwake = flag
                 }
                 continue

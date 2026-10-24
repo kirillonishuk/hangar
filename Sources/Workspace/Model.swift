@@ -16,9 +16,15 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var worktreeByDefault: Bool
     /// Parent folder for this project's worktrees; nil = the default location.
     public var worktreeRoot: String?
+    /// Gitignored paths/globs copied from the main checkout into a new worktree; nil = the default for the repo's
+    /// package manager (`WorktreeDefaults`), [] = none.
+    public var worktreeCopy: [String]?
+    /// Run at the new worktree's top in a shell tab after the copy; nil = the package manager's default, "" = none.
+    public var setupCommand: String?
 
     public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
-                worktreeByDefault: Bool = false, worktreeRoot: String? = nil) {
+                worktreeByDefault: Bool = false, worktreeRoot: String? = nil, worktreeCopy: [String]? = nil,
+                setupCommand: String? = nil) {
         self.id = id
         self.name = name
         self.location = location
@@ -26,9 +32,13 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         self.collapsed = collapsed
         self.worktreeByDefault = worktreeByDefault
         self.worktreeRoot = worktreeRoot
+        self.worktreeCopy = worktreeCopy
+        self.setupCommand = setupCommand
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot }
+    private enum CodingKeys: String, CodingKey {
+        case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot, worktreeCopy, setupCommand
+    }
 
     /// `collapsed` and the worktree fields were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
@@ -38,8 +48,11 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
                   lastBaseBranch: try c.decodeIfPresent(String.self, forKey: .lastBaseBranch),
                   collapsed: try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false,
                   worktreeByDefault: try c.decodeIfPresent(Bool.self, forKey: .worktreeByDefault) ?? false,
-                  worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot))
+                  worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot),
+                  worktreeCopy: try c.decodeIfPresent([String].self, forKey: .worktreeCopy),
+                  setupCommand: try c.decodeIfPresent(String.self, forKey: .setupCommand))
     }
+
 
     public var path: String {
         switch location {
@@ -198,6 +211,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var activeTabId: UUID?
     public var pinned: Bool
     public var drawer: Drawer
+    /// `HANGAR_PORT` of its tabs (#60); set when the task is added or an older state loads.
+    public var port: Int?
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -207,9 +222,10 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
 
     public init(id: UUID = UUID(), projectId: UUID, name: String, mode: TaskMode = .mainFolder,
                 order: Int, archived: Bool = false, tabs: [Tab] = [], activeTabId: UUID? = nil, pinned: Bool = false,
-                drawer: Drawer = Drawer()) {
+                drawer: Drawer = Drawer(), port: Int? = nil) {
         self.id = id
         self.projectId = projectId
+        self.port = port
         self.name = name
         self.mode = mode
         self.order = order
@@ -220,9 +236,9 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         self.drawer = drawer
     }
 
-    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer }
+    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port }
 
-    /// `pinned` and `drawer` were added later; older files decode with the default.
+    /// `pinned`, `drawer` and `port` were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), projectId: try c.decode(UUID.self, forKey: .projectId),
@@ -231,7 +247,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
                   tabs: try c.decode([Tab].self, forKey: .tabs),
                   activeTabId: try c.decodeIfPresent(UUID.self, forKey: .activeTabId),
                   pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false,
-                  drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer())
+                  drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer(),
+                  port: try c.decodeIfPresent(Int.self, forKey: .port))
     }
 }
 
@@ -245,21 +262,29 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var sidebarCollapsed: Bool
     /// Last inspector width (clamped to 180...480 by the view).
     public var inspectorWidth: Double
+    /// Plain ssh logins without a project (#64); their tasks sit in `tasks` with the shell's id as `projectId`.
+    public var hostShells: [HostShell]
+    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
+    public var attentionOnly: Bool
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220) {
+                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220,
+                hostShells: [HostShell] = [], attentionOnly: Bool = false) {
         self.projects = projects
+        self.hostShells = hostShells
         self.tasks = tasks
         self.selectedTaskId = selectedTaskId
         self.inspectorVisible = inspectorVisible
         self.sidebarWidth = sidebarWidth
         self.sidebarCollapsed = sidebarCollapsed
         self.inspectorWidth = inspectorWidth
+        self.attentionOnly = attentionOnly
     }
 
     private enum CodingKeys: String, CodingKey {
-        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth
+        case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
+        case attentionOnly
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -271,7 +296,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
                   sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
-                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220)
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220,
+                  hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
+                  attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
+        assignMissingPorts()
     }
 
     // MARK: Projects / tasks
@@ -297,7 +325,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     @discardableResult
     public mutating func addTask(projectId: UUID, name: String, mode: TaskMode = .mainFolder) -> UUID {
         let order = (tasks.filter { $0.projectId == projectId }.map(\.order).max() ?? -1) + 1
-        let task = HangarTask(projectId: projectId, name: name, mode: mode, order: order)
+        var task = HangarTask(projectId: projectId, name: name, mode: mode, order: order)
+        task.port = taskPort(for: task.id, taken: Set(tasks.compactMap(\.port)))
         tasks.append(task)
         return task.id
     }
@@ -345,6 +374,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             assertionFailure("addTab: unknown task")
             return UUID()
         }
+        // A host's terminal holds only ssh shells.
+        let kind = isHostShellTask(tasks[i]) ? .shell : kind
         let leaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]), openFile: openFile, openLine: openLine)
         let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
         tasks[i].tabs.append(tab)
@@ -356,6 +387,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
         tasks[i].tabs.remove(at: t)
+        // A host's terminal lives only while it has tabs.
+        if tasks[i].tabs.isEmpty, let shell = hostShells.first(where: { $0.id == tasks[i].projectId }) {
+            return closeHostShell(host: shell.host)
+        }
         guard tasks[i].activeTabId == tabId else { return }
         let tabs = tasks[i].tabs
         tasks[i].activeTabId = tabs.isEmpty ? nil : tabs[min(t, tabs.count - 1)].id
@@ -378,7 +413,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             assertionFailure("split: unknown task, tab or leaf")
             return UUID()
         }
-        let newLeaf = Leaf(kind: kind, cwd: cwd(for: tasks[i]))
+        let newLeaf = Leaf(kind: isHostShellTask(tasks[i]) ? .shell : kind, cwd: cwd(for: tasks[i]))
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf)
         tasks[i].tabs[t].focusedLeafId = newLeaf.id
         return newLeaf.id
@@ -447,6 +482,22 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].archived = false
     }
 
+    /// Restore without its worktree (the branch is gone): a main-folder task whose leaves move from the worktree to the project.
+    /// Session ids are dropped: the worktree's conversations don't belong in the project folder.
+    public mutating func detachWorktree(taskId: UUID) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, _, _) = tasks[i].mode else { return }
+        tasks[i].mode = .mainFolder
+        let folder = cwd(for: tasks[i])
+        func move(_ leaf: Leaf) -> Leaf {
+            var leaf = leaf
+            leaf.agentSessionId = nil
+            if leaf.cwd == path || leaf.cwd.hasPrefix(path + "/") { leaf.cwd = folder + leaf.cwd.dropFirst(path.count) }
+            return leaf
+        }
+        for tab in tasks[i].tabs.indices { tasks[i].tabs[tab].root = tasks[i].tabs[tab].root.mapLeaves(move) }
+        tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
+    }
+
     /// Names are trimmed; an empty name is ignored.
     public mutating func renameTask(id: UUID, name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -496,6 +547,13 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let i = projects.firstIndex(where: { $0.id == projectId }) else { return }
         projects[i].worktreeByDefault = worktree
         if let base { projects[i].lastBaseBranch = base }
+    }
+
+    /// Blank entries are dropped; nil = the default (list or command), an empty list / blank command = none.
+    public mutating func setWorktreeSetup(id: UUID, copy: [String]?, command: String?) {
+        guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
+        projects[i].worktreeCopy = copy?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        projects[i].setupCommand = command?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Blank name keeps the old one; nil `baseBranch` = automatic (from origin/HEAD), stored as is; blank `worktreeRoot` resets to default (nil).

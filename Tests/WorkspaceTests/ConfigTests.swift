@@ -176,4 +176,10 @@ import Testing
         let c = try HangarConfig.parse(String(contentsOf: url, encoding: .utf8))
         #expect(!c.keepAwake && c.editor == "vim" && !c.notifications)
     }
+
+    @Test func dockBadgeFlag() throws {
+        #expect(try HangarConfig.parse("").dockBadge)
+        #expect(try HangarConfig.parse("dock_badge = false").dockBadge == false)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"dock_badge = "no""#) }
+    }
 }

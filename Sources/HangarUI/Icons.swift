@@ -109,17 +109,16 @@ enum Icon: CaseIterable {
         }
     }
 
-    /// Agents use their brand logos (Simple Icons SVGs in Contents/Resources/Icons, decision #33), tinted.
-    private var brand: (file: String, tint: NSColor, fallback: String)? {
+    /// Agents use their brand logos drawn from embedded path data (BrandLogos.swift, decision #33), pre-tinted.
+    private var brand: (data: String, tint: NSColor)? {
         switch self {
-        case .claude: ("claude", Theme.claudeBrand, "sparkle")
-        case .codex: ("openai", Theme.textStrong, "chevron.left.forwardslash.chevron.right")
+        case .claude: (BrandLogo.claude, Theme.claudeBrand)
+        case .codex: (BrandLogo.openai, Theme.textStrong)
         default: nil
         }
     }
 
-    /// Only when the logo loaded: the SF Symbol fallback (no bundle) stays a template, or it draws black.
-    var isBrand: Bool { brand.map { Self.logo($0.file) != nil } ?? false }
+    var isBrand: Bool { brand != nil }
 
     /// For menus and AppKit views: the glyph at `Theme.iconSize`.
     var image: NSImage { image(size: Theme.iconSize) }
@@ -138,11 +137,15 @@ enum Icon: CaseIterable {
 
     private func render(size: CGFloat) -> NSImage {
         if let brand {
-            if let logo = Self.logo(brand.file) { return Self.tinted(logo, brand.tint, size: size) }
-            // Without the bundle (swift run / tests) brand icons fall back to an SF Symbol.
-            let config = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
-            let base = NSImage(systemSymbolName: brand.fallback, accessibilityDescription: nil) ?? NSImage()
-            return base.withSymbolConfiguration(config) ?? base
+            let path = BrandLogo.path(brand.data)
+            return NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
+                let t = NSAffineTransform()
+                t.scale(by: size / BrandLogo.viewBox)
+                path.transform(using: t as AffineTransform)
+                brand.tint.setFill()
+                path.fill()
+                return true
+            }
         }
         let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
             let path = self.path(scale: size / Theme.iconGrid)
@@ -165,26 +168,6 @@ enum Icon: CaseIterable {
     }
 
     @MainActor private static var images: [CacheKey: NSImage] = [:]
-    @MainActor private static var logos: [String: NSImage] = [:]
-
-    private static func logo(_ name: String) -> NSImage? {
-        MainActor.assumeIsolated {
-            if let cached = logos[name] { return cached }
-            guard let url = Bundle.main.resourceURL?.appendingPathComponent("Icons/\(name).svg"),
-                  let image = NSImage(contentsOf: url) else { return nil }
-            logos[name] = image
-            return image
-        }
-    }
-
-    private static func tinted(_ image: NSImage, _ color: NSColor, size: CGFloat) -> NSImage {
-        NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            image.draw(in: rect)
-            color.set()
-            rect.fill(using: .sourceAtop)
-            return true
-        }
-    }
 }
 
 /// A point of the 16 grid; `r` rounds the corner a polyline makes there (the SVG `a r r` corners).
@@ -271,7 +254,7 @@ struct IconView: View {
     var tint: Color?
 
     var body: some View {
-        // Glyphs are drawn at `size` (no scaling, the stroke stays 1.5 pt); the SF Symbol brand fallback is fitted.
+        // Glyphs are drawn at `size` (no scaling, the stroke stays 1.5 pt).
         Image(nsImage: icon.image(size: size))
             .renderingMode(icon.isBrand ? .original : .template)
             .resizable()

@@ -234,9 +234,9 @@
 "diffTabHelp" = "Закрыть";
 "keepAwakeTitle" = "Не засыпать, пока агенты работают";
 "keepAwakeOffHelp" = "Не засыпать: выключено";
-"keepAwakeIdleHelp" = "Не засыпать, пока агенты работают";
-"keepAwakeActiveHelp" = "Mac не уснёт: работающих агентов — %ld";
-"keepAwakeGraceHelp" = "Mac не уснёт ещё до 2 мин";
+"keepAwakeIdleHelp" = "Не засыпать: включено — Mac не уснёт, пока агенты работают";
+"keepAwakeActiveHelp" = "Не засыпать: включено — Mac не уснёт, работающих агентов: %ld";
+"keepAwakeGraceHelp" = "Не засыпать: включено — Mac не уснёт ещё до 2 мин";
 "addLocalProject" = "Локальная папка…";
 "addRemoteProject" = "Удалённый (SSH)…";
 "hostConnected" = "подключён";
@@ -300,6 +300,7 @@
 "worktreeCopyHelp" = "Игнорируемые git файлы и папки, через запятую; маски вроде .env* ищутся во всём репозитории (кроме node_modules, dist, .turbo). Копируются клоном APFS (мгновенно, без лишнего места); отсутствующие пропускаются. С pnpm/yarn/bun node_modules не копируется — его ставит команда";
 "setupCommand" = "Команда после создания";
 "setupCommandHelp" = "Выполняется в корне нового worktree во вкладке shell после копирования. Пусто — без команды; команда по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) только предлагается";
+"setupCommandSuggested" = "Команда после создания — предложение по lockfile: не запускается, пока не сохраните";
 "afterCreate" = "После создания";
 "afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке shell нового worktree и сохранится в проекте";
 "copyingEntry" = "Копирую %@…";

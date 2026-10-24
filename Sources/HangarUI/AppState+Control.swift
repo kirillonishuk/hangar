@@ -65,7 +65,7 @@ extension AppState {
                 case .success(let m): mode = m
                 case .failure(let e): return fail(e)
                 }
-                // Removed while git ran: the worktree stays on disk like after an archive.
+                // Removed while git ran: the worktree stays on disk.
                 guard self.project(projectId) != nil else {
                     var left = ""
                     if case .worktree(let path, let branch, _) = mode { left = "; worktree left at \(path) (branch \(branch))" }
@@ -79,12 +79,22 @@ extension AppState {
             }
             return .ok(id, TaskResult(task: taskInfo(task)))
 
-        case .tasksArchive(let ref):
+        case let .tasksArchive(ref, force):
+            let taskId: UUID
             switch resolveTask(ref) {
-            case .success(let t):
-                archive(taskId: t)
-                return .ok(id, ArchiveResult(task: t, archived: true))
+            case .success(let t): taskId = t
             case .failure(let e): return fail(e)
+            }
+            switch await archiveRemovingWorktree(taskId, force: force) {
+            case .archived(let removed): return .ok(id, ArchiveResult(task: taskId, archived: true, worktreeRemoved: removed))
+            case .worktreeKept(let details):
+                return fail(ControlError(code: .failed, message: "task archived, but the worktree was not removed: \(details)"))
+            case let .atRisk(dirty, ignored):
+                let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
+                let what = [dirty ? "uncommitted changes" : nil, ignored.isEmpty ? nil : "ignored files (\(shown))"].compactMap { $0 }
+                return fail(ControlError(code: .confirmRequired, message: "worktree has \(what.joined(separator: " and ")) that archiving would delete; "
+                                         + "pass --force (MCP: force: true) to archive anyway"))
+            case .failed(let details): return fail(ControlError(code: .failed, message: details))
             }
 
         case let .tabsOpen(ref, kind, prompt):

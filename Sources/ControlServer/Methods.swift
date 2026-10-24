@@ -49,7 +49,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
-        case .tasksArchive: "Archive a task (its worktree stays on disk). Requires yes: true."
+        case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         }
     }
 
@@ -95,6 +95,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [
                 ParamSpec(name: "task", type: ref, required: true, summary: "Task id (or unique prefix) or name."),
                 ParamSpec(name: "yes", type: .bool, required: true, summary: "Must be true to confirm."),
+                ParamSpec(name: "force", type: .bool, required: false,
+                          summary: "Remove the worktree even with uncommitted changes or ignored files; they are deleted."),
             ]
         }
     }
@@ -109,7 +111,7 @@ public enum ControlCall: Equatable, Sendable {
     case tabsOpen(task: String, kind: TabKind, prompt: String?)
     case tabsSend(tab: String, text: String?, keys: [SendKey])
     case tabsRead(tab: String, lines: Int)
-    case tasksArchive(task: String)
+    case tasksArchive(task: String, force: Bool = false)
 
     public static let defaultLines = 100
 
@@ -146,7 +148,9 @@ public enum ControlCall: Equatable, Sendable {
             p["text"] = text
             if !keys.isEmpty { p["keys"] = keys.map(\.rawValue) }
         case let .tabsRead(tab, lines): p = ["tab": tab, "lines": lines]
-        case let .tasksArchive(task): p = ["task": task, "yes": true]
+        case let .tasksArchive(task, force):
+            p = ["task": task, "yes": true]
+            if force { p["force"] = true }
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -252,7 +256,7 @@ public enum ControlCall: Equatable, Sendable {
         case .tabsRead: return .tabsRead(tab: v.strings["tab"]!, lines: v.ints["lines"] ?? defaultLines)
         case .tasksArchive:
             guard v.bools["yes"] == true else { throw ControlError(code: .confirmRequired, message: "confirmation required: pass yes: true") }
-            return .tasksArchive(task: v.strings["task"]!)
+            return .tasksArchive(task: v.strings["task"]!, force: v.bools["force"] ?? false)
         }
     }
 

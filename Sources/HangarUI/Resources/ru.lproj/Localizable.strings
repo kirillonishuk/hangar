@@ -276,4 +276,10 @@
 "copyRelativePath" = "Скопировать относительный путь";
 "taskArchived" = "Задача в архиве";
 "undoArchive" = "Отменить";
+"archiveAnyway" = "Архивировать всё равно";
+"archiveFailed" = "Не удалось архивировать задачу";
+"restoreFailed" = "Не удалось восстановить задачу";
+"branchGone" = "Ветки «%@» больше нет";
+"branchGoneInfo" = "Worktree не восстановить. Восстановить задачу в папке проекта?";
+"restoreWithoutWorktree" = "Восстановить без worktree";
 "keepAwakeShort" = "Не засыпать";

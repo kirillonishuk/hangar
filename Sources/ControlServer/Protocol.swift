@@ -398,8 +398,11 @@ public struct ScreenResult: Codable, Equatable, Sendable {
 public struct ArchiveResult: Codable, Equatable, Sendable {
     public var task: UUID
     public var archived: Bool
-    public init(task: UUID, archived: Bool) {
+    /// The worktree folder was removed (its branch is kept).
+    public var worktreeRemoved: Bool
+    public init(task: UUID, archived: Bool, worktreeRemoved: Bool = false) {
         self.task = task
         self.archived = archived
+        self.worktreeRemoved = worktreeRemoved
     }
 }

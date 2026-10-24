@@ -43,6 +43,19 @@ import Testing
         #expect(s.tasks[0].tabs[0].root.leaves[0].cwd == "/wt/t")
     }
 
+    /// Restore without the removed worktree: main-folder task, leaves (drawer too) move from the worktree to the project.
+    @Test func detachWorktreeMovesLeaves() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t", mode: .worktree(path: "/wt/t", branch: "t", base: "main"))
+        s.addTab(taskId: t, kind: .shell)
+        s.toggleDrawer(taskId: t)
+        s.tasks[0].tabs[0].root = .leaf(Leaf(kind: .shell, cwd: "/wt/t/sub"))
+        s.detachWorktree(taskId: t)
+        #expect(s.tasks[0].mode == .mainFolder)
+        #expect(s.tasks[0].tabs[0].root.leaves[0].cwd == "/repo/app/sub")
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/app")
+    }
+
     @Test func closeLastLeafClosesTab() {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")

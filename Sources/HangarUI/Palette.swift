@@ -1,6 +1,6 @@
 import Foundation
 
-/// ⌘K quick switcher logic (decision #NN-palette): fuzzy matching and ranking, no UI.
+/// ⌘P quick open / ⇧⌘P command palette logic (decision #NN-palette): fuzzy matching and ranking, no UI.
 
 /// Score (higher is better) and the matched character offsets of `text`, for highlighting.
 struct FuzzyMatch: Equatable {
@@ -100,7 +100,7 @@ struct PaletteSection: Equatable {
 
 /// Rows per section; the list scrolls, the rest is reachable by typing more.
 let paletteSectionLimit = 50
-/// Files taken from the inspector's tree (the energy budget of matching per keystroke).
+/// Files of the task (the energy budget of matching per keystroke): from the inspector's tree, or one capped `ls-files`.
 let paletteFileCap = 5000
 
 /// Commands: every menu action of the shortcut table (tabs 1…9 and split focus are not commands, the palette not itself).
@@ -124,12 +124,16 @@ func paletteFiles(_ tree: FileTree, cap: Int = paletteFileCap) -> [String] {
     return out
 }
 
-/// Sections in a fixed order: tasks, files, commands. No query: tasks and commands as given, files only in
-/// files-only mode. With a query: matches by score (ties: shorter title, then given order).
-func paletteSections(query: String, tasks: [PaletteItem], files: [String], commands: [PaletteItem],
-                     filesOnly: Bool) -> [PaletteSection] {
-    let blank = query.allSatisfy(\.isWhitespace)
-    func ranked(_ items: [PaletteItem], _ match: (PaletteItem) -> FuzzyMatch?) -> [PaletteItem] {
+/// A leading `>` switches to commands (as in VS Code's ⌘P); the rest is the query.
+func paletteCommandQuery(_ query: String) -> String? {
+    query.first == ">" ? String(query.dropFirst()) : nil
+}
+
+/// Quick open: tasks, then files — tasks as given without a query, files once something is typed.
+/// `>…`: commands only, as given without a query. With a query: matches by score (ties: shorter title, then given order).
+func paletteSections(query: String, tasks: [PaletteItem], files: [String], commands: [PaletteItem]) -> [PaletteSection] {
+    func ranked(_ items: [PaletteItem], _ query: String, _ match: (PaletteItem) -> FuzzyMatch?) -> [PaletteItem] {
+        guard !query.allSatisfy(\.isWhitespace) else { return Array(items.prefix(paletteSectionLimit)) }
         let scored = items.enumerated().compactMap { i, item -> (Int, Int, PaletteItem)? in
             guard let m = match(item) else { return nil }
             var item = item
@@ -146,23 +150,21 @@ func paletteSections(query: String, tasks: [PaletteItem], files: [String], comma
     func add(_ kind: PaletteItem.Kind, _ items: [PaletteItem]) {
         if !items.isEmpty { out.append(PaletteSection(kind: kind, items: items)) }
     }
-    if !filesOnly {
-        add(.task, blank ? Array(tasks.prefix(paletteSectionLimit)) : ranked(tasks) { item in
-            // The project name finds its tasks too, a little below a match in the name itself.
-            fuzzyMatch(query, item.title) ?? fuzzyMatch(query, item.subtitle).map { FuzzyMatch(score: $0.score - 5, positions: []) }
-        })
+    if let q = paletteCommandQuery(query) {
+        add(.command, ranked(commands, q) { fuzzyMatch(q, $0.title) })
+        return out
     }
-    if filesOnly || !blank {
-        let items = files.map(PaletteItem.init(file:))
-        add(.file, blank ? Array(items.prefix(paletteSectionLimit)) : ranked(items) { item in
+    add(.task, ranked(tasks, query) { item in
+        // The project name finds its tasks too, a little below a match in the name itself.
+        fuzzyMatch(query, item.title) ?? fuzzyMatch(query, item.subtitle).map { FuzzyMatch(score: $0.score - 5, positions: []) }
+    })
+    if !query.allSatisfy(\.isWhitespace) {
+        add(.file, ranked(files.map(PaletteItem.init(file:)), query) { item in
             // The file name first; a match only across the directories ranks below any name match.
             if let m = fuzzyMatch(query, item.title) { return FuzzyMatch(score: m.score + 20, positions: m.positions) }
             guard case .file(let path) = item.target else { return nil }
             return fuzzyMatch(query, path).map { FuzzyMatch(score: $0.score, positions: []) }
         })
-    }
-    if !filesOnly {
-        add(.command, blank ? commands : ranked(commands) { fuzzyMatch(query, $0.title) })
     }
     return out
 }

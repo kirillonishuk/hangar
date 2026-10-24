@@ -65,56 +65,63 @@ import Testing
 
     private func kinds(_ s: [PaletteSection]) -> [PaletteItem.Kind] { s.map(\.kind) }
 
-    @Test func emptyQueryShowsTasksAndCommandsNotFiles() {
-        let s = paletteSections(query: "", tasks: tasks, files: files, commands: commands, filesOnly: false)
-        #expect(kinds(s) == [.task, .command])
+    @Test func emptyQueryShowsTasksOnly() {
+        let s = paletteSections(query: "", tasks: tasks, files: files, commands: commands)
+        #expect(kinds(s) == [.task])
         #expect(s[0].items.map(\.title) == tasks.map(\.title))  // original order without a query
     }
 
-    @Test func typingAddsFilesBetweenTasksAndCommands() {
-        let s = paletteSections(query: "s", tasks: tasks, files: files, commands: commands, filesOnly: false)
-        #expect(kinds(s) == [.task, .file, .command])
+    @Test func typingAddsFilesAfterTasks() {
+        let s = paletteSections(query: "s", tasks: tasks, files: files, commands: commands)
+        #expect(kinds(s) == [.task, .file])
     }
 
-    @Test func filesOnlyMode() {
-        #expect(kinds(paletteSections(query: "", tasks: tasks, files: files, commands: commands, filesOnly: true)) == [.file])
-        let s = paletteSections(query: "bil", tasks: tasks, files: files, commands: commands, filesOnly: true)
-        #expect(kinds(s) == [.file])
+    @Test func leadingAngleSwitchesToCommands() {
+        let all = paletteSections(query: ">", tasks: tasks, files: files, commands: commands)
+        #expect(kinds(all) == [.command])
+        #expect(all[0].items.map(\.title) == ["New Task", "Settings"])
+        let s = paletteSections(query: ">set", tasks: tasks, files: files, commands: commands)
+        #expect(s.first?.items.map(\.title) == ["Settings"])
+        #expect(s.first?.items.first?.positions == [0, 1, 2])  // offsets in the title, without the «>»
+        #expect(paletteSections(query: "> new", tasks: tasks, files: files, commands: commands).first?.items.first?.title == "New Task")
+        // Only a leading «>» switches.
+        #expect(paletteCommandQuery("a>") == nil)
+        #expect(paletteCommandQuery(">x") == "x")
     }
 
     @Test func rankedByScore() {
-        let s = paletteSections(query: "rbs", tasks: tasks, files: [], commands: commands, filesOnly: false)
+        let s = paletteSections(query: "rbs", tasks: tasks, files: [], commands: commands)
         #expect(s.first?.items.first?.title == "Refactor billing service")
-        let r = paletteSections(query: "re", tasks: tasks, files: [], commands: [], filesOnly: false)
+        let r = paletteSections(query: "re", tasks: tasks, files: [], commands: [])
         // both are prefix matches: the shorter title wins the tie
         #expect(r.first?.items.map(\.title) == ["Release notes", "Refactor billing service"])
     }
 
     @Test func taskMatchesByProjectNameToo() {
-        let s = paletteSections(query: "docs", tasks: tasks, files: [], commands: [], filesOnly: false)
+        let s = paletteSections(query: "docs", tasks: tasks, files: [], commands: [])
         #expect(s.first?.items.map(\.title) == ["Release notes"])
     }
 
     @Test func fileNameBeatsDirectory() {
         let s = paletteSections(query: "billing", tasks: [], files: ["Sources/Billing/Service.swift", "docs/billing.md"],
-                                commands: [], filesOnly: true)
+                                commands: [])
         #expect(s.first?.items.first?.title == "billing.md")
         #expect(s.first?.items.first?.subtitle == "docs")
     }
 
     @Test func emptySectionsAreDropped() {
-        let s = paletteSections(query: "zzz", tasks: tasks, files: files, commands: commands, filesOnly: false)
+        let s = paletteSections(query: "zzz", tasks: tasks, files: files, commands: commands)
         #expect(s.isEmpty)
     }
 
     @Test func rowsPerSectionAreCapped() {
         let many = (0..<500).map { "src/file\($0).swift" }
-        let s = paletteSections(query: "file", tasks: [], files: many, commands: [], filesOnly: true)
+        let s = paletteSections(query: "file", tasks: [], files: many, commands: [])
         #expect(s.first?.items.count == paletteSectionLimit)
     }
 
     @Test func idsAreUniqueAcrossKinds() {
-        let s = paletteSections(query: "s", tasks: tasks, files: files, commands: commands, filesOnly: false)
+        let s = paletteSections(query: "s", tasks: tasks, files: files, commands: commands)
         let ids = s.flatMap(\.items).map(\.id)
         #expect(Set(ids).count == ids.count)
     }
@@ -130,13 +137,33 @@ import Testing
         let list = paletteCommands
         #expect(list.contains(.newTask) && list.contains(.newTab) && list.contains(.splitRight) && list.contains(.settings))
         #expect(list.contains(.toggleInspector) && list.contains(.toggleDrawer) && list.contains(.archiveTask))
-        #expect(!list.contains(.palette) && !list.contains(.paletteFiles) && !list.contains(.tab(1)))
+        #expect(!list.contains(.quickOpen) && !list.contains(.commandPalette) && !list.contains(.tab(1)))
     }
 
     @Test func paletteShortcutsByKeyCode() {
-        #expect(shortcut(keyCode: 40, modifiers: .command) == .palette)  // K: works in the ru layout (Л)
-        #expect(shortcut(keyCode: 35, modifiers: .command) == .paletteFiles)  // P (З)
-        #expect(Shortcut.palette.label == "⌘K")
-        #expect(Shortcut.paletteFiles.label == "⌘P")
+        #expect(shortcut(keyCode: 35, modifiers: .command) == .quickOpen)  // P by keyCode: works in the ru layout (З)
+        #expect(shortcut(keyCode: 35, modifiers: [.command, .shift]) == .commandPalette)
+        #expect(shortcut(keyCode: 40, modifiers: .command) == nil)  // ⌘K stays with Ghostty (clear screen)
+        #expect(Shortcut.quickOpen.label == "⌘P")
+        #expect(Shortcut.commandPalette.label == "⇧⌘P")
+    }
+}
+
+@MainActor @Suite struct PaletteModelTests {
+    @Test func filesAreListedOnceOnFirstQuickOpen() {
+        var loads = 0
+        let m = PaletteModel(tasks: [], files: nil, commands: [PaletteItem(command: .settings, title: "Settings")], query: ">",
+                             loadFiles: { loads += 1 })
+        #expect(loads == 0)  // ⇧⌘P: commands only, no listing
+        m.setQuery("bil")
+        #expect(loads == 1)
+        #expect(m.showsLoading)
+        m.setQuery("bi")
+        #expect(loads == 1)
+        m.setFiles(["docs/billing.md"])
+        #expect(!m.showsLoading)
+        #expect(m.sections.map(\.kind) == [.file])
+        m.setQuery(">")
+        #expect(m.isCommands && m.sections.map(\.kind) == [.command])
     }
 }

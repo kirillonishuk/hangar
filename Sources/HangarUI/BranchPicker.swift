@@ -217,7 +217,11 @@ struct PickerSearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
-        if field.stringValue != text { field.stringValue = text }
+        if field.stringValue != text {
+            field.stringValue = text
+            // Set from outside (⇧⌘P puts «>»): the caret after it, not the whole text selected.
+            field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }

@@ -6,21 +6,29 @@ import Workspace
 
 /// The open palette's query, results and highlighted row. Built on open from snapshots; gone when closed (no work idle).
 @MainActor @Observable final class PaletteModel {
-    private(set) var query = ""
-    private(set) var filesOnly: Bool
+    private(set) var query: String
     private(set) var sections: [PaletteSection] = []
     var highlight: String?
+    /// nil: not loaded yet. Asked for once, the first time quick open (not `>`) is shown.
+    @ObservationIgnored private var files: [String]?
     @ObservationIgnored private let tasks: [PaletteItem]
-    @ObservationIgnored private let files: [String]
     @ObservationIgnored private let commands: [PaletteItem]
+    @ObservationIgnored private var loadFiles: (() -> Void)?
 
-    init(tasks: [PaletteItem], files: [String], commands: [PaletteItem], filesOnly: Bool) {
+    init(tasks: [PaletteItem], files: [String]?, commands: [PaletteItem], query: String, loadFiles: (() -> Void)? = nil) {
         self.tasks = tasks
         self.files = files
         self.commands = commands
-        self.filesOnly = filesOnly
+        self.query = query
+        self.loadFiles = loadFiles
         update()
     }
+
+    /// ⇧⌘P and a typed `>`: commands only.
+    var isCommands: Bool { paletteCommandQuery(query) != nil }
+
+    /// The «загрузка…» row: quick open with a query while the task's files are still being listed.
+    var showsLoading: Bool { files == nil && !isCommands && !query.allSatisfy(\.isWhitespace) }
 
     func setQuery(_ q: String) {
         guard q != query else { return }
@@ -28,21 +36,22 @@ import Workspace
         update()
     }
 
-    func setFilesOnly(_ on: Bool) {
-        guard on != filesOnly else { return }
-        filesOnly = on
-        update()
+    func setFiles(_ list: [String]) {
+        files = list
+        update(keepHighlight: true)
     }
 
-    private func update() {
-        sections = paletteSections(query: query, tasks: tasks, files: files, commands: commands, filesOnly: filesOnly)
-        highlight = sections.first?.items.first?.id
+    private func update(keepHighlight: Bool = false) {
+        if files == nil, !isCommands, let load = loadFiles {
+            loadFiles = nil
+            load()
+        }
+        sections = paletteSections(query: query, tasks: tasks, files: files ?? [], commands: commands)
+        let ids = sections.flatMap(\.items).map(\.id)
+        if !(keepHighlight && highlight.map(ids.contains) == true) { highlight = ids.first }
     }
 
     func move(_ delta: Int) { highlight = movedHighlight(highlight, by: delta, in: sections.flatMap(\.items).map(\.id)) }
-
-    /// No list from the inspector (no task, or it hasn't loaded this one: it loads only while shown).
-    var hasFiles: Bool { !files.isEmpty }
 
     var highlighted: PaletteItem? { sections.lazy.flatMap(\.items).first { $0.id == self.highlight } }
 }
@@ -119,7 +128,7 @@ struct PaletteView: View {
     var body: some View {
         VStack(spacing: 0) {
             PickerSearchField(text: Binding(get: { model.query }, set: { model.setQuery($0) }),
-                              placeholder: model.filesOnly ? L10n.paletteSearchFiles : L10n.paletteSearch,
+                              placeholder: L10n.paletteSearch,
                               font: .systemFont(ofSize: Theme.paletteQueryFont),
                               onMove: { model.move($0) },
                               onSubmit: { if let item = model.highlighted { choose(item) } },
@@ -136,8 +145,8 @@ struct PaletteView: View {
     }
 
     @ViewBuilder private var list: some View {
-        if model.sections.isEmpty {
-            Text(model.filesOnly && !model.hasFiles ? L10n.help(L10n.paletteNoFiles, .toggleInspector) : L10n.paletteEmpty)
+        if model.sections.isEmpty, !model.showsLoading {
+            Text(L10n.paletteEmpty)
                 .font(.system(size: Theme.paletteRowFont))
                 .foregroundStyle(Theme.ui.text3)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -152,6 +161,13 @@ struct PaletteView: View {
                                 .frame(maxWidth: .infinity, minHeight: Theme.paletteSectionHeight, alignment: .bottomLeading)
                                 .padding(.horizontal, Theme.palettePaddingH)
                             ForEach(section.items) { row($0) }
+                        }
+                        if model.showsLoading {
+                            Text(L10n.paletteLoading)
+                                .font(.system(size: Theme.paletteDetailFont))
+                                .foregroundStyle(Theme.ui.text3)
+                                .frame(maxWidth: .infinity, minHeight: Theme.paletteRowHeight, alignment: .leading)
+                                .padding(.horizontal, Theme.palettePaddingH)
                         }
                     }
                     .padding(.bottom, Theme.paletteRowInset)
@@ -253,7 +269,7 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .rename: .rename
     case .prevTask: .chevronUp
     case .nextTask: .chevronDown
-    case .prevTab, .nextTab, .tab, .focusSplit, .palette, .paletteFiles: .chevronRight
+    case .prevTab, .nextTab, .tab, .focusSplit, .quickOpen, .commandPalette: .chevronRight
     case .toggleSidebar: .sidebarLeft
     case .toggleInspector: .sidebarRight
     case .inspectorChanges: .diff

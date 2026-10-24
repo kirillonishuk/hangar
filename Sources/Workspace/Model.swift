@@ -16,9 +16,10 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var worktreeByDefault: Bool
     /// Parent folder for this project's worktrees; nil = the default location.
     public var worktreeRoot: String?
-    /// Gitignored paths/globs copied from the main folder into a new worktree; nil = `defaultWorktreeCopy`, [] = none.
+    /// Gitignored paths/globs copied from the main checkout into a new worktree; nil = the default for the repo's
+    /// package manager (`WorktreeDefaults`), [] = none.
     public var worktreeCopy: [String]?
-    /// Run in a shell tab of a new worktree after the copy; nil = none.
+    /// Run at the new worktree's top in a shell tab after the copy; nil = the package manager's default, "" = none.
     public var setupCommand: String?
 
     public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
@@ -52,8 +53,6 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
                   setupCommand: try c.decodeIfPresent(String.self, forKey: .setupCommand))
     }
 
-    /// What a new worktree gets copied (decision #NN-worktree-setup).
-    public var copyPatterns: [String] { worktreeCopy ?? defaultWorktreeCopy }
 
     public var path: String {
         switch location {
@@ -67,9 +66,6 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         return nil
     }
 }
-
-/// Common gitignored items a JS/Python/Ruby project needs to run; only those that exist and are ignored are copied.
-public let defaultWorktreeCopy = [".env*", "node_modules", ".venv", "vendor/bundle"]
 
 public enum TaskMode: Codable, Equatable, Sendable {
     case mainFolder
@@ -515,12 +511,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         if let base { projects[i].lastBaseBranch = base }
     }
 
-    /// Blank entries are dropped; nil `copy` = the default list; a blank command = none.
+    /// Blank entries are dropped; nil = the default (list or command), an empty list / blank command = none.
     public mutating func setWorktreeSetup(id: UUID, copy: [String]?, command: String?) {
         guard let i = projects.firstIndex(where: { $0.id == id }) else { return }
         projects[i].worktreeCopy = copy?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        let cmd = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        projects[i].setupCommand = cmd.isEmpty ? nil : cmd
+        projects[i].setupCommand = command?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Blank name keeps the old one; nil `baseBranch` = automatic (from origin/HEAD), stored as is; blank `worktreeRoot` resets to default (nil).

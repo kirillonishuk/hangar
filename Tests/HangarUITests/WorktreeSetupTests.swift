@@ -33,10 +33,44 @@ import Workspace
     }
 
     private func model(_ t: TempRepo, copy: [String]?, command: String? = nil, git: Git? = nil,
-                       location: Location? = nil) -> NewTaskModel {
-        let project = Project(name: "p", location: location ?? .local(path: t.repo), worktreeByDefault: true,
+                       location: Location? = nil, root: String? = nil) -> NewTaskModel {
+        let location = location ?? .local(path: t.repo)
+        let project = Project(name: "p", location: location, worktreeByDefault: true, worktreeRoot: root,
                               worktreeCopy: copy, setupCommand: command)
-        return NewTaskModel(project: project, git: git ?? Git(repo: t.repo), taskBranches: [])
+        return NewTaskModel(project: project, git: git ?? Git(repo: project.path), taskBranches: [])
+    }
+
+    /// A JS monorepo like the user's (pnpm + turbo): tracked lockfile, nested gitignored env files, a root
+    /// `node_modules/.pnpm` store and per-app `node_modules` of relative symlinks into it.
+    private func monorepo(lockfile: String) async throws -> TempRepo {
+        try await TempRepo.offMain {
+            let t = try TempRepo()
+            let fm = FileManager.default
+            func write(_ text: String, _ rel: String) throws {
+                let path = t.repo + "/" + rel
+                try fm.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+                try text.write(toFile: path, atomically: true, encoding: .utf8)
+            }
+            try write("node_modules\n.env\n.env.local\ndist\n.turbo\n", ".gitignore")
+            try write("lock", lockfile)
+            try write("{}", "apps/saas/package.json")
+            try write("{}", "apps/cms/package.json")
+            try t.git("add", ".", in: t.repo)
+            try t.git("commit", "-q", "-m", "monorepo", in: t.repo)
+            try t.git("push", "-q", "origin", "main", in: t.repo)
+            try write("ROOT=1", ".env")
+            try write("SAAS=1", "apps/saas/.env")
+            try write("CMS=1", "apps/cms/.env.local")
+            try write("NO", "dist/.env")
+            try write("NO", ".turbo/.env")
+            try write("module.exports = 'pkg'", "node_modules/.pnpm/pkg@1.0.0/node_modules/pkg/index.js")
+            try write("NO", "node_modules/pkg-env/.env")
+            try fm.createDirectory(atPath: t.repo + "/apps/saas/node_modules", withIntermediateDirectories: true)
+            try fm.createSymbolicLink(atPath: t.repo + "/node_modules/pkg", withDestinationPath: ".pnpm/pkg@1.0.0/node_modules/pkg")
+            try fm.createSymbolicLink(atPath: t.repo + "/apps/saas/node_modules/pkg",
+                                      withDestinationPath: "../../../node_modules/.pnpm/pkg@1.0.0/node_modules/pkg")
+            return t
+        }
     }
 
     private func create(_ m: NewTaskModel, _ name: String) async throws -> String {
@@ -60,6 +94,71 @@ import Workspace
         #expect(matchIgnored(["vendor/bundle"], entries) == ["vendor/bundle"])
         #expect(matchIgnored(["../x", "/etc/hosts", "..", "", "  "], entries + ["../x"]).isEmpty)
         #expect(matchIgnored(["node_modules", "*"], ["node_modules"]) == ["node_modules"])  // no duplicates
+        // Recursive name patterns skip node_modules / dist / .turbo / .git; `**/` is the same as no slash.
+        let nested = ["apps/saas/.env", "apps/cms/.env.local", "node_modules/x/.env", "dist/.env", "apps/a/.turbo/.env", ".git/.env"]
+        #expect(matchIgnored([".env*"], nested) == ["apps/saas/.env", "apps/cms/.env.local"])
+        #expect(matchIgnored(["**/.env*"], nested) == ["apps/saas/.env", "apps/cms/.env.local"])
+        #expect(matchIgnored(["apps/*/.env*"], nested) == ["apps/saas/.env", "apps/cms/.env.local"])
+        #expect(matchIgnored(["node_modules/x/.env"], nested) == ["node_modules/x/.env"])  // named explicitly
+    }
+
+    @Test func defaultsFollowThePackageManager() {
+        let pnpm = WorktreeDefaults(lockfiles: ["pnpm-lock.yaml", "package-lock.json"])
+        #expect(pnpm.command == "pnpm install --frozen-lockfile --prefer-offline" && !pnpm.copy.contains("node_modules"))
+        #expect(pnpm.copy.contains(".env*"))
+        #expect(WorktreeDefaults(lockfiles: ["yarn.lock"]).command == "yarn install --frozen-lockfile")
+        #expect(WorktreeDefaults(lockfiles: ["yarn.lock", ".yarnrc.yml"]).command == "yarn install --immutable")
+        #expect(WorktreeDefaults(lockfiles: ["bun.lockb"]).command == "bun install --frozen-lockfile")
+        #expect(WorktreeDefaults(lockfiles: ["bun.lock"]).command == "bun install --frozen-lockfile")
+        let npm = WorktreeDefaults(lockfiles: ["package-lock.json"])
+        #expect(npm.command == nil && npm.copy.contains("node_modules"))
+        #expect(WorktreeDefaults(lockfiles: []) == npm)
+    }
+
+    @Test func pnpmMonorepoGetsEnvFilesAndInstall() async throws {
+        let t = try await monorepo(lockfile: "pnpm-lock.yaml")
+        defer { t.cleanup() }
+        #expect(try await Git(repo: t.repo).lockfiles() == ["pnpm-lock.yaml"])
+        let m = model(t, copy: nil)
+        let wt = try await create(m, "pn")
+        #expect(try String(contentsOfFile: wt + "/.env", encoding: .utf8) == "ROOT=1")
+        #expect(try String(contentsOfFile: wt + "/apps/saas/.env", encoding: .utf8) == "SAAS=1")
+        #expect(try String(contentsOfFile: wt + "/apps/cms/.env.local", encoding: .utf8) == "CMS=1")
+        #expect(!exists(wt + "/node_modules") && !exists(wt + "/apps/saas/node_modules"))  // pnpm reinstalls from its store
+        #expect(!exists(wt + "/dist") && !exists(wt + "/.turbo"))
+        #expect(m.setupScript == "pnpm install --frozen-lockfile --prefer-offline")
+        // An own (even empty) command wins over the default.
+        let none = model(t, copy: nil, command: "")
+        _ = try await create(none, "pn2")
+        #expect(none.setupScript == nil)
+    }
+
+    @Test func subfolderProjectCopiesFromTheRepoTop() async throws {
+        let t = try await monorepo(lockfile: "pnpm-lock.yaml")
+        defer { t.cleanup() }
+        let m = model(t, copy: nil, location: .local(path: t.repo + "/apps/saas"), root: t.root + "/wt")
+        let wt = try await create(m, "sub")
+        // The worktree is a whole checkout: the setup tab opens at its top, where the lockfile is.
+        #expect(exists(wt + "/pnpm-lock.yaml"))
+        #expect(exists(wt + "/.env") && exists(wt + "/apps/saas/.env") && exists(wt + "/apps/cms/.env.local"))
+        #expect(!exists(wt + "/apps/saas/apps"))
+        #expect(m.setupScript == "pnpm install --frozen-lockfile --prefer-offline")
+    }
+
+    @Test func npmClonesNodeModulesKeepingRelativeLinks() async throws {
+        let t = try await monorepo(lockfile: "package-lock.json")
+        defer { t.cleanup() }
+        let m = model(t, copy: nil)
+        let wt = try await create(m, "npm")
+        #expect(m.setupScript == nil)
+        let fm = FileManager.default
+        for link in ["/node_modules/pkg", "/apps/saas/node_modules/pkg"] {
+            let dest = try fm.destinationOfSymbolicLink(atPath: wt + link)
+            #expect(!dest.hasPrefix("/"))  // still relative: resolves inside the clone, not into the main checkout
+            #expect(try String(contentsOfFile: wt + link + "/index.js", encoding: .utf8) == "module.exports = 'pkg'")
+            let resolved = URL(fileURLWithPath: wt + link + "/index.js").resolvingSymlinksInPath().path
+            #expect(resolved.hasSuffix("/npm/node_modules/.pnpm/pkg@1.0.0/node_modules/pkg/index.js"))
+        }
     }
 
     @Test func defaultListCopiesIgnoredOnly() async throws {

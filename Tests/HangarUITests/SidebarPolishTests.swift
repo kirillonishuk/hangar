@@ -34,10 +34,15 @@ import Testing
         #expect(RailTileStyle(selected: true) == RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.selectionText))
     }
 
-    /// Tests run without the app bundle: no logo SVGs, so the SF Symbol fallback must stay a template (tinted), not `.original` black.
-    @Test @MainActor func brandFallsBackToTemplateWithoutLogo() {
-        #expect(!Icon.claude.isBrand)
-        #expect(!Icon.codex.isBrand)
+    /// Brand logos are embedded path data: they exist without any bundle and are not a symbol fallback.
+    @Test @MainActor func brandLogosDoNotNeedBundle() {
+        for icon in [Icon.claude, Icon.codex] {
+            #expect(icon.isBrand)
+            let image = icon.image
+            #expect(!image.isTemplate)
+            #expect(image.size == NSSize(width: Theme.iconSize, height: Theme.iconSize))
+            #expect(BrandLogo.path(icon == .claude ? BrandLogo.claude : BrandLogo.openai).bounds.width > 20)
+        }
         #expect(!Icon.shell.isBrand)
     }
 

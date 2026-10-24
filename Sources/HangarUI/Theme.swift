@@ -195,7 +195,6 @@ public enum Theme {
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
     public static let dragThreshold: CGFloat = 4
-    public static let tabMaxChars = 32
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32

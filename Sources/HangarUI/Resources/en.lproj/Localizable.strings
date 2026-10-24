@@ -26,6 +26,7 @@
 "diffUnavailable" = "No change data available";
 "newTabHelp" = "New tab";
 "closeTabHelp" = "Close tab";
+"allTabsHelp" = "All tabs";
 "taskNamePlaceholder" = "task name";
 "firstMessagePlaceholder" = "First message for %@ (optional)…";
 "escCancel" = "esc — cancel";

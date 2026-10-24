@@ -286,6 +286,7 @@
 "archiveAnyway" = "Архивировать всё равно";
 "archiveFailed" = "Не удалось архивировать задачу";
 "restoreFailed" = "Не удалось восстановить задачу";
+"orphanKept" = "Папка без .git сохранена как";
 "branchGone" = "Ветки «%@» больше нет";
 "branchGoneInfo" = "Worktree не восстановить. Восстановить задачу в папке проекта?";
 "restoreWithoutWorktree" = "Восстановить без worktree";

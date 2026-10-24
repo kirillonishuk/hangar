@@ -65,6 +65,13 @@ import Workspace
         #expect(first.1.restoring)
     }
 
+    /// "/a/" and "/a" are one folder: one `--continue` slot.
+    @Test func trailingSlashIsSameCwd() {
+        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a/"), Leaf(kind: .claude, cwd: "/a")])
+        let set = resumeSet(for: s)
+        #expect(set.contains(ids[0]) && !set.contains(ids[1]))
+    }
+
     @Test func differentCwdsBothContinue() {
         let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/b")])
         #expect(resumeSet(for: s) == Set(ids))

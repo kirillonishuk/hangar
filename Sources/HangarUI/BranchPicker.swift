@@ -192,9 +192,10 @@ struct BranchList: View {
 
 /// Search field that hands ↑/↓/↩/Esc to the list instead of the field editor (SwiftUI's TextField moves the caret);
 /// focused when the popover opens.
-private struct PickerSearchField: NSViewRepresentable {
+struct PickerSearchField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
+    var font = NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)
     let onMove: (Int) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
@@ -204,10 +205,10 @@ private struct PickerSearchField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.font = .monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)
+        field.font = font
         field.textColor = Theme.sheetText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
-            .foregroundColor: Theme.text3, .font: NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular),
+            .foregroundColor: Theme.text3, .font: font,
         ])
         field.cell?.usesSingleLineMode = true
         field.delegate = context.coordinator

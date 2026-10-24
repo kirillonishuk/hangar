@@ -296,3 +296,17 @@
 "afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке shell нового worktree и сохранится в проекте";
 "copyingEntry" = "Копирую %@…";
 "copyFailed" = "hangar: не скопировано %@";
+"paletteSearch" = "Задачи, файлы, команды…";
+"paletteSearchFiles" = "Файлы задачи…";
+"paletteTasks" = "Задачи";
+"paletteFiles" = "Файлы";
+"paletteCommands" = "Команды";
+"paletteEmpty" = "Ничего не найдено";
+"cmdArchiveTask" = "Архивировать задачу";
+"cmdPrevTask" = "Предыдущая задача";
+"cmdNextTask" = "Следующая задача";
+"cmdPrevTab" = "Предыдущая вкладка";
+"cmdNextTab" = "Следующая вкладка";
+"cmdToggleSidebar" = "Показать/скрыть сайдбар";
+"cmdToggleInspector" = "Показать/скрыть инспектор";
+"paletteNoFiles" = "Файлы берутся из инспектора — откройте его";

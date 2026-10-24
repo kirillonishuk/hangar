@@ -39,10 +39,14 @@ extension AppState {
     /// known projects (the configured root and the folders of their worktree tasks).
     public func sweepTombstones(host: String?) async {
         for project in state.projects where project.host == host {
-            var dirs: Set<String> = [parent(worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: "x"))]
-            for task in state.tasks where task.projectId == project.id {
-                if case .worktree(let path, _, _) = task.mode { dirs.insert(parent(path)) }
+            let worktrees = state.tasks.compactMap { task -> String? in
+                guard task.projectId == project.id, case .worktree(let path, _, _) = task.mode else { return nil }
+                return path
             }
+            // shortcut: a project with no worktree task left is skipped (no ssh call on every connect); a tombstone of
+            // a deleted task waits for the next worktree task there.
+            guard !worktrees.isEmpty else { continue }
+            let dirs = Set(worktrees.map(parent) + [parent(worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: "x"))])
             let script = #"for d; do for t in "$d"/*.hangar-removing; do [ -d "$t" ] && rm -rf -- "$t"; done; done; exit 0"#
             _ = try? await runner(for: project).run(["sh", "-c", script, "sh"] + dirs.sorted(), "/")
         }

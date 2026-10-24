@@ -68,6 +68,7 @@ Git и diff: бейджи `M #e5c07b`, `A #98c379`, `D #e06c75`; `?` цвето�
 - Капс + разрядка `.06em` — только заголовки секций сайдбара (`ЗАКРЕПЛЁННЫЕ`, `ПРОЕКТЫ`, `АРХИВ`) и секции выпадающего списка веток. Больше нигде.
 - Иконки — SF Symbols через один `enum Icon`, вес regular, 15 pt, цвет `text2` (выбранное — `textStrong`); агенты — логотипы (Claude `#d97757`, OpenAI белым).
 - Иконка приложения — концепт A (ворота ангара с `>_`); исходники: `docs/superpowers/mockups/app-icon/A-master.svg` и `A-small.svg`, сборка `scripts/make-icon.sh` → `Resources/AppIcon.icns`.
+- Установщик DMG — `scripts/bundle.sh && scripts/make-dmg.sh` → `build/Hangar.dmg`: окно 640×400 на navy-фоне (`scripts/dmg-background.swift`), Hangar слева, «Программы» справа, стрелка и подпись ru/en; при первом запуске разрешить Terminal управлять Finder.
 
 ## Раскладка
 - Окно: радиус 12, без отдельного тулбара. Сайдбар на всю высоту, сверху зона светофора 38.

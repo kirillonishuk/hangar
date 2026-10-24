@@ -32,7 +32,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .toggleSidebar: (.command, 29, "0")
         case .settings: (.command, 43, ",")
         case .rename: ([], 120, "F2")
-        case .toggleDrawer: (.control, 50, "`")  // physical key left of 1
+        case .toggleDrawer: (.command, 38, "J")  // as in VS Code
         case .limits: ([.command, .shift], 37, "L")
         case .prevTab: ([.control, .shift], 48, "Tab")
         case .nextTab: (.control, 48, "Tab")
@@ -91,5 +91,7 @@ public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Short
     let mods = modifiers.intersection([.command, .shift, .option, .control])
     // ⌘B: silent alias of ⌘0, a Pane habit (decision #39); labels show ⌘0 only.
     if mods == .command, keyCode == 11 { return .toggleSidebar }
+    // ⌃` (physical key left of 1): silent alias of ⌘J, its original key (decision #72); labels show ⌘J only.
+    if mods == .control, keyCode == 50 { return .toggleDrawer }
     return Shortcut.allCases.first { $0.key.mods == mods && $0.key.code == keyCode }
 }

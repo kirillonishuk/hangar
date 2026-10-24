@@ -147,8 +147,8 @@ func runDoctor(_ args: [String]) -> Int32 {
 }
 
 /// MCP over stdio: one JSON-RPC message per line until EOF, answered in order; stdout carries only replies.
-func runMCP() -> Int32 {
-    var session = MCPSession { call in
+func runMCP(readOnly: Bool) -> Int32 {
+    var session = MCPSession(readOnly: readOnly) { call in
         // `doctor` answers even when the app is down: the report says so.
         if call == .doctor { return .success(doctorJSON(collectDoctorReport())) }
         return ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call))
@@ -188,7 +188,8 @@ case "event": exit(runEvent(Array(argv.dropFirst())))
 case "statusline": exit(runStatusline(Array(argv.dropFirst())))
 case "projects", "tasks", "tabs": exit(runCommand(argv))
 case "doctor": exit(runDoctor(argv))
-case "mcp" where argv.count == 1: exit(runMCP())
+case "mcp" where argv.count == 1: exit(runMCP(readOnly: false))
+case "mcp" where argv == ["mcp", "--read-only"]: exit(runMCP(readOnly: true))
 default:  // hooks always call `event`/`statusline`, so no hook sees this exit code
     FileHandle.standardError.write(Data((cliUsage + "\n").utf8))
     exit(2)

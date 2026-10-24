@@ -252,6 +252,52 @@ import Workspace
         let plain = try await ok(app, .tasksArchive(task: "x"), ArchiveResult.self)
         #expect(plain.archived && !plain.worktreeRemoved)
     }
+
+    /// tasks.restore finds only archived tasks and re-creates the worktree from its kept branch.
+    @Test func restoreRecreatesWorktree() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        let app = try makeApp { s in s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let wt = try await ok(app, .tasksCreate(project: "repo", name: "y", worktree: true, base: nil, prompt: nil), TaskResult.self)
+        #expect(await error(app, .tasksRestore(task: "y"))?.code == .notFound)  // not archived
+        _ = try await ok(app, .tasksArchive(task: "y"), ArchiveResult.self)
+        #expect(!FileManager.default.fileExists(atPath: wt.task.path))
+
+        let r = try await ok(app, .tasksRestore(task: "y"), TaskResult.self)
+        #expect(r.task.id == wt.task.id && r.task.branch == "y")
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == false)
+        #expect(FileManager.default.fileExists(atPath: wt.task.path))
+
+        // Branch gone: nothing changes, the error says why.
+        _ = try await ok(app, .tasksArchive(task: "y"), ArchiveResult.self)
+        _ = try t.git("branch", "-D", "y", in: t.repo)
+        let gone = await error(app, .tasksRestore(task: "y"))
+        #expect(gone?.code == .failed && gone?.message.contains("branch") == true)
+        #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
+    }
+
+    /// `git: true` adds changes vs base, dirty and ahead/behind; without it the list runs no git.
+    @Test func tasksListGitStatus() async throws {
+        let t = try await repoWithCommit()
+        defer { t.cleanup() }
+        let app = try makeApp { s in s.addProject(name: "repo", path: t.repo) }
+        defer { cleanup() }
+        let wt = try await ok(app, .tasksCreate(project: "repo", name: "z", worktree: true, base: "main", prompt: nil), TaskResult.self)
+        try "one\ntwo\n".write(toFile: wt.task.path + "/b.txt", atomically: true, encoding: .utf8)
+        _ = try t.git("add", "b.txt", in: wt.task.path)
+        _ = try t.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "b", in: wt.task.path)
+        try "u".write(toFile: wt.task.path + "/new.txt", atomically: true, encoding: .utf8)
+
+        let plain = try await ok(app, .tasksList(project: nil), TasksResult.self)
+        #expect(plain.tasks[0].changes == nil && plain.tasks[0].dirty == nil && plain.tasks[0].ahead == nil)
+
+        let r = try await ok(app, .tasksList(project: nil, git: true), TasksResult.self)
+        let task = r.tasks[0]
+        #expect(task.changes == ChangesInfo(added: 2, removed: 0, files: 2))
+        #expect(task.dirty == true)
+        #expect(task.ahead == 1 && task.behind == 0)
+    }
     /// Records what the control handlers ask of the terminals.
     private final class FakeTerminals {
         var started: [UUID] = []

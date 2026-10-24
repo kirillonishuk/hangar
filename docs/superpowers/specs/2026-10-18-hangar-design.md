@@ -139,15 +139,16 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | Команда | Действие |
 |---|---|
 | `hangar projects list` / `add <path> [--host H]` | проекты (с `--host` — папка на сервере, #45) |
-| `hangar tasks list [--project]` | задачи со статусами (и лист панели TERMINAL — его id годится как `--tab`) |
+| `hangar tasks list [--project] [--git]` | задачи со статусами (и лист панели TERMINAL — его id годится как `--tab`); с `--git` (MCP `git: true`) — `changes {added, removed, files}` относительно базы, `dirty`, `ahead`/`behind` базы (#NN-parity) |
 | `hangar tasks create --project P --name N [--worktree --base B] [--prompt T]` | создать задачу |
 | `hangar tabs open --task T --kind claude\|codex\|editor\|shell [--prompt T]` | новая вкладка |
 | `hangar tabs send --tab ID [<text>] [--enter] [--key K]… [--wait]` | вставить текст, затем нажать клавиши (`enter`, `escape`, `tab`, `backspace`, `up`, `down`, `left`, `right`, `ctrl-c`, `ctrl-d`, `interrupt`); `--wait` ждёт начала хода claude (решение #NN-pane-bugs) |
 | `hangar tabs read --tab ID [--lines N]` | последние N строк экрана (по умолчанию 100) |
 | `hangar tasks archive --task T --yes [--force]` | архивировать; worktree удаляется, ветка остаётся (#57); грязный worktree или ignored-файлы — отказ без `--force` (MCP `force: true`) |
+| `hangar tasks restore --task T` | вернуть задачу из архива; worktree создаётся заново из сохранённой ветки (#57); ветки нет — ошибка, без изменений. Не разрушительно, `--yes` не нужен (#NN-parity) |
 | `hangar doctor [--json]` | только чтение (#NN-doctor): приложение и сокет, версии CLI/приложения, claude/codex/helix с версиями, hooks в ~/.claude и ~/.codex, ресурсы Ghostty, ssh-хосты проектов (подключён, tmux, hangar-remote), keep-awake, свободное место у папки состояния; строка ok/warn/fail с подсказкой; код 1, если есть fail; MCP `doctor` |
 | `hangar event <kind>` | событие от hooks |
-| `hangar mcp` | MCP-сервер (stdio) с теми же операциями |
+| `hangar mcp [--read-only]` | MCP-сервер (stdio) с теми же операциями; `--read-only` — только `projects_list`, `tasks_list`, `tabs_read`, `doctor`, остальные отклоняются (#NN-parity) |
 
 Разрушительные операции без `--yes` (в MCP — `yes: true`) отклоняются. Все команды поддерживают `--json`.
 

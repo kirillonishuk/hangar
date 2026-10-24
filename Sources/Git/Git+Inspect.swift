@@ -29,6 +29,15 @@ extension Git {
         return r
     }
 
+    /// Commits of HEAD not in `base` and of `base` not in HEAD (`rev-list --left-right --count`).
+    public func aheadBehind(base: String) async throws -> (ahead: Int, behind: Int) {
+        guard !base.hasPrefix("-") else { throw GitError(args: [base], status: 128, stderr: "invalid base") }
+        let parts = try await inspect(["rev-list", "--left-right", "--count", base + "...HEAD", "--"])
+            .split(whereSeparator: { $0 == "\t" || $0 == " " || $0 == "\n" }).compactMap { Int($0) }
+        guard parts.count == 2 else { throw GitError(args: ["rev-list"], status: 0, stderr: "unexpected output") }
+        return (parts[1], parts[0])
+    }
+
     /// The common git-dir: the main repository's for a linked worktree, else the same as `gitDir`.
     public func commonDir() async throws -> String {
         try await inspect(["rev-parse", "--path-format=absolute", "--git-common-dir"]).trimmingCharacters(in: .whitespacesAndNewlines)

@@ -1,6 +1,6 @@
 import Foundation
 
-/// `hangar projects|tasks|tabs …` (decision #45): argv → one `ControlCall`; output text is English.
+/// `hangar projects|sessions|tabs …` (decision #45, #NN-sessions): argv → one `ControlCall`; output text is English.
 public enum CLIParse: Equatable, Sendable {
     case call(ControlCall, json: Bool)
     case usage(String)
@@ -11,18 +11,19 @@ public let cliUsage = """
 usage:
   hangar projects list [--json]
   hangar projects add <path> [--host H] [--json]   (with --host: a path on the server, quote ~ so the local shell keeps it)
-  hangar tasks list [--project P] [--git] [--json]   (--git: +added −removed lines and files vs the base, dirty, ↑ahead ↓behind)
-  hangar tasks create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
-  hangar tasks archive --task T --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
-  hangar tasks restore --task T [--json]   (an archived task; re-creates its worktree from the kept branch)
-  hangar tabs open --task T --kind claude|codex|editor|shell [--prompt TEXT] [--json]
+  hangar sessions list [--project P] [--git] [--json]   (--git: +added −removed lines and files vs the base, dirty, ↑ahead ↓behind)
+  hangar sessions create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
+  hangar sessions archive --session S --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
+  hangar sessions restore --session S [--json]   (an archived session; re-creates its worktree from the kept branch)
+  hangar tabs open --session S --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
-  hangar link task|tab|project <ref> [--json]   (prints a hangar:// link; opening it only selects, nothing runs)
-  (T: a tab id, a leaf id or a task's drawer leaf id from `tasks list`, or a unique prefix)
+  hangar link session|tab|project <ref> [--json]   (prints a hangar:// link; opening it only selects, nothing runs)
+  (S: a session id, a unique id prefix or a name; T: a tab id, a leaf id or a session's drawer leaf id from `sessions list`, or a unique prefix)
+  (--json keeps the keys "tasks" and "task" for compatibility; `tasks …` and `--task` still work as aliases)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
-  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, tasks_list, tabs_read, doctor)
+  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """
@@ -39,23 +40,34 @@ private func grammar(_ command: String) -> Grammar? {
     switch command {
     case "projects list": Grammar()
     case "projects add": Grammar(values: ["--host"], positionals: 1...1)
-    case "tasks list": Grammar(values: ["--project"], flags: ["--git"])
-    case "tasks restore": Grammar(values: ["--task"])
-    case "tasks create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
-    case "tasks archive": Grammar(values: ["--task"], flags: ["--yes", "--force"])
-    case "tabs open": Grammar(values: ["--task", "--kind", "--prompt"])
+    case "sessions list": Grammar(values: ["--project"], flags: ["--git"])
+    case "sessions restore": Grammar(values: ["--session"])
+    case "sessions create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
+    case "sessions archive": Grammar(values: ["--session"], flags: ["--yes", "--force"])
+    case "tabs open": Grammar(values: ["--session", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     case "ssh": Grammar(positionals: 1...1)
-    case "link task", "link tab", "link project": Grammar(positionals: 1...1)
+    case "link session", "link tab", "link project": Grammar(positionals: 1...1)
     default: nil
     }
 }
+
+/// Silent aliases from before the rename to sessions (#NN-sessions), so existing scripts keep working.
+private func canonicalCommand(_ args: [String]) -> [String] {
+    var a = args
+    if a.first == "tasks" { a[0] = "sessions" }
+    if a.first == "link", a.count > 1, a[1] == "task" { a[1] = "session" }
+    return a
+}
+
+private func canonicalFlag(_ flag: String) -> String { flag == "--task" ? "--session" : flag }
 
 /// `ssh` is the one single-word command; the rest are `<noun> <verb>`.
 private func commandWords(_ args: [String]) -> Int { args.first == "ssh" ? 1 : 2 }
 
 public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
+    let args = canonicalCommand(args)
     let n = commandWords(args)
     let command = args.prefix(n).joined(separator: " ")
     guard args.count >= n, let g = grammar(command) else {
@@ -67,6 +79,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         if flagsEnded || !a.hasPrefix("--") { words.append(a); continue }
         if a == "--" { flagsEnded = true; continue }
         if a == "--json" { json = true; continue }
+        let a = canonicalFlag(a)
         if g.flags.contains(a) { flags.insert(a); continue }
         let isKey = g.repeated.contains(a)
         guard isKey || g.values.contains(a) else { return .usage("unknown flag \"\(a)\"") }
@@ -94,23 +107,23 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         if let host = values["--host"] { return .call(.projectsAdd(path: words[0], host: host), json: json) }
         let path = words[0].hasPrefix("/") ? words[0] : cwd + "/" + words[0]
         call = .projectsAdd(path: URL(fileURLWithPath: path).standardized.path)
-    case "tasks list":
+    case "sessions list":
         call = .tasksList(project: values["--project"], git: flags.contains("--git"))
-    case "tasks restore":
-        guard let task = required("task") else { return missing("task") }
+    case "sessions restore":
+        guard let task = required("session") else { return missing("session") }
         call = .tasksRestore(task: task)
-    case "tasks create":
+    case "sessions create":
         guard let project = required("project") else { return missing("project") }
         guard let name = required("name") else { return missing("name") }
         let worktree = flags.contains("--worktree")
         if values["--base"] != nil, !worktree { return .usage("--base requires --worktree") }
         call = .tasksCreate(project: project, name: name, worktree: worktree, base: values["--base"], prompt: values["--prompt"])
-    case "tasks archive":
-        guard let task = required("task") else { return missing("task") }
+    case "sessions archive":
+        guard let task = required("session") else { return missing("session") }
         guard flags.contains("--yes") else { return .confirmRequired("refusing to archive without --yes") }
         call = .tasksArchive(task: task, force: flags.contains("--force"))
     case "tabs open":
-        guard let task = required("task") else { return missing("task") }
+        guard let task = required("session") else { return missing("session") }
         guard let raw = required("kind") else { return missing("kind") }
         guard let kind = TabKind(rawValue: raw) else { return .usage("--kind must be one of: \(TabKind.allCases.map(\.rawValue).joined(separator: ", "))") }
         call = .tabsOpen(task: task, kind: kind, prompt: values["--prompt"])
@@ -122,8 +135,8 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let text = words.isEmpty ? nil : words.joined(separator: " ")
         guard text != nil || !keys.isEmpty else { return .usage("nothing to send: pass text, --key or --enter") }
         call = .tabsSend(tab: tab, text: text, keys: keys, wait: flags.contains("--wait"))
-    case "link task", "link tab", "link project":
-        call = .linksCreate(kind: LinkKind(rawValue: args[1])!, ref: words[0])
+    case "link session", "link tab", "link project":
+        call = .linksCreate(kind: args[1] == "session" ? .task : LinkKind(rawValue: args[1])!, ref: words[0])
     default:  // tabs read
         guard let tab = required("tab") else { return missing("tab") }
         var lines = ControlCall.defaultLines
@@ -149,7 +162,7 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .tabsSend(_, _, _, true): Double(ControlMethod.sendWaitSeconds + 10)
     // `worktree add` of the kept branch (checkout of a big tree), possibly over ssh.
     case .tasksRestore: 120
-    // A few git runs per task, possibly over ssh.
+    // A few git runs per session, possibly over ssh.
     case .tasksList(_, true): 60
     default: 10
     }
@@ -187,7 +200,7 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         }
     case .tasksCreate:
         text = (try? d.decode(TaskResult.self, from: result)).map { r in
-            "task \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "") + (r.note.map { "\nnote: " + $0 } ?? "")
+            "session \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "") + (r.note.map { "\nnote: " + $0 } ?? "")
         }
     case .tabsOpen:
         text = (try? d.decode(TabResult.self, from: result)).map { "tab \(id($0.tab.id))" }
@@ -220,15 +233,16 @@ public func errorJSON(_ e: ControlError) -> Data {
     return (try? enc.encode(Wrapper(error: e))) ?? Data(#"{"error":{"code":"failed","message":"encoding failed"}}"#.utf8)
 }
 
-/// Whether a failed parse should still answer in JSON: `--json` as a flag, not as the value of `--task` etc.
+/// Whether a failed parse should still answer in JSON: `--json` as a flag, not as the value of `--session` etc.
 public func jsonRequested(_ args: [String]) -> Bool {
+    let args = canonicalCommand(args)
     let n = commandWords(args)
     let command = args.prefix(n).joined(separator: " ")
     guard args.count >= n, let g = grammar(command) else { return args.prefix(while: { $0 != "--" }).contains("--json") }
     var rest = args.dropFirst(n)[...]
     while let a = rest.popFirst(), a != "--" {
         if a == "--json" { return true }
-        if g.values.contains(a) || g.repeated.contains(a) { _ = rest.popFirst() }
+        if g.values.contains(canonicalFlag(a)) || g.repeated.contains(a) { _ = rest.popFirst() }
     }
     return false
 }

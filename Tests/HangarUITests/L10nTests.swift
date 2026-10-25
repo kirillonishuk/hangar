@@ -14,6 +14,23 @@ import Workspace
         }
     }
 
+    /// The UI says «сессия» / "session", never «задача» / "task" (#NN-sessions); code keeps `Task` identifiers.
+    @Test func sessionsNotTasks() throws {
+        for (lang, banned) in [(Language.ru, "задач"), (.en, "task")] {
+            let table = try #require(L10n.table(lang))
+            for (key, value) in table { #expect(!value.lowercased().contains(banned), "\(lang): \(key) = \(value)") }
+        }
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        #expect(L10n.newTask == "Новая сессия")
+        #expect(L10n.taskArchived == "Сессия в архиве")
+        #expect(L10n.deleteTaskConfirm("A") == "Удалить сессию «A» навсегда?")
+        #expect(L10n.newTaskIn("web") == "Новая сессия в web")
+        L10n.language = .en
+        #expect(L10n.newTask == "New Session")
+        #expect(L10n.taskArchived == "Session archived")
+    }
+
     @Test func clipboardPromptIsLocalized() {
         defer { L10n.language = .system }
         L10n.language = .ru

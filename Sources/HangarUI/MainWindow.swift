@@ -29,7 +29,7 @@ final class TaskColumnController: NSViewController {
     private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
     private let statusBar: NSHostingView<TaskStatusBar>
-    /// «Задача в архиве · Отменить» over the bottom of the terminals.
+    /// «Сессия в архиве · Отменить» over the bottom of the terminals.
     let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
 
@@ -639,7 +639,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    /// `thenNewTask`: "+ Новая задача" with no projects — the new-task sheet follows the added project.
+    /// `thenNewTask`: "+ Новая сессия" with no projects — the new-task sheet follows the added project.
     private func chooseProject(thenNewTask: Bool = false) {
         guard let window else { return }
         let panel = NSOpenPanel()

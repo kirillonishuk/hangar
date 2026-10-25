@@ -13,30 +13,42 @@ enum TabStrip {
         var overflow: Bool
     }
 
-    /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow).
-    /// Tabs get their natural width within [min, max]; a crowded bar shrinks the widest first, then scrolls at min.
-    static func layout(natural: [CGFloat], width: CGFloat) -> Layout {
-        let control = Theme.tabGap + Theme.tabBarButton
-        let fit = widths(natural, room: width - control)
-        let total = content(fit)
-        if total <= width - control { return Layout(widths: fit, viewport: total, content: total, overflow: false) }
-        let min = natural.map { _ in Theme.tabMinWidth }
-        return Layout(widths: min, viewport: Swift.max(width - 2 * control, 0), content: content(min), overflow: true)
+    /// A tab's least width: the status dot gets its own room, so a dotted tab keeps as much title as a plain one.
+    static func minWidth(dot: Bool) -> CGFloat {
+        Theme.tabMinWidth + (dot ? Theme.statusDot + Theme.rowEndGap : 0)
     }
 
-    /// Water-filling: one cap for all tabs so the narrow ones keep their width; never below the min width.
-    private static func widths(_ natural: [CGFloat], room: CGFloat) -> [CGFloat] {
-        let desired = natural.map { Swift.min(Swift.max($0, Theme.tabMinWidth), Theme.tabMaxWidth) }
-        var rest = room - Theme.tabGap * CGFloat(Swift.max(desired.count - 1, 0))
-        guard desired.reduce(0, +) > rest else { return desired }
-        var count = desired.count
-        for d in desired.sorted() {
-            let cap = rest / CGFloat(count)
-            if d > cap { return desired.map { Swift.min($0, Swift.max(cap, Theme.tabMinWidth)) } }
-            rest -= d
-            count -= 1
+    /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
+    /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
+    /// first, then scrolls at min.
+    static func layout(natural: [CGFloat], dots: [Bool] = [], width: CGFloat) -> Layout {
+        let control = Theme.tabGap + Theme.tabBarButton
+        let floors = natural.indices.map { minWidth(dot: dots.indices.contains($0) && dots[$0]) }
+        if content(floors) <= width - control {
+            let fit = widths(natural, floors: floors, room: width - control)
+            let total = content(fit)
+            return Layout(widths: fit, viewport: total, content: total, overflow: false)
         }
-        return desired
+        return Layout(widths: floors, viewport: Swift.max(width - 2 * control, 0), content: content(floors), overflow: true)
+    }
+
+    /// Water-filling: one cap for all tabs so the narrow ones keep their width; never below a tab's own minimum.
+    /// The total is piecewise linear in the cap: found exactly on the segment between two tab widths, so the sum
+    /// meets `room` (enough room for every minimum is the caller's check).
+    private static func widths(_ natural: [CGFloat], floors: [CGFloat], room: CGFloat) -> [CGFloat] {
+        let desired = zip(natural, floors).map { Swift.min(Swift.max($0, $1), Swift.max(Theme.tabMaxWidth, $1)) }
+        let rest = room - Theme.tabGap * CGFloat(Swift.max(desired.count - 1, 0))
+        guard desired.reduce(0, +) > rest else { return desired }
+        let at = { (cap: CGFloat) in zip(desired, floors).map { Swift.max($1, Swift.min($0, cap)) } }
+        let marks = Array(Set(desired + floors)).sorted()
+        var cap = marks.first ?? 0
+        for (lo, hi) in zip(marks, marks.dropFirst()) {
+            let sum = at(lo).reduce(0, +)
+            let slope = CGFloat(zip(desired, floors).filter { $1 <= lo && $0 >= hi }.count)
+            cap = lo
+            if sum + slope * (hi - lo) >= rest { if slope > 0 { cap = lo + (rest - sum) / slope }; break }
+        }
+        return at(cap)
     }
 
     static func content(_ widths: [CGFloat]) -> CGFloat {
@@ -121,14 +133,15 @@ struct TabBarView: View {
     }
 
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
-        var natural = task.tabs.map { tab in
+        let dots = task.tabs.map { app.showsDot($0, state: app.displayState(of: $0)) }
+        var natural = zip(task.tabs, dots).map { tab, dot in
             let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab))
-            return Self.natural(text: text, dot: app.showsDot(tab, state: app.displayState(of: tab)))
+            return Self.natural(text: text, dot: dot)
         }
         if let diff = app.diffTabs[task.id] {
             natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true), dot: false))
         }
-        return TabStrip.layout(natural: natural, width: width)
+        return TabStrip.layout(natural: natural, dots: dots, width: width)
     }
 
     /// Index of the active tab in the strip (the diff tab is last).

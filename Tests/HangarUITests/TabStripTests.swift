@@ -37,6 +37,23 @@ import Testing
         #expect(l.viewport == 1000 - 2 * control)
     }
 
+    /// A status dot takes title room: its tab's minimum grows by the dot, so «claude» with a dot is not cut to «cl…».
+    @Test func statusDotWidensTheMinimum() {
+        let dotted = lo + Theme.statusDot + Theme.rowEndGap
+        #expect(TabStrip.minWidth(dot: true) == dotted && TabStrip.minWidth(dot: false) == lo)
+        let many = TabStrip.layout(natural: Array(repeating: 150, count: 23), dots: [true] + Array(repeating: false, count: 22), width: 1000)
+        #expect(many.overflow)
+        #expect(many.widths[0] == dotted)
+        #expect(many.widths.dropFirst().allSatisfy { $0 == lo })
+        #expect(many.content == total(many.widths))
+        // Crowded but fitting: the shared cap never cuts a dotted tab below its own minimum.
+        let room = dotted + lo + 10 + gap  // an equal split (cap 123) would cut the dotted tab
+        let l = TabStrip.layout(natural: [300, 300], dots: [true, false], width: room + control)
+        #expect(!l.overflow)
+        #expect(l.widths[0] == dotted)
+        #expect(abs(l.widths[1] - (lo + 10)) < 0.01)
+    }
+
     @Test func exactFitDoesNotOverflow() {
         let w: [CGFloat] = [lo, lo, lo]
         let l = TabStrip.layout(natural: w, width: total(w) + control)

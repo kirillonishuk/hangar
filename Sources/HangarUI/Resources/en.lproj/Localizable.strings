@@ -12,7 +12,7 @@
 "rename" = "Rename";
 "pin" = "Pin";
 "unpin" = "Unpin";
-"archive" = "Archive";
+"archive" = "Close Session";
 "folderMissing" = "folder not found";
 "folderMissingPath" = "folder not found: %@";
 "more" = "Actions";
@@ -315,7 +315,7 @@
 "paletteFiles" = "Files";
 "paletteCommands" = "Commands";
 "paletteEmpty" = "No results";
-"cmdArchiveTask" = "Archive Session";
+"cmdArchiveTask" = "Close Session";
 "cmdPrevTask" = "Previous Session";
 "cmdNextTask" = "Next Session";
 "cmdPrevTab" = "Previous Tab";
@@ -341,3 +341,16 @@
 "statusMachineHelp" = "Machine the session runs on";
 "statusNextWorkingHelp" = "Next working session";
 "statusPanesHelp" = "Panes in the tab";
+"agentCountOne" = "%d agent";
+"agentCountFew" = "%d agents";
+"agentCountMany" = "%d agents";
+"subagentCountOne" = "%d subagent";
+"subagentCountFew" = "%d subagents";
+"subagentCountMany" = "%d subagents";
+"tabCountOne" = "%d tab";
+"tabCountFew" = "%d tabs";
+"tabCountMany" = "%d tabs";
+"noAgents" = "no agents";
+"rowWaiting" = "waiting";
+"sessionsView" = "Sessions";
+"sessionsViewHelp" = "Session history";

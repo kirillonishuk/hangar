@@ -84,6 +84,11 @@ extension MainWindowController {
             let fields = arg.split(separator: "|", maxSplits: 1).map(String.init)
             guard let project = app.selectedTask?.projectId ?? app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "", mode: .mainFolder)
+        case "wtask":
+            // wtask <name> <existing worktree path> <branch> <base>: a worktree session over a worktree made beforehand.
+            let f = arg.split(separator: " ").map(String.init)
+            guard f.count == 4, let project = app.state.projects.first?.id else { return }
+            app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "tab": LeafKind(rawValue: arg).map(app.addTab)
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
@@ -94,6 +99,21 @@ extension MainWindowController {
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
+        case "hover", "menu":
+            // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).
+            // menu task|project <n>: its «⋯» menu, 200/120 pt into the window.
+            let f = arg.split(separator: " ").map(String.init)
+            let n = f.count > 1 ? Int(f[1]) ?? -1 : -1
+            let target: ActionTarget? = switch f.first {
+            case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
+            case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            default: nil
+            }
+            if parts[0] == "hover" {
+                app.debugHover = target
+            } else if let target, let frame = window?.frame {
+                PopoverMenu.show(actionMenu(for: target, ctx: ctx), at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
+            }
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).

@@ -148,7 +148,7 @@
 "statusWorking" = "working";
 "statusWaiting" = "waiting for you";
 "statusDone" = "done";
-"statusFailed" = "failed";
+"statusFailed" = "error";
 "statusIdle" = "idle";
 "rowWithStatus" = "%@, %@";
 "notificationsTitle" = "Notifications";

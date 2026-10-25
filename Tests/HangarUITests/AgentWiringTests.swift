@@ -319,7 +319,7 @@ import Workspace
         L10n.language = .en
         defer { L10n.language = .system }
         #expect(L10n.statusLabel(.waiting) == "waiting for you")
-        #expect(L10n.statusLabel(.failed) == "failed")
+        #expect(L10n.statusLabel(.failed) == "error")
         #expect(L10n.rowWithStatus("fix-auth", .working) == "fix-auth, working")
         L10n.language = .ru
         #expect(L10n.rowWithStatus("fix-auth", .waiting) == "fix-auth, ждёт ответа")

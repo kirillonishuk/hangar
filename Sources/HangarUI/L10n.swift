@@ -369,7 +369,7 @@ import Workspace
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
     static var copyPath: String { s(.copyPath) }
-    static func portCopy(_ port: Int) -> String { f(.portCopy, port) }
+    static func portCopy(_ port: Int) -> String { f(.portCopy, String(port)) }  // %@: a port is never digit-grouped
     static var copyLink: String { s(.copyLink) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }

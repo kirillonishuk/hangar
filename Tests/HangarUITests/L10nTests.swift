@@ -31,6 +31,15 @@ import Workspace
         #expect(L10n.taskArchived == "Session archived")
     }
 
+    /// A port is an identifier, not a quantity: no digit grouping («44 351») in either language.
+    @Test func portIsNotGrouped() {
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        #expect(L10n.portCopy(44351) == "Порт: 44351 (копировать)")
+        L10n.language = .en
+        #expect(L10n.portCopy(44351) == "Port: 44351 (copy)")
+    }
+
     @Test func clipboardPromptIsLocalized() {
         defer { L10n.language = .system }
         L10n.language = .ru

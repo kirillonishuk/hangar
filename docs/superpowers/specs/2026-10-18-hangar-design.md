@@ -159,7 +159,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 - Ссылки (`--project`, `--session`, `--tab`): полный UUID, уникальный префикс id (≥ 4 символов) или имя (вкладки — только id); неоднозначность — ошибка со списком id (#45).
 - Коды выхода: 0 — успех; 1 — ошибка приложения, Hangar не запущен, таймаут; 2 — ошибка использования или нет `--yes`. С `--json` результат — JSON в stdout, ошибка — `{"error":{"code","message"}}` в stderr.
 - Вывод CLI и MCP — английский (машинный интерфейс, вне `L10n`).
-- Сессии (#NN-sessions): основное имя — `hangar sessions …`, `--session`, MCP `sessions_list|create|archive|restore` и аргумент `session`. Старые `hangar tasks …`, `--task`, `link task`, MCP `tasks_*` и аргумент `task` принимаются молча (в tools/list их нет). Ключи `--json` (`tasks`, `task`), методы сокета `tasks.*` и ссылки `hangar://task/…` не меняются ради совместимости.
+- Сессии (#73): основное имя — `hangar sessions …`, `--session`, MCP `sessions_list|create|archive|restore` и аргумент `session`. Старые `hangar tasks …`, `--task`, `link task`, MCP `tasks_*` и аргумент `task` принимаются молча (в tools/list их нет). Ключи `--json` (`tasks`, `task`), методы сокета `tasks.*` и ссылки `hangar://task/…` не меняются ради совместимости.
 - MCP подключается командами `claude mcp add --scope user hangar -- '<cli>' mcp` и `codex mcp add hangar -- '<cli>' mcp`; настройки показывают их с кнопкой «Скопировать», конфиги агентов Hangar не правит.
 
 ## 8. Ошибки

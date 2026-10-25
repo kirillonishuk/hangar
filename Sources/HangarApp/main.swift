@@ -25,7 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
                 self?.sigtermReceived = true
-                NSApp.terminate(nil)
+                // A sheet or `runModal` would hold `terminate` until Esc; quit once the modal loop has unwound.
+                dismissModalsForForcedQuit()
+                DispatchQueue.main.async { NSApp.terminate(nil) }
             }
         }
         source.resume()

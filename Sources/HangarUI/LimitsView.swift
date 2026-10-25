@@ -4,7 +4,7 @@ import Workspace
 
 // MARK: Texts
 
-/// «Сессия (5 ч)», «Неделя · все модели» (claude) / «Неделя» (codex), «Неделя · Opus».
+/// «5 часов», «Неделя · все модели» (claude) / «Неделя» (codex), «Неделя · Opus».
 @MainActor func limitWindowTitle(_ kind: WindowKind, agent: UsageAgent) -> String {
     switch kind {
     case .session: L10n.limitSession

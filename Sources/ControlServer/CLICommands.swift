@@ -1,6 +1,6 @@
 import Foundation
 
-/// `hangar projects|sessions|tabs …` (decision #45, #NN-sessions): argv → one `ControlCall`; output text is English.
+/// `hangar projects|sessions|tabs …` (decision #45, #73): argv → one `ControlCall`; output text is English.
 public enum CLIParse: Equatable, Sendable {
     case call(ControlCall, json: Bool)
     case usage(String)
@@ -53,7 +53,7 @@ private func grammar(_ command: String) -> Grammar? {
     }
 }
 
-/// Silent aliases from before the rename to sessions (#NN-sessions), so existing scripts keep working.
+/// Silent aliases from before the rename to sessions (#73), so existing scripts keep working.
 private func canonicalCommand(_ args: [String]) -> [String] {
     var a = args
     if a.first == "tasks" { a[0] = "sessions" }

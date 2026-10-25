@@ -272,6 +272,8 @@ public enum Theme {
     public static let cardRadius: CGFloat = 8
     public static let cardRowPaddingV: CGFloat = 9
     public static let cardRowPaddingH: CGFloat = 12
+    /// Both sides of an `NSTextField`'s line fragment padding (2 + 2): text width inside a plain field.
+    public static let fieldTextInset: CGFloat = 4
     public static let cardRowGap: CGFloat = 10
     public static let segmentRadius: CGFloat = 7
     public static let segmentPadding: CGFloat = 2

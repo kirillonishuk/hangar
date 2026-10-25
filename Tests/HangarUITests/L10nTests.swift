@@ -14,7 +14,7 @@ import Workspace
         }
     }
 
-    /// The UI says «сессия» / "session", never «задача» / "task" (#NN-sessions); code keeps `Task` identifiers.
+    /// The UI says «сессия» / "session", never «задача» / "task" (#73); code keeps `Task` identifiers.
     @Test func sessionsNotTasks() throws {
         for (lang, banned) in [(Language.ru, "задач"), (.en, "task")] {
             let table = try #require(L10n.table(lang))

@@ -104,7 +104,7 @@ struct SidebarView: View {
 
     /// «Сессии ⌘Y»: the history of sessions, closed ones included (the АРХИВ section's successor).
     private var sessionsRow: some View {
-        HoverRow(selected: app.sessionsViewVisible, action: app.showSessionsView) { _ in
+        HoverRow(selected: app.sessionsViewVisible, action: { app.showSessionsView() }) { _ in
             GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .history, active: app.sessionsViewVisible)
             } expanded: {
@@ -112,11 +112,11 @@ struct SidebarView: View {
                     Text(L10n.sessionsView)
                         .foregroundStyle(app.sessionsViewVisible ? Theme.ui.selectionText : Theme.ui.textRow)
                     Spacer(minLength: 0)
-                    ShortcutHint(text: Theme.sessionsShortcutLabel)
+                    ShortcutHint(text: Shortcut.sessions.label)
                 }
             } rail: { EmptyView() }
         }
-        .help("\(L10n.sessionsViewHelp) — \(Theme.sessionsShortcutLabel)")
+        .help(L10n.help(L10n.sessionsViewHelp, .sessions))
     }
 
     // MARK: Pinned

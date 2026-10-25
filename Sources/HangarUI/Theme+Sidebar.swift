@@ -69,10 +69,6 @@ extension Theme {
     public static let menuShadowY: CGFloat = 18
     public static let menuShadowOpacity = 0.55
     public static let menuShadowMargin: CGFloat = 48
-
-    /// Label of the «Сессии» row's key.
-    /// shortcut: a label only — ⌘Y itself is wired by the «Сессии» view (track D); switch to `Shortcut.sessions` then.
-    public static let sessionsShortcutLabel = "⌘Y"
 }
 
 extension Theme.ui {

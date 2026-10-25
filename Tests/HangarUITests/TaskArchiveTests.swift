@@ -59,6 +59,20 @@ import Workspace
         #expect(calls.archived == [id] && calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
+    @Test func archiveKeepsTimeAndChangesForSessions() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        try "one\ntwo\n".write(toFile: wt + "/new.txt", atomically: true, encoding: .utf8)
+        _ = try t.git("add", "new.txt", in: wt)
+        _ = try t.git("commit", "-q", "-m", "new", in: wt)
+        let before = Date()
+        await archiveTask(id, ctx: ctx)
+        let task = try #require(app.state.tasks.first { $0.id == id })
+        #expect(task.archived && !exists(wt))
+        #expect(task.archivedChanges == LineChanges(added: 2, deleted: 0))
+        #expect((task.archivedAt ?? .distantPast) >= before.addingTimeInterval(-1))
+    }
+
     @Test func mainFolderTaskJustArchives() async throws {
         let (t, app, _, main, wt, calls, ctx) = try await make()
         defer { t.cleanup() }

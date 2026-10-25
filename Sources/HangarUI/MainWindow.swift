@@ -223,7 +223,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         app.didChange = { [weak self] in
             guard let self else { return }
-            self.column.sessions.isHidden = !self.app.sessionsViewVisible
+            // «Сессии» overlays the selected session: hiding its terminals hands their focus on; it comes back on Esc.
+            let sessionsShown = self.app.sessionsViewVisible
+            if self.column.sessions.isHidden == sessionsShown {
+                self.column.sessions.isHidden = !sessionsShown
+                self.column.tabBar.isHidden = sessionsShown
+                self.column.terminalArea.isHidden = sessionsShown
+                if !sessionsShown { DispatchQueue.main.async { self.column.terminalArea.focusActiveLeaf() } }
+            }
             self.syncInspector()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()

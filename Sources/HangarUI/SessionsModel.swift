@@ -9,23 +9,18 @@ extension AppState {
     var sessionsViewVisible: Bool { sessionsProjectId != nil }
 
     /// ⌘Y, the sidebar row «Сессии»: the view for `projectId` (default: the selected session's project, else the first one).
-    /// The session area is the view's while it is shown, so nothing is selected; Esc selects the session again.
-    // shortcut: the cleared selection is saved like any other; quitting with the view open starts with nothing selected.
+    /// It overlays the session area; the selection stays (and is saved), so Esc or a relaunch is back on that session.
     func showSessionsView(projectId: UUID? = nil) {
         guard let id = projectId ?? selectedTask?.projectId ?? sessionsProjectId ?? state.projects.first?.id else { return }
-        if sessionsProjectId == nil { sessionsReturnTaskId = state.selectedTaskId }
-        if state.selectedTaskId != nil { perform { $0.select(taskId: nil) } }
         sessionsProjectId = id
         didChange?()
     }
 
-    /// Esc: back to the session that was selected (if it is still open).
+    /// Esc, ⌘Y: back to the selected session.
     func hideSessionsView() {
         guard sessionsProjectId != nil else { return }
-        let back = sessionsReturnTaskId
         sessionsProjectId = nil
-        sessionsReturnTaskId = nil
-        if let back, state.tasks.contains(where: { $0.id == back && !$0.archived }) { select(taskId: back) } else { didChange?() }
+        didChange?()
     }
 
     func toggleSessionsView() { if sessionsViewVisible { hideSessionsView() } else { showSessionsView() } }

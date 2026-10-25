@@ -131,7 +131,7 @@ struct SidebarView: View {
 
     /// One line, 32: dot, name, project (`text3`); pin and «⋯» on hover.
     private func pinnedRow(_ task: HangarTask) -> some View {
-        let selected = task.id == app.state.selectedTaskId
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
         return HoverRow(selected: selected, action: {
@@ -227,7 +227,7 @@ struct SidebarView: View {
 
     /// «<host> · терминал»: plain ssh shells (#64); its menu opens another tab or closes them all.
     private func hostShellRow(_ task: HangarTask, host: String) -> some View {
-        let selected = task.id == app.state.selectedTaskId
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let dot = app.displayState(of: task)
         let name = L10n.hostTerminal(host)
         let items = [MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) },
@@ -437,7 +437,7 @@ struct SidebarView: View {
     /// Two lines, 44: name with the `+N −M` badge, then the status («ждёт · 1 агент»). On hover pin and «⋯»
     /// fade in where the badge was (it fades out): no box of their own, nothing moves.
     private func taskRow(_ task: HangarTask) -> some View {
-        let selected = task.id == app.state.selectedTaskId
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
         let badge = app.diffBadge(of: task)

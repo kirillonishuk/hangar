@@ -268,13 +268,32 @@ import Workspace
         let w = world()
         w.app.showSessionsView()
         #expect(w.app.sessionsViewVisible && w.app.sessionsProjectId == w.project)
-        #expect(w.app.selectedTask == nil)  // the session area is the view's
+        #expect(w.app.selectedTask?.id == w.feature)  // the view only overlays the session area
         w.app.hideSessionsView()
         #expect(!w.app.sessionsViewVisible && w.app.selectedTask?.id == w.feature)
         w.app.toggleSessionsView()
         #expect(w.app.sessionsViewVisible)
         w.app.select(taskId: w.main)  // picking a session in the sidebar leaves the view
         #expect(!w.app.sessionsViewVisible)
+    }
+
+    /// The view overlays the selected session: the selection stays in state.json, so a relaunch keeps it.
+    @Test func selectionSurvivesTheViewAndARelaunch() throws {
+        let w = world()
+        let dir = w.fixture.root.appendingPathComponent("relaunch")
+        let store = StateStore(directory: dir)
+        let app = AppState(state: w.app.state, store: store, config: HangarConfig(), configURL: w.fixture.root.appendingPathComponent("c.toml"))
+        app.showSessionsView()
+        #expect(app.sessionsViewVisible && app.state.selectedTaskId == w.feature)
+        // Unrelated edits while the view is open neither close it nor drop the selection.
+        app.perform { $0.renameTask(id: w.main, name: "main-2") }
+        #expect(app.sessionsViewVisible && app.state.selectedTaskId == w.feature)
+        try store.saveNow(app.state)
+        guard case .loaded(let relaunched) = StateStore(directory: dir).load() else { Issue.record("no state"); return }
+        #expect(relaunched.selectedTaskId == w.feature)
+        // Picking the session that is already selected leaves the view too.
+        app.select(taskId: w.feature)
+        #expect(!app.sessionsViewVisible && app.selectedTask?.id == w.feature)
     }
 
     @Test func showsWithoutAnySession() {

@@ -13,6 +13,13 @@ import Testing
         #expect(GhosttyApp.defaultsConfig(padding: nil, cursor: nil).isEmpty)
     }
 
+    /// Parallel instances (the real app and a debug copy) must not share a file.
+    @Test func configFileNameIsPerProcess() {
+        #expect(GhosttyApp.configFileName("defaults", pid: 42) == "hangar-ghostty-defaults-42.conf")
+        #expect(GhosttyApp.configFileName("defaults", pid: 42) != GhosttyApp.configFileName("defaults", pid: 43))
+        #expect(GhosttyApp.configFileName("overrides", pid: 42) != GhosttyApp.configFileName("defaults", pid: 42))
+    }
+
     @Test func cursorIsTheAccent() throws {
         let hex = try #require(Int(Theme.terminalCursorHex, radix: 16))
         let c = try #require(Theme.accent.usingColorSpace(.sRGB))

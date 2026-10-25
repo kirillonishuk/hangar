@@ -62,6 +62,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
+    /// `+N −M` of the sidebar's session rows.
+    let sessionBadges = SessionBadges()
+    /// The «Сессии» view (history, closed sessions) is shown instead of the session area.
+    /// shortcut: a flag only — the view itself and ⌘Y come with track D.
+    var sessionsViewVisible = false
+    #if DEBUG
+    /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
+    var debugHover: ActionTarget?
+    #endif
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -168,7 +177,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
         inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
+        inspector.onStatusLoad = { [weak self] id in self?.refreshBadge(taskId: id) }
     }
+
+    func showSessionsView() { sessionsViewVisible = true }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
 

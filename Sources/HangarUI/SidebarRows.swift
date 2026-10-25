@@ -7,8 +7,11 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     let collapsed: Bool
     var height = Theme.railRowHeight
     var textX = Theme.gutterTextX
+    var trailing = Theme.rowPaddingH
     /// The rail content replaces the marker (task rows: one dot, on the monogram tile).
     var railReplacesMarker = false
+    /// Two-line rows: the marker sits on the first line, this far above the row's centre.
+    var markerDY: CGFloat = 0
     @ViewBuilder var marker: Marker
     @ViewBuilder var expanded: Expanded
     @ViewBuilder var rail: Rail
@@ -17,7 +20,7 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
         ZStack(alignment: .leading) {
             marker
                 .frame(width: Theme.iconSize, height: Theme.iconSize)
-                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2)
+                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2, y: markerDY)
                 .opacity(railReplacesMarker && collapsed ? 0 : 1)
             // Centred in the rail, like the project tile.
             rail
@@ -25,7 +28,7 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
                 .opacity(collapsed ? 1 : 0)
             expanded
                 .padding(.leading, textX)
-                .padding(.trailing, Theme.rowPaddingH)
+                .padding(.trailing, trailing)
                 .opacity(collapsed ? 0 : 1)
         }
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
@@ -50,34 +53,35 @@ struct SectionHeader: View {
     var body: some View {
         // No action → no hover fill; `hover` only reveals `+`.
         HoverRow { hover in
-            HStack(spacing: 0) {
+            HStack(spacing: Theme.sectionActionGap) {
                 Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
                 Spacer(minLength: 0)
                 if let filter {
                     Button(action: filter) {
-                        Circle().fill(filterOn ? Theme.ui.waiting : Theme.ui.text3)
+                        // Off: a `text3` ring; on: a filled `waiting` dot (redesign-v1.html `.att`).
+                        Circle().strokeBorder(filterOn ? Theme.ui.waiting : Theme.ui.text3, lineWidth: Theme.sectionFilterRing)
+                            .background(Circle().fill(filterOn ? Theme.ui.waiting : .clear))
                             .frame(width: Theme.statusDot, height: Theme.statusDot)
-                            .frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
-                            .padding(Theme.railInset)
+                            .frame(width: Theme.rowActionSize, height: Theme.rowActionSize)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(HoverButtonStyle(selected: filterOn, radius: Theme.railItemRadius))
+                    .buttonStyle(.plain)
+                    .pointingHand()
                     .opacity(hover || filterOn ? 1 : 0)
                     .help(filterHelp)
                     .accessibilityLabel(filterHelp)
                     .accessibilityAddTraits(filterOn ? .isSelected : [])
                 }
                 if let plus {
-                    Button(action: plus) { IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset) }
-                        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                    RowActionButton(icon: .add, tint: Theme.ui.text3, help: plusHelp, action: plus)
                         .opacity(hover || plusAlwaysVisible ? 1 : 0)
-                        .help(plusHelp)
                 }
             }
             .font(.system(size: Theme.fontSize.section, weight: .semibold))
             .foregroundStyle(Theme.ui.text3)
-            .padding(.leading, Theme.sectionTextX)
-            .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
-            .frame(height: collapsed ? Theme.railHeaderHeight : Theme.projectRowHeight)
+            .padding(.leading, Theme.sectionHeaderX)
+            .padding(.trailing, Theme.sectionHeaderTrailing)
+            .frame(height: collapsed ? Theme.railHeaderHeight : Theme.sectionHeaderHeight)
             .clipped()
             .opacity(collapsed ? 0 : 1)
             .overlay(alignment: .leading) {
@@ -88,7 +92,7 @@ struct SectionHeader: View {
             }
         }
         .allowsHitTesting(!collapsed)
-        .padding(.top, collapsed ? 0 : Theme.sectionGap)
+        .padding(.top, collapsed ? 0 : Theme.sectionHeaderTop)
         .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
     }
 }
@@ -149,28 +153,32 @@ struct ShortcutHint: View {
 }
 
 /// "+ Новая сессия" fill (`hoverStrong`). With `width` the fill follows the visible sidebar width (content is laid
-/// out wider and clipped in rail mode); without it the fill hugs the label (empty-state button).
+/// out wider and clipped in rail mode), `inset` from the sidebar's edge; without it the fill hugs the label (empty-state button).
 struct FilledRowStyle: ButtonStyle {
     var width: CGFloat?
+    var inset = Theme.railInset
+    var radius = Theme.railItemRadius
 
     func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, pressed: configuration.isPressed, width: width)
+        Body(label: configuration.label, pressed: configuration.isPressed, width: width, inset: inset, radius: radius)
     }
 
     private struct Body<Label: View>: View {
         let label: Label
         let pressed: Bool
         let width: CGFloat?
+        let inset: CGFloat
+        let radius: CGFloat
         @State private var hover = false
 
         var body: some View {
             label
                 .background(alignment: .leading) {
-                    let fill = RoundedRectangle(cornerRadius: Theme.railItemRadius)
+                    let fill = RoundedRectangle(cornerRadius: radius)
                         .fill(Theme.ui.hoverStrong)
                         .brightness(pressed ? -0.03 : hover ? 0.04 : 0)
                     if let width {
-                        fill.frame(width: max(0, width)).padding(.leading, Theme.railInset)
+                        fill.frame(width: max(0, width)).padding(.leading, inset)
                     } else {
                         fill
                     }
@@ -235,31 +243,60 @@ struct MenuEntry {
     ]
 }
 
-/// The menu at the pointer (a click on a whole row; SwiftUI's `Menu` can't take a row as its label).
+/// The custom menu at the pointer (a click on a whole row), or at `point` in `view` (keyboard: mid-window).
 @MainActor func popUpMenu(_ items: [MenuEntry], at point: NSPoint = NSEvent.mouseLocation, in view: NSView? = nil) {
-    let menu = NSMenu()
-    menu.autoenablesItems = false
-    for entry in items {
-        let item = ClosureMenuItem(title: entry.title, handler: entry.action)
-        item.image = entry.icon.image
-        item.isEnabled = entry.enabled
-        menu.addItem(item)
-    }
-    menu.popUp(positioning: nil, at: point, in: view)
+    var screen = point
+    if let view, let window = view.window { screen = window.convertPoint(toScreen: view.convert(point, to: nil)) }
+    PopoverMenu.show(popoverEntries(items), at: screen)
 }
 
-private final class ClosureMenuItem: NSMenuItem {
-    private let handler: () -> Void
+/// `+N −M` of a session's worktree (redesign-v1.html `.badge`): mono 12 in A / D colours, `line2` border.
+struct DiffBadgeView: View {
+    let badge: DiffBadge
 
-    init(title: String, handler: @escaping () -> Void) {
-        self.handler = handler
-        super.init(title: title, action: #selector(fire), keyEquivalent: "")
-        target = self
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.diffBadgeRadius)
+        HStack(spacing: Theme.diffBadgeGap) {
+            Text(verbatim: badge.added).foregroundStyle(Theme.Diff.addMarker)
+            Text(verbatim: badge.deleted).foregroundStyle(Theme.Diff.delMarker)
+        }
+        .font(.system(size: Theme.diffBadgeFont, design: .monospaced))
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, Theme.diffBadgePaddingH)
+        .frame(height: Theme.diffBadgeHeight)
+        .background(shape.fill(Theme.ui.diffBadgeFill))
+        .overlay(shape.strokeBorder(Theme.ui.line2, lineWidth: 1))
+    }
+}
+
+/// A session row's second line: ⎇ (worktree) and «ждёт · 1 агент», the state word coloured for waiting / failed.
+struct SessionStatusLine: View {
+    let status: SessionStatus
+    let worktree: Bool
+
+    var body: some View {
+        HStack(spacing: Theme.rowStatusGap) {
+            if worktree { IconView(icon: .branch, size: Theme.rowStatusIcon, tint: Theme.ui.text3) }
+            HStack(spacing: 0) {
+                Text(verbatim: status.head).foregroundStyle(headColor)
+                Text(verbatim: " · " + status.tail)
+            }
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
+        .font(.system(size: Theme.rowStatusFont))
+        .foregroundStyle(Theme.ui.text2)
+        .frame(height: Theme.sessionStatusLine)
     }
 
-    @available(*, unavailable) required init(coder: NSCoder) { fatalError() }
-
-    @objc private func fire() { handler() }
+    private var headColor: Color {
+        switch status.tone {
+        case .normal: Theme.ui.text2
+        case .waiting: Theme.ui.waiting
+        case .failed: Theme.ui.failedText
+        }
+    }
 }
 
 struct MenuItemsView: View {

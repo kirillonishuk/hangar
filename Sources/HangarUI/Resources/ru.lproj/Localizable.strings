@@ -12,7 +12,7 @@
 "rename" = "Переименовать";
 "pin" = "Закрепить";
 "unpin" = "Открепить";
-"archive" = "Архивировать";
+"archive" = "Закрыть сессию";
 "folderMissing" = "папка не найдена";
 "folderMissingPath" = "папка не найдена: %@";
 "more" = "Действия";
@@ -316,7 +316,7 @@
 "paletteFiles" = "Файлы";
 "paletteCommands" = "Команды";
 "paletteEmpty" = "Ничего не найдено";
-"cmdArchiveTask" = "Архивировать сессию";
+"cmdArchiveTask" = "Закрыть сессию";
 "cmdPrevTask" = "Предыдущая сессия";
 "cmdNextTask" = "Следующая сессия";
 "cmdPrevTab" = "Предыдущая вкладка";
@@ -326,3 +326,16 @@
 "paletteLoading" = "загрузка…";
 "cmdQuickOpen" = "Перейти к сессии или файлу";
 "cmdCommandPalette" = "Команды";
+"agentCountOne" = "%d агент";
+"agentCountFew" = "%d агента";
+"agentCountMany" = "%d агентов";
+"subagentCountOne" = "%d субагент";
+"subagentCountFew" = "%d субагента";
+"subagentCountMany" = "%d субагентов";
+"tabCountOne" = "%d вкладка";
+"tabCountFew" = "%d вкладки";
+"tabCountMany" = "%d вкладок";
+"noAgents" = "нет агентов";
+"rowWaiting" = "ждёт";
+"sessionsView" = "Сессии";
+"sessionsViewHelp" = "История сессий";

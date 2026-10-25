@@ -9,6 +9,7 @@ enum Icon: CaseIterable {
     case sidebarLeft, sidebarRight, add, project, branch, sshHost, editor, shell, diff, keepAwake, limits, settings
     case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
+    case history
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -79,6 +80,10 @@ enum Icon: CaseIterable {
              .shape(p(3.75, 5.75), p(12.25, 5.75), p(12.25, 12, r: 4.25), p(3.75, 12, r: 4.25)), .line(p(8, 12), p(8, 13.25))]
         case .disconnect: [.line(p(8, 2.75), p(8, 7.75)), .arc(from: p(4.5, 4.75), to: p(11.5, 4.75), r: 5, large: true, sweep: false)]
         case .checkServer: [.circle(p(8, 8), 6.25), .line(p(5.25, 8.25), p(7.1, 10.1), p(10.75, 6.25))]
+        // redesign-v1.html `g-history`
+        case .history:
+            [.arc(from: p(1.75, 8), to: p(3.58, 3.58), r: 6.25, large: true, sweep: false), .line(p(3.58, 3.58), p(1.75, 5.4)),
+             .line(p(1.75, 2.25), p(1.75, 5.4), p(4.9, 5.4)), .line(p(8, 4.75), p(8, 8), p(10.25, 9.5))]
         case .claude, .codex: []  // brand logos
         }
     }
@@ -325,8 +330,16 @@ struct HoverPalette: Sendable {
     }
 }
 
+/// Where a `HoverRow` draws its hover/selection fill: full width (default), or inset with rounded corners (sidebar).
+struct RowHighlight: Sendable {
+    var leading: CGFloat = 0
+    var trailing: CGFloat = 0
+    var radius: CGFloat = 0
+}
+
 extension EnvironmentValues {
     @Entry var hoverPalette = HoverPalette.standard
+    @Entry var rowHighlight = RowHighlight()
 }
 
 /// Rows, tabs and small buttons: hover (lighter, 120 ms fade), pressed slightly darker, selection fades in 150 ms.
@@ -368,8 +381,11 @@ struct HoverRow<Content: View>: View {
     /// Vertical drag (reorder): live translation, then the final one. nil = not draggable.
     var onDrag: ((CGFloat) -> Void)?
     var onDragEnd: ((CGFloat) -> Void)?
+    /// Drawn as hovered regardless of the pointer (debug snapshots).
+    var forceHover = false
     @ViewBuilder var content: (_ hover: Bool) -> Content
     @Environment(\.hoverPalette) private var palette
+    @Environment(\.rowHighlight) private var highlight
     @State private var hover = false
     @State private var pressed = false
     @State private var dragging = false
@@ -377,12 +393,16 @@ struct HoverRow<Content: View>: View {
     private var interactive: Bool { action != nil || doubleAction != nil }
 
     var body: some View {
+        let hover = self.hover || forceHover
         content(hover)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .background(palette.fill(selected: selected, pressed: pressed, hover: hover, interactive: interactive))
+            .background(RoundedRectangle(cornerRadius: highlight.radius)
+                .fill(palette.fill(selected: selected, pressed: pressed, hover: hover, interactive: interactive))
+                .padding(.leading, highlight.leading)
+                .padding(.trailing, highlight.trailing))
             .pointingHand(interactive)
-            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { self.hover = h } }
             // Global space: the dragged row is offset while dragging, local translations would feed back.
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in

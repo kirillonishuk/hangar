@@ -47,6 +47,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `AgentStatus` | Приём событий агентов, свёртка в статус вкладки и сессии. | — |
 | `Usage` | Лимиты подписок: приём `rate_limits` от `hangar statusline`, вызов `codex app-server`, свёртка в окна, пороги. | `ControlServer`, `Exec` |
 | `Integration` | Правка файлов агентов (`~/.claude/settings.json`, `~/.codex/config.toml`): показ diff, копия, запись, откат (#43). | — |
+| `History` | Прошлые разговоры агентов папки (jsonl Claude/Codex, только чтение, голова+хвост, кэш по mtime) — локально и через runner хоста (#74). | `Exec`, `AgentStatus` |
 | `Power` | Блокировка сна, пока есть вкладки в `working` (число работающих передаёт UI). | IOKit |
 | `Exec` | «Где выполнять»: локально (`Process`) или на SSH-хосте (через общий мастер-процесс `ssh -M` без `ControlPersist`, #47). Через него ходят `Git`, `Usage`, запуск вкладок. | ssh |
 | `ControlServer` | Unix-сокет, JSON-протокол (запрос/ответ, по строке на сообщение). Обслуживает hooks, CLI и MCP. Этап 3 — типы `event` и `usage`; этап 5 — запросы/ответы (#45). | `Workspace`, `AgentStatus` |

@@ -383,6 +383,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return tab.id
     }
 
+    /// A tab resuming conversation `sessionId` in its own `cwd` (history «Сессии»); nil in a host's terminal (ssh shells only).
+    @discardableResult
+    public mutating func addResumeTab(taskId: UUID, kind: LeafKind, cwd: String, sessionId: String) -> UUID? {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), !isHostShellTask(tasks[i]) else { return nil }
+        let leaf = Leaf(kind: kind, cwd: cwd, agentSessionId: sessionId)
+        let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
+        tasks[i].tabs.append(tab)
+        tasks[i].activeTabId = tab.id
+        return leaf.id
+    }
+
     public mutating func closeTab(taskId: UUID, tabId: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }

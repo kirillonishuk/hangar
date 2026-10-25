@@ -6,6 +6,8 @@ public enum AgentState: String, Sendable, CaseIterable { case working, waiting, 
 public enum HookKind: String, Codable, Sendable, CaseIterable {
     case sessionStart = "session-start", prompt, tool, notification, stop
     case stopFailure = "stop-failure", codexNotify = "codex-notify"
+    /// PreToolUse of the Task/Agent tool / SubagentStop.
+    case subagentStart = "subagent-start", subagentStop = "subagent-stop"
 }
 
 public enum AgentSignal: Equatable, Sendable {
@@ -22,6 +24,8 @@ public struct LeafStatus: Equatable, Sendable {
     public var state: AgentState = .idle
     public var claudeHooks = false
     public var sessionId: String?
+    /// Subagents (Task/Agent tool) running now; never below 0, reset whenever the turn starts or ends.
+    public var activeSubagents = 0
     public init() {}
 }
 
@@ -60,9 +64,15 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         guard acceptsHook(status, kind: kind, session: session, source: source, agent: agent) else { return status }
         if kind != .codexNotify { s.claudeHooks = true }
         if ownsSessionId(kind, agent: agent), let id = validSessionId(session) { s.sessionId = id }
+        // A missed SubagentStop must not leave a count for good: every turn boundary starts from zero.
+        if [.sessionStart, .prompt, .stop, .stopFailure].contains(kind) { s.activeSubagents = 0 }
         switch kind {
         case .sessionStart: break
         case .prompt, .tool: s.state = .working
+        case .subagentStart:
+            s.state = .working
+            s.activeSubagents = min(s.activeSubagents + 1, 99)
+        case .subagentStop: s.activeSubagents = max(s.activeSubagents - 1, 0)
         case .notification:
             if type == nil || type == "permission_prompt" || type == "elicitation_dialog" { s.state = .waiting }
         case .stop, .codexNotify: s.state = .done
@@ -74,10 +84,12 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         if s.state == .waiting && !s.claudeHooks { s.state = .idle }
     case let .exited(code):
         s.state = code > 0 ? .failed : .idle
+        s.activeSubagents = 0
     case .relaunched:
         s.state = .idle
         s.claudeHooks = false
         s.sessionId = nil
+        s.activeSubagents = 0
     }
     return s
 }
@@ -105,6 +117,12 @@ public struct StatusBoard: Equatable, Sendable {
     public init() {}
 
     public func status(_ leaf: UUID) -> LeafStatus { leaves[leaf] ?? LeafStatus() }
+
+    /// What a leaf's status line shows: «работает · 2 агента».
+    public func statusSummary(_ leaf: UUID) -> (state: AgentState, subagents: Int) {
+        let s = status(leaf)
+        return (s.state, s.activeSubagents)
+    }
 
     /// nil — the state did not change (session id / flags may still have).
     public mutating func apply(_ signal: AgentSignal, leaf: UUID, agent: SessionAgent?) -> Transition? {

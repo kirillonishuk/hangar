@@ -22,7 +22,9 @@ struct ServerCheckSheet: View {
             ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
                 .padding(.top, Theme.sheetNameTop)
             HStack(spacing: Theme.sheetButtonGap) {
+                // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                    .opacity(model.phase == .installing ? 0 : 1)
                 Spacer(minLength: 0)
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
@@ -31,7 +33,14 @@ struct ServerCheckSheet: View {
                     .opacity(model.phase == .installing ? Theme.disabledButtonOpacity : 1)
                     // Esc belongs to the install terminal while it runs.
                     .keyboardShortcut(model.phase == .installing ? nil : .cancelAction)
-                InstallButton(model: model, primary: true)
+                if case .failed = model.phase, model.report == nil {
+                    // The check itself failed (host offline): a disabled «Установить» left nothing to do but close.
+                    Button(L10n.retry) { Task { await model.refresh() } }
+                        .buttonStyle(SheetButton(primary: true))
+                        .keyboardShortcut(.return, modifiers: .command)
+                } else {
+                    InstallButton(model: model, primary: true)
+                }
             }
             .padding(.vertical, Theme.sheetFooterPaddingV)
         }
@@ -184,6 +193,8 @@ struct ServerCheckView: View {
                 .fixedSize()
                 .disabled(!ready)
                 .opacity(ready ? 1 : Theme.disabledButtonOpacity)
+                // A dimmed button said nothing about why.
+                .help(r.remoteOutdated(current: hangarRemoteVersion) ? L10n.integrationNeedsRemote : "")
         }
     }
 

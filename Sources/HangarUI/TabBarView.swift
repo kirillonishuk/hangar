@@ -173,7 +173,7 @@ struct TabBarView: View {
         let slot = dropSlot(task, widths: l.widths, dx: dragDX)
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
-                TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i + 1, active: tab.id == task.activeTabId && diff?.active != true,
+                TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
                         onDrag: { dx, x in dragged(tab.id, dx: dx, x: x, l: l, minX: minX) },
                         onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) })
@@ -381,7 +381,7 @@ struct TabItem: View {
     let ctx: ActionContext
     let taskId: UUID
     let tab: Workspace.Tab
-    /// Position in the bar: ⌘1…⌘9 select the first nine.
+    /// Its ⌘ number for the tooltip: 1…8 by position, 9 for the last tab, 0 for none.
     var number = 0
     let active: Bool
     /// From `TabStrip.layout`; the title truncates inside it.

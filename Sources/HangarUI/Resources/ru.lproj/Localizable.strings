@@ -419,3 +419,6 @@
 "sessionsConvMany" = "%d разговоров";
 "sessionsNoMatch" = "Ничего не найдено";
 "integrationNeedsRemote" = "Сначала установите hangar-remote по плану установки";
+"folderEmpty" = "Папка пуста";
+"noGitFiles" = "Нет файлов в git";
+"optionalToolsLabel" = "Необязательно:";

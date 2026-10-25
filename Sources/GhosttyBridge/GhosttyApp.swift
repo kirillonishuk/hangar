@@ -28,9 +28,9 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
             throw GhosttyError.initFailed
         }
-        let override = background.flatMap { Self.writeConfig("hangar-ghostty-overrides.conf", "background = \($0)\n") }
+        let override = background.flatMap { Self.writeConfig(Self.configFileName("overrides"), "background = \($0)\n") }
         let text = Self.defaultsConfig(padding: padding, cursor: cursor)
-        let defaults = text.isEmpty ? nil : Self.writeConfig("hangar-ghostty-defaults.conf", text)
+        let defaults = text.isEmpty ? nil : Self.writeConfig(Self.configFileName("defaults"), text)
         let cfg = Self.makeConfig(defaults: defaults, override: override)
         ghosttyLog.info("terminal background: \(override == nil ? "Ghostty config" : "Hangar \(background ?? "")", privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
@@ -63,6 +63,18 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// Text of hangar-ghostty-defaults.conf; empty when there is nothing to set.
     public static func defaultsConfig(padding: (x: Int, y: Int)?, cursor: String?) -> String {
         (padding.map { "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n" } ?? "") + (cursor.map { "cursor-color = \($0)\n" } ?? "")
+    }
+
+    /// Per process, so a real app and a debug copy don't overwrite each other's file.
+    public static func configFileName(_ kind: String, pid: Int32 = ProcessInfo.processInfo.processIdentifier) -> String {
+        "hangar-ghostty-\(kind)-\(pid).conf"
+    }
+
+    /// Removes this process's config files; called on quit.
+    public static func removeConfigFiles() {
+        for kind in ["defaults", "overrides"] {
+            try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent(configFileName(kind)))
+        }
     }
 
     /// A config file of Hangar's own in the temp directory (never the user's Ghostty config); nil if it can't be written.

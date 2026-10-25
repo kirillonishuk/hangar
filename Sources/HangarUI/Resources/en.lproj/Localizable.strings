@@ -418,3 +418,4 @@
 "sessionsConvFew" = "%d conversations";
 "sessionsConvMany" = "%d conversations";
 "sessionsNoMatch" = "Nothing found";
+"integrationNeedsRemote" = "Install hangar-remote first, with the install plan";

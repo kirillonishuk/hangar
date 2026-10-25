@@ -59,6 +59,8 @@ public enum Theme {
     public static let claudeBrand = ns(0xd97757)
     /// Terminal background handed to Ghostty unless the user's Ghostty config sets one.
     public static let terminalBackgroundHex = "121826"
+    /// Terminal cursor: the accent, as a Ghostty default (a user-set `cursor-color` wins) — not the system accent.
+    public static let terminalCursorHex = "61afef"
 
     // SwiftUI
     public enum ui {

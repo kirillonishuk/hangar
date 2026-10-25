@@ -84,6 +84,10 @@ extension MainWindowController {
             let fields = arg.split(separator: "|", maxSplits: 1).map(String.init)
             guard let project = app.selectedTask?.projectId ?? app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "", mode: .mainFolder)
+        case "ptask":  // ptask <project index> <name>: a main-folder session of that project (e.g. a remote one)
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            guard f.count == 2, let n = Int(f[0]), app.state.projects.indices.contains(n) else { return }
+            app.createTask(projectId: app.state.projects[n].id, name: f[1], firstMessage: "", mode: .mainFolder)
         case "wtask":
             // wtask <name> <existing worktree path> <branch> <base>: a worktree session over a worktree made beforehand.
             let f = arg.split(separator: " ").map(String.init)
@@ -313,6 +317,10 @@ extension MainWindowController {
             case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }
             // change <n>: a click on the n-th Changes row (0-based) → the diff tab.
             case "change": if f.count > 1, let n = Int(f[1]), let files = m.changes?.files, files.indices.contains(n) { app.openDiff(path: files[n].path) }
+            // menu <path>: a Files/Changes row's right-click menu, 200/120 pt into the window from the right.
+            case "menu": if f.count > 1, let frame = window?.frame {
+                PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
+            }
             case "diffTab": app.activateDiff()  // a click on the diff tab
             case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
             case "diffKey":

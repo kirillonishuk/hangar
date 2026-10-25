@@ -125,6 +125,7 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
@@ -590,13 +591,13 @@ import Workspace
         case .command: s(.paletteCommands)
         }
     }
-    /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one.
+    /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one (en: Title Case).
     static func command(_ sc: Shortcut) -> String {
         switch sc {
         case .newTask: newTask
         case .addProject: addProject
-        case .newTab: newTabHelp
-        case .closeTab: closeTabHelp
+        case .newTab: s(.cmdNewTab)
+        case .closeTab: s(.cmdCloseTab)
         case .splitRight: s(.splitRight)
         case .splitDown: s(.splitDown)
         case .archiveTask: s(.cmdArchiveTask)
@@ -607,17 +608,17 @@ import Workspace
         case .nextTab: s(.cmdNextTab)
         case .toggleSidebar: s(.cmdToggleSidebar)
         case .toggleInspector: s(.cmdToggleInspector)
-        case .inspectorFiles: showFiles
-        case .inspectorChanges: statusShowChanges
+        case .inspectorFiles: s(.cmdShowFiles)
+        case .inspectorChanges: s(.cmdShowChanges)
         case .inspectorGit: showGit
         case .toggleDrawer: s(.drawerToggle)
-        case .limits: s(.limitsHelp)
+        case .limits: s(.cmdLimits)
         case .revealInFinder: s(.revealInFinder)
         case .copyPath: s(.copyPath)
         case .settings: settings
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
-        case .attentionFilter: attentionOnly
+        case .attentionFilter: s(.cmdAttentionOnly)
         case .sessions: sessionsTitle
         case .tab(let n): "\(n)"
         case .focusSplit: ""

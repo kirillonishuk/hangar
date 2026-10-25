@@ -31,6 +31,22 @@ import Workspace
         #expect(L10n.taskArchived == "Session archived")
     }
 
+    /// English palette commands are menu titles: Title Case throughout («New Tab», not «New tab» next to «Split Right»).
+    @Test func paletteCommandsAreTitleCaseInEnglish() {
+        defer { L10n.language = .system }
+        L10n.language = .en
+        let small: Set<String> = ["to", "or", "in", "of", "and"]
+        for sc in paletteCommands {
+            let title = L10n.command(sc)
+            for word in title.split(separator: " ") where !small.contains(String(word)) {
+                #expect(word.first?.isUppercase == true, "\(sc): \(title)")
+            }
+        }
+        L10n.language = .ru
+        #expect(L10n.command(.newTab) == "Новая вкладка")
+        #expect(L10n.command(.limits) == "Лимиты подписок")
+    }
+
     @Test func clipboardPromptIsLocalized() {
         defer { L10n.language = .system }
         L10n.language = .ru

@@ -49,4 +49,14 @@ import Workspace
         #expect(settings.model.error == nil)
         window.orderOut(nil)
     }
+
+    /// A configured `/…/bin/hx` next to the `hx` preset: two identical «hx» labels hid which one is chosen.
+    @Test func editorLabelsTellACustomPathFromAPreset() {
+        let presets = ["hx", "nvim"]
+        #expect(editorLabel("hx", presets: presets) == "hx")
+        #expect(editorLabel("/opt/bin/zed", presets: presets) == "zed")
+        #expect(editorLabel("/tmp/qa/bin/hx", presets: presets) == "/tmp/qa/bin/hx")
+        #expect(editorLabel("/Users/k/bin/nvim", presets: presets, home: "/Users/k") == "~/bin/nvim")
+        #expect(editorLabel("/Users/k/very/deep/folder/with/a/long/path/bin/hx", presets: presets, home: "/Users/k") == "~/…/path/bin/hx")
+    }
 }

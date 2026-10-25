@@ -218,6 +218,8 @@ public enum Theme {
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
     public static let hoverFade: Double = 0.12
+    /// Settings «Редактор»: characters of a custom editor path shown in its segment.
+    public static let editorPathLabelLength = 18
     public static let selectionFade: Double = 0.15
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6

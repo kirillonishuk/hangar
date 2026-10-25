@@ -57,9 +57,9 @@ extension AppState {
     /// The inspector of the visible remote task showed «not connected»: its host is back, load again (no FSEvents there).
     /// Hidden (and no diff tab shown, as `InspectorWatch`): nothing runs; showing it loads.
     private func inspectorHostConnected(_ host: String) {
-        guard state.inspectorVisible || activeDiff != nil, inspector.offline, let task = selectedTask,
-              project(task.projectId)?.host == host else { return }
-        inspector.refresh(.all)
+        guard state.inspectorVisible || activeDiff != nil, let task = selectedTask, project(task.projectId)?.host == host else { return }
+        if inspector.offline { inspector.refresh(.all) }
+        if gitPanel.offline { gitPanel.refresh() }  // runs only while the Git tab is visible
     }
 
     /// Trust boundary: any process of that account on the server can write the forwarded socket, so an event

@@ -125,6 +125,10 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case segmentGit, showGit, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
+        case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
+        case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
+        case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -412,6 +416,47 @@ import Workspace
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
     static var inspectorNoTask: String { s(.inspectorNoTask) }
+
+    // Git tab (redesign v1 §4)
+    static var segmentGit: String { s(.segmentGit) }
+    static var showGit: String { s(.showGit) }
+    static var gitBranches: String { s(.gitBranches) }
+    static var gitLocal: String { s(.gitLocal) }
+    static var gitRemote: String { s(.gitRemote) }
+    static var gitFetchHelp: String { s(.gitFetchHelp) }
+    static var gitSearch: String { s(.gitSearch) }
+    static var gitAllBranches: String { s(.gitAllBranches) }
+    static var gitAuthor: String { s(.gitAuthor) }
+    static var gitAllAuthors: String { s(.gitAllAuthors) }
+    static var gitFindAuthor: String { s(.gitFindAuthor) }
+    static var gitDate: String { s(.gitDate) }
+    static var gitAnyDate: String { s(.gitAnyDate) }
+    static func gitDateRange(_ r: GitDateRange) -> String {
+        switch r {
+        case .today: s(.gitToday)
+        case .week: s(.gitWeek)
+        case .month: s(.gitMonth)
+        }
+    }
+    static var gitPath: String { s(.gitPath) }
+    static var gitPathPlaceholder: String { s(.gitPathPlaceholder) }
+    static var gitAnyPath: String { s(.gitAnyPath) }
+    static var gitCommit: String { s(.gitCommit) }
+    static var gitCommits: String { s(.gitCommits) }
+    static var gitCopyHash: String { s(.gitCopyHash) }
+    static func gitParents(_ n: Int) -> String { f(.gitParents, Int32(clamping: n)) }
+    static var gitNoCommits: String { s(.gitNoCommits) }
+    static var gitNothingFound: String { s(.gitNothingFound) }
+    static var gitYesterday: String { s(.gitYesterday) }
+    static func gitTodayAt(_ time: String) -> String { f(.gitTodayAt, time) }
+    static func gitYesterdayAt(_ time: String) -> String { f(.gitYesterdayAt, time) }
+    static var gitResizeHelp: String { s(.gitResizeHelp) }
+    static func gitAheadBehind(_ ahead: Int, _ behind: Int, _ upstream: String) -> String {
+        f(.gitAheadBehind, Int32(clamping: ahead), Int32(clamping: behind), upstream)
+    }
+    static var gitClearFilter: String { s(.gitClearFilter) }
+    /// The search field's count: «3», or «200+» while more pages exist.
+    static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab
     static var diffBinary: String { s(.diffBinary) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
@@ -505,6 +550,7 @@ import Workspace
         case .toggleInspector: s(.cmdToggleInspector)
         case .inspectorFiles: showFiles
         case .inspectorChanges: statusShowChanges
+        case .inspectorGit: showGit
         case .toggleDrawer: s(.drawerToggle)
         case .limits: s(.limitsHelp)
         case .revealInFinder: s(.revealInFinder)

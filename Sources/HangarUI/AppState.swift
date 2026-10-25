@@ -62,6 +62,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
+    /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
+    let gitPanel = GitPanelModel()
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -455,11 +457,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         onOpenInEditor?(path, line)
     }
 
-    /// ⌥⌘1 / ⌥⌘2 and the status line's change counter: shows the inspector on that segment. Changes only for git
-    /// projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
+    /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git
+    /// only for git projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
     func showInspector(_ segment: InspectorModel.Segment) {
         guard let task = selectedTask else { return }
-        if segment == .changes, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        if segment != .files, inspector.shownTaskId == task.id, !inspector.isGit { return }
         inspector.segment = segment
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }

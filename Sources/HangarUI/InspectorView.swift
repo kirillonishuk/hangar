@@ -16,6 +16,8 @@ struct InspectorView: View {
                 Spacer(minLength: 0)
             } else if model.segment == .changes && model.isGit {
                 ChangesList(app: app, model: model)
+            } else if model.segment == .git && model.isGit {
+                GitPanelView(app: app)
             } else {
                 FilesList(app: app, model: model)
             }
@@ -35,11 +37,12 @@ struct InspectorView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    /// Equal halves, so a changing count never moves the other label.
+    /// Equal thirds, so a changing count never moves the other labels.
     private var segment: some View {
         HStack(spacing: 0) {
             segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
             segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
+            segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
         }
         .padding(Theme.segmentPadding)
         // As the settings segment: on `bg` a `panel` track alone would be invisible.
@@ -53,7 +56,7 @@ struct InspectorView: View {
     }
 }
 
-/// One half of the Files / Changes segment; an inactive half lights up on hover.
+/// One third of the Files / Changes / Git segment; an inactive one lights up on hover.
 private struct SegmentItem: View {
     let title: String
     let on: Bool

@@ -445,6 +445,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .settings: showSettings(nil)
         case .inspectorFiles: app.showInspector(.files)
         case .inspectorChanges: app.showInspector(.changes)
+        case .inspectorGit: app.showInspector(.git)
         case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
         case .prevTab: cycleTab(-1)

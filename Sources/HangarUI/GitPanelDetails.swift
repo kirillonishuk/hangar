@@ -126,30 +126,15 @@ private struct GitMetaLine: View {
     @State private var copied = false
 
     var body: some View {
-        HStack(spacing: Theme.GitTab.blockGap) {
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(commit.hash, forType: .string)
-                copied = true
-            } label: {
-                HStack(spacing: Theme.railInset) {
-                    Text(verbatim: String(commit.hash.prefix(7))).font(.system(size: Theme.GitTab.mono, design: .monospaced))
-                    IconView(icon: copied ? .checkServer : .copy, size: Theme.GitTab.chipIcon, tint: Theme.ui.accent)
-                }
-                .foregroundStyle(Theme.ui.accent)
-                .contentShape(Rectangle())
+        // A merge's «2 родителя» moves under the line when hash · author · date leave it no room.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.GitTab.blockGap) {
+                main.fixedSize()
+                if let parents { sep; parents.fixedSize() }
             }
-            .buttonStyle(.plain)
-            .pointingHand()
-            .onHover { if !$0 { copied = false } }
-            .help(L10n.gitCopyHash)
-            sep
-            Text(verbatim: commit.authorName).lineLimit(1).help(commit.authorEmail)
-            sep
-            Text(gitLongDate(commit.date, now: now)).lineLimit(1).fixedSize()
-            if commit.parents.count > 1 {
-                sep
-                GitRefPill(ref: CommitRef(kind: .remote, name: L10n.gitParents(commit.parents.count)), lane: 0, head: nil).fixedSize()
+            VStack(alignment: .leading, spacing: Theme.GitTab.blockGap) {
+                HStack(spacing: Theme.GitTab.blockGap) { main }
+                parents?.fixedSize()
             }
         }
         .font(.system(size: Theme.GitTab.metaFont))
@@ -157,6 +142,34 @@ private struct GitMetaLine: View {
         .padding(.horizontal, Theme.GitTab.padding)
         .padding(.vertical, Theme.GitTab.metaPaddingV)
         .onChange(of: commit.hash) { copied = false }
+    }
+
+    @ViewBuilder private var main: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(commit.hash, forType: .string)
+            copied = true
+        } label: {
+            HStack(spacing: Theme.railInset) {
+                Text(verbatim: String(commit.hash.prefix(7))).font(.system(size: Theme.GitTab.mono, design: .monospaced))
+                IconView(icon: copied ? .checkServer : .copy, size: Theme.GitTab.chipIcon, tint: Theme.ui.accent)
+            }
+            .foregroundStyle(Theme.ui.accent)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()  // the author gives way first, the hash never wraps
+        .pointingHand()
+        .onHover { if !$0 { copied = false } }
+        .help(L10n.gitCopyHash)
+        sep
+        Text(verbatim: commit.authorName).lineLimit(1).help(commit.authorEmail)
+        sep
+        Text(gitLongDate(commit.date, now: now)).lineLimit(1).fixedSize()
+    }
+
+    private var parents: GitRefPill? {
+        commit.parents.count > 1 ? GitRefPill(ref: CommitRef(kind: .remote, name: L10n.gitParents(commit.parents.count)), lane: 0, head: nil) : nil
     }
 
     private var sep: some View { Text(verbatim: "·").foregroundStyle(Theme.ui.text3) }

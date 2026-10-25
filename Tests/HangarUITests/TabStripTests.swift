@@ -99,4 +99,14 @@ import Testing
         #expect(TabStrip.wheel(dx: 0, dy: -2, precise: false) == -2 * Theme.tabWheelLine)
         #expect(TabStrip.wheel(dx: 0, dy: 0, precise: false) == 0)
     }
+
+    /// ⌘1…⌘8 are positional; ⌘9 is the last tab (VS Code, browsers).
+    @Test func tabNumberNineIsTheLastTab() {
+        #expect(tabIndex(number: 1, count: 25) == 0)
+        #expect(tabIndex(number: 8, count: 25) == 7)
+        #expect(tabIndex(number: 9, count: 25) == 24)
+        #expect(tabIndex(number: 9, count: 3) == 2)
+        #expect(tabIndex(number: 5, count: 3) == nil)
+        #expect(tabIndex(number: 9, count: 0) == nil)
+    }
 }

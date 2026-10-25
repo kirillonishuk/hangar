@@ -301,6 +301,17 @@ extension MainWindowController {
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
+            if let sheet = window?.attachedSheet,
+               let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: sheet.windowNumber, context: nil, characters: "\r",
+                                        charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
+                uiLog.info("ntCreate handled=\(sheet.performKeyEquivalent(with: e))")
+            }
+        case "ntState":  // the sheet's progress and errors
+            if let m = newTaskModelForDebug {
+                uiLog.info("nt creating=\(m.creating) progress=\(m.progress ?? "-", privacy: .public) error=\(m.createError ?? "-", privacy: .public)")
+            }
         case "ntWorktree": newTaskModelForDebug?.worktree = arg == "on"  // the Worktree toggle
         case "ntSetup": newTaskModelForDebug?.runSetup = arg == "on"  // the setup-command consent toggle
         case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
@@ -373,6 +384,10 @@ extension MainWindowController {
             case "server": if f.count == 2 { presentServer(f[1]) }
             case "spec": if f.count == 2 { try? server?.terminalSpec()?.command.write(toFile: f[1], atomically: true, encoding: .utf8) }
             case "refresh": if let server { Task { await server.refresh() } }
+            case "optional":  // optional <tool>: ticks/unticks its «Необязательно» checkbox
+                if f.count == 2, let server, let tool = RemoteTool(rawValue: f[1]) {
+                    if server.optional.contains(tool) { server.optional.remove(tool) } else { server.optional.insert(tool) }
+                }
             case "review": if let server { Task { await server.review(f.count > 1 && f[1] == "codex" ? .codex : .claude, install: !(f.count > 2 && f[2] == "remove")) } }
             case "confirm": if let server { Task { await server.confirmPlan() } }  // = «Применить» in the diff sheet
             case "snap":  // the diff sheet on top of the remote sheet

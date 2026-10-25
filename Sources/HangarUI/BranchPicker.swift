@@ -255,6 +255,7 @@ struct PickerSearchField: NSViewRepresentable {
                 window.makeFirstResponder(self)
                 // Focus selects all: a preset «>» (⇧⌘P) would be replaced by the first typed letter, leaving commands.
                 self.currentEditor()?.selectedRange = NSRange(location: (self.stringValue as NSString).length, length: 0)
+                (self.currentEditor() as? NSTextView)?.insertionPointColor = Theme.accent  // not the system accent
             }
         }
     }

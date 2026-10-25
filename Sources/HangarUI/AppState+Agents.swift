@@ -58,12 +58,30 @@ extension AppState {
         return taskState(leaves.map { state(ofLeaf: $0.id) })
     }
 
-    /// Like `state`, but an agent leaf whose agent is out of limit (at `usageClock`) shows as failed.
+    /// Like `state`, but an agent leaf whose agent is out of limit (at `usageClock`) shows «лимит»;
+    /// one that stopped on a limit which has since reset is idle again.
     func displayState(ofLeaf id: UUID, kind: LeafKind) -> AgentState {
         let st = state(ofLeaf: id)
         let agent: UsageAgent? = kind == .claude ? .claude : kind == .codex ? .codex : nil
-        if let agent, usage.level(agent, now: usageClock) == .full { return .failed }
-        return st
+        if let agent, usage.level(agent, now: usageClock) == .full { return .limit }
+        return st == .limit ? .idle : st
+    }
+
+    /// When the reached limits of these leaves' agents reset (the latest), as «20:20» / «пн 20:20»; nil — unknown.
+    func limitClock(of leaves: [Leaf]) -> String? {
+        let now = usageClock
+        let agents = Set(leaves.compactMap { $0.kind == .claude ? UsageAgent.claude : $0.kind == .codex ? .codex : nil })
+        let resets = agents.filter { usage.level($0, now: now) == .full }.compactMap { a -> Date? in
+            guard let u = usage.view(a, now: now) else { return nil }
+            return u.limitResetsAt ?? u.windows.filter { $0.usedPercent >= UsageThreshold.full }.compactMap(\.resetsAt).max()
+        }
+        return resets.filter { $0 > now }.max().map { resetClock($0, now: now, calendar: .current) }
+    }
+
+    /// The state as a tooltip: «лимит · до 20:20» for a reached limit, else the state word.
+    func statusText(_ state: AgentState, leaves: [Leaf]) -> String {
+        guard state == .limit, let clock = limitClock(of: leaves) else { return L10n.statusLabel(state) }
+        return L10n.limitUntil(clock)
     }
 
     func displayState(of tab: Tab) -> AgentState {

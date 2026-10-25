@@ -30,16 +30,33 @@ func pluralForm(_ n: Int) -> PluralForm {
     }
 
     /// Running subagents replace the agent count; without agent tabs the tab count is shown.
-    init(state: AgentState, agents: Int, subagents: Int, tabs: Int) {
+    /// `limitUntil`: the reset time of a reached limit («лимит · до 20:20»), when known.
+    init(state: AgentState, agents: Int, subagents: Int, tabs: Int, limitUntil: String? = nil) {
         guard agents > 0 else {
             self.init(head: L10n.noAgents, tail: L10n.tabCount(tabs), tone: .normal)
             return
         }
-        let tone: Tone = state == .waiting ? .waiting : state == .failed ? .failed : .normal
-        self.init(head: L10n.rowStatus(state), tail: subagents > 0 ? L10n.subagentCount(subagents) : L10n.agentCount(agents), tone: tone)
+        let tone: Tone = state == .waiting || state == .limit ? .waiting : state == .failed ? .failed : .normal
+        let head = state == .limit ? limitUntil.map(L10n.limitUntil) ?? L10n.statusLabel(.limit) : L10n.rowStatus(state)
+        self.init(head: head, tail: subagents > 0 ? L10n.subagentCount(subagents) : L10n.agentCount(agents), tone: tone)
     }
 
     var text: String { "\(head) · \(tail)" }
+}
+
+/// A folded project's row: the most urgent state among its sessions and how many sessions are in it.
+struct FoldedProjectBadge: Equatable {
+    var state: AgentState
+    var count: Int
+}
+
+/// waiting > limit > error > working; nil when no session is in any of them.
+func foldedProjectBadge(_ states: [AgentState]) -> FoldedProjectBadge? {
+    for p in [AgentState.waiting, .limit, .failed, .working] {
+        let n = states.filter { $0 == p }.count
+        if n > 0 { return FoldedProjectBadge(state: p, count: n) }
+    }
+    return nil
 }
 
 /// `+N −M` of a session's worktree; nil when nothing changed (no badge) or not loaded yet.
@@ -102,7 +119,13 @@ extension AppState {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
         let agents = leaves.filter { $0.kind == .claude || $0.kind == .codex }
         let subagents = agents.reduce(0) { $0 + statusSummary(ofLeaf: $1.id).subagents }
-        return SessionStatus(state: displayState(of: task), agents: agents.count, subagents: subagents, tabs: task.tabs.count)
+        let state = displayState(of: task)
+        return SessionStatus(state: state, agents: agents.count, subagents: subagents, tabs: task.tabs.count,
+                             limitUntil: state == .limit ? limitClock(of: agents) : nil)
+    }
+
+    func foldedBadge(of projectId: UUID) -> FoldedProjectBadge? {
+        foldedProjectBadge(state.tasks(in: projectId).map { displayState(of: $0) })
     }
 
     func diffBadge(of task: HangarTask) -> DiffBadge? { DiffBadge(sessionBadges.stats[task.id]) }

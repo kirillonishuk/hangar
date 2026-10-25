@@ -386,7 +386,7 @@ struct TabItem: View {
         HStack(spacing: 0) {
             let dot = app.displayState(of: tab)
             if app.showsDot(tab, state: dot) {
-                StatusDot(state: dot).padding(.trailing, Theme.rowEndGap)
+                StatusDot(state: dot).padding(.trailing, Theme.rowEndGap).help(app.statusText(dot, leaves: tab.root.leaves))
             }
             if let kind = tab.root.leaves.first?.kind {
                 IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)

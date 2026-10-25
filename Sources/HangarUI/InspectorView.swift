@@ -2,14 +2,13 @@ import Git
 import SwiftUI
 
 /// Right column (decision #44): segment Files / Changes N (git only), the lazy file tree or the changes list.
-/// Top: a titlebar-high drag zone, then the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
+/// Top: the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
     let app: AppState
     private var model: InspectorModel { app.inspector }
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: Theme.titleBarHeight).background(WindowDragArea())
             header
             if app.selectedTask == nil {
                 notice(L10n.inspectorNoTask)

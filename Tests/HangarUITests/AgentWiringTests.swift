@@ -82,7 +82,7 @@ import Workspace
         #expect(!called)
         #expect(app.state == archived)
         var expected = before
-        expected.archiveTask(id: before.tasks[0].id)
+        expected.archiveTask(id: before.tasks[0].id, at: archived.tasks[0].archivedAt ?? Date())  // same archive time
         #expect(archived == expected)
     }
 
@@ -262,6 +262,17 @@ import Workspace
         event(app, tab: 0, .stopFailure)
         #expect(app.usage.level(.claude, now: Date()) == .full)
         #expect(turns == 0)
+    }
+
+    /// The window status bar counts real agent states: a full Claude limit only reddens the dots, it is not an error.
+    @Test func statusBarIgnoresTheFullLimit() {
+        let app = makeApp([.claude, .claude])
+        app.perform { $0.selectedTaskId = $0.tasks[0].id }
+        event(app, tab: 0, .prompt)
+        app.handle(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "five_hour", usedPercent: 100, resetsAt: nil)])))
+        #expect(app.usage.level(.claude, now: app.usageClock) == .full)
+        #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .claude) == .failed)  // the dot still shows the limit
+        #expect(app.statusBar.counts == StatusCounts(working: 1))
     }
 
     @Test func codexNotifyCallsCodexTurn() {

@@ -101,7 +101,7 @@ extension AppState {
     func sessionStatus(of task: HangarTask) -> SessionStatus {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
         let agents = leaves.filter { $0.kind == .claude || $0.kind == .codex }
-        let subagents = agents.reduce(0) { $0 + statusSummary(ofLeaf: $1.id, kind: $1.kind).subagents }
+        let subagents = agents.reduce(0) { $0 + statusSummary(ofLeaf: $1.id).subagents }
         return SessionStatus(state: displayState(of: task), agents: agents.count, subagents: subagents, tabs: task.tabs.count)
     }
 

@@ -10,6 +10,7 @@ enum Icon: CaseIterable {
     case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
+    case search
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -84,6 +85,7 @@ enum Icon: CaseIterable {
         case .history:
             [.arc(from: p(1.75, 8), to: p(3.58, 3.58), r: 6.25, large: true, sweep: false), .line(p(3.58, 3.58), p(1.75, 5.4)),
              .line(p(1.75, 2.25), p(1.75, 5.4), p(4.9, 5.4)), .line(p(8, 4.75), p(8, 8), p(10.25, 9.5))]
+        case .search: [.circle(p(7, 7), 4.75), .line(p(10.5, 10.5), p(13.75, 13.75))]  // redesign-v1.html g-search
         case .claude, .codex: []  // brand logos
         }
     }

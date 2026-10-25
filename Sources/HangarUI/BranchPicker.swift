@@ -72,13 +72,13 @@ struct BranchPicker: View {
         .fixedSize()
         .pointingHand()
         .popover(isPresented: $open, arrowEdge: .bottom) {
-            BranchList(selection: $selection, branches: branches, defaultBase: defaultBase,
+            BranchListView(selection: $selection, branches: branches, defaultBase: defaultBase,
                        taskBranches: taskBranches, defaultOption: defaultOption) { open = false }
         }
     }
 }
 
-struct BranchList: View {
+struct BranchListView: View {
     @Binding var selection: String?
     let branches: [Branch]
     let defaultBase: String?

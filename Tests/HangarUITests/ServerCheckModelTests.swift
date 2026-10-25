@@ -47,6 +47,22 @@ import Workspace
         #expect(runs.steps.isEmpty)
     }
 
+    /// A missing codex is offered unticked: not in the plan (nor «install yourself») until ticked, out again when unticked.
+    @Test func optionalToolsAreOptIn() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
+        await m.refresh()
+        try #require(m.missingOptional.contains(.codex))
+        let mentionsCodex = { m.plan.steps.contains { $0.title == "codex" } || m.plan.manual.contains(.codex) }
+        #expect(m.optional.isEmpty)
+        #expect(!mentionsCodex())
+        m.optional.insert(.codex)
+        #expect(mentionsCodex())
+        m.optional.remove(.codex)
+        #expect(!mentionsCodex())
+    }
+
     @Test func installRunsShownScript() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         for tool in ["tmux", "codex", "hx"] { try await stub(h, tool) }

@@ -434,8 +434,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
+            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
+                               sessionsShown: app.sessionsViewVisible) {
             case .ignore: break
+            case .closeSessions: app.hideSessionsView()
             case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
             case .perform: perform(sc)
             }

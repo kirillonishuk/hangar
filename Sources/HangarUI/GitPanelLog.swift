@@ -73,6 +73,12 @@ struct GitLogRow: View, Equatable {
             .padding(.trailing, Theme.GitTab.chipLeading)
             .frame(height: Theme.GitTab.logRow)
         }
+        .popoverContextMenu { [hash = commit.hash] in
+            [.item(PopoverMenuItem(title: L10n.gitCopyHash, icon: .copy) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(hash, forType: .string)
+            })]
+        }
         .help(tooltip)
     }
 

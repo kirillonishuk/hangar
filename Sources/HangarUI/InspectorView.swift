@@ -112,33 +112,22 @@ enum FileMenuItem: Equatable, CaseIterable {
     }
 }
 
-/// The menu items for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
-struct FileMenu: View {
-    let app: AppState
-    let relative: String
-    let opens: Bool
-
-    var body: some View {
-        let host = remoteHost(app)
-        if let root = app.inspector.root {
-            ForEach(FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }, id: \.self) { item in
-                Button { perform(item, root: root, host: host) } label: {
-                    Label { Text(item.title) } icon: { Image(nsImage: item.icon.image) }
-                }
+/// The custom menu for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
+@MainActor func fileMenu(app: AppState, relative: String, opens: Bool) -> [PopoverMenuEntry] {
+    guard let root = app.inspector.root else { return [] }
+    let host = remoteHost(app)
+    return FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }.map { item in
+        .item(PopoverMenuItem(title: item.title, icon: item.icon) {
+            let path = root + "/" + relative
+            switch item {
+            case .openInHelix: app.openInEditor(path: path, line: nil)
+            case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            case .copyPath, .copyRelativePath:
+                guard let text = item.copied(root: root, relative: relative, host: host) else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
             }
-        }
-    }
-
-    private func perform(_ item: FileMenuItem, root: String, host: String?) {
-        let path = root + "/" + relative
-        switch item {
-        case .openInHelix: app.openInEditor(path: path, line: nil)
-        case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-        case .copyPath, .copyRelativePath:
-            guard let text = item.copied(root: root, relative: relative, host: host) else { return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-        }
+        })
     }
 }
 
@@ -181,7 +170,7 @@ private struct FilesList: View {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
                         FileRow(row: row, change: model.badges[row.entry.path], action: action(row))
-                            .contextMenu { FileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
+                            .popoverContextMenu { fileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
                     }
                 }
                 .padding(.vertical, Theme.fileRowPaddingV)
@@ -252,7 +241,7 @@ private struct ChangesList: View {
                         if changes.files.isEmpty { notice(L10n.noChanges) }
                         ForEach(changes.files) { file in
                             ChangeRow(file: file, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
-                                .contextMenu { FileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
+                                .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
                         hint(changes)
                     }

@@ -140,7 +140,11 @@ struct GitSearchField: View {
                 .font(.system(size: Theme.fontSize.base))
                 .foregroundStyle(Theme.ui.text)
                 .focused($focused)
-                .onExitCommand { model.query.text = "" }
+                .onKeyPress(.downArrow) { model.step(by: 1); return .handled }
+                .onKeyPress(.upArrow) { model.step(by: -1); return .handled }
+                .onChange(of: model.searchFocusRequest) { focused = true }
+                // Esc clears the search; on an empty field it hands focus back.
+                .onExitCommand { if model.query.text.isEmpty { focused = false } else { model.query.text = "" } }
             if !model.query.text.trimmingCharacters(in: .whitespaces).isEmpty {
                 if model.loaded {
                     Text(L10n.gitFound(model.commits.count, more: model.hasMore))

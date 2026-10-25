@@ -402,6 +402,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.hideSessionsView()
             return true
         }
+        // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
+        if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+           app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
+            app.gitPanel.searchFocusRequest += 1
+            return true
+        }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {

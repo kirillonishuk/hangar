@@ -423,7 +423,7 @@ struct TabItem: View {
                 dragging = false
                 onDragEnd()
             })
-        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+        .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .help(L10n.help(app.tabLabel(tab), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
         .pointingHand(app.renaming != target)

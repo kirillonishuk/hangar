@@ -296,7 +296,7 @@ extension MainWindowController {
             default: pickerWindow?.orderOut(nil); pickerWindow = nil  // not close(): last-window-closed quits
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
-        case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
+        case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public) badge=\(NSApp.dockTile.badgeLabel ?? "-", privacy: .public)")
         case "inspector":
             // inspector [files|changes|toggleMode|expand <dir>|click <row>]: drives the inspector; logs its rows.
             // With no argument it shows the selected task even when the window is occluded (the watcher stays off).

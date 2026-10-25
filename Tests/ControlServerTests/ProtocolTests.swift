@@ -187,7 +187,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(String(decoding: ControlCall.tasksArchive(task: "t").paramsJSON(), as: UTF8.self).contains(#""yes":true"#))
     }
 
-    /// The socket keeps `tasks.*` method names and the `task` param after the UI rename to sessions (#NN-sessions).
+    /// The socket keeps `tasks.*` method names and the `task` param after the UI rename to sessions (#73).
     @Test func socketNamesStayStable() {
         #expect(ControlCall.tasksList(project: nil).method.rawValue == "tasks.list")
         #expect(ControlCall.tasksArchive(task: "t").method.rawValue == "tasks.archive")

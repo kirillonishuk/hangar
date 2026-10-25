@@ -49,7 +49,7 @@ import ControlServer
         }
     }
 
-    /// `hangar tasks …` and `--task` are silent aliases from before the rename to sessions (#NN-sessions).
+    /// `hangar tasks …` and `--task` are silent aliases from before the rename to sessions (#73).
     @Test func legacyTaskAliases() {
         let table: [([String], CLIParse)] = [
             (["tasks", "list", "--project", "p", "--git"], .call(.tasksList(project: "p", git: true), json: false)),

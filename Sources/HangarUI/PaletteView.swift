@@ -273,6 +273,7 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .toggleSidebar: .sidebarLeft
     case .toggleInspector: .sidebarRight
     case .inspectorChanges: .diff
+    case .inspectorGit: .branch
     case .toggleDrawer: .shell
     case .limits: .limits
     case .revealInFinder: .finder

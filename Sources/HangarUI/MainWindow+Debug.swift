@@ -76,7 +76,7 @@ extension MainWindowController {
             "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
-            "inspectorChanges": .inspectorChanges, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
+            "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette,
         ]
         switch parts.first ?? "" {
@@ -126,6 +126,7 @@ extension MainWindowController {
         case "lights":  // lights <file>: traffic light frames (window coordinates, bottom-left origin)
             let frames = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { self.window?.standardWindowButton($0) }.map { $0.convert($0.bounds, to: nil) }
             try? "lights \(frames) content=\(String(describing: self.window?.contentView?.frame))".write(toFile: arg, atomically: true, encoding: .utf8)
+        case "git": debugGit(arg)
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "open":
             // open <absolute path> [line]: as an inspector click would.
@@ -266,7 +267,7 @@ extension MainWindowController {
             switch f.first ?? "" {
             case "open":
                 guard let model = newTaskModelForDebug else { return }
-                let list = BranchList(selection: Binding(get: { model.base }, set: { model.base = $0 }),
+                let list = BranchListView(selection: Binding(get: { model.base }, set: { model.base = $0 }),
                                       branches: model.branches, defaultBase: model.defaultBase,
                                       taskBranches: model.taskBranches, defaultOption: nil) {
                     uiLog.info("picker closed base=\(model.base ?? "-", privacy: .public)")

@@ -217,13 +217,15 @@ struct SettingsView: View {
         let integration = model.integration
         HStack(spacing: Theme.cardRowGap) {
             VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
+                // One line each (a long status wrapped to three red lines); the whole text is in the tooltip.
                 Text(verbatim: status.text)
                     .foregroundStyle(status.color)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1).truncationMode(.middle)
+                    .help(status.text)
                 if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
-                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(verbatim: error).foregroundStyle(Theme.ui.failed)
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(error)
                 }
                 if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
                     Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
@@ -289,11 +291,12 @@ struct SettingsView: View {
         if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
             return (L10n.moveToApplications, Theme.ui.waiting, nil)  // removal stays possible from the other states
         }
+        let color = integrationStatusColor(state)
         return switch state {
-        case .installed: (L10n.integrationInstalled, Theme.ui.text2, (L10n.removeIntegration, false))
-        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, Theme.ui.text2, (L10n.removeIntegration, false))
-        case .outdated: (L10n.integrationOutdated, Theme.ui.waiting, (L10n.updateEllipsis, true))
-        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, Theme.ui.failed, (L10n.installEllipsis, true))
+        case .installed: (L10n.integrationInstalled, color, (L10n.removeIntegration, false))
+        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, color, (L10n.removeIntegration, false))
+        case .outdated: (L10n.integrationOutdated, color, (L10n.updateEllipsis, true))
+        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, color, (L10n.installEllipsis, true))
         }
     }
 
@@ -351,4 +354,12 @@ func editorLabel(_ editor: String, presets: [String], home: String = NSHomeDirec
     let name = (editor as NSString).lastPathComponent
     guard !presets.contains(editor), presets.contains(name) else { return name }
     return middleTruncatedPath(abbreviatedHomePath(editor, home: home), maxLength: Theme.editorPathLabelLength)
+}
+
+/// An integration's status color: red is kept for failures, a missing or outdated integration is a to-do (amber).
+@MainActor func integrationStatusColor(_ state: IntegrationState) -> Color {
+    switch state {
+    case .installed, .installedStatuslineByUser: Theme.ui.text2
+    case .outdated, .notInstalled: Theme.ui.waiting
+    }
 }

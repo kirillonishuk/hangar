@@ -38,12 +38,17 @@ struct NewTaskSheet: View {
                 errors
             }
 
-            TextField("", text: $message, prompt: Text(L10n.firstMessagePlaceholder(agentName))
-                .foregroundStyle(Theme.ui.text3), axis: .vertical)
+            TextField("", text: $message, axis: .vertical)
                 .font(.system(size: Theme.fontSize.sheetRow))
                 .lineLimit(2...8)
                 .focused($focus, equals: .message)
                 .frame(minHeight: Theme.messageMinHeight - 2 * Theme.fieldPaddingV, alignment: .topLeading)
+                // A vertical field ignores its prompt's color (it came out as bright as typed text): our own placeholder.
+                .overlay(alignment: .topLeading) {
+                    if message.isEmpty {
+                        Text(L10n.firstMessagePlaceholder(agentName)).foregroundStyle(Theme.ui.text3).allowsHitTesting(false)
+                    }
+                }
                 .modifier(SheetField(focused: focus == .message))
                 .padding(.top, Theme.sheetGap)
 

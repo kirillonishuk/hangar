@@ -429,3 +429,7 @@
 "sessionsConvFew" = "%d conversations";
 "sessionsConvMany" = "%d conversations";
 "sessionsNoMatch" = "Nothing found";
+"integrationNeedsRemote" = "Install hangar-remote first, with the install plan";
+"folderEmpty" = "The folder is empty";
+"noGitFiles" = "No files in git";
+"optionalToolsLabel" = "Optional:";

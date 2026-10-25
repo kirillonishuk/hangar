@@ -68,6 +68,8 @@ extension Theme {
         static let chipGap: CGFloat = 6
         static let chipIcon: CGFloat = 12
         static let chipMaxWidth: CGFloat = 132
+        /// The Branch chip keeps one width: setting another filter must not move it (the others truncate instead).
+        static let branchChipWidth: CGFloat = 112
         static let chipOnOpacity = 0.14
         static let chipBorderOpacity = 0.25
         static let chipsMargin: CGFloat = 8

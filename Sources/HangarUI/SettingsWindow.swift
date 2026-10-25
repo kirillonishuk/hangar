@@ -134,7 +134,7 @@ struct SettingsView: View {
                     }
                 }
                 row(L10n.editor) {
-                    Segment(selection: app.config.editor, options: editorOptions.map { ($0, ($0 as NSString).lastPathComponent) }) { editor in
+                    Segment(selection: app.config.editor, options: editorOptions.map { ($0, editorLabel($0, presets: Self.editorPresets)) }) { editor in
                         save { try app.setConfig("editor", editor) { $0.editor = editor } }
                     }
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
@@ -217,13 +217,15 @@ struct SettingsView: View {
         let integration = model.integration
         HStack(spacing: Theme.cardRowGap) {
             VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
+                // One line each (a long status wrapped to three red lines); the whole text is in the tooltip.
                 Text(verbatim: status.text)
                     .foregroundStyle(status.color)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1).truncationMode(.middle)
+                    .help(status.text)
                 if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
-                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(verbatim: error).foregroundStyle(Theme.ui.failed)
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(error)
                 }
                 if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
                     Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
@@ -289,19 +291,21 @@ struct SettingsView: View {
         if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
             return (L10n.moveToApplications, Theme.ui.waiting, nil)  // removal stays possible from the other states
         }
+        let color = integrationStatusColor(state)
         return switch state {
-        case .installed: (L10n.integrationInstalled, Theme.ui.text2, (L10n.removeIntegration, false))
-        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, Theme.ui.text2, (L10n.removeIntegration, false))
-        case .outdated: (L10n.integrationOutdated, Theme.ui.waiting, (L10n.updateEllipsis, true))
-        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, Theme.ui.failed, (L10n.installEllipsis, true))
+        case .installed: (L10n.integrationInstalled, color, (L10n.removeIntegration, false))
+        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, color, (L10n.removeIntegration, false))
+        case .outdated: (L10n.integrationOutdated, color, (L10n.updateEllipsis, true))
+        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, color, (L10n.installEllipsis, true))
         }
     }
 
     /// hx / nvim, plus the configured editor when it is something else.
     private var editorOptions: [String] {
-        let base = ["hx", "nvim"]
-        return base.contains(app.config.editor) ? base : base + [app.config.editor]
+        Self.editorPresets.contains(app.config.editor) ? Self.editorPresets : Self.editorPresets + [app.config.editor]
     }
+
+    private static let editorPresets = ["hx", "nvim"]
 
     private func save(_ change: () throws -> Void) { model.save(change) }
 
@@ -342,5 +346,20 @@ private struct Segment<Value: Equatable>: View {
         .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.field))
         .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
         .animation(Motion.ease(Theme.selectionFade), value: options.firstIndex { $0.0 == selection })
+    }
+}
+
+/// The editor's segment label: its name, or its (short) path when the name is a preset's — two «hx» hid the choice.
+func editorLabel(_ editor: String, presets: [String], home: String = NSHomeDirectory()) -> String {
+    let name = (editor as NSString).lastPathComponent
+    guard !presets.contains(editor), presets.contains(name) else { return name }
+    return middleTruncatedPath(abbreviatedHomePath(editor, home: home), maxLength: Theme.editorPathLabelLength)
+}
+
+/// An integration's status color: red is kept for failures, a missing or outdated integration is a to-do (amber).
+@MainActor func integrationStatusColor(_ state: IntegrationState) -> Color {
+    switch state {
+    case .installed, .installedStatuslineByUser: Theme.ui.text2
+    case .outdated, .notInstalled: Theme.ui.waiting
     }
 }

@@ -324,8 +324,8 @@ private struct DiffRowView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .frame(minWidth: width, alignment: .leading)
-            .background(background)
-            .overlay { if selected { Theme.ui.selection.opacity(Theme.Diff.selectedOpacity) } }
+            // The selection tints the add/del background, under the text: an overlay dimmed the line's syntax colors.
+            .background { ZStack { background; if selected { Theme.ui.selection.opacity(Theme.Diff.selectedOpacity) } } }
     }
 
     @ViewBuilder private var content: some View {

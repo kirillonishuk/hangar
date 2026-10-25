@@ -64,6 +64,9 @@ public enum PackageManager: String, Sendable {
 
 public enum RemoteTool: String, CaseIterable, Sendable {
     case git, tmux, claude, codex, hx, curl, npm
+
+    /// Not installed unless the user ticks them in the server sheet (the plan stays exactly what runs).
+    public static let optionalInstalls: [RemoteTool] = [.codex, .hx]
 }
 
 public struct ToolInfo: Equatable, Sendable {
@@ -175,9 +178,10 @@ public struct InstallStep: Equatable, Sendable {
 
 /// The install plan, built only from the fixed table below and the report's enums/booleans, never from server text.
 /// `manual` = tools Hangar cannot install here (the sheet tells the user to install them themselves).
-public func installPlan(_ r: ServerReport, remoteVersion: Int) -> (steps: [InstallStep], manual: [RemoteTool]) {
+/// `optional`: the ticked `RemoteTool.optionalInstalls`; the others are left out, as if present.
+public func installPlan(_ r: ServerReport, remoteVersion: Int, optional: Set<RemoteTool>) -> (steps: [InstallStep], manual: [RemoteTool]) {
     var steps: [InstallStep] = [], manual: [RemoteTool] = []
-    let has = { (t: RemoteTool) in r.tools[t] != nil }
+    let has = { (t: RemoteTool) in r.tools[t] != nil || RemoteTool.optionalInstalls.contains(t) && !optional.contains(t) }
     var pkgs: [(name: String, tool: RemoteTool?)] = []
     if !has(.git) { pkgs.append(("git", .git)) }
     if !has(.tmux) { pkgs.append(("tmux", .tmux)) }

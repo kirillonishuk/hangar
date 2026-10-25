@@ -33,9 +33,11 @@ struct GitFilterChips: View {
 
     private func chip(_ which: Chip, title: String, on: Bool, clear: (() -> Void)?) -> some View {
         let binding = Binding(get: { open == which }, set: { if !$0 { open = nil } })
-        // The Branch chip shrinks first: the others are short words or one value.
+        // The Branch chip keeps one width while the row has room (setting another filter used to resize it) and
+        // shrinks only when it doesn't; the others are short words or one value.
         return GitChip(title: title, on: on, open: open == which, clear: on ? clear : nil) { open = which }
             .fixedSize(horizontal: which != .branch, vertical: false)
+            .frame(minWidth: 0, maxWidth: which == .branch ? Theme.GitTab.branchChipWidth : nil)
             .help(title)
             .popover(isPresented: binding, arrowEdge: .bottom) {
                 Group {

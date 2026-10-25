@@ -213,14 +213,17 @@ struct ProjectSettingsSheet: View {
             .focused($focus, equals: field)
             .onSubmit(save)
             .overlay(alignment: .leading) {
+                // The same plain field (not a `Text`): identical baseline and inset to the editor, so focus doesn't move the text.
                 GeometryReader { geo in
-                    Text(verbatim: middleTruncatedPath(shown, maxLength: Int(geo.size.width / Self.monoCharWidth)))
-                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                        .foregroundStyle(value.isEmpty ? Theme.ui.text3 : Theme.ui.sheetText)
+                    TextField("", text: .constant(middleTruncatedPath(shown, maxLength: Int((geo.size.width - Theme.fieldTextInset) / Self.monoCharWidth))))
+                        .foregroundStyle(value.isEmpty ? Theme.ui.text3 : Theme.ui.sheetText)  // inside CardField's, so it wins
+                        .modifier(CardField(mono: true))
+                        .focusable(false)
                         .frame(maxHeight: .infinity, alignment: .leading)
                 }
                 .opacity(focused && !value.isEmpty ? 0 : 1)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
             .help(full)
     }

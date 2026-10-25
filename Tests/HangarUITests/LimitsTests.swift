@@ -32,15 +32,15 @@ import Workspace
     @Test func windowTitles() {
         defer { L10n.language = .system }
         L10n.language = .ru
-        #expect(limitWindowTitle(.session, agent: .claude) == "Сессия (5 ч)")
-        #expect(limitWindowTitle(.session, agent: .codex) == "Сессия (5 ч)")
+        #expect(limitWindowTitle(.session, agent: .claude) == "5 часов")
+        #expect(limitWindowTitle(.session, agent: .codex) == "5 часов")
         #expect(limitWindowTitle(.weekly, agent: .claude) == "Неделя · все модели")
         #expect(limitWindowTitle(.weekly, agent: .codex) == "Неделя")
         #expect(limitWindowTitle(.weeklyModel("opus"), agent: .claude) == "Неделя · Opus")
         #expect(limitWindowTitle(.weeklyModel("opus"), agent: .codex) == "Неделя · Opus")
         L10n.language = .en
-        #expect(limitWindowTitle(.session, agent: .claude) == "Session (5 h)")
-        #expect(limitWindowTitle(.session, agent: .codex) == "Session (5 h)")
+        #expect(limitWindowTitle(.session, agent: .claude) == "5-hour")
+        #expect(limitWindowTitle(.session, agent: .codex) == "5-hour")
         #expect(limitWindowTitle(.weekly, agent: .claude) == "Week · all models")
         #expect(limitWindowTitle(.weekly, agent: .codex) == "Week")
         #expect(limitWindowTitle(.weeklyModel("opus"), agent: .claude) == "Week · Opus")

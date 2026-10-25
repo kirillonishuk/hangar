@@ -161,7 +161,7 @@
 "agentsWorking" = "Agents working: %ld. Quit?";
 "agentsWorkingInfo" = "Their processes will be terminated.";
 
-"limitSession" = "Session (5 h)";
+"limitSession" = "5-hour";
 "limitWeekAll" = "Week · all models";
 "limitWeek" = "Week";
 "limitWeekModel" = "Week · %@";

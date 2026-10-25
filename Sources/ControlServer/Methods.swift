@@ -40,7 +40,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case sshOpen = "ssh.open"
     case linksCreate = "links.create"
 
-    /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#NN-sessions); the socket method stays.
+    /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#73); the socket method stays.
     public var toolName: String { legacyToolName.replacingOccurrences(of: "tasks_", with: "sessions_") }
     /// Pre-rename tool name: still callable over MCP, never listed.
     public var legacyToolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }

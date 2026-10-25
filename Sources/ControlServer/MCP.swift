@@ -62,7 +62,7 @@ public struct MCPSession {
             case let a as [String: Any]: arguments = a
             default: return Self.error(id, -32602, "\"arguments\" must be an object")
             }
-            // `session` is the listed name of the control param `task`; `task` stays accepted (#NN-sessions).
+            // `session` is the listed name of the control param `task`; `task` stays accepted (#73).
             if let session = arguments.removeValue(forKey: "session") {
                 guard arguments["task"] == nil else { return Self.result(id, Self.toolText("pass \"session\" or \"task\", not both", isError: true)) }
                 arguments["task"] = session

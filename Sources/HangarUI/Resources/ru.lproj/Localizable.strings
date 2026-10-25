@@ -161,7 +161,7 @@
 "agentsWorking" = "Работают агенты: %ld. Выйти?";
 "agentsWorkingInfo" = "Их процессы будут завершены.";
 
-"limitSession" = "Сессия (5 ч)";
+"limitSession" = "5 часов";
 "limitWeekAll" = "Неделя · все модели";
 "limitWeek" = "Неделя";
 "limitWeekModel" = "Неделя · %@";

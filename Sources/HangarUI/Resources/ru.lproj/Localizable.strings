@@ -70,7 +70,7 @@
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
-"portCopy" = "Порт: %ld (копировать)";
+"portCopy" = "Порт: %@ (копировать)";
 "copyLink" = "Скопировать ссылку";
 "attentionOnly" = "Только ждущие";
 "nobodyWaiting" = "Никто не ждёт";

@@ -70,7 +70,7 @@
 "saveFailed" = "Couldn't save config.toml: %@";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";
-"portCopy" = "Port: %ld (copy)";
+"portCopy" = "Port: %@ (copy)";
 "copyLink" = "Copy Link";
 "attentionOnly" = "Waiting only";
 "nobodyWaiting" = "Nobody is waiting";

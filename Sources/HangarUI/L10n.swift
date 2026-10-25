@@ -128,6 +128,8 @@ import Workspace
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
+        case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
+        case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -389,19 +391,31 @@ import Workspace
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
     // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
-    private static func plural(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
-        let n10 = n % 10, n100 = n % 100
-        let key = n10 == 1 && n100 != 11 ? one : (2...4).contains(n10) && !(12...14).contains(n100) ? few : many
-        return f(key, Int32(clamping: n))
-    }
-    static func workingCount(_ n: Int) -> String { plural(n, .workingOne, .workingFew, .workingMany) }
-    static func waitingCount(_ n: Int) -> String { plural(n, .waitingOne, .waitingFew, .waitingMany) }
-    static func failedCount(_ n: Int) -> String { plural(n, .failedOne, .failedFew, .failedMany) }
-    static func paneCount(_ n: Int) -> String { plural(n, .paneOne, .paneFew, .paneMany) }
+    static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
+    static func waitingCount(_ n: Int) -> String { count(n, .waitingOne, .waitingFew, .waitingMany) }
+    static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
+    static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
     static var thisMac: String { s(.thisMac) }
     static var statusMachineHelp: String { s(.statusMachineHelp) }
     static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
     static var statusPanesHelp: String { s(.statusPanesHelp) }
+    // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
+    private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
+        let key: Key = switch pluralForm(n) {
+        case .one: one
+        case .few: few
+        case .many: many
+        }
+        return f(key, Int32(clamping: n))
+    }
+    static func agentCount(_ n: Int) -> String { count(n, .agentCountOne, .agentCountFew, .agentCountMany) }
+    static func subagentCount(_ n: Int) -> String { count(n, .subagentCountOne, .subagentCountFew, .subagentCountMany) }
+    static func tabCount(_ n: Int) -> String { count(n, .tabCountOne, .tabCountFew, .tabCountMany) }
+    static var noAgents: String { s(.noAgents) }
+    /// The row's short state word: «ждёт», not the tab's «ждёт ответа».
+    static func rowStatus(_ state: AgentState) -> String { state == .waiting ? s(.rowWaiting) : statusLabel(state) }
+    static var sessionsView: String { s(.sessionsView) }
+    static var sessionsViewHelp: String { s(.sessionsViewHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }

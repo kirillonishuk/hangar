@@ -7,8 +7,9 @@ import Testing
     private var glyphs: [Icon] { Icon.allCases.filter { $0 != .claude && $0 != .codex } }
 
     @Test func thirtyTwoGlyphsAndTwoBrands() {
-        #expect(glyphs.count == 32)
-        #expect(Icon.allCases.count == 34)
+        // + `history` of redesign-v1.html.
+        #expect(glyphs.count == 33)
+        #expect(Icon.allCases.count == 35)
     }
 
     @Test func glyphsAreTemplatesOfTheRequestedSize() {

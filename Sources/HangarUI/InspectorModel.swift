@@ -49,6 +49,8 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var modeChoice: ModeChoice = .base
     /// A load of the open diff was applied (the diff tab drops a selection that is gone).
     @ObservationIgnored var onDiffApplied: (() -> Void)?
+    /// A load of the task's changes starts (show, refresh, mode switch): the sidebar badge reloads with it.
+    @ObservationIgnored var onStatusLoad: ((UUID) -> Void)?
     /// Git-ignored entries of the last tree load (the watcher drops their events).
     @ObservationIgnored let ignored = IgnoredPaths()
     /// The running load or its queued rerun; nil when idle (tests await it).
@@ -165,6 +167,7 @@ struct RefreshParts: OptionSet, Sendable {
         generation += 1
         let gen = generation
         running = parts
+        if parts.contains(.status), let id = context.taskId { onStatusLoad?(id) }
         let input = LoadInput(root: context.root!, remote: remote, mode: context.mode, top: top,
                               known: changes, base: knownBase, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
         let git = self.git, baseBranch = self.baseBranch

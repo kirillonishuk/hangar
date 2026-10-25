@@ -437,7 +437,7 @@ struct TabItem: View {
                 onDragEnd()
             })
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        .help(L10n.help(app.tabLabel(tab), (1...9).contains(number) ? .tab(number) : nil)
+        .help(L10n.help(app.tabHelpTitle(tab, taskId: taskId), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
         .pointingHand(app.renaming != target)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }

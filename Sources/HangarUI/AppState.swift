@@ -266,9 +266,21 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    func title(of leaf: Leaf) -> String { leafTitles[leaf.id] ?? defaultTitle(leaf.kind) }
+    /// An editor with a file is titled by the file (Helix sets no useful terminal title); others by their terminal title.
+    func title(of leaf: Leaf) -> String {
+        if leaf.kind == .editor, let file = leaf.openFile { return (file as NSString).lastPathComponent }
+        return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
+    }
 
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
+
+    /// Tooltip title: an unsplit, unrenamed editor tab shows its file's path from the session folder; others their label.
+    func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
+        guard case .leaf(let leaf) = tab.root, leaf.kind == .editor, let file = leaf.openFile,
+              tab.customTitle == nil else { return tabLabel(tab) }
+        let root = path(of: .task(taskId)).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        return root.flatMap { file.hasPrefix($0) ? String(file.dropFirst($0.count)) : nil } ?? file
+    }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
     /// The task's `HANGAR_PORT` (#60); projects and tabs have none.

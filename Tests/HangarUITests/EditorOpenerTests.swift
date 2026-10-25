@@ -20,6 +20,30 @@ import Workspace
         #expect(helixQuoted("/r/a\\b.txt") == "'/r/a\\b.txt'")
     }
 
+    /// A Helix tab is titled by its file («Model.swift»), the tooltip holds the path from the session folder;
+    /// another file opened in it renames it. Without a file it stays the editor's name.
+    @Test func editorTabTitledByItsFile() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hg-editor-title-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/r/app")
+        let t = s.addTask(projectId: p, name: "a")
+        let tabId = s.addTab(taskId: t, kind: .editor, openFile: "/r/app/Sources/Model.swift", openLine: 3)
+        let plain = s.addTab(taskId: t, kind: .editor)
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        let tab = { (id: UUID) in app.state.tasks[0].tabs.first { $0.id == id }! }
+        #expect(app.tabLabel(tab(tabId)) == "Model.swift")
+        #expect(app.tabHelpTitle(tab(tabId), taskId: t) == "Sources/Model.swift")
+        app.leafTitles[tab(tabId).focusedLeafId] = "hx"  // a terminal title does not replace the file name
+        #expect(app.tabLabel(tab(tabId)) == "Model.swift")
+        let leafId = tab(tabId).focusedLeafId
+        app.perform { $0.setOpenFile(leafId: leafId, path: "/r/app/README.md", line: nil) }
+        #expect(app.tabLabel(tab(tabId)) == "README.md")
+        #expect(app.tabHelpTitle(tab(tabId), taskId: t) == "README.md")
+        #expect(app.tabLabel(tab(plain)) == "hx")
+        #expect(app.tabHelpTitle(tab(plain), taskId: t) == "hx")
+    }
+
     @Test func helixCommandsWithLine() {
         #expect(helixCommands(path: "/r/a.txt", line: 12) == ["open '/r/a.txt'", "goto 12"])
         #expect(helixCommands(path: "/r/a.txt", line: nil) == ["open '/r/a.txt'"])

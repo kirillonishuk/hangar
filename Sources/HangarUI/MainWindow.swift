@@ -32,8 +32,13 @@ final class TaskColumnController: NSViewController {
     /// «Сессия в архиве · Отменить» over the bottom of the terminals.
     let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
+    /// «Сессии» (⌘Y) over the tab bar, terminals and status line.
+    let sessionsModel: SessionsModel
+    let sessions: NSHostingView<SessionsHost>
 
     init(app: AppState) {
+        sessionsModel = SessionsModel(app: app)
+        sessions = NSHostingView(rootView: SessionsHost(app: app, model: sessionsModel, ctx: ActionContext(app: app)))
         terminalArea = TerminalArea(app: app)
         let undo = ArchiveUndo()
         archiveUndo = undo
@@ -52,7 +57,9 @@ final class TaskColumnController: NSViewController {
         tabBar.sizingOptions = []
         statusBar.sizingOptions = []
         toast.sizingOptions = [.intrinsicContentSize]
-        for sub in [titleBar, tabBar, terminalArea, statusBar, toast] as [NSView] {
+        sessions.sizingOptions = []
+        sessions.isHidden = true
+        for sub in [titleBar, tabBar, terminalArea, statusBar, sessions, toast] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -73,6 +80,10 @@ final class TaskColumnController: NSViewController {
             statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
+            sessions.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
+            sessions.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            sessions.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            sessions.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
             toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
         ])
@@ -165,6 +176,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
@@ -181,6 +193,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         app.didChange = { [weak self] in
             guard let self else { return }
+            self.column.sessions.isHidden = !self.app.sessionsViewVisible
             self.syncInspector()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()
@@ -267,7 +280,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// Follows `inspectorVisible` (⌘⌥I, titlebar button); expanding restores the saved width.
     private func syncInspector() {
-        let collapsed = !app.state.inspectorVisible
+        let collapsed = !app.state.inspectorVisible || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
         guard inspectorItem.isCollapsed != collapsed else { return }
         inspectorItem.isCollapsed = collapsed
         if !collapsed, didApplyInitialLayout { applyInspectorWidth() }
@@ -347,6 +360,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
+        // Esc leaves «Сессии» (also from its search field).
+        if app.sessionsViewVisible, event.keyCode == 53, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
+            app.hideSessionsView()
+            return true
+        }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {
@@ -453,6 +471,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
         case .quickOpen: togglePalette(commands: false)
         case .commandPalette: togglePalette(commands: true)
+        case .sessions: app.toggleSessionsView()
         }
     }
 

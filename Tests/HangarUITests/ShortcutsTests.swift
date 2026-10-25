@@ -57,7 +57,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 37)
+        #expect(Shortcut.allCases.count == 38)
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.

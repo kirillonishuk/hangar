@@ -68,6 +68,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
+    /// «Сессии» (⌘Y) is shown for this project instead of the session area; nil = hidden (SessionsModel.swift).
+    var sessionsProjectId: UUID?
+    /// The session selected before «Сессии» opened: Esc goes back to it.
+    @ObservationIgnored var sessionsReturnTaskId: UUID?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()
@@ -208,6 +212,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
             diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
         }
+        // Any session getting selected (sidebar, palette, a new one) leaves «Сессии».
+        if state.selectedTaskId != nil { sessionsProjectId = nil }
         store.scheduleSave(state)
         didChange?()
     }

@@ -9,6 +9,7 @@ enum Icon: CaseIterable {
     case sidebarLeft, sidebarRight, add, project, branch, sshHost, editor, shell, diff, keepAwake, limits, settings
     case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
+    case search, history
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -79,6 +80,10 @@ enum Icon: CaseIterable {
              .shape(p(3.75, 5.75), p(12.25, 5.75), p(12.25, 12, r: 4.25), p(3.75, 12, r: 4.25)), .line(p(8, 12), p(8, 13.25))]
         case .disconnect: [.line(p(8, 2.75), p(8, 7.75)), .arc(from: p(4.5, 4.75), to: p(11.5, 4.75), r: 5, large: true, sweep: false)]
         case .checkServer: [.circle(p(8, 8), 6.25), .line(p(5.25, 8.25), p(7.1, 10.1), p(10.75, 6.25))]
+        case .search: [.circle(p(7, 7), 4.75), .line(p(10.5, 10.5), p(13.75, 13.75))]
+        case .history:
+            [.arc(from: p(1.75, 8), to: p(3.58, 3.58), r: 6.25, large: true, sweep: false), .line(p(3.58, 3.58), p(1.75, 5.4)),
+             .line(p(1.75, 2.25), p(1.75, 5.4), p(4.9, 5.4)), .line(p(8, 4.75), p(8, 8), p(10.25, 9.5))]
         case .claude, .codex: []  // brand logos
         }
     }

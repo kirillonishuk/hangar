@@ -125,6 +125,44 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case sessionsNoMatch, sessionsTitle, sessionsClosed, sessionsConversations, sessionsToday, sessionsYesterday, sessionsYesterdayAt
+        case sessionsSearch, sessionsAll, sessionsOpen, sessionsGo, sessionsMarkerOpen, sessionsMarkerClosed
+        case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
+        case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
+        case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
+    }
+
+    // «Сессии» (⌘Y)
+    static var sessionsTitle: String { s(.sessionsTitle) }
+    static var sessionsClosed: String { s(.sessionsClosed) }
+    static var sessionsConversations: String { s(.sessionsConversations) }
+    static var sessionsToday: String { s(.sessionsToday) }
+    static var sessionsYesterday: String { s(.sessionsYesterday) }
+    static func sessionsYesterdayAt(_ time: String) -> String { f(.sessionsYesterdayAt, time) }
+    static var sessionsSearch: String { s(.sessionsSearch) }
+    static var sessionsAll: String { s(.sessionsAll) }
+    static var sessionsOpen: String { s(.sessionsOpen) }
+    static var sessionsGo: String { s(.sessionsGo) }
+    static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
+    static var sessionsMarkerClosed: String { s(.sessionsMarkerClosed) }
+    static var sessionsNoSession: String { s(.sessionsNoSession) }
+    static func sessionsMessages(_ n: Int) -> String { f(.sessionsMessages, Int32(clamping: n)) }
+    static var sessionsSplit: String { s(.sessionsSplit) }
+    static var sessionsNoClosed: String { s(.sessionsNoClosed) }
+    static var sessionsNoMatch: String { s(.sessionsNoMatch) }
+    static var sessionsNoConversations: String { s(.sessionsNoConversations) }
+    static var sessionsLoading: String { s(.sessionsLoading) }
+    static func sessionsOffline(_ host: String) -> String { f(.sessionsOffline, host) }
+    static var sessionsUntitled: String { s(.sessionsUntitled) }
+    static var sessionsProjectHelp: String { s(.sessionsProjectHelp) }
+    static func sessionsTabs(_ n: Int) -> String { plural(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
+    static func sessionsClosedCount(_ n: Int) -> String { plural(n, .sessionsClosedOne, .sessionsClosedFew, .sessionsClosedMany) }
+    static func sessionsConversationCount(_ n: Int) -> String { plural(n, .sessionsConvOne, .sessionsConvFew, .sessionsConvMany) }
+
+    /// Russian plural forms (1 / 2–4 / 5+); English tables use the same text for few and many.
+    private static func plural(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
+        let n10 = n % 10, n100 = n % 100
+        return f(n10 == 1 && n100 != 11 ? one : (2...4).contains(n10) && !(12...14).contains(n100) ? few : many, Int32(clamping: n))
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -513,6 +551,7 @@ import Workspace
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: attentionOnly
+        case .sessions: sessionsTitle
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

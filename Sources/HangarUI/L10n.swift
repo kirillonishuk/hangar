@@ -134,7 +134,40 @@ import Workspace
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
         case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
         case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
+        case sessionsNoMatch, sessionsTitle, sessionsClosed, sessionsConversations, sessionsToday, sessionsYesterday, sessionsYesterdayAt
+        case sessionsSearch, sessionsAll, sessionsOpen, sessionsGo, sessionsMarkerOpen, sessionsMarkerClosed
+        case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
+        case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
+        case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
     }
+
+    // «Сессии» (⌘Y)
+    static var sessionsTitle: String { s(.sessionsTitle) }
+    static var sessionsClosed: String { s(.sessionsClosed) }
+    static var sessionsConversations: String { s(.sessionsConversations) }
+    static var sessionsToday: String { s(.sessionsToday) }
+    static var sessionsYesterday: String { s(.sessionsYesterday) }
+    static func sessionsYesterdayAt(_ time: String) -> String { f(.sessionsYesterdayAt, time) }
+    static var sessionsSearch: String { s(.sessionsSearch) }
+    static var sessionsAll: String { s(.sessionsAll) }
+    static var sessionsOpen: String { s(.sessionsOpen) }
+    static var sessionsGo: String { s(.sessionsGo) }
+    static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
+    static var sessionsMarkerClosed: String { s(.sessionsMarkerClosed) }
+    static var sessionsNoSession: String { s(.sessionsNoSession) }
+    static func sessionsMessages(_ n: Int) -> String { f(.sessionsMessages, Int32(clamping: n)) }
+    static var sessionsSplit: String { s(.sessionsSplit) }
+    static var sessionsNoClosed: String { s(.sessionsNoClosed) }
+    static var sessionsNoMatch: String { s(.sessionsNoMatch) }
+    static var sessionsNoConversations: String { s(.sessionsNoConversations) }
+    static var sessionsLoading: String { s(.sessionsLoading) }
+    static func sessionsOffline(_ host: String) -> String { f(.sessionsOffline, host) }
+    static var sessionsUntitled: String { s(.sessionsUntitled) }
+    static var sessionsProjectHelp: String { s(.sessionsProjectHelp) }
+    static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
+    static func sessionsClosedCount(_ n: Int) -> String { count(n, .sessionsClosedOne, .sessionsClosedFew, .sessionsClosedMany) }
+    static func sessionsConversationCount(_ n: Int) -> String { count(n, .sessionsConvOne, .sessionsConvFew, .sessionsConvMany) }
+
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
     static func help(_ title: String, _ shortcut: Shortcut?) -> String {
@@ -589,6 +622,7 @@ import Workspace
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: attentionOnly
+        case .sessions: sessionsTitle
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

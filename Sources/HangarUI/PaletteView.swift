@@ -279,5 +279,6 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .revealInFinder: .finder
     case .copyPath: .copy
     case .settings: .settings
+    case .sessions: .history
     }
 }

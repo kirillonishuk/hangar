@@ -77,7 +77,7 @@ extension MainWindowController {
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
-            "quickOpen": .quickOpen, "commandPalette": .commandPalette,
+            "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -97,6 +97,9 @@ extension MainWindowController {
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
+        // «Сессии»: the search text; the n-th project.
+        case "sessionsQuery": column.sessionsModel.query = arg
+        case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
         case "hover", "menu":

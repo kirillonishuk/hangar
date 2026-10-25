@@ -21,6 +21,11 @@ import Workspace
     let duration = minutes < 60 ? L10n.durationMin(minutes)
         : minutes < 24 * 60 ? L10n.durationHourMin(minutes / 60, minutes % 60)
         : L10n.durationDayHour(minutes / (24 * 60), minutes / 60 % 24)
+    return L10n.resetIn(duration, resetClock(resetsAt, now: now, calendar: calendar))
+}
+
+/// «20:20», a day or more ahead «пн 20:20».
+@MainActor func resetClock(_ resetsAt: Date, now: Date, calendar: Calendar) -> String {
     let lang = L10n.resolve(L10n.language)
     let f = resetFormatters[lang] ?? {
         let f = DateFormatter()
@@ -32,13 +37,13 @@ import Workspace
     f.timeZone = calendar.timeZone
     f.dateFormat = "HH:mm"
     var time = f.string(from: resetsAt)
-    if minutes >= 24 * 60 {
+    if Int((resetsAt.timeIntervalSince(now) / 60).rounded(.up)) >= 24 * 60 {  // the same rounding as the duration
         f.dateFormat = "EEE"
         let day = f.string(from: resetsAt)
         // Russian weekdays are lowercase mid-sentence; macOS returns «Вс».
         time = (lang == .ru ? day.lowercased(with: f.locale) : day) + " " + time
     }
-    return L10n.resetIn(duration, time)
+    return time
 }
 
 /// One macOS notification per crossed threshold; `limit-<agent>` replaces the agent's previous one.
@@ -77,11 +82,29 @@ private func windowLevel(_ w: UsageWindow, in u: AgentUsage) -> UsageLevel {
     return level(percent: w.usedPercent, limitReached: u.limitReached && w.usedPercent == top)
 }
 
-private func maxPercent(_ u: AgentUsage) -> Double { u.windows.map(\.usedPercent).max() ?? 0 }
+/// A reached limit with no window rows yet: the agent gets the «лимит» badge under its name instead.
+func limitBadgeWithoutWindows(_ u: AgentUsage) -> Bool { u.limitReached && u.windows.isEmpty }
+
+/// The sidebar row's figure: the fullest window; a reached limit with no window data yet (StopFailure first) is 100.
+func limitBlockPercent(_ u: AgentUsage) -> Double { u.windows.map(\.usedPercent).max() ?? (u.limitReached ? 100 : 0) }
 
 private func percentText(_ p: Double) -> String { "\(Int(p.rounded()))%" }
 
 // MARK: Views
+
+/// «лимит» / «почти»: a tinted capsule.
+private struct LimitBadge: View {
+    let level: UsageLevel
+
+    var body: some View {
+        Text(level == .full ? L10n.limitBadgeFull : L10n.limitBadgeAlmost)
+            .font(.system(size: Theme.Limit.badgeFont))
+            .foregroundStyle(Theme.Limit.textColor(level))
+            .padding(.horizontal, Theme.Limit.badgePaddingH)
+            .padding(.vertical, Theme.Limit.badgePaddingV)
+            .background(Capsule().fill(Theme.Limit.color(level).opacity(Theme.Limit.badgeOpacity)))
+    }
+}
 
 private struct LimitBar: View {
     var percent: Double?
@@ -124,7 +147,7 @@ struct LimitsBlock: View {
     private func line(_ agent: UsageAgent, _ u: AgentUsage) -> some View {
         let session = u.windows.first { $0.kind == .session }
         let week = u.windows.first { $0.kind == .weekly }
-        let top = level(percent: maxPercent(u), limitReached: u.limitReached)
+        let top = level(percent: limitBlockPercent(u), limitReached: u.limitReached)
         return HStack(spacing: Theme.Limit.rowGap) {
             Text(agent.rawValue)
                 .font(.system(size: Theme.Limit.nameFont))
@@ -135,7 +158,7 @@ struct LimitsBlock: View {
                 LimitBar(percent: session?.usedPercent, level: session.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
                 LimitBar(percent: week?.usedPercent, level: week.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
             }
-            Text(percentText(maxPercent(u)))
+            Text(percentText(limitBlockPercent(u)))
                 .font(.system(size: Theme.Limit.percentFont).monospacedDigit())
                 .foregroundStyle(Theme.Limit.textColor(top))
                 .frame(width: Theme.Limit.percentWidth, alignment: .trailing)
@@ -143,7 +166,7 @@ struct LimitsBlock: View {
         .padding(.vertical, Theme.Limit.rowPaddingV)
         .padding(.horizontal, Theme.Limit.rowPaddingH)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(agentName(agent)) \(percentText(maxPercent(u)))")
+        .accessibilityLabel("\(agentName(agent)) \(percentText(limitBlockPercent(u)))")
     }
 }
 
@@ -217,6 +240,8 @@ struct LimitsPopover: View {
                     .foregroundStyle(Theme.ui.text3)
             }
             .font(.system(size: Theme.fontSize.small))
+            // Its own line: next to the name it would push «обновлено …» onto two lines.
+            if limitBadgeWithoutWindows(u) { LimitBadge(level: .full) }
             ForEach(u.windows.sorted { rank($0.kind) < rank($1.kind) }, id: \.kind) { w in
                 window(w, agent: agent, level: windowLevel(w, in: u))
             }
@@ -228,14 +253,7 @@ struct LimitsPopover: View {
             HStack(spacing: Theme.Limit.rowGap) {
                 Text(limitWindowTitle(w.kind, agent: agent)).fontWeight(.medium).foregroundStyle(Theme.ui.text)
                 Spacer(minLength: 0)
-                if level > .ok {
-                    Text(level == .full ? L10n.limitBadgeFull : L10n.limitBadgeAlmost)
-                        .font(.system(size: Theme.Limit.badgeFont))
-                        .foregroundStyle(Theme.Limit.textColor(level))
-                        .padding(.horizontal, Theme.Limit.badgePaddingH)
-                        .padding(.vertical, Theme.Limit.badgePaddingV)
-                        .background(Capsule().fill(Theme.Limit.color(level).opacity(Theme.Limit.badgeOpacity)))
-                }
+                if level > .ok { LimitBadge(level: level) }
                 Text(percentText(w.usedPercent)).monospacedDigit().foregroundStyle(Theme.ui.text2)
             }
             .font(.system(size: Theme.fontSize.footer))

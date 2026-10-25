@@ -277,6 +277,16 @@ import Workspace
         #expect(!w.app.sessionsViewVisible)
     }
 
+    /// ⌘Y / the «Сессии» row with no project: nothing to show, so a beep instead of a silent no-op.
+    @Test func noProjectBeeps() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        var beeps = 0
+        app.beep = { beeps += 1 }
+        app.toggleSessionsView()
+        #expect(!app.sessionsViewVisible && beeps == 1)
+    }
+
     /// The view overlays the selected session: the selection stays in state.json, so a relaunch keeps it.
     @Test func selectionSurvivesTheViewAndARelaunch() throws {
         let w = world()

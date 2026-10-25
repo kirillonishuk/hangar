@@ -264,15 +264,40 @@ import Workspace
         #expect(turns == 0)
     }
 
-    /// The window status bar counts real agent states: a full Claude limit only reddens the dots, it is not an error.
-    @Test func statusBarIgnoresTheFullLimit() {
-        let app = makeApp([.claude, .claude])
+    /// The window status bar counts what the rows show: agents on a full limit are «на лимите», neither working nor errors.
+    @Test func statusBarCountsTheLimitApart() {
+        let app = makeApp([.claude, .claude, .codex])
         app.perform { $0.selectedTaskId = $0.tasks[0].id }
-        event(app, tab: 0, .prompt)
+        for n in 0...2 { event(app, tab: n, .prompt) }
         app.handle(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "five_hour", usedPercent: 100, resetsAt: nil)])))
         #expect(app.usage.level(.claude, now: app.usageClock) == .full)
-        #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .claude) == .failed)  // the dot still shows the limit
-        #expect(app.statusBar.counts == StatusCounts(working: 1))
+        #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .claude) == .limit)
+        #expect(app.statusBar.counts == StatusCounts(working: 1, limited: 2))
+    }
+
+    /// StopFailure (rate_limit) is «лимит»; a crashed agent stays an error.
+    @Test func stopFailureIsTheLimitACrashIsAnError() {
+        let app = makeApp([.claude, .claude])
+        event(app, tab: 0, .stopFailure)
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .limit)
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .limit)
+        app.signal(.exited(code: 1), leaf: leaf(app, 1).id)
+        #expect(app.state(ofLeaf: leaf(app, 1).id) == .failed)
+    }
+
+    /// The limit is over (its reset passed): the leaf that stopped on it is no longer «лимит».
+    @Test func passedLimitLeavesTheStoppedLeafIdle() {
+        let app = makeApp([.claude])
+        let t = Date(timeIntervalSince1970: 1_000_000)
+        var now = t
+        app.clock = { now }
+        _ = app.usage.update(.claude, windows: [UsageWindow(kind: .session, usedPercent: 100, resetsAt: t.addingTimeInterval(60), updatedAt: t)], plan: nil, now: t)
+        event(app, tab: 0, .stopFailure)
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .limit)
+        #expect(app.sessionStatus(of: app.state.tasks[0]).head == L10n.limitUntil(resetClock(t.addingTimeInterval(60), now: t, calendar: .current)))
+        now = t.addingTimeInterval(120)
+        app.refreshUsageClock()
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .idle)
     }
 
     @Test func codexNotifyCallsCodexTurn() {
@@ -288,11 +313,11 @@ import Workspace
         let app = makeApp([.claude, .codex, .shell])
         for n in 0...2 { event(app, tab: n, .prompt) }
         _ = app.usage.markLimitReached(.claude, now: Date())
-        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .failed)
-        #expect(app.displayState(of: app.state.tasks[0].tabs[0]) == .failed)
+        #expect(app.displayState(ofLeaf: leaf(app, 0).id, kind: .claude) == .limit)
+        #expect(app.displayState(of: app.state.tasks[0].tabs[0]) == .limit)
         #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .codex) == .working)
         #expect(app.displayState(ofLeaf: leaf(app, 2).id, kind: .shell) == .working)
-        #expect(app.displayState(of: app.state.tasks[0]) == .failed)
+        #expect(app.displayState(of: app.state.tasks[0]) == .limit)
     }
 
     @Test func displayStateCoversDrawerLeaf() {
@@ -310,7 +335,7 @@ import Workspace
         _ = app.usage.markLimitReached(.claude, now: t)
         let tab = app.state.tasks[0].tabs[0]
         app.usageClock = t
-        #expect(app.displayState(of: tab) == .failed)
+        #expect(app.displayState(of: tab) == .limit)
         app.usageClock = t.addingTimeInterval(120)
         #expect(app.displayState(of: tab) == .working)
     }
@@ -323,7 +348,7 @@ import Workspace
         #expect(L10n.rowWithStatus("fix-auth", .working) == "fix-auth, working")
         L10n.language = .ru
         #expect(L10n.rowWithStatus("fix-auth", .waiting) == "fix-auth, ждёт ответа")
-        #expect(Set(AgentState.allCases.map { L10n.statusLabel($0) }).count == 5)
+        #expect(Set(AgentState.allCases.map { L10n.statusLabel($0) }).count == 6)
     }
 
     @Test func showsDotRules() {

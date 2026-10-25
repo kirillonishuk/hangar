@@ -46,6 +46,8 @@ import Workspace
         defer { L10n.language = .system }
         let c = StatusCounts([(.working, 2), (.working, 1), (.waiting, 0), (.waiting, 0), (.waiting, 0), (.failed, 0), (.done, 0), (.idle, 0)])
         #expect(c == StatusCounts(working: 2, waiting: 3, failed: 1, subagents: 3))
+        // On the limit: its own count, neither working nor an error.
+        #expect(StatusCounts([(.limit, 0), (.limit, 0), (.failed, 0)]) == StatusCounts(failed: 1, limited: 2))
         var line = StatusBarLine()
         line.counts = c
         L10n.language = .ru
@@ -122,6 +124,10 @@ import Workspace
         #expect([1, 2, 5, 21].map(L10n.workingCount) == ["1 работает", "2 работают", "5 работают", "21 работает"])
         #expect([1, 3, 5, 11].map(L10n.waitingCount) == ["1 ждёт", "3 ждут", "5 ждут", "11 ждут"])
         #expect([1, 2, 5].map(L10n.failedCount) == ["1 ошибка", "2 ошибки", "5 ошибок"])
+        #expect([1, 2, 5].map(L10n.limitedCount) == ["1 на лимите", "2 на лимите", "5 на лимите"])
+        L10n.language = .en
+        #expect([1, 2].map(L10n.limitedCount) == ["1 at limit", "2 at limit"])
+        L10n.language = .ru
         #expect([1, 2, 5].map(L10n.paneCount) == ["1 панель", "2 панели", "5 панелей"])
     }
 

@@ -70,7 +70,7 @@
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
-"portCopy" = "Порт: %ld (копировать)";
+"portCopy" = "Порт: %@ (копировать)";
 "copyLink" = "Скопировать ссылку";
 "attentionOnly" = "Только ждущие";
 "nobodyWaiting" = "Никто не ждёт";
@@ -149,6 +149,8 @@
 "statusWaiting" = "ждёт ответа";
 "statusDone" = "готово";
 "statusFailed" = "ошибка";
+"statusLimit" = "лимит";
+"limitUntil" = "лимит · до %@";
 "statusIdle" = "неактивен";
 "rowWithStatus" = "%@, %@";
 "notificationsTitle" = "Уведомления";
@@ -335,6 +337,9 @@
 "failedOne" = "%d ошибка";
 "failedFew" = "%d ошибки";
 "failedMany" = "%d ошибок";
+"limitedOne" = "%d на лимите";
+"limitedFew" = "%d на лимите";
+"limitedMany" = "%d на лимите";
 "paneOne" = "%d панель";
 "paneFew" = "%d панели";
 "paneMany" = "%d панелей";

@@ -26,6 +26,8 @@ struct RenameField: View {
             .padding(.horizontal, Theme.renamePaddingH)
             .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
             .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.accent, lineWidth: 1))
+            // The box grows outwards: the text stays where the label was (no jump on F2).
+            .padding(.horizontal, -Theme.renamePaddingH)
             .onAppear { focused = true }
             .onChange(of: focused) { _, isFocused in if !isFocused { finish(save: true) } }
             .onDisappear { finish(save: true) }

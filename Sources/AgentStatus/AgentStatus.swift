@@ -1,6 +1,7 @@
 import Foundation
 
-public enum AgentState: String, Sendable, CaseIterable { case working, waiting, done, failed, idle }
+/// `limit`: the agent stopped on its usage limit (StopFailure rate_limit), not an error.
+public enum AgentState: String, Sendable, CaseIterable { case working, waiting, done, failed, idle, limit }
 
 /// Also the `<kind>` in `hangar event <kind>`.
 public enum HookKind: String, Codable, Sendable, CaseIterable {
@@ -76,7 +77,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         case .notification:
             if type == nil || type == "permission_prompt" || type == "elicitation_dialog" { s.state = .waiting }
         case .stop, .codexNotify: s.state = .done
-        case .stopFailure: s.state = .failed
+        case .stopFailure: s.state = .limit  // the hook is installed with matcher rate_limit only
         }
     case .bell, .desktopNotification:
         if !s.claudeHooks { s.state = .waiting }
@@ -94,9 +95,9 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
     return s
 }
 
-/// waiting > failed > working > done > idle
+/// waiting > limit > failed > working > done > idle
 public func taskState(_ states: [AgentState]) -> AgentState {
-    for p in [AgentState.waiting, .failed, .working, .done] where states.contains(p) { return p }
+    for p in [AgentState.waiting, .limit, .failed, .working, .done] where states.contains(p) { return p }
     return .idle
 }
 

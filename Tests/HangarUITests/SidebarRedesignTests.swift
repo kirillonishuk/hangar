@@ -45,6 +45,10 @@ import Workspace
         #expect(SessionStatus(state: .done, agents: 2, subagents: 0, tabs: 2).text == "готово · 2 агента")
         #expect(SessionStatus(state: .failed, agents: 1, subagents: 0, tabs: 1).tone == .failed)
         #expect(SessionStatus(state: .failed, agents: 1, subagents: 0, tabs: 1).head == "ошибка")
+        // The limit: amber, with the reset time when known.
+        #expect(SessionStatus(state: .limit, agents: 1, subagents: 0, tabs: 1, limitUntil: "20:20")
+                == SessionStatus(head: "лимит · до 20:20", tail: "1 агент", tone: .waiting))
+        #expect(SessionStatus(state: .limit, agents: 2, subagents: 0, tabs: 2).text == "лимит · 2 агента")
         #expect(SessionStatus(state: .idle, agents: 5, subagents: 0, tabs: 5).text == "неактивен · 5 агентов")
         // No agent tabs: the tab count instead.
         #expect(SessionStatus(state: .idle, agents: 0, subagents: 0, tabs: 1).text == "нет агентов · 1 вкладка")
@@ -52,6 +56,17 @@ import Workspace
         L10n.language = .en
         #expect(SessionStatus(state: .waiting, agents: 1, subagents: 0, tabs: 1).text == "waiting · 1 agent")
         #expect(SessionStatus(state: .idle, agents: 0, subagents: 0, tabs: 2).text == "no agents · 2 tabs")
+        #expect(SessionStatus(state: .limit, agents: 1, subagents: 0, tabs: 1, limitUntil: "20:20").text == "limit · until 20:20 · 1 agent")
+    }
+
+    /// A folded project's row: the most urgent session state (waiting > limit > error > working) and how many sessions are in it.
+    @Test func foldedProjectShowsTheMostUrgentState() {
+        #expect(foldedProjectBadge([.waiting, .working, .waiting]) == FoldedProjectBadge(state: .waiting, count: 2))
+        #expect(foldedProjectBadge([.failed, .limit, .working]) == FoldedProjectBadge(state: .limit, count: 1))
+        #expect(foldedProjectBadge([.working, .failed, .failed]) == FoldedProjectBadge(state: .failed, count: 2))
+        #expect(foldedProjectBadge([.working, .done]) == FoldedProjectBadge(state: .working, count: 1))
+        #expect(foldedProjectBadge([.done, .idle]) == nil)
+        #expect(foldedProjectBadge([]) == nil)
     }
 
     @Test func sessionStatusOfTaskCountsAgentsAndSubagents() throws {

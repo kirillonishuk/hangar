@@ -226,7 +226,7 @@ struct PaletteView: View {
         switch item.target {
         case .task(let id):
             StatusDot(state: app.state.tasks.first { $0.id == id }.map { app.state(of: $0) } ?? .idle)
-        case .file: IconView(icon: .editor)
+        case .file: FileIconView(name: item.title)  // the Files tab's theme icon
         case .command(let sc): IconView(icon: paletteIcon(sc))
         }
     }

@@ -64,6 +64,8 @@ import Testing
         k.update(working: 0, enabled: true)
         #expect(k.held)
         #expect(sched.delays == [.seconds(120)])
+        // pmset shows the grace for what it is, not «1 agent working».
+        #expect(fake.renamed.map(\.1) == ["Hangar: agents finished, keeping awake briefly"])
         sched.bodies[0]()
         #expect(fake.released == [1])
         #expect(!k.held)
@@ -92,7 +94,7 @@ import Testing
         k.update(working: 1, enabled: true)
         #expect(fake.created.count == 1 && fake.released.isEmpty)
         #expect(sched.cancels == 1)
-        #expect(fake.renamed.isEmpty)
+        #expect(fake.renamed.map(\.1) == ["Hangar: agents finished, keeping awake briefly", "Hangar: 1 agent working"])
     }
 
     @Test func staleTimerIgnored() {

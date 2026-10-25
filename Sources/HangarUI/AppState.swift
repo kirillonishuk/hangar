@@ -266,9 +266,21 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    func title(of leaf: Leaf) -> String { leafTitles[leaf.id] ?? defaultTitle(leaf.kind) }
+    /// An editor with a file is titled by the file (Helix sets no useful terminal title); others by their terminal title.
+    func title(of leaf: Leaf) -> String {
+        if leaf.kind == .editor, let file = leaf.openFile { return (file as NSString).lastPathComponent }
+        return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
+    }
 
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
+
+    /// Tooltip title: an unsplit, unrenamed editor tab shows its file's path from the session folder; others their label.
+    func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
+        guard case .leaf(let leaf) = tab.root, leaf.kind == .editor, let file = leaf.openFile,
+              tab.customTitle == nil else { return tabLabel(tab) }
+        let root = path(of: .task(taskId)).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        return root.flatMap { file.hasPrefix($0) ? String(file.dropFirst($0.count)) : nil } ?? file
+    }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
     /// The task's `HANGAR_PORT` (#60); projects and tabs have none.
@@ -482,10 +494,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }
 
-    /// ⌘1…9: n-th tab of the selected task.
+    /// ⌘1…8: n-th tab of the selected task; ⌘9: its last tab.
     func activate(tabNumber n: Int) {
-        guard let task = selectedTask, task.tabs.indices.contains(n - 1) else { return }
-        activate(tabId: task.tabs[n - 1].id)
+        guard let task = selectedTask, let i = tabIndex(number: n, count: task.tabs.count) else { return }
+        activate(tabId: task.tabs[i].id)
     }
 
     /// ⌘⇧[ / ⌘⇧]: previous/next task in sidebar order, wrapping around.
@@ -598,4 +610,10 @@ func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
         if let leaf = task.drawer.leaf { visit(leaf, host: host) }
     }
     return result
+}
+
+/// Index of the tab ⌘<number> selects among `count` tabs: 1…8 by position, 9 the last one (as VS Code and browsers).
+func tabIndex(number n: Int, count: Int) -> Int? {
+    let i = n == 9 ? count - 1 : n - 1
+    return (0..<count).contains(i) ? i : nil
 }

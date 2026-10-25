@@ -21,16 +21,16 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// Idempotent; must run before the first TerminalSurfaceView is created.
     /// `background` ("rrggbb") overrides the terminal background, including one set by the user's theme;
     /// all other colors still come from the user's Ghostty config (decision #36).
-    /// `padding` (pt) is Hangar's default `window-padding-x/y`: it loads before the user's files, so their own value wins.
-    public func start(background: String? = nil, padding: (x: Int, y: Int)? = nil) throws {
+    /// `padding` (pt) and `cursor` ("rrggbb") are Hangar's defaults (`window-padding-x/y`, `cursor-color`): they load
+    /// before the user's files, so the user's own values win.
+    public func start(background: String? = nil, padding: (x: Int, y: Int)? = nil, cursor: String? = nil) throws {
         guard app == nil else { return }
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
             throw GhosttyError.initFailed
         }
         let override = background.flatMap { Self.writeConfig("hangar-ghostty-overrides.conf", "background = \($0)\n") }
-        let defaults = padding.flatMap {
-            Self.writeConfig("hangar-ghostty-defaults.conf", "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n")
-        }
+        let text = Self.defaultsConfig(padding: padding, cursor: cursor)
+        let defaults = text.isEmpty ? nil : Self.writeConfig("hangar-ghostty-defaults.conf", text)
         let cfg = Self.makeConfig(defaults: defaults, override: override)
         ghosttyLog.info("terminal background: \(override == nil ? "Ghostty config" : "Hangar \(background ?? "")", privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
@@ -58,6 +58,11 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         nc.addObserver(forName: NSTextInputContext.keyboardSelectionDidChangeNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { GhosttyApp.shared.app.map { ghostty_app_keyboard_changed($0) } }
         }
+    }
+
+    /// Text of hangar-ghostty-defaults.conf; empty when there is nothing to set.
+    public static func defaultsConfig(padding: (x: Int, y: Int)?, cursor: String?) -> String {
+        (padding.map { "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n" } ?? "") + (cursor.map { "cursor-color = \($0)\n" } ?? "")
     }
 
     /// A config file of Hangar's own in the temp directory (never the user's Ghostty config); nil if it can't be written.

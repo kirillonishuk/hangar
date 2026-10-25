@@ -64,11 +64,6 @@ extension Theme {
     public static let menuHeaderHeight: CGFloat = 28
     /// The menu opens this far below its button (left edges aligned).
     public static let menuAnchorGap: CGFloat = 4
-    /// Popover shadow `0 18px 44px rgba(0,0,0,.55)`: drawn inside the panel, so the panel is this much bigger.
-    public static let menuShadowRadius: CGFloat = 22
-    public static let menuShadowY: CGFloat = 18
-    public static let menuShadowOpacity = 0.55
-    public static let menuShadowMargin: CGFloat = 48
 }
 
 extension Theme.ui {

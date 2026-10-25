@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Hangar — редизайн v1</title>
+<style>
+:root{
+  --bg:#121826; --sb:#20293a; --sheet:#20293a; --line:#1b212f; --line2:#2b3446; --lineSheet:#2b3444;
+  --hover:#1d2533; --sbHover:#283246; --hoverStrong:#2b3444; --sel:#333b4b; --bottom:#212936; --field:#121826; --control:#2b3444; --cbs:#3a4456;
+  --tx:#e6e8ee; --tx2:#8a93a6; --tx3:#5f687a; --strong:#fff; --accent:#61afef; --primary:#3b82f6; --claude:#d97757;
+  --run:#5ac8fa; --wait:#ffb340; --done:#32d74b; --fail:#ff453a; --failTx:#ff6b61; --idle:#636366;
+  --A:#98c379; --M:#e5c07b; --D:#e06c75;
+  --lane1:#61afef; --lane2:#c678dd; --lane3:#98c379; --lane4:#e5c07b;
+  /* new tokens (redesign v1) */
+  --rowInset:8px; --rowRadius:8px; --actionSize:24px; --menuRadius:10px; --menuItem:30px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0f18;color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:32px 40px 120px}
+h1{font-size:24px;color:var(--strong);margin:0 0 6px} h2{font-size:18px;color:var(--strong);margin:56px 0 6px}
+p.lead,li{color:var(--tx2)} .intro{max-width:1100px}
+code,.mono{font-family:"JetBrains Mono","SF Mono",Menlo,monospace}
+code{font-size:12px;color:var(--tx)}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+svg.b{fill:currentColor;flex:none;display:block}
+.note{color:var(--tx2);font-size:13px;max-width:1100px;margin:8px 0 16px}
+.note b{color:var(--tx);font-weight:500}
+.row-flex{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.cap{font-size:12px;color:var(--tx3);margin:0 0 8px}
+.cap b{color:var(--tx2);font-weight:500}
+table.tok{border-collapse:collapse;font-size:13px;width:100%;max-width:1200px}
+table.tok th,table.tok td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+table.tok th{color:var(--tx3);font-weight:500;font-size:12px}
+table.tok td:first-child{white-space:nowrap}
+.tag{font-size:12px;border-radius:4px;padding:1px 6px;background:rgba(97,175,239,.16);color:var(--accent)}
+.tag.ch{background:rgba(255,179,64,.16);color:var(--wait)}
+.tooltip{display:inline-block;background:#2a3244;border:1px solid #3a4459;color:#e6e9ef;font-size:12px;border-radius:5px;padding:3px 8px;box-shadow:0 4px 12px rgba(0,0,0,.4);white-space:nowrap}
+
+/* ===== window ===== */
+.win{position:relative;width:1440px;height:900px;border-radius:12px;overflow:hidden;background:var(--bg);border:1px solid #2b3446;box-shadow:0 30px 80px rgba(0,0,0,.6);display:flex;flex-direction:column}
+.tb{height:38px;flex:none;display:flex;align-items:center;border-bottom:1px solid var(--line);position:relative}
+.lights{position:absolute;left:20px;top:13px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;display:block}
+.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.lights.off i{background:#3a4152}
+.ib{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--tx2);cursor:pointer;transition:background .12s}
+.ib:hover,.ib.h{background:var(--hover);color:var(--tx)}
+.tb .tog{position:absolute;left:84px;top:5px}
+.tb .crumb{position:absolute;left:50%;transform:translateX(-50%);font-size:13px;color:var(--tx2);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.tb .crumb b{color:var(--strong);font-weight:500}
+.tb .crumb .br{font-size:12px;color:var(--tx3);display:flex;gap:4px;align-items:center}
+.tb .rt{position:absolute;right:10px;top:5px;display:flex;gap:4px}
+.qo{height:24px;margin-top:2px;padding:0 10px;border-radius:6px;border:1px solid var(--line2);color:var(--tx3);font-size:12px;display:flex;align-items:center;gap:8px;margin-right:8px;cursor:pointer}
+.body{flex:1;display:flex;min-height:0}
+.stbar{height:24px;flex:none;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 12px;font-size:12px;color:var(--tx2);gap:12px;white-space:nowrap}
+.stbar .sp{flex:1}
+.stbar .it{display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:4px;padding:0 4px;height:20px}
+.stbar .it:hover{background:var(--hover)}
+.stbar .sep{color:var(--tx3)}
+.stbar .dot{width:8px;height:8px}
+
+/* ===== sidebar ===== */
+.sb{width:240px;flex:none;background:var(--sb);display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0}
+.sb.rail{width:44px}
+.newbtn{margin:8px var(--rowInset) 4px;height:32px;border-radius:var(--rowRadius);background:var(--hoverStrong);display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;font-size:13.5px;color:var(--strong);cursor:pointer}
+.newbtn .k{margin-left:auto;font-size:12px;color:var(--tx3)}
+.nav{margin:0 var(--rowInset);height:32px;border-radius:var(--rowRadius);display:flex;align-items:center;font-size:13.5px;color:var(--tx);cursor:pointer;transition:background .12s;position:relative}
+.nav .gut{width:24px;display:flex;justify-content:center;color:var(--tx2)}
+.nav .t{margin-left:0;padding-left:0}
+.nav .cnt{margin-left:auto;margin-right:10px;font-size:12px;color:var(--tx3)}
+.nav:hover,.nav.h{background:var(--sbHover)} .nav.sel{background:var(--sel);color:var(--strong)}
+.nav .gut + .t{margin-left:0}
+.sec{height:28px;margin-top:8px;display:flex;align-items:center;padding:0 12px 0 20px;font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--tx3);text-transform:uppercase}
+.sec .r{margin-left:auto;display:flex;gap:2px;align-items:center}
+.sec .ib{width:24px;height:24px;color:var(--tx3)}
+.sec .att{width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:6px}
+.sec .att i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--tx3);display:block}
+.sec .att.on i{background:var(--wait);border-color:var(--wait)}
+.proj{margin:0 var(--rowInset);height:32px;border-radius:var(--rowRadius);display:flex;align-items:center;font-size:13.5px;font-weight:600;color:var(--strong);cursor:pointer;position:relative}
+.proj .gut{width:24px;display:flex;justify-content:center;color:var(--tx3)}
+.proj:hover,.proj.h{background:var(--sbHover)}
+/* session row: 44, two-line (name + status) */
+.srow{margin:0 var(--rowInset);height:44px;border-radius:var(--rowRadius);display:flex;align-items:center;cursor:pointer;position:relative;transition:background .12s}
+.srow:hover,.srow.h{background:var(--sbHover)}
+.srow.sel{background:var(--sel)}
+.srow .gut{width:24px;flex:none;display:flex;justify-content:center;align-self:flex-start;padding-top:9px}
+.srow .st{flex:1;min-width:0;padding-right:8px}
+.srow .l1{display:flex;align-items:center;height:20px}
+.srow .nm{font-size:13.5px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.srow.sel .nm{color:var(--strong)}
+.srow .l2{font-size:12px;color:var(--tx2);height:16px;line-height:16px;display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden}
+.srow .l2 svg{color:var(--tx3)}
+.srow .l2 .w{color:var(--wait)} .srow .l2 .f{color:var(--failTx)}
+.slot{position:relative;flex:none;height:20px;display:flex;align-items:center;justify-content:flex-end;margin-left:6px}
+.badge{font:12px/18px "JetBrains Mono","SF Mono",Menlo,monospace;height:20px;padding:0 6px;border-radius:6px;border:1px solid var(--line2);background:rgba(18,24,38,.35);display:flex;gap:6px;align-items:center;transition:opacity .12s}
+.badge .a{color:var(--A)} .badge .d{color:var(--D)}
+.acts{position:absolute;right:-4px;top:-2px;display:flex;gap:0;opacity:0;transition:opacity .12s;pointer-events:none}
+.acts .ib{width:24px;height:24px;color:var(--tx2)}
+.acts .ib:hover,.acts .ib.h{background:rgba(255,255,255,.07);color:var(--strong)}
+.srow:hover .acts,.srow.h .acts,.proj:hover .acts,.proj.h .acts,.nav:hover .acts{opacity:1;pointer-events:auto}
+.srow:hover .badge,.srow.h .badge{opacity:0}
+.proj .acts{right:4px;top:4px}
+.pinrow{margin:0 var(--rowInset);height:32px;border-radius:var(--rowRadius);display:flex;align-items:center;font-size:13.5px;cursor:pointer;position:relative}
+.pinrow .gut{width:24px;display:flex;justify-content:center}
+.pinrow .p{color:var(--tx3);font-size:12px;margin-left:8px}
+.pinrow:hover{background:var(--sbHover)}
+.host{margin:0 var(--rowInset);height:32px;border-radius:var(--rowRadius);display:flex;align-items:center;font-size:13px;cursor:pointer}
+.host .gut{width:24px;display:flex;justify-content:center;color:var(--tx2)}
+.host .s{margin-left:auto;margin-right:10px;font-size:12px;color:var(--tx3)}
+.host:hover{background:var(--sbHover)}
+.dot{width:8px;height:8px;border-radius:50%;display:block;flex:none}
+.dot.run{background:var(--run)} .dot.wait{background:var(--wait);box-shadow:0 0 0 3px rgba(255,179,64,.25)} .dot.done{background:var(--done)} .dot.fail{background:var(--fail)} .dot.idle{background:var(--idle)}
+.dot.ring{background:transparent;border:1.5px solid var(--wait)}
+.sbbot{margin-top:auto;background:var(--bottom);border-top:1px solid var(--line);padding:6px 0 8px}
+.lim{margin:0 var(--rowInset);height:28px;border-radius:var(--rowRadius);display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;font-size:12px;color:var(--tx2);cursor:pointer}
+.lim:hover{background:var(--sbHover)}
+.lim .n{width:44px}
+.bar{height:4px;border-radius:2px;background:#30333b;flex:1;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:#5b8def;border-radius:2px}
+.bar i.w{background:var(--wait)}
+.lim .pc{width:32px;text-align:right;color:var(--tx)}
+.brow{margin:0 var(--rowInset);height:32px;border-radius:var(--rowRadius);display:flex;align-items:center;font-size:13px;color:var(--tx2);cursor:pointer}
+.brow .gut{width:24px;display:flex;justify-content:center;color:var(--tx2)}
+.brow .gut.on{color:var(--accent)}
+.brow:hover{background:var(--sbHover);color:var(--tx)}
+.brow .t{margin-left:0}
+.sw{margin-left:auto;margin-right:10px;width:30px;height:18px;border-radius:9px;background:#444852;position:relative}
+.sw::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px}
+.sw.on{background:var(--primary)} .sw.on::after{left:14px}
+.brow .k{margin-left:auto;margin-right:10px;font-size:12px;color:var(--tx3)}
+.t8{margin-left:8px}
+
+/* ===== main ===== */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.tabs{height:34px;flex:none;display:flex;align-items:flex-end;border-bottom:1px solid var(--line);padding:0 8px;gap:2px;position:relative}
+.tab{height:30px;min-width:110px;max-width:200px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;font-size:12.5px;color:var(--tx2);border-radius:6px 6px 0 0;cursor:pointer;position:relative;white-space:nowrap}
+.tab:hover{background:var(--hover)}
+.tab.act{background:var(--sel);color:var(--strong)}
+.tab.act::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent);border-radius:6px 6px 0 0}
+.tab .x{margin-left:auto;opacity:.4;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.tab .ttl{overflow:hidden;text-overflow:ellipsis}
+.tab i.it{font-style:italic}
+.tabs .tail{margin-left:auto;display:flex;align-self:center;gap:2px}
+.term{flex:1;padding:12px 16px;font:12.5px/1.6 "JetBrains Mono","SF Mono",Menlo,monospace;color:#c9d1e0;overflow:hidden;white-space:pre}
+.term .o{color:var(--claude)} .term .g{color:#32d74b} .term .d{color:var(--tx3)} .term .y{color:var(--wait)} .term .w{color:var(--strong)}
+.term .hr{display:block;border-top:1px solid #2b3446;margin:6px 0}
+.drawer{height:28px;flex:none;background:var(--bottom);border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:11.5px;font-weight:600;color:var(--tx2);cursor:pointer;letter-spacing:.02em}
+.drawer .k{margin-left:auto;font-weight:400;color:var(--tx3);font-size:12px;letter-spacing:0;display:flex;gap:8px;align-items:center}
+
+/* ===== right sidebar ===== */
+.rs{width:340px;flex:none;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative;background:var(--bg)}
+.rs .grip{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:col-resize}
+.seg{margin:8px 12px;height:28px;flex:none;border-radius:7px;background:var(--field);border:1px solid var(--control);padding:2px;display:flex;gap:2px}
+.seg span{flex:1;border-radius:5px;font-size:12px;color:var(--tx2);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.seg span:hover{color:var(--tx)}
+.seg span.on{background:var(--control);color:var(--strong)}
+.seg span em{font-style:normal;color:var(--tx3)}
+.seg span.on em{color:var(--tx2)}
+.rsec{height:28px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 8px;font-size:12px;font-weight:600;color:var(--tx3);cursor:pointer}
+.rsec .r{margin-left:auto;font-weight:400;display:flex;gap:2px;align-items:center}
+.rsec .ib{width:24px;height:24px;color:var(--tx3)}
+.tr{height:24px;display:flex;align-items:center;gap:6px;margin:0 6px;padding-right:8px;border-radius:6px;font-size:13px;color:var(--tx);cursor:pointer;white-space:nowrap}
+.tr:hover{background:var(--hover)} .tr.sel{background:var(--sel);color:var(--strong)}
+.tr .chev{width:16px;color:var(--tx3);display:flex;justify-content:center}
+.tr .dim{color:var(--tx3)}
+.tr .num{margin-left:auto;font:12px "JetBrains Mono","SF Mono",Menlo,monospace;display:flex;gap:6px}
+.tr .num .a{color:var(--A)} .tr .num .d{color:var(--D)}
+.tr .bd{margin-left:auto;font:600 12px "JetBrains Mono","SF Mono",Menlo,monospace;width:14px;text-align:center}
+.tr .bd.M{color:var(--M)} .tr .bd.A{color:var(--A)} .tr .bd.D{color:var(--D)}
+.tr .num + .bd{margin-left:8px}
+.tr .nm{overflow:hidden;text-overflow:ellipsis}
+.tr .ref{font:12px "JetBrains Mono","SF Mono",Menlo,monospace}
+.fi{width:16px;height:16px;flex:none}
+.search{margin:0 12px;height:28px;flex:none;border-radius:7px;background:var(--field);border:1px solid var(--control);display:flex;align-items:center;gap:8px;padding:0 8px;font-size:13px;color:var(--tx3)}
+.search.f{border-color:var(--accent);box-shadow:0 0 0 3px rgba(97,175,239,.2);color:var(--tx)}
+.search .r{margin-left:auto;font-size:12px;color:var(--tx3)}
+.chips{display:flex;gap:6px;margin:8px 12px;flex:none;overflow:hidden}
+.chip{height:24px;padding:0 6px 0 8px;border-radius:6px;font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap;border:1px solid transparent}
+.chip:hover{background:var(--hover);color:var(--tx)}
+.chip.on{background:rgba(97,175,239,.14);color:var(--accent);border-color:rgba(97,175,239,.25)}
+.chip.open{background:var(--hover);color:var(--tx);border-color:var(--line2)}
+.log{position:relative;flex:none}
+.log svg.gr{position:absolute;left:6px;top:0}
+.lr{height:28px;margin:0 6px;border-radius:6px;display:flex;align-items:center;padding-left:40px;padding-right:8px;font-size:13px;color:var(--tx);cursor:pointer;white-space:nowrap;gap:6px}
+.lr:hover{background:var(--hover)} .lr.sel{background:var(--sel);color:var(--strong)}
+.lr .s{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.lr .s.m{color:var(--tx2)}
+.lr .tm{font:12px "JetBrains Mono","SF Mono",Menlo,monospace;color:var(--tx3);flex:none}
+.lr.sel .tm{color:var(--tx2)}
+.ref{font:12px/18px "JetBrains Mono","SF Mono",Menlo,monospace;height:18px;padding:0 5px;border-radius:4px;background:rgba(97,175,239,.14);color:var(--accent);flex:none;display:flex;align-items:center;gap:3px}
+.ref.r{background:rgba(138,147,166,.14);color:var(--tx2)}
+.ref.h{background:rgba(198,120,221,.16);color:#d7a2e6}
+.lr mark{background:rgba(255,179,64,.28);color:var(--strong);border-radius:2px;padding:0 1px}
+.split{height:1px;background:var(--line);flex:none;position:relative;cursor:row-resize}
+.split::after{content:"";position:absolute;left:50%;top:-2px;width:28px;height:4px;margin-left:-14px;border-radius:2px;background:var(--line2)}
+.det{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.det .hd{height:32px;flex:none;display:flex;align-items:center;padding:0 6px 0 12px;font-size:12px;font-weight:600;color:var(--tx3)}
+.det .hd .r{margin-left:auto;display:flex}
+.det .hd .ib{width:24px;height:24px;color:var(--tx3)}
+.det .msg{padding:0 12px;font-size:13.5px;line-height:20px;color:var(--strong);font-weight:500}
+.det .body2{padding:4px 12px 0;font-size:13px;line-height:20px;color:var(--tx2)}
+.det .meta{display:flex;gap:8px;align-items:center;padding:8px 12px 8px;font-size:12px;color:var(--tx2);white-space:nowrap}
+.det .meta .h{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;color:var(--accent);display:flex;gap:4px;align-items:center;cursor:pointer}
+.det .meta .sep{color:var(--tx3)}
+.det .fh{height:28px;display:flex;align-items:center;padding:0 12px;font-size:12px;font-weight:600;color:var(--tx3);gap:8px;border-top:1px solid var(--line)}
+.det .fh .num{margin-left:auto;font:400 12px "JetBrains Mono","SF Mono",Menlo,monospace;display:flex;gap:6px}
+.det .fh .num .a{color:var(--A)} .det .fh .num .d{color:var(--D)}
+.hint{padding:8px 14px;font-size:12px;color:var(--tx3)}
+.hint b{color:var(--tx2);font-weight:500}
+.panel{width:340px;height:600px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative}
+
+/* ===== custom popover menu ===== */
+.menu{width:256px;background:var(--sheet);border:1px solid var(--cbs);border-radius:var(--menuRadius);padding:6px;box-shadow:0 18px 44px rgba(0,0,0,.55),0 2px 6px rgba(0,0,0,.3)}
+.mi{height:var(--menuItem);display:flex;align-items:center;gap:10px;padding:0 10px 0 8px;border-radius:6px;font-size:13px;color:var(--tx);cursor:pointer;white-space:nowrap;transition:background .12s}
+.mi svg{color:var(--tx2)}
+.mi .k{margin-left:auto;font-size:12px;color:var(--tx3);letter-spacing:.04em}
+.mi:hover,.mi.h{background:var(--sbHover)} .mi:hover svg,.mi.h svg{color:var(--strong)}
+.mi.dz{color:var(--failTx)} .mi.dz svg{color:var(--failTx)}
+.mi.dz:hover,.mi.dz.h{background:rgba(255,69,58,.14)} .mi.dz.h svg{color:var(--failTx)}
+.mi.dis{opacity:.38;cursor:default} .mi.dis:hover{background:none}
+.msep{height:1px;background:var(--lineSheet);margin:6px 2px}
+.mhd{height:28px;display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi .chk{width:16px;color:var(--accent)}
+.pop{background:var(--sheet);border:1px solid var(--cbs);border-radius:var(--menuRadius);box-shadow:0 18px 44px rgba(0,0,0,.55)}
+
+/* ===== specimen frames ===== */
+.frag{background:var(--sb);border-radius:10px;border:1px solid var(--line2);padding:8px 0;width:240px;position:relative}
+.frag.bg{background:var(--bg)}
+.anno{font-size:12px;color:var(--tx3);margin-top:8px;max-width:520px}
+.anno b{color:var(--tx2);font-weight:500}
+.measure{position:absolute;font:11.5px "SF Mono",Menlo,monospace;color:#ff9f43;white-space:nowrap}
+.mline{position:absolute;border:0 dashed rgba(255,159,67,.7)}
+.old-acts{position:absolute;right:0;top:0;bottom:0;width:86px;display:flex;align-items:center;justify-content:flex-end;gap:14px;padding-right:12px;background:linear-gradient(90deg,rgba(26,33,48,0) 0,#161d2b 18px);color:var(--tx2)}
+.old-acts::before{content:"";position:absolute;inset:0 0 0 18px;background:#161d2b;z-index:-1}
+.hist{flex:1;display:flex;flex-direction:column;min-width:0}
+.hhead{height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--line)}
+.hhead .t{font-size:15px;font-weight:600;color:var(--strong)}
+.hhead .t span{color:var(--tx3);font-weight:400;margin-left:8px}
+.hgrp{height:32px;display:flex;align-items:flex-end;padding:0 20px 6px;font-size:12px;font-weight:600;color:var(--tx3)}
+.hr2{height:36px;margin:0 12px;border-radius:var(--rowRadius);display:flex;align-items:center;gap:10px;padding:0 8px;font-size:13px;color:var(--tx);cursor:pointer;white-space:nowrap;position:relative;transition:background .12s}
+.hr2:hover,.hr2.h{background:var(--hover)}
+.hr2 .ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.hr2 .sess{font-size:12px;color:var(--tx2);display:flex;gap:4px;align-items:center;flex:none}
+.hr2 .sess svg{color:var(--tx3)}
+.hr2 .mt{font-size:12px;color:var(--tx3);width:84px;text-align:right;flex:none}
+.hr2 .n{font-size:12px;color:var(--tx3);width:72px;text-align:right;flex:none}
+.hr2 .go{position:absolute;right:8px;top:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--hoverStrong);color:var(--strong);font-size:12px;display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .12s}
+.hr2:hover .go,.hr2.h .go{opacity:1}
+.hr2:hover .mt,.hr2.h .mt,.hr2:hover .n,.hr2.h .n{opacity:0}
+.lay{display:flex;gap:2px;flex:none}
+.lay i{width:10px;height:12px;border:1.25px solid var(--tx3);border-radius:2px;display:block}
+.palette{width:580px;background:var(--sheet);border:1px solid var(--cbs);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden}
+.palette .q{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;font-size:17px;color:var(--strong);border-bottom:1px solid var(--lineSheet)}
+.palette .gh{height:28px;display:flex;align-items:flex-end;padding:0 16px 4px;font-size:11.5px;font-weight:600;color:var(--tx3)}
+.palette .pr{height:36px;margin:0 6px;border-radius:7px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:13px;color:var(--tx);white-space:nowrap}
+.palette .pr.on{background:var(--sel);color:var(--strong)}
+.palette .pr .dim{color:var(--tx3);font-size:12px}
+.palette .pr .k{margin-left:auto;font-size:12px;color:var(--tx3)}
+.palette .ft{height:32px;border-top:1px solid var(--lineSheet);display:flex;align-items:center;gap:16px;padding:0 16px;font-size:12px;color:var(--tx3)}
+.small-win{width:760px;height:440px}
+.grid4{background-image:linear-gradient(rgba(97,175,239,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(97,175,239,.07) 1px,transparent 1px);background-size:4px 4px}
+.railtile{width:22px;height:22px;border-radius:6px;background:#283246;border:1px solid #343f55;font-size:11.5px;font-weight:600;color:var(--tx);display:flex;align-items:center;justify-content:center;position:relative}
+.railtile.sel{background:#34466a;border-color:#46598a;color:#fff}
+.railtile.proj{background:transparent;border-color:var(--tx3);color:var(--tx2)}
+.railtile .dot{position:absolute;right:-3px;top:-3px;width:8px;height:8px;box-shadow:0 0 0 2px var(--sb)}
+.railtile .dot.wait{box-shadow:0 0 0 2px var(--sb)}
+.rr{height:44px;display:flex;align-items:center;justify-content:center;margin:0 4px;border-radius:var(--rowRadius);cursor:pointer}
+.rr.s{height:32px}
+.rr:hover{background:var(--sbHover)}
+.rr.sel{background:var(--sel)}
+.rsep{height:12px;display:flex;align-items:center;justify-content:center;margin-top:8px}
+.rsep i{width:24px;height:1px;background:var(--line2);display:block}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="g-sidebarLeft" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M6 2.75v10.5"/></symbol><symbol id="g-sidebarRight" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M10 2.75v10.5"/></symbol><symbol id="g-add" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol><symbol id="g-folder" viewBox="0 0 16 16"><path d="M1.75 4.75a2 2 0 0 1 2-2h2.6l1.6 1.75h4.3a2 2 0 0 1 2 2v4.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2z"/></symbol><symbol id="g-branch" viewBox="0 0 16 16"><path d="M4 2.25v8"/><circle cx="4" cy="12" r="1.75"/><circle cx="12" cy="4" r="1.75"/><path d="M12 5.75A6.25 6.25 0 0 1 5.75 12"/></symbol><symbol id="g-server" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="4.5" rx="2"/><rect x="1.75" y="8.75" width="12.5" height="4.5" rx="2"/><path d="M4.75 5h.01M4.75 11h.01"/></symbol><symbol id="g-pencil" viewBox="0 0 16 16"><path d="M10.5 2.75l2.75 2.75L5.5 13.25H2.75V10.5z"/><path d="M8.75 4.5l2.75 2.75"/></symbol><symbol id="g-terminal" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.75 6.25 6.75 8l-2 1.75M8.75 10h2.5"/></symbol><symbol id="g-diff" viewBox="0 0 16 16"><path d="M4.75 2.5v4.5M2.5 4.75h4.5M9 11.25h4.5M12.5 3.5l-9 9"/></symbol><symbol id="g-cup" viewBox="0 0 16 16"><path d="M2.75 7h8v3.25a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/><path d="M10.75 8h.75a1.75 1.75 0 0 1 0 3.5h-.75M5.25 2.75v1.75M8.25 2.75v1.75"/></symbol><symbol id="g-gauge" viewBox="0 0 16 16"><path d="M2.75 12A5.75 5.75 0 1 1 13.25 12"/><path d="M8 9.65 10.9 6.9"/><circle cx="8" cy="9.65" r=".6"/></symbol><symbol id="g-gear" viewBox="0 0 16 16"><path d="M12.59 6.58 L14.31 6.92 L14.31 9.08 L12.59 9.42 L12.25 10.24 L13.23 11.69 L11.69 13.23 L10.24 12.25 L9.42 12.59 L9.08 14.31 L6.92 14.31 L6.58 12.59 L5.76 12.25 L4.31 13.23 L2.77 11.69 L3.75 10.24 L3.41 9.42 L1.69 9.08 L1.69 6.92 L3.41 6.58 L3.75 5.76 L2.77 4.31 L4.31 2.77 L5.76 3.75 L6.58 3.41 L6.92 1.69 L9.08 1.69 L9.42 3.41 L10.24 3.75 L11.69 2.77 L13.23 4.31 L12.25 5.76Z"/><circle cx="8" cy="8" r="2"/></symbol><symbol id="g-archive" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="3.25" rx="1"/><path d="M3.25 6v5.25a2 2 0 0 0 2 2h5.5a2 2 0 0 0 2-2V6M6.5 8.75h3"/></symbol><symbol id="g-splitRight" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M8 2.75v10.5"/></symbol><symbol id="g-splitDown" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M1.75 8h12.5"/></symbol><symbol id="g-close" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></symbol><symbol id="g-pin" viewBox="0 0 16 16"><path d="M5.25 2.75h5.5M6.5 2.75v3.75L4.25 9.25h7.5L9.5 6.5V2.75M8 9.25v4"/></symbol><symbol id="g-chevronDown" viewBox="0 0 16 16"><path d="M4.5 6.25 8 9.75l3.5-3.5"/></symbol><symbol id="g-chevronUp" viewBox="0 0 16 16"><path d="M4.5 9.75 8 6.25l3.5 3.5"/></symbol><symbol id="g-chevronRight" viewBox="0 0 16 16"><path d="M6.25 4.5 9.75 8l-3.5 3.5"/></symbol><symbol id="g-more" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"/></symbol><symbol id="g-rename" viewBox="0 0 16 16"><path d="M5.25 4.75h-1.5a2 2 0 0 0-2 2v2.5a2 2 0 0 0 2 2h1.5M10.75 4.75h1.5a2 2 0 0 1 2 2v2.5a2 2 0 0 1-2 2h-1.5M8 2.75v10.5M6.5 2.75h3M6.5 13.25h3"/></symbol><symbol id="g-finder" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M8.75 2.75 7 8.25h1.75l-.5 5M4.75 5.75v1M11.25 5.75v1M4.5 10.25q3.5 1.5 7 0"/></symbol><symbol id="g-copy" viewBox="0 0 16 16"><rect x="5.75" y="5.75" width="8.5" height="7.5" rx="2"/><path d="M10.25 5.75v-1a2 2 0 0 0-2-2h-4.5a2 2 0 0 0-2 2v4.5a2 2 0 0 0 2 2h2"/></symbol><symbol id="g-openExternal" viewBox="0 0 16 16"><path d="M14.25 9.25v2a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2h3.5M10.5 2.75h3.75v3.75M14.25 2.75 8.5 8.5"/></symbol><symbol id="g-restore" viewBox="0 0 16 16"><path d="M5.5 3.25 2.75 6 5.5 8.75M2.75 6h6.75a3.5 3.5 0 0 1 0 7H6.5"/></symbol><symbol id="g-trash" viewBox="0 0 16 16"><path d="M2.25 4.25h11.5M6 4.25v-1a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M3.75 4.25v7a2 2 0 0 0 2 2h4.5a2 2 0 0 0 2-2v-7M6.75 7v3.5M9.25 7v3.5"/></symbol><symbol id="g-remove" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="M5.25 8h5.5"/></symbol><symbol id="g-refresh" viewBox="0 0 16 16"><path d="M14 8a6 6 0 1 1-6-6c1.68 0 3.29.67 4.5 1.83L14 5.33M14 2v3.33h-3.33"/></symbol><symbol id="g-reconnect" viewBox="0 0 16 16"><path d="M5.75 2.75v3M10.25 2.75v3M3.75 5.75h8.5v2a4.25 4.25 0 0 1-8.5 0zM8 12v1.25"/></symbol><symbol id="g-disconnect" viewBox="0 0 16 16"><path d="M8 2.75v5M4.5 4.75a5 5 0 1 0 7 0"/></symbol><symbol id="g-checkServer" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="m5.25 8.25 1.85 1.85 3.65-3.85"/></symbol>
+<symbol id="b-claude" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol><symbol id="b-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+<symbol id="g-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.75"/><path d="m10.5 10.5 3.25 3.25"/></symbol><symbol id="g-history" viewBox="0 0 16 16"><path d="M1.75 8A6.25 6.25 0 1 0 3.58 3.58L1.75 5.4"/><path d="M1.75 2.25V5.4h3.15"/><path d="M8 4.75V8l2.25 1.5"/></symbol><symbol id="g-commit" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M1.75 8h3.75M10.5 8h3.75"/></symbol><symbol id="g-file" viewBox="0 0 16 16"><path d="M4.25 1.75h4.5l3.5 3.5v8a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1z"/><path d="M8.75 1.75v3.5h3.5"/></symbol><symbol id="g-gitTab" viewBox="0 0 16 16"><circle cx="4.5" cy="3.75" r="1.75"/><circle cx="4.5" cy="12.25" r="1.75"/><circle cx="11.5" cy="6.5" r="1.75"/><path d="M4.5 5.5v5M11.5 8.25a3 3 0 0 1-3 3H6.25"/></symbol><symbol id="g-subagent" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.25"/><path d="M3.75 13.25a4.25 4.25 0 0 1 8.5 0"/></symbol><symbol id="g-link" viewBox="0 0 16 16"><path d="M6.75 9.25a3 3 0 0 0 4.25 0l2-2a3 3 0 0 0-4.25-4.25l-.75.75M9.25 6.75a3 3 0 0 0-4.25 0l-2 2a3 3 0 0 0 4.25 4.25l.75-.75"/></symbol><symbol id="g-tabNew" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M8 5.75v4.5M5.75 8h4.5"/></symbol></defs></svg>
+
+<div class="intro">
+<h1>Hangar — редизайн v1</h1>
+<p class="lead">Главное окно «примерно как Drakkar», но в палитре navy и с решениями пользователя: проекты остаются в левом сайдбаре, термин — «сессия», переключатель сайдбара в строке заголовка, Git — третья вкладка правого сайдбара, общая строка состояния внизу окна, вид «Сессии» с историей разговоров. Иконки — набор <code>icons-v2.html</code> (сетка 16, линия 1.5) и 7 новых на той же сетке. Все размеры кратны 4 (исключения — типографика из DESIGN.md: 13.5, 12.5, 11.5). Новые токены отмечены <span class="tag">новый</span>, изменённые — <span class="tag ch">изм.</span>; полная таблица в конце.</p>
+</div>
+
+<h2>1. Главное окно: вкладка claude работает, справа — Git</h2>
+<p class="note">Одна строка заголовка 38 на всю ширину (фон <code>bg</code>, нижняя граница <code>line</code>): светофор → переключатель сайдбара на x 84 → по центру «Проект · Сессия ⎇ ветка» → справа поле ⌘P и переключатель правого сайдбара. Под ней три колонки: сайдбар 240, область сессии, правый сайдбар 340. В самом низу — строка состояния 24 на всю ширину. Нижняя строка «Свернуть» из сайдбара убрана — её место занял переключатель в заголовке.</p>
+
+<div class="win">
+  <div class="tb">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="ib tog" title="Свернуть сайдбар — ⌘0"><svg class="i" width="16" height="16"><use href="#g-sidebarLeft"/></svg></div>
+    <div class="crumb">frontend-cd <span style="color:var(--tx3)">·</span> <b>redesign-v1</b> <span class="br mono"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>feat/redesign-v1</span></div>
+    <div class="rt">
+      <div class="qo" title="Быстрый переход — ⌘P"><svg class="i" width="12" height="12"><use href="#g-search"/></svg>Файлы и сессии<span style="margin-left:24px">⌘P</span></div>
+      <div class="ib" title="Правый сайдбар — ⌥⌘I" style="color:var(--strong)"><svg class="i" width="16" height="16"><use href="#g-sidebarRight"/></svg></div>
+    </div>
+  </div>
+  <div class="body">
+    <!-- LEFT SIDEBAR -->
+    <div class="sb">
+      <div class="newbtn"><svg class="i" width="16" height="16"><use href="#g-add"/></svg>Новая сессия<span class="k">⌘N</span></div>
+      <div class="nav" title="История сессий — ⌘Y"><span class="gut"><svg class="i" width="16" height="16"><use href="#g-history"/></svg></span><span>Сессии</span><span class="cnt">109</span></div>
+
+      <div class="sec">Закреплённые</div>
+      <div class="pinrow"><span class="gut"><i class="dot done"></i></span><span>release-2.4</span><span class="p">hangar</span></div>
+
+      <div class="sec">SSH-хосты</div>
+      <div class="host"><span class="gut"><svg class="i" width="13" height="13"><use href="#g-server"/></svg></span><span>vultr</span><span class="s">подключён</span></div>
+
+      <div class="sec">Проекты<span class="r"><span class="att" title="Только ждущие — ⌥⌘F"><i></i></span><span class="ib" title="Добавить проект — ⇧⌘N"><svg class="i" width="13" height="13"><use href="#g-add"/></svg></span></span></div>
+      <div class="proj"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span>frontend-cd</span></div>
+      <div class="srow sel">
+        <span class="gut"><i class="dot run"></i></span>
+        <div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="slot"><span class="badge"><b class="a">+541</b><b class="d">−88</b></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>работает · 2 субагента</div></div>
+      </div>
+      <div class="srow">
+        <span class="gut"><i class="dot wait"></i></span>
+        <div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge"><b class="a">+12</b><b class="d">−3</b></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div>
+      </div>
+      <div class="srow">
+        <span class="gut"><i class="dot done"></i></span>
+        <div class="st"><div class="l1"><span class="nm">api-cache</span><span class="slot"><span class="badge"><b class="a">+204</b><b class="d">−61</b></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>готово · 1 агент</div></div>
+      </div>
+      <div class="srow">
+        <span class="gut"><i class="dot idle"></i></span>
+        <div class="st"><div class="l1"><span class="nm">main</span></div>
+        <div class="l2">нет агентов · 1 вкладка</div></div>
+      </div>
+      <div class="proj"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><span>hangar</span><span style="margin-left:auto;margin-right:10px;display:flex;gap:6px;align-items:center;font-size:12px;font-weight:400;color:var(--tx3)"><i class="dot wait" style="box-shadow:none"></i>1</span></div>
+      <div class="proj"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><span>api <span style="font-weight:400;color:var(--tx3);font-size:12px;margin-left:4px">vultr</span></span></div>
+
+      <div class="sbbot">
+        <div class="lim" title="Лимиты подписок — ⇧⌘L"><span class="n">claude</span><span class="bar"><i style="width:42%"></i></span><span class="bar"><i style="width:18%"></i></span><span class="pc">42%</span></div>
+        <div class="lim" title="Лимиты подписок — ⇧⌘L"><span class="n">codex</span><span class="bar"><i class="w" style="width:84%"></i></span><span class="bar"><i style="width:31%"></i></span><span class="pc" style="color:var(--wait)">84%</span></div>
+        <div class="brow" title="Не засыпать, пока агенты работают"><span class="gut on"><svg class="i" width="16" height="16"><use href="#g-cup"/></svg></span><span class="t" style="color:var(--tx)">Не засыпать</span><span class="sw on"></span></div>
+        <div class="brow" title="Настройки — ⌘,"><span class="gut"><svg class="i" width="16" height="16"><use href="#g-gear"/></svg></span><span class="t">Настройки</span><span class="k">⌘,</span></div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="tabs">
+        <div class="tab act" title="claude — ⌘1"><i class="dot run"></i><svg class="b" width="14" height="14" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">claude</span><span class="x"><svg class="i" width="10" height="10"><use href="#g-close"/></svg></span></div>
+        <div class="tab" title="claude — ⌘2"><i class="dot wait" style="box-shadow:none"></i><svg class="b" width="14" height="14" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">claude · review</span></div>
+        <div class="tab" title="codex — ⌘3"><i class="dot idle"></i><svg class="b" width="14" height="14" style="color:#fff"><use href="#b-openai"/></svg><span class="ttl">codex</span></div>
+        <div class="tab" title="Sources/App.swift"><svg class="i" width="14" height="14"><use href="#g-diff"/></svg><span class="ttl"><i class="it">SidebarRow.swift</i></span></div>
+        <div class="tab" title="zsh — ⌘5"><svg class="i" width="14" height="14"><use href="#g-terminal"/></svg><span class="ttl">zsh</span></div>
+        <div class="tail"><span class="ib" title="Все вкладки"><svg class="i" width="14" height="14"><use href="#g-chevronDown"/></svg></span><span class="ib" title="Новая вкладка — ⌘T"><svg class="i" width="14" height="14"><use href="#g-add"/></svg></span></div>
+      </div>
+      <div class="term"><span class="o">▐▛███▜▌</span>  <span class="w">Claude Code</span> <span class="d">v2.1.310</span>
+<span class="o">▝▜█████▛▘</span> <span class="d">Opus 5.5 · Claude Max</span>
+<span class="o">  ▘▘ ▝▝</span>   <span class="d">~/Projects/frontend-cd/.worktrees/redesign-v1</span>
+
+<span class="w">› перенеси кнопку сайдбара в заголовок, справа от светофора</span>
+
+<span class="g">●</span> Read(Sources/HangarUI/Sidebar/SidebarView.swift)
+  <span class="d">⎿  Read 214 lines</span>
+<span class="g">●</span> Task(Explore: найти все вызовы toggleSidebar)
+  <span class="d">⎿  Done (6 tool uses · 18.2k tokens · 41s)</span>
+<span class="g">●</span> Update(Sources/HangarUI/Window/TitlebarView.swift)
+  <span class="d">⎿  Updated with </span><span style="color:var(--A)">28 additions</span><span class="d"> and </span><span style="color:var(--D)">6 removals</span>
+<span class="run" style="color:var(--run)">●</span> Bash(swift test --filter SidebarLayoutTests)
+  <span class="d">⎿  Running…</span>
+
+<span class="o">✻ Compiling…</span> <span class="d">(23s · ↓ 1.4k tokens · esc to interrupt)</span>
+<span class="hr"></span><span class="w">›</span> █
+<span class="hr"></span>  <span class="d">Opus 5.5 | 43.4K/1M (4%) | 5h 42% → 20:20</span>
+  <span class="y">⏵⏵ auto mode on</span> <span class="d">(shift+tab to cycle)</span></div>
+      <div class="drawer" title="Терминал — ⌘J"><svg class="i" width="14" height="14"><use href="#g-terminal"/></svg>ТЕРМИНАЛ<span class="k">⌘J<svg class="i" width="12" height="12"><use href="#g-chevronUp"/></svg></span></div>
+    </div>
+
+    <!-- RIGHT SIDEBAR: GIT -->
+    <div class="rs">
+      <div class="grip" title="Ширина 300–420"></div>
+      <div class="seg"><span title="Файлы — ⌥⌘1">Files</span><span title="Изменения — ⌥⌘2">Changes <em>4</em></span><span class="on" title="Git — ⌥⌘3">Git</span></div>
+
+      <div class="rsec"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg>Ветки<span class="r"><span class="ib" title="Обновить ветки (git fetch)"><svg class="i" width="13" height="13"><use href="#g-refresh"/></svg></span></span></div>
+      <div class="tr sel"><span class="chev"></span><svg class="i" width="14" height="14" style="color:var(--accent)"><use href="#g-branch"/></svg><span>HEAD</span><span class="ref" style="margin-left:4px">feat/redesign-v1</span></div>
+      <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span>Local<span class="dim" style="margin-left:auto;font-size:12px">6</span></div>
+      <div class="tr" style="padding-left:16px"><span class="chev"></span><svg class="i" width="14" height="14" style="color:var(--tx2)"><use href="#g-branch"/></svg><span class="ref" style="background:none;color:var(--tx);padding:0">main</span></div>
+      <div class="tr" style="padding-left:16px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:var(--tx2)"><use href="#g-folder"/></svg>feat<span class="dim" style="margin-left:auto;font-size:12px">4</span></div>
+      <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span>Remote<span class="dim" style="margin-left:auto;font-size:12px">origin · 23</span></div>
+
+      <div style="height:8px"></div>
+      <div class="search"><svg class="i" width="14" height="14"><use href="#g-search"/></svg>Текст или хеш<span class="r">⌘F</span></div>
+      <div class="chips"><span class="chip on">feat/redesign-v1<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Автор<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Дата<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Путь<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span></div>
+
+      <div class="log">
+        <svg class="gr" width="36" height="280" viewBox="0 0 36 280" fill="none" stroke-width="1.5" stroke-linecap="round">
+          <path d="M10 14V280" stroke="var(--lane1)"/>
+          <path d="M10 42Q22 42 22 56V98Q22 126 10 126" stroke="var(--lane2)"/>
+          <path d="M10 154Q22 154 22 168V210Q22 238 10 238" stroke="var(--lane3)"/>
+          <circle cx="10" cy="14" r="4" fill="var(--lane1)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="10" cy="42" r="3.5" fill="var(--bg)" stroke="var(--lane1)"/>
+          <circle cx="22" cy="70" r="4" fill="var(--lane2)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="22" cy="98" r="4" fill="var(--lane2)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="10" cy="126" r="4" fill="var(--lane1)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="10" cy="154" r="3.5" fill="var(--sel)" stroke="var(--lane1)"/>
+          <circle cx="22" cy="182" r="4" fill="var(--lane3)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="22" cy="210" r="4" fill="var(--lane3)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="10" cy="238" r="4" fill="var(--lane1)" stroke="var(--bg)" stroke-width="2"/>
+          <circle cx="10" cy="266" r="4" fill="var(--lane1)" stroke="var(--bg)" stroke-width="2"/>
+        </svg>
+        <div class="lr" title="5f1c0aa · kirill · сегодня 17:42"><span class="ref">feat/redesign-v1</span><span class="s">Sidebar toggle moves to the titlebar</span><span class="tm">17:42</span></div>
+        <div class="lr"><span class="s m">Merge fix/hover-actions</span><span class="tm">17:16</span></div>
+        <div class="lr"><span class="s">Inline row actions fade in on hover</span><span class="tm">16:58</span></div>
+        <div class="lr"><span class="s">Row highlight: inset 8, radius 8</span><span class="tm">16:40</span></div>
+        <div class="lr"><span class="s">Status bar spans the window</span><span class="tm">16:21</span></div>
+        <div class="lr sel"><span class="s m" style="color:var(--strong)">Merge feat/git-tab: read-only log in the right sidebar</span><span class="tm">16:03</span></div>
+        <div class="lr"><span class="s">Branch tree: HEAD, Local, Remote</span><span class="tm">15:59</span></div>
+        <div class="lr"><span class="s">Commit log with graph lanes</span><span class="tm">15:53</span></div>
+        <div class="lr"><span class="ref r">origin/main</span><span class="s">Sessions history reads agent transcripts</span><span class="tm">15:44</span></div>
+        <div class="lr"><span class="s">Custom popover menu for row actions</span><span class="tm">вчера</span></div>
+      </div>
+
+      <div class="split" title="Перетащите, чтобы изменить высоту"></div>
+      <div class="det">
+        <div class="hd">Коммит<span class="r"><span class="ib" title="Открыть отдельно"><svg class="i" width="13" height="13"><use href="#g-openExternal"/></svg></span><span class="ib" title="Закрыть — Esc"><svg class="i" width="13" height="13"><use href="#g-close"/></svg></span></span></div>
+        <div class="msg">Merge feat/git-tab: read-only log in the right sidebar</div>
+        <div class="meta"><span class="h" title="Скопировать хеш">5158cd1<svg class="i" width="12" height="12"><use href="#g-copy"/></svg></span><span class="sep">·</span>kirill<span class="sep">·</span>сегодня 16:03</div>
+        <div class="fh">6 файлов<span class="num"><span class="a">+312</span><span class="d">−41</span></span></div>
+        <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:var(--tx2)"><use href="#g-folder"/></svg>Sources/HangarUI/Git<span class="num"><span class="a">+268</span><span class="d">−12</span></span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">GitLogView.swift</span><span class="num"><span class="a">+184</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">BranchTree.swift</span><span class="num"><span class="a">+71</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">CommitDetail.swift</span><span class="num"><span class="a">+13</span><span class="d">−12</span></span><span class="bd M">M</span></div>
+        <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:var(--tx2)"><use href="#g-folder"/></svg>Sources/Git<span class="num"><span class="a">+44</span><span class="d">−29</span></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="stbar">
+    <span class="it" title="Машина, на которой идёт сессия">Этот Mac</span><span class="sep">·</span>
+    <span class="it">frontend-cd</span><span class="sep">·</span>
+    <span class="it" title="Показать работающие"><i class="dot run"></i>1 работает</span>
+    <span class="it" title="Только ждущие — ⌥⌘F"><i class="dot ring"></i>3 ждут</span>
+    <span class="sp"></span>
+    <span class="it" title="Панели во вкладке">1 панель</span><span class="sep">·</span><span class="it mono" style="font-size:12px">zsh</span>
+  </div>
+</div>
+<div class="note" style="margin-top:14px">
+<b>Что изменилось на экране.</b> Сайдбар 220 → 240 (бейджи <code>+N −M</code> требуют места; диапазон 200–320). Строка сессии 32 → 44: имя 13.5 + строка статуса 12 (<code>text2</code>, «ждёт» цветом <code>waiting</code>), ⎇ 12 в начале строки статуса заменяет иконку worktree в конце строки. Бейдж изменений — справа в строке имени. «Сессии 109» — вход в историю. Внизу сайдбара: лимиты, «Не засыпать», «Настройки» (у «Настройки» больше нет «⋯»: «Добавить проект» — только <code>+</code> у ПРОЕКТЫ). Название сессии убрано из полосы вкладок — оно уже в строке заголовка. Прежняя строка состояния колонки (⎇, <code>+N −M · K файлов</code>, статус агента) заменена общей строкой окна: ветка — в заголовке, изменения — бейджем в сайдбаре, статус — точкой во вкладке.
+</div>
+
+<h2>2. Наведение и действия в строке — было / стало</h2>
+<p class="note">Было: при наведении действия «⋯ +» лежат на отдельной тёмной плашке с градиентом — видна жёсткая коробка поверх строки. Стало: подсвечивается вся строка мягким скруглённым фоном (<code>sidebarHover</code>, отступ 8 от краёв сайдбара, радиус 8), а действия появляются прямо на этом фоне без своей подложки (прозрачность 0 → 1 за 120 мс). Под курсором у кнопки — своя мягкая подсветка <code>rgba(255,255,255,.07)</code>, радиус 6. В строке сессии кнопки встают на место бейджа <code>+N −M</code> (бейдж гаснет одновременно), поэтому ширина строки не меняется и имя не прыгает. Наведите курсор на строки ниже — состояния живые.</p>
+
+<div class="row-flex">
+  <div>
+    <div class="cap"><b>Было</b> · как сейчас в приложении</div>
+    <div class="frag" style="padding:8px 0">
+      <div style="height:32px;display:flex;align-items:center;font-size:13.5px;font-weight:600;color:#fff;position:relative;background:#283246;padding-left:12px;z-index:0">
+        <svg class="i" width="12" height="12" style="color:var(--tx3);margin-right:8px"><use href="#g-chevronDown"/></svg>frontend-cd
+        <div class="old-acts"><svg class="i" width="16" height="16"><use href="#g-more"/></svg><svg class="i" width="16" height="16"><use href="#g-add"/></svg></div>
+      </div>
+      <div style="height:32px;display:flex;align-items:center;font-size:13.5px;color:var(--tx);padding-left:12px;position:relative;z-index:0">
+        <i class="dot idle" style="margin:0 12px 0 4px"></i>tabs-overflow
+      </div>
+    </div>
+    <div class="anno" style="max-width:240px">Строка подсвечивается от края до края, а действия — на своей плашке <code>#1a2130</code>, темнее подсветки. Получается коробка внутри строки.</div>
+  </div>
+
+  <div>
+    <div class="cap"><b>Стало</b> · покой</div>
+    <div class="frag">
+      <div class="proj"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span>frontend-cd</span>
+        <span class="acts"><span class="ib" title="Действия"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span><span class="ib" title="Новая сессия — ⌘N"><svg class="i" width="16" height="16"><use href="#g-add"/></svg></span></span></div>
+      <div class="srow">
+        <span class="gut"><i class="dot wait"></i></span>
+        <div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge"><b class="a">+12</b><b class="d">−3</b></span><span class="acts"><span class="ib" title="Закрепить"><svg class="i" width="16" height="16"><use href="#g-pin"/></svg></span><span class="ib" title="Действия"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div>
+      </div>
+      <div class="srow">
+        <span class="gut"><i class="dot run"></i></span>
+        <div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="slot"><span class="badge"><b class="a">+541</b><b class="d">−88</b></span><span class="acts"><span class="ib"><svg class="i" width="16" height="16"><use href="#g-pin"/></svg></span><span class="ib"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>работает · 2 субагента</div></div>
+      </div>
+    </div>
+    <div class="anno">Наведите — строки оживут.</div>
+  </div>
+
+  <div>
+    <div class="cap"><b>Стало</b> · наведение на проект и на сессию</div>
+    <div class="frag">
+      <div class="proj h"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span>frontend-cd</span>
+        <span class="acts"><span class="ib" title="Действия"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span><span class="ib" title="Новая сессия — ⌘N"><svg class="i" width="16" height="16"><use href="#g-add"/></svg></span></span></div>
+      <div class="srow h">
+        <span class="gut"><i class="dot wait"></i></span>
+        <div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge"><b class="a">+12</b><b class="d">−3</b></span><span class="acts"><span class="ib"><svg class="i" width="16" height="16"><use href="#g-pin"/></svg></span><span class="ib h"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div>
+      </div>
+      <div class="srow sel">
+        <span class="gut"><i class="dot run"></i></span>
+        <div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="slot"><span class="badge"><b class="a">+541</b><b class="d">−88</b></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>работает · 2 субагента</div></div>
+      </div>
+    </div>
+    <div class="anno">У проекта — «⋯» и «+» (тултипы «Действия», «Новая сессия — ⌘N»). У сессии — булавка и «⋯»; курсор на «⋯» — у кнопки своя мягкая подсветка. <div style="margin-top:6px"><span class="tooltip">Действия</span></div></div>
+  </div>
+
+  <div>
+    <div class="cap"><b>Размеры</b> · сетка 4</div>
+    <div class="frag grid4" style="width:240px">
+      <div class="srow h" style="outline:1px dashed rgba(255,159,67,.6)">
+        <span class="gut" style="outline:1px dashed rgba(97,175,239,.5)"><i class="dot wait"></i></span>
+        <div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge" style="opacity:0"><b class="a">+12</b><b class="d">−3</b></span><span class="acts" style="outline:1px dashed rgba(255,159,67,.6)"><span class="ib"><svg class="i" width="16" height="16"><use href="#g-pin"/></svg></span><span class="ib"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span></span></span></div>
+        <div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div>
+      </div>
+    </div>
+    <div class="anno" style="max-width:300px">
+      <b>rowInset 8</b> — отступ подсветки от краёв сайдбара (маркер остаётся на x 20, текст на x 32).<br>
+      <b>rowRadius 8</b> — радиус подсветки всех строк сайдбара, выбора и истории.<br>
+      <b>sessionRow 44</b> — строка сессии: имя 20 + статус 16, сверху/снизу 4.<br>
+      <b>actionSize 24</b> — кнопка действия в строке, иконка 16, радиус 6, без промежутка.<br>
+      <b>diffBadge 20</b> — бейдж: моно 12, отступы 0×6, радиус 6, рамка <code>line2</code>.<br>
+      Появление 120 мс, только прозрачность — без сдвига.
+    </div>
+  </div>
+</div>
+
+<h2>3. Меню «⋯» — своё, в теме navy</h2>
+<p class="note">Системное меню заменяется поповером (<code>NSPopover</code> без стрелки или <code>NSPanel</code> — решает реализация): фон <code>sheet</code>, рамка 1 <code>controlBorderStrong</code>, радиус 10, внутренний отступ 6, тень поповера. Пункт 30: иконка 16 <code>text2</code> → промежуток 10 → подпись 13 <code>text</code> → справа клавиша 12 <code>text3</code>. Наведение — <code>sidebarHover</code>, радиус 6, иконка становится белой. Разделитель 1 <code>lineSheet</code> с отступами 6. Разрушительный пункт — последним, отдельной группой, цвет <code>#ff6b61</code>, наведение — красный фон 14%. Открывается под «⋯» с зазором 4, левый край меню — по левому краю кнопки; у правого края экрана — сдвигается влево. Клавиатура: ↑/↓, ↩, Esc. Ширина 256 (подписи не переносятся).</p>
+
+<div class="row-flex">
+  <div>
+    <div class="cap"><b>Меню проекта</b> · открыто из «⋯» строки проекта</div>
+    <div style="position:relative;width:520px;height:340px;background:var(--bg);border-radius:10px;border:1px solid var(--line2);overflow:hidden">
+      <div class="sb" style="position:absolute;left:0;top:0;bottom:0;padding-top:8px">
+        <div class="proj h"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span>frontend-cd</span>
+          <span class="acts" style="opacity:1"><span class="ib h" style="background:rgba(255,255,255,.1);color:#fff"><svg class="i" width="16" height="16"><use href="#g-more"/></svg></span><span class="ib"><svg class="i" width="16" height="16"><use href="#g-add"/></svg></span></span></div>
+        <div class="srow"><span class="gut"><i class="dot wait"></i></span><div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge"><b class="a">+12</b><b class="d">−3</b></span></span></div><div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div></div>
+        <div class="srow"><span class="gut"><i class="dot run"></i></span><div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="slot"><span class="badge"><b class="a">+541</b><b class="d">−88</b></span></span></div><div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>работает · 2 субагента</div></div></div>
+      </div>
+      <div class="menu" style="position:absolute;left:180px;top:40px">
+        <div class="mi"><svg class="i" width="16" height="16"><use href="#g-add"/></svg>Новая сессия<span class="k">⌘N</span></div>
+        <div class="mi h"><svg class="i" width="16" height="16"><use href="#g-history"/></svg>Сессии проекта<span class="k">⌘Y</span></div>
+        <div class="mi"><svg class="i" width="16" height="16"><use href="#g-rename"/></svg>Переименовать<span class="k">F2</span></div>
+        <div class="mi"><svg class="i" width="16" height="16"><use href="#g-gear"/></svg>Настройки проекта…</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i" width="16" height="16"><use href="#g-finder"/></svg>Открыть в Finder<span class="k">⌥⌘R</span></div>
+        <div class="mi"><svg class="i" width="16" height="16"><use href="#g-copy"/></svg>Скопировать путь<span class="k">⌥⌘C</span></div>
+        <div class="msep"></div>
+        <div class="mi dz"><svg class="i" width="16" height="16"><use href="#g-remove"/></svg>Удалить из Hangar</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap"><b>Меню сессии</b> · наведение на разрушительный пункт</div>
+    <div class="menu">
+      <div class="mhd">redesign-v1 · feat/redesign-v1</div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-tabNew"/></svg>Новая вкладка<span class="k">⌘T</span></div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-rename"/></svg>Переименовать<span class="k">F2</span></div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-pin"/></svg>Закрепить</div>
+      <div class="msep"></div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-finder"/></svg>Открыть в Finder<span class="k">⌥⌘R</span></div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-copy"/></svg>Скопировать путь<span class="k">⌥⌘C</span></div>
+      <div class="mi"><svg class="i" width="16" height="16"><use href="#g-link"/></svg>Скопировать ссылку</div>
+      <div class="msep"></div>
+      <div class="mi dz h"><svg class="i" width="16" height="16"><use href="#g-archive"/></svg>Закрыть сессию<span class="k" style="color:rgba(255,107,97,.6)">⇧⌘W</span></div>
+    </div>
+    <div class="anno" style="max-width:256px">Заголовок меню (необязателен) — 28, 12 <code>text3</code>, не кликается и не подсвечивается. «Архивировать» переименовано в «Закрыть сессию»: закрытая сессия живёт в «Сессиях» и восстанавливается целиком.</div>
+  </div>
+
+  <div>
+    <div class="cap"><b>Размеры пункта</b></div>
+    <div class="menu grid4" style="position:relative">
+      <div class="mi h" style="outline:1px dashed rgba(255,159,67,.7)"><svg class="i" width="16" height="16" style="outline:1px dashed rgba(97,175,239,.6)"><use href="#g-finder"/></svg>Открыть в Finder<span class="k">⌥⌘R</span></div>
+      <div class="msep" style="background:#ff9f43"></div>
+      <div class="mi dz"><svg class="i" width="16" height="16"><use href="#g-trash"/></svg>Удалить</div>
+    </div>
+    <div class="anno" style="max-width:256px">
+      <b>menuRadius 10</b> · <b>menuPadding 6</b> · <b>menuWidth 256</b><br>
+      <b>menuItem 30</b>: отступы 8 слева / 10 справа, радиус 6, иконка 16, промежуток 10<br>
+      <b>menuSeparator</b>: 1 <code>lineSheet</code>, поля 6 сверху/снизу, 2 по бокам<br>
+      <b>danger</b> <code>#ff6b61</code> (= текст <code>failed</code>), наведение <code>rgba(255,69,58,.14)</code>; клавиша — тем же цветом 60%<br>
+      Неактивный пункт — прозрачность .38, без наведения.
+    </div>
+  </div>
+</div>
+
+<h2>4. Правый сайдбар: Files / Changes / Git</h2>
+<p class="note">Ширина 340 по умолчанию, перетаскиванием 300–420, сохраняется (было 220 / 180–480 — Git-логу нужно ≥ 300). Сегмент из трёх частей во всю ширину минус 12 с боков: <code>Files</code> ⌥⌘1, <code>Changes N</code> ⌥⌘2, <code>Git</code> ⌥⌘3 (новая клавиша). Строки деревьев 24 (было ~22) с подсветкой с отступом 6 и радиусом 6 — тот же приём, что в сайдбаре. Git — только чтение: ни одной кнопки, меняющей репозиторий; единственное действие — «Обновить ветки» (<code>git fetch</code>, уже есть в пикере веток). Не git-проект — сегмента Git нет.</p>
+
+<div class="row-flex">
+  <!-- FILES -->
+  <div>
+    <div class="cap"><b>Files</b> · 340</div>
+    <div class="panel">
+      <div class="seg"><span class="on">Files</span><span>Changes <em>4</em></span><span>Git</span></div>
+      <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Sources</div>
+      <div class="tr" style="padding-left:12px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>HangarUI</div>
+      <div class="tr" style="padding-left:24px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Git</div>
+      <div class="tr" style="padding-left:24px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Sidebar</div>
+      <div class="tr" style="padding-left:36px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">SessionRow.swift</span><span class="bd M">M</span></div>
+      <div class="tr sel" style="padding-left:36px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">SidebarView.swift</span><span class="bd M">M</span></div>
+      <div class="tr" style="padding-left:36px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">RowActions.swift</span><span class="bd A">A</span></div>
+      <div class="tr" style="padding-left:24px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Window</div>
+      <div class="tr" style="padding-left:12px"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Workspace</div>
+      <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Tests</div>
+      <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>docs</div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#519aba"><use href="#g-file"/></svg><span class="nm">AGENTS.md</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#e06c75"><use href="#g-file"/></svg><span class="nm">.gitignore</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">Package.swift</span><span class="bd M">M</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#519aba"><use href="#g-file"/></svg><span class="nm">README.md</span></div>
+      <div class="hint" style="margin-top:auto;border-top:1px solid var(--line)">Иконки файлов — цветная тема VS Code «Icons» (#68); здесь условно. Клик — открыть в Helix.</div>
+    </div>
+  </div>
+
+  <!-- CHANGES -->
+  <div>
+    <div class="cap"><b>Changes</b> · 340</div>
+    <div class="panel">
+      <div class="seg"><span>Files</span><span class="on">Changes <em>4</em></span><span>Git</span></div>
+      <div class="rsec" style="padding-left:12px">4 файла<span class="r mono" style="font-size:12px;gap:6px;margin-right:6px"><span style="color:var(--A)">+541</span><span style="color:var(--D)">−88</span></span></div>
+      <div class="tr sel"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span style="flex:none">SidebarView.swift</span><span class="dim nm" style="font-size:12px">HangarUI/Sidebar</span><span class="num"><span class="a">+212</span><span class="d">−64</span></span><span class="bd M">M</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span style="flex:none">RowActions.swift</span><span class="dim nm" style="font-size:12px">HangarUI/Sidebar</span><span class="num"><span class="a">+148</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span style="flex:none">TitlebarView.swift</span><span class="dim nm" style="font-size:12px">HangarUI/Window</span><span class="num"><span class="a">+165</span><span class="d">−6</span></span><span class="bd M">M</span></div>
+      <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span style="flex:none">LegacyMenu.swift</span><span class="dim nm" style="font-size:12px">HangarUI</span><span class="num"><span class="a">+16</span><span class="d">−18</span></span><span class="bd D">D</span></div>
+      <div class="hint">Относительно <b class="mono">main</b> · <b>⌥B</b> — только незакоммиченное</div>
+      <div class="hint" style="margin-top:auto;border-top:1px solid var(--line)">Без изменений: как сейчас; сюда же ведёт клик по бейджу <code>+N −M</code> в строке сессии.</div>
+    </div>
+  </div>
+
+  <!-- GIT: filter popover -->
+  <div>
+    <div class="cap"><b>Git</b> · ветки свёрнуты, открыт фильтр «Автор»</div>
+    <div class="panel">
+      <div class="seg"><span>Files</span><span>Changes <em>4</em></span><span class="on">Git</span></div>
+      <div class="rsec"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg>Ветки<span class="ref" style="margin-left:6px;font-weight:400">HEAD · feat/redesign-v1</span><span class="r"><span class="ib"><svg class="i" width="13" height="13"><use href="#g-refresh"/></svg></span></span></div>
+      <div style="height:8px"></div>
+      <div class="search"><svg class="i" width="14" height="14"><use href="#g-search"/></svg>Текст или хеш<span class="r">⌘F</span></div>
+      <div class="chips"><span class="chip on">feat/redesign-v1<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip open">Автор<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Дата<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Путь<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span></div>
+      <div class="log">
+        <svg class="gr" width="36" height="336" viewBox="0 0 36 336" fill="none" stroke-width="1.5"><path d="M10 14V336" stroke="var(--lane1)"/><path d="M10 42Q22 42 22 56V98Q22 126 10 126" stroke="var(--lane2)"/><path d="M10 154Q22 154 22 168V210Q22 238 10 238" stroke="var(--lane3)"/><path d="M22 266V294Q22 322 10 322" stroke="var(--lane4)"/>
+          <g stroke="var(--bg)" stroke-width="2"><circle cx="10" cy="14" r="4" fill="var(--lane1)"/><circle cx="22" cy="70" r="4" fill="var(--lane2)"/><circle cx="22" cy="98" r="4" fill="var(--lane2)"/><circle cx="10" cy="126" r="4" fill="var(--lane1)"/><circle cx="22" cy="182" r="4" fill="var(--lane3)"/><circle cx="22" cy="210" r="4" fill="var(--lane3)"/><circle cx="10" cy="238" r="4" fill="var(--lane1)"/><circle cx="22" cy="266" r="4" fill="var(--lane4)"/><circle cx="22" cy="294" r="4" fill="var(--lane4)"/><circle cx="10" cy="322" r="4" fill="var(--lane1)"/></g>
+          <circle cx="10" cy="42" r="3.5" fill="var(--bg)" stroke="var(--lane1)"/><circle cx="10" cy="154" r="3.5" fill="var(--bg)" stroke="var(--lane1)"/></svg>
+        <div class="lr"><span class="ref">feat/redesign-v1</span><span class="s">Sidebar toggle moves to the titlebar</span><span class="tm">17:42</span></div>
+        <div class="lr"><span class="s m">Merge fix/hover-actions</span><span class="tm">17:16</span></div>
+        <div class="lr"><span class="s">Inline row actions fade in on hover</span><span class="tm">16:58</span></div>
+        <div class="lr"><span class="s">Row highlight: inset 8, radius 8</span><span class="tm">16:40</span></div>
+        <div class="lr"><span class="s">Status bar spans the window</span><span class="tm">16:21</span></div>
+        <div class="lr"><span class="s m">Merge feat/git-tab</span><span class="tm">16:03</span></div>
+        <div class="lr"><span class="s">Branch tree: HEAD, Local, Remote</span><span class="tm">15:59</span></div>
+        <div class="lr"><span class="s">Commit log with graph lanes</span><span class="tm">15:53</span></div>
+        <div class="lr"><span class="s">Sessions history reads transcripts</span><span class="tm">15:44</span></div>
+        <div class="lr"><span class="ref h">feature/palette</span><span class="s">wip: ⌘P lists worktree files</span><span class="tm">вчера</span></div>
+        <div class="lr"><span class="s">Palette groups and empty state</span><span class="tm">вчера</span></div>
+        <div class="lr"><span class="ref r">origin/main</span><span class="s">Release 2.4</span><span class="tm">23 окт</span></div>
+      </div>
+      <!-- popover -->
+      <div class="pop" style="position:absolute;left:108px;top:144px;width:224px;padding:6px">
+        <div class="search" style="margin:0 0 6px;height:28px"><svg class="i" width="14" height="14"><use href="#g-search"/></svg>Найти автора</div>
+        <div class="mi"><span class="chk"></span>Все авторы</div>
+        <div class="msep"></div>
+        <div class="mi h"><span class="chk"><svg class="i" width="14" height="14"><use href="#g-checkServer"/></svg></span>kirill<span class="k" style="letter-spacing:0">я · 96</span></div>
+        <div class="mi"><span class="chk"></span>claude<span class="k" style="letter-spacing:0">24</span></div>
+        <div class="mi"><span class="chk"></span>dependabot<span class="k" style="letter-spacing:0">8</span></div>
+      </div>
+      <div class="hint" style="margin-top:auto;border-top:1px solid var(--line)">Фильтры — поповеры того же вида, что меню «⋯». Активный фильтр — чип <code>accent</code> 14% со значением.</div>
+    </div>
+  </div>
+
+  <!-- GIT: search at min width -->
+  <div>
+    <div class="cap"><b>Git</b> · поиск, минимальная ширина 300</div>
+    <div class="panel" style="width:300px">
+      <div class="seg"><span>Files</span><span>Changes <em>4</em></span><span class="on">Git</span></div>
+      <div class="rsec"><svg class="i" width="12" height="12"><use href="#g-chevronRight"/></svg>Ветки<span class="ref" style="margin-left:6px;font-weight:400">HEAD · feat/redesign-v1</span></div>
+      <div style="height:8px"></div>
+      <div class="search f"><svg class="i" width="14" height="14" style="color:var(--tx2)"><use href="#g-search"/></svg>hover<span class="r">3 из 128</span></div>
+      <div class="chips"><span class="chip on">Все ветки<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip on">kirill<svg class="i" width="12" height="12"><use href="#g-close"/></svg></span><span class="chip">Дата<svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span class="chip">Путь</span></div>
+      <div class="log">
+        <svg class="gr" width="36" height="84" viewBox="0 0 36 84" fill="none"><g stroke="var(--bg)" stroke-width="2"><circle cx="10" cy="14" r="4" fill="var(--lane2)"/><circle cx="10" cy="42" r="4" fill="var(--lane2)"/><circle cx="10" cy="70" r="4" fill="var(--lane1)"/></g></svg>
+        <div class="lr sel"><span class="s">Inline row actions fade in on <mark>hover</mark></span><span class="tm">16:58</span></div>
+        <div class="lr"><span class="s">Merge fix/<mark>hover</mark>-actions</span><span class="tm">17:16</span></div>
+        <div class="lr"><span class="s"><mark>Hover</mark> fade 120 ms</span><span class="tm">21 окт</span></div>
+      </div>
+      <div class="hint">При поиске граф сворачивается в точки (линии между найденными не рисуются). Хеш: от 4 символов, <span class="mono">5158cd1</span> → сразу коммит.</div>
+      <div class="split"></div>
+      <div class="det">
+        <div class="hd">Коммит<span class="r"><span class="ib"><svg class="i" width="13" height="13"><use href="#g-close"/></svg></span></span></div>
+        <div class="msg">Inline row actions fade in on hover</div>
+        <div class="body2">Actions sit on the row highlight instead of their own dark plate; the diff badge fades out in the same slot.</div>
+        <div class="meta"><span class="h">a91e3f2<svg class="i" width="12" height="12"><use href="#g-copy"/></svg></span><span class="sep">·</span>kirill<span class="sep">·</span>сегодня 16:58</div>
+        <div class="fh">2 файла<span class="num"><span class="a">+48</span><span class="d">−22</span></span></div>
+        <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">SessionRow.swift</span><span class="num"><span class="a">+31</span><span class="d">−22</span></span><span class="bd M">M</span></div>
+        <div class="tr"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">RowActions.swift</span><span class="num"><span class="a">+17</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GIT: details as sub-view, max width 420 -->
+  <div>
+    <div class="cap"><b>Git</b> · детали как отдельный вид (высота окна &lt; 640), ширина 420</div>
+    <div class="panel" style="width:420px;height:520px">
+      <div class="seg"><span>Files</span><span>Changes <em>4</em></span><span class="on">Git</span></div>
+      <div class="rsec" style="color:var(--tx2);font-weight:400;font-size:13px;padding-left:6px"><span class="ib" style="width:24px;height:24px;color:var(--tx2)"><svg class="i" width="14" height="14" style="transform:rotate(180deg)"><use href="#g-chevronRight"/></svg></span>Коммиты<span class="r"><span class="ib"><svg class="i" width="13" height="13"><use href="#g-chevronUp"/></svg></span><span class="ib"><svg class="i" width="13" height="13"><use href="#g-chevronDown"/></svg></span></span></div>
+      <div class="det" style="border-top:1px solid var(--line);padding-top:8px">
+        <div class="msg" style="font-size:14.5px;line-height:22px">Merge feat/git-tab: read-only log in the right sidebar</div>
+        <div class="body2">Branch tree, commit log with lanes, search and filters. Details open stacked under the log; on short windows they replace the log.</div>
+        <div class="meta"><span class="h">5158cd1<svg class="i" width="12" height="12"><use href="#g-copy"/></svg></span><span class="sep">·</span>kirill<span class="sep">·</span>сегодня 16:03<span class="sep">·</span><span class="ref r" style="height:18px">2 родителя</span></div>
+        <div class="fh">6 файлов<span class="num"><span class="a">+312</span><span class="d">−41</span></span><span class="ib" style="width:24px;height:24px;color:var(--tx3)" title="Свернуть всё"><svg class="i" width="13" height="13"><use href="#g-chevronUp"/></svg></span></div>
+        <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Sources/HangarUI/Git<span class="dim" style="margin-left:8px;font-size:12px">3</span><span class="num"><span class="a">+268</span><span class="d">−12</span></span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">GitLogView.swift</span><span class="num"><span class="a">+184</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">BranchTree.swift</span><span class="num"><span class="a">+71</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+        <div class="tr sel" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">CommitDetail.swift</span><span class="num"><span class="a">+13</span><span class="d">−12</span></span><span class="bd M">M</span></div>
+        <div class="tr"><span class="chev"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><svg class="i" width="14" height="14" style="color:#7aa2d6"><use href="#g-folder"/></svg>Sources/Git<span class="dim" style="margin-left:8px;font-size:12px">2</span><span class="num"><span class="a">+44</span><span class="d">−29</span></span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">GitLog.swift</span><span class="num"><span class="a">+40</span><span class="d">−21</span></span><span class="bd M">M</span></div>
+        <div class="tr" style="padding-left:22px"><span class="chev"></span><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg><span class="nm">GitRefs.swift</span><span class="num"><span class="a">+4</span><span class="d">−8</span></span><span class="bd M">M</span></div>
+        <div class="hint" style="margin-top:auto;border-top:1px solid var(--line)">Клик по файлу — временная diff-вкладка этого коммита (курсивом, как в Changes). ↑/↓ в списке — соседний коммит, ← или Esc — назад к логу.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="note" style="margin-top:16px"><b>Git, сверху вниз.</b> «Ветки» — сворачиваемый блок (по умолчанию свёрнут до одной строки с HEAD, раскрытый — до 6 строк, дальше прокрутка): HEAD, Local (папки по <code>/</code>), Remote (по remote). Клик по ветке — фильтр лога по ней. Поле поиска 28 (текст сообщения или хеш, ⌘F при фокусе в панели). Чипы фильтров 24: Ветка (по умолчанию — HEAD), Автор, Дата (сегодня / 7 дней / 30 дней / период), Путь (поле с путём или выбор в Files). Лог: строка 28, колонка графа 36 (дорожки через 12, точка r4 с ободком <code>bg</code> 2, merge — кольцо), метки веток 18 моно 12, сообщение 13 с обрезкой, время 12 моно <code>text3</code>; автор и полный хеш — в тултипе строки. Детали — снизу под перетаскиваемым разделителем (по умолчанию 40% высоты), на коротком окне — вместо лога с «← Коммиты». Лог грузится страницами по 200 (<code>git log --format</code>), без опроса: обновляется по тем же FSEvents на <code>.git/refs</code> и <code>HEAD</code>.</div>
+
+<h2>5. «Сессии» — история проекта</h2>
+<p class="note">Открывается строкой «Сессии» в сайдбаре, пунктом «Сессии проекта» в «⋯» проекта или <b>⌘Y</b>; занимает область сессии (правый сайдбар скрыт, вернуться — выбрать сессию или Esc). Две группы. <b>Закрытые сессии</b> (бывший АРХИВ): восстановление заново создаёт worktree, если его нет, и открывает все вкладки, сплиты и TERMINAL как были; вкладки агентов продолжают свои разговоры. <b>Разговоры</b> Claude и Codex этого проекта из их собственных журналов (<code>~/.claude/projects/…</code>, <code>~/.codex/sessions/…</code>, только чтение), по дням. «Открыть» — новая вкладка в сессии разговора с <code>claude --resume &lt;id&gt;</code> / <code>codex resume &lt;id&gt;</code>; если он уже открыт — фокус на ту вкладку; если его сессия закрыта — «Восстановить» сессию целиком. Строки 36 в одну строку, действия появляются при наведении на месте счётчика и времени.</p>
+
+<div class="win" style="width:1200px;height:640px">
+  <div class="tb">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="ib tog"><svg class="i" width="16" height="16"><use href="#g-sidebarLeft"/></svg></div>
+    <div class="crumb">frontend-cd <span style="color:var(--tx3)">·</span> <b>Сессии</b></div>
+    <div class="rt"><div class="qo"><svg class="i" width="12" height="12"><use href="#g-search"/></svg>Файлы и сессии<span style="margin-left:24px">⌘P</span></div></div>
+  </div>
+  <div class="body">
+    <div class="sb">
+      <div class="newbtn"><svg class="i" width="16" height="16"><use href="#g-add"/></svg>Новая сессия<span class="k">⌘N</span></div>
+      <div class="nav sel"><span class="gut" style="color:var(--strong)"><svg class="i" width="16" height="16"><use href="#g-history"/></svg></span><span>Сессии</span><span class="cnt" style="color:var(--tx2)">109</span></div>
+      <div class="sec">Проекты<span class="r"><span class="att"><i></i></span><span class="ib"><svg class="i" width="13" height="13"><use href="#g-add"/></svg></span></span></div>
+      <div class="proj"><span class="gut"><svg class="i" width="12" height="12"><use href="#g-chevronDown"/></svg></span><span>frontend-cd</span></div>
+      <div class="srow"><span class="gut"><i class="dot run"></i></span><div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="slot"><span class="badge"><b class="a">+541</b><b class="d">−88</b></span></span></div><div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>работает · 2 субагента</div></div></div>
+      <div class="srow"><span class="gut"><i class="dot wait"></i></span><div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="slot"><span class="badge"><b class="a">+12</b><b class="d">−3</b></span></span></div><div class="l2"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg><span class="w">ждёт</span> · 1 агент</div></div></div>
+      <div class="sbbot">
+        <div class="brow"><span class="gut on"><svg class="i" width="16" height="16"><use href="#g-cup"/></svg></span><span class="t" style="color:var(--tx)">Не засыпать</span><span class="sw on"></span></div>
+        <div class="brow"><span class="gut"><svg class="i" width="16" height="16"><use href="#g-gear"/></svg></span><span class="t">Настройки</span><span class="k">⌘,</span></div>
+      </div>
+    </div>
+    <div class="hist">
+      <div class="hhead"><span class="t">Сессии<span>frontend-cd · 4 закрытых · 105 разговоров</span></span>
+        <div class="seg" style="margin:0 0 0 auto;width:220px"><span class="on">Все</span><span>Claude</span><span>Codex</span></div>
+        <div class="search" style="margin:0;width:260px"><svg class="i" width="14" height="14"><use href="#g-search"/></svg>Поиск по разговорам</div>
+      </div>
+      <div style="overflow:hidden;flex:1;padding-bottom:8px">
+        <div class="hgrp">Закрытые сессии</div>
+        <div class="hr2 h"><svg class="i" width="16" height="16" style="color:var(--tx2)"><use href="#g-archive"/></svg><span class="ttl">fix-ci-cache</span><span class="sess mono"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>fix/ci-cache</span><span class="lay" title="3 вкладки, сплит"><i></i><i></i><i style="width:14px"></i></span><span class="n">3 вкладки</span><span class="mt">вчера 18:20</span><span class="go"><svg class="i" width="12" height="12"><use href="#g-restore"/></svg>Восстановить</span></div>
+        <div class="hr2"><svg class="i" width="16" height="16" style="color:var(--tx2)"><use href="#g-archive"/></svg><span class="ttl">onboarding-copy</span><span class="sess mono"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>feat/onboarding-copy</span><span class="lay"><i></i><i></i></span><span class="n">2 вкладки</span><span class="mt">21 окт</span><span class="go"><svg class="i" width="12" height="12"><use href="#g-restore"/></svg>Восстановить</span></div>
+        <div class="hgrp">Сегодня</div>
+        <div class="hr2"><svg class="b" width="16" height="16" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">перенеси кнопку сайдбара в заголовок, справа от светофора</span><span class="sess"><i class="dot run"></i>redesign-v1 · открыт</span><span class="n">48 сообщ.</span><span class="mt">17:40</span><span class="go">Перейти</span></div>
+        <div class="hr2 h"><svg class="b" width="16" height="16" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">ревью: hover-состояния строк сайдбара и меню «⋯»</span><span class="sess"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>redesign-v1</span><span class="n">22 сообщ.</span><span class="mt">15:12</span><span class="go"><svg class="i" width="12" height="12"><use href="#g-openExternal"/></svg>Открыть</span></div>
+        <div class="hr2"><svg class="b" width="16" height="16" style="color:#fff"><use href="#b-openai"/></svg><span class="ttl">почему редирект после логина теряет query string</span><span class="sess"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>fix-login-redirect</span><span class="n">31 сообщ.</span><span class="mt">12:05</span><span class="go">Открыть</span></div>
+        <div class="hgrp">Вчера</div>
+        <div class="hr2"><svg class="b" width="16" height="16" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">кэш зависимостей в CI падает на холодном раннере</span><span class="sess" style="color:var(--tx3)"><svg class="i" width="12" height="12"><use href="#g-archive"/></svg>fix-ci-cache · закрыта</span><span class="n">64 сообщ.</span><span class="mt">18:02</span><span class="go">Восстановить</span></div>
+        <div class="hr2"><svg class="b" width="16" height="16" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">добавь кэширование ответов /api/catalog на 5 минут</span><span class="sess"><svg class="i" width="12" height="12"><use href="#g-branch"/></svg>api-cache</span><span class="n">40 сообщ.</span><span class="mt">14:30</span><span class="go">Открыть</span></div>
+        <div class="hr2"><svg class="b" width="16" height="16" style="color:#fff"><use href="#b-openai"/></svg><span class="ttl">объясни структуру store и где живут селекторы</span><span class="sess" style="color:var(--tx3)">без сессии</span><span class="n">9 сообщ.</span><span class="mt">10:48</span><span class="go">Открыть</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="stbar"><span class="it">Этот Mac</span><span class="sep">·</span><span class="it">frontend-cd</span><span class="sep">·</span><span class="it"><i class="dot run"></i>1 работает</span><span class="it"><i class="dot ring"></i>3 ждут</span><span class="sp"></span></div>
+</div>
+<div class="note" style="margin-top:14px">Заголовок 48: «Сессии» 15 semibold + счётчики 13 <code>text3</code>, справа сегмент агентов и поиск (по первому сообщению и названию, без загрузки полных журналов). Группы 32 (12 semibold <code>text3</code>, без капса). Строка: иконка 16 → заголовок (первое сообщение пользователя, обрезка) → сессия разговора (⎇ имя, «закрыта» <code>text3</code>, «без сессии» — разговор в корне проекта, откроется в новой сессии без worktree) → сообщения и время (12 <code>text3</code>, фиксированной ширины 72/84). Наведение — <code>hover</code> на <code>bg</code>, радиус 8; кнопка 24 <code>hoverStrong</code>, радиус 6. Пусто — «Разговоров ещё нет» по центру, без рамок.</div>
+
+<h2>6. Свёрнутая рейка и переключатель в заголовке</h2>
+<p class="note">Переключатель стоит в строке заголовка на x 84 (после светофора 20–76 и зазора 8) и не двигается при сворачивании — меняется только тултип: «Свернуть сайдбар — ⌘0» / «Развернуть сайдбар — ⌘0». Рейка 44 начинается под заголовком; строки рейки той же высоты, что в развёрнутом виде (сессия 44, остальные 32), поэтому при анимации ширины (180 мс) ничего не прыгает по вертикали. Статус сессии — точка 8 в углу плитки с ободком цвета сайдбара.</p>
+
+<div class="row-flex">
+<div class="win small-win">
+  <div class="tb">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="ib tog h" title="Развернуть сайдбар — ⌘0"><svg class="i" width="16" height="16"><use href="#g-sidebarLeft"/></svg></div>
+    <div class="crumb" style="left:calc(50% + 22px)">frontend-cd <span style="color:var(--tx3)">·</span> <b>redesign-v1</b></div>
+    <div class="rt"><div class="ib"><svg class="i" width="16" height="16"><use href="#g-sidebarRight"/></svg></div></div>
+  </div>
+  <div class="body">
+    <div class="sb rail">
+      <div class="rr s" style="margin-top:8px;background:var(--hoverStrong)" title="Новая сессия — ⌘N"><svg class="i" width="16" height="16"><use href="#g-add"/></svg></div>
+      <div class="rr s" title="Сессии — ⌘Y" style="color:var(--tx2)"><svg class="i" width="16" height="16"><use href="#g-history"/></svg></div>
+      <div class="rsep"><i></i></div>
+      <div class="rr s"><span class="railtile proj">FC</span></div>
+      <div class="rr sel" title="redesign-v1 · работает"><span class="railtile sel">RV<i class="dot run"></i></span></div>
+      <div class="rr" title="fix-login-redirect · ждёт"><span class="railtile">FL<i class="dot wait"></i></span></div>
+      <div class="rr"><span class="railtile">AC<i class="dot done"></i></span></div>
+      <div class="rr s" style="margin-top:auto" title="Лимиты подписок — ⇧⌘L"><svg class="i" width="16" height="16" style="color:var(--wait)"><use href="#g-gauge"/></svg></div>
+      <div class="rr s" style="color:var(--accent)"><svg class="i" width="16" height="16"><use href="#g-cup"/></svg></div>
+      <div class="rr s" style="color:var(--tx2);margin-bottom:8px"><svg class="i" width="16" height="16"><use href="#g-gear"/></svg></div>
+    </div>
+    <div class="main">
+      <div class="tabs"><div class="tab act"><i class="dot run"></i><svg class="b" width="14" height="14" style="color:var(--claude)"><use href="#b-claude"/></svg><span class="ttl">claude</span><span class="x"><svg class="i" width="10" height="10"><use href="#g-close"/></svg></span></div><div class="tab"><svg class="i" width="14" height="14"><use href="#g-terminal"/></svg>zsh</div><div class="tail"><span class="ib"><svg class="i" width="14" height="14"><use href="#g-add"/></svg></span></div></div>
+      <div class="term"><span class="g">●</span> Update(Sources/HangarUI/Window/TitlebarView.swift)
+  <span class="d">⎿  Updated with 28 additions and 6 removals</span>
+
+<span class="o">✻ Compiling…</span> <span class="d">(23s)</span></div>
+      <div class="drawer">ТЕРМИНАЛ<span class="k">⌘J<svg class="i" width="12" height="12"><use href="#g-chevronUp"/></svg></span></div>
+    </div>
+  </div>
+  <div class="stbar"><span class="it">Этот Mac</span><span class="sep">·</span><span class="it">frontend-cd</span><span class="sep">·</span><span class="it"><i class="dot run"></i>1 работает</span><span class="it"><i class="dot ring"></i>3 ждут</span><span class="sp"></span><span class="it">1 панель</span><span class="sep">·</span><span class="it mono">zsh</span></div>
+</div>
+<div>
+  <div class="cap"><b>Строка заголовка, слева</b> · масштаб 2×</div>
+  <div style="width:360px;height:200px"><div style="transform:scale(2);transform-origin:0 0;width:180px;height:100px">
+    <div style="position:relative;width:180px;height:38px;background:var(--bg);border:1px solid var(--line2);border-radius:8px 8px 0 0" class="grid4">
+      <div class="lights" style="left:20px"><i></i><i></i><i></i></div>
+      <div class="ib h" style="position:absolute;left:84px;top:5px"><svg class="i" width="16" height="16"><use href="#g-sidebarLeft"/></svg></div>
+    </div>
+    <div style="margin-top:6px"><span class="tooltip">Развернуть сайдбар — ⌘0</span></div>
+  </div></div>
+  <div class="anno" style="margin-top:20px;max-width:340px"><b>titlebarHeight 38</b> (как было). Светофор: x 20, кружки 12 через 8. <b>titlebarToggleX 84</b>, кнопка 28×28, иконка 16, наведение <code>hover</code>, радиус 6. Тот же тип кнопки справа — правый сайдбар (⌥⌘I). Двойной клик по пустому месту — как в системе.</div>
+</div>
+</div>
+
+<h2>7. Строка состояния окна</h2>
+<p class="note">Высота 24 на всю ширину окна под всеми колонками, верхняя граница <code>line</code>, фон <code>bg</code>, текст 12 <code>text2</code>, отступы 12, между частями 12, разделитель «·» <code>text3</code>. Слева — где и что: машина («Этот Mac» или имя хоста), проект выбранной сессии, счётчики по проекту — только ненулевые (точка 8 статуса). Справа — про активную вкладку: число панелей сплита и процесс в фокусе (моно). Кликабельны (рука, подсветка <code>hover</code>, радиус 4): «N ждут» — включает «Только ждущие» (⌥⌘F), «N работает» — следующая работающая сессия, имя хоста — меню хоста. Высота постоянная: нет сессии — остаётся только «Этот Mac».</p>
+<div style="display:flex;flex-direction:column;gap:10px;width:1100px">
+  <div class="cap" style="margin:0"><b>Локальная сессия</b></div>
+  <div class="stbar" style="border:1px solid var(--line2);border-radius:6px;background:var(--bg)"><span class="it">Этот Mac</span><span class="sep">·</span><span class="it">frontend-cd</span><span class="sep">·</span><span class="it"><i class="dot run"></i>1 работает</span><span class="it h" style="background:var(--hover)"><i class="dot ring"></i>3 ждут</span><span class="sp"></span><span class="it">1 панель</span><span class="sep">·</span><span class="it mono">zsh</span></div>
+  <div class="cap" style="margin:4px 0 0"><b>Удалённая сессия, ошибка агента, сплит</b></div>
+  <div class="stbar" style="border:1px solid var(--line2);border-radius:6px;background:var(--bg)"><span class="it"><svg class="i" width="12" height="12"><use href="#g-server"/></svg>vultr</span><span class="sep">·</span><span class="it">api</span><span class="sep">·</span><span class="it"><i class="dot run"></i>2 работают</span><span class="it" style="color:var(--failTx)"><i class="dot fail"></i>1 ошибка</span><span class="sp"></span><span class="it">2 панели</span><span class="sep">·</span><span class="it mono">claude</span></div>
+  <div class="cap" style="margin:4px 0 0"><b>Нет выбранной сессии</b></div>
+  <div class="stbar" style="border:1px solid var(--line2);border-radius:6px;background:var(--bg)"><span class="it">Этот Mac</span><span class="sp"></span></div>
+  <div class="cap" style="margin:4px 0 0"><b>en</b></div>
+  <div class="stbar" style="border:1px solid var(--line2);border-radius:6px;background:var(--bg)"><span class="it">This Mac</span><span class="sep">·</span><span class="it">frontend-cd</span><span class="sep">·</span><span class="it"><i class="dot run"></i>1 working</span><span class="it"><i class="dot ring"></i>3 waiting</span><span class="sp"></span><span class="it">1 pane</span><span class="sep">·</span><span class="it mono">zsh</span></div>
+</div>
+
+<h2>8. ⌘P — файлы worktree текущей сессии</h2>
+<p class="note">Вид быстрого перехода не меняется (#65); меняется порядок: первой группой — файлы worktree выбранной сессии (<code>git ls-files</code> + неотслеживаемые, без игнорируемых; пустой запрос — недавно открытые и изменённые), ниже — сессии всех проектов. Изменённые файлы — бейдж M/A справа. ↩ — открыть в Helix этой сессии.</p>
+<div class="palette">
+  <div class="q"><svg class="i" width="16" height="16" style="color:var(--tx3)"><use href="#g-search"/></svg>sidebar<span style="margin-left:auto;font-size:12px;color:var(--tx3)">redesign-v1</span></div>
+  <div class="gh">Файлы · redesign-v1</div>
+  <div class="pr on"><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg>SidebarView.swift<span class="dim mono">Sources/HangarUI/Sidebar</span><span class="k mono" style="color:var(--M);font-weight:600">M</span></div>
+  <div class="pr"><svg class="i fi" style="color:#f05138"><use href="#g-file"/></svg>SidebarLayoutTests.swift<span class="dim mono">Tests/HangarUITests</span></div>
+  <div class="pr"><svg class="i fi" style="color:#519aba"><use href="#g-file"/></svg>sidebar-states.md<span class="dim mono">docs/design</span></div>
+  <div class="gh">Сессии</div>
+  <div class="pr"><i class="dot wait" style="margin:0 4px"></i>fix-sidebar-drag<span class="dim">hangar</span></div>
+  <div class="ft"><span>↩ открыть</span><span>⌘↩ в новой вкладке</span><span>&gt; команды</span><span style="margin-left:auto">Esc</span></div>
+</div>
+
+<h2>9. Токены для DESIGN.md</h2>
+<p class="note">Сетка 4: все отступы, высоты и радиусы ниже кратны 4 (кроме 6 — внутренние радиусы кнопок и пунктов, как уже принято). Шрифты — из существующей шкалы, ничего мельче 12 в новых местах; 11.5 остаётся только у заголовков секций сайдбара и полосы TERMINAL.</p>
+<table class="tok">
+<tr><th>Токен</th><th>Значение</th><th></th><th>Где</th></tr>
+<tr><td><code>Metric.titlebarHeight</code></td><td>38</td><td><span class="tag ch">изм.</span></td><td>одна строка заголовка на всю ширину окна (раньше — только над областью сессии; сайдбар шёл под светофор)</td></tr>
+<tr><td><code>Metric.titlebarToggleX</code></td><td>84</td><td><span class="tag">новый</span></td><td>x переключателя сайдбара: светофор 20…76 + 8; не меняется при сворачивании</td></tr>
+<tr><td><code>Metric.titlebarButton</code></td><td>28×28, радиус 6, иконка 16</td><td><span class="tag">новый</span></td><td>переключатели сайдбаров в заголовке</td></tr>
+<tr><td><code>Metric.sidebarWidth</code></td><td>240 (200–320)</td><td><span class="tag ch">изм.</span></td><td>было 220 (180–320); место под бейдж <code>+N −M</code></td></tr>
+<tr><td><code>Metric.rowInset</code></td><td>8</td><td><span class="tag">новый</span></td><td>отступ подсветки строк от краёв сайдбара; маркер остаётся на x 20, текст на x 32 (жёлобок 44 не меняется)</td></tr>
+<tr><td><code>Metric.rowRadius</code></td><td>8</td><td><span class="tag">новый</span></td><td>подсветка/выбор строк сайдбара, «+ Новая сессия», строки «Сессий»</td></tr>
+<tr><td><code>Metric.sessionRowHeight</code></td><td>44 (имя 20 + статус 16, поля 4)</td><td><span class="tag ch">изм.</span></td><td>строка сессии, и в рейке тоже; проект, хост, закреплённые, нижние строки — 32</td></tr>
+<tr><td><code>Font.rowStatus</code></td><td>12, <code>text2</code>; «ждёт» — <code>waiting</code>, «ошибка» — <code>#ff6b61</code></td><td><span class="tag">новый</span></td><td>вторая строка сессии: «работает · 2 субагента», «ждёт · 1 агент», «готово», «нет агентов · 1 вкладка»; ⎇ 12 <code>text3</code> у worktree</td></tr>
+<tr><td><code>Metric.diffBadge</code></td><td>высота 20, моно 12, отступы 0×6, радиус 6, рамка 1 <code>line2</code>, фон <code>bg</code> 35%</td><td><span class="tag">новый</span></td><td>бейдж <code>+N −M</code> в строке сессии (цифры цветом A / D); нет изменений — бейджа нет</td></tr>
+<tr><td><code>Metric.rowAction</code></td><td>24×24, иконка 16, радиус 6, промежуток 0</td><td><span class="tag">новый</span></td><td>действия в строке; появление 120 мс прозрачностью, без своей подложки; наведение <code>rowActionHover rgba(255,255,255,.07)</code></td></tr>
+<tr><td><code>Metric.menuWidth / menuRadius / menuPadding</code></td><td>256 / 10 / 6</td><td><span class="tag">новый</span></td><td>своё меню «⋯» и поповеры фильтров Git; фон <code>sheet</code>, рамка <code>controlBorderStrong</code>, тень поповера</td></tr>
+<tr><td><code>Metric.menuItem</code></td><td>30, отступы 8 / 10, радиус 6, иконка 16 + 10</td><td><span class="tag">новый</span></td><td>пункт меню; подпись 13 <code>text</code>, клавиша 12 <code>text3</code>; наведение <code>sidebarHover</code>; заголовок меню 28</td></tr>
+<tr><td><code>Metric.menuSeparator</code></td><td>1 <code>lineSheet</code>, поля 6 / 2</td><td><span class="tag">новый</span></td><td>между группами меню</td></tr>
+<tr><td><code>Color.danger / dangerHover</code></td><td><code>#ff6b61</code> / <code>rgba(255,69,58,.14)</code></td><td><span class="tag">новый</span></td><td>разрушительный пункт меню (последний, своей группой)</td></tr>
+<tr><td><code>Metric.inspectorWidth</code></td><td>340 (300–420)</td><td><span class="tag ch">изм.</span></td><td>было 220 (180–480); правый сайдбар с Git</td></tr>
+<tr><td><code>Metric.inspectorPadding</code></td><td>12</td><td><span class="tag ch">изм.</span></td><td>было 14 — к сетке 4; сегмент, поиск, чипы, заголовки</td></tr>
+<tr><td><code>Metric.treeRow</code></td><td>24, подсветка с отступом 6, радиус 6</td><td><span class="tag ch">изм.</span></td><td>строки Files / Changes / Git (ветки, файлы коммита); было ~22 без отступа</td></tr>
+<tr><td><code>Metric.logRow</code></td><td>28, колонка графа 36</td><td><span class="tag">новый</span></td><td>лог коммитов; дорожки через 12, точка r 4 с ободком <code>bg</code> 2, merge — кольцо r 3.5</td></tr>
+<tr><td><code>Color.graphLane1…4</code></td><td><code>#61afef</code> <code>#c678dd</code> <code>#98c379</code> <code>#e5c07b</code></td><td><span class="tag">новый</span></td><td>дорожки графа по кругу (из палитры diff и акцента)</td></tr>
+<tr><td><code>Metric.refPill</code></td><td>18, моно 12, отступы 0×5, радиус 4</td><td><span class="tag">новый</span></td><td>метка ветки в логе: своя — <code>accent</code> 14%, remote — <code>text2</code> 14%, прочие — цвет дорожки 16%</td></tr>
+<tr><td><code>Metric.filterChip</code></td><td>24, 12, отступы 0×6/8, радиус 6</td><td><span class="tag">новый</span></td><td>фильтры Git; активный — <code>accent</code> 14% + рамка <code>accent</code> 25%</td></tr>
+<tr><td><code>Metric.searchField</code></td><td>28, радиус 7, иконка 14</td><td><span class="tag">новый</span></td><td>поиск в Git и в «Сессиях»; фокус — рамка <code>accent</code> + кольцо 3</td></tr>
+<tr><td><code>Metric.historyHeader / historyRow</code></td><td>48 / 36</td><td><span class="tag">новый</span></td><td>вид «Сессии»; группы 32</td></tr>
+<tr><td><code>Metric.statusBarHeight</code></td><td>24, текст 12 <code>text2</code>, отступы 12, промежуток 12</td><td><span class="tag ch">изм.</span></td><td>было 22 / 11.5 внизу колонки сессии; теперь на всю ширину окна</td></tr>
+<tr><td><code>Metric.drawerBar</code></td><td>28</td><td><span class="tag ch">изм.</span></td><td>было 26 — к сетке 4; полоса ТЕРМИНАЛ</td></tr>
+</table>
+
+<h2>10. Клавиши и иконки</h2>
+<table class="tok">
+<tr><th>Действие</th><th>Клавиша</th><th></th><th>Тултип</th></tr>
+<tr><td>Правый сайдбар на Git</td><td>⌥⌘3</td><td><span class="tag">новый</span></td><td>Git — ⌥⌘3 (сегмент); «Инспектор — ⌥⌘I» → «Правый сайдбар — ⌥⌘I»</td></tr>
+<tr><td>Сессии (история проекта)</td><td>⌘Y</td><td><span class="tag">новый</span></td><td>Сессии — ⌘Y (как «История» в Safari; в Ghostty не занята)</td></tr>
+<tr><td>Поиск в Git</td><td>⌘F при фокусе в правом сайдбаре</td><td><span class="tag">новый</span></td><td>в терминале ⌘F остаётся у Ghostty</td></tr>
+<tr><td>Закрыть сессию (было «Архивировать»)</td><td>⇧⌘W</td><td><span class="tag ch">изм.</span></td><td>Закрыть сессию — ⇧⌘W</td></tr>
+<tr><td>Свернуть / развернуть сайдбар</td><td>⌘0</td><td></td><td>кнопка переехала в заголовок; строка «Свернуть» убрана</td></tr>
+</table>
+<p class="note">Новые иконки (сетка 16, линия 1.5, нарисованы в этом файле): <code>search</code>, <code>history</code>, <code>commit</code>, <code>gitTab</code>, <code>subagent</code>, <code>link</code>, <code>tabNew</code>, <code>file</code> (только как заглушка в макете — в приложении цветные иконки файлов #68).</p>
+<div class="strip" style="background:var(--sb);border-radius:10px;padding:16px 20px;display:flex;gap:22px;color:var(--tx2);width:fit-content">
+  <svg class="i" width="16" height="16"><use href="#g-search"/></svg><svg class="i" width="16" height="16"><use href="#g-history"/></svg><svg class="i" width="16" height="16"><use href="#g-commit"/></svg><svg class="i" width="16" height="16"><use href="#g-gitTab"/></svg><svg class="i" width="16" height="16"><use href="#g-subagent"/></svg><svg class="i" width="16" height="16"><use href="#g-link"/></svg><svg class="i" width="16" height="16"><use href="#g-tabNew"/></svg>
+  <span style="width:20px"></span>
+  <svg class="i" width="32" height="32"><use href="#g-search"/></svg><svg class="i" width="32" height="32"><use href="#g-history"/></svg><svg class="i" width="32" height="32"><use href="#g-commit"/></svg><svg class="i" width="32" height="32"><use href="#g-gitTab"/></svg><svg class="i" width="32" height="32"><use href="#g-subagent"/></svg><svg class="i" width="32" height="32"><use href="#g-link"/></svg><svg class="i" width="32" height="32"><use href="#g-tabNew"/></svg>
+</div>
+
+<h2>11. Что сохранено и где</h2>
+<ul class="p" style="max-width:1100px">
+<li><b>Полоса вкладок</b> — прокручивается, ▾ «Все вкладки», активная: <code>selection</code> + линия <code>accent</code> 2 сверху; diff-вкладка курсивом. Без названия сессии слева (оно в заголовке).</li>
+<li><b>ТЕРМИНАЛ</b> (⌘J) — под вкладками в колонке сессии, полоса 28; раскрытый — как сейчас.</li>
+<li><b>Не засыпать</b>, <b>Лимиты</b>, <b>Настройки</b> — низ сайдбара; в рейке — те же строки на тех же местах.</li>
+<li><b>SSH-ХОСТЫ</b> — секция как была; строки 32 с той же подсветкой <code>rowInset</code> / <code>rowRadius</code>; удалённый хост — в строке состояния вместо «Этот Mac».</li>
+<li><b>Только ждущие</b> (⌥⌘F) — точка в заголовке ПРОЕКТЫ и клик по «N ждут» в строке состояния.</li>
+<li><b>Быстрый переход / палитра</b> (⌘P / ⇧⌘P) — поле-кнопка «Файлы и сессии ⌘P» в заголовке открывает тот же вид.</li>
+<li><b>АРХИВ</b> — секция сайдбара уходит; закрытые сессии — в «Сессиях», группой «Закрытые сессии».</li>
+</ul>
+</body></html>

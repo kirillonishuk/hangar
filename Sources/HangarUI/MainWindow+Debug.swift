@@ -296,6 +296,9 @@ extension MainWindowController {
             default: pickerWindow?.orderOut(nil); pickerWindow = nil  // not close(): last-window-closed quits
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
+        case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntWorktree": newTaskModelForDebug?.worktree = arg == "on"  // the Worktree toggle
+        case "ntSetup": newTaskModelForDebug?.runSetup = arg == "on"  // the setup-command consent toggle
         case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public)")
         case "inspector":
             // inspector [files|changes|toggleMode|expand <dir>|click <row>]: drives the inspector; logs its rows.

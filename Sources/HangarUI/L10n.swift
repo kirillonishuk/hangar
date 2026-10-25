@@ -421,11 +421,7 @@ import Workspace
     static var save: String { s(.save) }
     // Inspector (`%d` keys take Int32: String(format:) reads 32 bits)
     /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
-    static func fileCount(_ n: Int) -> String {
-        let n10 = n % 10, n100 = n % 100
-        let key: Key = n10 == 1 && n100 != 11 ? .fileCountOne : (2...4).contains(n10) && !(12...14).contains(n100) ? .fileCountFew : .fileCountMany
-        return f(key, Int32(clamping: n))
-    }
+    static func fileCount(_ n: Int) -> String { count(n, .fileCountOne, .fileCountFew, .fileCountMany) }
     static var statusShowChanges: String { s(.statusShowChanges) }
     // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
     static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }

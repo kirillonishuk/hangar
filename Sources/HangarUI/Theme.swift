@@ -147,7 +147,6 @@ public enum Theme {
     public static let titleBranchIcon: CGFloat = 12
     /// Gap between the titlebar and «+ Новая сессия».
     public static let sidebarTopGap: CGFloat = 8
-    public static let windowRadius: CGFloat = 12
     public static let windowSize = NSSize(width: 1200, height: 760)
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
@@ -191,11 +190,6 @@ public enum Theme {
     public static let railDotOffset: CGFloat = 3.5
     public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
-    public static let taskRowPaddingV: CGFloat = 5
-    public static let projectHeaderTop: CGFloat = 6
-    public static let projectHeaderBottom: CGFloat = 3
-    public static let projectGap: CGFloat = 8
-    public static let footerPaddingV: CGFloat = 8
     public static let tabPaddingV: CGFloat = 6
     public static let tabPaddingH: CGFloat = 14
     public static let tabGap: CGFloat = 2
@@ -216,15 +210,9 @@ public enum Theme {
     public static let iconStroke: CGFloat = 1.5
     public static let iconGap: CGFloat = 6
     public static let smallIconSize: CGFloat = 10
-    /// Leading gutter of every sidebar row; its marker (dot/icon) is centered at `gutterMarkerX` in both modes.
-    public static let sidebarGutter: CGFloat = 44
     public static let gutterMarkerX: CGFloat = 20
     public static let gutterTextX: CGFloat = 32
-    public static let sectionTextX: CGFloat = 10
-    public static let projectChevronX: CGFloat = 10
-    public static let projectTextX: CGFloat = 20
     public static let sectionGap: CGFloat = 10
-    public static let projectRowHeight: CGFloat = 32
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
     public static let hoverFade: Double = 0.12
@@ -243,8 +231,6 @@ public enum Theme {
     public static let inlineGap: CGFloat = 6
     /// Least gap between a row's text and its trailing buttons.
     public static let rowEndGap: CGFloat = 8
-    /// Fade (row background, transparent → opaque) before the trailing actions overlaid on a task row.
-    public static let rowActionsFade: CGFloat = 16
     public static let projectTileRadius: CGFloat = 6
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4

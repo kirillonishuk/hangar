@@ -160,6 +160,9 @@ final class FillView: NSView {
 
     func setHeader(_ text: String) { header.stringValue = text }
 
+    /// The tab's focused pane: a brighter header, so a split shows where keys go even while the window is inactive.
+    var headerFocused = false { didSet { header.textColor = headerFocused ? Theme.text2 : Theme.text3 } }
+
     /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
     override var acceptsFirstResponder: Bool { surface == nil }
 
@@ -560,6 +563,7 @@ final class FillView: NSView {
                     uiLog.info("setVisible(\(visible)) leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public)")
                 }
                 view.setHeader(app.title(of: leaf))
+                view.headerFocused = leaf.id == tab.focusedLeafId
                 view.refreshText()
             }
         }

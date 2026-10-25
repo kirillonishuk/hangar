@@ -3,22 +3,26 @@ import Foundation
 import SwiftUI
 import Workspace
 
-/// Agents of a project by state; a working agent's running subagents count as working too.
+/// Agents of a project by state; working agents' running subagents are counted apart (only the tooltip shows them).
 struct StatusCounts: Equatable {
     var working = 0
     var waiting = 0
     var failed = 0
+    var subagents = 0
 
-    init(working: Int = 0, waiting: Int = 0, failed: Int = 0) {
+    init(working: Int = 0, waiting: Int = 0, failed: Int = 0, subagents: Int = 0) {
         self.working = working
         self.waiting = waiting
         self.failed = failed
+        self.subagents = subagents
     }
 
     init(_ summaries: [(state: AgentState, subagents: Int)]) {
         for s in summaries {
             switch s.state {
-            case .working: working += 1 + s.subagents
+            case .working:
+                working += 1
+                subagents += s.subagents
             case .waiting: waiting += 1
             case .failed: failed += 1
             case .done, .idle: break
@@ -40,6 +44,11 @@ struct StatusBarLine: Equatable {
     var remote: Bool { host != nil }
     @MainActor var left: [String] { [host ?? L10n.thisMac] + [project].compactMap { $0 } }
     @MainActor var workingText: String? { counts.working > 0 ? L10n.workingCount(counts.working) : nil }
+    /// «Следующая работающая сессия · 3 субагента» — subagents only when there are any.
+    @MainActor var workingHelp: String {
+        [L10n.statusNextWorkingHelp, counts.subagents > 0 ? L10n.subagentCount(counts.subagents) : nil]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
     @MainActor var waitingText: String? { counts.waiting > 0 ? L10n.waitingCount(counts.waiting) : nil }
     @MainActor var failedText: String? { counts.failed > 0 ? L10n.failedCount(counts.failed) : nil }
     @MainActor var right: String? {
@@ -105,7 +114,7 @@ struct WindowStatusBar: View {
             }
             if line.workingText != nil || line.waitingText != nil || line.failedText != nil { separator }
             if let text = line.workingText {
-                StatusButton(help: L10n.statusNextWorkingHelp, action: app.selectNextWorking) {
+                StatusButton(help: line.workingHelp, action: app.selectNextWorking) {
                     StatusDot(state: .working)
                     Text(verbatim: text)
                 }

@@ -42,9 +42,20 @@ import Workspace
 
     // MARK: Status bar counts
 
-    @Test func countsIncludeSubagentsOfWorkingAgents() {
-        let c = StatusCounts([(.working, 2), (.working, 0), (.waiting, 0), (.waiting, 0), (.waiting, 0), (.failed, 0), (.done, 0), (.idle, 0)])
-        #expect(c == StatusCounts(working: 4, waiting: 3, failed: 1))
+    @Test func countsAgentsNotSubagents() {
+        defer { L10n.language = .system }
+        let c = StatusCounts([(.working, 2), (.working, 1), (.waiting, 0), (.waiting, 0), (.waiting, 0), (.failed, 0), (.done, 0), (.idle, 0)])
+        #expect(c == StatusCounts(working: 2, waiting: 3, failed: 1, subagents: 3))
+        var line = StatusBarLine()
+        line.counts = c
+        L10n.language = .ru
+        #expect(line.workingText == "2 работают")
+        #expect(line.workingHelp == "Следующая работающая сессия · 3 субагента")
+        line.counts.subagents = 0
+        #expect(line.workingHelp == "Следующая работающая сессия")
+        L10n.language = .en
+        line.counts.subagents = 1
+        #expect(line.workingHelp == "Next working session · 1 subagent")
     }
 
     @Test func localLineCountsTheSelectedProjectOnly() {
@@ -86,7 +97,8 @@ import Workspace
         L10n.language = .ru
         #expect(line.remote)
         #expect(line.left == ["vultr", "api"])
-        #expect(line.workingText == "2 работают")
+        #expect(line.workingText == "1 работает")
+        #expect(line.counts.subagents == 1)
         #expect(line.failedText == "1 ошибка")
         #expect(line.right == "2 панели · claude")
         L10n.language = .en

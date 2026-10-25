@@ -279,7 +279,7 @@
 "removeEllipsis" = "Удалить…";
 "hostPausedBar" = "Нет связи с %@ · ↩ переподключиться";
 "openInHelix" = "Открыть в Helix";
-"copyRelativePath" = "Скопировать относительный путь";
+"copyRelativePath" = "Скопировать путь от корня";
 "taskArchived" = "Сессия в архиве";
 "undoArchive" = "Отменить";
 "archiveAnyway" = "Архивировать всё равно";

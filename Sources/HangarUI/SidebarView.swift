@@ -369,6 +369,7 @@ struct SidebarView: View {
         let target = ActionTarget.project(project.id)
         let handlers = dragHandlers(target)
         let renaming = app.renaming == target
+        let folded = project.collapsed ? app.foldedBadge(of: project.id) : nil
         return HoverRow(action: {
                             clicked(target)
                             app.setCollapsed(projectId: project.id, !project.collapsed)
@@ -405,6 +406,19 @@ struct SidebarView: View {
                             .padding(.leading, Theme.rowEndGap)
                             .opacity(hover ? 0 : 1)
                     }
+                    // Folded: the most urgent state of its sessions (a count when more than one); under the hover actions.
+                    if let folded {
+                        HStack(spacing: Theme.rowStatusGap) {
+                            StatusDot(state: folded.state)
+                            if folded.count > 1 { Text(verbatim: "\(folded.count)").monospacedDigit() }
+                        }
+                        .font(.system(size: Theme.rowStatusFont))
+                        .foregroundStyle(Theme.ui.text2)
+                        .padding(.leading, Theme.rowEndGap)
+                        .opacity(hover ? 0 : 1)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(L10n.statusLabel(folded.state))
+                    }
                 }
                 .padding(.trailing, hover ? 2 * Theme.rowActionSize : 0)
                 .overlay(alignment: .trailing) {
@@ -424,6 +438,13 @@ struct SidebarView: View {
                     .foregroundStyle(Theme.ui.text3)
                     .frame(width: Theme.projectTileSize, height: Theme.projectTileSize)
                     .overlay(RoundedRectangle(cornerRadius: Theme.projectTileRadius).stroke(Theme.ui.text3, lineWidth: 1))
+                    .overlay(alignment: .topTrailing) {
+                        // Folded: its sessions are hidden in the rail too, so the tile carries their most urgent dot.
+                        if let folded {
+                            StatusDot(state: folded.state, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
+                                .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+                        }
+                    }
             }
             .opacity(exists ? 1 : Theme.inactiveOpacity)
         }

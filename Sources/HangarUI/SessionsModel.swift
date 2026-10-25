@@ -11,7 +11,7 @@ extension AppState {
     /// ⌘Y, the sidebar row «Сессии»: the view for `projectId` (default: the selected session's project, else the first one).
     /// It overlays the session area; the selection stays (and is saved), so Esc or a relaunch is back on that session.
     func showSessionsView(projectId: UUID? = nil) {
-        guard let id = projectId ?? selectedTask?.projectId ?? sessionsProjectId ?? state.projects.first?.id else { return }
+        guard let id = projectId ?? selectedTask?.projectId ?? sessionsProjectId ?? state.projects.first?.id else { beep(); return }  // no project: nothing to show
         sessionsProjectId = id
         didChange?()
     }

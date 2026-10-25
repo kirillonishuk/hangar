@@ -135,6 +135,12 @@ import Observation
         }
     }
 
+    /// ↑/↓ in the search field.
+    func step(by n: Int) { select(gitLogStep(commits.map(\.hash), from: selected, by: n)) }
+
+    /// ⌘F while the Git tab is shown: the search field takes focus on the next change.
+    var searchFocusRequest = 0
+
     func select(_ hash: String?) {
         guard hash != selected else { return }
         detailsTask?.cancel()
@@ -298,4 +304,10 @@ import Observation
     private nonisolated static func message(_ error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
+}
+
+/// The commit `by` rows from `from` in the log, stopping at the ends; from none (or one no longer listed), the first.
+func gitLogStep(_ hashes: [String], from: String?, by n: Int) -> String? {
+    guard let i = from.flatMap({ hashes.firstIndex(of: $0) }) else { return hashes.first }
+    return hashes[min(max(i + n, 0), hashes.count - 1)]
 }

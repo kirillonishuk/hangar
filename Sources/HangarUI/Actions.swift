@@ -241,25 +241,6 @@ func editorName(_ command: String) -> String {
     }
 }
 
-/// Context-menu and `…`-menu items for one target, from `Action`.
-struct ActionMenuItems: View {
-    let target: ActionTarget
-    let ctx: ActionContext
-
-    var body: some View {
-        let app = ctx.app
-        let actions = Action.list(for: target, app: app)
-        ForEach(Array(actions.enumerated()), id: \.offset) { i, action in
-            if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { Divider() }
-            Button { action.perform(target, ctx) } label: {
-                Label { Text(action.title(for: target, app: app)) } icon: { Image(nsImage: action.icon.image) }
-            }
-            .disabled(!action.isEnabled(for: target, app: app))
-            .modifier(MenuShortcutHint(shortcut: action.shortcut))
-        }
-    }
-}
-
 /// Shows the key in the menu (the key itself is handled by the window's key monitor, by keyCode).
 struct MenuShortcutHint: ViewModifier {
     let shortcut: Shortcut?

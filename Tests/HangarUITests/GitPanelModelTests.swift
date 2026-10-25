@@ -95,6 +95,18 @@ import Workspace
 
     // MARK: Dates
 
+    /// ↑/↓ from the search field: the next / previous commit, stopping at the ends; from none, the first.
+    @Test func arrowsStepThroughTheLog() {
+        let hashes = ["a", "b", "c"]
+        #expect(gitLogStep(hashes, from: nil, by: 1) == "a")
+        #expect(gitLogStep(hashes, from: nil, by: -1) == "a")
+        #expect(gitLogStep(hashes, from: "a", by: 1) == "b")
+        #expect(gitLogStep(hashes, from: "c", by: 1) == "c")
+        #expect(gitLogStep(hashes, from: "a", by: -1) == "a")
+        #expect(gitLogStep(hashes, from: "gone", by: 1) == "a")
+        #expect(gitLogStep([], from: nil, by: 1) == nil)
+    }
+
     @Test func relativeDates() {
         defer { L10n.language = .system }
         let now = date("2026-10-25T15:30:00Z")

@@ -81,11 +81,14 @@ final class TaskColumnController: NSViewController {
 final class WindowRootController: NSViewController {
     private let split: NSSplitViewController
     let titleBar: NSHostingView<WindowTitleBar>
+    let metrics: TitleBarMetrics
     private let statusBar: NSHostingView<WindowStatusBar>
 
     init(app: AppState, split: NSSplitViewController) {
         self.split = split
-        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, toggleSidebar: {}))
+        let metrics = TitleBarMetrics()
+        self.metrics = metrics
+        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, toggleSidebar: {}))
         statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
@@ -116,6 +119,22 @@ final class WindowRootController: NSViewController {
             statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
         ])
         view = v
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        metrics.update(from: view.window)
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        let nc = NotificationCenter.default
+        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didResizeNotification] {
+            nc.addObserver(forName: name, object: view.window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.metrics.update(from: self?.view.window) }
+            }
+        }
+        metrics.update(from: view.window)
     }
 }
 
@@ -205,7 +224,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
-        root.titleBar.rootView = WindowTitleBar(app: app) { [weak self] in self?.toggleSidebar() }
+        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics) { [weak self] in self?.toggleSidebar() }
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in

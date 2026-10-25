@@ -23,24 +23,25 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Titlebar row, tab bar row, terminal area, task status line.
+/// Tab bar row and terminal area of the selected session.
 final class TaskColumnController: NSViewController {
     let terminalArea: TerminalArea
-    private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
-    private let statusBar: NSHostingView<TaskStatusBar>
     /// «Сессия в архиве · Отменить» over the bottom of the terminals.
     let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
+    /// «Сессии» (⌘Y) over the tab bar and terminals.
+    let sessionsModel: SessionsModel
+    let sessions: NSHostingView<SessionsHost>
 
     init(app: AppState) {
+        sessionsModel = SessionsModel(app: app)
+        sessions = NSHostingView(rootView: SessionsHost(app: app, model: sessionsModel, ctx: ActionContext(app: app)))
         terminalArea = TerminalArea(app: app)
         let undo = ArchiveUndo()
         archiveUndo = undo
         toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
-        titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
-        statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -48,11 +49,58 @@ final class TaskColumnController: NSViewController {
 
     override func loadView() {
         let v = NSView()
-        titleBar.sizingOptions = []
         tabBar.sizingOptions = []
-        statusBar.sizingOptions = []
         toast.sizingOptions = [.intrinsicContentSize]
-        for sub in [titleBar, tabBar, terminalArea, statusBar, toast] as [NSView] {
+        sessions.sizingOptions = []
+        sessions.isHidden = true
+        for sub in [tabBar, terminalArea, sessions, toast] as [NSView] {
+            sub.translatesAutoresizingMaskIntoConstraints = false
+            v.addSubview(sub)
+        }
+        NSLayoutConstraint.activate([
+            tabBar.topAnchor.constraint(equalTo: v.topAnchor),
+            tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
+            terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            sessions.topAnchor.constraint(equalTo: v.topAnchor),
+            sessions.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            sessions.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            sessions.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
+            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
+        ])
+        view = v
+    }
+}
+
+/// Window content (redesign v1 §1): one titlebar across the window, the three columns, the status bar at the bottom.
+final class WindowRootController: NSViewController {
+    private let split: NSSplitViewController
+    let titleBar: NSHostingView<WindowTitleBar>
+    let metrics: TitleBarMetrics
+    private let statusBar: NSHostingView<WindowStatusBar>
+
+    init(app: AppState, split: NSSplitViewController) {
+        self.split = split
+        let metrics = TitleBarMetrics()
+        self.metrics = metrics
+        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, toggleSidebar: {}))
+        statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        let v = NSView()
+        addChild(split)
+        titleBar.sizingOptions = []
+        statusBar.sizingOptions = []
+        for sub in [titleBar, split.view, statusBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -61,22 +109,32 @@ final class TaskColumnController: NSViewController {
             titleBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             titleBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             titleBar.heightAnchor.constraint(equalToConstant: Theme.titleBarHeight),
-            tabBar.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
-            tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
-            terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
-            terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            terminalArea.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            split.view.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
+            split.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            split.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            split.view.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
             statusBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
-            toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
-            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
         ])
         view = v
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        metrics.update(from: view.window)
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        let nc = NotificationCenter.default
+        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didResizeNotification] {
+            nc.addObserver(forName: name, object: view.window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.metrics.update(from: self?.view.window) }
+            }
+        }
+        metrics.update(from: view.window)
     }
 }
 
@@ -155,7 +213,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         inspectorItem.isCollapsed = !app.state.inspectorVisible
         split.addSplitViewItem(inspectorItem)
 
-        window.contentViewController = split
+        let root = WindowRootController(app: app, split: split)
+        window.contentViewController = root
         window.setContentSize(Theme.windowSize)
         window.center()
         super.init(window: window)
@@ -165,6 +224,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics) { [weak self] in self?.toggleSidebar() }
+        column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
@@ -181,6 +242,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         app.didChange = { [weak self] in
             guard let self else { return }
+            // «Сессии» overlays the selected session: hiding its terminals hands their focus on; it comes back on Esc.
+            let sessionsShown = self.app.sessionsViewVisible
+            if self.column.sessions.isHidden == sessionsShown {
+                self.column.sessions.isHidden = !sessionsShown
+                self.column.tabBar.isHidden = sessionsShown
+                self.column.terminalArea.isHidden = sessionsShown
+                if !sessionsShown { DispatchQueue.main.async { self.column.terminalArea.focusActiveLeaf() } }
+            }
             self.syncInspector()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()
@@ -265,9 +334,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         view.setPosition(view.bounds.width - width - view.dividerThickness, ofDividerAt: 1)
     }
 
-    /// Follows `inspectorVisible` (⌘⌥I, titlebar button); expanding restores the saved width.
+    /// Follows `inspectorVisible` (⌥⌘I, titlebar button); expanding restores the saved width.
     private func syncInspector() {
-        let collapsed = !app.state.inspectorVisible
+        let collapsed = !app.state.inspectorVisible || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
         guard inspectorItem.isCollapsed != collapsed else { return }
         inspectorItem.isCollapsed = collapsed
         if !collapsed, didApplyInitialLayout { applyInspectorWidth() }
@@ -347,6 +416,17 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
+        // Esc leaves «Сессии» (also from its search field).
+        if app.sessionsViewVisible, event.keyCode == 53, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
+            app.hideSessionsView()
+            return true
+        }
+        // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
+        if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+           app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
+            app.gitPanel.searchFocusRequest += 1
+            return true
+        }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {
@@ -373,8 +453,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil) {
+            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
+                               sessionsShown: app.sessionsViewVisible) {
             case .ignore: break
+            case .closeSessions: app.hideSessionsView()
             case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
             case .perform: perform(sc)
             }
@@ -445,6 +527,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .settings: showSettings(nil)
         case .inspectorFiles: app.showInspector(.files)
         case .inspectorChanges: app.showInspector(.changes)
+        case .inspectorGit: app.showInspector(.git)
         case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
         case .prevTab: cycleTab(-1)
@@ -453,6 +536,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if !column.terminalArea.focusSplit(direction), let step = direction.taskFallback { app.selectTask(offset: step) }
         case .quickOpen: togglePalette(commands: false)
         case .commandPalette: togglePalette(commands: true)
+        case .sessions: app.toggleSessionsView()
         }
     }
 

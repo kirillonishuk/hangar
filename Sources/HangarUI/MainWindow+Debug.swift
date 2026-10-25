@@ -76,14 +76,19 @@ extension MainWindowController {
             "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
-            "inspectorChanges": .inspectorChanges, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
-            "quickOpen": .quickOpen, "commandPalette": .commandPalette,
+            "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
+            "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions,
         ]
         switch parts.first ?? "" {
         case "task":
             let fields = arg.split(separator: "|", maxSplits: 1).map(String.init)
             guard let project = app.selectedTask?.projectId ?? app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "", mode: .mainFolder)
+        case "wtask":
+            // wtask <name> <existing worktree path> <branch> <base>: a worktree session over a worktree made beforehand.
+            let f = arg.split(separator: " ").map(String.init)
+            guard f.count == 4, let project = app.state.projects.first?.id else { return }
+            app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "tab": LeafKind(rawValue: arg).map(app.addTab)
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
@@ -92,16 +97,39 @@ extension MainWindowController {
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
+        // «Сессии»: the search text; the n-th project.
+        case "sessionsQuery": column.sessionsModel.query = arg
+        case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
+        case "hover", "menu":
+            // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).
+            // menu task|project <n>: its «⋯» menu, 200/120 pt into the window.
+            let f = arg.split(separator: " ").map(String.init)
+            let n = f.count > 1 ? Int(f[1]) ?? -1 : -1
+            let target: ActionTarget? = switch f.first {
+            case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
+            case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            default: nil
+            }
+            if parts[0] == "hover" {
+                app.debugHover = target
+            } else if let target, let frame = window?.frame {
+                PopoverMenu.show(actionMenu(for: target, ctx: ctx), at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
+            }
         case "project": app.addProject(path: arg)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
             let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
-            guard let view = target?.contentView,
+            // "…-window…": the whole frame view, with the traffic lights.
+            guard let view = arg.contains("-window") ? target?.contentView?.superview : target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
+        case "lights":  // lights <file>: traffic light frames (window coordinates, bottom-left origin)
+            let frames = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { self.window?.standardWindowButton($0) }.map { $0.convert($0.bounds, to: nil) }
+            try? "lights \(frames) content=\(String(describing: self.window?.contentView?.frame))".write(toFile: arg, atomically: true, encoding: .utf8)
+        case "git": debugGit(arg)
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "open":
             // open <absolute path> [line]: as an inspector click would.
@@ -242,7 +270,7 @@ extension MainWindowController {
             switch f.first ?? "" {
             case "open":
                 guard let model = newTaskModelForDebug else { return }
-                let list = BranchList(selection: Binding(get: { model.base }, set: { model.base = $0 }),
+                let list = BranchListView(selection: Binding(get: { model.base }, set: { model.base = $0 }),
                                       branches: model.branches, defaultBase: model.defaultBase,
                                       taskBranches: model.taskBranches, defaultOption: nil) {
                     uiLog.info("picker closed base=\(model.base ?? "-", privacy: .public)")

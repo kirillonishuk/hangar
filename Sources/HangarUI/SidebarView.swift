@@ -34,7 +34,6 @@ func dropIndex(heights: [CGFloat], from: Int, dy: CGFloat) -> Int {
 struct SidebarView: View {
     let app: AppState
     let ctx: ActionContext
-    @State private var archiveOpen = false
     /// Row being reordered (task within its group, or project) and its vertical translation.
     @State private var drag: (target: ActionTarget, dy: CGFloat)?
 
@@ -44,21 +43,24 @@ struct SidebarView: View {
         GeometryReader { geo in
             // While collapsed or animating, lay out at the expanded width and clip, so text never reflows.
             let width = collapsed || app.sidebarAnimating ? max(geo.size.width, CGFloat(app.state.sidebarWidth)) : geo.size.width
+            // Row highlights keep their inset from the visible edges, also while laid out wider than shown.
+            let inset = collapsed ? Theme.railInset : Theme.rowInset
             VStack(spacing: 0) {
-                Color.clear.frame(height: Theme.trafficLightsHeight).background(WindowDragArea())
-                newTaskButton(visibleWidth: geo.size.width)
+                Color.clear.frame(height: Theme.sidebarTopGap)
+                newTaskButton(visibleWidth: geo.size.width, inset: inset)
+                sessionsRow
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         if !app.state.attentionOnly { pinnedSection }
                         hostsSection
                         projectsSection
-                        archivedSection
                     }
                     .padding(.bottom, Theme.sectionGap)
                 }
                 .scrollIndicators(collapsed ? .never : .automatic)
                 bottomBar
             }
+            .environment(\.rowHighlight, RowHighlight(leading: inset, trailing: width - geo.size.width + inset, radius: Theme.rowRadius))
             .frame(width: width, alignment: .leading)
             .frame(width: geo.size.width, alignment: .leading)
             .clipped()
@@ -69,12 +71,21 @@ struct SidebarView: View {
         .ignoresSafeArea()
     }
 
+    /// Debug snapshots: the row drawn as hovered (`debug hover …`).
+    private func forcedHover(_ target: ActionTarget) -> Bool {
+        #if DEBUG
+        app.debugHover == target
+        #else
+        false
+        #endif
+    }
+
     // MARK: Top
 
     /// Filled full-width button; the fill is inset so the `+` keeps the shared marker x.
-    private func newTaskButton(visibleWidth: CGFloat) -> some View {
+    private func newTaskButton(visibleWidth: CGFloat, inset: CGFloat) -> some View {
         Button { ctx.newTask(nil) } label: {
-            GutterRow(collapsed: collapsed) {
+            GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .add, active: true)
             } expanded: {
                 HStack(spacing: 0) {
@@ -85,8 +96,27 @@ struct SidebarView: View {
             } rail: { EmptyView() }
             .contentShape(Rectangle())
         }
-        .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * Theme.railInset))
+        .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * inset, inset: inset, radius: Theme.rowRadius))
+        .padding(.top, Theme.newTaskTop)
+        .padding(.bottom, Theme.newTaskBottom)
         .help(L10n.help(L10n.newTaskHelp, .newTask))
+    }
+
+    /// «Сессии ⌘Y»: the history of sessions, closed ones included (the АРХИВ section's successor).
+    private var sessionsRow: some View {
+        HoverRow(selected: app.sessionsViewVisible, action: { app.showSessionsView() }) { _ in
+            GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
+                IconView(icon: .history, active: app.sessionsViewVisible)
+            } expanded: {
+                HStack(spacing: 0) {
+                    Text(L10n.sessionsView)
+                        .foregroundStyle(app.sessionsViewVisible ? Theme.ui.selectionText : Theme.ui.textRow)
+                    Spacer(minLength: 0)
+                    ShortcutHint(text: Shortcut.sessions.label)
+                }
+            } rail: { EmptyView() }
+        }
+        .help(L10n.help(L10n.sessionsViewHelp, .sessions))
     }
 
     // MARK: Pinned
@@ -95,8 +125,47 @@ struct SidebarView: View {
         let pinned = app.pinnedTasks
         if !pinned.isEmpty {
             SectionHeader(title: L10n.sectionPinned, collapsed: collapsed)
-            ForEach(pinned) { task in taskRow(task, projectName: app.project(task.projectId)?.name, indent: false) }
+            ForEach(pinned) { task in pinnedRow(task) }
         }
+    }
+
+    /// One line, 32: dot, name, project (`text3`); pin and «⋯» on hover.
+    private func pinnedRow(_ task: HangarTask) -> some View {
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
+        let target = ActionTarget.task(task.id)
+        let dot = app.displayState(of: task)
+        return HoverRow(selected: selected, action: {
+                            clicked(target)
+                            app.select(taskId: task.id)
+                        },
+                        doubleAction: { Action.rename.perform(target, ctx) },
+                        forceHover: forcedHover(target)) { hover in
+            GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
+                StatusDot(state: dot)
+            } expanded: {
+                HStack(spacing: Theme.rowEndGap) {
+                    if app.renaming == target {
+                        RenameField(app: app, target: target)
+                    } else {
+                        Text(task.name).lineLimit(1).truncationMode(.tail)
+                    }
+                    Text(app.project(task.projectId)?.name ?? "").lineLimit(1)
+                        .font(.system(size: Theme.rowStatusFont))
+                        .foregroundStyle(Theme.ui.text3)
+                        .layoutPriority(-1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.trailing, hover ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
+                .overlay(alignment: .trailing) { taskActions(task, target: target, shown: hover && app.renaming != target) }
+            } rail: {
+                RailTile(text: monogram(task.name), state: dot, selected: selected)
+            }
+            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
+        .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
     // MARK: SSH hosts
@@ -121,7 +190,7 @@ struct SidebarView: View {
         // Without projects the host has no master or state: a click logs in (or shows its terminal).
         let known = app.sshHosts.contains(host)
         return HoverRow(action: { if known { popUpMenu(items) } else { app.showHostShell(host) } }) { hover in
-            GutterRow(collapsed: collapsed) {
+            GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing) {
                 IconView(icon: .sshHost, size: Theme.hostIconSize)
                     .overlay(alignment: .topTrailing) {
                         // The same corner dot as a rail monogram's: visible in both modes, nothing moves.
@@ -139,39 +208,43 @@ struct SidebarView: View {
                     Spacer(minLength: 0)
                     if known {
                         Text(hostStatusLabel(info)).lineLimit(1)
-                            .font(.system(size: Theme.fontSize.counter))
+                            .font(.system(size: Theme.rowStatusFont))
                             .foregroundStyle(Theme.ui.text3)
+                            .opacity(hover ? 0 : 1)
                     }
-                    MoreButton { MenuItemsView(items: items) }
+                }
+                // «⋯» takes the state's place on hover, no layout change.
+                .overlay(alignment: .trailing) {
+                    PopoverMenuButton { popoverEntries(items) }
                         .opacity(hover ? 1 : 0)
                         .allowsHitTesting(hover)
                 }
             } rail: { EmptyView() }
         }
         .help(known ? hostHelp(host, info) : L10n.openTerminal)
-        .contextMenu { MenuItemsView(items: items) }
+        .popoverContextMenu { popoverEntries(items) }
     }
 
     /// «<host> · терминал»: plain ssh shells (#64); its menu opens another tab or closes them all.
     private func hostShellRow(_ task: HangarTask, host: String) -> some View {
-        let selected = task.id == app.state.selectedTaskId
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let dot = app.displayState(of: task)
         let name = L10n.hostTerminal(host)
         let items = [MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) },
                      MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
         return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
-            GutterRow(collapsed: collapsed, railReplacesMarker: true) {
+            GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
                 StatusDot(state: dot)
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
                 }
+                .padding(.trailing, hover ? Theme.rowActionSize : 0)
                 .overlay(alignment: .trailing) {
-                    RowActions(shown: hover || selected,
-                               background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
-                        MoreButton { MenuItemsView(items: items) }
-                    }
+                    PopoverMenuButton { popoverEntries(items) }
+                        .opacity(hover ? 1 : 0)
+                        .allowsHitTesting(hover)
                 }
             } rail: {
                 RailTile(text: monogram(host), state: dot, selected: selected)
@@ -182,7 +255,7 @@ struct SidebarView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(name, dot))
         .help(collapsed ? name : L10n.plainSSHHint)
-        .contextMenu { MenuItemsView(items: items) }
+        .popoverContextMenu { popoverEntries(items) }
     }
 
     /// Why the host is not connected (or that its server needs attention).
@@ -206,7 +279,7 @@ struct SidebarView: View {
                 .font(.system(size: Theme.fontSize.sidebarRow))
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(1)
-                .padding(.leading, Theme.sectionTextX)
+                .padding(.leading, Theme.sectionHeaderX)
                 .frame(maxWidth: .infinity, minHeight: Theme.railRowHeight, alignment: .leading)
                 .opacity(collapsed ? 0 : 1)
         }
@@ -216,7 +289,7 @@ struct SidebarView: View {
                 projectRow(project)
                 if !project.collapsed {
                     ForEach(filtering ? groups.first { $0.project.id == project.id }?.tasks ?? [] : app.groupTasks(project.id)) { task in
-                        taskRow(task, projectName: nil, indent: true)
+                        taskRow(task)
                             .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
                     }
                 }
@@ -229,14 +302,6 @@ struct SidebarView: View {
     /// Remembered as the F2 target; the keyboard stays with the terminal.
     private func clicked(_ target: ActionTarget) { app.chromeClicked(target) }
 
-    /// The context menu's actions as entries for `popUpMenu`.
-    private func actionEntries(_ target: ActionTarget) -> [MenuEntry] {
-        Action.list(for: target, app: app).map { action in
-            MenuEntry(title: action.title(for: target, app: app), icon: action.icon,
-                      enabled: action.isEnabled(for: target, app: app)) { action.perform(target, ctx) }
-        }
-    }
-
     // MARK: Reorder
 
     /// Ids and heights of the dragged item's group: a project's unpinned tasks, or all project blocks.
@@ -245,10 +310,10 @@ struct SidebarView: View {
         case .task(let id):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return nil }
             let ids = app.groupTasks(task.projectId).map(\.id)
-            return (ids, ids.map { _ in Theme.railRowHeight })
+            return (ids, ids.map { _ in Theme.sessionRowHeight })
         case .project:
             let heights = app.state.projects.map { p in
-                Theme.railRowHeight * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count))
+                Theme.railRowHeight + Theme.sessionRowHeight * CGFloat(p.collapsed ? 0 : app.groupTasks(p.id).count)
             }
             return (app.state.projects.map(\.id), heights)
         case .tab: return nil
@@ -297,120 +362,122 @@ struct SidebarView: View {
         })
     }
 
+    /// Group header, 32: chevron in the gutter, name 13.5 semibold; «⋯» and «+» on hover, on the highlight itself.
     private func projectRow(_ project: Project) -> some View {
         // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
         let exists = app.isAvailable(project)
         let target = ActionTarget.project(project.id)
         let handlers = dragHandlers(target)
+        let renaming = app.renaming == target
         return HoverRow(action: {
                             clicked(target)
                             app.setCollapsed(projectId: project.id, !project.collapsed)
                         },
                         // The filtered list is not the real order: no reordering while it is on.
-                        onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd) { hover in
-            ZStack(alignment: .leading) {
+                        onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd,
+                        forceHover: forcedHover(target)) { hover in
+            GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
+                IconView(icon: project.collapsed ? .chevronRight : .chevronDown, tint: Theme.ui.text3)
+            } expanded: {
                 HStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        IconView(icon: project.collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
-                            .frame(width: Theme.smallIconSize)
-                            .padding(.leading, Theme.projectChevronX - Theme.smallIconSize / 2)
-                        Group {
-                            if app.renaming == target {
-                                RenameField(app: app, target: target)
-                            } else {
-                                Text(project.name).foregroundStyle(Theme.ui.text).lineLimit(1)
-                            }
-                        }
-                        .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
-                        .padding(.leading, Theme.projectTextX - Theme.projectChevronX - Theme.smallIconSize / 2)
-                        // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
-                        if let host = project.host, app.renaming != target {
-                            HStack(spacing: Theme.railInset) {
-                                IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
-                                Text(verbatim: host).lineLimit(1).truncationMode(.middle)
-                                    .font(.system(size: Theme.fontSize.counter))
-                                    .foregroundStyle(Theme.ui.text3)
-                            }
-                            .padding(.leading, Theme.inlineGap)
-                            .layoutPriority(-1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    // As on task rows: overlaid on hover, so the name keeps the full width.
-                    .overlay(alignment: .trailing) {
-                        RowActions(shown: hover && app.renaming != target,
-                                   background: HoverPalette.sidebar.background(selected: false, hover: hover, base: Theme.ui.sidebar)) {
-                            MoreButton { ActionMenuItems(target: target, ctx: ctx) }
-                            if exists {
-                                Button { ctx.newTask(project.id) } label: {
-                                    IconView(icon: .add, size: Theme.smallIconSize).padding(Theme.railInset)
-                                }
-                                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                                .help(L10n.newTaskIn(project.name))
-                            }
+                    Group {
+                        if renaming {
+                            RenameField(app: app, target: target)
+                        } else {
+                            Text(project.name).foregroundStyle(Theme.ui.textStrong).lineLimit(1)
                         }
                     }
+                    .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
+                    // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
+                    if let host = project.host, !renaming {
+                        HStack(spacing: Theme.railInset) {
+                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                            Text(verbatim: host).lineLimit(1).truncationMode(.middle)
+                                .font(.system(size: Theme.rowStatusFont))
+                                .foregroundStyle(Theme.ui.text3)
+                        }
+                        .padding(.leading, Theme.inlineGap)
+                        .layoutPriority(-1)
+                    }
+                    Spacer(minLength: 0)
                     if !exists, project.host == nil {
-                        Text(L10n.folderMissing).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                        Text(L10n.folderMissing).font(.system(size: Theme.rowStatusFont)).foregroundStyle(Theme.ui.text3)
                             .padding(.leading, Theme.rowEndGap)
+                            .opacity(hover ? 0 : 1)
                     }
                 }
-                .padding(.trailing, Theme.rowPaddingH - Theme.railInset)
-                .opacity(collapsed ? 0 : 1)
+                .padding(.trailing, hover ? 2 * Theme.rowActionSize : 0)
+                .overlay(alignment: .trailing) {
+                    HStack(spacing: 0) {
+                        PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
+                        if exists {
+                            RowActionButton(icon: .add, help: L10n.newTaskIn(project.name)) { ctx.newTask(project.id) }
+                        }
+                    }
+                    .opacity(hover && !renaming ? 1 : 0)
+                    .allowsHitTesting(hover && !renaming)
+                }
+            } rail: {
                 // Rail: a folder-like monogram tile (no status dot, `text3` border).
                 Text(monogram(project.name))
                     .font(.system(size: Theme.fontSize.small, weight: .semibold))
                     .foregroundStyle(Theme.ui.text3)
                     .frame(width: Theme.projectTileSize, height: Theme.projectTileSize)
                     .overlay(RoundedRectangle(cornerRadius: Theme.projectTileRadius).stroke(Theme.ui.text3, lineWidth: 1))
-                    .padding(.leading, (Theme.sidebarRailWidth - Theme.projectTileSize) / 2)
-                    .opacity(collapsed ? 1 : 0)
             }
-            .frame(height: Theme.railRowHeight)
             .opacity(exists ? 1 : Theme.inactiveOpacity)
-            .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
         }
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
-        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+        .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
-    // MARK: Tasks
+    // MARK: Sessions
 
-    /// `projectName` set → pinned row (project shown after the name); `indent` → under its project.
-    private func taskRow(_ task: HangarTask, projectName: String?, indent: Bool) -> some View {
-        let selected = task.id == app.state.selectedTaskId
+    /// Two lines, 44: name with the `+N −M` badge, then the status («ждёт · 1 агент»). On hover pin and «⋯»
+    /// fade in where the badge was (it fades out): no box of their own, nothing moves.
+    private func taskRow(_ task: HangarTask) -> some View {
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
+        let badge = app.diffBadge(of: task)
+        let worktree = if case .worktree = task.mode { true } else { false }
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
-        // Pinned rows mix projects, so only rows inside a project group reorder.
-        let handlers = indent && !app.state.attentionOnly ? dragHandlers(target) : nil
+        let handlers = app.state.attentionOnly ? nil : dragHandlers(target)
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.select(taskId: task.id)
                         },
                         doubleAction: { Action.rename.perform(target, ctx) },
-                        onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd) { hover in
-            GutterRow(collapsed: collapsed, railReplacesMarker: true) {
+                        onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd,
+                        forceHover: forcedHover(target)) { hover in
+            let showActions = hover && app.renaming != target
+            GutterRow(collapsed: collapsed, height: Theme.sessionRowHeight, trailing: Theme.sessionRowTrailing, railReplacesMarker: true,
+                      markerDY: Theme.sessionRowPaddingV + Theme.sessionNameLine / 2 - Theme.sessionRowHeight / 2) {
                 StatusDot(state: dot)
             } expanded: {
-                HStack(spacing: Theme.inlineGap) {
-                    if app.renaming == target {
-                        RenameField(app: app, target: target)
-                    } else {
-                        Text(task.name).lineLimit(1).truncationMode(.tail)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: Theme.rowSlotGap) {
+                        Group {
+                            if app.renaming == target {
+                                RenameField(app: app, target: target)
+                            } else {
+                                Text(task.name).lineLimit(1).truncationMode(.tail)
+                            }
+                        }
+                        // Without a badge the actions cover the name's end: it truncates earlier instead.
+                        .padding(.trailing, showActions && badge == nil ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
+                        Spacer(minLength: 0)
+                        if let badge { DiffBadgeView(badge: badge).opacity(showActions ? 0 : 1) }
                     }
-                    if let projectName {
-                        Text(projectName).lineLimit(1).foregroundStyle(Theme.ui.text3)
+                    .frame(height: Theme.sessionNameLine)
+                    .overlay(alignment: .trailing) {
+                        taskActions(task, target: target, shown: showActions)
+                            .offset(x: Theme.rowActionsOverhang)
                     }
-                    Spacer(minLength: 0)
-                    if case .worktree = task.mode {
-                        IconView(icon: .branch, size: Theme.worktreeEndIcon, tint: Theme.ui.text3)
-                    }
+                    SessionStatusLine(status: app.sessionStatus(of: task), worktree: worktree)
                 }
-                // Overlaid, not laid out: the name keeps the full width and nothing reflows on hover.
-                .overlay(alignment: .trailing) { taskActions(task, target: target, selected: selected, hover: hover) }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
@@ -421,72 +488,21 @@ struct SidebarView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
-        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
+        .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
+        .onAppear { app.requestBadge(task) }
     }
 
-    /// `…` and pin at the row's trailing edge (on hover/selection; the pin also while pinned), over a short fade
-    /// in the row's own background so they cover the name's end instead of taking width from it.
-    private func taskActions(_ task: HangarTask, target: ActionTarget, selected: Bool, hover: Bool) -> some View {
-        let showMenu = hover || selected
-        // Not over the inline rename field.
-        let shown = (showMenu || task.pinned) && app.renaming != target
-        return RowActions(shown: shown, background: HoverPalette.sidebar.background(selected: selected, hover: hover, base: Theme.ui.sidebar)) {
-            if showMenu { MoreButton { ActionMenuItems(target: target, ctx: ctx) } }
-            Button { app.setPinned(task.id, !task.pinned) } label: {
-                IconView(icon: .pin, active: selected, size: Theme.smallIconSize, tint: task.pinned ? Theme.ui.textStrong : nil)
-                    .padding(Theme.railInset)
+    /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
+    private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
+        HStack(spacing: 0) {
+            RowActionButton(icon: .pin, tint: task.pinned ? Theme.ui.textStrong : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
+                app.setPinned(task.id, !task.pinned)
             }
-            .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-            .help(task.pinned ? L10n.unpin : L10n.pin)
+            PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
         }
-    }
-
-    // MARK: Archived
-
-    @ViewBuilder private var archivedSection: some View {
-        let archived = app.archivedTasks
-        if !archived.isEmpty {
-            VStack(spacing: 0) {
-                HoverRow(action: { withAnimation(Motion.ease(Theme.selectionFade)) { archiveOpen.toggle() } }) { _ in
-                    GutterRow(collapsed: collapsed) {
-                        IconView(icon: .archive)
-                    } expanded: {
-                        HStack(spacing: Theme.inlineGap) {
-                            Text(L10n.sectionArchived).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
-                            Text("\(archived.count)").font(.system(size: Theme.fontSize.counter))
-                            Spacer(minLength: 0)
-                            IconView(icon: archiveOpen ? .chevronDown : .chevronRight, size: Theme.smallIconSize)
-                        }
-                        .font(.system(size: Theme.fontSize.section, weight: .semibold))
-                        .foregroundStyle(Theme.ui.text3)
-                    } rail: { EmptyView() }
-                }
-                .help(L10n.archiveToggleHelp)
-                if archiveOpen {
-                    ForEach(archived) { task in
-                        let target = ActionTarget.task(task.id)
-                        // A click opens the same menu as right-click (restore / delete), at the pointer like the host row.
-                        HoverRow(action: { popUpMenu(actionEntries(target)) }) { _ in
-                            GutterRow(collapsed: collapsed) {
-                                StatusDot(state: app.displayState(of: task))
-                            } expanded: {
-                                HStack(spacing: Theme.inlineGap) {
-                                    Text(task.name).lineLimit(1)
-                                    Text(app.project(task.projectId)?.name ?? "").lineLimit(1).foregroundStyle(Theme.ui.text3)
-                                }
-                                .font(.system(size: Theme.fontSize.sidebarRow))
-                                .foregroundStyle(Theme.ui.text2)
-                            } rail: { EmptyView() }
-                        }
-                        .contextMenu { ActionMenuItems(target: target, ctx: ctx) }
-                    }
-                }
-            }
-            .padding(.top, Theme.sectionGap)
-            .opacity(collapsed ? 0 : 1)
-            .allowsHitTesting(!collapsed)
-            .animation(Motion.ease(Theme.sidebarAnimation), value: collapsed)
-        }
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
+        .animation(Motion.ease(Theme.hoverFade), value: shown)
     }
 
     // MARK: Bottom bar
@@ -499,44 +515,29 @@ struct SidebarView: View {
             }
             // ☕ has its own row in both modes: collapsing never adds or removes a row, so the bottom group stays put.
             KeepAwakeRow(app: app, collapsed: collapsed)
+            // «Добавить проект» lives only at ПРОЕКТЫ «+» (redesign v1): Settings has no «⋯».
             HoverRow(action: ctx.openSettings) { _ in
-                GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
+                GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
                     IconView(icon: .settings)
                 } expanded: {
                     HStack(spacing: 0) {
                         Text(L10n.settings)
                         Spacer(minLength: 0)
-                        MoreButton(help: L10n.help(L10n.addProject, .addProject)) {
-                            Button(L10n.addLocalProject, action: ctx.addLocalProject)
-                            Button(L10n.addRemoteProject, action: ctx.addRemoteProject)
-                            Button(L10n.connectToHost, action: ctx.connectHost)
-                        }
+                        ShortcutHint(text: Shortcut.settings.label)
                     }
                     .font(.system(size: Theme.fontSize.sidebarFooter))
-                    .foregroundStyle(Theme.ui.text3)
+                    .foregroundStyle(Theme.ui.text2)
                 } rail: { EmptyView() }
             }
             .help(L10n.help(L10n.settingsHelp, .settings))
-            HoverRow(action: ctx.toggleSidebar) { _ in
-                GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
-                    IconView(icon: .sidebarLeft)
-                } expanded: {
-                    HStack(spacing: 0) {
-                        Text(L10n.collapse)
-                        Spacer(minLength: 0)
-                        ShortcutHint(text: Shortcut.toggleSidebar.label)
-                    }
-                    .font(.system(size: Theme.fontSize.sidebarFooter))
-                    .foregroundStyle(Theme.ui.text3)
-                } rail: { EmptyView() }
-            }
-            .help(L10n.help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp, .toggleSidebar))
         }
-        .padding(.vertical, Theme.railInset)
+        .padding(.top, Theme.bottomBarTop)
+        .padding(.bottom, Theme.bottomBarBottom)
         .background(Theme.ui.bottomBar)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 }
+
 
 /// ☕ state → its look: on = accent icon, `textStrong` label, switch on; the dot only while the assertion is held.
 struct KeepAwakeLook: Equatable {
@@ -560,7 +561,7 @@ private struct KeepAwakeRow: View {
         let keep = app.keepAwake
         let look = keepAwakeLook(enabled: app.config.keepAwake, held: keep.held)
         HoverRow(action: toggle) { _ in
-            GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
+            GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .keepAwake, tint: look.tint)
                     .overlay(alignment: .topTrailing) {
                         Circle().fill(Theme.ui.accent)
@@ -604,25 +605,6 @@ private struct KeepAwakeSwitch: View {
                 .padding(.horizontal, Theme.keepAwakeSwitchInset)
         }
         .frame(width: Theme.keepAwakeSwitchWidth, height: Theme.keepAwakeSwitchHeight)
-    }
-}
-
-/// Hover actions overlaid on a row's trailing edge: a short fade in the row's background, then the buttons on it.
-private struct RowActions<Content: View>: View {
-    let shown: Bool
-    let background: Color
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        HStack(spacing: 0) {
-            LinearGradient(colors: [background.opacity(0), background], startPoint: .leading, endPoint: .trailing)
-                .frame(width: Theme.rowActionsFade)
-                .allowsHitTesting(false)
-            HStack(spacing: Theme.inlineGap) { content }
-                .background(background)
-        }
-        .opacity(shown ? 1 : 0)
-        .allowsHitTesting(shown)
     }
 }
 

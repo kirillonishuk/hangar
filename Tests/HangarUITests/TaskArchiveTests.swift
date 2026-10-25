@@ -59,6 +59,42 @@ import Workspace
         #expect(calls.archived == [id] && calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
+    @Test func archiveKeepsTimeAndChangesForSessions() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        try "one\ntwo\n".write(toFile: wt + "/new.txt", atomically: true, encoding: .utf8)
+        _ = try t.git("add", "new.txt", in: wt)
+        _ = try t.git("commit", "-q", "-m", "new", in: wt)
+        let before = Date()
+        await archiveTask(id, ctx: ctx)
+        let task = try #require(app.state.tasks.first { $0.id == id })
+        #expect(task.archived && !exists(wt))
+        #expect(task.archivedChanges == LineChanges(added: 2, deleted: 0))
+        #expect((task.archivedAt ?? .distantPast) >= before.addingTimeInterval(-1))
+    }
+
+    /// The +N −M measure is awaited before the folder goes: a restore meanwhile (the «Сессии» view lists the session
+    /// as closed already) must keep the folder of the session that is open again.
+    @Test func restoreDuringTheChangesMeasureKeepsTheFolder() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        // git asks the fsmonitor hook before the diff: it marks the moment and holds that call for a while.
+        let marker = t.root + "/measuring", hook = t.root + "/fsmonitor.sh"
+        try """
+        #!/bin/sh
+        case "$(ps -o args= -p $PPID)" in *--numstat*) touch '\(marker)'; sleep 2 ;; esac
+        exit 1
+        """.write(toFile: hook, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook)
+        _ = try t.git("config", "core.fsmonitor", hook, in: wt)
+        let archiving = Task { await archiveTask(id, ctx: ctx) }
+        #expect(await waitUntil { exists(marker) })
+        #expect(await app.restoreFromArchive(id) == .restored)
+        await archiving.value
+        #expect(!archived(app, id))
+        #expect(exists(wt))
+    }
+
     @Test func mainFolderTaskJustArchives() async throws {
         let (t, app, _, main, wt, calls, ctx) = try await make()
         defer { t.cleanup() }

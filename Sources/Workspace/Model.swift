@@ -213,6 +213,10 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var drawer: Drawer
     /// `HANGAR_PORT` of its tabs (#60); set when the task is added or an older state loads.
     public var port: Int?
+    /// When it was closed (archived); nil while open and for sessions closed before this was recorded.
+    public var archivedAt: Date?
+    /// Its `+N −M` against the base when the worktree was closed; nil when unknown.
+    public var archivedChanges: LineChanges?
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -236,9 +240,11 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         self.drawer = drawer
     }
 
-    private enum CodingKeys: String, CodingKey { case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port }
+    private enum CodingKeys: String, CodingKey {
+        case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges
+    }
 
-    /// `pinned`, `drawer` and `port` were added later; older files decode with the default.
+    /// `pinned`, `drawer`, `port` and the `archived…` details were added later; older files decode with the default.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), projectId: try c.decode(UUID.self, forKey: .projectId),
@@ -249,7 +255,17 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
                   pinned: try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false,
                   drawer: try c.decodeIfPresent(Drawer.self, forKey: .drawer) ?? Drawer(),
                   port: try c.decodeIfPresent(Int.self, forKey: .port))
+        archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
+        archivedChanges = try c.decodeIfPresent(LineChanges.self, forKey: .archivedChanges)
     }
+}
+
+/// Added / deleted line counts of a diff.
+public struct LineChanges: Codable, Equatable, Sendable {
+    public var added: Int
+    public var deleted: Int
+
+    public init(added: Int, deleted: Int) { self.added = added; self.deleted = deleted }
 }
 
 public struct WorkspaceState: Codable, Equatable, Sendable {
@@ -269,7 +285,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 220, sidebarCollapsed: Bool = false, inspectorWidth: Double = 220,
+                sidebarWidth: Double = 240, sidebarCollapsed: Bool = false, inspectorWidth: Double = 340,
                 hostShells: [HostShell] = [], attentionOnly: Bool = false) {
         self.projects = projects
         self.hostShells = hostShells
@@ -294,9 +310,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   tasks: try c.decode([HangarTask].self, forKey: .tasks),
                   selectedTaskId: try c.decodeIfPresent(UUID.self, forKey: .selectedTaskId),
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
-                  sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 220,
+                  sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 240,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
-                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 220,
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 340,
                   hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         assignMissingPorts()
@@ -353,9 +369,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     public mutating func select(taskId: UUID?) { selectedTaskId = taskId }
 
-    public mutating func archiveTask(id: UUID) {
+    /// The closed worktree's `+N −M`, measured just before its folder went away.
+    public mutating func setArchivedChanges(id: UUID, _ changes: LineChanges) {
+        guard let i = tasks.firstIndex(where: { $0.id == id && $0.archived }) else { return }
+        tasks[i].archivedChanges = changes
+    }
+
+    public mutating func archiveTask(id: UUID, at date: Date = Date()) {
         guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[i].archived = true
+        tasks[i].archivedAt = date
+        tasks[i].archivedChanges = nil
         if selectedTaskId == id { selectedTaskId = nil }
     }
 
@@ -381,6 +405,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].tabs.append(tab)
         tasks[i].activeTabId = tab.id
         return tab.id
+    }
+
+    /// A tab resuming conversation `sessionId` in its own `cwd` (history «Сессии»); nil in a host's terminal (ssh shells only).
+    @discardableResult
+    public mutating func addResumeTab(taskId: UUID, kind: LeafKind, cwd: String, sessionId: String) -> UUID? {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), !isHostShellTask(tasks[i]) else { return nil }
+        let leaf = Leaf(kind: kind, cwd: cwd, agentSessionId: sessionId)
+        let tab = Tab(title: kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id)
+        tasks[i].tabs.append(tab)
+        tasks[i].activeTabId = tab.id
+        return leaf.id
     }
 
     public mutating func closeTab(taskId: UUID, tabId: UUID) {
@@ -480,6 +515,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func restoreTask(id: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[i].archived = false
+        tasks[i].archivedAt = nil
+        tasks[i].archivedChanges = nil
     }
 
     /// Restore without its worktree (the branch is gone): a main-folder task whose leaves move from the worktree to the project.

@@ -2,20 +2,21 @@ import Git
 import SwiftUI
 
 /// Right column (decision #44): segment Files / Changes N (git only), the lazy file tree or the changes list.
-/// Top: a titlebar-high drag zone, then the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
+/// Top: the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
     let app: AppState
     private var model: InspectorModel { app.inspector }
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: Theme.titleBarHeight).background(WindowDragArea())
             header
             if app.selectedTask == nil {
                 notice(L10n.inspectorNoTask)
                 Spacer(minLength: 0)
             } else if model.segment == .changes && model.isGit {
                 ChangesList(app: app, model: model)
+            } else if model.segment == .git && model.isGit {
+                GitPanelView(app: app)
             } else {
                 FilesList(app: app, model: model)
             }
@@ -35,11 +36,12 @@ struct InspectorView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    /// Equal halves, so a changing count never moves the other label.
+    /// Equal thirds, so a changing count never moves the other labels.
     private var segment: some View {
         HStack(spacing: 0) {
             segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
             segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
+            segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
         }
         .padding(Theme.segmentPadding)
         // As the settings segment: on `bg` a `panel` track alone would be invisible.
@@ -53,7 +55,7 @@ struct InspectorView: View {
     }
 }
 
-/// One half of the Files / Changes segment; an inactive half lights up on hover.
+/// One third of the Files / Changes / Git segment; an inactive one lights up on hover.
 private struct SegmentItem: View {
     let title: String
     let on: Bool
@@ -110,33 +112,22 @@ enum FileMenuItem: Equatable, CaseIterable {
     }
 }
 
-/// The menu items for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
-struct FileMenu: View {
-    let app: AppState
-    let relative: String
-    let opens: Bool
-
-    var body: some View {
-        let host = remoteHost(app)
-        if let root = app.inspector.root {
-            ForEach(FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }, id: \.self) { item in
-                Button { perform(item, root: root, host: host) } label: {
-                    Label { Text(item.title) } icon: { Image(nsImage: item.icon.image) }
-                }
+/// The custom menu for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
+@MainActor func fileMenu(app: AppState, relative: String, opens: Bool) -> [PopoverMenuEntry] {
+    guard let root = app.inspector.root else { return [] }
+    let host = remoteHost(app)
+    return FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }.map { item in
+        .item(PopoverMenuItem(title: item.title, icon: item.icon) {
+            let path = root + "/" + relative
+            switch item {
+            case .openInHelix: app.openInEditor(path: path, line: nil)
+            case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            case .copyPath, .copyRelativePath:
+                guard let text = item.copied(root: root, relative: relative, host: host) else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
             }
-        }
-    }
-
-    private func perform(_ item: FileMenuItem, root: String, host: String?) {
-        let path = root + "/" + relative
-        switch item {
-        case .openInHelix: app.openInEditor(path: path, line: nil)
-        case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-        case .copyPath, .copyRelativePath:
-            guard let text = item.copied(root: root, relative: relative, host: host) else { return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-        }
+        })
     }
 }
 
@@ -179,7 +170,7 @@ private struct FilesList: View {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
                         FileRow(row: row, change: model.badges[row.entry.path], action: action(row))
-                            .contextMenu { FileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
+                            .popoverContextMenu { fileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
                     }
                 }
                 .padding(.vertical, Theme.fileRowPaddingV)
@@ -250,7 +241,7 @@ private struct ChangesList: View {
                         if changes.files.isEmpty { notice(L10n.noChanges) }
                         ForEach(changes.files) { file in
                             ChangeRow(file: file, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
-                                .contextMenu { FileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
+                                .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
                         hint(changes)
                     }

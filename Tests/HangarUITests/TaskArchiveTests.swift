@@ -73,6 +73,28 @@ import Workspace
         #expect((task.archivedAt ?? .distantPast) >= before.addingTimeInterval(-1))
     }
 
+    /// The +N −M measure is awaited before the folder goes: a restore meanwhile (the «Сессии» view lists the session
+    /// as closed already) must keep the folder of the session that is open again.
+    @Test func restoreDuringTheChangesMeasureKeepsTheFolder() async throws {
+        let (t, app, id, _, wt, _, ctx) = try await make()
+        defer { t.cleanup() }
+        // git asks the fsmonitor hook before the diff: it marks the moment and holds that call for a while.
+        let marker = t.root + "/measuring", hook = t.root + "/fsmonitor.sh"
+        try """
+        #!/bin/sh
+        case "$(ps -o args= -p $PPID)" in *--numstat*) touch '\(marker)'; sleep 2 ;; esac
+        exit 1
+        """.write(toFile: hook, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook)
+        _ = try t.git("config", "core.fsmonitor", hook, in: wt)
+        let archiving = Task { await archiveTask(id, ctx: ctx) }
+        #expect(await waitUntil { exists(marker) })
+        #expect(await app.restoreFromArchive(id) == .restored)
+        await archiving.value
+        #expect(!archived(app, id))
+        #expect(exists(wt))
+    }
+
     @Test func mainFolderTaskJustArchives() async throws {
         let (t, app, _, main, wt, calls, ctx) = try await make()
         defer { t.cleanup() }

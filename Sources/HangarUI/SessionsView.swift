@@ -50,10 +50,13 @@ struct SessionsView: View {
         HStack(spacing: Theme.historyHeaderGap) {
             HStack(spacing: Theme.historyCountsGap) {
                 Text(L10n.sessionsTitle).font(.system(size: Theme.historyTitleSize, weight: .semibold)).foregroundStyle(Theme.ui.textStrong)
-                projectPicker
-                Text("· " + L10n.sessionsClosedCount(model.closedCount) + " · " + L10n.sessionsConversationCount(model.conversationCount))
-                    .font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
-                    .lineLimit(1)
+                // «alpha · 0 закрытых · 3 разговора»: one line, the project's «·» spaced like the others.
+                HStack(spacing: 0) {
+                    projectPicker
+                    Text(" · " + L10n.sessionsClosedCount(model.closedCount) + " · " + L10n.sessionsConversationCount(model.conversationCount))
+                        .font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             segment
@@ -63,30 +66,30 @@ struct SessionsView: View {
         .frame(height: Theme.historyHeaderHeight)
     }
 
-    private var projectPicker: some View {
+    @ViewBuilder private var projectPicker: some View {
         let projects = app.state.projects
-        let current = model.projectId.flatMap(app.project)
-        return Menu {
-            ForEach(projects) { p in
-                Button(p.name) { app.showSessionsView(projectId: p.id) }
-            }
-        } label: {
-            Text(current?.name ?? "").font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text2)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .disabled(projects.count < 2)
-        .help(L10n.sessionsProjectHelp)
-        .pointingHand(projects.count > 1)
-        // A Menu label puts any image first: the chevron trails it from outside.
-        .overlay(alignment: .trailing) {
-            if projects.count > 1 {
+        let label = Text(model.projectId.flatMap(app.project)?.name ?? "").font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text2)
+        if projects.count < 2 {
+            label.help(L10n.sessionsProjectHelp)  // nothing to switch to: plain text, not a dimmed disabled menu
+        } else {
+            Menu {
+                ForEach(projects) { p in
+                    Button(p.name) { app.showSessionsView(projectId: p.id) }
+                }
+            } label: { label }
+            .menuStyle(.button)
+            .buttonStyle(.plain)  // borderless adds its own side padding: the label sits flush like plain text
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L10n.sessionsProjectHelp)
+            .pointingHand()
+            // A Menu label puts any image first: the chevron trails it from outside.
+            .overlay(alignment: .trailing) {
                 IconView(icon: .chevronDown, size: Theme.historyActionIcon, tint: Theme.ui.text3)
                     .offset(x: Theme.historyActionIcon + Theme.historyActionGap / 2).allowsHitTesting(false)
             }
+            .padding(.trailing, Theme.historyActionIcon)
         }
-        .padding(.trailing, projects.count > 1 ? Theme.historyActionIcon : 0)
     }
 
     private var segment: some View {

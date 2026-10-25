@@ -40,6 +40,33 @@ import Workspace
         #expect(L10n.portCopy(44351) == "Port: 44351 (copy)")
     }
 
+    /// English palette commands are menu titles: Title Case throughout («New Tab», not «New tab» next to «Split Right»).
+    @Test func paletteCommandsAreTitleCaseInEnglish() {
+        defer { L10n.language = .system }
+        L10n.language = .en
+        let small: Set<String> = ["to", "or", "in", "of", "and"]
+        for sc in paletteCommands {
+            let title = L10n.command(sc)
+            for word in title.split(separator: " ") where !small.contains(String(word)) {
+                #expect(word.first?.isUppercase == true, "\(sc): \(title)")
+            }
+        }
+        L10n.language = .ru
+        #expect(L10n.command(.newTab) == "Новая вкладка")
+        #expect(L10n.command(.limits) == "Лимиты подписок")
+    }
+
+    /// One word for the failed state: the tab tooltip / session row and the status bar both say «error» / «ошибка».
+    @Test func failedStateIsAnError() {
+        defer { L10n.language = .system }
+        L10n.language = .en
+        #expect(L10n.statusLabel(.failed) == "error")
+        #expect(L10n.failedCount(1) == "1 error")
+        L10n.language = .ru
+        #expect(L10n.statusLabel(.failed) == "ошибка")
+        #expect(L10n.failedCount(1) == "1 ошибка")
+    }
+
     @Test func clipboardPromptIsLocalized() {
         defer { L10n.language = .system }
         L10n.language = .ru

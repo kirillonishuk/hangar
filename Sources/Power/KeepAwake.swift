@@ -56,7 +56,10 @@ public struct PowerAssertions: Sendable {
     }
 
     /// Shown by `pmset -g assertions`; fixed English, since pmset can't show Cyrillic (decision #46).
-    static func name(_ n: Int) -> String { n == 1 ? "Hangar: 1 agent working" : "Hangar: \(n) agents working" }
+    /// 0: the grace after the last agent stopped.
+    static func name(_ n: Int) -> String {
+        n == 0 ? "Hangar: agents finished, keeping awake briefly" : n == 1 ? "Hangar: 1 agent working" : "Hangar: \(n) agents working"
+    }
 
     nonisolated public static func taskSchedule(_ delay: Duration, _ body: @escaping @MainActor () -> Void) -> () -> Void {
         let task = Task { @MainActor in
@@ -92,7 +95,9 @@ public struct PowerAssertions: Sendable {
                 namedCount = n
                 held = id != nil
             }
-        } else if id != nil, cancelPending == nil {
+        } else if let old = id, cancelPending == nil {
+            // A failed rename keeps the old name: the assertion itself is what matters.
+            if namedCount != 0, assertions.rename(old, Self.name(0)) { namedCount = 0 }
             let g = generation
             cancelPending = schedule(grace) { [weak self] in
                 guard let self, self.generation == g else { return }

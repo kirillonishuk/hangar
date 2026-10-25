@@ -327,6 +327,12 @@
 "paletteLoading" = "загрузка…";
 "cmdQuickOpen" = "Перейти к сессии или файлу";
 "cmdCommandPalette" = "Команды";
+"cmdNewTab" = "Новая вкладка";
+"cmdCloseTab" = "Закрыть вкладку";
+"cmdShowFiles" = "Показать файлы";
+"cmdShowChanges" = "Показать изменения";
+"cmdLimits" = "Лимиты подписок";
+"cmdAttentionOnly" = "Только ждущие";
 "thisMac" = "Этот Mac";
 "workingOne" = "%d работает";
 "workingFew" = "%d работают";

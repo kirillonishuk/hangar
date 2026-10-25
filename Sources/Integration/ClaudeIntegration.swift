@@ -11,9 +11,11 @@ public enum IntegrationState: Equatable, Sendable {
 public let claudeHooks: [(event: String, matcher: String?, kind: String)] = [
     ("SessionStart", nil, "session-start"),
     ("UserPromptSubmit", nil, "prompt"),
+    ("PreToolUse", "Task|Agent", "subagent-start"),
     ("PostToolUse", "*", "tool"),
     ("Notification", nil, "notification"),
     ("Stop", nil, "stop"),
+    ("SubagentStop", nil, "subagent-stop"),
     ("StopFailure", "rate_limit", "stop-failure"),
 ]
 

@@ -57,7 +57,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 37)
+        #expect(Shortcut.allCases.count == 39)  // + inspectorGit (C), sessions (D)
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -66,10 +66,11 @@ import Testing
         #expect(shortcut(keyCode: 19, modifiers: [.command, .option]) == .inspectorChanges)
         #expect(shortcut(keyCode: 15, modifiers: [.command, .option]) == .revealInFinder)
         #expect(shortcut(keyCode: 8, modifiers: [.command, .option]) == .copyPath)
-        // ⌘1/⌘2 stay tabs; ⌥⌘3…9 are free.
+        #expect(shortcut(keyCode: 20, modifiers: [.command, .option]) == .inspectorGit)  // ⌥⌘3 (redesign v1)
+        // ⌘1/⌘2 stay tabs; ⌥⌘4…9 are free.
         #expect(shortcut(keyCode: 18, modifiers: .command) == .tab(1))
         #expect(shortcut(keyCode: 19, modifiers: .command) == .tab(2))
-        #expect(shortcut(keyCode: 20, modifiers: [.command, .option]) == nil)
+        #expect(shortcut(keyCode: 21, modifiers: [.command, .option]) == nil)
         #expect(shortcut(keyCode: 15, modifiers: .command) == nil)
         #expect(shortcut(keyCode: 8, modifiers: .command) == nil)  // ⌘C is the terminal's copy
         #expect(Action.revealInFinder.shortcut == .revealInFinder)
@@ -111,7 +112,7 @@ import Testing
         defer { L10n.language = .system }
         L10n.language = .ru
         #expect(L10n.help("Инспектор", .toggleInspector) == "Инспектор — ⌥⌘I")
-        #expect(L10n.help(L10n.inspectorHelp, .toggleInspector) == "Инспектор — ⌥⌘I")
+        #expect(L10n.help(L10n.inspectorHelp, .toggleInspector) == "Правый сайдбар — ⌥⌘I")
         #expect(L10n.help(L10n.newTabHelp, .newTab) == "Новая вкладка — ⌘T")
         #expect(L10n.help(L10n.addProject, .addProject) == "Добавить проект — ⇧⌘N")
         #expect(L10n.help("Закрепить", nil) == "Закрепить")

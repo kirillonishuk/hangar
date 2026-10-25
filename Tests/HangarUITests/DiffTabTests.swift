@@ -279,3 +279,31 @@ import Workspace
         #expect(follow(hunk, 0, shifted) == 4)
     }
 }
+
+extension DiffTabTests {
+    /// The Git tab's file click: the same diff tab, that commit's diff (not the working tree), ↑/↓ through its files.
+    @Test func commitFileOpensInTheDiffTab() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        app.openDiff(path: "a.txt")
+        let gp = app.gitPanel
+        gp.show(taskId: t, root: repo.repo, git: { Git(repo: $0) }, remote: false)
+        gp.tabShown = true
+        gp.setOnScreen(true)
+        while let task = gp.loadTask { await task.value }
+        let hash = try #require(gp.commits.first?.hash)  // "c c.txt"
+        gp.select(hash)
+        while let task = gp.loadTask { await task.value }
+        let file = try #require(gp.details?.files.first)
+        app.openCommitDiff(hash: hash, file: file)
+        #expect(app.diffTabs.count == 1 && app.activeDiff?.commit == hash && app.activeDiff?.path == "c.txt")
+        #expect(app.inspector.diffPath == nil)  // the Changes row is no longer selected
+        while let task = gp.loadTask { await task.value }
+        let lines = app.activeDiffContent.rows.compactMap { row -> DiffLine? in if case .line(let l) = row { l } else { nil } }
+        #expect(lines.count == 1 && lines[0].kind == .added && lines[0].text != "changed")  // the commit, not the edit
+        app.diffNeighbour(1)
+        #expect(app.activeDiff?.path == "c.txt")  // one file only
+        app.openDiff(path: "b.txt")
+        #expect(app.activeDiff?.commit == nil && app.inspector.diffPath == "b.txt")
+    }
+}

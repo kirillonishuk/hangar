@@ -204,11 +204,11 @@ struct DiffView: View {
         if let tab = app.activeDiff {
             let content = app.activeDiffContent
             VStack(spacing: 0) {
-                header(tab.path, content)
+                header(tab.path, commit: tab.commit, content)
                 DiffLines(content: content, selected: app.activeDiffSelection,
                           select: { app.selectDiffRow($0) }, open: { app.openActiveDiffInEditor() })
                     .equatable()
-                    .id(tab.path)  // another file starts at the top
+                    .id(tab.path + (tab.commit ?? ""))  // another file (or commit) starts at the top
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Theme.ui.panel)
@@ -217,13 +217,15 @@ struct DiffView: View {
         }
     }
 
-    private func header(_ path: String, _ content: DiffContent) -> some View {
+    private func header(_ path: String, commit: String?, _ content: DiffContent) -> some View {
         HStack(spacing: Theme.Diff.headerGap) {
             HStack(spacing: Theme.iconGap) {
                 FileIconView(name: (path as NSString).lastPathComponent)
                 Text(verbatim: path).foregroundStyle(Theme.ui.textStrong).fontWeight(.medium)
                     .lineLimit(1).truncationMode(.head)
             }
+            // A commit's file (Git tab): which commit, as the details show its hash.
+            if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accent) }
             if content.isText {
                 Text(verbatim: "+\(content.added)").foregroundStyle(Theme.Diff.badgeA)
                 Text(verbatim: "−\(content.deleted)").foregroundStyle(Theme.Diff.badgeD)

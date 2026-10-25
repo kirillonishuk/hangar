@@ -50,6 +50,13 @@ extension AppState {
             return .atRisk(dirty: dirty, ignored: ignored)
         }
         guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
+        // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
+        if check != .missing, case .worktree(_, _, let base) = task.mode,
+           let stat = try? await Git(repo: path, runner: runner(for: project)).diffStat(base: base) {
+            perform { $0.setArchivedChanges(id: id, LineChanges(added: stat.added, deleted: stat.deleted)) }
+        }
+        // Restored while measuring («Сессии» already lists it as closed): the folder belongs to an open session again.
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
         do {
             if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(path, git: git, runner: runner(for: project)) }
         } catch {

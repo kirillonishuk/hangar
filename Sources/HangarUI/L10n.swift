@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
+        case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -125,7 +125,49 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        // Window status bar (redesign v1 §7)
+        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany
+        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
+        case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
+        case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
+        case segmentGit, showGit, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
+        case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
+        case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
+        case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
+        case sessionsNoMatch, sessionsTitle, sessionsClosed, sessionsConversations, sessionsToday, sessionsYesterday, sessionsYesterdayAt
+        case sessionsSearch, sessionsAll, sessionsOpen, sessionsGo, sessionsMarkerOpen, sessionsMarkerClosed
+        case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
+        case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
+        case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
     }
+
+    // «Сессии» (⌘Y)
+    static var sessionsTitle: String { s(.sessionsTitle) }
+    static var sessionsClosed: String { s(.sessionsClosed) }
+    static var sessionsConversations: String { s(.sessionsConversations) }
+    static var sessionsToday: String { s(.sessionsToday) }
+    static var sessionsYesterday: String { s(.sessionsYesterday) }
+    static func sessionsYesterdayAt(_ time: String) -> String { f(.sessionsYesterdayAt, time) }
+    static var sessionsSearch: String { s(.sessionsSearch) }
+    static var sessionsAll: String { s(.sessionsAll) }
+    static var sessionsOpen: String { s(.sessionsOpen) }
+    static var sessionsGo: String { s(.sessionsGo) }
+    static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
+    static var sessionsMarkerClosed: String { s(.sessionsMarkerClosed) }
+    static var sessionsNoSession: String { s(.sessionsNoSession) }
+    static func sessionsMessages(_ n: Int) -> String { f(.sessionsMessages, Int32(clamping: n)) }
+    static var sessionsSplit: String { s(.sessionsSplit) }
+    static var sessionsNoClosed: String { s(.sessionsNoClosed) }
+    static var sessionsNoMatch: String { s(.sessionsNoMatch) }
+    static var sessionsNoConversations: String { s(.sessionsNoConversations) }
+    static var sessionsLoading: String { s(.sessionsLoading) }
+    static func sessionsOffline(_ host: String) -> String { f(.sessionsOffline, host) }
+    static var sessionsUntitled: String { s(.sessionsUntitled) }
+    static var sessionsProjectHelp: String { s(.sessionsProjectHelp) }
+    static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
+    static func sessionsClosedCount(_ n: Int) -> String { count(n, .sessionsClosedOne, .sessionsClosedFew, .sessionsClosedMany) }
+    static func sessionsConversationCount(_ n: Int) -> String { count(n, .sessionsConvOne, .sessionsConvFew, .sessionsConvMany) }
+
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
     static func help(_ title: String, _ shortcut: Shortcut?) -> String {
@@ -169,7 +211,6 @@ import Workspace
     static var settings: String { s(.settings) }
     static var settingsHelp: String { s(.settingsHelp) }
     static var settingsEllipsis: String { s(.settingsEllipsis) }
-    static var collapse: String { s(.collapse) }
     static var collapseSidebarHelp: String { s(.collapseSidebarHelp) }
     static var expandSidebarHelp: String { s(.expandSidebarHelp) }
 
@@ -380,12 +421,34 @@ import Workspace
     static var save: String { s(.save) }
     // Inspector (`%d` keys take Int32: String(format:) reads 32 bits)
     /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
-    static func fileCount(_ n: Int) -> String {
-        let n10 = n % 10, n100 = n % 100
-        let key: Key = n10 == 1 && n100 != 11 ? .fileCountOne : (2...4).contains(n10) && !(12...14).contains(n100) ? .fileCountFew : .fileCountMany
+    static func fileCount(_ n: Int) -> String { count(n, .fileCountOne, .fileCountFew, .fileCountMany) }
+    static var statusShowChanges: String { s(.statusShowChanges) }
+    // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
+    static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
+    static func waitingCount(_ n: Int) -> String { count(n, .waitingOne, .waitingFew, .waitingMany) }
+    static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
+    static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
+    static var thisMac: String { s(.thisMac) }
+    static var statusMachineHelp: String { s(.statusMachineHelp) }
+    static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
+    static var statusPanesHelp: String { s(.statusPanesHelp) }
+    // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
+    private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
+        let key: Key = switch pluralForm(n) {
+        case .one: one
+        case .few: few
+        case .many: many
+        }
         return f(key, Int32(clamping: n))
     }
-    static var statusShowChanges: String { s(.statusShowChanges) }
+    static func agentCount(_ n: Int) -> String { count(n, .agentCountOne, .agentCountFew, .agentCountMany) }
+    static func subagentCount(_ n: Int) -> String { count(n, .subagentCountOne, .subagentCountFew, .subagentCountMany) }
+    static func tabCount(_ n: Int) -> String { count(n, .tabCountOne, .tabCountFew, .tabCountMany) }
+    static var noAgents: String { s(.noAgents) }
+    /// The row's short state word: «ждёт», not the tab's «ждёт ответа».
+    static func rowStatus(_ state: AgentState) -> String { state == .waiting ? s(.rowWaiting) : statusLabel(state) }
+    static var sessionsView: String { s(.sessionsView) }
+    static var sessionsViewHelp: String { s(.sessionsViewHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }
@@ -412,6 +475,47 @@ import Workspace
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
     static var inspectorNoTask: String { s(.inspectorNoTask) }
+
+    // Git tab (redesign v1 §4)
+    static var segmentGit: String { s(.segmentGit) }
+    static var showGit: String { s(.showGit) }
+    static var gitBranches: String { s(.gitBranches) }
+    static var gitLocal: String { s(.gitLocal) }
+    static var gitRemote: String { s(.gitRemote) }
+    static var gitFetchHelp: String { s(.gitFetchHelp) }
+    static var gitSearch: String { s(.gitSearch) }
+    static var gitAllBranches: String { s(.gitAllBranches) }
+    static var gitAuthor: String { s(.gitAuthor) }
+    static var gitAllAuthors: String { s(.gitAllAuthors) }
+    static var gitFindAuthor: String { s(.gitFindAuthor) }
+    static var gitDate: String { s(.gitDate) }
+    static var gitAnyDate: String { s(.gitAnyDate) }
+    static func gitDateRange(_ r: GitDateRange) -> String {
+        switch r {
+        case .today: s(.gitToday)
+        case .week: s(.gitWeek)
+        case .month: s(.gitMonth)
+        }
+    }
+    static var gitPath: String { s(.gitPath) }
+    static var gitPathPlaceholder: String { s(.gitPathPlaceholder) }
+    static var gitAnyPath: String { s(.gitAnyPath) }
+    static var gitCommit: String { s(.gitCommit) }
+    static var gitCommits: String { s(.gitCommits) }
+    static var gitCopyHash: String { s(.gitCopyHash) }
+    static func gitParents(_ n: Int) -> String { f(.gitParents, Int32(clamping: n)) }
+    static var gitNoCommits: String { s(.gitNoCommits) }
+    static var gitNothingFound: String { s(.gitNothingFound) }
+    static var gitYesterday: String { s(.gitYesterday) }
+    static func gitTodayAt(_ time: String) -> String { f(.gitTodayAt, time) }
+    static func gitYesterdayAt(_ time: String) -> String { f(.gitYesterdayAt, time) }
+    static var gitResizeHelp: String { s(.gitResizeHelp) }
+    static func gitAheadBehind(_ ahead: Int, _ behind: Int, _ upstream: String) -> String {
+        f(.gitAheadBehind, Int32(clamping: ahead), Int32(clamping: behind), upstream)
+    }
+    static var gitClearFilter: String { s(.gitClearFilter) }
+    /// The search field's count: «3», or «200+» while more pages exist.
+    static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab
     static var diffBinary: String { s(.diffBinary) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
@@ -505,6 +609,7 @@ import Workspace
         case .toggleInspector: s(.cmdToggleInspector)
         case .inspectorFiles: showFiles
         case .inspectorChanges: statusShowChanges
+        case .inspectorGit: showGit
         case .toggleDrawer: s(.drawerToggle)
         case .limits: s(.limitsHelp)
         case .revealInFinder: s(.revealInFinder)
@@ -513,6 +618,7 @@ import Workspace
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: attentionOnly
+        case .sessions: sessionsTitle
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

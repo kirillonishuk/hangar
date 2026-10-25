@@ -3,6 +3,7 @@ import AppKit
 import ControlServer
 import Exec
 import Git
+import History
 import Integration
 import Observation
 import os
@@ -61,12 +62,22 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
+    /// `+N −M` of the sidebar's session rows.
+    let sessionBadges = SessionBadges()
+    #if DEBUG
+    /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
+    var debugHover: ActionTarget?
+    #endif
+    /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
+    let gitPanel = GitPanelModel()
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
+    /// «Сессии» (⌘Y) is shown for this project instead of the session area; nil = hidden (SessionsModel.swift).
+    var sessionsProjectId: UUID?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()
@@ -121,6 +132,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// AppKit parts that build strings once (main menu) rebuild from here.
     @ObservationIgnored var languageDidChange: (() -> Void)?
     @ObservationIgnored let configURL: URL
+    /// Past conversations («Сессии»), cached per file across scans.
+    @ObservationIgnored let history = ConversationHistory()
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
@@ -165,6 +178,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
         inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
+        inspector.onStatusLoad = { [weak self] id in self?.refreshBadge(taskId: id) }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
@@ -192,6 +206,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
         let remoteBefore = liveRemoteLeaves()
         let hostsBefore = Set(state.projects.compactMap(\.host))
+        let selectedBefore = state.selectedTaskId
         mutate(&state)
         // Archived or closed leaves drop their status (and their message) here.
         let live = liveLeafIds
@@ -205,6 +220,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
             diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
         }
+        // Another session getting selected (palette, a new or restored one) leaves «Сессии».
+        if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsProjectId = nil }
         store.scheduleSave(state)
         didChange?()
     }
@@ -376,7 +393,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return await work()
     }
 
-    func select(taskId: UUID) { perform { $0.select(taskId: taskId) } }
+    /// Also the already selected one: a click on it leaves «Сессии».
+    func select(taskId: UUID) {
+        sessionsProjectId = nil
+        perform { $0.select(taskId: taskId) }
+    }
 
     /// Ends inline editing; blank text keeps the old name (the model rejects it).
     func commitRename(_ target: ActionTarget, _ text: String) {
@@ -427,6 +448,16 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         perform { $0.addTab(taskId: task.id, kind: kind) }
     }
 
+    /// Opens a past conversation as a new tab of the selected session: the leaf starts restored with its id,
+    /// so the usual resume launch runs `claude --resume <id>` / `codex resume <id>`.
+    func openConversation(_ c: Conversation) {
+        guard let task = selectedTask, let id = validSessionId(c.id) else { return }
+        deactivateDiff()
+        var leafId: UUID?
+        perform { leafId = $0.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) }
+        if let leafId { restoredLeaves[leafId] = true }
+    }
+
     func activate(tabId: UUID) {
         guard let task = selectedTask else { return }
         deactivateDiff()
@@ -442,11 +473,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         onOpenInEditor?(path, line)
     }
 
-    /// ⌥⌘1 / ⌥⌘2 and the status line's change counter: shows the inspector on that segment. Changes only for git
-    /// projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
+    /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git
+    /// only for git projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
     func showInspector(_ segment: InspectorModel.Segment) {
         guard let task = selectedTask else { return }
-        if segment == .changes, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        if segment != .files, inspector.shownTaskId == task.id, !inspector.isGit { return }
         inspector.segment = segment
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }

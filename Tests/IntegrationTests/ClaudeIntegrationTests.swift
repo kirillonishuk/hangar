@@ -111,6 +111,18 @@ private func commands(_ text: String) throws -> [String] {
             ]
           }
         ],
+        "PreToolUse": [
+          {
+            "matcher": "Task|Agent",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/A/hangar event subagent-start",
+                "timeout": 5
+              }
+            ]
+          }
+        ],
         "PostToolUse": [
           {
             "matcher": "*",
@@ -140,6 +152,17 @@ private func commands(_ text: String) throws -> [String] {
               {
                 "type": "command",
                 "command": "/A/hangar event stop",
+                "timeout": 5
+              }
+            ]
+          }
+        ],
+        "SubagentStop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/A/hangar event subagent-stop",
                 "timeout": 5
               }
             ]
@@ -177,7 +200,7 @@ private func commands(_ text: String) throws -> [String] {
     #expect(get(root, "model") == .string("opus"))
     #expect(get(root, "permissions") == get(try parseJSON(fHooks), "permissions"))
     let hookKeys = obj(get(root, "hooks")!).map(\.key)
-    #expect(hookKeys == ["Stop", "SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "StopFailure"])
+    #expect(hookKeys == ["Stop", "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "SubagentStop", "StopFailure"])
     let stop = arr(get(get(root, "hooks"), "Stop"))
     #expect(stop.count == 2)
     #expect(str(get(arr(get(stop[0], "hooks"))[0], "command")) == "say done")

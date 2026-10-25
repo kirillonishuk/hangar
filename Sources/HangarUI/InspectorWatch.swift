@@ -53,6 +53,8 @@ import Workspace
 
     /// Call after any change of the inspector flag, the selection or the window state; cheap when nothing changed.
     func update() {
+        // The Git tab loads only while the inspector itself is on screen (a shown diff tab alone keeps the watch, not it).
+        defer { app.gitPanel.setOnScreen(current != nil && app.state.inspectorVisible) }
         let task = app.selectedTask
         let want = task.flatMap { t in root(of: t).map { (t.id, $0) } }
         // The shown diff tab is the inspector's data too: it keeps loading (and refreshing) with the inspector hidden.
@@ -72,8 +74,15 @@ import Workspace
         let runner = app.runner(for: project)
         app.inspector.show(taskId: id, root: root, git: { Git(repo: $0, runner: runner) }, remote: remote,
                            baseBranch: { await app.baseBranch(of: task) })
+        app.gitPanel.show(taskId: id, root: root, git: { Git(repo: $0, runner: runner) }, remote: remote)
         // `show` of another task drops the open diff: this task's diff tab asks for its file again.
-        if let path = app.diffTabs[id]?.path, app.inspector.diffPath != path { app.inspector.loadDiff(path: path) }
+        if let tab = app.diffTabs[id] {
+            if let hash = tab.commit {
+                if app.gitPanel.diffState(hash: hash, path: tab.path) == nil { app.gitPanel.loadDiff(hash: hash, path: tab.path, origPath: tab.origPath) }
+            } else if app.inspector.diffPath != tab.path {
+                app.inspector.loadDiff(path: tab.path)
+            }
+        }
         guard !remote else { uiLog.info("watch remote root=\(root, privacy: .public)"); return }
         Task { [weak self] in
             let git = Git(repo: root)
@@ -92,8 +101,14 @@ import Workspace
         let realGit = gitDir.map(realPath), realCommon = commonDir.map(realPath)
         let ignored = app.inspector.ignored
         watcher = FileWatcher(paths: watchPaths(root: realRoot, gitDir: realGit, commonDir: realCommon, top: top.map(realPath)),
-                              onChange: { [weak self] parts in self?.app.inspector.refresh(parts) },
-                              classify: { classify($0, root: realRoot, gitDir: realGit, commonDir: realCommon, ignored: ignored.paths) })
+                              onChange: { [weak self] parts in
+                                  self?.app.inspector.refresh(parts.subtracting(.refs))
+                                  if parts.contains(.refs) { self?.app.gitPanel.refresh() }
+                              },
+                              classify: { events in
+                                  let parts = classify(events, root: realRoot, gitDir: realGit, commonDir: realCommon, ignored: ignored.paths)
+                                  return refsMoved(events, gitDir: realGit, commonDir: realCommon) ? parts.union(.refs) : parts
+                              })
         uiLog.info("watch start root=\(root, privacy: .public)")
     }
 
@@ -108,14 +123,20 @@ import Workspace
 
     /// Back from another app or window: a remote task's files may have changed meanwhile.
     private func becameKey() {
-        if current?.remote == true { app.inspector.refresh(.all) }
+        if current?.remote == true {
+            app.inspector.refresh(.all)
+            app.gitPanel.refresh()
+        }
     }
 
     /// An agent of the visible task finished: its changes are likely new.
     private func leafDone(_ leaf: UUID) {
         guard watcher != nil || current != nil, let task = app.selectedTask, current?.task == task.id else { return }
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
-        if leaves.contains(where: { $0.id == leaf }) { app.inspector.refresh(.status) }
+        guard leaves.contains(where: { $0.id == leaf }) else { return }
+        app.inspector.refresh(.status)
+        // A remote session has no FSEvents: the agent may have committed.
+        if current?.remote == true { app.gitPanel.refresh() }
     }
 }
 

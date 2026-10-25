@@ -241,25 +241,6 @@ func editorName(_ command: String) -> String {
     }
 }
 
-/// Context-menu and `…`-menu items for one target, from `Action`.
-struct ActionMenuItems: View {
-    let target: ActionTarget
-    let ctx: ActionContext
-
-    var body: some View {
-        let app = ctx.app
-        let actions = Action.list(for: target, app: app)
-        ForEach(Array(actions.enumerated()), id: \.offset) { i, action in
-            if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { Divider() }
-            Button { action.perform(target, ctx) } label: {
-                Label { Text(action.title(for: target, app: app)) } icon: { Image(nsImage: action.icon.image) }
-            }
-            .disabled(!action.isEnabled(for: target, app: app))
-            .modifier(MenuShortcutHint(shortcut: action.shortcut))
-        }
-    }
-}
-
 /// Shows the key in the menu (the key itself is handled by the window's key monitor, by keyCode).
 struct MenuShortcutHint: ViewModifier {
     let shortcut: Shortcut?
@@ -286,12 +267,20 @@ extension Shortcut {
     }
 }
 
-enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
+enum DrawerRoute: Equatable { case perform, collapseDrawer, closeSessions, ignore }
 
 /// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
 /// splits are ignored, everything else (⌘T, ⌘J, ⌘1…9, …) works as usual.
 /// While the diff tab is shown (`diffActive`, focus not in the drawer) splits are ignored too: they would split the hidden tab.
-func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool) -> DrawerRoute {
+/// While «Сессии» covers the terminals (`sessionsShown`), ⌘W closes it and splits / ⌘J are ignored: they would act unseen.
+func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool, sessionsShown: Bool = false) -> DrawerRoute {
+    if sessionsShown {
+        switch sc {
+        case .closeTab: return .closeSessions
+        case .splitRight, .splitDown, .toggleDrawer: return .ignore
+        default: return .perform
+        }
+    }
     if diffActive, !drawerFocused, sc == .splitRight || sc == .splitDown { return .ignore }
     guard drawerFocused else { return .perform }
     switch sc {

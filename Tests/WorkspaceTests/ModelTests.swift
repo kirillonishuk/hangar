@@ -175,7 +175,7 @@ import Testing
     @Test func oldStateWithoutSidebarFieldsDecodes() throws {
         let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
         let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
-        #expect(s.sidebarWidth == 220)
+        #expect(s.sidebarWidth == 240)
         #expect(s.sidebarCollapsed == false)
         #expect(s.inspectorVisible == true)
         var changed = s
@@ -196,9 +196,9 @@ import Testing
     @Test func oldStateWithoutInspectorWidthLoads() throws {
         let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
         var s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
-        #expect(s.inspectorWidth == 220)
-        s.inspectorWidth = 300
-        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).inspectorWidth == 300)
+        #expect(s.inspectorWidth == 340)
+        s.inspectorWidth = 380
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).inspectorWidth == 380)
     }
 
     @Test func remoteLocationRoundTrip() throws {

@@ -111,7 +111,7 @@ import Testing
         defer { L10n.language = .system }
         L10n.language = .ru
         #expect(L10n.help("Инспектор", .toggleInspector) == "Инспектор — ⌥⌘I")
-        #expect(L10n.help(L10n.inspectorHelp, .toggleInspector) == "Инспектор — ⌥⌘I")
+        #expect(L10n.help(L10n.inspectorHelp, .toggleInspector) == "Правый сайдбар — ⌥⌘I")
         #expect(L10n.help(L10n.newTabHelp, .newTab) == "Новая вкладка — ⌘T")
         #expect(L10n.help(L10n.addProject, .addProject) == "Добавить проект — ⇧⌘N")
         #expect(L10n.help("Закрепить", nil) == "Закрепить")

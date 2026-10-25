@@ -78,7 +78,7 @@ import Workspace
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
-        case collapse, collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
+        case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
@@ -125,6 +125,9 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        // Window status bar (redesign v1 §7)
+        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany
+        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -169,7 +172,6 @@ import Workspace
     static var settings: String { s(.settings) }
     static var settingsHelp: String { s(.settingsHelp) }
     static var settingsEllipsis: String { s(.settingsEllipsis) }
-    static var collapse: String { s(.collapse) }
     static var collapseSidebarHelp: String { s(.collapseSidebarHelp) }
     static var expandSidebarHelp: String { s(.expandSidebarHelp) }
 
@@ -386,6 +388,20 @@ import Workspace
         return f(key, Int32(clamping: n))
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
+    // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
+    private static func plural(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
+        let n10 = n % 10, n100 = n % 100
+        let key = n10 == 1 && n100 != 11 ? one : (2...4).contains(n10) && !(12...14).contains(n100) ? few : many
+        return f(key, Int32(clamping: n))
+    }
+    static func workingCount(_ n: Int) -> String { plural(n, .workingOne, .workingFew, .workingMany) }
+    static func waitingCount(_ n: Int) -> String { plural(n, .waitingOne, .waitingFew, .waitingMany) }
+    static func failedCount(_ n: Int) -> String { plural(n, .failedOne, .failedFew, .failedMany) }
+    static func paneCount(_ n: Int) -> String { plural(n, .paneOne, .paneFew, .paneMany) }
+    static var thisMac: String { s(.thisMac) }
+    static var statusMachineHelp: String { s(.statusMachineHelp) }
+    static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
+    static var statusPanesHelp: String { s(.statusPanesHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }

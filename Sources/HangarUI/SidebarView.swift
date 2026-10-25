@@ -45,7 +45,7 @@ struct SidebarView: View {
             // While collapsed or animating, lay out at the expanded width and clip, so text never reflows.
             let width = collapsed || app.sidebarAnimating ? max(geo.size.width, CGFloat(app.state.sidebarWidth)) : geo.size.width
             VStack(spacing: 0) {
-                Color.clear.frame(height: Theme.trafficLightsHeight).background(WindowDragArea())
+                Color.clear.frame(height: Theme.sidebarTopGap)
                 newTaskButton(visibleWidth: geo.size.width)
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -517,20 +517,6 @@ struct SidebarView: View {
                 } rail: { EmptyView() }
             }
             .help(L10n.help(L10n.settingsHelp, .settings))
-            HoverRow(action: ctx.toggleSidebar) { _ in
-                GutterRow(collapsed: collapsed, height: Theme.footerRowHeight) {
-                    IconView(icon: .sidebarLeft)
-                } expanded: {
-                    HStack(spacing: 0) {
-                        Text(L10n.collapse)
-                        Spacer(minLength: 0)
-                        ShortcutHint(text: Shortcut.toggleSidebar.label)
-                    }
-                    .font(.system(size: Theme.fontSize.sidebarFooter))
-                    .foregroundStyle(Theme.ui.text3)
-                } rail: { EmptyView() }
-            }
-            .help(L10n.help(collapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp, .toggleSidebar))
         }
         .padding(.vertical, Theme.railInset)
         .background(Theme.ui.bottomBar)

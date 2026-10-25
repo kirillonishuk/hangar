@@ -76,7 +76,7 @@ import Workspace
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
-        case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, rowWithStatus
+        case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, statusLimit, limitUntil, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
@@ -126,7 +126,7 @@ import Workspace
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         // Window status bar (redesign v1 §7)
-        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany
+        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
@@ -199,8 +199,11 @@ import Workspace
         case .done: s(.statusDone)
         case .failed: s(.statusFailed)
         case .idle: s(.statusIdle)
+        case .limit: s(.statusLimit)
         }
     }
+    /// «лимит · до 20:20»: the state word with the reset time.
+    static func limitUntil(_ clock: String) -> String { f(.limitUntil, clock) }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
     static func hostNotConnected(_ host: String) -> String { f(.hostNotConnected, host) }
@@ -427,6 +430,7 @@ import Workspace
     static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
     static func waitingCount(_ n: Int) -> String { count(n, .waitingOne, .waitingFew, .waitingMany) }
     static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
+    static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
     static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
     static var thisMac: String { s(.thisMac) }
     static var statusMachineHelp: String { s(.statusMachineHelp) }

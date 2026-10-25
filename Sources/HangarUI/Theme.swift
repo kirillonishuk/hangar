@@ -91,6 +91,7 @@ public enum Theme {
             case .done: done
             case .failed: failed
             case .idle: idle
+            case .limit: waiting  // amber: the agent waits for its limit, nothing is broken
             }
         }
         public static let lineSheet = Color(nsColor: Theme.lineSheet)

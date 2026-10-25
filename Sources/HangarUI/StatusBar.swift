@@ -3,18 +3,21 @@ import Foundation
 import SwiftUI
 import Workspace
 
-/// Agents of a project by state; working agents' running subagents are counted apart (only the tooltip shows them).
+/// Agents of a project by displayed state; working agents' running subagents are counted apart (only the tooltip shows them).
+/// Agents on a reached limit are `limited`: neither working nor errors.
 struct StatusCounts: Equatable {
     var working = 0
     var waiting = 0
     var failed = 0
     var subagents = 0
+    var limited = 0
 
-    init(working: Int = 0, waiting: Int = 0, failed: Int = 0, subagents: Int = 0) {
+    init(working: Int = 0, waiting: Int = 0, failed: Int = 0, subagents: Int = 0, limited: Int = 0) {
         self.working = working
         self.waiting = waiting
         self.failed = failed
         self.subagents = subagents
+        self.limited = limited
     }
 
     init(_ summaries: [(state: AgentState, subagents: Int)]) {
@@ -25,6 +28,7 @@ struct StatusCounts: Equatable {
                 subagents += s.subagents
             case .waiting: waiting += 1
             case .failed: failed += 1
+            case .limit: limited += 1
             case .done, .idle: break
             }
         }
@@ -51,6 +55,7 @@ struct StatusBarLine: Equatable {
     }
     @MainActor var waitingText: String? { counts.waiting > 0 ? L10n.waitingCount(counts.waiting) : nil }
     @MainActor var failedText: String? { counts.failed > 0 ? L10n.failedCount(counts.failed) : nil }
+    @MainActor var limitedText: String? { counts.limited > 0 ? L10n.limitedCount(counts.limited) : nil }
     @MainActor var right: String? {
         guard let panes else { return nil }
         return [L10n.paneCount(panes), process].compactMap { $0 }.joined(separator: " · ")
@@ -82,14 +87,16 @@ func nextWorking(_ ids: [UUID], working: Set<UUID>, after: UUID?) -> UUID? {
 
 extension AppState {
     var statusBar: StatusBarLine {
-        statusBarLine(state, summary: { statusSummary(ofLeaf: $0.id) }, process: { defaultTitle($0.kind) })
+        // The rows' state (a reached limit included), so the bar and the sidebar agree.
+        statusBarLine(state, summary: { (displayState(ofLeaf: $0.id, kind: $0.kind), statusSummary(ofLeaf: $0.id).subagents) },
+                      process: { defaultTitle($0.kind) })
     }
 
     /// «N работает»: the project's next session with a working agent.
     func selectNextWorking() {
         guard let task = selectedTask else { return }
         let tasks = state.tasks(in: task.projectId)
-        let working = Set(tasks.filter { leaves(of: $0).contains { state(ofLeaf: $0.id) == .working } }.map(\.id))
+        let working = Set(tasks.filter { leaves(of: $0).contains { displayState(ofLeaf: $0.id, kind: $0.kind) == .working } }.map(\.id))
         if let next = nextWorking(tasks.map(\.id), working: working, after: task.id), next != task.id { select(taskId: next) }
     }
 }
@@ -112,7 +119,7 @@ struct WindowStatusBar: View {
                 separator
                 Text(verbatim: project).truncationMode(.middle).modifier(StatusItem())
             }
-            if line.workingText != nil || line.waitingText != nil || line.failedText != nil { separator }
+            if line.workingText != nil || line.waitingText != nil || line.limitedText != nil || line.failedText != nil { separator }
             if let text = line.workingText {
                 StatusButton(help: line.workingHelp, action: app.selectNextWorking) {
                     StatusDot(state: .working)
@@ -125,6 +132,13 @@ struct WindowStatusBar: View {
                         .frame(width: Theme.statusDot, height: Theme.statusDot)
                     Text(verbatim: text)
                 }
+            }
+            if let text = line.limitedText {
+                HStack(spacing: Theme.inlineGap) {
+                    StatusDot(state: .limit)
+                    Text(verbatim: text)
+                }
+                .modifier(StatusItem())
             }
             if let text = line.failedText {
                 HStack(spacing: Theme.inlineGap) {

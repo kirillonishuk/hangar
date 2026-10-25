@@ -149,6 +149,8 @@
 "statusWaiting" = "waiting for you";
 "statusDone" = "done";
 "statusFailed" = "failed";
+"statusLimit" = "limit";
+"limitUntil" = "limit · until %@";
 "statusIdle" = "idle";
 "rowWithStatus" = "%@, %@";
 "notificationsTitle" = "Notifications";
@@ -335,6 +337,9 @@
 "failedOne" = "%d error";
 "failedFew" = "%d errors";
 "failedMany" = "%d errors";
+"limitedOne" = "%d at limit";
+"limitedFew" = "%d at limit";
+"limitedMany" = "%d at limit";
 "paneOne" = "%d pane";
 "paneFew" = "%d panes";
 "paneMany" = "%d panes";

@@ -26,7 +26,7 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
             (status(.working), .hook(.notification, session: nil, notificationType: "auth_success"), .working),
             (status(.working), .hook(.stop, session: nil, notificationType: nil), .done),
             (status(.waiting), .hook(.stop, session: nil, notificationType: nil), .done),
-            (status(.working), .hook(.stopFailure, session: nil, notificationType: nil), .failed),
+            (status(.working), .hook(.stopFailure, session: nil, notificationType: nil), .limit),  // hooked with matcher rate_limit only
             (status(.working), .hook(.codexNotify, session: nil, notificationType: nil), .done),
             (status(.idle), .bell, .waiting),
             (status(.idle), .desktopNotification, .waiting),
@@ -158,6 +158,9 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
         #expect(taskState([.done, .working]) == .working)
         #expect(taskState([.working, .failed]) == .failed)
         #expect(taskState([.failed, .waiting]) == .waiting)
+        // waiting > limit > failed > working
+        #expect(taskState([.failed, .limit, .working]) == .limit)
+        #expect(taskState([.limit, .waiting]) == .waiting)
         #expect(taskState([.idle, .done]) == .done)
         #expect(taskState([]) == .idle)
     }

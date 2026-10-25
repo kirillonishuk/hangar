@@ -179,4 +179,12 @@ import Workspace
         #expect(Theme.Limit.color(forPercent: 95, limitReached: false) == Theme.Limit.full)
         #expect(Theme.Limit.color(forPercent: 10, limitReached: true) == Theme.Limit.full)
     }
+
+    /// StopFailure rate_limit before any statusline data: the sidebar says 100 %, not a red «0%».
+    @Test func reachedLimitWithoutWindowsShowsFull() {
+        #expect(limitBlockPercent(AgentUsage(windows: [], plan: nil, limitReached: true, updatedAt: t0)) == 100)
+        #expect(limitBlockPercent(AgentUsage(windows: [], plan: nil, updatedAt: t0)) == 0)
+        let w = UsageWindow(kind: .weekly, usedPercent: 40, resetsAt: nil, updatedAt: t0)
+        #expect(limitBlockPercent(AgentUsage(windows: [w], plan: nil, updatedAt: t0)) == 40)
+    }
 }

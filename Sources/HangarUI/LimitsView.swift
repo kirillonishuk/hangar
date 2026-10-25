@@ -77,7 +77,8 @@ private func windowLevel(_ w: UsageWindow, in u: AgentUsage) -> UsageLevel {
     return level(percent: w.usedPercent, limitReached: u.limitReached && w.usedPercent == top)
 }
 
-private func maxPercent(_ u: AgentUsage) -> Double { u.windows.map(\.usedPercent).max() ?? 0 }
+/// The sidebar row's figure: the fullest window; a reached limit with no window data yet (StopFailure first) is 100.
+func limitBlockPercent(_ u: AgentUsage) -> Double { u.windows.map(\.usedPercent).max() ?? (u.limitReached ? 100 : 0) }
 
 private func percentText(_ p: Double) -> String { "\(Int(p.rounded()))%" }
 
@@ -124,7 +125,7 @@ struct LimitsBlock: View {
     private func line(_ agent: UsageAgent, _ u: AgentUsage) -> some View {
         let session = u.windows.first { $0.kind == .session }
         let week = u.windows.first { $0.kind == .weekly }
-        let top = level(percent: maxPercent(u), limitReached: u.limitReached)
+        let top = level(percent: limitBlockPercent(u), limitReached: u.limitReached)
         return HStack(spacing: Theme.Limit.rowGap) {
             Text(agent.rawValue)
                 .font(.system(size: Theme.Limit.nameFont))
@@ -135,7 +136,7 @@ struct LimitsBlock: View {
                 LimitBar(percent: session?.usedPercent, level: session.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
                 LimitBar(percent: week?.usedPercent, level: week.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
             }
-            Text(percentText(maxPercent(u)))
+            Text(percentText(limitBlockPercent(u)))
                 .font(.system(size: Theme.Limit.percentFont).monospacedDigit())
                 .foregroundStyle(Theme.Limit.textColor(top))
                 .frame(width: Theme.Limit.percentWidth, alignment: .trailing)
@@ -143,7 +144,7 @@ struct LimitsBlock: View {
         .padding(.vertical, Theme.Limit.rowPaddingV)
         .padding(.horizontal, Theme.Limit.rowPaddingH)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(agentName(agent)) \(percentText(maxPercent(u)))")
+        .accessibilityLabel("\(agentName(agent)) \(percentText(limitBlockPercent(u)))")
     }
 }
 

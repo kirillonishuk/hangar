@@ -166,6 +166,7 @@ private struct FilesList: View {
                 notice(L10n.gitFailed(error))
             }
             if model.filesTruncated { notice(L10n.filesTruncated(FileListing.limit)) }
+            if let empty = model.emptyFilesNotice { notice(empty) }
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in

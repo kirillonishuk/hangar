@@ -28,6 +28,8 @@ struct RefreshParts: OptionSet, Sendable {
     private(set) var root: String?
     private(set) var isGit = true
     private(set) var tree = FileTree()
+    /// A listing of this root has been applied (an empty tree before it means «loading», not «empty»).
+    private(set) var treeLoaded = false
     var expanded: Set<String> = []
     private(set) var badges: [String: FileChange] = [:]
     private(set) var changes: ChangeSet?
@@ -55,6 +57,12 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored let ignored = IgnoredPaths()
     /// The running load or its queued rerun; nil when idle (tests await it).
     @ObservationIgnored private(set) var loading: Task<Void, Never>?
+
+    /// Files' calm notice for a loaded, empty listing: a plain folder is empty, a repository folder lists nothing.
+    var emptyFilesNotice: String? {
+        guard treeLoaded, !remoteNoGit, filesError == nil, error == nil, (tree.children(of: "") ?? []).isEmpty else { return nil }
+        return isGit ? L10n.noGitFiles : L10n.folderEmpty
+    }
 
     private struct Context: Equatable {
         var taskId: UUID?
@@ -96,6 +104,7 @@ struct RefreshParts: OptionSet, Sendable {
         offline = false
         top = nil
         tree = FileTree()
+        treeLoaded = false
         ignored.paths = []
         expanded = []
         badges = [:]
@@ -327,12 +336,13 @@ struct RefreshParts: OptionSet, Sendable {
         if !r.isGit {
             isGit = false
             segment = .files
-            if let tree = r.tree { self.tree = tree }
+            if let tree = r.tree { self.tree = tree; treeLoaded = true }
             return
         }
         if let top = r.top { self.top = top }
         if let tree = r.tree {
             self.tree = tree
+            treeLoaded = true
             filesTruncated = r.filesTruncated
         }
         if let paths = r.ignored { ignored.paths = paths }

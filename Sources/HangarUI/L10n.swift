@@ -119,7 +119,7 @@ import Workspace
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
-        case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp, integrationNeedsRemote
+        case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp, integrationNeedsRemote, folderEmpty, noGitFiles, optionalToolsLabel
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
@@ -569,6 +569,9 @@ import Workspace
     static var close: String { s(.close) }
     static func hostGaveUp(_ arg: String) -> String { f(.hostGaveUp, arg) }
     static var integrationNeedsRemote: String { s(.integrationNeedsRemote) }
+    static var folderEmpty: String { s(.folderEmpty) }
+    static var noGitFiles: String { s(.noGitFiles) }
+    static var optionalToolsLabel: String { s(.optionalToolsLabel) }
     // «<host> · терминал» (#64)
     static var connectToHost: String { s(.connectToHost) }
     static var connectHostTitle: String { s(.connectHostTitle) }

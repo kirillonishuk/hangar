@@ -352,4 +352,30 @@ import Workspace
         wt.mode = .worktree(path: repo.repo, branch: "feat", base: "release")
         #expect(await app.baseBranch(of: wt) == "release")
     }
+
+    /// An empty folder / a repository folder with nothing listed: a calm notice once loaded, never while loading.
+    @Test func emptyFilesNotice() async throws {
+        let dir = NSTemporaryDirectory() + "hangar-empty-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let plain = InspectorModel()
+        plain.show(taskId: UUID(), root: dir, baseBranch: { nil })
+        #expect(plain.emptyFilesNotice == nil)  // still loading
+        await settle(plain)
+        #expect(plain.emptyFilesNotice == L10n.folderEmpty)
+
+        let repo = try await TempRepo.offMain()
+        defer { repo.cleanup() }
+        try FileManager.default.createDirectory(atPath: repo.repo + "/empty", withIntermediateDirectories: true)
+        let sub = InspectorModel()
+        sub.show(taskId: UUID(), root: repo.repo + "/empty", baseBranch: { nil })
+        await settle(sub)
+        #expect(sub.isGit)
+        #expect(sub.emptyFilesNotice == L10n.noGitFiles)
+
+        let full = InspectorModel()
+        full.show(taskId: UUID(), root: repo.repo, baseBranch: { nil })
+        await settle(full)
+        #expect(full.emptyFilesNotice == nil)
+    }
 }

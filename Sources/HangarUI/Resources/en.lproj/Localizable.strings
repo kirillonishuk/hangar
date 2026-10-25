@@ -325,6 +325,12 @@
 "paletteLoading" = "loading…";
 "cmdQuickOpen" = "Go to Session or File";
 "cmdCommandPalette" = "Command Palette";
+"cmdNewTab" = "New Tab";
+"cmdCloseTab" = "Close Tab";
+"cmdShowFiles" = "Show Files";
+"cmdShowChanges" = "Show Changes";
+"cmdLimits" = "Subscription Limits";
+"cmdAttentionOnly" = "Waiting Only";
 "thisMac" = "This Mac";
 "workingOne" = "%d working";
 "workingFew" = "%d working";

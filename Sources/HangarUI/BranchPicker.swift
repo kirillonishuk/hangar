@@ -253,6 +253,8 @@ struct PickerSearchField: NSViewRepresentable {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.window === window else { return }
                 window.makeFirstResponder(self)
+                // Focus selects all: a preset «>» (⇧⌘P) would be replaced by the first typed letter, leaving commands.
+                self.currentEditor()?.selectedRange = NSRange(location: (self.stringValue as NSString).length, length: 0)
             }
         }
     }

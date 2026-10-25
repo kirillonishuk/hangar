@@ -60,11 +60,12 @@ import Workspace
         defer { L10n.language = .system }
         L10n.language = .en
         #expect(L10n.keepAwakeHelp(enabled: false, held: true, working: 2) == "Keep awake: off")
-        #expect(L10n.keepAwakeHelp(enabled: true, held: false, working: 0) == "Keep the Mac awake while agents work")
-        #expect(L10n.keepAwakeHelp(enabled: true, held: true, working: 2) == "The Mac stays awake: agents working — 2")
-        #expect(L10n.keepAwakeHelp(enabled: true, held: true, working: 0) == "The Mac stays awake for up to 2 more min")
+        #expect(L10n.keepAwakeHelp(enabled: true, held: false, working: 0) == "Keep awake: on — the Mac won't sleep while agents work")
+        #expect(L10n.keepAwakeHelp(enabled: true, held: true, working: 2) == "Keep awake: on — the Mac stays awake, agents working: 2")
+        #expect(L10n.keepAwakeHelp(enabled: true, held: true, working: 0) == "Keep awake: on — the Mac stays awake for up to 2 more min")
         L10n.language = .ru
         #expect(L10n.keepAwakeHelp(enabled: false, held: false, working: 0) == "Не засыпать: выключено")
+        #expect(L10n.keepAwakeHelp(enabled: true, held: false, working: 0) == "Не засыпать: включено — Mac не уснёт, пока агенты работают")
     }
 
     @Test func systemLanguageResolution() {

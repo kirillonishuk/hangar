@@ -234,9 +234,9 @@
 "diffTabHelp" = "Close";
 "keepAwakeTitle" = "Keep awake while agents work";
 "keepAwakeOffHelp" = "Keep awake: off";
-"keepAwakeIdleHelp" = "Keep the Mac awake while agents work";
-"keepAwakeActiveHelp" = "The Mac stays awake: agents working — %ld";
-"keepAwakeGraceHelp" = "The Mac stays awake for up to 2 more min";
+"keepAwakeIdleHelp" = "Keep awake: on — the Mac won't sleep while agents work";
+"keepAwakeActiveHelp" = "Keep awake: on — the Mac stays awake, agents working: %ld";
+"keepAwakeGraceHelp" = "Keep awake: on — the Mac stays awake for up to 2 more min";
 "addLocalProject" = "Local folder…";
 "addRemoteProject" = "Remote (SSH)…";
 "hostConnected" = "connected";
@@ -300,6 +300,7 @@
 "worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";
 "setupCommand" = "Setup command";
 "setupCommandHelp" = "Runs at the new worktree's top in a shell tab after the copy. Blank = none; the lockfile's command (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) is only suggested";
+"setupCommandSuggested" = "The setup command is a lockfile suggestion: it doesn't run until you save it";
 "afterCreate" = "After creating";
 "afterCreateSuggestedHelp" = "Suggested from the lockfile. Turn on to run it in a shell tab of the new worktree; it is then saved to the project";
 "copyingEntry" = "Copying %@…";

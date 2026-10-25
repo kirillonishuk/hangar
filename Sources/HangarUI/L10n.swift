@@ -121,7 +121,7 @@ import Workspace
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
-        case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
+        case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
@@ -370,6 +370,7 @@ import Workspace
     static var worktreeCopyHelp: String { s(.worktreeCopyHelp) }
     static var setupCommand: String { s(.setupCommand) }
     static var setupCommandHelp: String { s(.setupCommandHelp) }
+    static var setupCommandSuggested: String { s(.setupCommandSuggested) }
     static var afterCreate: String { s(.afterCreate) }
     static var afterCreateSuggestedHelp: String { s(.afterCreateSuggestedHelp) }
     static func copyingEntry(_ entry: String) -> String { f(.copyingEntry, entry) }

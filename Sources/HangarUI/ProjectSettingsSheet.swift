@@ -179,7 +179,8 @@ struct ProjectSettingsSheet: View {
         if let error { message(error, Theme.ui.failed) }
         if isGit == true {
             if let branchesError { message(branchesError, Theme.ui.failed) }
-            message(L10n.worktreeRootHint(rootShown), Theme.ui.text3)
+            // `~` and a middle cut, like the path rows: a full home path wrapped the hint onto three lines (full one in the tooltip).
+            message(L10n.worktreeRootHint(middleTruncatedPath(remote ? rootShown : abbreviatedHomePath(rootShown), maxLength: Theme.hintPathLength)), Theme.ui.text3)
             // Shown for as long as the command is only suggested (not while typing): no jump.
             if suggestedCommand != nil { message(L10n.setupCommandSuggested, Theme.ui.text3) }
             if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),

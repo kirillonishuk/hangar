@@ -264,6 +264,18 @@ import Workspace
         #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: nil) == .passthrough)
     }
 
+    @Test func sessionsViewKeepsKeysOffTheHiddenTerminals() {
+        // «Сессии» covers the tabs: ⌘W closes the view (not the hidden tab, which would kill its agent unseen),
+        // splits and ⌘J would change terminals nobody sees.
+        #expect(drawerRoute(.closeTab, drawerFocused: false, diffActive: false, sessionsShown: true) == .closeSessions)
+        #expect(drawerRoute(.closeTab, drawerFocused: true, diffActive: true, sessionsShown: true) == .closeSessions)
+        for sc in [Shortcut.splitRight, .splitDown, .toggleDrawer] {
+            #expect(drawerRoute(sc, drawerFocused: false, diffActive: false, sessionsShown: true) == .ignore)
+        }
+        #expect(drawerRoute(.sessions, drawerFocused: false, diffActive: false, sessionsShown: true) == .perform)
+        #expect(drawerRoute(.newTask, drawerFocused: false, diffActive: false, sessionsShown: true) == .perform)
+    }
+
     @Test func drawerFocusRoutesShortcuts() {
         // Terminal drawer focused: ⌘W collapses it, splits are ignored, ⌘T and the rest behave as usual.
         #expect(drawerRoute(.closeTab, drawerFocused: true, diffActive: false) == .collapseDrawer)

@@ -267,12 +267,20 @@ extension Shortcut {
     }
 }
 
-enum DrawerRoute: Equatable { case perform, collapseDrawer, ignore }
+enum DrawerRoute: Equatable { case perform, collapseDrawer, closeSessions, ignore }
 
 /// Shortcut routing while the bottom terminal has focus: it is not a tab, so ⌘W collapses it (the tab stays),
 /// splits are ignored, everything else (⌘T, ⌘J, ⌘1…9, …) works as usual.
 /// While the diff tab is shown (`diffActive`, focus not in the drawer) splits are ignored too: they would split the hidden tab.
-func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool) -> DrawerRoute {
+/// While «Сессии» covers the terminals (`sessionsShown`), ⌘W closes it and splits / ⌘J are ignored: they would act unseen.
+func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool, sessionsShown: Bool = false) -> DrawerRoute {
+    if sessionsShown {
+        switch sc {
+        case .closeTab: return .closeSessions
+        case .splitRight, .splitDown, .toggleDrawer: return .ignore
+        default: return .perform
+        }
+    }
     if diffActive, !drawerFocused, sc == .splitRight || sc == .splitDown { return .ignore }
     guard drawerFocused else { return .perform }
     switch sc {

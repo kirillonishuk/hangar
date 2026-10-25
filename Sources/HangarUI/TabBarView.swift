@@ -3,52 +3,6 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Task title on the left, then the task's tabs and `+` (Claude / Codex / Helix / Shell).
-/// Titlebar row over the task area: centered "Project · Task", inspector toggle on the right.
-/// Empty space drags the window; double-click follows the system zoom/minimize setting.
-struct TitleBarView: View {
-    let app: AppState
-
-    var body: some View {
-        ZStack {
-            if let task = app.selectedTask, let host = app.state.hostShell(ofTask: task.id)?.host {
-                Text(verbatim: L10n.hostTerminal(host)).foregroundStyle(Theme.ui.textStrong)
-                    .font(.system(size: Theme.fontSize.tabTaskTitle))
-                    .lineLimit(1)
-                    .allowsHitTesting(false)
-            } else if let task = app.selectedTask {
-                HStack(spacing: Theme.inlineGap) {
-                    Text(app.project(task.projectId)?.name ?? "").foregroundStyle(Theme.ui.text2)
-                    Text("·").foregroundStyle(Theme.ui.text3)
-                    Text(task.name).foregroundStyle(Theme.ui.textStrong)
-                    if let branch = task.branch {
-                        IconView(icon: .branch, size: Theme.smallIconSize)
-                        Text(branch).font(.system(size: Theme.fontSize.tab, design: .monospaced)).foregroundStyle(Theme.ui.text3)
-                    }
-                }
-                .font(.system(size: Theme.fontSize.tabTaskTitle))
-                .lineLimit(1)
-                .allowsHitTesting(false)
-            }
-            HStack {
-                Spacer()
-                Button { app.perform { $0.inspectorVisible.toggle() } } label: {
-                    IconView(icon: .sidebarRight, active: app.state.inspectorVisible)
-                        .frame(width: Theme.titleButtonSize, height: Theme.titleButtonSize)
-                }
-                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-                .help(L10n.help(L10n.inspectorHelp, .toggleInspector))
-                .padding(.trailing, Theme.tabTitleTrailing)
-            }
-        }
-        .frame(height: Theme.titleBarHeight)
-        .frame(maxWidth: .infinity)
-        .background(WindowDragArea())
-        .background(Theme.ui.bg)
-        .ignoresSafeArea()
-    }
-}
-
 /// Tab bar geometry (decision #69, as VS Code / Pane): widths, overflow, scroll-into-view, wheel.
 enum TabStrip {
     struct Layout: Equatable {

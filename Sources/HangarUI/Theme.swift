@@ -133,22 +133,28 @@ public enum Theme {
     }
 
     // Sizes
-    public static let sidebarWidth: CGFloat = 220
-    public static let sidebarMin: CGFloat = 180
+    public static let sidebarWidth: CGFloat = 240
+    public static let sidebarMin: CGFloat = 200
     public static let sidebarMax: CGFloat = 320
     public static let tabBarHeight: CGFloat = 34
+    /// One titlebar across the whole window (redesign v1 §6).
     public static let titleBarHeight: CGFloat = 38
-    /// Hit area of titlebar buttons (inspector toggle).
+    /// Hit area of titlebar buttons (sidebar toggles), radius `railItemRadius`.
     public static let titleButtonSize: CGFloat = 28
-    public static let trafficLightsHeight: CGFloat = 38
+    /// x of the left sidebar toggle: traffic lights 20…76 + 8; the same collapsed and expanded.
+    public static let titlebarToggleX: CGFloat = 84
+    public static let titlebarTrailing: CGFloat = 10
+    public static let titleBranchIcon: CGFloat = 12
+    /// Gap between the titlebar and «+ Новая сессия».
+    public static let sidebarTopGap: CGFloat = 8
     public static let windowRadius: CGFloat = 12
     public static let windowSize = NSSize(width: 1200, height: 760)
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
-    /// Inspector (DESIGN.md «Раскладка»): default width, drag limits; tree level indent, file row padding (~22 high).
-    public static let inspectorWidth: CGFloat = 220
-    public static let inspectorMin: CGFloat = 180
-    public static let inspectorMax: CGFloat = 480
+    /// Right sidebar (DESIGN.md «Раскладка»): default width, drag limits; tree level indent, file row padding (~22 high).
+    public static let inspectorWidth: CGFloat = 340
+    public static let inspectorMin: CGFloat = 300
+    public static let inspectorMax: CGFloat = 420
     public static let treeIndent: CGFloat = 12
     public static let fileRowPaddingV: CGFloat = 3
     public static let inspectorSegmentRadius: CGFloat = 6
@@ -159,11 +165,17 @@ public enum Theme {
     public static let changesHintLineGap: CGFloat = 2
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
-    public static let statusBarHeight: CGFloat = 22
-    /// Gap between the task status line's parts (DESIGN.md «Строка состояния»).
-    public static let statusBarGap: CGFloat = 14
+    /// Window status bar (redesign v1 §7): height, side padding, gap between parts; clickable items 20 high, radius 4.
+    /// Also the height of a leaf's «↩ перезапустить» bar.
+    public static let statusBarHeight: CGFloat = 24
+    public static let statusBarPaddingH: CGFloat = 12
+    public static let statusBarGap: CGFloat = 12
+    public static let statusItemHeight: CGFloat = 20
+    public static let statusItemPaddingH: CGFloat = 4
+    public static let statusItemRadius: CGFloat = 4
+    public static let statusRingWidth: CGFloat = 1.5
     /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
-    public static let drawerBarHeight: CGFloat = 26
+    public static let drawerBarHeight: CGFloat = 28
     public static let drawerGrabHeight: CGFloat = 5
     public static let drawerMaxFraction: CGFloat = 0.7
     public static let drawerAnimation: Double = 0.18

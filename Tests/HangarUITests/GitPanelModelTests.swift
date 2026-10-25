@@ -162,6 +162,29 @@ import Workspace
         for i in 0..<n { try t.commit(file: "f\(i).txt", on: "main") }
     }
 
+    /// A hash-prefix search puts the hash's commit first on page 1 on top of the message matches: the next page must
+    /// still start after the matches git returned, not after the rows shown (none may be skipped).
+    @Test func hashHitDoesNotSkipAMatchOnTheNextPage() async throws {
+        let t = try await TempRepo.offMain()
+        defer { t.cleanup() }
+        let prefix = String(try t.git("rev-parse", "HEAD", in: t.repo).trimmingCharacters(in: .whitespacesAndNewlines).prefix(8))
+        for i in 0..<4 { try t.commit(file: "\(prefix)-\(i).txt", on: "main") }  // 4 messages contain the prefix
+        let model = GitPanelModel(pageSize: 2, textDebounce: .zero)
+        model.show(taskId: UUID(), root: t.repo, git: { Git(repo: $0) }, remote: false)
+        model.tabShown = true
+        model.setOnScreen(true)
+        await settle(model)
+        model.query.text = prefix
+        await settle(model)
+        #expect(model.commits.count == 3 && model.hasMore)  // the hash's commit + 2 matches
+        while model.hasMore {
+            model.loadMore()
+            await settle(model)
+        }
+        #expect(model.commits.count == 5)
+        #expect(Set(model.commits.map(\.hash)).count == 5)
+    }
+
     @Test func pagesThroughHistory() async throws {
         let t = try await TempRepo.offMain()
         defer { t.cleanup() }

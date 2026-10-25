@@ -78,6 +78,8 @@ import Observation
     /// A refresh came while hidden (or while a load ran): load again when possible.
     @ObservationIgnored private var dirty = false
     @ObservationIgnored private var authorCounts: [GitAuthor: Int] = [:]
+    /// git's offset of the next page: rows git returned so far, not rows shown (a hash hit adds one; pages overlap-free).
+    @ObservationIgnored private var nextSkip = 0
 
     // MARK: Inputs
 
@@ -124,12 +126,13 @@ import Observation
 
     func loadMore() {
         guard visible, hasMore, logTask == nil, let root else { return }
-        let gen = generation, skip = commits.count, limit = pageSize
+        let gen = generation, skip = nextSkip, limit = pageSize
         let filters = query.filters(now: Date()), git = self.git(root), remote = self.remote
         logTask = Task { [weak self] in
             let r = await Self.load(git: git, remote: remote, filters: filters, limit: limit, skip: skip, branches: false)
             guard let self, !Task.isCancelled, gen == self.generation else { return }
             self.logTask = nil
+            if r.page != nil { self.nextSkip = skip + limit }
             self.applyPage(r, append: true)
             if self.dirty { self.startLog(branches: true, keep: true) }
         }
@@ -245,6 +248,7 @@ import Observation
             let r = await Self.load(git: git, remote: remote, filters: filters, limit: limit, skip: 0, branches: withBranches)
             guard let self, !Task.isCancelled, gen == self.generation else { return }
             self.logTask = nil
+            if r.page != nil { self.nextSkip = limit }
             self.applyPage(r, append: false)
             if self.dirty { self.startLog(branches: true, keep: true) }
         }

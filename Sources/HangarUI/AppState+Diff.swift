@@ -8,6 +8,10 @@ struct DiffTab: Equatable {
     var active: Bool
     /// `DiffContent.Item.id` of the clicked row (↩ opens there): follows the line across reloads.
     var selectedRowId: String?
+    /// A file of this commit (the Git tab), not the session's changes; `path` is then top-relative.
+    var commit: String? = nil
+    /// The commit file's name before a rename.
+    var origPath: String? = nil
 }
 
 extension AppState {
@@ -25,11 +29,24 @@ extension AppState {
         didChange?()
     }
 
+    /// A file click in the Git tab's commit details: the same diff tab, read-only, that commit against its first parent.
+    func openCommitDiff(hash: String, file: ChangedFile) {
+        guard let id = selectedTask?.id else { return }
+        if diffTabs[id]?.commit == nil { inspector.loadDiff(path: nil) }  // the Changes diff is no longer shown
+        diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath)
+        gitPanel.loadDiff(hash: hash, path: file.path, origPath: file.origPath)
+        didChange?()
+    }
+
     /// A click on the diff tab.
     func activateDiff() {
         guard let id = selectedTask?.id, let tab = diffTabs[id], !tab.active else { return }
         diffTabs[id]?.active = true
-        if inspector.diffPath != tab.path { inspector.loadDiff(path: tab.path) }
+        if let hash = tab.commit {
+            if gitPanel.diffState(hash: hash, path: tab.path) == nil { gitPanel.loadDiff(hash: hash, path: tab.path, origPath: tab.origPath) }
+        } else if inspector.diffPath != tab.path {
+            inspector.loadDiff(path: tab.path)
+        }
         didChange?()
     }
 
@@ -40,9 +57,19 @@ extension AppState {
         didChange?()
     }
 
-    /// ↑/↓: the previous/next file of Changes, stopping at the ends.
+    /// ↑/↓: the previous/next file of Changes (or of the commit), stopping at the ends.
     func diffNeighbour(_ offset: Int) {
-        guard let tab = activeDiff, let files = inspector.changes?.files,
+        guard let tab = activeDiff else { return }
+        if let hash = tab.commit {
+            guard let details = gitPanel.details, details.commit.hash == hash else { return }
+            // The order the details list them in.
+            let files = commitFileGroups(details.files).flatMap(\.files)
+            guard let i = files.firstIndex(where: { $0.path == tab.path }) else { return }
+            let next = min(max(i + offset, 0), files.count - 1)
+            if next != i { openCommitDiff(hash: hash, file: files[next]) }
+            return
+        }
+        guard let files = inspector.changes?.files,
               let i = files.firstIndex(where: { $0.path == tab.path }) else { return }
         let next = min(max(i + offset, 0), files.count - 1)
         if next != i { openDiff(path: files[next].path) }
@@ -67,6 +94,9 @@ extension AppState {
     }
 
     private func content(of tab: DiffTab) -> DiffContent {
+        if let hash = tab.commit {
+            return diffCache.content(gitPanel.diffState(hash: hash, path: tab.path) ?? .loading, origPath: tab.origPath, path: tab.path)
+        }
         let state = inspector.diffPath == tab.path ? inspector.diff : .loading
         return diffCache.content(state, origPath: inspector.changes?.files.first { $0.path == tab.path }?.origPath, path: tab.path)
     }
@@ -80,7 +110,8 @@ extension AppState {
 
     /// ↩ / double-click: the task's Helix at `openTarget`; nothing when there is no line to open.
     func openActiveDiffInEditor() {
-        guard let tab = activeDiff, let root = inspector.root,
+        // A commit's file is history: the working copy's lines may be elsewhere by now.
+        guard let tab = activeDiff, tab.commit == nil, let root = inspector.root,
               let line = openTarget(rows: activeDiffContent.rows, selected: activeDiffSelection) else { return }
         openInEditor(path: root + "/" + tab.path, line: line)
     }

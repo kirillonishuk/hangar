@@ -1,3 +1,5 @@
+import AppKit
+import Observation
 import SwiftUI
 import Workspace
 
@@ -19,11 +21,33 @@ struct WindowTitle: Equatable {
     return WindowTitle(project: s.projects.first { $0.id == task.projectId }?.name, session: task.name, branch: task.branch)
 }
 
+/// Where the system puts the traffic lights, read from the real buttons so the titlebar row shares their centre line.
+@MainActor @Observable final class TitleBarMetrics {
+    /// Centre of the traffic lights, down from the top of the window; nil while they are hidden (full screen).
+    var lightsCenterY: CGFloat?
+
+    /// Shift from the bar's own middle to the traffic lights' centre line (0 when there are none).
+    var offsetY: CGFloat { titlebarOffset(lightsCenterY: lightsCenterY, barHeight: Theme.titleBarHeight) }
+
+    func update(from window: NSWindow?) {
+        guard let window, !window.styleMask.contains(.fullScreen), let close = window.standardWindowButton(.closeButton),
+              !close.isHidden, let content = window.contentView else { lightsCenterY = nil; return }
+        let y = content.convert(close.convert(close.bounds, to: nil), from: nil)
+        let c = content.isFlipped ? y.midY : content.bounds.height - y.midY
+        if lightsCenterY != c { lightsCenterY = c }
+    }
+}
+
+func titlebarOffset(lightsCenterY: CGFloat?, barHeight: CGFloat) -> CGFloat {
+    lightsCenterY.map { $0 - barHeight / 2 } ?? 0
+}
+
 /// One titlebar across the window (redesign v1 §1, §6): traffic lights, the sidebar toggle at x 84 (it stays put when
 /// the sidebar collapses), the title in the middle, the right sidebar toggle. Empty space drags the window;
 /// double-click follows the system zoom/minimize setting.
 struct WindowTitleBar: View {
     let app: AppState
+    let metrics: TitleBarMetrics
     let toggleSidebar: () -> Void
 
     var body: some View {
@@ -31,12 +55,14 @@ struct WindowTitleBar: View {
             title.frame(maxWidth: .infinity)
             button(.sidebarLeft, active: false, action: toggleSidebar)
                 .help(L10n.help(app.state.sidebarCollapsed ? L10n.expandSidebarHelp : L10n.collapseSidebarHelp, .toggleSidebar))
-                .padding(.leading, Theme.titlebarToggleX)
+                .padding(.leading, metrics.lightsCenterY == nil ? Theme.titlebarFullScreenX : Theme.titlebarToggleX)
+                .offset(y: metrics.offsetY)
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
                 button(.sidebarRight, active: app.state.inspectorVisible) { app.perform { $0.inspectorVisible.toggle() } }
                     .help(L10n.help(L10n.inspectorHelp, .toggleInspector))
                     .padding(.trailing, Theme.titlebarTrailing)
+                    .offset(y: metrics.offsetY)
             }
         }
         .frame(maxWidth: .infinity, minHeight: Theme.titleBarHeight, maxHeight: Theme.titleBarHeight)
@@ -67,6 +93,7 @@ struct WindowTitleBar: View {
             .truncationMode(.middle)
             // Clear of the toggles on both sides, so a long title never runs under them.
             .padding(.horizontal, Theme.titlebarToggleX + Theme.titleButtonSize + Theme.titlebarTrailing)
+            .offset(y: metrics.offsetY)
             .allowsHitTesting(false)
         }
     }

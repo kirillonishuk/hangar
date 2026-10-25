@@ -141,8 +141,10 @@ public enum Theme {
     public static let titleBarHeight: CGFloat = 38
     /// Hit area of titlebar buttons (sidebar toggles), radius `railItemRadius`.
     public static let titleButtonSize: CGFloat = 28
-    /// x of the left sidebar toggle: traffic lights 20…76 + 8; the same collapsed and expanded.
+    /// x of the left sidebar toggle: clear of the traffic lights (x 9…69); the same collapsed and expanded.
     public static let titlebarToggleX: CGFloat = 84
+    /// Same toggle in full screen, where the traffic lights are hidden.
+    public static let titlebarFullScreenX: CGFloat = 12
     public static let titlebarTrailing: CGFloat = 10
     public static let titleBranchIcon: CGFloat = 12
     /// Gap between the titlebar and «+ Новая сессия».

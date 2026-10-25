@@ -78,20 +78,42 @@ func popoverEntries(_ items: [MenuEntry]) -> [PopoverMenuEntry] {
     items.map { .item(PopoverMenuItem(title: $0.title, icon: $0.icon, enabled: $0.enabled, action: $0.action)) }
 }
 
+/// A click on the anchor button while its menu is open: the mouseDown closes the menu (it loses key), and the same
+/// click's mouseUp would fire the button and reopen it. Remembers that mouseDown so the reopen is skipped.
+struct MenuReopenGuard {
+    private var dismissed: (anchor: ObjectIdentifier, event: Int)?
+
+    mutating func dismissed(anchor: ObjectIdentifier, byMouseDown event: Int) { dismissed = (anchor, event) }
+
+    /// False only for the mouseUp of the very click that just closed this anchor's menu.
+    mutating func allowsOpen(anchor: ObjectIdentifier, event: Int?) -> Bool {
+        defer { dismissed = nil }
+        guard let d = dismissed, let event else { return true }
+        return !(d.anchor == anchor && d.event == event)
+    }
+}
+
 // MARK: Panel
 
 /// The custom navy menu, one at a time: a borderless key panel; ↑/↓, ↩, Esc; closes on a pick, Esc or losing key
 /// (a click anywhere else). Other tracks open it with `show(_:below:)` (a button) or `show(_:at:)` (the pointer).
 @MainActor enum PopoverMenu {
     private static var panel: PopoverMenuPanel?
+    private static weak var panelAnchor: NSView?
+    private static var reopenGuard = MenuReopenGuard()
 
     static var isShown: Bool { panel != nil }
 
     /// Under `view` with a 4 pt gap, left edges aligned; moved left / above when the screen edge is near.
     static func show(_ entries: [PopoverMenuEntry], below view: NSView?) {
         guard let view, let window = view.window else { return show(entries, at: NSEvent.mouseLocation) }
+        // Clicking the anchor of the open menu toggles it shut.
+        if panel != nil, panelAnchor === view { return close() }
+        let event = NSApp.currentEvent
+        guard reopenGuard.allowsOpen(anchor: ObjectIdentifier(view), event: event.map { $0.eventNumber }) else { return }
         let frame = window.convertToScreen(view.convert(view.bounds, to: nil))
         present(entries, topLeft: NSPoint(x: frame.minX, y: frame.minY - Theme.menuAnchorGap), flipAbove: frame.maxY + Theme.menuAnchorGap)
+        panelAnchor = view
     }
 
     /// At a screen point (right-click, a whole-row click): its top-left corner there.
@@ -102,6 +124,7 @@ func popoverEntries(_ items: [MenuEntry]) -> [PopoverMenuEntry] {
     static func close() {
         let p = panel
         panel = nil
+        panelAnchor = nil
         p?.orderOut(nil)
     }
 
@@ -129,7 +152,11 @@ func popoverEntries(_ items: [MenuEntry]) -> [PopoverMenuEntry] {
     }
 
     fileprivate static func panelResigned(_ p: PopoverMenuPanel) {
-        if panel === p { close() }
+        guard panel === p else { return }
+        if let anchor = panelAnchor, let e = NSApp.currentEvent, e.type == .leftMouseDown {
+            reopenGuard.dismissed(anchor: ObjectIdentifier(anchor), byMouseDown: e.eventNumber)
+        }
+        close()
     }
 }
 

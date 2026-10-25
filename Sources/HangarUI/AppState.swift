@@ -3,6 +3,7 @@ import AppKit
 import ControlServer
 import Exec
 import Git
+import History
 import Integration
 import Observation
 import os
@@ -121,6 +122,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// AppKit parts that build strings once (main menu) rebuild from here.
     @ObservationIgnored var languageDidChange: (() -> Void)?
     @ObservationIgnored let configURL: URL
+    /// Past conversations («Сессии»), cached per file across scans.
+    @ObservationIgnored let history = ConversationHistory()
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
@@ -425,6 +428,16 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         guard let task = selectedTask else { return }
         deactivateDiff()
         perform { $0.addTab(taskId: task.id, kind: kind) }
+    }
+
+    /// Opens a past conversation as a new tab of the selected session: the leaf starts restored with its id,
+    /// so the usual resume launch runs `claude --resume <id>` / `codex resume <id>`.
+    func openConversation(_ c: Conversation) {
+        guard let task = selectedTask, let id = validSessionId(c.id) else { return }
+        deactivateDiff()
+        var leafId: UUID?
+        perform { leafId = $0.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) }
+        if let leafId { restoredLeaves[leafId] = true }
     }
 
     func activate(tabId: UUID) {

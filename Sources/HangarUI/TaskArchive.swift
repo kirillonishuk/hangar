@@ -28,7 +28,7 @@ extension AppState {
     /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
     /// unarchived again, its tabs relaunch lazily as after a restart.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
-        guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("task not found") }
+        guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
         guard case .worktree(let path, _, _) = task.mode, let project = project(task.projectId) else {
             archive(taskId: id)
             return .archived(worktreeRemoved: false)
@@ -49,7 +49,7 @@ extension AppState {
             unarchiveKept(id, wasSelected: wasSelected)
             return .atRisk(dirty: dirty, ignored: ignored)
         }
-        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("task not found") }
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
         do {
             if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(path, git: git, runner: runner(for: project)) }
         } catch {

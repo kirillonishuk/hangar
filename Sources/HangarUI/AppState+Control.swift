@@ -68,13 +68,13 @@ extension AppState {
             switch outcome {
             case .restored, .restoredKeeping:
                 guard let task = state.tasks.first(where: { $0.id == taskId && !$0.archived }) else {
-                    return fail(ControlError(code: .notFound, message: "task \"\(ref)\" is gone"))
+                    return fail(ControlError(code: .notFound, message: "session \"\(ref)\" is gone"))
                 }
                 let note = if case .restoredKeeping(let orphan) = outcome { "the folder without .git was kept as \(orphan)" } else { String?.none }
                 return .ok(id, TaskResult(task: taskInfo(task), note: note))
             case .branchMissing(let branch):
                 return fail(ControlError(code: .failed, message: "branch \"\(branch)\" is gone, the worktree cannot be re-created; "
-                                         + "restore it in Hangar to keep the task in the project folder"))
+                                         + "restore it in Hangar to keep the session in the project folder"))
             case .failed(let details): return fail(ControlError(code: .failed, message: details))
             }
 
@@ -100,7 +100,7 @@ extension AppState {
             let created = createTask(projectId: projectId, name: name, firstMessage: prompt ?? "", mode: mode, select: false, setup: setup)
             terminals?.start(created.tab)
             guard let task = state.tasks.first(where: { $0.id == created.task }) else {
-                return fail(ControlError(code: .failed, message: "task was not created"))
+                return fail(ControlError(code: .failed, message: "session was not created"))
             }
             // Pane #968: a new folder makes the agent ask to trust it first; that is the user's call, never answered here.
             let agentTab = task.tabs.first?.root.leaves.first.map { $0.kind == .claude || $0.kind == .codex } ?? false
@@ -117,7 +117,7 @@ extension AppState {
             switch await archiveRemovingWorktree(taskId, force: force) {
             case .archived(let removed): return .ok(id, ArchiveResult(task: taskId, archived: true, worktreeRemoved: removed))
             case .worktreeKept(let details):
-                return fail(ControlError(code: .failed, message: "task archived, but the worktree was not removed: \(details)"))
+                return fail(ControlError(code: .failed, message: "session archived, but the worktree was not removed: \(details)"))
             case let .atRisk(dirty, ignored):
                 let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
                 let what = [dirty ? "uncommitted changes" : nil, ignored.isEmpty ? nil : "ignored files (\(shown))"].compactMap { $0 }
@@ -322,7 +322,7 @@ extension AppState {
     func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
         resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !state.hostShells.contains { $0.id == t.projectId } }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
-            .mapError { refError($0, ref, archived ? "archived task" : "task") }
+            .mapError { refError($0, ref, archived ? "archived session" : "session") }
     }
 
     /// `tasks.list --git`: per task, in parallel. The inspector's loaded changes of the shown task are reused;
@@ -420,7 +420,7 @@ func remoteAddWarnings(_ info: HostInfo) -> [String] {
 
 /// English counterpart of `NewTaskModel`'s branch problems (empty, already exists, else invalid).
 func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
-    if branch.isEmpty { return "task name gives an empty branch name" }
+    if branch.isEmpty { return "session name gives an empty branch name" }
     if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return "branch \"\(branch)\" already exists" }
     return "invalid branch name \"\(branch)\""
 }

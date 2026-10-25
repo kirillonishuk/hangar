@@ -40,7 +40,10 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case sshOpen = "ssh.open"
     case linksCreate = "links.create"
 
-    public var toolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
+    /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#NN-sessions); the socket method stays.
+    public var toolName: String { legacyToolName.replacingOccurrences(of: "tasks_", with: "sessions_") }
+    /// Pre-rename tool name: still callable over MCP, never listed.
+    public var legacyToolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
     /// Exposed by `hangar mcp --read-only`: listings and screen reads, nothing that changes Hangar or types into a terminal.
     public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor].contains(self) }
@@ -54,16 +57,16 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         switch self {
         case .projectsList: "List the projects registered in Hangar."
         case .projectsAdd: "Register a folder as a Hangar project (idempotent). With host: a folder on that ssh server; Hangar connects and checks the server (up to ~1 min), installs nothing and returns warnings for missing tools."
-        case .tasksList: "List tasks with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project. With git: true also changes against the base (+added −removed lines, files), dirty and ahead/behind the base (runs git per task)."
-        case .tasksCreate: "Create a task in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
-        case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a task, optionally with an initial prompt for agents."
+        case .tasksList: "List sessions with their tabs, TERMINAL drawer shell and agent statuses, optionally for one project. With git: true also changes against the base (+added −removed lines, files), dirty and ahead/behind the base (runs git per session)."
+        case .tasksCreate: "Create a session in a project, in the main folder or in a new git worktree, optionally starting an agent with a prompt."
+        case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a session, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission. Result status: sent, queued (claude was already working; it runs after the current turn), started / not-started-yet (with wait). Enter into a working codex is refused (busy): wait for it or send keys [interrupt] first."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
         case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
-        case .tasksArchive: "Archive a task. A worktree task's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
-        case .tasksRestore: "Restore an archived task. A worktree task's folder is re-created from its kept branch; fails if that branch is gone."
+        case .tasksArchive: "Archive a session. A worktree session's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
+        case .tasksRestore: "Restore an archived session. A worktree session's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
-        case .linksCreate: "Get a hangar:// link to a task, a tab or a project. Clicking it in Hangar only selects and focuses it; nothing runs."
+        case .linksCreate: "Get a hangar:// link to a session, a tab or a project. Clicking it in Hangar only selects and focuses it; nothing runs."
         }
     }
 
@@ -81,25 +84,25 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksList:
             return [
                 ParamSpec(name: "project", type: ref, required: false, summary: "Project id (or unique prefix) or name."),
-                ParamSpec(name: "git", type: .bool, required: false, summary: "Add changes, dirty and ahead/behind per task (slower: runs git)."),
+                ParamSpec(name: "git", type: .bool, required: false, summary: "Add changes, dirty and ahead/behind per session (slower: runs git)."),
             ]
         case .tasksCreate:
             return [
                 ParamSpec(name: "project", type: ref, required: true, summary: "Project id (or unique prefix) or name."),
-                ParamSpec(name: "name", type: .string(maxBytes: Self.maxNameChars * 4), required: true, summary: "Task name, 1-200 characters."),
+                ParamSpec(name: "name", type: .string(maxBytes: Self.maxNameChars * 4), required: true, summary: "Session name, 1-200 characters."),
                 ParamSpec(name: "worktree", type: .bool, required: false, summary: "Create a git worktree instead of using the main folder."),
                 ParamSpec(name: "base", type: .string(maxBytes: 255), required: false, summary: "Base branch for the worktree (only with worktree)."),
                 ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: false, summary: "Start the default agent's tab with this prompt."),
             ]
         case .tabsOpen:
             return [
-                ParamSpec(name: "task", type: ref, required: true, summary: "Task id (or unique prefix) or name."),
+                ParamSpec(name: "task", type: ref, required: true, summary: "Session id (or unique prefix) or name."),
                 ParamSpec(name: "kind", type: .oneOf(TabKind.allCases.map(\.rawValue)), required: true, summary: "Tab kind."),
                 ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: false, summary: "Initial prompt (claude and codex only)."),
             ]
         case .tabsSend:
             return [
-                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a task's drawer leaf id from tasks_list (or unique prefix)."),
+                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a session's drawer leaf id from sessions_list (or unique prefix)."),
                 ParamSpec(name: "text", type: .string(maxBytes: Self.maxText), required: false, summary: "Text to paste."),
                 ParamSpec(name: "keys", type: .list(of: SendKey.allCases.map(\.rawValue), max: 32), required: false,
                           summary: "Keys to press after the text; interrupt = Esc for claude/codex, Ctrl-C for a shell."),
@@ -108,25 +111,25 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             ]
         case .tabsRead:
             return [
-                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a task's drawer leaf id from tasks_list (or unique prefix)."),
+                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a session's drawer leaf id from sessions_list (or unique prefix)."),
                 ParamSpec(name: "lines", type: .int(1...5000), required: false, summary: "Number of last lines (default 100)."),
             ]
         case .tasksArchive:
             return [
-                ParamSpec(name: "task", type: ref, required: true, summary: "Task id (or unique prefix) or name."),
+                ParamSpec(name: "task", type: ref, required: true, summary: "Session id (or unique prefix) or name."),
                 ParamSpec(name: "yes", type: .bool, required: true, summary: "Must be true to confirm."),
                 ParamSpec(name: "force", type: .bool, required: false,
                           summary: "Remove the worktree even with uncommitted changes or ignored files; they are deleted."),
             ]
         case .tasksRestore:
-            return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived task id (or unique prefix) or name.")]
+            return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived session id (or unique prefix) or name.")]
         case .sshOpen:
             return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
         case .linksCreate:
             return [
                 ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at."),
                 ParamSpec(name: "ref", type: ref, required: true,
-                          summary: "Task or project id (or unique prefix) or name; for a tab, a tab or leaf id from tasks_list (or unique prefix)."),
+                          summary: "Session or project id (or unique prefix) or name; for a tab, a tab or leaf id from sessions_list (or unique prefix)."),
             ]
         }
     }

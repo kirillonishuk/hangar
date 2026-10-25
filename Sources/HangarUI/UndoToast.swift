@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The «Задача в архиве · Отменить» toast: one at a time, hides after `delay` by a one-shot work item (no polling).
+/// The «Сессия в архиве · Отменить» toast: one at a time, hides after `delay` by a one-shot work item (no polling).
 @MainActor @Observable final class ArchiveUndo {
     private(set) var taskId: UUID?
     /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).

@@ -5,9 +5,9 @@ import ControlServer
 @Suite struct CLICommandsTests {
     @Test func parsesEveryCommand() {
         let table: [([String], CLIParse)] = [
-            (["tasks", "create", "--project", "p", "--name", "N", "--worktree", "--base", "origin/main", "--prompt", "do it"],
+            (["sessions", "create", "--project", "p", "--name", "N", "--worktree", "--base", "origin/main", "--prompt", "do it"],
              .call(.tasksCreate(project: "p", name: "N", worktree: true, base: "origin/main", prompt: "do it"), json: false)),
-            (["tasks", "create", "--name", "N", "--project", "p"],
+            (["sessions", "create", "--name", "N", "--project", "p"],
              .call(.tasksCreate(project: "p", name: "N", worktree: false, base: nil, prompt: nil), json: false)),
             (["tabs", "send", "--tab", "ab12", "hello", "world", "--enter"],
              .call(.tabsSend(tab: "ab12", text: "hello world", keys: [.enter]), json: false)),
@@ -23,21 +23,21 @@ import ControlServer
             (["tabs", "read", "--tab", "x"], .call(.tabsRead(tab: "x", lines: 100), json: false)),
             // A drawer leaf id is a plain `--tab` ref.
             (["tabs", "read", "--tab", "55556666"], .call(.tabsRead(tab: "55556666", lines: 100), json: false)),
-            (["tabs", "open", "--kind", "codex", "--task", "t", "--prompt", "go"], .call(.tabsOpen(task: "t", kind: .codex, prompt: "go"), json: false)),
+            (["tabs", "open", "--kind", "codex", "--session", "t", "--prompt", "go"], .call(.tabsOpen(task: "t", kind: .codex, prompt: "go"), json: false)),
             (["projects", "add", "../x"], .call(.projectsAdd(path: "/tmp/a/x"), json: false)),
             (["projects", "add", "/abs/./y/"], .call(.projectsAdd(path: "/abs/y"), json: false)),
             // A server path stays as typed: no local cwd, `~` is the server's home.
             (["projects", "add", "--host", "dev", "~/app"], .call(.projectsAdd(path: "~/app", host: "dev"), json: false)),
             (["projects", "add", "rel", "--host", "u@h", "--json"], .call(.projectsAdd(path: "rel", host: "u@h"), json: true)),
             (["projects", "list", "--json"], .call(.projectsList, json: true)),
-            (["tasks", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
-            (["tasks", "list"], .call(.tasksList(project: nil), json: false)),
-            (["tasks", "archive", "--yes", "--task", "t"], .call(.tasksArchive(task: "t"), json: false)),
-            (["tasks", "archive", "--yes", "--force", "--task", "t"], .call(.tasksArchive(task: "t", force: true), json: false)),
-            (["tasks", "restore", "--task", "t"], .call(.tasksRestore(task: "t"), json: false)),
-            (["tasks", "restore", "--task", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
-            (["tasks", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
-            (["tasks", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
+            (["sessions", "list", "--project", "p"], .call(.tasksList(project: "p"), json: false)),
+            (["sessions", "list"], .call(.tasksList(project: nil), json: false)),
+            (["sessions", "archive", "--yes", "--session", "t"], .call(.tasksArchive(task: "t"), json: false)),
+            (["sessions", "archive", "--yes", "--force", "--session", "t"], .call(.tasksArchive(task: "t", force: true), json: false)),
+            (["sessions", "restore", "--session", "t"], .call(.tasksRestore(task: "t"), json: false)),
+            (["sessions", "restore", "--session", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
+            (["sessions", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
+            (["sessions", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
             // `hangar ssh <host>` only opens the tab in the app (#64).
             (["ssh", "box"], .call(.sshOpen(host: "box"), json: false)),
             (["ssh", "--json", "u@h"], .call(.sshOpen(host: "u@h"), json: true)),
@@ -49,18 +49,40 @@ import ControlServer
         }
     }
 
+    /// `hangar tasks …` and `--task` are silent aliases from before the rename to sessions (#NN-sessions).
+    @Test func legacyTaskAliases() {
+        let table: [([String], CLIParse)] = [
+            (["tasks", "list", "--project", "p", "--git"], .call(.tasksList(project: "p", git: true), json: false)),
+            (["tasks", "create", "--project", "p", "--name", "N"], .call(.tasksCreate(project: "p", name: "N", worktree: false, base: nil, prompt: nil), json: false)),
+            (["tasks", "archive", "--yes", "--task", "t"], .call(.tasksArchive(task: "t"), json: false)),
+            (["tasks", "restore", "--task", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
+            (["sessions", "restore", "--task", "t"], .call(.tasksRestore(task: "t"), json: false)),
+            (["tasks", "archive", "--yes", "--session", "t"], .call(.tasksArchive(task: "t"), json: false)),
+            (["tabs", "open", "--task", "t", "--kind", "shell"], .call(.tabsOpen(task: "t", kind: .shell, prompt: nil), json: false)),
+            (["sessions", "restore", "--task", "a", "--session", "b"], .usage("--session given twice")),
+            (["sessions", "restore"], .usage("missing --session")),
+        ]
+        for (args, expected) in table {
+            #expect(parseCLI(args, cwd: "/") == expected, "\(args)")
+        }
+        #expect(parseCLI(["tasks", "archive", "--task", "t"], cwd: "/") == .confirmRequired("refusing to archive without --yes"))
+        #expect(!jsonRequested(["tabs", "open", "--task", "--json"]))  // still the value of the alias
+        #expect(jsonRequested(["tasks", "list", "--frob", "--json"]))
+        #expect(cliUsage.contains("hangar sessions list") && !cliUsage.contains("hangar tasks"))
+    }
+
     @Test func textAfterDoubleDash() {
         #expect(parseCLI(["tabs", "send", "--tab", "x", "--", "--enter"], cwd: "/") == .call(.tabsSend(tab: "x", text: "--enter", keys: []), json: false))
     }
 
     @Test func usageErrors() {
         let table: [[String]] = [
-            ["tasks", "create", "--project", "p", "--name", "N", "--base", "main"],
-            ["tasks", "list", "--frob"],
-            ["tasks", "create", "--project", "p"],
+            ["sessions", "create", "--project", "p", "--name", "N", "--base", "main"],
+            ["sessions", "list", "--frob"],
+            ["sessions", "create", "--project", "p"],
             ["tabs", "read", "--tab", "x", "--lines", "abc"],
             ["tabs", "read", "--tab", "x", "--lines", "0"],
-            ["tabs", "open", "--task", "t", "--kind", "diff"],
+            ["tabs", "open", "--session", "t", "--kind", "diff"],
             ["tabs", "send", "--tab", "x"],
             ["tabs", "send", "--tab", "x", "--key", "home"],
             ["tabs", "send", "hi"],
@@ -71,25 +93,25 @@ import ControlServer
             ["projects", "add", "a", "--host"],
             ["projects", "list", "extra"],
             ["projects", "frob"],
-            ["tasks", "create", "--project", "p", "--project", "q", "--name", "N"],
-            ["tasks"],
+            ["sessions", "create", "--project", "p", "--project", "q", "--name", "N"],
+            ["sessions"],
             [],
         ]
         for args in table {
             if case .usage = parseCLI(args, cwd: "/") {} else { Issue.record("\(args) → \(parseCLI(args, cwd: "/"))") }
         }
-        #expect(parseCLI(["tasks", "archive", "--task", "t"], cwd: "/") == .confirmRequired("refusing to archive without --yes"))
+        #expect(parseCLI(["sessions", "archive", "--session", "t"], cwd: "/") == .confirmRequired("refusing to archive without --yes"))
     }
 
     @Test func jsonModeFollowsTheGrammar() {
-        #expect(jsonRequested(["tasks", "list", "--frob", "--json"]))
-        #expect(jsonRequested(["tasks", "archive", "--json", "--task", "t"]))
+        #expect(jsonRequested(["sessions", "list", "--frob", "--json"]))
+        #expect(jsonRequested(["sessions", "archive", "--json", "--session", "t"]))
         #expect(jsonRequested(["frob", "x", "--json"]))  // unknown command: raw argv fallback
-        #expect(!jsonRequested(["tabs", "open", "--task", "--json"]))  // the value of --task
+        #expect(!jsonRequested(["tabs", "open", "--session", "--json"]))  // the value of --session
         #expect(!jsonRequested(["tabs", "send", "--tab", "x", "--key", "--json"]))
         #expect(!jsonRequested(["tabs", "send", "--tab", "x", "--", "--json"]))
         #expect(!jsonRequested(["frob", "--", "--json"]))
-        #expect(!jsonRequested(["tasks", "list"]))
+        #expect(!jsonRequested(["sessions", "list"]))
     }
 
     @Test func timeoutsPerCommand() {
@@ -139,7 +161,7 @@ import ControlServer
         #expect(requestTimeout(.tasksList(project: nil)) == 10)
         let create = ControlCall.tasksCreate(project: "p", name: "N", worktree: false, base: nil, prompt: nil)
         #expect(formatHuman(create, result: try JSONEncoder().encode(TaskResult(task: main)))
-                == "task abcdef12-0000-0000-0000-000000000001 tab 11112222-0000-0000-0000-000000000002")
+                == "session abcdef12-0000-0000-0000-000000000001 tab 11112222-0000-0000-0000-000000000002")
 
         let p = ProjectInfo(id: taskId, name: "web", path: "/src/web", exists: true)
         #expect(formatHuman(.projectsList, result: try JSONEncoder().encode(ProjectsResult(projects: [p]))) == "abcdef12  web  /src/web")

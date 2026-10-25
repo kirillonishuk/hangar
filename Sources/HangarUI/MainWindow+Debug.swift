@@ -84,6 +84,10 @@ extension MainWindowController {
             let fields = arg.split(separator: "|", maxSplits: 1).map(String.init)
             guard let project = app.selectedTask?.projectId ?? app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: fields[0], firstMessage: fields.count > 1 ? fields[1] : "", mode: .mainFolder)
+        case "ptask":  // ptask <project index> <name>: a main-folder session of that project (e.g. a remote one)
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            guard f.count == 2, let n = Int(f[0]), app.state.projects.indices.contains(n) else { return }
+            app.createTask(projectId: app.state.projects[n].id, name: f[1], firstMessage: "", mode: .mainFolder)
         case "wtask":
             // wtask <name> <existing worktree path> <branch> <base>: a worktree session over a worktree made beforehand.
             let f = arg.split(separator: " ").map(String.init)
@@ -296,6 +300,20 @@ extension MainWindowController {
             default: pickerWindow?.orderOut(nil); pickerWindow = nil  // not close(): last-window-closed quits
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
+        case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
+            if let sheet = window?.attachedSheet,
+               let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: sheet.windowNumber, context: nil, characters: "\r",
+                                        charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
+                uiLog.info("ntCreate handled=\(sheet.performKeyEquivalent(with: e))")
+            }
+        case "ntState":  // the sheet's progress and errors
+            if let m = newTaskModelForDebug {
+                uiLog.info("nt creating=\(m.creating) progress=\(m.progress ?? "-", privacy: .public) error=\(m.createError ?? "-", privacy: .public)")
+            }
+        case "ntWorktree": newTaskModelForDebug?.worktree = arg == "on"  // the Worktree toggle
+        case "ntSetup": newTaskModelForDebug?.runSetup = arg == "on"  // the setup-command consent toggle
         case "windows": uiLog.info("windows: \(NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible) key=\($0.isKeyWindow)" }, privacy: .public) badge=\(NSApp.dockTile.badgeLabel ?? "-", privacy: .public)")
         case "inspector":
             // inspector [files|changes|toggleMode|expand <dir>|click <row>]: drives the inspector; logs its rows.
@@ -310,6 +328,10 @@ extension MainWindowController {
             case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }
             // change <n>: a click on the n-th Changes row (0-based) → the diff tab.
             case "change": if f.count > 1, let n = Int(f[1]), let files = m.changes?.files, files.indices.contains(n) { app.openDiff(path: files[n].path) }
+            // menu <path>: a Files/Changes row's right-click menu, 200/120 pt into the window from the right.
+            case "menu": if f.count > 1, let frame = window?.frame {
+                PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
+            }
             case "diffTab": app.activateDiff()  // a click on the diff tab
             case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
             case "diffKey":
@@ -362,6 +384,10 @@ extension MainWindowController {
             case "server": if f.count == 2 { presentServer(f[1]) }
             case "spec": if f.count == 2 { try? server?.terminalSpec()?.command.write(toFile: f[1], atomically: true, encoding: .utf8) }
             case "refresh": if let server { Task { await server.refresh() } }
+            case "optional":  // optional <tool>: ticks/unticks its «Необязательно» checkbox
+                if f.count == 2, let server, let tool = RemoteTool(rawValue: f[1]) {
+                    if server.optional.contains(tool) { server.optional.remove(tool) } else { server.optional.insert(tool) }
+                }
             case "review": if let server { Task { await server.review(f.count > 1 && f[1] == "codex" ? .codex : .claude, install: !(f.count > 2 && f[2] == "remove")) } }
             case "confirm": if let server { Task { await server.confirmPlan() } }  // = «Применить» in the diff sheet
             case "snap":  // the diff sheet on top of the remote sheet

@@ -166,7 +166,9 @@ struct RemoteProjectSheet: View {
 
     private var footer: some View {
         HStack(spacing: Theme.sheetButtonGap) {
+            // Esc goes to the install terminal while it runs (as in «Сервер»).
             Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                .opacity(model.server?.phase == .installing ? 0 : 1)
             Spacer(minLength: 0)
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
             Button(L10n.cancel, action: onCancel)

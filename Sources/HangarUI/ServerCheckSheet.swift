@@ -22,7 +22,9 @@ struct ServerCheckSheet: View {
             ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
                 .padding(.top, Theme.sheetNameTop)
             HStack(spacing: Theme.sheetButtonGap) {
+                // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
                 Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                    .opacity(model.phase == .installing ? 0 : 1)
                 Spacer(minLength: 0)
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
@@ -31,7 +33,14 @@ struct ServerCheckSheet: View {
                     .opacity(model.phase == .installing ? Theme.disabledButtonOpacity : 1)
                     // Esc belongs to the install terminal while it runs.
                     .keyboardShortcut(model.phase == .installing ? nil : .cancelAction)
-                InstallButton(model: model, primary: true)
+                if case .failed = model.phase, model.report == nil {
+                    // The check itself failed (host offline): a disabled «Установить» left nothing to do but close.
+                    Button(L10n.retry) { Task { await model.refresh() } }
+                        .buttonStyle(SheetButton(primary: true))
+                        .keyboardShortcut(.return, modifiers: .command)
+                } else {
+                    InstallButton(model: model, primary: true)
+                }
             }
             .padding(.vertical, Theme.sheetFooterPaddingV)
         }
@@ -184,6 +193,8 @@ struct ServerCheckView: View {
                 .fixedSize()
                 .disabled(!ready)
                 .opacity(ready ? 1 : Theme.disabledButtonOpacity)
+                // A dimmed button said nothing about why.
+                .help(r.remoteOutdated(current: hangarRemoteVersion) ? L10n.integrationNeedsRemote : "")
         }
     }
 
@@ -193,9 +204,9 @@ struct ServerCheckView: View {
             return target == .codex && r.tools[.codex] == nil ? (L10n.codexNotFound, Theme.ui.text3, nil) : ("—", Theme.ui.text3, nil)
         }
         return switch state {
-        case .installed, .installedStatuslineByUser: (L10n.integrationShortInstalled, Theme.ui.text2, (L10n.removeEllipsis, false))
-        case .outdated: (L10n.integrationShortOutdated, Theme.ui.waiting, (L10n.updateEllipsis, true))
-        case .notInstalled: (L10n.integrationNotInstalled, Theme.ui.failed, (L10n.installEllipsis, true))
+        case .installed, .installedStatuslineByUser: (L10n.integrationShortInstalled, integrationStatusColor(state), (L10n.removeEllipsis, false))
+        case .outdated: (L10n.integrationShortOutdated, integrationStatusColor(state), (L10n.updateEllipsis, true))
+        case .notInstalled: (L10n.integrationNotInstalled, integrationStatusColor(state), (L10n.installEllipsis, true))
         }
     }
 
@@ -226,6 +237,7 @@ struct ServerCheckView: View {
             if model.plan.steps.isEmpty && model.plan.manual.isEmpty {
                 Text(L10n.allInstalled).foregroundStyle(Theme.ui.text3)
             }
+            if !model.missingOptional.isEmpty { optionalTools }
             if !model.plan.steps.isEmpty {
                 // Verbatim: exactly what the terminal (and the stdin write) will run.
                 VStack(alignment: .leading, spacing: Theme.planCommandGap) {
@@ -253,6 +265,23 @@ struct ServerCheckView: View {
                 Text(L10n.sudoHint).foregroundStyle(Theme.ui.text3)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// «Необязательно: ☐ codex ☐ hx» — unticked by default; a ticked tool joins the commands shown above «Установить».
+    private var optionalTools: some View {
+        HStack(spacing: Theme.sheetButtonGap) {
+            Text(L10n.optionalToolsLabel).foregroundStyle(Theme.ui.text3)
+            ForEach(model.missingOptional, id: \.self) { tool in
+                Toggle(isOn: Binding(get: { model.optional.contains(tool) },
+                                     set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } })) {
+                    Text(verbatim: tool.rawValue).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                        .foregroundStyle(Theme.ui.sheetText)
+                }
+                .toggleStyle(.checkbox)
+                .disabled(model.phase == .installing)
+                .pointingHand(model.phase != .installing)
             }
         }
     }

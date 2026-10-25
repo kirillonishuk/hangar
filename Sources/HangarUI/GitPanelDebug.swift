@@ -30,6 +30,14 @@ extension MainWindowController {
                 let view = split.splitView
                 view.setPosition(view.bounds.width - w - view.dividerThickness, ofDividerAt: 1)
             }
+        case "scrollEnd":  // the log scrolled to its end, as a user's scroll (row onAppear pages in more)
+            func scrollViews(_ v: NSView) -> [NSScrollView] { ((v as? NSScrollView).map { [$0] } ?? []) + v.subviews.flatMap(scrollViews) }
+            let views = scrollViews(inspectorItem.viewController.view)
+            if let s = views.max(by: { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }), let doc = s.documentView {
+                let y = doc.isFlipped ? max(0, doc.frame.height - s.contentView.bounds.height) : 0
+                s.contentView.scroll(to: NSPoint(x: 0, y: y))
+                s.reflectScrolledClipView(s.contentView)
+            }
         case "dump":  // dump <file>: the model's state as text
             let s = "commits=\(m.commits.map(\.subject)) graph=\(m.graph.count) shows=\(m.showsGraph) query=\(m.query) hides=\(m.query.hidesGraph)\n"
             try? s.write(toFile: rest, atomically: true, encoding: .utf8)

@@ -51,6 +51,12 @@ mv -f "$tmp" "$f"
     let host: String
     private(set) var report: ServerReport?
     private(set) var plan: (steps: [InstallStep], manual: [RemoteTool]) = ([], [])
+    /// Ticked optional tools (codex, hx): only they join the plan; the shown plan is what «Установить» runs.
+    var optional: Set<RemoteTool> = [] {
+        didSet { if let report, phase != .installing { plan = installPlan(report, remoteVersion: hangarRemoteVersion, optional: optional) } }
+    }
+    /// The optional tools the server lacks: the sheet's unticked checkboxes.
+    var missingOptional: [RemoteTool] { RemoteTool.optionalInstalls.filter { report?.tools[$0] == nil && report != nil } }
     private(set) var phase: Phase = .checking
     /// The steps the user confirmed with «Установить»; the terminal runs exactly these.
     private(set) var confirmedSteps: [InstallStep] = []
@@ -103,7 +109,7 @@ mv -f "$tmp" "$f"
             return
         }
         report = r
-        plan = installPlan(r, remoteVersion: hangarRemoteVersion)
+        plan = installPlan(r, remoteVersion: hangarRemoteVersion, optional: optional)
         phase = .ready
         await readIntegrations()
     }

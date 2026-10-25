@@ -98,10 +98,14 @@ extension MainWindowController {
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
             let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
-            guard let view = target?.contentView,
+            // "…-window…": the whole frame view, with the traffic lights.
+            guard let view = arg.contains("-window") ? target?.contentView?.superview : target?.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
+        case "lights":  // lights <file>: traffic light frames (window coordinates, bottom-left origin)
+            let frames = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { self.window?.standardWindowButton($0) }.map { $0.convert($0.bounds, to: nil) }
+            try? "lights \(frames) content=\(String(describing: self.window?.contentView?.frame))".write(toFile: arg, atomically: true, encoding: .utf8)
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "open":
             // open <absolute path> [line]: as an inspector click would.

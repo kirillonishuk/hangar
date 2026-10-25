@@ -23,12 +23,10 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Titlebar row, tab bar row, terminal area, task status line.
+/// Tab bar row and terminal area of the selected session.
 final class TaskColumnController: NSViewController {
     let terminalArea: TerminalArea
-    private let titleBar: NSHostingView<TitleBarView>
     let tabBar: NSHostingView<TabBarView>
-    private let statusBar: NSHostingView<TaskStatusBar>
     /// «Сессия в архиве · Отменить» over the bottom of the terminals.
     let archiveUndo: ArchiveUndo
     private let toast: NSHostingView<UndoToastView>
@@ -38,9 +36,7 @@ final class TaskColumnController: NSViewController {
         let undo = ArchiveUndo()
         archiveUndo = undo
         toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
-        titleBar = NSHostingView(rootView: TitleBarView(app: app))
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
-        statusBar = NSHostingView(rootView: TaskStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -48,11 +44,49 @@ final class TaskColumnController: NSViewController {
 
     override func loadView() {
         let v = NSView()
-        titleBar.sizingOptions = []
         tabBar.sizingOptions = []
-        statusBar.sizingOptions = []
         toast.sizingOptions = [.intrinsicContentSize]
-        for sub in [titleBar, tabBar, terminalArea, statusBar, toast] as [NSView] {
+        for sub in [tabBar, terminalArea, toast] as [NSView] {
+            sub.translatesAutoresizingMaskIntoConstraints = false
+            v.addSubview(sub)
+        }
+        NSLayoutConstraint.activate([
+            tabBar.topAnchor.constraint(equalTo: v.topAnchor),
+            tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
+            terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
+            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
+        ])
+        view = v
+    }
+}
+
+/// Window content (redesign v1 §1): one titlebar across the window, the three columns, the status bar at the bottom.
+final class WindowRootController: NSViewController {
+    private let split: NSSplitViewController
+    let titleBar: NSHostingView<WindowTitleBar>
+    private let statusBar: NSHostingView<WindowStatusBar>
+
+    init(app: AppState, split: NSSplitViewController) {
+        self.split = split
+        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, toggleSidebar: {}))
+        statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        let v = NSView()
+        addChild(split)
+        titleBar.sizingOptions = []
+        statusBar.sizingOptions = []
+        for sub in [titleBar, split.view, statusBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -61,20 +95,14 @@ final class TaskColumnController: NSViewController {
             titleBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             titleBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             titleBar.heightAnchor.constraint(equalToConstant: Theme.titleBarHeight),
-            tabBar.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
-            tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
-            terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
-            terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            terminalArea.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            split.view.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
+            split.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            split.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            split.view.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
             statusBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
-            toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
-            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
         ])
         view = v
     }
@@ -155,7 +183,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         inspectorItem.isCollapsed = !app.state.inspectorVisible
         split.addSplitViewItem(inspectorItem)
 
-        window.contentViewController = split
+        let root = WindowRootController(app: app, split: split)
+        window.contentViewController = root
         window.setContentSize(Theme.windowSize)
         window.center()
         super.init(window: window)
@@ -165,6 +194,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        root.titleBar.rootView = WindowTitleBar(app: app) { [weak self] in self?.toggleSidebar() }
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
@@ -265,7 +295,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         view.setPosition(view.bounds.width - width - view.dividerThickness, ofDividerAt: 1)
     }
 
-    /// Follows `inspectorVisible` (⌘⌥I, titlebar button); expanding restores the saved width.
+    /// Follows `inspectorVisible` (⌥⌘I, titlebar button); expanding restores the saved width.
     private func syncInspector() {
         let collapsed = !app.state.inspectorVisible
         guard inspectorItem.isCollapsed != collapsed else { return }

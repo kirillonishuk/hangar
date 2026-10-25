@@ -23,8 +23,8 @@ extension AppState {
                                    codexDir: codexConfigURL.deletingLastPathComponent(), open: open)
     }
 
-    /// State as displayed (limits included) and running subagents: «работает · 2 агента».
-    func statusSummary(ofLeaf id: UUID, kind: LeafKind) -> (state: AgentState, subagents: Int) {
-        (displayState(ofLeaf: id, kind: kind), statuses.statusSummary(id).subagents)
+    /// The agent's own state (a full limit is not an error here) and running subagents: «работает · 2 агента».
+    func statusSummary(ofLeaf id: UUID) -> (state: AgentState, subagents: Int) {
+        (state(ofLeaf: id), statuses.statusSummary(id).subagents)
     }
 }

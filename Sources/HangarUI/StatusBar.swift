@@ -52,7 +52,7 @@ private func leaves(of task: HangarTask) -> [Leaf] {
     task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
 }
 
-/// The line for the selected session: `summary` gives a leaf's displayed state and subagents, `process` its name.
+/// The line for the selected session: `summary` gives a leaf's agent state and subagents, `process` its name.
 func statusBarLine(_ s: WorkspaceState, summary: (Leaf) -> (state: AgentState, subagents: Int),
                    process: (Leaf) -> String) -> StatusBarLine {
     guard let id = s.selectedTaskId, let task = s.tasks.first(where: { $0.id == id && !$0.archived }) else { return StatusBarLine() }
@@ -73,14 +73,14 @@ func nextWorking(_ ids: [UUID], working: Set<UUID>, after: UUID?) -> UUID? {
 
 extension AppState {
     var statusBar: StatusBarLine {
-        statusBarLine(state, summary: { statusSummary(ofLeaf: $0.id, kind: $0.kind) }, process: { defaultTitle($0.kind) })
+        statusBarLine(state, summary: { statusSummary(ofLeaf: $0.id) }, process: { defaultTitle($0.kind) })
     }
 
     /// «N работает»: the project's next session with a working agent.
     func selectNextWorking() {
         guard let task = selectedTask else { return }
         let tasks = state.tasks(in: task.projectId)
-        let working = Set(tasks.filter { leaves(of: $0).contains { displayState(ofLeaf: $0.id, kind: $0.kind) == .working } }.map(\.id))
+        let working = Set(tasks.filter { leaves(of: $0).contains { state(ofLeaf: $0.id) == .working } }.map(\.id))
         if let next = nextWorking(tasks.map(\.id), working: working, after: task.id), next != task.id { select(taskId: next) }
     }
 }

@@ -125,6 +125,8 @@ import Workspace
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
+        case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
     }
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.
@@ -386,6 +388,23 @@ import Workspace
         return f(key, Int32(clamping: n))
     }
     static var statusShowChanges: String { s(.statusShowChanges) }
+    // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
+    private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
+        let key: Key = switch pluralForm(n) {
+        case .one: one
+        case .few: few
+        case .many: many
+        }
+        return f(key, Int32(clamping: n))
+    }
+    static func agentCount(_ n: Int) -> String { count(n, .agentCountOne, .agentCountFew, .agentCountMany) }
+    static func subagentCount(_ n: Int) -> String { count(n, .subagentCountOne, .subagentCountFew, .subagentCountMany) }
+    static func tabCount(_ n: Int) -> String { count(n, .tabCountOne, .tabCountFew, .tabCountMany) }
+    static var noAgents: String { s(.noAgents) }
+    /// The row's short state word: «ждёт», not the tab's «ждёт ответа».
+    static func rowStatus(_ state: AgentState) -> String { state == .waiting ? s(.rowWaiting) : statusLabel(state) }
+    static var sessionsView: String { s(.sessionsView) }
+    static var sessionsViewHelp: String { s(.sessionsViewHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInHelix: String { s(.openInHelix) }

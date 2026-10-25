@@ -91,7 +91,10 @@ extension AppState {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }
             }
             onTransition?(t)
-            if t.to == .done { onLeafDone?(t.leaf) }
+            if t.to == .done {
+                onLeafDone?(t.leaf)
+                refreshBadge(ofLeaf: t.leaf)
+            }
             if t.to == .waiting, config.dockBadge { requestAttention?() }
         }
     }

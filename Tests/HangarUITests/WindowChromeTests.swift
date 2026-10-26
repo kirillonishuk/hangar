@@ -8,7 +8,7 @@ import Workspace
 @MainActor @Suite struct WindowChromeTests {
     private func state() -> (WorkspaceState, project: UUID, task: UUID) {
         var s = WorkspaceState()
-        let p = s.addProject(name: "frontend-cd", path: "/f")
+        let p = s.addProject(name: "acme-web", path: "/f")
         let t = s.addTask(projectId: p, name: "redesign-v1", mode: .worktree(path: "/f/.wt/r", branch: "feat/redesign-v1", base: "main"))
         s.selectedTaskId = t
         return (s, p, t)
@@ -19,8 +19,8 @@ import Workspace
     @Test func titleIsProjectSessionAndBranch() {
         let (s, _, _) = state()
         let title = windowTitle(s)
-        #expect(title == WindowTitle(project: "frontend-cd", session: "redesign-v1", branch: "feat/redesign-v1"))
-        #expect(title?.text == "frontend-cd · redesign-v1 ⎇ feat/redesign-v1")
+        #expect(title == WindowTitle(project: "acme-web", session: "redesign-v1", branch: "feat/redesign-v1"))
+        #expect(title?.text == "acme-web · redesign-v1 ⎇ feat/redesign-v1")
     }
 
     @Test func mainFolderSessionHasNoBranchAndNoSelectionHasNoTitle() {
@@ -36,8 +36,8 @@ import Workspace
         defer { L10n.language = .system }
         L10n.language = .en
         var s = WorkspaceState()
-        s.selectedTaskId = s.openHostShell(host: "vultr").task
-        #expect(windowTitle(s)?.text == "vultr · terminal")
+        s.selectedTaskId = s.openHostShell(host: "devbox").task
+        #expect(windowTitle(s)?.text == "devbox · terminal")
     }
 
     // MARK: Status bar counts
@@ -74,13 +74,13 @@ import Workspace
         // «far» (another project) is not counted.
         #expect(line.counts == StatusCounts(working: 1, waiting: 1, failed: 0))
         L10n.language = .ru
-        #expect(line.left == ["Этот Mac", "frontend-cd"])
+        #expect(line.left == ["Этот Mac", "acme-web"])
         #expect(line.workingText == "1 работает")
         #expect(line.waitingText == "1 ждёт")
         #expect(line.failedText == nil)
         #expect(line.right == "1 панель · claude")
         L10n.language = .en
-        #expect(line.left == ["This Mac", "frontend-cd"])
+        #expect(line.left == ["This Mac", "acme-web"])
         #expect(line.workingText == "1 working")
         #expect(line.right == "1 pane · claude")
     }
@@ -88,7 +88,7 @@ import Workspace
     @Test func remoteLineShowsTheHostAndSplitPanes() {
         defer { L10n.language = .system }
         var s = WorkspaceState()
-        let p = s.addRemoteProject(name: "api", host: "vultr", path: "/srv/api")
+        let p = s.addRemoteProject(name: "api", host: "devbox", path: "/srv/api")
         let t = s.addTask(projectId: p, name: "deploy")
         s.selectedTaskId = t
         let tab = s.addTab(taskId: t, kind: .shell)
@@ -98,7 +98,7 @@ import Workspace
         let line = statusBarLine(s, summary: { $0.id == second ? (.working, 1) : (.failed, 0) }, process: { $0.kind.rawValue })
         L10n.language = .ru
         #expect(line.remote)
-        #expect(line.left == ["vultr", "api"])
+        #expect(line.left == ["devbox", "api"])
         #expect(line.workingText == "1 работает")
         #expect(line.counts.subagents == 1)
         #expect(line.failedText == "1 ошибка")

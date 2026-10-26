@@ -7,17 +7,17 @@ import Testing
         #expect(abbreviatedHomePath("/Users/k", home: "/Users/k") == "~")
         #expect(abbreviatedHomePath("/Users/k/Documents/app", home: "/Users/k") == "~/Documents/app")
         #expect(abbreviatedHomePath("/Users/k/", home: "/Users/k/") == "~/")
-        #expect(abbreviatedHomePath("/Users/kirill/app", home: "/Users/k") == "/Users/kirill/app")
+        #expect(abbreviatedHomePath("/Users/dev/app", home: "/Users/k") == "/Users/dev/app")
         #expect(abbreviatedHomePath("/tmp/app", home: "/Users/k") == "/tmp/app")
         #expect(abbreviatedHomePath("", home: "/Users/k") == "")
     }
 
     @Test func truncatesInTheMiddleKeepingTheLastComponents() {
-        let p = "~/Documents/Development/workspace-ai/frontend-cd/.claude/worktrees"
+        let p = "~/Projects/clients/acme-platform/acme-web/.claude/worktrees"
         #expect(middleTruncatedPath(p, maxLength: 100) == p)
         #expect(middleTruncatedPath(p, maxLength: p.count) == p)
-        #expect(middleTruncatedPath(p, maxLength: 44) == "~/Documents/…/frontend-cd/.claude/worktrees")
-        #expect(middleTruncatedPath(p, maxLength: 34) == "~/…/frontend-cd/.claude/worktrees")
+        #expect(middleTruncatedPath(p, maxLength: 43) == "~/Projects/…/acme-web/.claude/worktrees")
+        #expect(middleTruncatedPath(p, maxLength: 30) == "~/…/acme-web/.claude/worktrees")
         #expect(middleTruncatedPath(p, maxLength: 21) == "~/…/.claude/worktrees")
         #expect(middleTruncatedPath(p, maxLength: 20) == "~/…/worktrees")
         // Even the last component doesn't fit: its end stays.

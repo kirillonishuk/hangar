@@ -2,7 +2,7 @@ import SwiftUI
 import Workspace
 
 /// Rail label: parts split on `-`, `_`, `.`, whitespace and lower→Upper (camelCase) boundaries;
-/// first letters of the first two parts, uppercased ("frontend-cd" → "FC", "shopApi" → "SA", "refactor" → "R").
+/// first letters of the first two parts, uppercased ("acme-web" → "AW", "shopApi" → "SA", "refactor" → "R").
 func monogram(_ name: String) -> String {
     var parts: [String] = []
     var current = ""

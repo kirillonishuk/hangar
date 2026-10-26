@@ -280,7 +280,7 @@
 "integrationShortOutdated" = "Устарела";
 "removeEllipsis" = "Удалить…";
 "hostPausedBar" = "Нет связи с %@ · ↩ переподключиться";
-"openInHelix" = "Открыть в Helix";
+"openInEditorTab" = "Открыть в редакторе";
 "copyRelativePath" = "Скопировать путь от корня";
 "taskArchived" = "Сессия в архиве";
 "undoArchive" = "Отменить";
@@ -448,4 +448,12 @@
 "diffInline" = "Одной колонкой";
 "diffSideBySide" = "Рядом";
 "editorMinimap" = "Миникарта";
+"editorMenuDefinition" = "Перейти к определению";
+"editorMenuReferences" = "Найти все ссылки";
+"editorMenuRename" = "Переименовать символ";
+"editorMenuFormat" = "Форматировать документ";
+"editorMenuComment" = "Закомментировать строку";
+"editorMenuCut" = "Вырезать";
+"editorMenuCopy" = "Копировать";
+"editorMenuPaste" = "Вставить";
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";

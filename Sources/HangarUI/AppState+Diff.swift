@@ -119,7 +119,7 @@ extension AppState {
         diffTabs[id]?.selectedRowId = nil
     }
 
-    /// ↩ / double-click: the task's Helix at `openTarget`; nothing when there is no line to open.
+    /// ↩ / double-click: the task's editor tab at `openTarget`; nothing when there is no line to open.
     func openActiveDiffInEditor() {
         // A commit's file is history: the working copy's lines may be elsewhere by now.
         guard let tab = activeDiff, tab.commit == nil, let root = inspector.root,

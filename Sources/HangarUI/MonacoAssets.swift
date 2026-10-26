@@ -6,11 +6,11 @@ extension Theme {
     enum Editor {
         static let fontSize: CGFloat = 13
         static let lineHeight: CGFloat = 20
-        /// File tabs: a bit lower than the Hangar tab bar (34), same font as its tabs.
-        static let fileTabHeight: CGFloat = 30
+        /// File tabs: the Hangar tab bar's own metrics (#82), so the two rows read as one system.
+        static let fileTabHeight: CGFloat = Theme.tabBarHeight
         static let fileTabFont: CGFloat = Theme.fontSize.tab
-        static let fileTabPaddingH: CGFloat = 12
-        static let fileTabMaxWidth: CGFloat = 220
+        static let fileTabPaddingH: CGFloat = Theme.tabPaddingH
+        static let fileTabMaxWidth: CGFloat = Theme.tabMaxWidth
         /// The conflict / notice bar above the text.
         static let barHeight: CGFloat = 30
         static let barFont: CGFloat = Theme.fontSize.base
@@ -96,6 +96,15 @@ enum MonacoTheme {
             "--tab-h": "\(e.fileTabHeight)px", "--tab-font": "\(e.fileTabFont)px", "--tab-pad": "\(e.fileTabPaddingH)px",
             "--tab-max": "\(e.fileTabMaxWidth)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
             "--radius": "\(e.radius)px", "--accent-line": "\(Theme.tabActiveLine)px",
+            "--tab-pad-v": "\(Theme.tabPaddingV)px", "--tab-gap": "\(Theme.tabGap)px", "--tab-lead": "\(Theme.tabTitleLeading)px",
+            "--tab-radius": "\(Theme.tabRadius)px", "--selection": cssHex(Theme.selection),
+            "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
+            "--menu-item-h": "\(Theme.menuItemHeight)px", "--menu-item-pl": "\(Theme.menuItemPaddingLeading)px",
+            "--menu-item-pr": "\(Theme.menuItemPaddingTrailing)px", "--menu-item-r": "\(Theme.menuItemRadius)px",
+            "--menu-font": "\(Theme.menuFont)px", "--menu-key-font": "\(Theme.menuShortcutFont)px",
+            "--menu-sep-v": "\(Theme.menuSeparatorPaddingV)px", "--menu-sep-h": "\(Theme.menuSeparatorPaddingH)px",
+            "--menu-hover": cssHex(Theme.sidebarHover), "--menu-border": cssHex(Theme.controlBorderStrong),
+            "--line-sheet": cssHex(Theme.lineSheet), "--inactive": "\(Theme.inactiveOpacity)",
         ]
     }
 }

@@ -2,6 +2,7 @@ import AppKit
 import Git
 import GhosttyBridge
 import SwiftUI
+import WebKit
 import Workspace
 
 /// Empty background that drags the window (titlebar zone is covered by our content).
@@ -421,6 +422,21 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.hideSessionsView()
             return true
         }
+        // Monaco has the keyboard: the keys both want (⌘D, ⌘F, ⌘W, ⌥⌘←/→ …) by the editor policy (DESIGN.md, #80).
+        let focus = webFocus
+        if let key = editorKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, focus: focus) {
+            if key == .monaco { return false }
+            app.hangarShortcutConsumed()
+            switch key {
+            case .monaco: break
+            case .closeFile: if !event.isARepeat { column.terminalArea.focusedEditor?.closeActive() }
+            case .prevFile: column.terminalArea.focusedEditor?.step(-1)
+            case .nextFile: column.terminalArea.focusedEditor?.step(1)
+            case .prevDiffFile: app.diffNeighbour(-1)
+            case .nextDiffFile: app.diffNeighbour(1)
+            }
+            return true
+        }
         // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
         if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
            app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
@@ -429,7 +445,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
-        if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText) {
+        if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText,
+                                     webFocused: focus == .diff) {
             app.hangarShortcutConsumed()
             switch key {
             case .up: app.diffNeighbour(-1)
@@ -489,10 +506,18 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             didArchive: { [weak self] id in self?.column.archiveUndo.show(id) })
     }
 
+    /// Monaco's editor or diff has the keyboard (a view inside its WKWebView is the first responder).
+    private var webFocus: WebFocus {
+        guard let view = window?.firstResponder as? NSView else { return .none }
+        let chain = Array(sequence(first: view, next: { $0.superview }))
+        guard chain.contains(where: { $0 is WKWebView }) else { return .none }
+        return chain.contains { $0 is DiffHostView } ? .diff : .editor
+    }
+
     private var firstResponderKind: FirstResponderKind {
         guard let responder = window?.firstResponder else { return .other }
         let view = responder as? NSView
-        return responderKind(isText: responder is NSText, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
+        return responderKind(isText: responder is NSText, isWeb: webFocus != .none, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
                              isDiff: sequence(first: view, next: { $0?.superview }).contains { $0 is DiffHostView })
     }
 
@@ -804,7 +829,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Sheet (not modal) on the main window; `then(true)` = quit confirmed. Never stacks a second alert:
     /// with one already up, `then(false)` right away. `then` is always called exactly once.
     public func confirmQuit(then: @escaping @MainActor (Bool) -> Void) {
-        guard let window, let text = quitConfirmation(working: app.quitWorkingCount) else { then(true); return }
+        let unsaved = (app.unsavedEditorFiles().count + (app.diffUnsaved?() ?? 0))
+        let text = unsaved > 0 ? (L10n.editorUnsavedQuit(unsaved), L10n.editorUnsavedInfo) : quitConfirmation(working: app.quitWorkingCount)
+        guard let window, let text else { then(true); return }
         guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
         let alert = NSAlert()
@@ -825,7 +852,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// For `applicationShouldTerminate`.
     public func currentQuitDecision(forced: Bool = false) -> QuitDecision {
-        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.quitWorkingCount, confirmed: quitConfirmed,
+        quitDecision(creating: isCreatingTask || app.controlCreating > 0, working: app.quitWorkingCount + (app.unsavedEditorFiles().count + (app.diffUnsaved?() ?? 0)),
+                     confirmed: quitConfirmed,
                      asking: quitAlertShown, forced: forced)
     }
 

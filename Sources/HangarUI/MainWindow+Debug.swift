@@ -425,7 +425,7 @@ extension MainWindowController {
             // dump <file>: the full text to a file too (the unified log truncates long lines).
             if !arg.isEmpty { try? (tasks.joined(separator: "\n") + "\n" + column.terminalArea.debugDump()).write(toFile: arg, atomically: true, encoding: .utf8) }
             uiLog.info("dump selected=\(self.app.selectedTask?.name ?? "-", privacy: .public) sidebar=\(self.app.state.sidebarWidth)/\(self.app.state.sidebarCollapsed) actual=\(self.sidebarItem.viewController.view.frame.width) panes=\(self.split.splitView.subviews.map { Int($0.frame.width) }, privacy: .public) win=\(Int(self.window?.frame.width ?? 0))x\(Int(self.window?.contentView?.frame.height ?? 0))\n\(tasks.joined(separator: "\n"), privacy: .public)\n\(self.column.terminalArea.debugDump(), privacy: .public)")
-        default: break
+        default: _ = debugEditor(parts.first ?? "", arg)
         }
     }
 }

@@ -97,6 +97,10 @@ final class FillView: NSView {
     /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#70).
     var kind: LeafKind = .shell
     private(set) var surface: TerminalSurfaceView?
+    /// An editor leaf holds Monaco instead of a terminal (#80).
+    private(set) var editor: EditorPane?
+    /// What takes the keyboard in this leaf.
+    var keyView: NSView? { surface ?? editor?.page.webView }
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
     private var mode: LaunchMode?
@@ -164,7 +168,13 @@ final class FillView: NSView {
     var headerFocused = false { didSet { header.textColor = headerFocused ? Theme.text2 : Theme.text3 } }
 
     /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
-    override var acceptsFirstResponder: Bool { surface == nil }
+    override var acceptsFirstResponder: Bool { surface == nil && editor == nil }
+
+    func attachEditor(_ pane: EditorPane) {
+        editor = pane
+        addSubview(pane, positioned: .below, relativeTo: header)
+        needsLayout = true
+    }
 
     /// Starts the surface; a launch error (missing folder) shows in the bar instead.
     func start(_ context: LaunchContext, make: @escaping (LaunchContext) throws -> (LaunchSpec, LaunchMode)) {
@@ -300,22 +310,7 @@ final class FillView: NSView {
         }
     }
 
-    /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
-    func restart() {
-        guard let old = surface, !needsRelaunch, !hasOutput, let mode else { return }
-        // Freeing the old surface ends its process; that is not an exit of the leaf. Restored if the new run fails.
-        let handler = old.onChildExit
-        old.onChildExit = nil
-        guard run(.relaunch(previous: mode, exitCode: nil)) else {
-            old.onChildExit = handler
-            return
-        }
-        uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
-        if !failed { window?.makeFirstResponder(surface) }
-        onRelaunch?(false)
-    }
-
-    /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
+    /// The process has drawn something since launch; before that a starting agent may not read keys yet.
     /// `shortcut: any non-blank screen text counts (a "Last login" line too); Ghostty has no output callback and
     /// ghostty.h exposes no alternate-screen query — use one if GhosttyKit adds it`.
     var hasOutput: Bool {
@@ -389,7 +384,7 @@ final class FillView: NSView {
             let th = ceil(bar.intrinsicContentSize.height)
             bar.frame = NSRect(x: px, y: bottom + (h - th) / 2, width: max(0, bounds.width - 2 * px), height: th)
         }
-        surface?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
+        (surface ?? editor)?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
         window?.invalidateCursorRects(for: self)
     }
 }
@@ -405,7 +400,10 @@ final class FillView: NSView {
     private var shownTab: UUID?
     private var shownFocus: UUID?
     /// The task's diff tab is shown instead of its tabs (created on first use).
-    private var diffHost: DiffHostView?
+    /// Each task's diff tab, with its Monaco page, while that diff tab exists (an edited buffer survives task switches).
+    private var diffHosts: [UUID: (host: DiffHostView, editor: DiffEditorController)] = [:]
+    /// The selected task's.
+    private var diffHost: DiffHostView? { app.selectedTask.flatMap { diffHosts[$0.id]?.host } }
     private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
     /// Tab content above the drawer.
@@ -425,7 +423,16 @@ final class FillView: NSView {
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
-        app.onOpenInEditor = { [weak self] path, line in self?.openInEditor(path: path, line: line) }
+        app.onOpenInEditor = { [weak self] leaf, path, line, column in
+            guard let pane = self?.leafViews[leaf]?.editor else { return }  // a never-shown tab loads its files from the model
+            pane.open(path: path, line: line, column: column)
+            pane.focusEditor()
+        }
+        app.editorUnsaved = { [weak self] id in self?.leafViews[id]?.editor?.unsaved ?? [] }
+        app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
+        app.confirmLeaveDiff = { [weak self] then in
+            if let id = self?.app.selectedTask?.id, let editor = self?.diffHosts[id]?.editor { editor.confirmLeave(then) } else { then() }
+        }
         app.onHostConnected = { [weak self] host in
             guard let self else { return }
             hostConnected(host: host, leaves: Array(leafViews.values) + drawer.leaves)
@@ -531,6 +538,7 @@ final class FillView: NSView {
             structure[id] = nil
         }
         for (id, leaf) in leafViews where !liveLeafIds.contains(id) {
+            leaf.editor?.tearDown()
             leaf.removeFromSuperview()
             leafViews[id] = nil
             lastVisible[id] = nil
@@ -538,15 +546,22 @@ final class FillView: NSView {
             uiLog.info("surface closed leaf=\(id.uuidString.prefix(8), privacy: .public)")
         }
 
+        let liveTasks = Set(state.tasks.filter { !$0.archived }.map(\.id))
+        for (id, d) in diffHosts where app.diffTabs[id] == nil || !liveTasks.contains(id) {
+            d.editor.tearDown()
+            d.host.removeFromSuperview()
+            diffHosts[id] = nil
+        }
         let diffShown = app.activeDiff != nil
-        if diffShown, diffHost == nil {
-            let host = DiffHostView(rootView: DiffView(app: app))
+        if diffShown, let id = app.selectedTask?.id, diffHosts[id] == nil {
+            let editor = DiffEditorController(app: app)
+            let host = DiffHostView(rootView: DiffView(app: app, taskId: id, editor: editor))
             host.frame = content.bounds
             host.autoresizingMask = [.width, .height]
             content.addSubview(host)
-            diffHost = host
+            diffHosts[id] = (host, editor)
         }
-        diffHost?.isHidden = !diffShown
+        for (id, d) in diffHosts { d.host.isHidden = !diffShown || id != app.selectedTask?.id }
         let active = activeTab
         if let tab = active { show(tab) }
         for tab in liveTabs where tabViews[tab.id] != nil && tab.id != active?.id {
@@ -555,6 +570,13 @@ final class FillView: NSView {
         for (id, view) in tabViews { view.isHidden = diffShown || id != active?.id }
         for tab in liveTabs {
             for leaf in tab.root.leaves {
+                if let view = leafViews[leaf.id], let pane = view.editor {
+                    pane.setVisible(!diffShown && tab.id == active?.id)
+                    pane.apply(minimap: state.editorMinimap)
+                    view.setHeader(app.title(of: leaf))
+                    view.headerFocused = leaf.id == tab.focusedLeafId
+                    continue
+                }
                 guard let view = leafViews[leaf.id], let surface = view.surface else { continue }
                 let visible = !diffShown && tab.id == active?.id
                 if lastVisible[leaf.id] != visible {
@@ -582,21 +604,21 @@ final class FillView: NSView {
             if diffShown {
                 window?.makeFirstResponder(diffHost)  // typed keys must not reach the hidden terminal
             } else if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
-                window?.makeFirstResponder(leaf.surface)
+                window?.makeFirstResponder(leaf.keyView)
             }
         }
     }
 
     /// Keyboard focus into the surface of `leafId` (tab leaf or the TERMINAL panel's shell).
     func focus(leafId: UUID) {
-        if let leaf = leafViews[leafId] { window?.makeFirstResponder(leaf.surface) }
+        if let leaf = leafViews[leafId] { window?.makeFirstResponder(leaf.keyView) }
         else if app.selectedTask?.drawer.leaf?.id == leafId { window?.makeFirstResponder(drawer.currentSurface) }
     }
 
     /// Back to the focused terminal (after inline rename left nothing focused).
     func focusActiveLeaf() {
         if app.activeDiff != nil, let diffHost { window?.makeFirstResponder(diffHost); return }
-        if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.surface) }
+        if let tab = activeTab, let leaf = leafViews[tab.focusedLeafId] { window?.makeFirstResponder(leaf.keyView) }
     }
 
     private func show(_ tab: Tab) {
@@ -610,9 +632,15 @@ final class FillView: NSView {
         for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
             let view = LeafView(leafId: leaf.id)
             view.kind = leaf.kind
-            app.wireHost(view)
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
+            if leaf.kind == .editor {
+                let pane = EditorPane(leafId: leaf.id, app: app)
+                view.attachEditor(pane)
+                uiLog.info("editor created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
+                continue
+            }
+            app.wireHost(view)
             view.onTitle = { [weak self] title in
                 self?.app.setTitle(title, leafId: leaf.id)
                 self?.leafViews[leaf.id]?.setHeader(title)
@@ -704,45 +732,10 @@ final class FillView: NSView {
         }
     }
 
-    /// Decision #44: a running Helix gets Esc + `:open` (+ `:goto`); a stopped editor leaf is pointed at the file
-    /// and (re)started; otherwise a new editor tab opens the file.
-    func openInEditor(path: String, line: Int?) {
-        guard let task = app.selectedTask else { return }
-        let commands = helixCommands(path: path, line: line)
-        let route = editorRoute(task: task, isHelix: isHelix(app.config.editor), quotable: commands != nil) { id in
-            guard let view = self.leafViews[id], view.surface != nil, !view.needsRelaunch else { return .stopped }
-            return view.hasOutput ? .running : .starting
-        }
-        uiLog.info("openInEditor route=\(String(describing: route), privacy: .public)")
-        switch route {
-        case .newTab:
-            app.perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
-        case .launch(let tab, let leaf):
-            app.perform { $0.setOpenFile(leafId: leaf, path: path, line: line) }
-            app.activate(tabId: tab)  // a never-shown leaf starts with the new file
-            // Exited → relaunch; still starting (Helix may not read keys yet) → restart on the new file.
-            if let view = leafViews[leaf] { view.needsRelaunch ? view.relaunch() : view.restart() }
-        case .sendKeys(let tab, let leaf):
-            app.perform {
-                $0.setOpenFile(leafId: leaf, path: path, line: line)
-                $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
-            }
-            app.activate(tabId: tab)
-            guard let surface = leafViews[leaf]?.surface, let commands else { return }
-            window?.makeFirstResponder(surface)
-            surface.sendKey(.escape)
-            // In one terminal read `Esc :` is Alt-: without the kitty protocol: the rest goes in a later read.
-            // Through tmux on a server, `escape-time` (up to 500 ms) would still merge them (#47).
-            let pause = app.remoteLeafHost(leaf) == nil ? 0.05 : 0.6
-            DispatchQueue.main.asyncAfter(deadline: .now() + pause) { [weak surface] in
-                guard let surface else { return }
-                for command in commands {
-                    surface.sendKey(.colon)
-                    surface.sendText(command)  // bracketed paste into the `:` prompt
-                    surface.sendEnter()
-                }
-            }
-        }
+    /// The editor pane with the keyboard, if any (⌘W, ⌥⌘←/→ go to it).
+    var focusedEditor: EditorPane? {
+        guard let responder = window?.firstResponder as? NSView else { return nil }
+        return leafViews.values.lazy.compactMap(\.editor).first { responder.isDescendant(of: $0) }
     }
 
     /// ⌘⌥ + arrow: focus the pane on that side of the focused one; false when there is none (or the drawer / diff has the keys).
@@ -753,7 +746,7 @@ final class FillView: NSView {
             if let view = leafViews[leaf.id], view.window != nil { frames[leaf.id] = view.convert(view.bounds, to: nil) }
         }
         guard let next = splitNeighbour(of: current.leafId, in: frames, toward: direction), let view = leafViews[next] else { return false }
-        window?.makeFirstResponder(view.surface ?? view)
+        window?.makeFirstResponder(view.keyView ?? view)
         return true
     }
 
@@ -772,6 +765,26 @@ final class FillView: NSView {
     }
 
     /// Debug summary of every surface and whether it renders.
+    /// The Monaco page on screen: the diff's, else the active tab's focused (or first) editor.
+    var debugMonaco: MonacoPage? {
+        if app.activeDiff != nil, let id = app.selectedTask?.id { return diffHosts[id]?.editor.page }
+        guard let tab = activeTab else { return nil }
+        return (leafViews[tab.focusedLeafId]?.editor ?? tab.root.leaves.lazy.compactMap { self.leafViews[$0.id]?.editor }.first)?.page
+    }
+
+    var debugDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
+
+    func debugEditors() -> [String] {
+        leafViews.values.compactMap { view in
+            guard let pane = view.editor, let leaf = app.editorLeaf(view.leafId) else { return nil }
+            let files = leaf.editorFileList.map { f in
+                let s = pane.session.files[f.path]
+                return "\(f.path == leaf.openFile ? "*" : "")\((f.path as NSString).lastPathComponent):\(f.line):\(f.column)\(s?.dirty == true ? " dirty" : "")\(s?.conflict == true ? " conflict" : "")\(s?.readOnly == true ? " ro" : "")"
+            }
+            return "editor leaf=\(view.leafId.uuidString.prefix(8)) ready=\(pane.page.isReady) files=\(files)"
+        }
+    }
+
     func debugDump() -> String {
         let drawers = drawer.debugDump()
         return leafViews.map { id, view in
@@ -797,7 +810,7 @@ final class FillView: NSView {
         }
         let modelLeaves = Set(app.state.tasks.filter { !$0.archived }.flatMap(\.tabs).flatMap { $0.root.leaves.map(\.id) })
         for id in leafViews.keys where !modelLeaves.contains(id) { lines.append("PROBLEM orphanView leaf=\(id.uuidString.prefix(8))") }
-        let orphanTabs = content.subviews.filter { v in v !== diffHost && !tabViews.values.contains { $0 === v } }
+        let orphanTabs = content.subviews.filter { v in !diffHosts.values.contains { $0.host === v } && !tabViews.values.contains { $0 === v } }
         if !orphanTabs.isEmpty { lines.append("PROBLEM orphanTabViews=\(orphanTabs.count)") }
         return lines.joined(separator: "\n")
     }

@@ -111,7 +111,7 @@ import Workspace
         case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
         case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
-        case openInHelix, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
+        case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
@@ -123,6 +123,12 @@ import Workspace
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
+        case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
+        case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
+        case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
+        case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
+        case editorMenuCut, editorMenuCopy, editorMenuPaste
+        case editorRenameOtherFiles, editorRenameRefused, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -456,7 +462,7 @@ import Workspace
     static var sessionsViewHelp: String { s(.sessionsViewHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
-    static var openInHelix: String { s(.openInHelix) }
+    static var openInEditorTab: String { s(.openInEditorTab) }
     static var copyRelativePath: String { s(.copyRelativePath) }
     static var taskArchived: String { s(.taskArchived) }
     static var undoArchive: String { s(.undoArchive) }
@@ -523,6 +529,41 @@ import Workspace
     static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab
     static var diffBinary: String { s(.diffBinary) }
+    static var editorLargeReadOnly: String { s(.editorLargeReadOnly) }
+    static func editorTooLarge(_ bytes: Int64) -> String {
+        f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+    }
+    static var editorBinary: String { s(.editorBinary) }
+    static var editorMissing: String { s(.editorMissing) }
+    static func editorReadFailed(_ message: String) -> String { f(.editorReadFailed, message) }
+    static func editorSaveFailed(_ message: String) -> String { f(.editorSaveFailed, message) }
+    static var editorConflict: String { s(.editorConflict) }
+    static var editorReload: String { s(.editorReload) }
+    static var editorKeepMine: String { s(.editorKeepMine) }
+    static func editorUnsavedTitle(_ name: String) -> String { f(.editorUnsavedTitle, name) }
+    static var editorUnsavedInfo: String { s(.editorUnsavedInfo) }
+    static var editorDontSave: String { s(.editorDontSave) }
+    static var diffInline: String { s(.diffInline) }
+    static var diffSideBySide: String { s(.diffSideBySide) }
+    static var editorMinimap: String { s(.editorMinimap) }
+    /// The editor's context menu (#81), handed to the page by key.
+    static var editorMenu: [String: String] {
+        ["definition": s(.editorMenuDefinition), "references": s(.editorMenuReferences), "rename": s(.editorMenuRename),
+         "format": s(.editorMenuFormat), "comment": s(.editorMenuComment), "cut": s(.editorMenuCut),
+         "copy": s(.editorMenuCopy), "paste": s(.editorMenuPaste), "renameRefused": s(.editorRenameRefused)]
+    }
+    static func editorUnsavedQuit(_ n: Int) -> String { f(.editorUnsavedQuit, Int32(clamping: n)) }
+    static var editorDependencyReadOnly: String { s(.editorDependencyReadOnly) }
+    static var editorRenameOtherFiles: String { s(.editorRenameOtherFiles) }
+    static var editorRenameRefused: String { s(.editorRenameRefused) }
+    static func tsReady(_ version: String) -> String { f(.tsReady, version) }
+    static func tsLoading(_ version: String) -> String { f(.tsLoading, version) }
+    static var tsStopped: String { s(.tsStopped) }
+    static var tsNoTypeScript: String { s(.tsNoTypeScript) }
+    static var tsNoNode: String { s(.tsNoNode) }
+    static var tsNotConnected: String { s(.tsNotConnected) }
+    static func tsTooltip(_ tsserver: String, _ node: String) -> String { f(.tsTooltip, tsserver, node) }
+    static var tsUnavailableTip: String { s(.tsUnavailableTip) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

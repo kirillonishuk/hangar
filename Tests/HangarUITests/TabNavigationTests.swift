@@ -101,14 +101,14 @@ import Testing
 
 @Suite struct FileMenuTests {
     @Test func localAndRemoteItems() {
-        #expect(FileMenuItem.items(remote: false) == [.openInHelix, .revealInFinder, .copyPath, .copyRelativePath])
-        #expect(FileMenuItem.items(remote: true) == [.openInHelix, .copyPath, .copyRelativePath])
+        #expect(FileMenuItem.items(remote: false) == [.openInEditorTab, .revealInFinder, .copyPath, .copyRelativePath])
+        #expect(FileMenuItem.items(remote: true) == [.openInEditorTab, .copyPath, .copyRelativePath])
     }
 
     @Test func copiedText() {
         #expect(FileMenuItem.copyPath.copied(root: "/r", relative: "src/a.swift", host: nil) == "/r/src/a.swift")
         #expect(FileMenuItem.copyPath.copied(root: "/r", relative: "src/a.swift", host: "dev") == "dev:/r/src/a.swift")
         #expect(FileMenuItem.copyRelativePath.copied(root: "/r", relative: "src/a.swift", host: "dev") == "src/a.swift")
-        #expect(FileMenuItem.openInHelix.copied(root: "/r", relative: "a", host: nil) == nil)
+        #expect(FileMenuItem.openInEditorTab.copied(root: "/r", relative: "a", host: nil) == nil)
     }
 }

@@ -1,5 +1,8 @@
 .superpowers/
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/settings.json
 .build/
 /build/
 DerivedData/

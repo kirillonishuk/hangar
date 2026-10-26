@@ -244,8 +244,8 @@
   // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, #81): a fixed list,
   // greyed when the editor can't run an item (no language provider yet, read-only). Labels come from Hangar's L10n.
   const MENU = [
-    { action: 'editor.action.revealDefinition', label: 'definition', keys: 'F12' },
-    { action: 'editor.action.goToReferences', label: 'references', keys: '⇧F12' },
+    { action: 'editor.action.revealDefinition', label: 'definition', keys: 'F12', provider: true },
+    { action: 'editor.action.goToReferences', label: 'references', keys: '⇧F12', provider: true },
     { action: 'editor.action.rename', label: 'rename', keys: 'F2', edits: true },
     null,
     { action: 'editor.action.formatDocument', label: 'format', keys: '⇧⌥F', edits: true },
@@ -279,8 +279,12 @@
         if (el.lastChild && !el.lastChild.classList.contains('sep')) { const sep = document.createElement('div'); sep.className = 'sep'; el.appendChild(sep); }
         continue;
       }
-      const a = m.action && ed.getAction(m.action);
-      const on = !(m.edits && readOnly) && (m.clipboard ? true : !!(a && a.isSupported()));
+      // Go-to commands are not editor actions in this Monaco (`getAction` is null): our '*' providers answer for
+      // every file model, so they're on there and run through `trigger`, as F12 does.
+      const a = m.action && !m.provider && ed.getAction(m.action);
+      const model = ed.getModel();
+      const on = !(m.edits && readOnly) && (m.clipboard ? true
+        : m.provider ? !!(model && model.uri.scheme === 'file') : !!(a && a.isSupported()));
       const row = document.createElement('div');
       row.className = 'item' + (on ? '' : ' off');
       const label = document.createElement('span');
@@ -292,7 +296,7 @@
       // mousedown, not click: the editor keeps its focus and selection (the clipboard commands act on them).
       row.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
       if (on) {
-        const run = () => { hideMenu(); ed.focus(); if (m.clipboard) post({ type: 'clipboard', action: m.clipboard }); else a.run(); };
+        const run = () => { hideMenu(); ed.focus(); if (m.clipboard) post({ type: 'clipboard', action: m.clipboard }); else if (a) a.run(); else ed.trigger('menu', m.action, null); };
         row.addEventListener('mouseup', (e) => { if (e.button === 0) run(); });
         row.addEventListener('mouseenter', () => select(items.findIndex((i) => i.el === row)));
         items.push({ el: row, run });

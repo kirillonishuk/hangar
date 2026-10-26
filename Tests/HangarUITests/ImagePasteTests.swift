@@ -27,7 +27,7 @@ import Workspace
     @Test func shellTooEditorNot() {
         // claude started by hand in a shell tab (or the drawer) must get the image too.
         #expect(pasteAction(kind: .shell, types: [.png], fileURLs: []) == .ctrlV)
-        // Helix: ⌃V is a command there.
+        // The editor (Monaco) pastes itself.
         #expect(pasteAction(kind: .editor, types: [.tiff], fileURLs: []) == .text)
     }
 }

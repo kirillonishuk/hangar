@@ -107,7 +107,7 @@ import Workspace
         defer { try? FileManager.default.removeItem(atPath: f.root) }
         let tab = UUID()
         let leaf = Leaf(kind: .claude, cwd: "/srv/my app")
-        let spec = remoteLaunchSpec(for: leaf, tabId: tab, target: f.target(tmux: true), editor: "hx", restoring: false, initialPrompt: "fix it")
+        let spec = remoteLaunchSpec(for: leaf, tabId: tab, target: f.target(tmux: true), restoring: false, initialPrompt: "fix it")
         #expect(spec.cwd == NSHomeDirectory() && spec.env.isEmpty)
         #expect(spec.command.contains("TERM=xterm-256color"))
         _ = try await runProcess("/bin/sh", ["-c", spec.command], cwd: "/", env: f.env)
@@ -129,19 +129,17 @@ import Workspace
 
         // Resume by id; the Mac's [agents] path never reaches the server.
         let resumed = Leaf(kind: .claude, cwd: "/srv", agentSessionId: "abc")
-        #expect(agentCommand(for: resumed, agent: { $0.rawValue }, editor: "hx", shell: "sh", restoring: true, initialPrompt: nil) == "claude --resume abc")
+        #expect(agentCommand(for: resumed, agent: { $0.rawValue }, shell: "sh", restoring: true, initialPrompt: nil) == "claude --resume abc")
         var config = HangarConfig()
         config.agentCommands[.claude] = "/Users/me/bin/claude"
         let local = try launchSpec(for: Leaf(kind: .claude, cwd: NSTemporaryDirectory()), tabId: tab, config: config, socketPath: "/tmp/h.sock",
                                    userShell: "/bin/zsh", restoring: false, initialPrompt: nil)
         #expect(local.command.contains("/Users/me/bin/claude"))
-        let remote = remoteLaunchSpec(for: resumed, tabId: tab, target: f.target(tmux: true), editor: "hx", restoring: true, initialPrompt: nil)
+        let remote = remoteLaunchSpec(for: resumed, tabId: tab, target: f.target(tmux: true), restoring: true, initialPrompt: nil)
         #expect(!remote.command.contains("/Users/me"))
         _ = try await runProcess("/bin/sh", ["-c", remote.command], cwd: "/", env: f.env)
         #expect(f.read("remote").contains("claude --resume abc"))
 
-        let editor = Leaf(kind: .editor, cwd: "/srv", openFile: "/srv/a b.txt", openLine: 3)
-        #expect(agentCommand(for: editor, agent: { $0.rawValue }, editor: "hx", shell: "sh", restoring: false, initialPrompt: nil) == "hx '/srv/a b.txt:3'")
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 

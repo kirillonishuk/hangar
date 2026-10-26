@@ -64,7 +64,7 @@ import Workspace
 
     @Test func installRunsShownScript() async throws {
         let h = try await Harness(); defer { h.cleanup() }
-        for tool in ["tmux", "codex", "hx"] { try await stub(h, tool) }
+        for tool in ["tmux", "codex"] { try await stub(h, tool) }
         #expect(await h.remote.connect("dev") == .connected)
         let runs = Runs()
         let write = ServerCheckModel.sshRun(remote: h.remote, host: "dev")

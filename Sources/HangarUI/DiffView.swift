@@ -149,7 +149,7 @@ struct DiffContent {
     var highlighter: DiffHighlighter?
 }
 
-/// shortcut: tabs shown as 4 spaces (Helix's default), when the editor's tab width is known — use it.
+/// shortcut: tabs shown as 4 spaces (the editor's default), when the editor's tab width is known — use it.
 let diffTabWidth = 4
 
 /// A diff line as shown (and highlighted): tabs expanded.

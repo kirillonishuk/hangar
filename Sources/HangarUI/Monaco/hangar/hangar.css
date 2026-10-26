@@ -5,15 +5,17 @@ body { display: flex; flex-direction: column; }
 #host { flex: 1; min-height: 0; position: relative; }
 body.diff #tabs { display: none; }
 
-#tabs { display: flex; height: var(--tab-h); flex: none; background: var(--bar); border-bottom: 1px solid var(--line);
-  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+/* File tabs: the Hangar tab bar's look (DESIGN «Полоса вкладок», #82) — same height, font, paddings, rounded tops,
+   `selection` fill and the accent line on top of the active one — so the two rows read as one system. */
+#tabs { display: flex; align-items: flex-end; gap: var(--tab-gap); height: var(--tab-h); flex: none; padding-left: var(--tab-lead);
+  background: var(--bar); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 #tabs::-webkit-scrollbar { display: none; }
-.tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 var(--tab-pad); max-width: var(--tab-max); flex: none;
-  font-size: var(--tab-font); color: var(--text2); border-right: 1px solid var(--line); position: relative; cursor: pointer;
-  white-space: nowrap; }
-.tab:hover { background: var(--hover); color: var(--text); }
-.tab.active { background: var(--bg); color: var(--text-strong); }
-.tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--accent-line); background: var(--accent); }
+.tab { display: flex; align-items: center; gap: 6px; padding: var(--tab-pad-v) calc(var(--tab-pad) - 4px) var(--tab-pad-v) var(--tab-pad);
+  max-width: var(--tab-max); flex: none; font-size: var(--tab-font); color: var(--text2); position: relative; cursor: pointer;
+  white-space: nowrap; border-radius: var(--tab-radius) var(--tab-radius) 0 0; overflow: hidden; transition: background-color .12s; }
+.tab:hover { background: var(--hover); }
+.tab.active { background: var(--selection); color: var(--text-strong); }
+.tab.active::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--accent-line); background: var(--accent); }
 .tab .name { overflow: hidden; text-overflow: ellipsis; }
 .tab .dir { color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
 /* The close box: `×` on hover / active, a dot while dirty (as in VS Code), `×` again when hovering a dirty tab. */
@@ -26,7 +28,7 @@ body.diff #tabs { display: none; }
 .tab.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .tab.dirty .x:hover::before { content: "×"; width: auto; height: auto; border-radius: 0; background: none; }
 .tabs-end { flex: 1; }
-.tool { display: flex; align-items: center; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
+.tool { display: flex; align-items: center; align-self: stretch; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
 .tool:hover { color: var(--text); background: var(--hover); }
 .tool.on { color: var(--accent); }
 
@@ -56,3 +58,15 @@ button.primary:hover { filter: brightness(1.08); }
   font-size: var(--bar-font) !important; }
 .monaco-scrollable-element > .scrollbar > .slider { border-radius: 5px; }
 .monaco-editor .monaco-hover, .monaco-editor .suggest-widget { font-family: -apple-system, system-ui, sans-serif; }
+
+/* The context menu (#82): Hangar's popover menu (sheet, 10 radius, 30 rows, `text3` keys), not Monaco's. */
+.ctx { position: fixed; z-index: 100; min-width: var(--menu-w); box-sizing: border-box; padding: var(--menu-pad); background: var(--sheet);
+  border: 1px solid var(--menu-border); border-radius: var(--menu-r); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  font: var(--menu-font) -apple-system, system-ui, sans-serif; color: var(--text); }
+.ctx .item { display: flex; align-items: center; gap: 16px; height: var(--menu-item-h); padding: 0 var(--menu-item-pr) 0 var(--menu-item-pl);
+  border-radius: var(--menu-item-r); cursor: pointer; white-space: nowrap; }
+.ctx .item:hover, .ctx .item.sel { background: var(--menu-hover); }
+.ctx .item.off { opacity: var(--inactive); cursor: default; }
+.ctx .item.off:hover { background: none; }
+.ctx .keys { margin-left: auto; color: var(--text3); font-size: var(--menu-key-font); }
+.ctx .sep { height: 1px; background: var(--line-sheet); margin: var(--menu-sep-v) var(--menu-sep-h); }

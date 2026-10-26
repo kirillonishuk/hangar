@@ -62,7 +62,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tabsOpen: "Open a new tab (claude, codex, editor or shell) in a session, optionally with an initial prompt for agents."
         case .tabsSend: "Type text into a tab's terminal (pasted) and then press keys. Works on a tab waiting for permission. Result status: sent, queued (claude was already working; it runs after the current turn), started / not-started-yet (with wait). Enter into a working codex is refused (busy): wait for it or send keys [interrupt] first."
         case .tabsRead: "Read the last lines of a tab's terminal screen. The text may contain secrets."
-        case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex/helix, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
+        case .doctor: "Read-only health report: app and socket, CLI/app versions, claude/codex, agent hooks, Ghostty resources, ssh hosts, keep-awake, disk space. Each check is ok, warn or fail with a fix hint."
         case .tasksArchive: "Archive a session. A worktree session's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived session. A worktree session's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."

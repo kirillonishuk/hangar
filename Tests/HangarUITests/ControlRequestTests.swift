@@ -340,6 +340,23 @@ import Workspace
         #expect(await error(app, .tabsOpen(task: "old", kind: .shell, prompt: nil))?.code == .notFound)
     }
 
+    /// `tabs open --kind editor` (CLI and MCP) opens the Monaco editor tab, not a terminal editor.
+    @Test func tabsOpenEditorIsTheEditorTab() async throws {
+        var task = UUID()
+        let path = try folder("p")
+        let app = try makeApp { s in
+            let p = s.addProject(name: "p", path: path)
+            task = s.addTask(projectId: p, name: "A")
+            s.select(taskId: task)
+        }
+        defer { cleanup() }
+        app.terminals = FakeTerminals().access
+        let r = try await ok(app, .tabsOpen(task: "A", kind: .editor, prompt: "ignored"), TabResult.self)
+        let tab = try #require(app.state.tasks.first { $0.id == task }?.tabs.last)
+        #expect(r.tab.id == tab.id && r.tab.kind == .editor && r.tab.title == L10n.editor)
+        #expect(tab.root.leaves.map(\.kind) == [.editor] && tab.root.leaves[0].editorFileList.isEmpty)
+    }
+
     @Test func tabsSendTargets() async throws {
         var ids = (tab: UUID(), first: UUID(), second: UUID(), drawer: UUID())
         let path = try folder("p")

@@ -177,7 +177,7 @@ public struct ClipboardPromptText: Sendable {
         _ = ghostty_surface_key(surface, k)
     }
 
-    /// A real key press + release (not a paste), e.g. Esc and `:` for Helix's command line.
+    /// A real key press + release (not a paste), e.g. Esc or Ctrl-C from `tabs send`.
     public func sendKey(_ key: SurfaceKey) {
         guard let surface else { return }
         var k = ghostty_input_key_s()

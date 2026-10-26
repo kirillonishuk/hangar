@@ -280,7 +280,7 @@
 "integrationShortOutdated" = "Outdated";
 "removeEllipsis" = "Remove…";
 "hostPausedBar" = "No connection to %@ · ↩ reconnect";
-"openInHelix" = "Open in Helix";
+"openInEditorTab" = "Open in Editor";
 "copyRelativePath" = "Copy Relative Path";
 "taskArchived" = "Session archived";
 "undoArchive" = "Undo";
@@ -448,4 +448,12 @@
 "diffInline" = "Inline";
 "diffSideBySide" = "Side by side";
 "editorMinimap" = "Minimap";
+"editorMenuDefinition" = "Go to Definition";
+"editorMenuReferences" = "Find All References";
+"editorMenuRename" = "Rename Symbol";
+"editorMenuFormat" = "Format Document";
+"editorMenuComment" = "Toggle Line Comment";
+"editorMenuCut" = "Cut";
+"editorMenuCopy" = "Copy";
+"editorMenuPaste" = "Paste";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";

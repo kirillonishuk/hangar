@@ -272,10 +272,10 @@ import Workspace
 
     @Test func shellRunsSetupThenStaysInteractive() {
         let leaf = Leaf(kind: .shell, cwd: "/w")
-        let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, editor: "hx", shell: "'/bin/zsh'", restoring: false,
+        let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, shell: "'/bin/zsh'", restoring: false,
                                initialPrompt: "npm install")
         #expect(cmd == "npm install\n'/bin/zsh' -l -i")
-        #expect(agentCommand(for: leaf, agent: { $0.rawValue }, editor: "hx", shell: "'/bin/zsh'", restoring: true,
+        #expect(agentCommand(for: leaf, agent: { $0.rawValue }, shell: "'/bin/zsh'", restoring: true,
                              initialPrompt: nil) == "'/bin/zsh' -l -i")
     }
 

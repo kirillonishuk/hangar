@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Size rules of the editor (#80): up to `editable` bytes a file is edited, up to `refuse` read-only, above — refused.
 struct EditorLimits: Equatable, Sendable {
@@ -40,6 +40,8 @@ enum BridgeMessage: Equatable {
     case inline(Bool)
     case minimap(Bool)
     case request(ProviderRequest)
+    /// The context menu's Cut / Copy / Paste.
+    case clipboard(ClipboardAction)
     /// A script error in the page (to the app log; capped).
     case log(String)
 
@@ -92,6 +94,7 @@ enum BridgeMessage: Equatable {
         case "conflict":
             guard let f = file(), let k = bool("keepMine") else { return nil }
             return .conflict(file: f, keepMine: k)
+        case "clipboard": return str("action").flatMap(ClipboardAction.init(rawValue:)).map { .clipboard($0) }
         case "inline": return bool("on").map { .inline($0) }
         case "minimap": return bool("on").map { .minimap($0) }
         case "request":
@@ -103,6 +106,18 @@ enum BridgeMessage: Equatable {
     }
 
     private static func isBool(_ n: NSNumber) -> Bool { CFGetTypeID(n) == CFBooleanGetTypeID() }
+}
+
+enum ClipboardAction: String, Sendable {
+    case cut, copy, paste
+
+    var selector: Selector {
+        switch self {
+        case .cut: #selector(NSText.cut(_:))
+        case .copy: #selector(NSText.copy(_:))
+        case .paste: #selector(NSText.paste(_:))
+        }
+    }
 }
 
 // MARK: Swift → JS

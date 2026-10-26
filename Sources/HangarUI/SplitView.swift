@@ -310,22 +310,7 @@ final class FillView: NSView {
         }
     }
 
-    /// Restarts a running surface that has shown nothing yet (a just-launched editor), so the new `openFile` applies.
-    func restart() {
-        guard let old = surface, !needsRelaunch, !hasOutput, let mode else { return }
-        // Freeing the old surface ends its process; that is not an exit of the leaf. Restored if the new run fails.
-        let handler = old.onChildExit
-        old.onChildExit = nil
-        guard run(.relaunch(previous: mode, exitCode: nil)) else {
-            old.onChildExit = handler
-            return
-        }
-        uiLog.info("restart leaf=\(self.leafId.uuidString.prefix(8), privacy: .public) ok=\(!self.failed)")
-        if !failed { window?.makeFirstResponder(surface) }
-        onRelaunch?(false)
-    }
-
-    /// The process has drawn something since launch; before that a starting Helix may not read keys yet.
+    /// The process has drawn something since launch; before that a starting agent may not read keys yet.
     /// `shortcut: any non-blank screen text counts (a "Last login" line too); Ghostty has no output callback and
     /// ghostty.h exposes no alternate-screen query — use one if GhosttyKit adds it`.
     var hasOutput: Bool {
@@ -438,7 +423,11 @@ final class FillView: NSView {
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
-        app.onOpenInEditor = { [weak self] path, line, column in self?.openInEditor(path: path, line: line, column: column) }
+        app.onOpenInEditor = { [weak self] leaf, path, line, column in
+            guard let pane = self?.leafViews[leaf]?.editor else { return }  // a never-shown tab loads its files from the model
+            pane.open(path: path, line: line, column: column)
+            pane.focusEditor()
+        }
         app.editorUnsaved = { [weak self] id in self?.leafViews[id]?.editor?.unsaved ?? [] }
         app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
         app.confirmLeaveDiff = { [weak self] then in
@@ -741,23 +730,6 @@ final class FillView: NSView {
         case .leaf(let leaf): leaf.id.uuidString
         case .split(let axis, _, let a, let b): "(\(axis.rawValue) \(signature(a)) \(signature(b)))"
         }
-    }
-
-    /// The task's Monaco editor tab (#80): its focused editor leaf in the active tab, else the first one, else a new tab.
-    func openInEditor(path: String, line: Int?, column: Int?) {
-        guard let task = app.selectedTask else { return }
-        guard let (tab, leaf) = editorTarget(task: task) else {
-            app.perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
-            return
-        }
-        app.perform {
-            $0.openEditorFile(leafId: leaf, path: path, line: line, column: column)
-            $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
-        }
-        app.activate(tabId: tab)
-        guard let pane = leafViews[leaf]?.editor else { return }  // a never-shown tab loads its files from the model
-        pane.open(path: path, line: line, column: column)
-        pane.focusEditor()
     }
 
     /// The editor pane with the keyboard, if any (⌘W, ⌥⌘←/→ go to it).

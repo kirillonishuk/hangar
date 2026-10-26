@@ -1,6 +1,6 @@
 # Hangar — правила для агентов
 
-Hangar — нативное macOS-приложение (Swift, AppKit + SwiftUI), замена Pane (Electron): рабочее место для AI-агентов (Claude Code, Codex) во вкладках терминала libghostty (GhosttyKit). Структура: проект → сессия (worktree опционален) → вкладки; в коде сессия по-прежнему `HangarTask` (#73). Плюс дерево файлов, read-only diff, вкладки Helix, статусы агентов, лимиты подписок, восстановление сессии, CLI `hangar` + MCP.
+Hangar — нативное macOS-приложение (Swift, AppKit + SwiftUI), замена Pane (Electron): рабочее место для AI-агентов (Claude Code, Codex) во вкладках терминала libghostty (GhosttyKit). Структура: проект → сессия (worktree опционален) → вкладки; в коде сессия по-прежнему `HangarTask` (#73). Плюс дерево файлов, diff, встроенный редактор Monaco (вкладка «Редактор»), статусы агентов, лимиты подписок, восстановление сессии, CLI `hangar` + MCP.
 
 Источники правды (читать нужный раздел, не всё подряд):
 - Спека: `docs/superpowers/specs/2026-10-18-hangar-design.md`

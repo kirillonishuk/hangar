@@ -58,8 +58,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
     @ObservationIgnored var onHostConnected: ((String) -> Void)?
-    /// Opens an absolute path (optionally at a line and column) in the selected task's editor; set by `TerminalArea`.
-    @ObservationIgnored var onOpenInEditor: ((String, Int?, Int?) -> Void)?
+    /// Shows a file (at a line and column) in an existing editor leaf's page and focuses it; set by `TerminalArea`.
+    @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
     /// M2 hook: answers Monaco's definition / references / hover / completion requests; nil = none (#80).
@@ -269,20 +269,20 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func defaultTitle(_ kind: LeafKind) -> String {
         switch kind {
         case .claude, .codex: kind.rawValue
-        case .editor: (config.editor as NSString).lastPathComponent
+        case .editor: L10n.editor
         case .shell: (userShell as NSString).lastPathComponent
         }
     }
 
-    /// An editor with a file is titled by the file (Helix sets no useful terminal title); others by their terminal title.
+    /// An editor is «Editor» (its file tabs are inside it, #82); others go by their terminal title.
     func title(of leaf: Leaf) -> String {
-        if leaf.kind == .editor, let file = leaf.openFile { return (file as NSString).lastPathComponent }
+        if leaf.kind == .editor { return defaultTitle(.editor) }
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
     }
 
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
 
-    /// Tooltip title: an unsplit, unrenamed editor tab shows its file's path from the session folder; others their label.
+    /// Tooltip title: an unsplit, unrenamed editor tab shows its active file's path from the session folder; others their label.
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
         guard case .leaf(let leaf) = tab.root, leaf.kind == .editor, let file = leaf.openFile,
               tab.customTitle == nil else { return tabLabel(tab) }
@@ -337,7 +337,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
                 Task { await remote.connect(host) }
                 throw LaunchError.notConnected(host: host)
             }
-            return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target, editor: config.editor,
+            return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target,
                                      restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
@@ -486,11 +486,21 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// Files, ⌘P, diff ↩, links: the task's editor tab (Monaco, #80), else a new one. Without a selected task — nothing.
+    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the task's Monaco editor tab (#80, #82) — its focused editor
+    /// leaf in the active tab, else the first one — else a new editor tab. Without a selected task — nothing.
     func openInEditor(path: String, line: Int?, column: Int? = nil) {
-        guard selectedTask != nil else { return }
+        guard let task = selectedTask else { return }
         deactivateDiff()  // the editor tab (also a new one) is shown instead
-        onOpenInEditor?(path, line, column)
+        guard let (tab, leaf) = editorTarget(task: task) else {
+            perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
+            return
+        }
+        perform {
+            $0.openEditorFile(leafId: leaf, path: path, line: line, column: column)
+            $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
+        }
+        activate(tabId: tab)
+        onOpenInEditor?(leaf, path, line, column)
     }
 
     /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git

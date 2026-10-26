@@ -6,11 +6,10 @@ import Integration
 /// The app's part of `hangar doctor` (decision #61). Read-only: nothing is written, installed or connected.
 extension AppState {
     func doctorResult() async -> DoctorResult {
-        let cmds = [config.agentCommands[.claude] ?? "claude", config.agentCommands[.codex] ?? "codex", config.editor].map(firstWord)
+        let cmds = [config.agentCommands[.claude] ?? "claude", config.agentCommands[.codex] ?? "codex"].map(firstWord)
         let probe = await probeTools(cmds)
         var checks = [toolCheck("claude", cmds[0], probe[cmds[0]], missing: .fail),
-                      toolCheck("codex", cmds[1], probe[cmds[1]], missing: .warn),
-                      toolCheck(isHelix(config.editor) ? "helix" : "editor", cmds[2], probe[cmds[2]], missing: .warn)]
+                      toolCheck("codex", cmds[1], probe[cmds[1]], missing: .warn)]
         let paths = await doctorAgentPaths()
         let cli = hangarCLIPath(bundle: .main) ?? ""
         checks.append(hookCheck("claude hooks", claudeState(try? readUserFile(paths.claude) ?? nil, cli: cli), file: paths.claude))
@@ -64,9 +63,7 @@ func parseToolProbe(_ out: String) -> [String: (path: String, version: String)] 
 
 func toolCheck(_ name: String, _ command: String, _ found: (path: String, version: String)?, missing: DoctorLevel) -> DoctorCheck {
     guard let found else {
-        let fix = name == "claude" || name == "codex"
-            ? "Install \(name), or set its path under [agents] in ~/.config/hangar/config.toml"
-            : "Install it (Helix: `brew install helix`), or set `editor` in ~/.config/hangar/config.toml"
+        let fix = "Install \(name), or set its path under [agents] in ~/.config/hangar/config.toml"
         return DoctorCheck(name: name, level: missing, detail: "`\(command)` not found in the login shell's PATH", fix: fix)
     }
     return DoctorCheck(name: name, level: .ok, detail: found.path + (found.version.isEmpty ? "" : "  " + found.version))

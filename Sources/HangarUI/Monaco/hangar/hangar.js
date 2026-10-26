@@ -63,7 +63,7 @@
     registerProviders();
     const common = { theme: 'hangar', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: cfg.fontSize, lineHeight: cfg.lineHeight,
       automaticLayout: true, minimap: { enabled: minimap }, scrollBeyondLastLine: false, smoothScrolling: false,
-      cursorBlinking: 'solid', renderLineHighlight: 'all', fixedOverflowWidgets: true, contextmenu: true,
+      cursorBlinking: 'solid', renderLineHighlight: 'all', fixedOverflowWidgets: true, contextmenu: false,
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false }, padding: { top: 6 },
       stickyScroll: { enabled: false }, overviewRulerBorder: false, hideCursorInOverviewRuler: true, mouseWheelZoom: false,
       'semanticHighlighting.enabled': false };
@@ -85,6 +85,7 @@
   // MARK: Editor
 
   function wireEditor(ed) {
+    wireMenu(ed);
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => save());
     ed.onDidFocusEditorText(() => post({ type: 'focus' }));
     let timer = null;
@@ -219,6 +220,99 @@
     renderChrome();
   }
 
+  // MARK: Context menu
+
+  // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, #82): a fixed list,
+  // greyed when the editor can't run an item (no language provider yet, read-only). Labels come from Hangar's L10n.
+  const MENU = [
+    { action: 'editor.action.revealDefinition', label: 'definition', keys: 'F12' },
+    { action: 'editor.action.goToReferences', label: 'references', keys: '⇧F12' },
+    { action: 'editor.action.rename', label: 'rename', keys: 'F2', edits: true },
+    null,
+    { action: 'editor.action.formatDocument', label: 'format', keys: '⇧⌥F', edits: true },
+    { action: 'editor.action.commentLine', label: 'comment', keys: '⌘/', edits: true },
+    null,
+    { clipboard: 'cut', label: 'cut', keys: '⌘X', edits: true },
+    { clipboard: 'copy', label: 'copy', keys: '⌘C' },
+    { clipboard: 'paste', label: 'paste', keys: '⌘V', edits: true },
+  ];
+  let menu = null;   // { el, items: [{ el, run }], sel }
+
+  function wireMenu(ed) {
+    ed.getContainerDomNode().addEventListener('contextmenu', (e) => e.preventDefault(), true);  // no WebKit menu either
+    ed.onContextMenu((e) => {
+      // As in VS Code: a right click outside the selection moves the cursor there first.
+      const pos = e.target.position, sel = ed.getSelection();
+      if (pos && sel && !sel.containsPosition(pos)) ed.setPosition(pos);
+      ed.focus();
+      showMenu(ed, e.event.posx, e.event.posy);
+    });
+  }
+
+  function showMenu(ed, x, y) {
+    hideMenu();
+    const readOnly = ed.getOption(monaco.editor.EditorOption.readOnly);
+    const el = document.createElement('div');
+    el.className = 'ctx';
+    const items = [];
+    for (const m of MENU) {
+      if (!m) {
+        if (el.lastChild && !el.lastChild.classList.contains('sep')) { const sep = document.createElement('div'); sep.className = 'sep'; el.appendChild(sep); }
+        continue;
+      }
+      const a = m.action && ed.getAction(m.action);
+      const on = !(m.edits && readOnly) && (m.clipboard ? true : !!(a && a.isSupported()));
+      const row = document.createElement('div');
+      row.className = 'item' + (on ? '' : ' off');
+      const label = document.createElement('span');
+      label.textContent = cfg.menu[m.label] || m.label;
+      const keys = document.createElement('span');
+      keys.className = 'keys';
+      keys.textContent = m.keys;
+      row.append(label, keys);
+      // mousedown, not click: the editor keeps its focus and selection (the clipboard commands act on them).
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      if (on) {
+        const run = () => { hideMenu(); ed.focus(); if (m.clipboard) post({ type: 'clipboard', action: m.clipboard }); else a.run(); };
+        row.addEventListener('mouseup', (e) => { if (e.button === 0) run(); });
+        row.addEventListener('mouseenter', () => select(items.findIndex((i) => i.el === row)));
+        items.push({ el: row, run });
+      }
+      el.appendChild(row);
+    }
+    document.body.appendChild(el);
+    // Inside the page: flipped left / up at the edges.
+    const w = el.offsetWidth, h = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+    el.style.left = Math.max(0, x + w > W ? x - w : x) + 'px';
+    el.style.top = Math.max(0, y + h > H ? y - h : y) + 'px';
+    menu = { el, items, sel: -1 };
+  }
+
+  function select(i) {
+    if (!menu) return;
+    menu.items.forEach((it, k) => it.el.classList.toggle('sel', k === i));
+    menu.sel = i;
+  }
+
+  function hideMenu() { if (menu) { menu.el.remove(); menu = null; } }
+
+  window.addEventListener('mousedown', (e) => { if (menu && !menu.el.contains(e.target)) hideMenu(); }, true);
+  window.addEventListener('blur', hideMenu);
+  window.addEventListener('resize', hideMenu);
+  window.addEventListener('wheel', hideMenu, true);
+  // While open, the keys drive the menu (the editor keeps focus underneath).
+  window.addEventListener('keydown', (e) => {
+    if (!menu) return;
+    const n = menu.items.length;
+    if (e.key === 'Escape') hideMenu();
+    else if (e.key === 'ArrowDown' && n) select((menu.sel + 1) % n);
+    else if (e.key === 'ArrowUp' && n) select((menu.sel - 1 + n) % n);
+    else if (e.key === 'Enter' && menu.sel >= 0) menu.items[menu.sel].run();
+    else { hideMenu(); return; }
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
   // MARK: Diff
 
   function wireDiff() {
@@ -236,7 +330,7 @@
       const f = diffPath && files.get(diffPath);
       if (f && f.model) post({ type: 'save', file: diffPath, text: f.model.getValue() });
     });
-    for (const e of [orig, mod]) e.onDidFocusEditorText(() => post({ type: 'focus' }));
+    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => post({ type: 'focus' })); wireMenu(e); }
     let first = true;
     diff.onDidUpdateDiff(() => {
       if (!first) return;

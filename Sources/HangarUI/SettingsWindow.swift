@@ -133,12 +133,6 @@ struct SettingsView: View {
                         save { try app.setConfig("default_agent", kind.rawValue) { $0.defaultAgent = kind } }
                     }
                 }
-                row(L10n.editor) {
-                    Segment(selection: app.config.editor, options: editorOptions.map { ($0, editorLabel($0, presets: Self.editorPresets)) }) { editor in
-                        save { try app.setConfig("editor", editor) { $0.editor = editor } }
-                    }
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                }
                 row(L10n.externalEditor) {
                     TextField("", text: $model.externalEditor,
                               prompt: Text(L10n.externalEditorPlaceholder).foregroundStyle(Theme.ui.text3))
@@ -300,13 +294,6 @@ struct SettingsView: View {
         }
     }
 
-    /// hx / nvim, plus the configured editor when it is something else.
-    private var editorOptions: [String] {
-        Self.editorPresets.contains(app.config.editor) ? Self.editorPresets : Self.editorPresets + [app.config.editor]
-    }
-
-    private static let editorPresets = ["hx", "nvim"]
-
     private func save(_ change: () throws -> Void) { model.save(change) }
 
     private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
@@ -347,13 +334,6 @@ private struct Segment<Value: Equatable>: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
         .animation(Motion.ease(Theme.selectionFade), value: options.firstIndex { $0.0 == selection })
     }
-}
-
-/// The editor's segment label: its name, or its (short) path when the name is a preset's — two «hx» hid the choice.
-func editorLabel(_ editor: String, presets: [String], home: String = NSHomeDirectory()) -> String {
-    let name = (editor as NSString).lastPathComponent
-    guard !presets.contains(editor), presets.contains(name) else { return name }
-    return middleTruncatedPath(abbreviatedHomePath(editor, home: home), maxLength: Theme.editorPathLabelLength)
 }
 
 /// An integration's status color: red is kept for failures, a missing or outdated integration is a to-do (amber).

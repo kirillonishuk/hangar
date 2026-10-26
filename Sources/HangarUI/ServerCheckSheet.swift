@@ -135,7 +135,7 @@ struct ServerCheckView: View {
 
     private func tools(_ r: ServerReport) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array([RemoteTool.git, .tmux, .claude, .codex, .hx].enumerated()), id: \.offset) { i, tool in
+            ForEach(Array([RemoteTool.git, .tmux, .claude, .codex].enumerated()), id: \.offset) { i, tool in
                 CardRow(label: tool.rawValue, mono: true, compact: true, first: i == 0) {
                     if let info = r.tools[tool] {
                         Text(verbatim: L10n.toolFound(info.version.isEmpty ? info.path : info.version)).foregroundStyle(Theme.ui.text2)
@@ -269,7 +269,7 @@ struct ServerCheckView: View {
         }
     }
 
-    /// «Необязательно: ☐ codex ☐ hx» — unticked by default; a ticked tool joins the commands shown above «Установить».
+    /// «Необязательно: ☐ codex» — unticked by default; a ticked tool joins the commands shown above «Установить».
     private var optionalTools: some View {
         HStack(spacing: Theme.sheetButtonGap) {
             Text(L10n.optionalToolsLabel).foregroundStyle(Theme.ui.text3)

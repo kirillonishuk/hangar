@@ -238,27 +238,14 @@ import Testing
         #expect(s.projects.first?.location == .ssh(host: "dev", path: "/srv/new"))
     }
 
-    @Test func leafOpenLineRoundTrip() throws {
-        let l = Leaf(kind: .editor, cwd: "/r", openFile: "/r/a", openLine: 12)
-        #expect(try JSONDecoder().decode(Leaf.self, from: JSONEncoder().encode(l)).openLine == 12)
-        let old = #"{"id":"\#(UUID().uuidString)","kind":"editor","cwd":"/r","openFile":"/r/a"}"#
-        #expect(try JSONDecoder().decode(Leaf.self, from: Data(old.utf8)).openLine == nil)
-    }
-
-    @Test func addEditorTabWithFile() {
+    @Test func addEditorTabWithFile() throws {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")
         let tab = s.addTab(taskId: t, kind: .editor, openFile: "/r/a b.txt", openLine: 7)
         #expect(s.tasks[0].activeTabId == tab)
         let first = s.tasks[0].tabs[0].root.leaves[0]
-        #expect(first.openFile == "/r/a b.txt" && first.openLine == 7)
-        let l2 = s.split(taskId: t, tabId: tab, leafId: first.id, axis: .horizontal, kind: .editor)
-        s.setOpenFile(leafId: l2, path: "/r/c.txt", line: 3)
-        let got = s.tasks[0].tabs[0].root.leaf(id: l2)
-        #expect(got?.openFile == "/r/c.txt" && got?.openLine == 3)
-        s.setOpenFile(leafId: l2, path: "/r/d.txt", line: nil)
-        #expect(s.tasks[0].tabs[0].root.leaf(id: l2)?.openLine == nil)
-        #expect(s.tasks[0].tabs[0].root.leaf(id: first.id)?.openFile == "/r/a b.txt")
+        #expect(first.openFile == "/r/a b.txt" && first.editorFiles == [EditorFile(path: "/r/a b.txt", line: 7, column: 1)])
+        #expect(try JSONDecoder().decode(Leaf.self, from: JSONEncoder().encode(first)) == first)
     }
 
     @Test func setRatioAddressesSplitByPath() {

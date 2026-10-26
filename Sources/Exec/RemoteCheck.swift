@@ -1,8 +1,7 @@
 import Foundation
 
 /// Read-only probe of a server (POSIX sh). Prints only `HANGAR <key> <value>` lines, control characters removed,
-/// `end` last. Tools are only asked for `--version` (`tmux -V`); nothing is written outside one `mktemp -d` dir
-/// (hx's XDG config/cache/data/state, since helix writes its log on start), which is removed afterwards.
+/// `end` last. Tools are only asked for `--version` (`tmux -V`); nothing is written.
 /// shortcut: a tool whose `--version` hangs hangs the check; the caller's cancel kills ssh. Add a timeout if seen.
 public let serverCheckScript = #"""
 p() { printf 'HANGAR %s\n' "$(printf '%s' "$*" | tr -d '\000-\037\177')"; }
@@ -20,16 +19,12 @@ p uid "$(id -u)"
 if command -v sudo >/dev/null 2>&1; then p sudo yes; else p sudo no; fi
 p home "$HOME"
 p shell "${SHELL:-}"
-for t in git tmux claude codex hx curl npm; do
+for t in git tmux claude codex curl npm; do
   x=$(command -v "$t" 2>/dev/null)
   case $x in
     /*) v=
         case $t in
           tmux) v=$("$x" -V </dev/null 2>/dev/null | head -n 1 | cut -c 1-80) ;;
-          hx) if tmp=$(mktemp -d 2>/dev/null); then
-                v=$(XDG_CONFIG_HOME=$tmp XDG_CACHE_HOME=$tmp XDG_DATA_HOME=$tmp XDG_STATE_HOME=$tmp "$x" --version </dev/null 2>/dev/null | head -n 1 | cut -c 1-80)
-                rm -rf "$tmp"
-              fi ;;
           *) v=$("$x" --version </dev/null 2>/dev/null | head -n 1 | cut -c 1-80) ;;
         esac
         p tool "$t" "$x" "$v" ;;
@@ -63,10 +58,10 @@ public enum PackageManager: String, Sendable {
 }
 
 public enum RemoteTool: String, CaseIterable, Sendable {
-    case git, tmux, claude, codex, hx, curl, npm
+    case git, tmux, claude, codex, curl, npm
 
     /// Not installed unless the user ticks them in the server sheet (the plan stays exactly what runs).
-    public static let optionalInstalls: [RemoteTool] = [.codex, .hx]
+    public static let optionalInstalls: [RemoteTool] = [.codex]
 }
 
 public struct ToolInfo: Equatable, Sendable {
@@ -186,16 +181,9 @@ public func installPlan(_ r: ServerReport, remoteVersion: Int, optional: Set<Rem
     if !has(.git) { pkgs.append(("git", .git)) }
     if !has(.tmux) { pkgs.append(("tmux", .tmux)) }
     if r.socketClient == nil { pkgs.append(("socat", nil)) }
-    if !has(.hx) { pkgs.append(("helix", .hx)) }
     if !has(.claude) && !has(.curl) { pkgs.append(("curl", .curl)) }
 
     let pm = r.packageManager.flatMap { $0 == .brew || r.uid == 0 || r.hasSudo ? $0 : nil }
-    // helix is in the distro's own repos only on Arch, Alpine, Fedora and Homebrew (not Debian/Ubuntu, RHEL clones, Amazon).
-    let helixInRepos = pm == .pacman || pm == .apk || pm == .brew || pm == .dnf && r.distro == "fedora"
-    if pm != nil, !helixInRepos, let i = pkgs.firstIndex(where: { $0.tool == .hx }) {
-        manual.append(.hx)
-        pkgs.remove(at: i)
-    }
     if let pm, !pkgs.isEmpty {
         let list = pkgs.map(\.name).joined(separator: " ")
         let s = r.uid != 0 && pm != .brew ? "sudo " : ""

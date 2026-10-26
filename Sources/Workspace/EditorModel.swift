@@ -14,11 +14,7 @@ public struct EditorFile: Codable, Equatable, Sendable {
 }
 
 extension Leaf {
-    /// The editor's files; a Helix-era leaf (only `openFile`) has that one.
-    public var editorFileList: [EditorFile] {
-        if let editorFiles { return editorFiles }
-        return openFile.map { [EditorFile(path: $0, line: openLine ?? 1, column: 1)] } ?? []
-    }
+    public var editorFileList: [EditorFile] { editorFiles ?? [] }
 }
 
 extension WorkspaceState {
@@ -46,7 +42,6 @@ extension WorkspaceState {
             }
             leaf.editorFiles = files
             leaf.openFile = path
-            leaf.openLine = nil
         }
     }
 

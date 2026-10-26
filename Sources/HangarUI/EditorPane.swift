@@ -101,7 +101,7 @@ import Workspace
                 let result = await app.editorProvider?(r)
                 page.send(.resolve(id: r.id, result: result))
             }
-        case .openAt, .inline, .log: break  // the diff's; logged by the page
+        case .openAt, .inline, .log, .clipboard: break  // the diff's; logged / handled by the page
         }
     }
 

@@ -25,6 +25,7 @@ import WebKit
             "fontSize": Theme.Editor.fontSize, "lineHeight": Theme.Editor.lineHeight,
             "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict,
                         "minimap": L10n.editorMinimap],
+            "menu": L10n.editorMenu,
         ]
         let json = (try? JSONSerialization.data(withJSONObject: settings)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
         config.userContentController.addUserScript(WKUserScript(source: "window.hangarConfig = \(json);",
@@ -77,6 +78,11 @@ import WebKit
             return
         }
         if case .log(let text) = m { uiLog.error("editor page: \(text, privacy: .public)"); return }
+        if case .clipboard(let action) = m {
+            // The context menu's Cut / Copy / Paste go through WebKit's own edit commands (as ⌘X/⌘C/⌘V): no clipboard prompt.
+            NSApp.sendAction(action.selector, to: webView, from: nil)
+            return
+        }
         if m == .ready {
             ready = true
             let queued = pending

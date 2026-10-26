@@ -11,6 +11,7 @@ enum Icon: CaseIterable {
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
     case search
+    case appearance, bell, plug
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -86,6 +87,14 @@ enum Icon: CaseIterable {
             [.arc(from: p(1.75, 8), to: p(3.58, 3.58), r: 6.25, large: true, sweep: false), .line(p(3.58, 3.58), p(1.75, 5.4)),
              .line(p(1.75, 2.25), p(1.75, 5.4), p(4.9, 5.4)), .line(p(8, 4.75), p(8, 8), p(10.25, 9.5))]
         case .search: [.circle(p(7, 7), 4.75), .line(p(10.5, 10.5), p(13.75, 13.75))]  // redesign-v1.html g-search
+        // Settings categories: a half circle (theme), a bell (notifications), a plug (integrations).
+        case .appearance: [.circle(p(8, 8), 6.25), .line(p(8, 1.75), p(8, 14.25)), .line(p(8, 4.5), p(12, 4.5)), .line(p(8, 8), p(14, 8)), .line(p(8, 11.5), p(12, 11.5))]
+        case .bell:
+            [.line(p(2.75, 11.25), p(4.25, 9.5), p(4.25, 3, r: 3.75), p(11.75, 3, r: 3.75), p(11.75, 9.5), p(13.25, 11.25)), .line(p(2.75, 11.25), p(13.25, 11.25)),
+             .line(p(6.5, 13.75), p(9.5, 13.75))]
+        case .plug:
+            [.line(p(5.75, 2.25), p(5.75, 5.5)), .line(p(10.25, 2.25), p(10.25, 5.5)), .shape(p(3.75, 5.5), p(12.25, 5.5), p(12.25, 12, r: 3.25), p(3.75, 12, r: 3.25)),
+             .line(p(8, 12), p(8, 14.25))]
         case .claude, .codex: []  // brand logos
         }
     }
@@ -134,7 +143,7 @@ enum Icon: CaseIterable {
     /// brand logos come pre-tinted. Cached per icon and size.
     func image(size: CGFloat) -> NSImage {
         MainActor.assumeIsolated {
-            let key = CacheKey(icon: self, size: size)
+            let key = CacheKey(icon: self, size: size, theme: isBrand ? Theme.current : nil)
             if let cached = Self.images[key] { return cached }
             let image = render(size: size)
             Self.images[key] = image
@@ -172,6 +181,8 @@ enum Icon: CaseIterable {
     private struct CacheKey: Hashable {
         let icon: Icon
         let size: CGFloat
+        /// Brand logos are pre-tinted (Codex in `textStrong`): one per theme.
+        let theme: AppTheme?
     }
 
     @MainActor private static var images: [CacheKey: NSImage] = [:]

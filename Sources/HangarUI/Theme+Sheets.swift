@@ -2,8 +2,6 @@ import SwiftUI
 
 /// Sheet and settings-window tokens (DESIGN.md «Лист», «Окно настроек»); the rest of `Theme` lives in Theme.swift.
 extension Theme {
-    /// Longest settings label in one line: «Уведомления о лимитах» at `sheetRow` is ~158 (ru).
-    public static let settingsCardLabelWidth: CGFloat = 164
     /// Project settings: «Команда после создания» (~165 at `sheetRow`, ru; en is shorter) on one line.
     public static let projectCardLabelWidth: CGFloat = 168
     /// Project settings sheet: `sheetWidth` + the wider label column, so long paths keep room.
@@ -36,5 +34,41 @@ extension Theme {
 
 extension Theme.ui {
     /// Icon menus on the sheet background (`hover` is darker than `sheet`).
-    static let sheetHover = Color(nsColor: Theme.hoverStrong)
+    static var sheetHover: Color { hoverStrong }
+}
+
+extension Theme {
+    /// Settings window (System Settings style): a category list on the left, the page on the right; resizable.
+    public static let settingsSize = NSSize(width: 760, height: 560)
+    public static let settingsMinSize = NSSize(width: 680, height: 440)
+    public static let settingsSidebarWidth: CGFloat = 190
+    public static let settingsSidebarPadding: CGFloat = 10
+    public static let settingsNavRowHeight: CGFloat = 30
+    public static let settingsNavRadius: CGFloat = 6
+    public static let settingsNavGap: CGFloat = 2
+    /// The page: margins, its title, gaps between sections and under a section header.
+    public static let settingsPagePadding: CGFloat = 24
+    public static let settingsPageTitle: CGFloat = 17
+    public static let settingsSectionGap: CGFloat = 20
+    public static let settingsHeaderGap: CGFloat = 8
+    /// The label column is measured from the longest label of the language (+ slack); never wider than the max.
+    public static let settingsLabelSlack: CGFloat = 1
+    public static let settingsLabelMax: CGFloat = 220
+    /// Switch (themes-v1.html `.sw`): 30×18, 2 inset around the knob.
+    public static let switchWidth: CGFloat = 30
+    public static let switchHeight: CGFloat = 18
+    public static let switchInset: CGFloat = 2
+    /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
+    public static let themeTileHeight: CGFloat = 76
+    public static let themeTileGap: CGFloat = 12
+    public static let themeTileRadius: CGFloat = 8
+    public static let themeTileBorder: CGFloat = 2
+    public static let themeTileStrip: CGFloat = 28
+    public static let themeTileLine: CGFloat = 4
+    public static let themeTileLineGap: CGFloat = 6
+    public static let themeTilePadding: CGFloat = 10
+    /// Integration status pill: 20 high, 8 side padding, fill of its colour at 15 %.
+    public static let pillHeight: CGFloat = 20
+    public static let pillPaddingH: CGFloat = 8
+    public static let pillFillOpacity: Double = 0.15
 }

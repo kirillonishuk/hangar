@@ -250,7 +250,7 @@ struct DiffView: View {
                     .lineLimit(1).truncationMode(.head)
             }
             // A commit's file (Git tab): which commit, as the details show its hash.
-            if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accent) }
+            if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accentText) }
             if content.isText {
                 Text(verbatim: "+\(content.added)").foregroundStyle(Theme.Diff.badgeA)
                 Text(verbatim: "−\(content.deleted)").foregroundStyle(Theme.Diff.badgeD)

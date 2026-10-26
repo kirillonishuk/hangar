@@ -84,8 +84,10 @@ import Workspace
         case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
-        case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundTheme
-        case afterRestart, saveFailed
+        case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
+        case appearance, themeTitle, themeGraphite, saveFailed
+        case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
+        case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case copyLink, attentionOnly, nobodyWaiting
@@ -302,8 +304,23 @@ import Workspace
     static var externalEditor: String { s(.externalEditor) }
     static var externalEditorPlaceholder: String { s(.externalEditorPlaceholder) }
     static var terminalBackground: String { s(.terminalBackground) }
-    static var backgroundTheme: String { s(.backgroundTheme) }
-    static var afterRestart: String { s(.afterRestart) }
+    static var backgroundGhostty: String { s(.backgroundGhostty) }
+    static var backgroundAsTheme: String { s(.backgroundAsTheme) }
+    static var appearance: String { s(.appearance) }
+    static var themeTitle: String { s(.themeTitle) }
+    static var themeGraphite: String { s(.themeGraphite) }
+    static var settingsGeneral: String { s(.settingsGeneral) }
+    static var settingsNotifications: String { s(.settingsNotifications) }
+    static var settingsIntegrations: String { s(.settingsIntegrations) }
+    static var settingsAdvanced: String { s(.settingsAdvanced) }
+    static var configFile: String { s(.configFile) }
+    static var showInFinder: String { s(.showInFinder) }
+    static var pillInstalled: String { s(.pillInstalled) }
+    static var pillMissing: String { s(.pillMissing) }
+    static var pillOutdated: String { s(.pillOutdated) }
+    static var pillUnavailable: String { s(.pillUnavailable) }
+    static var pillChecking: String { s(.pillChecking) }
+    static var pillError: String { s(.pillError) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
     static var notificationsTitle: String { s(.notificationsTitle) }
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }

@@ -177,7 +177,7 @@ struct WindowStatusBar: View {
                         }
                     }
                     StatusButton(help: L10n.editorMinimap, action: { app.perform { $0.editorMinimap.toggle() } }) {
-                        Text(verbatim: L10n.editorMinimap).foregroundStyle(app.state.editorMinimap ? Theme.ui.accent : Theme.ui.text2)
+                        Text(verbatim: L10n.editorMinimap).foregroundStyle(app.state.editorMinimap ? Theme.ui.accentText : Theme.ui.text2)
                     }
                 }
             }
@@ -187,7 +187,7 @@ struct WindowStatusBar: View {
         .lineLimit(1)
         .padding(.horizontal, Theme.statusBarPaddingH - Theme.statusItemPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statusBarHeight, maxHeight: Theme.statusBarHeight)
-        .background(Theme.ui.bg)
+        .background(Theme.ui.statusBar)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 

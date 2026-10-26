@@ -3,10 +3,15 @@ import Foundation
 /// UI language setting; `system` resolves to ru when the first system language is Russian, else en.
 public enum Language: String, Sendable, CaseIterable { case system, ru, en }
 
+/// App colour theme (themes-v1.html): `theme = "dark-plus" | "graphite" | "navy"`.
+public enum AppTheme: String, Sendable, CaseIterable { case darkPlus = "dark-plus", graphite, navy }
+
 public struct HangarConfig: Equatable, Sendable {
     public var defaultAgent: LeafKind = .claude
     public var agentCommands: [LeafKind: String] = [.claude: "claude", .codex: "codex"]
     public var terminalBackground: TerminalBackground = .hangar
+    /// Dark+ for new installs and existing configs alike (the user's choice).
+    public var theme: AppTheme = .darkPlus
     public var language: Language = .system
     /// Command opening files outside Hangar (e.g. `zed`); nil = off.
     public var externalEditor: String?
@@ -23,7 +28,8 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorRainbowIndent = true
     public var editorTodoHighlight = true
 
-    public enum TerminalBackground: String, Sendable { case hangar, theme }
+    /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
+    public enum TerminalBackground: String, Sendable { case hangar, ghostty }
     public enum EditorPalette: String, Sendable, CaseIterable { case darkPlus = "dark-plus", hangar }
 
     public init() {}
@@ -80,10 +86,16 @@ public struct HangarConfig: Equatable, Sendable {
             case ("", "editor"):
                 continue  // the Helix-era terminal editor (#81): ignored, so old configs still load
             case ("", "terminal_background"):
-                guard let bg = TerminalBackground(rawValue: value) else {
-                    throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")
+                // Before the themes `"theme"` meant the Ghostty theme's background: read as `ghostty`, rewritten on save.
+                guard let bg = value == "theme" ? .ghostty : TerminalBackground(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: #"terminal_background must be "hangar" or "ghostty""#)
                 }
                 config.terminalBackground = bg
+            case ("", "theme"):
+                guard let theme = AppTheme(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: #"theme must be "dark-plus", "graphite" or "navy""#)
+                }
+                config.theme = theme
             case ("", "editor_palette"):
                 guard let palette = EditorPalette(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "dark-plus" or "hangar""#)

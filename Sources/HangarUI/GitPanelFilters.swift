@@ -68,7 +68,7 @@ private struct GitChip: View {
         HStack(spacing: Theme.railInset) {
             Text(verbatim: title).lineLimit(1).truncationMode(.middle)
             if let clear {
-                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: Theme.ui.accent)
+                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: Theme.ui.accentText)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: clear)
                     .help(L10n.gitClearFilter)
@@ -91,7 +91,7 @@ private struct GitChip: View {
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 
-    private var tint: Color { on ? Theme.ui.accent : open || hover ? Theme.ui.text : Theme.ui.text2 }
+    private var tint: Color { on ? Theme.ui.accentText : open || hover ? Theme.ui.text : Theme.ui.text2 }
     private var fill: Color {
         on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : open || hover ? Theme.ui.hover : .clear
     }

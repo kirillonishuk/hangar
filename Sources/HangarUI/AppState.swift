@@ -2,6 +2,7 @@ import AgentStatus
 import AppKit
 import ControlServer
 import Exec
+import GhosttyBridge
 import Git
 import History
 import Integration
@@ -175,8 +176,6 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var remote: RemoteHosts = makeRemoteHosts(
         paths: SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent), sshPath: sshPath,
         isActive: { NSApp?.isActive ?? false })
-    /// Ghostty took this background at launch; a change applies after restart.
-    @ObservationIgnored let launchTerminalBackground: HangarConfig.TerminalBackground
 
     public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
                 socketPath: String = defaultStateDirectoryPath() + "/hangar.sock") {
@@ -184,7 +183,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         self.store = store
         self.config = config
         self.configURL = configURL
-        launchTerminalBackground = config.terminalBackground
+        Theme.current = config.theme
         L10n.language = config.language
         userShell = resolveUserShell(passwd: getpwuid(getuid())?.pointee.pw_shell.map { String(cString: $0) },
                                      env: ProcessInfo.processInfo.environment["SHELL"])
@@ -588,6 +587,24 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         guard label != dockBadge else { return }
         dockBadge = label
         onDockBadge(label)
+    }
+
+    /// Settings → Оформление, live: SwiftUI observes `Theme.current`, AppKit views get `hangarThemeDidChange`,
+    /// open terminals and editor pages are reconfigured.
+    func setTheme(_ theme: AppTheme) throws {
+        try setConfig("theme", theme.rawValue) { $0.theme = theme }
+        Theme.current = theme
+        applyTerminalColors()
+        onEditorAppearance?(EditorAppearance(config))
+    }
+
+    func setTerminalBackground(_ background: HangarConfig.TerminalBackground) throws {
+        try setConfig("terminal_background", background.rawValue) { $0.terminalBackground = background }
+        applyTerminalColors()
+    }
+
+    private func applyTerminalColors() {
+        GhosttyApp.shared.update(colors: Theme.terminalColors(force: config.terminalBackground == .hangar))
     }
 
     func setLanguage(_ language: Language) throws {

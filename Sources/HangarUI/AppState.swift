@@ -197,8 +197,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
 
+    /// Judged against every live task, as `spec(for:)` does: an unarchived task's neighbours in its folders count (#89).
     private func markRestored(_ tasks: [HangarTask]) {
-        let resuming = resumeSet(for: tasks, host: { id in self.state.projects.first { $0.id == id }?.host })
+        let resuming = resumeSet(for: state)
         for task in tasks {
             for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
                 restoredLeaves[leaf.id] = resuming.contains(leaf.id)
@@ -627,7 +628,7 @@ func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting 
     }
 }
 
-/// Leaves of `tasks` that start with `restoring: true` (at startup: all live tasks; on unarchive: that task).
+/// Leaves of `tasks` that start with `restoring: true`; callers pass all live tasks (startup, unarchive and every launch).
 /// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so at most one
 /// claude/codex leaf without an id per (kind, host, cwd) continues, and only if no leaf there has an id (#89): that
 /// leaf's conversation is likely the latest one, and `--continue` would attach a second tab to it. The rest start fresh.

@@ -64,6 +64,8 @@ extension AppState {
             uiLog.error("link ignored: \(e.message, privacy: .public)")
             return nil
         case .success(let target):
+            // A link shows its target: «Сессии» closes even when the target is already the selected session.
+            if case .sessions = target {} else { hideSessionsView() }
             switch target {
             case .task(let id): select(taskId: id)
             case .tab(let task, let tab):

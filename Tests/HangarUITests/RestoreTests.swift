@@ -197,6 +197,25 @@ import Workspace
         #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))
     }
 
+    /// Unarchive judges the task against live neighbours: a live leaf with an id in the folder takes the slot (#89),
+    /// so the restored flag agrees with what `spec(for:)` launches.
+    @Test func unarchiveSeesLiveNeighboursIds() throws {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let old = s.addTask(projectId: p, name: "old")
+        s.addTask(projectId: p, name: "live")
+        let a = Leaf(kind: .claude, cwd: "/tmp"), live = Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "x")
+        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
+        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(live), focusedLeafId: live.id)]
+        s.archiveTask(id: old)
+        let app = app(s)
+        app.restore(taskId: old)
+        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: false))
+        #expect(!app.isRestored(leafId: a.id))
+        let tab = app.state.tasks[0].tabs[0]
+        #expect(try !app.spec(for: a, tabId: tab.id, context: .restored(inResumeSet: false)).1.restoring)
+    }
+
     /// A restored (or freshly split) tree keeps its saved ratios: NSSplitView's own layout pass must not
     /// collapse a pane to 0 (live: a nested split showed one pane, a restored 0.39 split showed 0 / all).
     @Test func nestedSplitKeepsRatiosThroughLayout() {

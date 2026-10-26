@@ -84,6 +84,8 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var openFile: String?
     /// 1-based line the editor opens at; nil in states saved before it existed.
     public var openLine: Int?
+    /// Files open in an editor tab (Monaco, #80), in tab order; `openFile` is the active one. nil before #80.
+    public var editorFiles: [EditorFile]?
 
     public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
                 openFile: String? = nil, openLine: Int? = nil) {
@@ -93,6 +95,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         self.agentSessionId = agentSessionId
         self.openFile = openFile
         self.openLine = openLine
+        if kind == .editor, let openFile { editorFiles = [EditorFile(path: openFile, line: openLine ?? 1, column: 1)] }
     }
 }
 
@@ -282,6 +285,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var hostShells: [HostShell]
     /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
     public var attentionOnly: Bool
+    /// Diff tab: inline instead of side by side (#80).
+    public var diffInline: Bool = false
+    /// Editor tabs show the minimap (#80; off by default).
+    public var editorMinimap: Bool = false
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
@@ -300,7 +307,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly
+        case attentionOnly, diffInline, editorMinimap
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -315,6 +322,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 340,
                   hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
+        diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
+        editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         assignMissingPorts()
     }
 

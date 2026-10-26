@@ -123,6 +123,9 @@ import Workspace
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
+        case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
+        case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
+        case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -523,6 +526,24 @@ import Workspace
     static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab
     static var diffBinary: String { s(.diffBinary) }
+    static var editorLargeReadOnly: String { s(.editorLargeReadOnly) }
+    static func editorTooLarge(_ bytes: Int64) -> String {
+        f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+    }
+    static var editorBinary: String { s(.editorBinary) }
+    static var editorMissing: String { s(.editorMissing) }
+    static func editorReadFailed(_ message: String) -> String { f(.editorReadFailed, message) }
+    static func editorSaveFailed(_ message: String) -> String { f(.editorSaveFailed, message) }
+    static var editorConflict: String { s(.editorConflict) }
+    static var editorReload: String { s(.editorReload) }
+    static var editorKeepMine: String { s(.editorKeepMine) }
+    static func editorUnsavedTitle(_ name: String) -> String { f(.editorUnsavedTitle, name) }
+    static var editorUnsavedInfo: String { s(.editorUnsavedInfo) }
+    static var editorDontSave: String { s(.editorDontSave) }
+    static var diffInline: String { s(.diffInline) }
+    static var diffSideBySide: String { s(.diffSideBySide) }
+    static var editorMinimap: String { s(.editorMinimap) }
+    static func editorUnsavedQuit(_ n: Int) -> String { f(.editorUnsavedQuit, Int32(clamping: n)) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

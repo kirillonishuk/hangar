@@ -1,0 +1,58 @@
+/* Hangar's chrome around Monaco; colors and sizes come from Theme as CSS variables (MonacoTheme.css). */
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font: var(--bar-font) -apple-system, system-ui, sans-serif; -webkit-user-select: none; cursor: default; }
+body { display: flex; flex-direction: column; }
+#host { flex: 1; min-height: 0; position: relative; }
+body.diff #tabs { display: none; }
+
+#tabs { display: flex; height: var(--tab-h); flex: none; background: var(--bar); border-bottom: 1px solid var(--line);
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+#tabs::-webkit-scrollbar { display: none; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 var(--tab-pad); max-width: var(--tab-max); flex: none;
+  font-size: var(--tab-font); color: var(--text2); border-right: 1px solid var(--line); position: relative; cursor: pointer;
+  white-space: nowrap; }
+.tab:hover { background: var(--hover); color: var(--text); }
+.tab.active { background: var(--bg); color: var(--text-strong); }
+.tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--accent-line); background: var(--accent); }
+.tab .name { overflow: hidden; text-overflow: ellipsis; }
+.tab .dir { color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
+/* The close box: `×` on hover / active, a dot while dirty (as in VS Code), `×` again when hovering a dirty tab. */
+.tab .x { width: 18px; height: 18px; flex: none; border-radius: 4px; display: grid; place-items: center; color: var(--text2);
+  visibility: hidden; cursor: pointer; }
+.tab .x::before { content: "×"; font-size: 15px; line-height: 1; }
+.tab:hover .x, .tab.active .x { visibility: visible; }
+.tab .x:hover { background: var(--button); color: var(--text-strong); }
+.tab.dirty .x { visibility: visible; }
+.tab.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
+.tab.dirty .x:hover::before { content: "×"; width: auto; height: auto; border-radius: 0; background: none; }
+.tabs-end { flex: 1; }
+.tool { display: flex; align-items: center; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
+.tool:hover { color: var(--text); background: var(--hover); }
+.tool.on { color: var(--accent); }
+
+/* Conflict bar and notices: calm, one line above the text (it never shifts under the cursor while typing). */
+#bar, #notice { flex: none; height: var(--bar-h); display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  background: var(--sheet); border-bottom: 1px solid var(--line); font-size: var(--bar-font); }
+#bar[hidden], #notice[hidden], #refused[hidden] { display: none; }
+#bar-text::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--waiting);
+  margin-right: 8px; vertical-align: 1px; }
+#notice { color: var(--text2); }
+.spacer { flex: 1; }
+button { font: inherit; font-size: var(--tab-font); color: var(--text); background: var(--button); border: 0; border-radius: var(--radius);
+  padding: 3px 10px; cursor: pointer; }
+button:hover { background: var(--button-hover); }
+button.primary { background: var(--accent); color: var(--bg); }
+button.primary:hover { filter: brightness(1.08); }
+#refused { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; color: var(--text2); background: var(--bg);
+  font-size: var(--bar-font); padding: 24px; text-align: center; }
+
+/* Monaco, restyled: rounded floating widgets, system UI font in menus, no stock VS Code look. */
+.monaco-editor .suggest-widget, .monaco-editor .monaco-hover, .monaco-editor .find-widget, .monaco-menu-container .monaco-menu,
+.monaco-editor .parameter-hints-widget { border-radius: var(--radius) !important; }
+.monaco-editor .find-widget { box-shadow: 0 6px 18px rgba(0,0,0,.35) !important; border: 1px solid var(--line) !important; }
+.monaco-editor .find-widget .monaco-inputbox { border-radius: 4px; }
+.monaco-menu-container .monaco-menu { padding: 4px 0; box-shadow: 0 8px 24px rgba(0,0,0,.4) !important; }
+.monaco-menu .action-item .action-label, .monaco-menu .action-item .keybinding { font-family: -apple-system, system-ui, sans-serif !important;
+  font-size: var(--bar-font) !important; }
+.monaco-scrollable-element > .scrollbar > .slider { border-radius: 5px; }
+.monaco-editor .monaco-hover, .monaco-editor .suggest-widget { font-family: -apple-system, system-ui, sans-serif; }

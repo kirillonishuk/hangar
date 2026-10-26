@@ -40,9 +40,7 @@ struct IntegrationSheet: View {
                     .padding(.top, Theme.sheetLineGap)
             }
 
-            HStack(spacing: Theme.sheetButtonGap) {
-                Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-                Spacer(minLength: 0)
+            SheetFooter {
                 Button(L10n.cancel, action: onCancel)
                     .buttonStyle(SheetButton(primary: false))
                     .keyboardShortcut(.cancelAction)
@@ -50,13 +48,10 @@ struct IntegrationSheet: View {
                     .buttonStyle(SheetButton(primary: true))
                     .keyboardShortcut(.return, modifiers: .command)
             }
-            .padding(.vertical, Theme.sheetFooterPaddingV)
             .padding(.top, Theme.sheetGap)
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .background(Theme.ui.sheet)
+        .sheetFrame()
+        .lineLimit(nil)  // the diff and the title wrap: everything written is visible
     }
 
     /// «Изменить <path>?» with the path in mono.

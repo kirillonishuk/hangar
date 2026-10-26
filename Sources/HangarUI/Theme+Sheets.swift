@@ -2,10 +2,11 @@ import SwiftUI
 
 /// Sheet and settings-window tokens (DESIGN.md «Лист», «Окно настроек»); the rest of `Theme` lives in Theme.swift.
 extension Theme {
-    /// Project settings: «Команда после создания» (~165 at `sheetRow`, ru; en is shorter) on one line.
-    public static let projectCardLabelWidth: CGFloat = 168
-    /// Project settings sheet: `sheetWidth` + the wider label column, so long paths keep room.
-    public static let projectSheetWidth: CGFloat = 640
+    /// Confirmations (archive, delete, remove): narrower; their switch label takes most of the row.
+    public static let confirmSheetWidth: CGFloat = 480
+    public static let cardLabelWide: CGFloat = 300
+    /// Destructive button: `failed` at this strength under `failedText`.
+    public static let destructiveFillOpacity: Double = 0.18
     /// Card row content height: a segment, a picker or a `SheetButton` fits, so text-only rows are as tall.
     public static let cardRowMinHeight: CGFloat = 26
     /// Between footer / inline buttons, and between a title and its subtitle.
@@ -21,15 +22,6 @@ extension Theme {
     public static let dropdownItemGap: CGFloat = 8
     /// `SheetButton` and sheet icon menus on hover (the `FilledRowStyle` approach: lighter fill).
     public static let sheetButtonHoverBrightness: Double = 0.06
-}
-
-extension Theme {
-    /// ☕ row: the on/off switch and the «held» dot on the icon.
-    public static let keepAwakeSwitchWidth: CGFloat = 24
-    public static let keepAwakeSwitchHeight: CGFloat = 14
-    public static let keepAwakeSwitchInset: CGFloat = 2
-    public static let keepAwakeDot: CGFloat = 6
-    public static let keepAwakeDotOffset: CGFloat = 2
 }
 
 extension Theme.ui {

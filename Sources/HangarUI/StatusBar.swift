@@ -161,6 +161,14 @@ struct WindowStatusBar: View {
                 .modifier(StatusItem())
             }
             Spacer(minLength: 0)
+            // ☕ only while sleep is held (the setting is in Settings → Уведомления); right edge, so nothing shifts.
+            let keep = app.keepAwake
+            if showsKeepAwake(enabled: app.config.keepAwake, held: keep.held) {
+                IconView(icon: .keepAwake, size: Theme.rowStatusIcon, tint: Theme.ui.accentText)
+                    .modifier(StatusItem())
+                    .help(L10n.keepAwakeHelp(enabled: true, held: true, working: keep.working))
+                    .accessibilityLabel(L10n.keepAwakeTitle)
+            }
             if let panes = line.panes {
                 Text(verbatim: L10n.paneCount(panes)).modifier(StatusItem()).help(L10n.statusPanesHelp)
                 if let process = line.process {
@@ -214,3 +222,6 @@ private struct StatusButton<Label: View>: View {
         .help(help)
     }
 }
+
+/// The status bar's ☕: only while the sleep assertion is actually held for working agents.
+func showsKeepAwake(enabled: Bool, held: Bool) -> Bool { enabled && held }

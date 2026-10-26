@@ -14,18 +14,11 @@ struct ServerCheckSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.serverTitle(model.host))
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
-                .foregroundStyle(Theme.ui.sheetText)
-                .padding(.top, Theme.sheetHeaderTop)
-                .padding(.bottom, Theme.sheetHeaderBottom)
+            SheetHeader(title: L10n.serverTitle(model.host))
             ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
                 .padding(.top, Theme.sheetNameTop)
-            HStack(spacing: Theme.sheetButtonGap) {
-                // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
-                Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-                    .opacity(model.phase == .installing ? 0 : 1)
-                Spacer(minLength: 0)
+            // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
+            SheetFooter(hintHidden: model.phase == .installing) {
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
                     .buttonStyle(SheetButton(primary: false))
@@ -42,13 +35,8 @@ struct ServerCheckSheet: View {
                     InstallButton(model: model, primary: true)
                 }
             }
-            .padding(.vertical, Theme.sheetFooterPaddingV)
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .lineLimit(1)
-        .background(Theme.ui.sheet)
+        .sheetFrame()
     }
 }
 
@@ -133,44 +121,50 @@ struct ServerCheckView: View {
 
     // MARK: Tools
 
+    /// A found tool: its version (or path) in `text2`, cut in the middle with the whole in the tooltip.
+    private func found(_ text: String) -> some View {
+        Text(verbatim: L10n.toolFound(text)).foregroundStyle(Theme.ui.text2)
+            .lineLimit(1).truncationMode(.middle)
+            .help(text)
+    }
+
     private func tools(_ r: ServerReport) -> some View {
-        VStack(spacing: 0) {
+        CardSection(title: L10n.sectionToolsTitle) {
             ForEach(Array([RemoteTool.git, .tmux, .claude, .codex].enumerated()), id: \.offset) { i, tool in
                 CardRow(label: tool.rawValue, mono: true, compact: true, first: i == 0) {
                     if let info = r.tools[tool] {
-                        Text(verbatim: L10n.toolFound(info.version.isEmpty ? info.path : info.version)).foregroundStyle(Theme.ui.text2)
+                        found(info.version.isEmpty ? info.path : info.version)
                     } else if r.missingRequired.contains(tool) {
-                        Text(L10n.toolMissing).foregroundStyle(Theme.ui.failed)
+                        Pill(text: L10n.toolMissing, color: Theme.ui.failed)
                     } else {
-                        Text(L10n.toolOptional).foregroundStyle(Theme.ui.text3)
+                        Pill(text: L10n.toolOptional, color: Theme.ui.text3)
                     }
                 }
             }
             // socat is not a RemoteTool: python3, socat or nc, whichever the check found first.
             CardRow(label: L10n.socketClient, compact: true) {
                 if let client = r.socketClient {
-                    Text(verbatim: L10n.toolFound(client)).foregroundStyle(Theme.ui.text2)
+                    found(client)
                 } else {
-                    Text(L10n.toolMissing).foregroundStyle(Theme.ui.failed)
+                    Pill(text: L10n.toolMissing, color: Theme.ui.failed)
                 }
             }
             CardRow(label: "hangar-remote", mono: true, compact: true) {
                 if let v = r.remoteVersion, !r.remoteOutdated(current: hangarRemoteVersion) {
-                    Text(verbatim: L10n.toolFound(String(v))).foregroundStyle(Theme.ui.text2)
+                    found(String(v))
                 } else if let v = r.remoteVersion {
-                    Text(verbatim: L10n.toolOutdated(String(v))).foregroundStyle(Theme.ui.waiting)
+                    Pill(text: L10n.toolOutdated(String(v)), color: Theme.ui.waiting)
                 } else {
-                    Text(L10n.toolMissing).foregroundStyle(Theme.ui.failed)
+                    Pill(text: L10n.toolMissing, color: Theme.ui.failed)
                 }
             }
         }
-        .sheetCard()
     }
 
     // MARK: Integrations
 
     private func integrations(_ r: ServerReport) -> some View {
-        VStack(spacing: 0) {
+        CardSection(title: L10n.settingsIntegrations) {
             CardRow(label: L10n.remoteIntegration("Claude Code"), labelWidth: Theme.remoteIntegrationLabelWidth, first: true) {
                 integrationValue(.claude, r)
             }
@@ -178,12 +172,11 @@ struct ServerCheckView: View {
                 integrationValue(.codex, r)
             }
         }
-        .sheetCard()
     }
 
     @ViewBuilder private func integrationValue(_ target: IntegrationTarget, _ r: ServerReport) -> some View {
         let status = integrationStatus(target, r)
-        Text(verbatim: status.text).foregroundStyle(status.color)
+        Pill(text: status.text, color: status.color)
         Spacer(minLength: Theme.cardRowGap)
         if let action = status.action {
             // Hooks call hangar-remote: first the plan below has to put it on the server.
@@ -203,10 +196,11 @@ struct ServerCheckView: View {
         guard let state else {
             return target == .codex && r.tools[.codex] == nil ? (L10n.codexNotFound, Theme.ui.text3, nil) : ("—", Theme.ui.text3, nil)
         }
+        let pill = integrationPill(state)
         return switch state {
-        case .installed, .installedStatuslineByUser: (L10n.integrationShortInstalled, integrationStatusColor(state), (L10n.removeEllipsis, false))
-        case .outdated: (L10n.integrationShortOutdated, integrationStatusColor(state), (L10n.updateEllipsis, true))
-        case .notInstalled: (L10n.integrationNotInstalled, integrationStatusColor(state), (L10n.installEllipsis, true))
+        case .installed, .installedStatuslineByUser: (pill.text, pill.color, (L10n.removeEllipsis, false))
+        case .outdated: (pill.text, pill.color, (L10n.updateEllipsis, true))
+        case .notInstalled: (pill.text, pill.color, (L10n.installEllipsis, true))
         }
     }
 
@@ -230,7 +224,9 @@ struct ServerCheckView: View {
     private var planBlock: some View {
         VStack(alignment: .leading, spacing: Theme.sheetMessageTop) {
             HStack(spacing: Theme.sheetButtonGap) {
-                Text(L10n.installPlanTitle).foregroundStyle(Theme.ui.text2)
+                Text(L10n.installPlanTitle)
+                    .font(.system(size: Theme.fontSize.tab, weight: .semibold))
+                    .foregroundStyle(Theme.ui.text2)
                 Spacer(minLength: 0)
                 if embedded, !model.plan.steps.isEmpty { InstallButton(model: model, primary: false) }
             }
@@ -274,14 +270,13 @@ struct ServerCheckView: View {
         HStack(spacing: Theme.sheetButtonGap) {
             Text(L10n.optionalToolsLabel).foregroundStyle(Theme.ui.text3)
             ForEach(model.missingOptional, id: \.self) { tool in
-                Toggle(isOn: Binding(get: { model.optional.contains(tool) },
-                                     set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } })) {
+                HStack(spacing: Theme.inlineGap) {
+                    CardSwitch(isOn: Binding(get: { model.optional.contains(tool) },
+                                             set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } }))
                     Text(verbatim: tool.rawValue).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
                 }
-                .toggleStyle(.checkbox)
                 .disabled(model.phase == .installing)
-                .pointingHand(model.phase != .installing)
             }
         }
     }

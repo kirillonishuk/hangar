@@ -82,6 +82,8 @@
 "pillUnavailable" = "недоступно";
 "pillChecking" = "проверка…";
 "pillError" = "ошибка";
+"sectionProjectTitle" = "Проект";
+"sectionToolsTitle" = "Инструменты";
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";

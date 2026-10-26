@@ -52,7 +52,9 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         }
     }
 
-    /// Theme switch: rebuilds the config with the new colours and hands it to every open surface (no restart).
+    /// Theme switch: rebuilds the config with the new colours; terminals opened after it get them (no restart).
+    /// shortcut: open surfaces keep their colours — `ghostty_surface_update_config` re-applies the user's Ghostty theme
+    /// over Hangar's override (checked live: the background went back to the theme's); revisit with a libghostty update.
     public func update(colors: TerminalColors) {
         guard let app else { return }
         let cfg = buildConfig(colors)

@@ -24,18 +24,27 @@ extension AppState {
     /// A Changes click: replaces (or creates) the selected task's diff tab and shows it.
     func openDiff(path: String) {
         guard let id = selectedTask?.id else { return }
-        diffTabs[id] = DiffTab(path: path, active: true, selectedRowId: nil)
-        inspector.loadDiff(path: path)
-        didChange?()
+        leavingDiff { [self] in
+            diffTabs[id] = DiffTab(path: path, active: true, selectedRowId: nil)
+            inspector.loadDiff(path: path)
+            didChange?()
+        }
+    }
+
+    /// An edited diff buffer is saved, dropped or kept (Cancel) before the diff shows another file or closes.
+    private func leavingDiff(_ then: @escaping () -> Void) {
+        if let confirmLeaveDiff { confirmLeaveDiff(then) } else { then() }
     }
 
     /// A file click in the Git tab's commit details: the same diff tab, read-only, that commit against its first parent.
     func openCommitDiff(hash: String, file: ChangedFile) {
         guard let id = selectedTask?.id else { return }
-        if diffTabs[id]?.commit == nil { inspector.loadDiff(path: nil) }  // the Changes diff is no longer shown
-        diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath)
-        gitPanel.loadDiff(hash: hash, path: file.path, origPath: file.origPath)
-        didChange?()
+        leavingDiff { [self] in
+            if diffTabs[id]?.commit == nil { inspector.loadDiff(path: nil) }  // the Changes diff is no longer shown
+            diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath)
+            gitPanel.loadDiff(hash: hash, path: file.path, origPath: file.origPath)
+            didChange?()
+        }
     }
 
     /// A click on the diff tab.
@@ -52,9 +61,11 @@ extension AppState {
 
     func closeDiff() {
         guard let id = selectedTask?.id, diffTabs[id] != nil else { return }
-        diffTabs[id] = nil
-        inspector.loadDiff(path: nil)
-        didChange?()
+        leavingDiff { [self] in
+            diffTabs[id] = nil
+            inspector.loadDiff(path: nil)
+            didChange?()
+        }
     }
 
     /// ↑/↓: the previous/next file of Changes (or of the commit), stopping at the ends.
@@ -116,6 +127,12 @@ extension AppState {
         openInEditor(path: root + "/" + tab.path, line: line)
     }
 
+    /// ↩ / ⌘↩ in Monaco's diff: the working file at that place (a commit's file is history: nothing).
+    func openActiveDiffInEditor(line: Int, column: Int) {
+        guard let tab = activeDiff, tab.commit == nil, let root = inspector.root else { return }
+        openInEditor(path: root + "/" + tab.path, line: line, column: column)
+    }
+
     /// A regular tab is shown (⌘1…9, tab click, new tab, editor): the diff tab stays, inactive.
     /// The caller's `perform` re-syncs the views.
     func deactivateDiff() {
@@ -127,13 +144,14 @@ extension AppState {
 enum DiffKey: Equatable { case up, down, enter, toggleMode, close }
 
 /// Keys of the shown diff tab, by keyCode (any layout); only while it is shown and no text field edits.
-func diffKeyRoute(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, diffActive: Bool, editingText: Bool) -> DiffKey? {
+/// ↑/↓/↩ belong to Monaco while its diff editor has focus (`webFocused`; there ⌥⌘↑/↓ step through files).
+func diffKeyRoute(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, diffActive: Bool, editingText: Bool, webFocused: Bool = false) -> DiffKey? {
     guard diffActive, !editingText else { return nil }
     let mods = modifiers.intersection([.command, .shift, .option, .control])
     switch (keyCode, mods) {
-    case (126, []): return .up
-    case (125, []): return .down
-    case (36, []): return .enter
+    case (126, []) where !webFocused: return .up
+    case (125, []) where !webFocused: return .down
+    case (36, []) where !webFocused: return .enter
     case (11, .option): return .toggleMode
     case (13, .command): return .close
     default: return nil

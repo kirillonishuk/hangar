@@ -173,7 +173,7 @@ import Workspace
         let two = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
         app.selectDiffRow(two)
         var opened: (String, Int?)?
-        app.onOpenInEditor = { opened = ($0, $1) }
+        app.onOpenInEditor = { path, line, _ in opened = (path, line) }
         app.openActiveDiffInEditor()
         #expect(opened?.0 == repo.repo + "/sub/s.txt")
         #expect(opened?.1 == 2)

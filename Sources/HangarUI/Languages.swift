@@ -4,8 +4,7 @@ import Foundation
 /// TS/JS file opens in an editor, stopped `grace` after the last one closes (one one-shot task, no polling),
 /// restarted once after a crash. Editor panes tell it what they open, edit and close; it answers their requests and
 /// pushes diagnostics and a status to them.
-/// shortcut: TS/JS only — Swift (sourcekit-lsp from the Xcode toolchain), Python and Go need an LSP client; add one
-/// beside this when asked.
+/// Other languages' files go to `lsp` (#90).
 @MainActor final class Languages {
     /// An editor pane that shows the file: where its markers and status go, and how to read its buffer back.
     struct Owner {
@@ -53,6 +52,7 @@ import Foundation
     private let launch: (String?, TsInstall) -> TsLaunch?
     private let grace: Duration
     private let debounce: Duration
+    private let lsp: LspLanguages?
     private var docs: [DocKey: Doc] = [:]
     private var entries: [ServerKey: Entry] = [:]
     private var lookups: [String: Task<TsLookup, Never>] = [:]
@@ -62,16 +62,16 @@ import Foundation
     /// `lookup(host, folder, root)` finds the project's TypeScript; `launch(host, install)` says how to run it
     /// (nil: the host is not connected).
     init(lookup: @escaping (String?, String, String) async -> TsLookup, launch: @escaping (String?, TsInstall) -> TsLaunch?,
-         grace: Duration = .seconds(120), debounce: Duration = .milliseconds(400)) {
-        self.lookup = lookup; self.launch = launch; self.grace = grace; self.debounce = debounce
+         grace: Duration = .seconds(120), debounce: Duration = .milliseconds(400), lsp: LspLanguages? = nil) {
+        self.lookup = lookup; self.launch = launch; self.grace = grace; self.debounce = debounce; self.lsp = lsp
     }
 
-    var runningCount: Int { entries.values.filter { $0.server.isRunning }.count }
+    var runningCount: Int { entries.values.filter { $0.server.isRunning }.count + (lsp?.runningCount ?? 0) }
 
     // MARK: Documents
 
     func opened(_ path: String, text: String, host: String?, owner: Owner) {
-        guard TsMap.scriptKind(path) != nil else { return }
+        guard TsMap.scriptKind(path) != nil else { lsp?.opened(path, text: text, host: host, owner: owner); return }
         let key = DocKey(host: host, path: path)
         if let doc = docs[key] {
             doc.owners[owner.id] = owner
@@ -85,6 +85,7 @@ import Foundation
     }
 
     func edited(_ path: String, _ edits: [EditorEdit], host: String?) {
+        guard TsMap.scriptKind(path) != nil else { lsp?.edited(path, edits, host: host); return }
         let key = DocKey(host: host, path: path)
         guard let doc = docs[key], !doc.reopening else { return }
         guard let sk = doc.server, let entry = entries[sk] else { doc.edits += edits; return }
@@ -93,6 +94,7 @@ import Foundation
     }
 
     func closed(_ path: String, host: String?, owner: UUID) {
+        guard TsMap.scriptKind(path) != nil else { lsp?.closed(path, host: host, owner: owner); return }
         let key = DocKey(host: host, path: path)
         guard let doc = docs[key] else { return }
         doc.owners[owner] = nil
@@ -106,11 +108,13 @@ import Foundation
 
     /// The pane went away or its page reloaded.
     func closedAll(owner: UUID) {
+        lsp?.closedAll(owner: owner)
         for (key, doc) in docs where doc.owners[owner] != nil { closed(key.path, host: key.host, owner: owner) }
     }
 
     /// The status item's click: a stopped or stuck server starts afresh; a missing TypeScript is looked up again.
     func restart(_ path: String, host: String?) {
+        guard TsMap.scriptKind(path) != nil else { lsp?.restart(path, host: host); return }
         let key = DocKey(host: host, path: path)
         guard let doc = docs[key] else { return }
         guard let sk = doc.server, let entry = entries[sk] else {
@@ -124,6 +128,7 @@ import Foundation
 
     /// App quit.
     func stopAll() {
+        lsp?.stopAll()
         for entry in entries.values {
             entry.grace?.cancel()
             entry.diagnostics?.cancel()
@@ -137,6 +142,7 @@ import Foundation
 
     /// `read`: a file's text for the references peek (files the page has no model of).
     func request(_ r: ProviderRequest, host: String?, read: (String) async -> String?) async -> ProviderResult? {
+        if TsMap.scriptKind(r.file) == nil { return await lsp?.request(r, host: host, read: read) }
         let key = DocKey(host: host, path: r.file)
         guard let doc = docs[key], let sk = doc.server, let entry = entries[sk], !entry.failed else { return nil }
         let server = entry.server

@@ -21,11 +21,41 @@ extension AppState {
                       let args = sshStreamArgs(host: host, controlPath: target.controlPath, path: self.remote.hosts[host]?.report?.path,
                                                cwd: install.cwd, argv: [install.node] + install.serverArgs(locale: locale)) else { return nil }
                 return TsLaunch(executable: target.sshPath, args: args, cwd: "/")
-            })
+            },
+            lsp: LspLanguages(find: { [weak self] language, root in
+                let path = await self?.loginShellPath()
+                return await LspMap.find(language, projectRoot: root, path: (path ?? "").split(separator: ":").map(String.init),
+                                         home: NSHomeDirectory(), isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
+                                         toolchain: xcrunFind)
+            }, path: { [weak self] in await self?.loginShellPath() }))
     }
 
     /// App quit: every tsserver gets `exit` and EOF.
     public func stopLanguages() { languages.stopAll() }
+
+    /// The login shell's PATH (nil: it didn't answer in 15 s; looked up again next time).
+    private func loginShellPath() async -> String? {
+        if let loginPath { return await loginPath.value }
+        let shell = posixShell(userShell)
+        let task = Task<String?, Never> {
+            await withTaskGroup(of: String?.self) { group in
+                group.addTask {
+                    guard let r = try? await Runner.local.run([shell, "-l", "-i", "-c", #"printf '\nHANGAR-PATH=%s\n' "$PATH""#],
+                                                              NSHomeDirectory()) else { return nil }
+                    let dirs = LspMap.parsePath(r.stdout)
+                    return dirs.isEmpty ? nil : dirs.joined(separator: ":")
+                }
+                group.addTask { try? await Task.sleep(for: .seconds(15)); return nil }
+                let first = await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
+        }
+        loginPath = task
+        let path = await task.value
+        if path == nil { loginPath = nil }
+        return path
+    }
 
     /// The login shell's `node`, else the usual Homebrew places; nil when there is none.
     private func nodePath() async -> String? {
@@ -50,4 +80,12 @@ extension AppState {
         if node == nil { localNode = nil }  // installed later: the restart action finds it
         return node
     }
+}
+
+/// A developer tool from the active Xcode / Command Line Tools (sourcekit-lsp); nil without them — `xcode-select -p`
+/// goes first, so a Mac without them never gets the install dialog.
+private func xcrunFind(_ name: String) async -> String? {
+    guard let dir = try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"), dir.status == 0,
+          let r = try? await Runner.local.run(["/usr/bin/xcrun", "--find", name], "/"), r.status == 0 else { return nil }
+    return r.stdout.split(whereSeparator: \.isNewline).first.map(String.init)
 }

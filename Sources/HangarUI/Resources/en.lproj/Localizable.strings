@@ -488,6 +488,11 @@
 "tsNotConnected" = "TS unavailable — host not connected";
 "tsTooltip" = "%1$@\nnode: %2$@\nClick to restart";
 "tsUnavailableTip" = "Definitions, references and errors come from the project's TypeScript (node_modules/typescript) and node. Click to check again";
+"lspLoading" = "%@ · starting…";
+"lspStopped" = "%@ stopped";
+"lspMissing" = "%@ — no language server";
+"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH or in Xcode. Click to check again";
+"lspTooltip" = "%@\nClick to restart";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";
 
 /* In-app updates (#86) */

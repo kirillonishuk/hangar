@@ -62,8 +62,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((String, Int?, Int?) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
-    /// M2 hook: answers Monaco's definition / references / hover / completion requests; nil = none (#80).
-    @ObservationIgnored var editorProvider: EditorProvider?
+    /// TS/JS language features of the editors (tsserver, #NN-tsserver).
+    @ObservationIgnored lazy var languages: Languages = makeLanguages()
+    /// `node` from the login shell, looked up once (#NN-tsserver).
+    @ObservationIgnored var localNode: Task<String?, Never>?
     /// Asks before the diff tab drops an edited buffer (set by `TerminalArea` with the diff editor).
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
     /// Diff tabs with an edited, unsaved working file (quitting asks).

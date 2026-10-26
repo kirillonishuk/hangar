@@ -18,6 +18,8 @@ import Foundation
     private(set) var files: [String: File] = [:]
     /// A file's dirty flag changed (the tab's dot).
     var onDirty: ((String, Bool) -> Void)?
+    /// An editable text file is now in the page (path, text): the language server gets it.
+    var onOpened: ((String, String) -> Void)?
 
     init(io: EditorIO, limits: EditorLimits = EditorLimits(), send: @escaping (EditorCommand) -> Void) {
         self.io = io
@@ -42,10 +44,12 @@ import Foundation
             switch try await io.read(path, limits.refuse) {
             case .text(let text, let stamp):
                 let large = text.utf8.count > limits.editable
+                // Go to definition lands in node_modules: shown, never edited by accident.
+                let dependency = TsMap.isDependency(path)
                 open.text = text
-                open.readOnly = large
-                open.notice = large ? L10n.editorLargeReadOnly : nil
-                file = File(stamp: stamp, readOnly: large)
+                open.readOnly = large || dependency
+                open.notice = large ? L10n.editorLargeReadOnly : dependency ? L10n.editorDependencyReadOnly : nil
+                file = File(stamp: stamp, readOnly: large || dependency)
             case .tooLarge(let size): open.notice = L10n.editorTooLarge(size)
             case .binary: open.notice = L10n.editorBinary
             case .missing: open.notice = L10n.editorMissing
@@ -56,6 +60,7 @@ import Foundation
         guard files[path] != nil else { return }  // closed while reading
         files[path] = file
         send(.open(open))
+        if let text = open.text, text.utf8.count <= limits.editable { onOpened?(path, text) }
     }
 
     /// The diff's working side: read here and tracked like an open file (the page gets it inside `.diff`).

@@ -82,6 +82,13 @@ extension Runner {
     }
 }
 
+/// ssh argv running `argv` on `host` with stdio kept open (a long-lived process such as tsserver); `path` and `cwd`
+/// as in `Runner.ssh`. nil for an invalid host.
+public func sshStreamArgs(host: String, controlPath: String, path: String?, cwd: String, argv: [String]) -> [String]? {
+    guard let host = validSSHHost(host) else { return nil }
+    return sshBaseArgs(controlPath: controlPath) + ["-T", "--", host, remoteShellArgs(script: remoteRunScript, [path ?? "", cwd] + argv)]
+}
+
 /// Runs `/bin/sh -c script sh args…` on `host` with `input` as stdin (writing `hangar-remote` and integration files).
 public func sshWrite(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh",
                      script: String, args: [String], input: Data) async throws -> RunResult {

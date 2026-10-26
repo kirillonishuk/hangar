@@ -201,4 +201,31 @@ import Testing
         #expect(diskChange(loaded: a, current: b, dirty: true) == .conflict)
         #expect(diskChange(loaded: a, current: nil, dirty: false) == .none)  // deleted: the buffer stays
     }
+
+    /// A tab shown while its file still loads (#83): the disk check must not "reload" it on top of the load — that
+    /// reload arrived as an edit and left a clean buffer dirty.
+    @Test func diskCheckSkipsAFileStillLoading() async throws {
+        let path = try write("slow.ts", "a\n")
+        let gate = Gate()
+        var io = EditorIO.local
+        let read = io.read
+        io.read = { p, max in await gate.wait(); return try await read(p, max) }
+        let (s, sink) = session(io)
+        let open = Task { await s.open(path: path, line: nil, column: nil) }
+        await Task.yield()
+        let check = Task { await s.checkDisk() }
+        for _ in 0..<20 { await Task.yield() }  // the check gets as far as it can while the file loads
+        await gate.open()
+        await open.value
+        await check.value
+        #expect(sink.sent.filter { if case .reload = $0 { true } else { false } }.isEmpty)
+        #expect(opened(sink).count == 1 && !s.isDirty(path))
+    }
+
+    private actor Gate {
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+        private var isOpen = false
+        func wait() async { if !isOpen { await withCheckedContinuation { waiting.append($0) } } }
+        func open() { isOpen = true; waiting.forEach { $0.resume() }; waiting = [] }
+    }
 }

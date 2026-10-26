@@ -429,9 +429,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.hangarShortcutConsumed()
             switch key {
             case .monaco: break
-            case .closeFile: if !event.isARepeat { column.terminalArea.focusedEditor?.closeActive() }
-            case .prevFile: column.terminalArea.focusedEditor?.step(-1)
-            case .nextFile: column.terminalArea.focusedEditor?.step(1)
             case .prevDiffFile: app.diffNeighbour(-1)
             case .nextDiffFile: app.diffNeighbour(1)
             }

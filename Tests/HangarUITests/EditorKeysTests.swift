@@ -22,10 +22,12 @@ import Testing
         }
     }
 
-    @Test func editorTabsAndClose() {
-        #expect(editorKeyRoute(keyCode: 13, modifiers: cmd, focus: .editor) == .closeFile)       // ⌘W
-        #expect(editorKeyRoute(keyCode: 123, modifiers: optCmd, focus: .editor) == .prevFile)    // ⌥⌘←
-        #expect(editorKeyRoute(keyCode: 124, modifiers: optCmd, focus: .editor) == .nextFile)    // ⌥⌘→
+    /// A file is a Hangar tab (#83): ⌘W is Hangar's close (it asks for unsaved), ⌥⌘←/→ Hangar's split focus.
+    @Test func fileTabsUseHangarKeys() {
+        #expect(editorKeyRoute(keyCode: 13, modifiers: cmd, focus: .editor) == nil)       // ⌘W
+        #expect(shortcut(keyCode: 13, modifiers: cmd) == .closeTab)
+        #expect(editorKeyRoute(keyCode: 123, modifiers: optCmd, focus: .editor) == nil)   // ⌥⌘←
+        #expect(editorKeyRoute(keyCode: 124, modifiers: optCmd, focus: .editor) == nil)   // ⌥⌘→
         // In the diff ⌘W closes the diff tab (diffKeyRoute), ⌥⌘↑/↓ step through its files.
         #expect(editorKeyRoute(keyCode: 13, modifiers: cmd, focus: .diff) == nil)
         #expect(editorKeyRoute(keyCode: 126, modifiers: optCmd, focus: .diff) == .prevDiffFile)
@@ -52,7 +54,7 @@ import Testing
     /// Physical keys: the Russian layout (or caps lock / fn noise) changes nothing.
     @Test func matchesByKeyCode() {
         #expect(editorKeyRoute(keyCode: 2, modifiers: [.command, .capsLock], focus: .editor) == .monaco)
-        #expect(editorKeyRoute(keyCode: 124, modifiers: [.option, .command, .function, .numericPad], focus: .editor) == .nextFile)
+        #expect(editorKeyRoute(keyCode: 3, modifiers: [.command, .function, .numericPad], focus: .editor) == .monaco)
         #expect(editorKeyRoute(keyCode: 2, modifiers: cmd, focus: .none) == nil)  // outside the editor ⌘D splits
         #expect(shortcut(keyCode: 2, modifiers: cmd) == .splitRight)
     }

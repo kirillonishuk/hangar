@@ -1,5 +1,6 @@
 // Hangar ↔ Monaco (decision #80). Swift drives through `hangar.receive(cmd)`; the page answers with
-// `post(msg)` (validated in Swift: BridgeMessage). One page is either the editor (file tabs, many models) or the diff.
+// `post(msg)` (validated in Swift: BridgeMessage). One page is either the editor of every file tab (#83: a model per
+// tab, keyed by its `doc`, the Hangar tab strip outside the page) or the diff (keyed by path).
 'use strict';
 (function () {
   const cfg = window.hangarConfig;
@@ -10,9 +11,11 @@
   if (cfg.mode === 'diff') document.body.classList.add('diff');
 
   const $ = (id) => document.getElementById(id);
-  const files = new Map();   // path → { model, view, readOnly, notice, conflict, saved, dirty, refused }
-  let order = [];            // tab order (paths)
-  let active = null;         // path
+  const files = new Map();   // doc (diff: path) → { doc, path, model, view, readOnly, notice, conflict, saved, dirty, refused, at }
+  let active = null;         // the shown doc (diff: path)
+  const keyOf = (c) => c.doc || c.path;
+  // Every message about a file names its tab (`doc`) and its path.
+  const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
   let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
   const queue = [];
@@ -21,8 +24,9 @@
   $('bar-reload').textContent = cfg.strings.reload;
   $('bar-keep').textContent = cfg.strings.keepMine;
   $('bar-text').textContent = cfg.strings.conflict;
-  $('bar-reload').onclick = () => active && post({ type: 'conflict', file: active, keepMine: false });
-  $('bar-keep').onclick = () => active && post({ type: 'conflict', file: active, keepMine: true });
+  const conflictChoice = (keepMine) => { const f = active && files.get(active); if (f) postFile(f, { type: 'conflict', keepMine }); };
+  $('bar-reload').onclick = () => conflictChoice(false);
+  $('bar-keep').onclick = () => conflictChoice(true);
 
   function boot() {
     require.config({ paths: { vs: '../vs' } });
@@ -75,7 +79,6 @@
     } else {
       editor = monaco.editor.create($('host'), Object.assign({}, common, { model: null }));
       wireEditor(editor);
-      renderTabs();
     }
     window.hangar.ready = true;
     post({ type: 'ready' });
@@ -89,62 +92,72 @@
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => save());
     ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Minus, () => navigate(back, fwd));
     ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyMod.Shift | monaco.KeyCode.Minus, () => navigate(fwd, back));
-    ed.onDidFocusEditorText(() => post({ type: 'focus' }));
+    ed.onDidFocusEditorText(() => { const f = active && files.get(active); post(f ? { type: 'focus', doc: f.doc } : { type: 'focus' }); });
     let timer = null;
     // One-shot, only after a move: the cursor is kept for restore without a message per keystroke.
     ed.onDidChangeCursorPosition(() => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const p = ed.getPosition(), path = pathOf(ed.getModel());
-        if (p && path) post({ type: 'cursor', file: path, line: p.lineNumber, column: p.column });
+        const p = ed.getPosition(), f = fileOf(ed.getModel());
+        if (p && f) postFile(f, { type: 'cursor', line: p.lineNumber, column: p.column });
       }, 400);
     });
   }
 
-  function pathOf(model) {
+  function fileOf(model) {
     if (!model) return null;
-    for (const [p, f] of files) if (f.model === model) return p;
+    for (const f of files.values()) if (f.model === model) return f;
     return null;
   }
+  const activePath = () => { const f = active && files.get(active); return f ? f.path : null; };
 
   function save() {
     const f = active && files.get(active);
-    if (f && f.model && !f.readOnly) post({ type: 'save', file: active, text: f.model.getValue() });
+    if (f && f.model && !f.readOnly) postFile(f, { type: 'save', text: f.model.getValue() });
   }
 
   // TS/JS buffers are mirrored in tsserver (#82): every change goes to Swift as an incremental edit.
   const tsLike = /\.(m|c)?[jt]sx?$/i;
 
+  // A tab's file arrives (also for tabs not on screen: their models wait). Its URI carries the tab, so one file
+  // open in two sessions' tabs is two buffers.
   function open(c) {
-    if (!files.has(c.path)) {
-      const f = { readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false, refused: c.text == null, view: null, model: null, lang: null };
-      if (c.text != null) {
-        dropPreview(c.path);
-        f.model = monaco.editor.createModel(c.text, undefined, monaco.Uri.file(c.path));
-        f.saved = f.model.getAlternativeVersionId();
-        const mirror = tsLike.test(c.path);
-        f.model.onDidChangeContent((e) => {
-          if (mirror) post({ type: 'edit', file: c.path, changes: e.changes.map((ch) => ({ line: ch.range.startLineNumber,
-            column: ch.range.startColumn, endLine: ch.range.endLineNumber, endColumn: ch.range.endColumn, text: ch.text })) });
-          const dirty = f.model.getAlternativeVersionId() !== f.saved;
-          if (dirty !== f.dirty) { f.dirty = dirty; post({ type: 'changed', file: c.path, dirty }); renderTabs(); }
-        });
-      }
-      files.set(c.path, f);
-      order.push(c.path);
+    if (files.has(c.doc)) return;
+    const f = { doc: c.doc, path: c.path, readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false,
+      refused: c.text == null, view: null, model: null, at: { line: c.line, column: c.column } };
+    if (c.text != null) {
+      dropPreview(c.path);
+      f.model = monaco.editor.createModel(c.text, undefined, monaco.Uri.from({ scheme: 'file', authority: c.doc.toLowerCase(), path: c.path }));
+      f.saved = f.model.getAlternativeVersionId();
+      const mirror = tsLike.test(c.path);
+      f.model.onDidChangeContent((e) => {
+        if (mirror) postFile(f, { type: 'edit', changes: e.changes.map((ch) => ({ line: ch.range.startLineNumber,
+          column: ch.range.startColumn, endLine: ch.range.endLineNumber, endColumn: ch.range.endColumn, text: ch.text })) });
+        if (f.reloading) return;  // the disk's text replacing a clean buffer: still clean (Swift knows)
+        const dirty = f.model.getAlternativeVersionId() !== f.saved;
+        if (dirty !== f.dirty) { f.dirty = dirty; postFile(f, { type: 'changed', dirty }); }
+      });
     }
-    activate(c.path, c.line, c.column);
+    files.set(c.doc, f);
+    if (active === c.doc) show(f, c.line, c.column);
   }
 
-  function activate(path, line, column) {
-    const f = files.get(path);
-    if (!f) return;
+  // The tab on screen (Swift's `activate`): its model in the editor, with its own view state; a line moves the cursor.
+  function activate(doc, line, column) {
     const cur = active && files.get(active);
-    if (cur && cur.model && active !== path) cur.view = editor.saveViewState();
-    active = path;
-    editor.setModel(f.model);
+    if (cur && cur.model && active !== doc && editor.getModel() === cur.model) cur.view = editor.saveViewState();
+    active = doc;
+    const f = files.get(doc);
+    if (!f) { editor.setModel(null); renderChrome(); return; }  // its file is still loading
+    show(f, line, column);
+  }
+
+  function show(f, line, column) {
+    if (editor.getModel() !== f.model) editor.setModel(f.model);
     editor.updateOptions({ readOnly: f.readOnly });
-    if (f.model && f.view && active === path && !line) editor.restoreViewState(f.view);
+    if (f.model && f.view && !line) editor.restoreViewState(f.view);
+    else if (f.model && !line && f.at) { line = f.at.line; column = f.at.column; }
+    f.at = null;
     if (f.model && line) {
       const pos = { lineNumber: line, column: column || 1 };
       editor.setPosition(pos);
@@ -154,13 +167,13 @@
     if (f.model) editor.focus();
   }
 
-  function close(path) {
-    const f = files.get(path);
+  function close(doc) {
+    const f = files.get(doc);
     if (!f) return;
+    if (editor && editor.getModel() === f.model) editor.setModel(null);
     if (f.model) f.model.dispose();
-    files.delete(path);
-    order = order.filter((p) => p !== path);
-    if (active === path) { active = null; editor.setModel(null); }
+    files.delete(doc);
+    if (active === doc) active = null;
     renderChrome();
   }
 
@@ -171,68 +184,16 @@
     $('notice').textContent = (f && f.notice) || '';
     $('refused').hidden = !(f && f.refused);
     $('refused').textContent = (f && f.refused && f.notice) || '';
-    renderTabs();
   }
 
-  function renderTabs() {
-    if (cfg.mode === 'diff') return;
-    const bar = $('tabs');
-    bar.textContent = '';
-    const names = order.map((p) => p.split('/').pop());
-    order.forEach((path, i) => {
-      const f = files.get(path);
-      const tab = document.createElement('div');
-      tab.className = 'tab' + (path === active ? ' active' : '') + (f.dirty ? ' dirty' : '');
-      tab.title = path;
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = names[i];
-      tab.appendChild(name);
-      // Two open files with one name: their folder tells them apart.
-      if (names.filter((n) => n === names[i]).length > 1) {
-        const dir = document.createElement('span');
-        dir.className = 'dir';
-        dir.textContent = path.split('/').slice(-2, -1)[0] || '';
-        tab.appendChild(dir);
-      }
-      const x = document.createElement('span');
-      x.className = 'x';
-      x.onclick = (e) => { e.stopPropagation(); post({ type: 'close', file: path }); };
-      tab.appendChild(x);
-      tab.onmousedown = (e) => {
-        if (e.button === 1) { e.preventDefault(); post({ type: 'close', file: path }); return; }
-        if (e.button !== 0 || e.target === x) return;
-        if (path !== active) { activate(path); post({ type: 'activate', file: path }); }
-      };
-      bar.appendChild(tab);
-      if (path === active) requestAnimationFrame(() => tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
-    });
-    const end = document.createElement('div');
-    end.className = 'tabs-end';
-    bar.appendChild(end);
-    const cur = active && files.get(active);
-    if (cur && cur.lang) {
-      // tsserver's state for this file; a click restarts it (or looks for TypeScript again).
-      const s = document.createElement('div');
-      s.className = 'tool lang ' + cur.lang.level;
-      s.textContent = cur.lang.text;
-      s.title = cur.lang.tooltip;
-      s.onclick = () => post({ type: 'restartLanguage', file: active });
-      bar.appendChild(s);
-    }
-    const map = document.createElement('div');
-    map.className = 'tool' + (minimap ? ' on' : '');
-    map.textContent = cfg.strings.minimap;
-    map.onclick = () => post({ type: 'minimap', on: !minimap });
-    bar.appendChild(map);
-  }
-
-  function reload(path, text) {
-    const f = files.get(path);
+  function reload(doc, text) {
+    const f = files.get(doc);
     if (!f || !f.model) return;
-    const view = path === active ? editor.saveViewState() : null;
+    const view = doc === active ? editor.saveViewState() : null;
     // An edit, not setValue: undo can go back past the reload.
+    f.reloading = true;
     f.model.pushEditOperations([], [{ range: f.model.getFullModelRange(), text }], () => null);
+    f.reloading = false;
     f.saved = f.model.getAlternativeVersionId();
     f.dirty = false;
     if (view) editor.restoreViewState(view);
@@ -391,9 +352,10 @@
     const modified = monaco.editor.createModel(c.modified, undefined,
       c.path ? monaco.Uri.file(c.path) : monaco.Uri.from({ scheme: 'hangar-new', path: '/' + c.name }));
     if (c.path) {
-      const f = { model: modified, readOnly: false, conflict: false, dirty: false, saved: modified.getAlternativeVersionId() };
+      const f = { path: c.path, model: modified, readOnly: false, conflict: false, dirty: false, saved: modified.getAlternativeVersionId() };
       files.set(c.path, f);
       modified.onDidChangeContent(() => {
+        if (f.reloading) return;
         const dirty = modified.getAlternativeVersionId() !== f.saved;
         if (dirty !== f.dirty) { f.dirty = dirty; post({ type: 'changed', file: c.path, dirty }); }
       });
@@ -419,17 +381,22 @@
 
   let nextId = 1;
   function ask(kind, model, position, token, name, extra) {
-    const file = model.uri.scheme === 'file' ? model.uri.path : null;
-    if (!file) return Promise.resolve(null);
+    // Only a tab's own file (the diff: its working file): Swift answers through that tab (its host, its project).
+    const f = model.uri.scheme === 'file' ? fileOf(model) : null;
+    if (!f) return Promise.resolve(null);
+    const file = f.path;
     const id = nextId++;
     return new Promise((resolve) => {
       pending.set(id, resolve);
       token.onCancellationRequested(() => { pending.delete(id); resolve(null); });
-      post(Object.assign({ type: 'request', id, kind, file, line: position.lineNumber, column: position.column, name }, extra));
+      post(Object.assign({ type: 'request', doc: f.doc, id, kind, file, line: position.lineNumber, column: position.column, name }, extra));
     });
   }
   const range = (i) => new monaco.Range(i.line, i.column, i.endLine, i.endColumn);
-  const loc = (i) => ({ uri: monaco.Uri.file(i.path), range: new monaco.Range(i.line, i.column, i.endLine || i.line, i.endColumn || i.column) });
+  // A location in a file a tab has open points at that tab's model (the peek shows its live buffer).
+  const docUri = (path) => { const f = active && files.get(active); if (f && f.path === path && f.model) return f.model.uri;
+    for (const g of files.values()) if (g.path === path && g.model) return g.model.uri; return monaco.Uri.file(path); };
+  const loc = (i) => ({ uri: docUri(i.path), range: new monaco.Range(i.line, i.column, i.endLine || i.line, i.endColumn || i.column) });
 
   // Files the references peek shows but the page has no model of: read-only previews until the next search.
   const previews = new Map();
@@ -440,7 +407,7 @@
   function setPreviews(texts) {
     for (const p of [...previews.keys()]) if (!(p in texts)) dropPreview(p);
     for (const [p, text] of Object.entries(texts || {})) {
-      if (files.has(p) || previews.has(p) || monaco.editor.getModel(monaco.Uri.file(p))) continue;
+      if ([...files.values()].some((f) => f.path === p) || previews.has(p) || monaco.editor.getModel(monaco.Uri.file(p))) continue;
       previews.set(p, monaco.editor.createModel(text, undefined, monaco.Uri.file(p)));
     }
   }
@@ -472,16 +439,18 @@
   const back = [], fwd = [];
   function here() {
     const p = editor && editor.getPosition();
-    return active && p ? { path: active, line: p.lineNumber, column: p.column } : null;
+    return activePath() && p ? { path: activePath(), line: p.lineNumber, column: p.column } : null;
   }
   function go(t) {
-    if (t.path === active) {
+    if (t.path === activePath()) {
       const pos = { lineNumber: t.line, column: t.column };
       editor.setPosition(pos);
       editor.revealPositionInCenterIfOutsideViewport(pos);
       editor.focus();
     } else {
-      post({ type: 'openFile', file: t.path, line: t.line, column: t.column });
+      // Another file: its own Hangar tab (opened or focused there).
+      const f = active && files.get(active);
+      post({ type: 'openFile', doc: f ? f.doc : undefined, file: t.path, line: t.line, column: t.column });
     }
   }
   function remember() {
@@ -572,22 +541,21 @@
     if (!window.hangar.ready) { queue.push(c); return; }
     switch (c.type) {
       case 'open': open(c); break;
-      case 'activate': activate(c.path, c.line, c.column); break;
-      case 'close': close(c.path); break;
-      case 'reload': if (cfg.mode === 'diff') reloadDiff(c.path, c.text); else reload(c.path, c.text); break;
-      case 'saved': { const f = files.get(c.path); if (f && f.model) { f.saved = f.model.getAlternativeVersionId(); f.dirty = false; } renderChrome(); break; }
-      case 'conflict': { const f = files.get(c.path); if (f) { f.conflict = c.shown; renderChrome(); } break; }
-      case 'notice': { const f = files.get(c.path); if (f) { f.notice = c.text; renderChrome(); } break; }
-      case 'markers': { const f = files.get(c.path); if (f && f.model) monaco.editor.setModelMarkers(f.model, 'hangar', c.markers.map((m) => ({
+      case 'activate': activate(c.doc, c.line, c.column); break;
+      case 'close': close(c.doc); break;
+      case 'reload': if (cfg.mode === 'diff') reloadDiff(c.path, c.text); else reload(c.doc, c.text); break;
+      case 'saved': { const f = files.get(keyOf(c)); if (f && f.model) { f.saved = f.model.getAlternativeVersionId(); f.dirty = false; } renderChrome(); break; }
+      case 'conflict': { const f = files.get(keyOf(c)); if (f) { f.conflict = c.shown; renderChrome(); } break; }
+      case 'notice': { const f = files.get(keyOf(c)); if (f) { f.notice = c.text; renderChrome(); } break; }
+      case 'markers': { const f = files.get(keyOf(c)); if (f && f.model) monaco.editor.setModelMarkers(f.model, 'hangar', c.markers.map((m) => ({
         startLineNumber: m.line, startColumn: m.column, endLineNumber: m.endLine, endColumn: m.endColumn, message: m.message,
         severity: { error: 8, warning: 4, info: 2, hint: 1 }[m.severity] }))); break; }
-      case 'language': { const f = files.get(c.path); if (f) { f.lang = c.status; if (c.path === active) renderTabs(); } break; }
       case 'resolve': { const r = pending.get(c.id); if (r) { pending.delete(c.id); r(c.result); } break; }
       case 'diff': showDiff(c); break;
       case 'options':
         inline = c.inline; minimap = c.minimap;
         if (diff) diff.updateOptions({ renderSideBySide: !inline });
-        if (editor) { editor.updateOptions({ minimap: { enabled: minimap } }); renderTabs(); }
+        if (editor) editor.updateOptions({ minimap: { enabled: minimap } });
         break;
       case 'focus': (editor || (diff && diff.getModifiedEditor())).focus(); break;
     }
@@ -596,14 +564,16 @@
   function reloadDiff(path, text) {
     const f = files.get(path);
     if (!f || !f.model) return;
+    f.reloading = true;
     f.model.pushEditOperations([], [{ range: f.model.getFullModelRange(), text }], () => null);
+    f.reloading = false;
     f.saved = f.model.getAlternativeVersionId();
     f.dirty = false;
     renderChrome();
   }
 
-  /// For Swift: the text of a file (save before closing, debug checks).
-  function text(path) { const f = files.get(path); return f && f.model ? f.model.getValue() : null; }
+  /// For Swift: the text of a tab's file (diff: of a path) — save before closing, tsserver after a crash, debug checks.
+  function text(key) { const f = files.get(key); return f && f.model ? f.model.getValue() : null; }
 
   window.hangar = { ready: false, receive, text, find: () => {
     const e = editor || (diff && diff.getModifiedEditor());

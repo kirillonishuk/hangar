@@ -25,14 +25,10 @@ extension AppState {
     }
 }
 
-/// The task's editor leaf for a file to open in: the active tab's focused editor leaf (else its first one), else the
-/// first editor leaf in tab order; nil → a new editor tab.
-@MainActor func editorTarget(task: HangarTask) -> (tab: UUID, leaf: UUID)? {
-    func editors(_ tab: Tab) -> [Leaf] { tab.root.leaves.filter { $0.kind == .editor } }
-    if let tab = task.tabs.first(where: { $0.id == task.activeTabId }) {
-        let leaves = editors(tab)
-        if let leaf = leaves.first(where: { $0.id == tab.focusedLeafId }) ?? leaves.first { return (tab.id, leaf.id) }
+extension AppState {
+    /// The status bar's tsserver item: restart (or look for TypeScript again) for the file tab's file.
+    func restartLanguage(leafId: UUID) {
+        guard let path = editorLeaf(leafId)?.openFile else { return }
+        languages.restart(path, host: remoteLeafHost(leafId))
     }
-    if let tab = task.tabs.first(where: { !editors($0).isEmpty }) { return (tab.id, editors(tab)[0].id) }
-    return nil
 }

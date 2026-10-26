@@ -22,7 +22,7 @@ import Workspace
         page.webView.frame = container.bounds
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)
-        page.onMessage = { [weak self] in self?.handle($0) }
+        page.onMessage = { [weak self] m, _ in self?.handle(m) }
     }
 
     func tearDown() { page.tearDown() }

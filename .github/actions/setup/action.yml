@@ -1,0 +1,16 @@
+name: Set up Hangar build
+description: Selects the newest Xcode 26 on the runner and restores GhosttyKit (built by the ghosttykit job).
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode 26
+      shell: bash
+      run: |
+        XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+        if [ -z "$XCODE" ]; then echo "::error::No Xcode 26 on this runner image"; ls -d /Applications/Xcode*.app; exit 1; fi
+        sudo xcode-select -s "$XCODE/Contents/Developer"
+        xcodebuild -version
+        swift --version
+
+    - uses: ./.github/actions/ghosttykit

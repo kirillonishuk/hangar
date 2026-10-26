@@ -3,29 +3,43 @@ import Integration
 import SwiftUI
 import Workspace
 
-/// ⌘, / gear in the sidebar: one card of "label → value" rows (sheet style of new-task-v4), width 580.
+/// ⌘, / gear in the sidebar: System Settings style — categories on the left, the page's cards on the right.
+/// Resizable; the size is remembered (frame autosave).
 @MainActor final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let model: SettingsModel
 
     init(app: AppState) {
         model = SettingsModel(app: app)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.settingsWidth, height: Theme.settingsPlaceholderHeight),
-                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: Theme.settingsSize),
+                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.backgroundColor = Theme.sheet
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
-        let host = NSHostingController(rootView: SettingsView(model: model))
-        host.sizingOptions = [.preferredContentSize]
-        window.contentViewController = host
+        window.minSize = Theme.settingsMinSize
+        window.contentViewController = NSHostingController(rootView: SettingsView(model: model))
+        window.setContentSize(Theme.settingsSize)
         super.init(window: window)
         window.delegate = self
+        if Self.remembersFrame { window.setFrameAutosaveName("HangarSettings") }
         updateTitle()
+        observeTheme(#selector(applyTheme))
+    }
+
+    /// Verification runs (isolated state) don't write the user's defaults.
+    private static var remembersFrame: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["HANGAR_STATE_DIR"] == nil
+        #else
+        return true
+        #endif
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     func updateTitle() { window?.title = L10n.settings }
+
+    @objc private func applyTheme() { window?.backgroundColor = Theme.sheet }
 
     func present(over parent: NSWindow?) {
         guard let window else { return }
@@ -52,6 +66,7 @@ import Workspace
 /// Settings state shared by the view and its window (draft of the text field, last write error).
 @MainActor @Observable final class SettingsModel {
     let app: AppState
+    var category: SettingsCategory = .general
     var externalEditor = ""
     var error: String?
     /// The draft whose save failed on close (the user has seen the error).
@@ -115,256 +130,3 @@ import Workspace
     }
 }
 
-struct SettingsView: View {
-    @Bindable var model: SettingsModel
-    private var app: AppState { model.app }
-    @FocusState private var editingExternal: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(spacing: 0) {
-                row(L10n.languageTitle, first: true) {
-                    Segment(selection: app.language, options: [
-                        (.system, L10n.languageSystem), (.ru, L10n.languageRu), (.en, L10n.languageEn),
-                    ]) { lang in save { try app.setLanguage(lang) } }
-                }
-                row(L10n.defaultAgent) {
-                    Segment(selection: app.config.defaultAgent, options: [(.claude, "claude"), (.codex, "codex")]) { kind in
-                        save { try app.setConfig("default_agent", kind.rawValue) { $0.defaultAgent = kind } }
-                    }
-                }
-                row(L10n.externalEditor) {
-                    TextField("", text: $model.externalEditor,
-                              prompt: Text(L10n.externalEditorPlaceholder).foregroundStyle(Theme.ui.text3))
-                        .textFieldStyle(.plain)
-                        .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                        .foregroundStyle(Theme.ui.sheetText)
-                        .focused($editingExternal)
-                        .onSubmit { model.commitExternalEditor() }
-                        .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
-                }
-                row(L10n.notificationsTitle) {
-                    Segment(selection: app.config.notifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
-                    }
-                }
-                row(L10n.limitNotificationsTitle) {
-                    Segment(selection: app.config.limitNotifications, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
-                    }
-                }
-                row(L10n.keepAwakeShort) {
-                    Segment(selection: app.config.keepAwake, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
-                    }
-                }
-                .help(L10n.keepAwakeTitle)
-                row(L10n.dockBadgeTitle) {
-                    Segment(selection: app.config.dockBadge, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
-                    }
-                }
-                .help(L10n.dockBadgeHelp)
-                row(L10n.integrationClaude) { integrationValue(.claude) }
-                row(L10n.integrationCodex) { integrationValue(.codex) }
-                row(L10n.integrationMCP) { mcpValue }
-                row(L10n.terminalBackground) {
-                    Segment(selection: app.config.terminalBackground, options: [(.hangar, "Hangar"), (.theme, L10n.backgroundTheme)]) { bg in
-                        save { try app.setConfig("terminal_background", bg.rawValue) { $0.terminalBackground = bg } }
-                    }
-                }
-            }
-            .sheetCard()
-
-            // Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills.
-            Text(verbatim: L10n.editor)
-                .font(.system(size: Theme.fontSize.tab, weight: .semibold))
-                .foregroundStyle(Theme.ui.text2)
-                .padding(.top, Theme.sheetGap)
-                .padding(.bottom, Theme.sheetGap / 2)
-            VStack(spacing: 0) {
-                row(L10n.editorPaletteTitle, first: true) {
-                    Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
-                        save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
-                    }
-                }
-                row(L10n.editorRainbowTitle) {
-                    Segment(selection: app.config.editorRainbowIndent, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
-                    }
-                }
-                row(L10n.editorTodoTitle) {
-                    Segment(selection: app.config.editorTodoHighlight, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
-                        save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
-                    }
-                }
-            }
-            .sheetCard()
-
-            HStack(spacing: 0) {
-                if let error = model.error {
-                    Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(2)
-                } else if let message = model.integration.message {
-                    Text(verbatim: message).foregroundStyle(Theme.ui.text2).lineLimit(2)
-                } else if app.config.terminalBackground != app.launchTerminalBackground {
-                    // Ghostty reads its background once at start.
-                    Text(L10n.afterRestart).foregroundStyle(Theme.ui.text3)
-                } else {
-                    Text(app.configURL.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                        .font(.system(size: Theme.fontSize.tab, design: .monospaced))
-                        .foregroundStyle(Theme.ui.text3)
-                }
-            }
-            .font(.system(size: Theme.fontSize.tab))
-            .padding(.vertical, Theme.sheetFooterPaddingV)
-        }
-        .padding(.top, Theme.sheetGap)
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.settingsWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .background(Theme.ui.sheet)
-        .sheet(isPresented: Binding(get: { model.pendingPlan != nil }, set: { if !$0 { model.cancelPlan() } })) {
-            if let plan = model.pendingPlan {
-                IntegrationSheet(plan: plan, error: model.integration.error, onApply: model.confirmPlan, onCancel: model.cancelPlan)
-            }
-        }
-    }
-
-    /// State of one integration and the action that changes it (only after the consent sheet).
-    @ViewBuilder private func integrationValue(_ target: IntegrationTarget) -> some View {
-        let status = integrationStatus(target)
-        let integration = model.integration
-        HStack(spacing: Theme.cardRowGap) {
-            VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
-                // One line each (a long status wrapped to three red lines); the whole text is in the tooltip.
-                Text(verbatim: status.text)
-                    .foregroundStyle(status.color)
-                    .lineLimit(1).truncationMode(.middle)
-                    .help(status.text)
-                if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
-                    Text(verbatim: error).foregroundStyle(Theme.ui.failed)
-                        .lineLimit(1).truncationMode(.middle)
-                        .help(error)
-                }
-                if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
-                    Text(verbatim: tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path))
-                        .font(.system(size: Theme.fontSize.counter, design: .monospaced))
-                        .foregroundStyle(Theme.ui.text3)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-            }
-            Spacer(minLength: 0)
-            if let action = status.action {
-                Button(action.title) { model.review(target, install: action.install) }
-                    .buttonStyle(SheetButton(primary: false))
-                    .fixedSize()
-            }
-        }
-    }
-
-    /// Commands for the user to run in a terminal: Hangar itself never touches the agents' MCP configs.
-    @ViewBuilder private var mcpValue: some View {
-        if let cli = model.integration.cli {
-            let commands = mcpAddCommands(cli: cli)
-            VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
-                ForEach([commands.claude, commands.codex], id: \.self) { command in
-                    HStack(alignment: .top, spacing: Theme.cardRowGap) {
-                        Text(verbatim: command)
-                            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
-                            .foregroundStyle(Theme.ui.text2)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
-                        Spacer(minLength: 0)
-                        Button(L10n.copyCommand) { model.copy(command) }
-                            .buttonStyle(SheetButton(primary: false))
-                            .fixedSize()
-                    }
-                }
-                Text(L10n.mcpHint).foregroundStyle(Theme.ui.text3)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else {
-            // A message, not a label: wraps like the integration rows' status instead of truncating.
-            Text(L10n.integrationNeedsApp).foregroundStyle(Theme.ui.text3)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func integrationStatus(_ target: IntegrationTarget) -> (text: String, color: Color, action: (title: String, install: Bool)?) {
-        let integration = model.integration
-        guard integration.pathsReady else { return (L10n.integrationChecking, Theme.ui.text3, nil) }
-        let state: IntegrationState
-        switch target {
-        case .claude: state = integration.claude
-        case .codex:
-            switch integration.codex {
-            case nil: return (L10n.codexLookup, Theme.ui.text3, nil)
-            case .notFound?: return (L10n.codexNotFound, Theme.ui.text3, nil)
-            case .found(let s)?: state = s
-            }
-        }
-        guard let cli = integration.cli else { return (L10n.integrationNeedsApp, Theme.ui.text3, nil) }
-        if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
-            return (L10n.moveToApplications, Theme.ui.waiting, nil)  // removal stays possible from the other states
-        }
-        let color = integrationStatusColor(state)
-        return switch state {
-        case .installed: (L10n.integrationInstalled, color, (L10n.removeIntegration, false))
-        case .installedStatuslineByUser: (L10n.integrationStatuslineByUser, color, (L10n.removeIntegration, false))
-        case .outdated: (L10n.integrationOutdated, color, (L10n.updateEllipsis, true))
-        case .notInstalled: (target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, color, (L10n.installEllipsis, true))
-        }
-    }
-
-    private func save(_ change: () throws -> Void) { model.save(change) }
-
-    private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
-        CardRow(label: label, labelWidth: Theme.settingsCardLabelWidth, first: first, value: value)
-    }
-}
-
-/// Segmented control in the token colors (`field` track, `control` active segment).
-private struct Segment<Value: Equatable>: View {
-    let selection: Value
-    let options: [(Value, String)]
-    let choose: (Value) -> Void
-    @State private var hovered: Int?
-
-    var body: some View {
-        HStack(spacing: Theme.segmentPadding) {
-            ForEach(options.indices, id: \.self) { i in
-                let (value, title) = options[i]
-                let on = value == selection
-                Button { if !on { choose(value) } } label: {
-                    Text(title)
-                        .foregroundStyle(on ? Theme.ui.textStrong : hovered == i ? Theme.ui.text : Theme.ui.text2)
-                        .padding(.vertical, Theme.segmentItemPaddingV)
-                        .padding(.horizontal, Theme.segmentItemPaddingH)
-                        .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                            .fill(on ? Theme.ui.control : hovered == i ? Theme.ui.hover : .clear))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand(!on)
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hovered = h ? i : (hovered == i ? nil : hovered) } }
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
-        }
-        .padding(Theme.segmentPadding)
-        .fixedSize()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
-        .animation(Motion.ease(Theme.selectionFade), value: options.firstIndex { $0.0 == selection })
-    }
-}
-
-/// An integration's status color: red is kept for failures, a missing or outdated integration is a to-do (amber).
-@MainActor func integrationStatusColor(_ state: IntegrationState) -> Color {
-    switch state {
-    case .installed, .installedStatuslineByUser: Theme.ui.text2
-    case .outdated, .notInstalled: Theme.ui.waiting
-    }
-}

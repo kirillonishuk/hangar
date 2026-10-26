@@ -240,10 +240,10 @@ struct PopoverMenuView: View {
 
     private func row(_ item: PopoverMenuItem, index: Int) -> some View {
         let on = state.highlighted == index && item.enabled
-        let text = item.destructive ? Theme.ui.danger : Theme.ui.text
+        let text = item.destructive ? Theme.ui.danger : on ? Theme.ui.menuHoverText : Theme.ui.text
         return HStack(spacing: Theme.menuIconGap) {
             if let icon = item.icon {
-                IconView(icon: icon, tint: item.destructive ? Theme.ui.danger : on ? Theme.ui.textStrong : Theme.ui.text2)
+                IconView(icon: icon, tint: item.destructive ? Theme.ui.danger : on ? Theme.ui.menuHoverText : Theme.ui.text2)
             }
             Text(verbatim: item.title).lineLimit(1)
                 .font(.system(size: Theme.menuFont))
@@ -252,14 +252,14 @@ struct PopoverMenuView: View {
             if let key = item.shortcut {
                 Text(verbatim: key)
                     .font(.system(size: Theme.menuShortcutFont))
-                    .foregroundStyle(item.destructive ? Theme.ui.dangerShortcut : Theme.ui.text3)
+                    .foregroundStyle(item.destructive ? Theme.ui.dangerShortcut : on ? Theme.ui.menuHoverText : Theme.ui.text3)
             }
         }
         .padding(.leading, Theme.menuItemPaddingLeading)
         .padding(.trailing, Theme.menuItemPaddingTrailing)
         .frame(height: Theme.menuItemHeight)
         .background(RoundedRectangle(cornerRadius: Theme.menuItemRadius)
-            .fill(on ? (item.destructive ? Theme.ui.dangerHover : Theme.ui.sidebarHover) : .clear))
+            .fill(on ? (item.destructive ? Theme.ui.dangerHover : Theme.ui.menuHover) : .clear))
         .opacity(item.enabled ? 1 : Theme.inactiveOpacity)
         .contentShape(Rectangle())
         .onHover { inside in

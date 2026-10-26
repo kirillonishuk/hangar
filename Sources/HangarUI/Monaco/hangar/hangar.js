@@ -7,7 +7,8 @@
   const post = (m) => window.webkit.messageHandlers.hangar.postMessage(JSON.stringify(m));
   window.addEventListener('error', (e) => post({ type: 'log', text: `${e.message} ${e.filename}:${e.lineno}` }));
   window.addEventListener('unhandledrejection', (e) => post({ type: 'log', text: 'rejection: ' + String(e.reason && (e.reason.stack || e.reason)) }));
-  for (const [k, v] of Object.entries(cfg.css)) document.documentElement.style.setProperty(k, v);
+  const applyCss = (css) => { for (const [k, v] of Object.entries(css)) document.documentElement.style.setProperty(k, v); };
+  applyCss(cfg.appearance.css);
   if (cfg.mode === 'diff') document.body.classList.add('diff');
 
   const $ = (id) => document.getElementById(id);
@@ -18,7 +19,7 @@
   const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
   let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
-  let look = cfg.appearance;   // { palette, rainbow, todo } (Settings → Editor, #84)
+  let look = cfg.appearance;   // { palette, rainbow, todo, themes, css } (Settings → Editor #84, app theme)
   const queue = [];
   const pending = new Map(); // provider request id → resolve
 
@@ -59,7 +60,7 @@
       ls.html && ls.html.htmlDefaults]) {
       try { d && d.setModeConfiguration(off); } catch (e) { /* not in this build */ }
     }
-    for (const [name, theme] of Object.entries(cfg.themes)) monaco.editor.defineTheme('hangar-' + name, theme);
+    defineThemes(look.themes);
     patchTokenizers();
     // Hangar's palette (⌘P / ⇧⌘P) is the one palette: Monaco's F1 command palette is unbound.
     monaco.editor.addKeybindingRules([
@@ -288,8 +289,15 @@
   }
   const redecorate = [];
 
+  function defineThemes(themes) {
+    for (const [name, theme] of Object.entries(themes)) monaco.editor.defineTheme('hangar-' + name, theme);
+  }
+
+  // App theme or editor setting changed: no reload, so cursors, undo and scroll stay.
   function setLook(c) {
-    look = { palette: c.palette, rainbow: c.rainbow, todo: c.todo };
+    look = c;
+    applyCss(c.css);
+    defineThemes(c.themes);
     monaco.editor.setTheme('hangar-' + look.palette);
     redecorate.forEach((f) => f());
   }

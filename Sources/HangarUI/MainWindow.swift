@@ -267,6 +267,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         installMainMenu()
         installKeyMonitor()
+        observeTheme(#selector(applyTheme))
         // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
         activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -282,6 +283,15 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    /// Theme switch: the window colours set once, and a redraw of AppKit-drawn parts (split dividers); SwiftUI redraws itself.
+    @objc private func applyTheme() {
+        guard let window else { return }
+        window.backgroundColor = Theme.bg
+        window.attachedSheet?.backgroundColor = Theme.sheet
+        func redraw(_ view: NSView) { view.needsDisplay = true; view.subviews.forEach(redraw) }
+        window.contentView.map(redraw)
+    }
 
     deinit {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }

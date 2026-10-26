@@ -6,113 +6,6 @@ import Usage
 
 /// Colors and sizes from docs/design/DESIGN.md. UI code must use these, not literals.
 public enum Theme {
-    private static func ns(_ hex: UInt32) -> NSColor {
-        NSColor(
-            srgbRed: CGFloat((hex >> 16) & 0xff) / 255,
-            green: CGFloat((hex >> 8) & 0xff) / 255,
-            blue: CGFloat(hex & 0xff) / 255,
-            alpha: 1)
-    }
-
-    // NSColor — navy palette (decision #36)
-    public static let bg = ns(0x121826)          // window, titlebar, tab bar, terminal area, inspector
-    public static let sidebar = ns(0x20293a)
-    public static let panel = ns(0x121826)       // terminal area
-    public static let activeSegment = ns(0x1d2533)  // active tab / segment
-    public static let line = ns(0x1b212f)
-    public static let bottomBar = ns(0x212936)
-    public static let control = ns(0x2b3444)
-    public static let field = ns(0x121826)
-    public static let text = ns(0xe6e8ee)
-    public static let textStrong = ns(0xffffff)
-    public static let textRow = ns(0xe6e8ee)
-    public static let text2 = ns(0x8a93a6)
-    public static let text3 = ns(0x5f687a)
-    public static let selection = ns(0x333b4b)
-    public static let accent = ns(0x61afef)
-    public static let primary = ns(0x3b82f6)
-
-    public static let working = ns(0x5ac8fa)
-    public static let waiting = ns(0xffb340)
-    public static let done = ns(0x32d74b)
-    public static let failed = ns(0xff453a)
-    public static let idle = ns(0x636366)
-
-    public static let lineSheet = ns(0x2b3444)
-    public static let sheetBorder = ns(0x2b3444)
-    public static let controlBorderStrong = ns(0x3a4456)
-    public static let sheet = ns(0x20293a)
-    public static let sheetText = ns(0xffffff)
-    public static let selectionText = ns(0xffffff)
-    public static let hover = ns(0x1d2533)
-    public static let hoverStrong = ns(0x2b3444)  // "+ New Session" button
-    public static let pressed = ns(0x192030)
-    /// Sidebar (and popovers on `sheet`): hover lighter than `sidebar`, pressed darker (DESIGN.md «Состояния»).
-    public static let sidebarHover = ns(0x283246)
-    public static let sidebarPressed = ns(0x1b2333)
-    /// Rail task monogram tile (icons-sidebar.html `.mono`), selected variant on a `selection` row.
-    public static let railTile = ns(0x283246)
-    public static let railTileBorder = ns(0x343f55)
-    public static let railTileSelected = ns(0x34466a)
-    public static let railTileSelectedBorder = ns(0x46598a)
-    public static let button = ns(0x2b3444)
-    public static let claudeBrand = ns(0xd97757)
-    /// Terminal background handed to Ghostty unless the user's Ghostty config sets one.
-    public static let terminalBackgroundHex = "121826"
-    /// Terminal cursor: the accent, as a Ghostty default (a user-set `cursor-color` wins) — not the system accent.
-    public static let terminalCursorHex = "61afef"
-
-    // SwiftUI
-    public enum ui {
-        public static let bg = Color(nsColor: Theme.bg)
-        public static let sidebar = Color(nsColor: Theme.sidebar)
-        public static let panel = Color(nsColor: Theme.panel)
-        public static let activeSegment = Color(nsColor: Theme.activeSegment)
-        public static let bottomBar = Color(nsColor: Theme.bottomBar)
-        public static let hoverStrong = Color(nsColor: Theme.hoverStrong)
-        public static let line = Color(nsColor: Theme.line)
-        public static let control = Color(nsColor: Theme.control)
-        public static let field = Color(nsColor: Theme.field)
-        public static let text = Color(nsColor: Theme.text)
-        public static let textStrong = Color(nsColor: Theme.textStrong)
-        public static let textRow = Color(nsColor: Theme.textRow)
-        public static let text2 = Color(nsColor: Theme.text2)
-        public static let text3 = Color(nsColor: Theme.text3)
-        public static let selection = Color(nsColor: Theme.selection)
-        public static let accent = Color(nsColor: Theme.accent)
-        public static let primary = Color(nsColor: Theme.primary)
-        public static let working = Color(nsColor: Theme.working)
-        public static let waiting = Color(nsColor: Theme.waiting)
-        public static let done = Color(nsColor: Theme.done)
-        public static let failed = Color(nsColor: Theme.failed)
-        public static let idle = Color(nsColor: Theme.idle)
-        public static func status(_ state: AgentState) -> Color {
-            switch state {
-            case .working: working
-            case .waiting: waiting
-            case .done: done
-            case .failed: failed
-            case .idle: idle
-            case .limit: waiting  // amber: the agent waits for its limit, nothing is broken
-            }
-        }
-        public static let lineSheet = Color(nsColor: Theme.lineSheet)
-        public static let sheetBorder = Color(nsColor: Theme.sheetBorder)
-        public static let sheet = Color(nsColor: Theme.sheet)
-        public static let sheetText = Color(nsColor: Theme.sheetText)
-        public static let selectionText = Color(nsColor: Theme.selectionText)
-        public static let hover = Color(nsColor: Theme.hover)
-        public static let pressed = Color(nsColor: Theme.pressed)
-        public static let sidebarHover = Color(nsColor: Theme.sidebarHover)
-        public static let sidebarPressed = Color(nsColor: Theme.sidebarPressed)
-        public static let railTile = Color(nsColor: Theme.railTile)
-        public static let railTileBorder = Color(nsColor: Theme.railTileBorder)
-        public static let railTileSelected = Color(nsColor: Theme.railTileSelected)
-        public static let railTileSelectedBorder = Color(nsColor: Theme.railTileSelectedBorder)
-        public static let button = Color(nsColor: Theme.button)
-        public static let controlBorderStrong = Color(nsColor: Theme.controlBorderStrong)
-    }
-
     // Font sizes (pt)
     public enum fontSize {
         // Type scale +1 over the mockups (decision #34).
@@ -268,12 +161,6 @@ public enum Theme {
     public static let focusRing: CGFloat = 3
     public static let focusRingOpacity: Double = 0.18
     public static let messageMinHeight: CGFloat = 38
-
-    // Settings window: one card of rows (DESIGN.md «Лист», new-task-v4 `.grp` / `.r` / `.seg`)
-    /// As wide as the sheets: the integration rows carry a sentence and a button.
-    public static let settingsWidth: CGFloat = 580
-    /// Initial settings window height; SwiftUI content resizes it.
-    public static let settingsPlaceholderHeight: CGFloat = 240
     public static let settingsTopOffset: CGFloat = 80
     public static let cardRadius: CGFloat = 8
     public static let cardRowPaddingV: CGFloat = 9
@@ -323,14 +210,11 @@ public enum Theme {
 extension Theme {
     /// Subscription limits (DESIGN.md «Блок лимитов», limits.html); thresholds come from `UsageThreshold`.
     public enum Limit {
-        private static func c(_ hex: UInt32) -> Color {
-            Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255, blue: Double(hex & 0xff) / 255)
-        }
-        public static let track = c(0x30333b)
-        public static let ok = c(0x5b8def)
-        public static let warn = c(0xffb340)
-        public static let full = c(0xff453a)
-        public static let fullText = c(0xff6b61)
+        public static var track: Color { ui.of(Theme.palette.limTrack) }
+        public static var ok: Color { ui.of(Theme.palette.limOk) }
+        public static var warn: Color { ui.waiting }
+        public static var full: Color { ui.failed }
+        public static var fullText: Color { Color(nsColor: Theme.failedText) }
         public static let badgeOpacity = 0.15
 
         public static func color(_ level: UsageLevel) -> Color {
@@ -382,15 +266,15 @@ extension Theme {
             Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
                   blue: Double(hex & 0xff) / 255, opacity: opacity)
         }
-        public static let add = c(0x98c379, 0.12)
-        public static let del = c(0xe06c75, 0.12)
-        public static let addMarker = c(0x98c379)
-        public static let delMarker = c(0xe06c75)
-        public static let hunk = c(0x56b6c2)
-        public static let hunkBg = c(0x56b6c2, 0.07)
-        public static let badgeM = c(0xe5c07b)
-        public static let badgeA = c(0x98c379)
-        public static let badgeD = c(0xe06c75)
+        public static var add: Color { ui.of(Theme.palette.diffAdd) }
+        public static var del: Color { ui.of(Theme.palette.diffDel) }
+        public static var addMarker: Color { badgeA }
+        public static var delMarker: Color { badgeD }
+        public static var hunk: Color { ui.accentText }
+        public static var hunkBg: Color { ui.accentText.opacity(0.07) }
+        public static var badgeM: Color { ui.of(Theme.palette.gitM) }
+        public static var badgeA: Color { ui.of(Theme.palette.gitA) }
+        public static var badgeD: Color { ui.of(Theme.palette.gitD) }
         /// Diff view text (mono); the integration sheet keeps its smaller `sheetFont`.
         public static let font: CGFloat = 12.5
         public static let sheetFont: CGFloat = 11.5

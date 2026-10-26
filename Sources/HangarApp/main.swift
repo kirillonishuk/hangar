@@ -55,7 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }()
         let socketPath = stateDir.appendingPathComponent("hangar.sock").path
         startControlServer(stateDir: stateDir, socketPath: socketPath)
-        startGhostty(background: config.terminalBackground == .hangar ? Theme.terminalBackgroundHex : nil)
+        Theme.current = config.theme
+        startGhostty(colors: Theme.terminalColors(force: config.terminalBackground == .hangar))
 
         let store = StateStore(directory: stateDir)
         let result = store.load()
@@ -168,11 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Without Ghostty every terminal would be blank: ask to retry or quit instead of continuing silently.
-    private func startGhostty(background: String?) {
+    private func startGhostty(colors: TerminalColors) {
         while true {
             do {
-                try GhosttyApp.shared.start(background: background, padding: (x: Theme.terminalPaddingX, y: Theme.terminalPaddingY),
-                                             cursor: Theme.terminalCursorHex)
+                try GhosttyApp.shared.start(colors: colors, padding: (x: Theme.terminalPaddingX, y: Theme.terminalPaddingY))
                 return
             } catch {
                 let alert = NSAlert()

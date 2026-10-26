@@ -295,7 +295,7 @@ struct SheetButton: ButtonStyle {
 
         var body: some View {
             label
-                .foregroundStyle(primary ? Theme.ui.selectionText : Theme.ui.sheetText)
+                .foregroundStyle(primary ? Theme.ui.primaryText : Theme.ui.sheetText)
                 .padding(.vertical, Theme.buttonPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)

@@ -22,7 +22,7 @@ struct InspectorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.ui.bg)
+        .background(Theme.ui.inspector)
         .ignoresSafeArea()
     }
 

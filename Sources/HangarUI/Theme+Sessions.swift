@@ -59,6 +59,6 @@ extension Theme {
     public static let historyBadgeRadius: CGFloat = 6
     public static let historyBadgeGap: CGFloat = 6
     public static let historyBadgeFill: Double = 0.35
-    /// `line2` of the token table.
-    public static let historyBadgeBorder = Color(.sRGB, red: 0x2b / 255.0, green: 0x34 / 255.0, blue: 0x46 / 255.0)
+    /// `line2` of the token table (= `control`).
+    public static var historyBadgeBorder: Color { ui.control }
 }

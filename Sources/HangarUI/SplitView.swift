@@ -108,7 +108,7 @@ final class FillView: NSView {
     private let headerLine = NSView()
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
-    private let barFill = HoverFill(lit: Theme.hover)
+    private let barFill = HoverFill { Theme.hover }
     /// Non-nil while the process has exited with a failure (↩ relaunches).
     private(set) var exitCode: Int32?
     /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
@@ -142,18 +142,14 @@ final class FillView: NSView {
         self.leafId = leafId
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.panel.cgColor
         for label in [header, bar] {
             label.font = .systemFont(ofSize: Theme.fontSize.counter)
-            label.textColor = Theme.text3
             label.lineBreakMode = .byTruncatingTail
         }
-        bar.textColor = Theme.text2
         bar.font = .systemFont(ofSize: Theme.fontSize.counter)
-        for line in [headerLine, barLine] {
-            line.wantsLayer = true
-            line.layer?.backgroundColor = Theme.line.cgColor
-        }
+        for line in [headerLine, barLine] { line.wantsLayer = true }
+        applyTheme()
+        observeTheme(#selector(applyTheme))
         [header, headerLine, barFill, bar, barLine].forEach(addSubview)
         header.isHidden = true
         headerLine.isHidden = true
@@ -161,6 +157,13 @@ final class FillView: NSView {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func applyTheme() {
+        layer?.backgroundColor = Theme.panel.cgColor
+        header.textColor = headerFocused ? Theme.text2 : Theme.text3
+        bar.textColor = Theme.text2
+        for line in [headerLine, barLine] { line.layer?.backgroundColor = Theme.line.cgColor }
+    }
 
     func setHeader(_ text: String) { header.stringValue = text }
 
@@ -455,9 +458,9 @@ final class FillView: NSView {
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
         wantsLayer = true
-        layer?.backgroundColor = Theme.panel.cgColor
+        observeTheme(#selector(applyTheme))
+        applyTheme()
         placeholder.font = .systemFont(ofSize: Theme.fontSize.base)
-        placeholder.textColor = Theme.text3
         placeholder.alignment = .center
         addSubview(placeholder)
         addSubview(emptyState)
@@ -473,6 +476,15 @@ final class FillView: NSView {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    /// Also redraws the split dividers (`HangarSplitView.dividerColor`) of every tab.
+    @objc private func applyTheme() {
+        layer?.backgroundColor = Theme.panel.cgColor
+        placeholder.textColor = Theme.text3
+        func redraw(_ view: NSView) { view.needsDisplay = true; view.subviews.forEach(redraw) }
+        redraw(self)
+        tabViews.values.forEach(redraw)
+    }
 
     override func layout() {
         super.layout()

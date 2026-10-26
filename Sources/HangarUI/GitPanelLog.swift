@@ -53,7 +53,7 @@ struct GitLogRow: View, Equatable {
         let refs = commit.refs
         GitRow(selected: selected, action: action) {
             HStack(spacing: Theme.GitTab.rowGap) {
-                GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selection : Theme.ui.bg)
+                GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selection : Theme.ui.inspector)
                     .frame(width: column, height: Theme.GitTab.logRow)
                 ForEach(Array(refs.prefix(Theme.GitTab.maxRefs).enumerated()), id: \.offset) { _, ref in
                     GitRefPill(ref: ref, lane: graph?.color ?? 0, head: head)
@@ -111,8 +111,8 @@ struct GitRefPill: View {
     var body: some View {
         let tint: Color, opacity: Double
         switch ref.kind {
-        case .head: (tint, opacity) = (Theme.ui.accent, Theme.GitTab.refOwnOpacity)
-        case .branch where ref.isHead || ref.name == head: (tint, opacity) = (Theme.ui.accent, Theme.GitTab.refOwnOpacity)
+        case .head: (tint, opacity) = (Theme.ui.accentText, Theme.GitTab.refOwnOpacity)
+        case .branch where ref.isHead || ref.name == head: (tint, opacity) = (Theme.ui.accentText, Theme.GitTab.refOwnOpacity)
         case .remote: (tint, opacity) = (Theme.ui.text2, Theme.GitTab.refRemoteOpacity)
         case .branch, .tag: (tint, opacity) = (Theme.GitTab.lane(lane), Theme.GitTab.refOtherOpacity)
         }

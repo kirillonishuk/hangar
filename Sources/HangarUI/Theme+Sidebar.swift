@@ -67,19 +67,15 @@ extension Theme {
 }
 
 extension Theme.ui {
-    private static func c(_ hex: UInt32, _ opacity: Double = 1) -> Color {
-        Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
-              blue: Double(hex & 0xff) / 255, opacity: opacity)
-    }
-    /// Inline action under the pointer: white at 7 %.
+    /// Inline action under the pointer: white at 7 % (reads on every dark theme).
     public static let rowActionHover = Color.white.opacity(0.07)
-    /// Badge border (`line2`) and fill (`bg` at 35 %).
-    public static let line2 = c(0x2b3446)
-    public static let diffBadgeFill = bg.opacity(Theme.diffBadgeFillOpacity)
+    /// Badge border (`control`, the mockup's `.badge`) and fill (`bg` at 35 %).
+    public static var line2: Color { control }
+    public static var diffBadgeFill: Color { bg.opacity(Theme.diffBadgeFillOpacity) }
     /// Destructive menu item text/icon (= `failed` text), its key at 60 %, its hover (`failed` at 14 %).
-    public static let danger = c(0xff6b61)
-    public static let dangerShortcut = c(0xff6b61, 0.6)
-    public static let dangerHover = c(0xff453a, 0.14)
+    public static var danger: Color { failedText }
+    public static var dangerShortcut: Color { failedText.opacity(0.6) }
+    public static var dangerHover: Color { failed.opacity(0.14) }
     /// «ошибка» in a session's status line.
-    public static let failedText = c(0xff6b61)
+    public static var failedText: Color { Color(nsColor: Theme.failedText) }
 }

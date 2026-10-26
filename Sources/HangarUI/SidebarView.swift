@@ -569,7 +569,7 @@ struct KeepAwakeLook: Equatable {
 }
 
 func keepAwakeLook(enabled: Bool, held: Bool) -> KeepAwakeLook {
-    enabled ? KeepAwakeLook(on: true, tint: Theme.ui.accent, label: Theme.ui.textStrong, dot: held)
+    enabled ? KeepAwakeLook(on: true, tint: Theme.ui.accentText, label: Theme.ui.textStrong, dot: held)
         : KeepAwakeLook(on: false, tint: Theme.ui.text3, label: Theme.ui.text3, dot: false)
 }
 
@@ -585,7 +585,7 @@ private struct KeepAwakeRow: View {
             GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .keepAwake, tint: look.tint)
                     .overlay(alignment: .topTrailing) {
-                        Circle().fill(Theme.ui.accent)
+                        Circle().fill(Theme.ui.accentText)
                             .overlay(Circle().stroke(Theme.ui.bottomBar, lineWidth: Theme.railDotBorder))
                             .frame(width: Theme.keepAwakeDot, height: Theme.keepAwakeDot)
                             .offset(x: Theme.keepAwakeDotOffset, y: -Theme.keepAwakeDotOffset)
@@ -612,16 +612,16 @@ private struct KeepAwakeRow: View {
     }
 }
 
-/// Small macOS-style switch (display only: the whole row is the button): accent fill when on, `text3` outline when off.
+/// Small macOS-style switch (display only: the whole row is the button): `primary` fill when on, `text3` outline when off.
 private struct KeepAwakeSwitch: View {
     let on: Bool
 
     var body: some View {
         let knob = Theme.keepAwakeSwitchHeight - 2 * Theme.keepAwakeSwitchInset
         ZStack(alignment: on ? .trailing : .leading) {
-            Capsule().fill(on ? Theme.ui.accent : .clear)
-            Capsule().stroke(on ? Theme.ui.accent : Theme.ui.text3, lineWidth: 1)
-            Circle().fill(on ? Theme.ui.textStrong : Theme.ui.text3)
+            Capsule().fill(on ? Theme.ui.primary : .clear)
+            Capsule().stroke(on ? Theme.ui.primary : Theme.ui.text3, lineWidth: 1)
+            Circle().fill(on ? Theme.ui.primaryText : Theme.ui.text3)
                 .frame(width: knob, height: knob)
                 .padding(.horizontal, Theme.keepAwakeSwitchInset)
         }

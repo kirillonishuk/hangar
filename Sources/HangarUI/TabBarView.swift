@@ -116,7 +116,7 @@ struct TabBarView: View {
         }
         .frame(height: Theme.tabBarHeight)
         .background(WindowDragArea())
-        .background(Theme.ui.bg)
+        .background(Theme.ui.tabStrip)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         .ignoresSafeArea()
         .onChange(of: activeKey) { reveal(animated: true) }
@@ -207,7 +207,7 @@ struct TabBarView: View {
     }
 
     private func fade(_ edge: HorizontalEdge, visible: Bool) -> some View {
-        LinearGradient(colors: [Theme.ui.bg, Theme.ui.bg.opacity(0)],
+        LinearGradient(colors: [Theme.ui.tabStrip, Theme.ui.tabStrip.opacity(0)],
                        startPoint: edge == .leading ? .leading : .trailing, endPoint: edge == .leading ? .trailing : .leading)
             .frame(width: Theme.tabFadeWidth)
             .opacity(visible ? 1 : 0)
@@ -373,7 +373,7 @@ private struct TabCloseButton: View {
     }
 }
 
-/// Active tab: `selection` fill and a 2 pt `accent` line on top (DESIGN «Полоса вкладок»); others: hover fill only.
+/// Active tab: `tabActive` fill and a 2 pt `accent` line on top (DESIGN «Полоса вкладок»); others: `tabInactive`, `hover` under the pointer.
 private struct TabBackground: View {
     let active: Bool
     let hover: Bool
@@ -381,7 +381,7 @@ private struct TabBackground: View {
     var body: some View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
         ZStack(alignment: .top) {
-            shape.fill(active ? Theme.ui.selection : hover ? Theme.ui.hover : Color.clear)
+            shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
             Rectangle().fill(Theme.ui.accent).frame(height: Theme.tabActiveLine).opacity(active ? 1 : 0)
         }
         .clipShape(shape)

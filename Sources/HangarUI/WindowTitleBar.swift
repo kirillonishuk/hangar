@@ -67,7 +67,7 @@ struct WindowTitleBar: View {
         }
         .frame(maxWidth: .infinity, minHeight: Theme.titleBarHeight, maxHeight: Theme.titleBarHeight)
         .background(WindowDragArea())
-        .background(Theme.ui.bg)
+        .background(Theme.ui.titlebar)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         .ignoresSafeArea()
     }

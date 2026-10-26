@@ -133,12 +133,8 @@ struct GitSearchField: View {
 
     var body: some View {
         @Bindable var model = model
-        HStack(spacing: Theme.GitTab.searchPaddingH) {
-            IconView(icon: .search, size: Theme.GitTab.searchIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3)
-            TextField("", text: $model.query.text, prompt: Text(L10n.gitSearch).foregroundStyle(Theme.ui.text3))
-                .textFieldStyle(.plain)
-                .font(.system(size: Theme.fontSize.base))
-                .foregroundStyle(Theme.ui.text)
+        HStack(spacing: Theme.Input.iconGap) {
+            TextField("", text: $model.query.text)
                 .focused($focused)
                 .onKeyPress(.downArrow) { model.step(by: 1); return .handled }
                 .onKeyPress(.upArrow) { model.step(by: -1); return .handled }
@@ -159,14 +155,7 @@ struct GitSearchField: View {
                 .help(L10n.gitClearFilter)
             }
         }
-        .padding(.horizontal, Theme.GitTab.searchPaddingH)
-        .frame(height: Theme.GitTab.searchHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).stroke(focused ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius + Theme.GitTab.focusRing)
-            .fill(Theme.ui.accent.opacity(focused ? Theme.GitTab.focusRingOpacity : 0))
-            .padding(-Theme.GitTab.focusRing))
-        .animation(Motion.ease(Theme.hoverFade), value: focused)
+        .inputField(focused: focused, icon: .search, placeholder: model.query.text.isEmpty ? L10n.gitSearch : nil)
         .padding(.horizontal, Theme.GitTab.padding)
     }
 }

@@ -30,13 +30,8 @@ extension Theme {
     public static let historyActionIcon: CGFloat = 12
     public static let historyActionGap: CGFloat = 6
 
-    /// Search field: 28 high, radius 7, 14 pt glyph; focus = accent border + 3 pt ring.
+    /// Search field width (its look is `Theme.Input`).
     public static let historySearchWidth: CGFloat = 260
-    public static let historySearchHeight: CGFloat = 28
-    public static let historySearchRadius: CGFloat = 7
-    public static let historySearchIcon: CGFloat = 14
-    public static let historySearchPaddingH: CGFloat = 8
-    public static let historyFocusRingOpacity: Double = 0.2
 
     /// Agent segment (Все / Claude / Codex): 28 high, radius 7 outside and 5 inside, 2 pt padding.
     public static let historySegmentWidth: CGFloat = 220

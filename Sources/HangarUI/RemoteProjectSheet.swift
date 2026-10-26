@@ -17,6 +17,8 @@ import SwiftUI
     var path = "" { didSet { if path != oldValue, phase != .connecting { phase = .editing; server = nil } } }
     private(set) var phase: Phase = .editing
     private(set) var server: ServerCheckModel?
+    /// The last failure was the folder (the host answered): the path field is marked, not the host one.
+    @ObservationIgnored private var failedOnPath = false
     /// `Host` names of the user's ssh config, for the drop-down.
     let configHosts: [String]
 
@@ -34,6 +36,10 @@ import SwiftUI
     private var trimmedHost: String { host.trimmingCharacters(in: .whitespaces) }
     private var trimmedPath: String { path.trimmingCharacters(in: .whitespaces) }
 
+    private var failed: Bool { if case .failed = phase { true } else { false } }
+    var hostInvalid: Bool { failed && !failedOnPath }
+    var pathInvalid: Bool { failed && failedOnPath }
+
     var canConnect: Bool { phase != .connecting && validSSHHost(trimmedHost) != nil && !trimmedPath.isEmpty }
     /// Missing tools on the server never block adding.
     var canAdd: Bool { foundPath != nil }
@@ -43,6 +49,7 @@ import SwiftUI
         let h = trimmedHost, p = trimmedPath
         guard canConnect else { return }
         phase = .connecting
+        failedOnPath = false
         server = nil
         connectedHost = h
         let state = await remote.connect(h)
@@ -55,6 +62,7 @@ import SwiftUI
         let real = await remoteRealPath(p, home: home, runner: remote.runner(h))
         guard h == trimmedHost, p == trimmedPath else { return }
         guard let real else {
+            failedOnPath = true
             phase = .failed(L10n.remotePathMissing, mono: false)
             return
         }
@@ -116,19 +124,20 @@ struct RemoteProjectSheet: View {
     private var card: some View {
         VStack(spacing: 0) {
             CardRow(label: L10n.hostLabel, first: true) {
-                TextField("", text: $model.host, prompt: Text(L10n.hostPlaceholder).foregroundStyle(Theme.ui.text3))
-                    .modifier(CardField())
+                TextField("", text: $model.host)
                     .focused($focus, equals: .host)
                     .onSubmit { focus = .path }
+                    .inputField(focused: focus == .host, invalid: model.hostInvalid,
+                                placeholder: model.host.isEmpty ? L10n.hostPlaceholder : nil)
                 if !model.configHosts.isEmpty {
                     HostMenu(hosts: model.configHosts) { h in model.host = h; focus = .path }
                 }
             }
             CardRow(label: L10n.pathLabel) {
                 TextField("", text: $model.path)
-                    .modifier(CardField(mono: true))
                     .focused($focus, equals: .path)
                     .onSubmit(primary)
+                    .inputField(focused: focus == .path, mono: true, invalid: model.pathInvalid)
             }
         }
         .disabled(model.phase == .connecting)

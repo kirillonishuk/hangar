@@ -16,18 +16,11 @@ struct RenameField: View {
 
     var body: some View {
         TextField("", text: $text)
-            .textFieldStyle(.plain)
-            .foregroundStyle(Theme.ui.textStrong)
-            .lineLimit(1)
-            .textCursor()
             .focused($focused)
             .onSubmit { finish(save: true) }
             .onExitCommand { finish(save: false) }
-            .padding(.horizontal, Theme.renamePaddingH)
-            .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.accent, lineWidth: 1))
-            // The box grows outwards: the text stays where the label was (no jump on F2).
-            .padding(.horizontal, -Theme.renamePaddingH)
+            // Inline: the row's own font; the box grows outwards, so the text stays where the label was (no jump on F2).
+            .modifier(InputField(focused: true, inline: true))
             .onAppear { focused = true }
             .onChange(of: focused) { _, isFocused in if !isFocused { finish(save: true) } }
             .onDisappear { finish(save: true) }

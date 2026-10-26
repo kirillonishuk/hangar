@@ -147,19 +147,10 @@ private struct GitMenuField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: Theme.GitTab.searchPaddingH) {
-            IconView(icon: .search, size: Theme.GitTab.searchIcon, tint: Theme.ui.text3)
-            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.ui.text3))
-                .textFieldStyle(.plain)
-                .font(.system(size: Theme.fontSize.base))
-                .foregroundStyle(Theme.ui.text)
-                .focused($focused)
-                .onSubmit(submit)
-        }
-        .padding(.horizontal, Theme.GitTab.searchPaddingH)
-        .frame(height: Theme.GitTab.searchHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).stroke(focused ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
+        TextField("", text: $text)
+            .focused($focused)
+            .onSubmit(submit)
+            .inputField(focused: focused, icon: .search, placeholder: text.isEmpty ? placeholder : nil)
         .padding(.bottom, Theme.GitTab.popoverPadding)
         .onAppear { focused = true }
     }

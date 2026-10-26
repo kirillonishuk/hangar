@@ -49,13 +49,8 @@ extension Theme {
         /// Search hits in subjects: `waiting` 28 %.
         static let markOpacity = 0.28
 
-        /// Search field: height, radius, icon; focus = `accent` border + a 3 pt ring at 20 %.
-        static let searchHeight: CGFloat = 28
-        static let searchRadius: CGFloat = 7
+        /// Small glyphs (back chevron, tick); the search field itself is `Theme.Input`.
         static let searchIcon: CGFloat = 14
-        static let searchPaddingH: CGFloat = 8
-        static let focusRing: CGFloat = 3
-        static let focusRingOpacity = 0.2
 
         /// Filter chips: height, paddings 8 / 6, radius, gap; active = `accent` 14 % with an `accent` 25 % border.
         static let chipHeight: CGFloat = 24

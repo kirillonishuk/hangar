@@ -109,7 +109,7 @@ struct SessionsView: View {
             }
         }
         .padding(Theme.historySegmentPadding)
-        .frame(width: Theme.historySegmentWidth, height: Theme.historySearchHeight)
+        .frame(width: Theme.historySegmentWidth, height: Theme.Input.height)
         .background(Theme.ui.field, in: RoundedRectangle(cornerRadius: Theme.historySegmentRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.historySegmentRadius).strokeBorder(Theme.ui.control))
     }
@@ -123,22 +123,10 @@ struct SessionsView: View {
     }
 
     private var search: some View {
-        HStack(spacing: Theme.historySearchPaddingH) {
-            IconView(icon: .search, size: Theme.historySearchIcon, tint: Theme.ui.text3)
-            TextField(text: $model.query, prompt: Text(L10n.sessionsSearch).foregroundStyle(Theme.ui.text3)) { EmptyView() }
-                .textFieldStyle(.plain)
-                .font(.system(size: Theme.fontSize.base))
-                .foregroundStyle(Theme.ui.text)
-                .focused($searchFocused)
-        }
-        .padding(.horizontal, Theme.historySearchPaddingH)
-        .frame(width: Theme.historySearchWidth, height: Theme.historySearchHeight)
-        .background(Theme.ui.field, in: RoundedRectangle(cornerRadius: Theme.historySearchRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.historySearchRadius)
-            .strokeBorder(searchFocused ? Theme.ui.accent : Theme.ui.control))
-        .background(RoundedRectangle(cornerRadius: Theme.historySearchRadius)
-            .fill(Theme.ui.accent.opacity(searchFocused ? Theme.historyFocusRingOpacity : 0))
-            .padding(-Theme.focusRing))
+        TextField(text: $model.query) { EmptyView() }
+            .focused($searchFocused)
+            .inputField(focused: searchFocused, icon: .search, placeholder: model.query.isEmpty ? L10n.sessionsSearch : nil)
+            .frame(width: Theme.historySearchWidth)
     }
 
     // MARK: Groups

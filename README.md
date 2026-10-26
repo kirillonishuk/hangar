@@ -64,6 +64,8 @@ Requires macOS 14 or later on Apple silicon.
    xattr -dr com.apple.quarantine /Applications/Hangar.app
    ```
 
+Hangar checks GitHub Releases once a day and offers updates in the status bar: one click downloads the DMG, verifies its SHA-256 and replaces the app in place (Settings → General → Check for updates).
+
 Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) separately. For agent status, install the hooks from Settings; Hangar shows the change to `~/.claude` / `~/.codex` and applies it only after you confirm.
 
 ## Build from source

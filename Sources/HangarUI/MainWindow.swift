@@ -274,9 +274,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 self?.app.refreshUsageClock()
                 // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
                 self?.app.reloadConfigHosts()
+                self?.app.updates.checkIfDue()  // at most once a day (#86)
             }
         }
         app.reloadConfigHosts()
+        app.updates.onShow = { [weak self] in self?.presentUpdate() }
         #if DEBUG
         installDebugHooks()
         #endif
@@ -915,6 +917,20 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         remoteProjectAdd = add
         let height = window.contentLayoutRect.height
         begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
+    }
+
+    /// «Доступна версия X» (#86): from the status-bar pill or Settings.
+    func presentUpdate() {
+        guard let window, window.attachedSheet == nil, app.updates.offer != nil else { return }
+        let sheet = makeSheet(over: window)
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
+            self.app.updates.closeSheet = nil
+        }
+        app.updates.closeSheet = close
+        begin(sheet, UpdateSheet(model: app.updates, onClose: close), on: window)
     }
 
     /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#64).

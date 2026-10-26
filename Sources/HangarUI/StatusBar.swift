@@ -161,6 +161,16 @@ struct WindowStatusBar: View {
                 .modifier(StatusItem())
             }
             Spacer(minLength: 0)
+            // «Доступна 0.3.0» (#86): right edge, only while there is an offer; opens the update sheet.
+            if let offer = app.updates.pill {
+                Button { app.updates.onShow?() } label: {
+                    Pill(text: L10n.updateAvailable(offer.version), color: Theme.ui.accentText)
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .help(L10n.updateAvailableHelp)
+                .modifier(StatusItem())
+            }
             // ☕ only while sleep is held (the setting is in Settings → Уведомления); right edge, so nothing shifts.
             let keep = app.keepAwake
             if showsKeepAwake(enabled: app.config.keepAwake, held: keep.held) {

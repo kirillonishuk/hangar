@@ -68,7 +68,7 @@ import Workspace
 
     static func s(_ key: Key) -> String { lookup(key, resolve(language), in: resources) }
 
-    private static func f(_ key: Key, _ args: CVarArg...) -> String {
+    static func f(_ key: Key, _ args: CVarArg...) -> String {
         String(format: s(key), locale: Locale(identifier: resolve(language).rawValue), arguments: args)
     }
 
@@ -137,6 +137,10 @@ import Workspace
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
+        case updateAvailable, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
+        case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
+        case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
+        case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
         case segmentGit, showGit, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors

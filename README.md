@@ -49,7 +49,7 @@ A native macOS app for running Claude Code and Codex in terminal tabs, one sessi
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/remote-sheet.png" alt="Remote host check"><br><sub>Remote host check</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/settings.png" width="62%" alt="Settings window"><br><sub>Settings (also <code>~/.config/hangar/config.toml</code>)</sub></td>
+    <td align="center"><img src="docs/assets/screenshots/settings.png" alt="Settings window, Appearance: theme tiles"><br><sub>Settings → Appearance (also <code>~/.config/hangar/config.toml</code>)</sub></td>
   </tr>
 </table>
 

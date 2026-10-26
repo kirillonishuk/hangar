@@ -20,8 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ghosttykit
-        with:
-          build: "true"
 
   build-test:
     name: Build & test

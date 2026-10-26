@@ -1,5 +1,5 @@
 name: Set up Hangar build
-description: Selects the newest Xcode 26 on the runner and restores GhosttyKit (built by the ghosttykit job).
+description: Selects the newest Xcode 26 on the runner and downloads GhosttyKit from the run's ghosttykit job.
 
 runs:
   using: composite
@@ -13,4 +13,15 @@ runs:
         xcodebuild -version
         swift --version
 
-    - uses: ./.github/actions/ghosttykit
+    - name: Download GhosttyKit
+      uses: actions/download-artifact@v4
+      with:
+        name: ghosttykit
+        path: vendor
+
+    - name: Check GhosttyKit
+      shell: bash
+      run: |
+        test -f vendor/GhosttyKit.xcframework/Info.plist
+        test -d vendor/ghostty-src/zig-out/share/terminfo
+        test -d vendor/ghostty-src/zig-out/share/ghostty

@@ -66,9 +66,10 @@ import Testing
         ((try? String(contentsOfFile: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
     }
 
-    private func waitUntil(_ seconds: Double = 10, _ cond: () -> Bool) async -> Bool {
-        let end = Date().addingTimeInterval(seconds)
-        while Date() < end {
+    /// The budget is main-actor turns (≥ 10 s), not wall time: the servers' work runs on the main actor, which other
+    /// @MainActor suites hold for seconds at a time in a full run; a stalled main actor must not use up the wait.
+    private func waitUntil(polls: Int = 500, _ cond: () -> Bool) async -> Bool {
+        for _ in 0..<polls {
             if cond() { return true }
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -77,6 +78,7 @@ import Testing
 
     @Test func startsLazilyAnswersAndForwardsEdits() async throws {
         let langs = languages()
+        defer { langs.stopAll() }
         let sink = Sink()
         #expect(logLines().isEmpty)
         langs.opened(dir + "/a.json", text: "{}", host: nil, owner: owner(sink))   // not TS/JS: nothing starts
@@ -88,11 +90,12 @@ import Testing
         langs.opened(file, text: "let x = 1\n", host: nil, owner: o)
         // Edits made before the server is up are kept and sent after `open`.
         langs.edited(file, [EditorEdit(line: 1, column: 5, endLine: 1, endColumn: 6, text: "y")], host: nil)
-        #expect(await waitUntil { logLines().contains("open \(file)") })
+        try #require(await waitUntil { logLines().contains("open \(file)") })
         langs.edited(file, [EditorEdit(line: 1, column: 9, endLine: 1, endColumn: 10, text: "2")], host: nil)
-        #expect(await waitUntil { logLines().filter { $0 == "change \(file)" }.count == 2 })
+        try #require(await waitUntil { logLines().filter { $0 == "change \(file)" }.count == 2 })
         let lines = logLines()
-        #expect(lines.firstIndex(of: "open \(file)")! < lines.firstIndex(of: "change \(file)")!)
+        let open = try #require(lines.firstIndex(of: "open \(file)")), change = try #require(lines.firstIndex(of: "change \(file)"))
+        #expect(open < change)
 
         let hover = await langs.request(ProviderRequest(id: 1, kind: .hover, file: file, line: 1, column: 5), host: nil) { _ in nil }
         #expect(hover == .hover(markdown: "```typescript\nconst x: number\n```"))
@@ -100,7 +103,6 @@ import Testing
         #expect(await waitUntil { sink.markers.contains { $0.first?.message == "bad (TS1)" } })
         #expect(sink.statuses.contains { $0?.level == .ready || $0?.level == .busy })
         #expect(logLines().filter { $0 == "start" }.count == 1)
-        langs.stopAll()
     }
 
     @Test func definitionOutsideTheProjectIsRefused() async throws {

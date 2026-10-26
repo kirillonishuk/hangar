@@ -10,14 +10,21 @@ struct EditorLimits: Equatable, Sendable {
 
 // MARK: JS → Swift
 
-/// A language-feature request from Monaco (M2 answers them from the language server).
+/// A language-feature request from Monaco (answered by tsserver, #NN-tsserver). `details`: a completion entry's docs by `name`.
 struct ProviderRequest: Equatable, Sendable {
-    enum Kind: String, Sendable { case definition, references, hover, completion }
+    enum Kind: String, Sendable { case definition, references, hover, completion, details }
     var id: Int
     var kind: Kind
     var file: String
     var line: Int
     var column: Int
+    var name: String? = nil
+}
+
+/// One Monaco content change (1-based, end exclusive), in the order Monaco gives them (safe to apply in sequence).
+struct EditorEdit: Equatable, Sendable {
+    var line: Int, column: Int, endLine: Int, endColumn: Int
+    var text: String
 }
 
 /// One message of `window.webkit.messageHandlers.hangar.postMessage(JSON.stringify(m))`. The page is untrusted input:
@@ -40,12 +47,17 @@ enum BridgeMessage: Equatable {
     case inline(Bool)
     case minimap(Bool)
     case request(ProviderRequest)
+    /// A TS/JS buffer changed (forwarded to tsserver).
+    case edit(file: String, [EditorEdit])
+    /// The status item's click: restart the file's language server.
+    case restartLanguage(file: String)
     /// A script error in the page (to the app log; capped).
     case log(String)
 
     static let maxBytes = 2 * EditorLimits.refuseBytes + 65_536
     private static let maxPath = 4096
     private static let maxPosition = 10_000_000
+    private static let maxEdits = 10_000
 
     static func decode(_ body: Any) -> BridgeMessage? {
         guard let string = body as? String, string.utf8.count <= maxBytes,
@@ -97,7 +109,23 @@ enum BridgeMessage: Equatable {
         case "request":
             guard let id = int("id", 0...Int(Int32.max)), let kind = str("kind").flatMap(ProviderRequest.Kind.init(rawValue:)),
                   let f = file(), let (l, c) = position() else { return nil }
-            return .request(ProviderRequest(id: id, kind: kind, file: f, line: l, column: c))
+            let name = str("name")
+            if kind == .details { guard let name, !name.isEmpty, name.utf8.count <= 512 else { return nil } }
+            return .request(ProviderRequest(id: id, kind: kind, file: f, line: l, column: c, name: kind == .details ? name : nil))
+        case "edit":
+            guard let f = file(), let list = m["changes"] as? [[String: Any]], list.count <= maxEdits else { return nil }
+            var edits: [EditorEdit] = []
+            for e in list {
+                func n(_ key: String) -> Int? {
+                    guard let v = e[key] as? NSNumber, !isBool(v), let i = v as? Int, (1...maxPosition).contains(i) else { return nil }
+                    return i
+                }
+                guard let l = n("line"), let c = n("column"), let el = n("endLine"), let ec = n("endColumn"),
+                      let t = e["text"] as? String else { return nil }
+                edits.append(EditorEdit(line: l, column: c, endLine: el, endColumn: ec, text: t))
+            }
+            return .edit(file: f, edits)
+        case "restartLanguage": return file().map { .restartLanguage(file: $0) }
         default: return nil
         }
     }
@@ -111,12 +139,25 @@ struct EditorLocation: Equatable, Sendable {
     var path: String
     var line: Int
     var column: Int
+    var endLine: Int? = nil
+    var endColumn: Int? = nil
 }
 
 struct EditorCompletion: Equatable, Sendable {
     var label: String
     var detail: String?
     var insertText: String
+    /// tsserver's `ScriptElementKind` (`method`, `property` …): the icon in the list.
+    var kind: String? = nil
+    var sortText: String? = nil
+}
+
+/// The status item of the editor's tab bar for a TS/JS file (#NN-tsserver).
+struct LanguageStatus: Equatable, Sendable {
+    enum Level: String, Sendable { case ready, busy, off }
+    var text: String
+    var tooltip: String
+    var level: Level
 }
 
 /// A marker of the language server (M2); 1-based, end exclusive.
@@ -127,15 +168,13 @@ struct EditorDiagnostic: Equatable, Sendable {
     var message: String
 }
 
-/// The M2 hook's answer; nil from the provider = nothing found.
+/// A language request's answer; nil = nothing found.
 enum ProviderResult: Equatable, Sendable {
-    case locations([EditorLocation])
+    /// `previews`: texts of files the page has no model for (the references peek shows their lines).
+    case locations([EditorLocation], previews: [String: String])
     case hover(markdown: String)
     case completions([EditorCompletion])
 }
-
-/// Answers `ProviderRequest`s (set by the language-server track, M2); nil = no provider, Monaco shows nothing.
-typealias EditorProvider = @MainActor (ProviderRequest) async -> ProviderResult?
 
 struct EditorOpen: Equatable {
     var path: String
@@ -168,6 +207,8 @@ enum EditorCommand: Equatable {
     case notice(path: String, text: String?)
     case resolve(id: Int, result: ProviderResult?)
     case markers(path: String, [EditorDiagnostic])
+    /// nil hides the status item for that file.
+    case language(path: String, LanguageStatus?)
     case diff(EditorDiff)
     case options(inline: Bool, minimap: Bool)
     case focus
@@ -189,6 +230,9 @@ enum EditorCommand: Equatable {
                 ["line": $0.line, "column": $0.column, "endLine": $0.endLine, "endColumn": $0.endColumn,
                  "severity": $0.severity.rawValue, "message": $0.message] as [String: Any]
             }]
+        case .language(let p, let s):
+            return ["type": "language", "path": p,
+                    "status": n(s.map { ["text": $0.text, "tooltip": $0.tooltip, "level": $0.level.rawValue] })]
         case .diff(let d):
             return ["type": "diff", "name": d.name, "original": d.original, "modified": d.modified, "path": n(d.path),
                     "line": n(d.line)]
@@ -202,12 +246,16 @@ enum EditorCommand: Equatable {
 
     private static func json(_ r: ProviderResult) -> [String: Any] {
         switch r {
-        case .locations(let list):
-            return ["kind": "locations", "items": list.map { ["path": $0.path, "line": $0.line, "column": $0.column] as [String: Any] }]
+        case .locations(let list, let previews):
+            return ["kind": "locations", "previews": previews, "items": list.map {
+                ["path": $0.path, "line": $0.line, "column": $0.column, "endLine": $0.endLine ?? $0.line,
+                 "endColumn": $0.endColumn ?? $0.column] as [String: Any]
+            }]
         case .hover(let markdown): return ["kind": "hover", "markdown": markdown]
         case .completions(let list):
             return ["kind": "completions", "items": list.map {
-                ["label": $0.label, "detail": $0.detail ?? NSNull(), "insertText": $0.insertText] as [String: Any]
+                ["label": $0.label, "detail": $0.detail ?? NSNull(), "insertText": $0.insertText, "kind": $0.kind ?? NSNull(),
+                 "sortText": $0.sortText ?? NSNull()] as [String: Any]
             }]
         }
     }

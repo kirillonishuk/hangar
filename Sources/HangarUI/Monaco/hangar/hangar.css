@@ -29,6 +29,20 @@ body.diff #tabs { display: none; }
 .tool { display: flex; align-items: center; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
 .tool:hover { color: var(--text); background: var(--hover); }
 .tool.on { color: var(--accent); }
+/* tsserver status (#NN-tsserver): a dot in the state's color, then "TS 5.6"; the text never moves the tabs (they end before it). */
+.tool.lang { gap: 6px; color: var(--text2); }
+.tool.lang::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--done); }
+.tool.lang.busy::before { background: var(--waiting); }
+.tool.lang.off { color: var(--text3); }
+.tool.lang.off::before { background: var(--text3); }
+
+/* The references / definition peek: Hangar's sheet look, not VS Code's blue frame. */
+.monaco-editor .peekview-widget { border-radius: var(--radius); overflow: hidden; }
+.monaco-editor .peekview-widget .head { font-family: -apple-system, system-ui, sans-serif; font-size: var(--bar-font); }
+.monaco-editor .peekview-widget .head .peekview-title .filename { color: var(--text-strong); }
+.monaco-editor .peekview-widget .head .peekview-title .dirname, .monaco-editor .peekview-widget .head .peekview-title .meta { color: var(--text3); }
+.monaco-editor .reference-zone-widget .ref-tree { font-family: -apple-system, system-ui, sans-serif; font-size: var(--bar-font); }
+.monaco-editor .reference-zone-widget .ref-tree .reference-file .count { border-radius: 8px; }
 
 /* Conflict bar and notices: calm, one line above the text (it never shifts under the cursor while typing). */
 #bar, #notice { flex: none; height: var(--bar-h); display: flex; align-items: center; gap: 8px; padding: 0 12px;

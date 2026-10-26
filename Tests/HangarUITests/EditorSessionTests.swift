@@ -62,6 +62,23 @@ import Testing
         #expect(s.isReadOnly(mid))
     }
 
+    /// Go to definition into node_modules (#NN-tsserver): shown read-only; editable TS goes on to the language server.
+    @Test func dependenciesOpenReadOnlyAndTextGoesToTheLanguageServer() async throws {
+        try FileManager.default.createDirectory(atPath: dir + "/node_modules/lib", withIntermediateDirectories: true)
+        let dep = try write("node_modules/lib/index.d.ts", "export declare const x: 1;\n")
+        let own = try write("a.ts", "let a = 1\n")
+        let (s, sink) = session()
+        var handed: [String] = []
+        s.onOpened = { path, _ in handed.append(path) }
+        await s.open(path: dep, line: nil, column: nil)
+        await s.open(path: own, line: nil, column: nil)
+        let o = opened(sink)
+        #expect(o[0].readOnly && o[0].notice == L10n.editorDependencyReadOnly)
+        #expect(!o[1].readOnly && o[1].notice == nil)
+        #expect(s.isReadOnly(dep) && !s.isReadOnly(own))
+        #expect(handed == [dep, own])
+    }
+
     @Test func savesAtomicallyKeepingMode() async throws {
         let path = try write("run.sh", "echo a\n")
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)

@@ -448,4 +448,13 @@
 "diffInline" = "Inline";
 "diffSideBySide" = "Side by side";
 "editorMinimap" = "Minimap";
+"editorDependencyReadOnly" = "Dependency file — read-only";
+"tsReady" = "TS %@";
+"tsLoading" = "TS %@ · project…";
+"tsStopped" = "TS stopped";
+"tsNoTypeScript" = "TS unavailable — no node_modules/typescript";
+"tsNoNode" = "TS unavailable — no node";
+"tsNotConnected" = "TS unavailable — host not connected";
+"tsTooltip" = "%1$@\nnode: %2$@\nClick to restart";
+"tsUnavailableTip" = "Definitions, references and errors come from the project's TypeScript (node_modules/typescript) and node. Click to check again";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";

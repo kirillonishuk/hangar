@@ -126,6 +126,7 @@ import Workspace
         case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
+        case editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -544,6 +545,15 @@ import Workspace
     static var diffSideBySide: String { s(.diffSideBySide) }
     static var editorMinimap: String { s(.editorMinimap) }
     static func editorUnsavedQuit(_ n: Int) -> String { f(.editorUnsavedQuit, Int32(clamping: n)) }
+    static var editorDependencyReadOnly: String { s(.editorDependencyReadOnly) }
+    static func tsReady(_ version: String) -> String { f(.tsReady, version) }
+    static func tsLoading(_ version: String) -> String { f(.tsLoading, version) }
+    static var tsStopped: String { s(.tsStopped) }
+    static var tsNoTypeScript: String { s(.tsNoTypeScript) }
+    static var tsNoNode: String { s(.tsNoNode) }
+    static var tsNotConnected: String { s(.tsNotConnected) }
+    static func tsTooltip(_ tsserver: String, _ node: String) -> String { f(.tsTooltip, tsserver, node) }
+    static var tsUnavailableTip: String { s(.tsUnavailableTip) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

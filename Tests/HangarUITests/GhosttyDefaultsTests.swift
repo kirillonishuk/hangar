@@ -1,5 +1,5 @@
 import AppKit
-import GhosttyBridge
+@testable import GhosttyBridge
 import Testing
 @testable import HangarUI
 
@@ -31,5 +31,50 @@ import Testing
 
     @Test func cursorIsTheAccent() {
         #expect(Theme.terminalColors(force: false).cursor == String(cssHex(Theme.accent).dropFirst()))
+    }
+}
+
+/// The layering around the user's Ghostty config, through libghostty itself (decision #87): «как тема» beats the
+/// user's `theme`, «из Ghostty» keeps it, and a rebuilt config carries the new theme (what open surfaces get on switch).
+@MainActor @Suite struct GhosttyLayersTests {
+    private func colors(_ bg: String, force: Bool) -> TerminalColors {
+        TerminalColors(background: bg, palette: Array(repeating: "808080", count: 16), cursor: "2a6fd6", forceBackground: force)
+    }
+
+    private func userConfig(_ text: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-ghostty-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let theme = dir.appendingPathComponent("theme"), config = dir.appendingPathComponent("config")
+        try "background = #5a1040\npalette = 1=#ff3060\n".write(to: theme, atomically: true, encoding: .utf8)
+        try text.replacingOccurrences(of: "$THEME", with: theme.path).write(to: config, atomically: true, encoding: .utf8)
+        return config
+    }
+
+    @Test func pureLayers() {
+        let forced = GhosttyApp.layers(colors("121826", force: true), padding: nil, userBackground: true, userPalette: true)
+        #expect(forced.overrides == "background = 121826\n")
+        #expect(!forced.defaults.contains("background"))
+        let kept = GhosttyApp.layers(colors("121826", force: false), padding: nil, userBackground: true, userPalette: false)
+        #expect(kept.overrides == nil)
+        #expect(!kept.defaults.contains("background") && kept.defaults.contains("palette = 0=#808080"))
+        let unset = GhosttyApp.layers(colors("121826", force: false), padding: nil, userBackground: false, userPalette: false)
+        #expect(unset.defaults.contains("background = 121826"))
+    }
+
+    @Test func userThemeAgainstHangarBackground() throws {
+        #expect(GhosttyApp.initialized)
+        let themed = try userConfig("theme = $THEME\n")
+        #expect(GhosttyApp.userSets([themed]) == (background: true, palette: true))
+        // «как тема»: every theme switch wins over the user's theme.
+        #expect(GhosttyApp.resolvedBackground(colors("121826", force: true), userFiles: [themed]) == "121826")
+        #expect(GhosttyApp.resolvedBackground(colors("232220", force: true), userFiles: [themed]) == "232220")
+        // «из Ghostty»: the user's theme stays.
+        #expect(GhosttyApp.resolvedBackground(colors("121826", force: false), userFiles: [themed]) == "5a1040")
+        // No background of their own: the Hangar theme's, in both modes.
+        let plain = try userConfig("font-size = 13\n")
+        #expect(GhosttyApp.userSets([plain]) == (background: false, palette: false))
+        #expect(GhosttyApp.resolvedBackground(colors("1e1e1e", force: false), userFiles: [plain]) == "1e1e1e")
+        #expect(GhosttyApp.resolvedBackground(colors("232220", force: false), userFiles: [plain]) == "232220")
+        GhosttyApp.removeConfigFiles()
     }
 }

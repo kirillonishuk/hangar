@@ -1,13 +1,9 @@
 name: GhosttyKit
 description: >
   Restores GhosttyKit.xcframework and Ghostty's resources for the commit in vendor/GHOSTTY_COMMIT from the Actions
-  cache, building them on a miss. Run it on macos-15: Zig 0.15.2 cannot link its build runner against the macOS 26
-  SDK, so the library is built with Xcode 16 there and linked by Xcode 26 in the jobs that need it.
-
-inputs:
-  build:
-    description: Build on a cache miss (true) or fail (false)
-    default: "false"
+  cache, builds them on a miss, and uploads them as the `ghosttykit` artifact for later jobs of the run (a merged-PR
+  run cannot write the cache). Run it on macos-15: Zig 0.15.2 cannot link its build runner against the macOS 26 SDK,
+  so the library is built with Xcode 16 there and linked by Xcode 26 in the jobs that need it.
 
 runs:
   using: composite
@@ -20,10 +16,9 @@ runs:
           vendor/GhosttyKit.xcframework
           vendor/ghostty-src/zig-out/share
         key: ghosttykit-${{ hashFiles('vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh') }}-zig0.15.2-xcode16
-        fail-on-cache-miss: ${{ inputs.build != 'true' }}
 
     - name: Build GhosttyKit (cache miss)
-      if: steps.cache.outputs.cache-hit != 'true' && inputs.build == 'true'
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -n 1)
@@ -36,3 +31,13 @@ runs:
         echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c -
         tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
         ZIG="$RUNNER_TEMP/zig-aarch64-macos-$ZIG_VERSION/zig" scripts/build-ghosttykit.sh
+
+    - name: Upload GhosttyKit
+      uses: actions/upload-artifact@v4
+      with:
+        name: ghosttykit
+        path: |
+          vendor/GhosttyKit.xcframework
+          vendor/ghostty-src/zig-out/share
+        retention-days: 1
+        if-no-files-found: error

@@ -6,10 +6,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/ghostty-src"
 OUT="$ROOT/vendor/GhosttyKit.xcframework"
 SHA="$(tr -d '[:space:]' < "$ROOT/vendor/GHOSTTY_COMMIT")"
-# Ghostty v1.3.x requires Zig 0.15.x; keg-only brew formula, PATH untouched on purpose.
-ZIG="/opt/homebrew/opt/zig@0.15/bin/zig"
+# Ghostty v1.3.x requires Zig 0.15.x: $ZIG, else the keg-only brew formula (PATH untouched on purpose).
+ZIG="${ZIG:-/opt/homebrew/opt/zig@0.15/bin/zig}"
 
-[ -x "$ZIG" ] || { echo "missing $ZIG (brew install zig@0.15)" >&2; exit 1; }
+[ -x "$ZIG" ] || { echo "missing $ZIG (brew install zig@0.15, or set ZIG=/path/to/zig-0.15)" >&2; exit 1; }
 
 if [ ! -d "$SRC/.git" ]; then
   git init -q "$SRC"

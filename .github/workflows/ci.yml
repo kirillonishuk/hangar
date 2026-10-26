@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ghosttykit:
+    name: GhosttyKit
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ghosttykit
+        with:
+          build: "true"
+
+  build-test:
+    name: Build & test
+    needs: ghosttykit
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      # Tests create commits in temporary repositories.
+      - name: Git identity for tests
+        run: |
+          git config --global user.name "Hangar CI"
+          git config --global user.email "ci@users.noreply.github.com"
+
+      - name: Build
+        run: swift build
+
+      # Some UI-string tests expect the Russian system language the project is developed under.
+      - name: System language ru
+        run: defaults write -g AppleLanguages -array ru en
+
+      # Serial: hosted runners have 3 cores, and the suite's process/socket tests starve each other in parallel
+      # (20 s timeouts blown); serially the suite takes a few minutes. One retry absorbs a cold-runner hiccup.
+      - name: Test
+        run: |
+          swift test --no-parallel && exit 0
+          echo "::warning::Test run failed; retrying once"
+          swift test --no-parallel

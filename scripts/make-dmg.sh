@@ -39,7 +39,9 @@ mkdir "$MNT/.background"
 cp "$TMP/background.tiff" "$MNT/.background/background.tiff"
 
 # 3. Finder layout (writes .DS_Store). Bounds: 640×400 content + 32 pt title bar.
-osascript <<OSA
+# Best effort: without Finder automation (e.g. a headless CI runner) the DMG is still valid, just unstyled.
+layout() {
+osascript <<OSA &
 tell application "Finder"
   tell disk "$VOL"
     open
@@ -65,9 +67,16 @@ tell application "Finder"
   end tell
 end tell
 OSA
-# Finder writes .DS_Store asynchronously; wait for it before detaching.
-for _ in $(seq 1 20); do [ -f "$MNT/.DS_Store" ] && break; sleep 0.5; done
-[ -f "$MNT/.DS_Store" ] || { echo "Finder did not write .DS_Store" >&2; exit 1; }
+  local pid=$!
+  ( sleep 120; kill "$pid" ) >/dev/null 2>&1 &  # a Finder automation prompt nobody answers must not hang the build
+  local watchdog=$!
+  wait "$pid" || return 1
+  kill "$watchdog" 2>/dev/null || true
+  # Finder writes .DS_Store asynchronously; wait for it before detaching.
+  for _ in $(seq 1 20); do [ -f "$MNT/.DS_Store" ] && break; sleep 0.5; done
+  [ -f "$MNT/.DS_Store" ] || { echo "Finder did not write .DS_Store" >&2; return 1; }
+}
+layout || echo "warning: Finder layout failed; the DMG window will be unstyled" >&2
 
 # 4. Volume icon — after the layout: Finder's layout pass deletes .VolumeIcon.icns.
 cp "$APP/Contents/Resources/AppIcon.icns" "$MNT/.VolumeIcon.icns"

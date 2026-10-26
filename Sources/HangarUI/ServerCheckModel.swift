@@ -51,7 +51,7 @@ mv -f "$tmp" "$f"
     let host: String
     private(set) var report: ServerReport?
     private(set) var plan: (steps: [InstallStep], manual: [RemoteTool]) = ([], [])
-    /// Ticked optional tools (codex, hx): only they join the plan; the shown plan is what «Установить» runs.
+    /// Ticked optional tools (codex): only they join the plan; the shown plan is what «Установить» runs.
     var optional: Set<RemoteTool> = [] {
         didSet { if let report, phase != .installing { plan = installPlan(report, remoteVersion: hangarRemoteVersion, optional: optional) } }
     }

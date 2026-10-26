@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Bundled files only (hangar-editor:), workers from blob:; no network (the app also blocks http/https/ws). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src hangar-editor: blob: 'unsafe-inline' 'unsafe-eval'; style-src hangar-editor: 'unsafe-inline'; font-src hangar-editor: data:; img-src hangar-editor: data:; worker-src blob: hangar-editor:; connect-src 'none'; frame-src 'none'; form-action 'none'">
+<link rel="stylesheet" href="hangar.css">
+</head>
+<body>
+<div id="tabs" role="tablist"></div>
+<div id="bar" hidden><span id="bar-text"></span><span class="spacer"></span><button id="bar-reload"></button><button id="bar-keep" class="primary"></button></div>
+<div id="notice" hidden></div>
+<div id="host"><div id="refused" hidden></div></div>
+<script src="../vs/loader.js"></script>
+<script src="hangar.js"></script>
+</body>
+</html>

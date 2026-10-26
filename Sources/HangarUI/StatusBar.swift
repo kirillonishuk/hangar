@@ -89,7 +89,7 @@ extension AppState {
     var statusBar: StatusBarLine {
         // The rows' state (a reached limit included), so the bar and the sidebar agree.
         statusBarLine(state, summary: { (displayState(ofLeaf: $0.id, kind: $0.kind), statusSummary(ofLeaf: $0.id).subagents) },
-                      process: { defaultTitle($0.kind) })
+                      process: { $0.kind == .editor ? editorStatusLabel($0) : defaultTitle($0.kind) })
     }
 
     /// «N работает»: the project's next session with a working agent.
@@ -98,6 +98,15 @@ extension AppState {
         let tasks = state.tasks(in: task.projectId)
         let working = Set(tasks.filter { leaves(of: $0).contains { displayState(ofLeaf: $0.id, kind: $0.kind) == .working } }.map(\.id))
         if let next = nextWorking(tasks.map(\.id), working: working, after: task.id), next != task.id { select(taskId: next) }
+    }
+}
+
+/// An editor has no terminal process: the active file's language (TS/JS, the ones with a language server), else «Editor».
+@MainActor func editorStatusLabel(_ leaf: Leaf) -> String {
+    switch leaf.openFile.flatMap(TsMap.scriptKind) {
+    case "TS", "TSX": "TypeScript"
+    case "JS", "JSX": "JavaScript"
+    default: L10n.editor
     }
 }
 

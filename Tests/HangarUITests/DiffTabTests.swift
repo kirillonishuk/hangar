@@ -172,11 +172,10 @@ import Workspace
         await settle(app.inspector)
         let two = try #require(rowIndex(app) { $0.kind == .added && $0.text == "two" })
         app.selectDiffRow(two)
-        var opened: (String, Int?)?
-        app.onOpenInEditor = { opened = ($0, $1) }
         app.openActiveDiffInEditor()
-        #expect(opened?.0 == repo.repo + "/sub/s.txt")
-        #expect(opened?.1 == 2)
+        let editor = app.state.tasks.first { $0.id == t }?.tabs.last?.root.leaves.first
+        #expect(editor?.kind == .editor)
+        #expect(editor?.editorFiles == [EditorFile(path: repo.repo + "/sub/s.txt", line: 2, column: 1)])
     }
 
     @Test func diffKeyRouting() {

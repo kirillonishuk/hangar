@@ -5,7 +5,6 @@ public enum Language: String, Sendable, CaseIterable { case system, ru, en }
 
 public struct HangarConfig: Equatable, Sendable {
     public var defaultAgent: LeafKind = .claude
-    public var editor: String = "hx"
     public var agentCommands: [LeafKind: String] = [.claude: "claude", .codex: "codex"]
     public var terminalBackground: TerminalBackground = .hangar
     public var language: Language = .system
@@ -71,7 +70,7 @@ public struct HangarConfig: Equatable, Sendable {
                 }
                 config.defaultAgent = kind
             case ("", "editor"):
-                config.editor = value
+                continue  // the Helix-era terminal editor (#81): ignored, so old configs still load
             case ("", "terminal_background"):
                 guard let bg = TerminalBackground(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")

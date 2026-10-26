@@ -193,7 +193,13 @@ enum Action: CaseIterable {
             guard let leaf = app.state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab })?.focusedLeafId
             else { return }
             app.split(leafId: leaf, axis: self == .splitRight ? .horizontal : .vertical)
-        case (.closeTab, .tab(let task, let tab)): app.perform { $0.closeTab(taskId: task, tabId: tab) }
+        case (.closeTab, .tab(let task, let tab)):
+            let unsaved = app.unsavedEditorFiles(tab: tab)
+            guard !unsaved.isEmpty else { app.perform { $0.closeTab(taskId: task, tabId: tab) }; return }
+            let names = unsaved.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+            ctx.confirm(L10n.editorUnsavedTitle(names), L10n.editorUnsavedInfo, L10n.editorDontSave) {
+                app.perform { $0.closeTab(taskId: task, tabId: tab) }
+            }
         case (.reconnect, _): if let host = app.project(of: target)?.host { app.reconnect(host: host) }
         case (.toggleDrawer, .task(let id)):
             if let toggle = ctx.toggleDrawer { toggle(id) } else { app.perform { $0.toggleDrawer(taskId: id) } }
@@ -293,9 +299,10 @@ func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool, sessions
 /// What holds the keyboard when F2 is pressed.
 enum FirstResponderKind { case terminal, text, other }
 
-/// The diff view sits in the terminal area but is not a terminal: F2 renames, its keys are not typing.
-func responderKind(isText: Bool, inTerminalArea: Bool, isDiff: Bool) -> FirstResponderKind {
-    if isText { return .text }
+/// The diff view sits in the terminal area but is not a terminal: F2 renames, its keys are not typing — except inside
+/// Monaco (`isWeb`, the editor or the diff's editor), which types like a text field and owns F2 (rename symbol).
+func responderKind(isText: Bool, isWeb: Bool = false, inTerminalArea: Bool, isDiff: Bool) -> FirstResponderKind {
+    if isText || isWeb { return .text }
     return inTerminalArea && !isDiff ? .terminal : .other
 }
 enum F2Route: Equatable { case passthrough, rename(ActionTarget), ignore }

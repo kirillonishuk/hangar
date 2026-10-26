@@ -149,4 +149,16 @@ import Workspace
         #expect(nextWorking([a, b, c], working: [b], after: nil) == b)
         #expect(nextWorking([a, b, c], working: [], after: a) == nil)
     }
+
+    /// The status bar's right label for an editor: the active file's language, else «Редактор» — never a terminal process.
+    @Test func editorProcessLabel() {
+        defer { L10n.language = .system }
+        L10n.language = .ru
+        func leaf(_ file: String?) -> Leaf { Leaf(kind: .editor, cwd: "/w", openFile: file) }
+        #expect(editorStatusLabel(leaf("/w/src/a.ts")) == "TypeScript")
+        #expect(editorStatusLabel(leaf("/w/src/App.tsx")) == "TypeScript")
+        #expect(editorStatusLabel(leaf("/w/src/a.mjs")) == "JavaScript")
+        #expect(editorStatusLabel(leaf("/w/README.md")) == "Редактор")
+        #expect(editorStatusLabel(leaf(nil)) == "Редактор")
+    }
 }

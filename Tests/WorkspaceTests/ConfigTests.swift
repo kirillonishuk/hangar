@@ -7,7 +7,6 @@ import Testing
         let c = try HangarConfig.parse("")
         #expect(c == HangarConfig())
         #expect(c.defaultAgent == .claude)
-        #expect(c.editor == "hx")
         #expect(c.agentCommands == [.claude: "claude", .codex: "codex"])
     }
 
@@ -21,9 +20,13 @@ import Testing
         claude = "claude --model opus"
         """)
         #expect(c.defaultAgent == .codex)
-        #expect(c.editor == "nvim")
         #expect(c.agentCommands[.claude] == "claude --model opus")
         #expect(c.agentCommands[.codex] == "codex")
+    }
+
+    /// The Helix-era `editor` key (#81) is ignored, so an old config still loads.
+    @Test func legacyEditorKeyIgnored() throws {
+        #expect(try HangarConfig.parse(#"editor = "hx""#) == HangarConfig())
     }
 
     @Test func rejectsUnknownAgent() {
@@ -171,10 +174,10 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"keep_awake = "no""#) }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-keep-\(UUID()).toml")
         defer { try? FileManager.default.removeItem(at: url) }
-        try "editor = \"vim\"\nnotifications = false\n".write(to: url, atomically: true, encoding: .utf8)
+        try "language = \"en\"\nnotifications = false\n".write(to: url, atomically: true, encoding: .utf8)
         try HangarConfig.save(key: "keep_awake", literal: "false", to: url)
         let c = try HangarConfig.parse(String(contentsOf: url, encoding: .utf8))
-        #expect(!c.keepAwake && c.editor == "vim" && !c.notifications)
+        #expect(!c.keepAwake && c.language == .en && !c.notifications)
     }
 
     @Test func dockBadgeFlag() throws {

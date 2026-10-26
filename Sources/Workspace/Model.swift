@@ -81,10 +81,12 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var kind: LeafKind
     public var cwd: String
     public var agentSessionId: String?
+    /// The editor's active file.
     public var openFile: String?
-    /// 1-based line the editor opens at; nil in states saved before it existed.
-    public var openLine: Int?
+    /// Files open in an editor tab (Monaco, #80), in tab order; `openFile` is the active one.
+    public var editorFiles: [EditorFile]?
 
+    /// `openLine`: the new editor's cursor line in `openFile`.
     public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
                 openFile: String? = nil, openLine: Int? = nil) {
         self.id = id
@@ -92,7 +94,30 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         self.cwd = cwd
         self.agentSessionId = agentSessionId
         self.openFile = openFile
-        self.openLine = openLine
+        if kind == .editor, let openFile { editorFiles = [EditorFile(path: openFile, line: openLine ?? 1, column: 1)] }
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(UUID.self, forKey: .id), kind: try c.decode(LeafKind.self, forKey: .kind),
+                  cwd: try c.decode(String.self, forKey: .cwd),
+                  agentSessionId: try c.decodeIfPresent(String.self, forKey: .agentSessionId),
+                  // A Helix-era editor leaf (decision #81): `openFile` + `openLine` become its one file tab.
+                  openFile: try c.decodeIfPresent(String.self, forKey: .openFile),
+                  openLine: try c.decodeIfPresent(Int.self, forKey: .openLine))
+        if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(cwd, forKey: .cwd)
+        try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)
+        try c.encodeIfPresent(openFile, forKey: .openFile)
+        try c.encodeIfPresent(editorFiles, forKey: .editorFiles)
     }
 }
 
@@ -282,6 +307,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var hostShells: [HostShell]
     /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
     public var attentionOnly: Bool
+    /// Diff tab: inline instead of side by side (#80).
+    public var diffInline: Bool = false
+    /// Editor tabs show the minimap (#80; off by default).
+    public var editorMinimap: Bool = false
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
@@ -300,7 +329,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly
+        case attentionOnly, diffInline, editorMinimap
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -315,6 +344,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 340,
                   hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
+        diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
+        editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         assignMissingPorts()
     }
 
@@ -624,23 +655,6 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                 tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
                     var leaf = leaf
                     if leaf.id == leafId { leaf.agentSessionId = id }
-                    return leaf
-                }
-                return
-            }
-        }
-    }
-
-    /// Points an editor leaf at another file and line; unknown leaf ids are ignored.
-    public mutating func setOpenFile(leafId: UUID, path: String, line: Int?) {
-        for i in tasks.indices {
-            if tasks[i].drawer.leaf?.id == leafId {
-                tasks[i].drawer.leaf?.openFile = path; tasks[i].drawer.leaf?.openLine = line; return
-            }
-            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId) != nil {
-                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
-                    var leaf = leaf
-                    if leaf.id == leafId { leaf.openFile = path; leaf.openLine = line }
                     return leaf
                 }
                 return

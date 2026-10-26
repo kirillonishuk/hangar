@@ -75,7 +75,7 @@ enum TabStrip {
     }
 }
 
-/// The selected task's tabs, the overflow chevron and `+` (Claude / Codex / Helix / Shell). Row below the titlebar.
+/// The selected task's tabs, the overflow chevron and `+` (Claude / Codex / Editor / Shell). Row below the titlebar.
 /// Tabs drag sideways to reorder (as sidebar rows: `dropIndex`, a 2 pt `accent` insertion line); the order is saved.
 /// Too many tabs for the bar: it scrolls (decision #69); the chevron and `+` stay put at the right.
 struct TabBarView: View {
@@ -285,7 +285,7 @@ struct TabBarView: View {
             if !shellOnly {
                 item("Claude", .claude)
                 item("Codex", .codex)
-                item("Helix", .editor)
+                item(L10n.editor, .editor)
             }
             item("Shell", .shell)
         }

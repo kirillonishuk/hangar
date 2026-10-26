@@ -1,7 +1,9 @@
 # Releasing Hangar
 
 Releases are cut by `.github/workflows/release.yml` when a PR is merged into `main`. CI (`.github/workflows/ci.yml`)
-runs `swift build` and `swift test` on every PR; the `Build & test` check is required by the `main` ruleset.
+runs `swift build` and `swift test` on every PR; the `Build & test` check is required by the `main` ruleset. The
+`Commit authorship` check (`scripts/check-commits.sh`) fails on commits by anyone but the owner or with
+`Co-Authored-By` trailers.
 
 ## Branches and PRs
 
@@ -34,6 +36,8 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
       `HANGAR_CONFIG` pointing at throwaway paths) are in the PR body, and the owner has looked at them.
 - [ ] `docs/decisions.md` or the spec is updated if behaviour changed.
 - [ ] PR title, PR body and release notes are in English.
+- [ ] Every commit is authored by the owner from `git config` (no `--author` / `GIT_AUTHOR_*` overrides) and has no
+      `Co-Authored-By` or other attribution trailers. CI checks this (`Commit authorship`).
 - [ ] No secrets, real hostnames, usernames or home paths in the diff or screenshots.
 - [ ] Bump label or `no-release` set if the title alone is not right.
 

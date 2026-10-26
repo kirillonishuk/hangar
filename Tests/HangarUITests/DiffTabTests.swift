@@ -11,8 +11,8 @@ import Workspace
     /// A selected task on a temp repo with three changed files (a.txt, b.txt, c.txt); the inspector has loaded it.
     private func makeApp() async throws -> (AppState, TempRepo, task: UUID) {
         let repo = try await TempRepo.offMain()
-        try repo.commit(file: "b.txt", on: "main")
-        try repo.commit(file: "c.txt", on: "main")
+        try await repo.commit(file: "b.txt", on: "main")
+        try await repo.commit(file: "c.txt", on: "main")
         for f in ["a.txt", "b.txt", "c.txt"] { try "changed\n".write(toFile: repo.repo + "/" + f, atomically: true, encoding: .utf8) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var s = WorkspaceState()
@@ -128,9 +128,9 @@ import Workspace
         let (app, repo, t) = try await makeApp()
         defer { cleanup(repo) }
         // A task branch: base main has a.txt's first version, the branch commits another, the worktree a third.
-        try repo.git("checkout", "-q", "-b", "task", in: repo.repo)
+        try await repo.git("checkout", "-q", "-b", "task", in: repo.repo)
         try "committed\n".write(toFile: repo.repo + "/a.txt", atomically: true, encoding: .utf8)
-        try repo.git("commit", "-q", "-am", "task", in: repo.repo)
+        try await repo.git("commit", "-q", "-am", "task", in: repo.repo)
         try "one\ntwo\n".write(toFile: repo.repo + "/a.txt", atomically: true, encoding: .utf8)
         app.inspector.show(taskId: UUID(), root: repo.repo, baseBranch: { nil })  // another context, then back
         app.inspector.show(taskId: t, root: repo.repo, baseBranch: { "main" })
@@ -163,7 +163,7 @@ import Workspace
         defer { cleanup(repo) }
         try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
         try "one\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
-        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try await repo.git("add", "sub", in: repo.repo); try await repo.git("commit", "-q", "-m", "s", in: repo.repo)
         try "one\ntwo\n".write(toFile: repo.repo + "/sub/s.txt", atomically: true, encoding: .utf8)
         app.inspector.show(taskId: t, root: repo.repo + "/sub", baseBranch: { nil })
         await settle(app.inspector)

@@ -19,8 +19,7 @@ import Workspace
     /// A stub tool in the fake server's PATH that prints `version`.
     private func stub(_ h: Harness, _ name: String, version: String = "1.0") async throws {
         let path = h.bin + "/" + name
-        try "#!/bin/sh\necho '\(name) \(version)'\n".write(toFile: path, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        try writeScript("#!/bin/sh\necho '\(name) \(version)'\n", to: path)
         try await RemoteHostsTests.run(path, ["-V"])  // the first exec of a fresh script is slow
     }
 

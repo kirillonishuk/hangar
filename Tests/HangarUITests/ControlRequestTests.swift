@@ -245,7 +245,7 @@ import Workspace
         #expect(r.task == wt.task.id && r.archived && r.worktreeRemoved)
         #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
         #expect(!FileManager.default.fileExists(atPath: wt.task.path))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(await error(app, .tasksArchive(task: wt.task.id.uuidString))?.code == .notFound)
 
         // A main-folder task: just archived.
@@ -271,7 +271,7 @@ import Workspace
 
         // Branch gone: nothing changes, the error says why.
         _ = try await ok(app, .tasksArchive(task: "y"), ArchiveResult.self)
-        _ = try t.git("branch", "-D", "y", in: t.repo)
+        _ = try await t.git("branch", "-D", "y", in: t.repo)
         let gone = await error(app, .tasksRestore(task: "y"))
         #expect(gone?.code == .failed && gone?.message.contains("branch") == true)
         #expect(app.state.tasks.first { $0.id == wt.task.id }?.archived == true)
@@ -285,8 +285,8 @@ import Workspace
         defer { cleanup() }
         let wt = try await ok(app, .tasksCreate(project: "repo", name: "z", worktree: true, base: "main", prompt: nil), TaskResult.self)
         try "one\ntwo\n".write(toFile: wt.task.path + "/b.txt", atomically: true, encoding: .utf8)
-        _ = try t.git("add", "b.txt", in: wt.task.path)
-        _ = try t.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "b", in: wt.task.path)
+        _ = try await t.git("add", "b.txt", in: wt.task.path)
+        _ = try await t.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "b", in: wt.task.path)
         try "u".write(toFile: wt.task.path + "/new.txt", atomically: true, encoding: .utf8)
 
         let plain = try await ok(app, .tasksList(project: nil), TasksResult.self)

@@ -158,8 +158,8 @@ import Workspace
     // MARK: Loading
 
     /// `n` commits on main after the fixture's first one; returns their hashes, newest first.
-    private func history(_ t: TempRepo, _ n: Int) throws {
-        for i in 0..<n { try t.commit(file: "f\(i).txt", on: "main") }
+    private func history(_ t: TempRepo, _ n: Int) async throws {
+        for i in 0..<n { try await t.commit(file: "f\(i).txt", on: "main") }
     }
 
     /// A hash-prefix search puts the hash's commit first on page 1 on top of the message matches: the next page must
@@ -167,8 +167,8 @@ import Workspace
     @Test func hashHitDoesNotSkipAMatchOnTheNextPage() async throws {
         let t = try await TempRepo.offMain()
         defer { t.cleanup() }
-        let prefix = String(try t.git("rev-parse", "HEAD", in: t.repo).trimmingCharacters(in: .whitespacesAndNewlines).prefix(8))
-        for i in 0..<4 { try t.commit(file: "\(prefix)-\(i).txt", on: "main") }  // 4 messages contain the prefix
+        let prefix = String(try await t.git("rev-parse", "HEAD", in: t.repo).trimmingCharacters(in: .whitespacesAndNewlines).prefix(8))
+        for i in 0..<4 { try await t.commit(file: "\(prefix)-\(i).txt", on: "main") }  // 4 messages contain the prefix
         let model = GitPanelModel(pageSize: 2, textDebounce: .zero)
         model.show(taskId: UUID(), root: t.repo, git: { Git(repo: $0) }, remote: false)
         model.tabShown = true
@@ -188,7 +188,7 @@ import Workspace
     @Test func pagesThroughHistory() async throws {
         let t = try await TempRepo.offMain()
         defer { t.cleanup() }
-        try history(t, 4)  // 5 commits
+        try await history(t, 4)  // 5 commits
         let model = GitPanelModel(pageSize: 2)
         model.show(taskId: UUID(), root: t.repo, git: { Git(repo: $0) }, remote: false)
         model.tabShown = true
@@ -207,7 +207,7 @@ import Workspace
         model.loadMore()  // nothing more: no load
         #expect(model.loadTask == nil)
         // A refresh keeps what was paged in (the list does not jump back to one page).
-        try t.commit(file: "late.txt", on: "main")
+        try await t.commit(file: "late.txt", on: "main")
         model.refresh()
         await settle(model)
         #expect(model.commits.count == 5 && model.commits[0].subject == "c late.txt" && model.hasMore)
@@ -216,7 +216,7 @@ import Workspace
     @Test func filtersReloadAndHideTheGraph() async throws {
         let t = try await TempRepo.offMain()
         defer { t.cleanup() }
-        try history(t, 3)
+        try await history(t, 3)
         let model = GitPanelModel(textDebounce: .zero)
         model.show(taskId: UUID(), root: t.repo, git: { Git(repo: $0) }, remote: false)
         model.tabShown = true
@@ -240,7 +240,7 @@ import Workspace
         await settle(model)
         #expect(model.commits.count == 4 && model.showsGraph)
         // Clicking a branch filters the log to it.
-        try t.git("branch", "side", "HEAD~2", in: t.repo)
+        try await t.git("branch", "side", "HEAD~2", in: t.repo)
         model.refresh()
         await settle(model)
         model.query.scope = .ref("side")
@@ -262,7 +262,7 @@ import Workspace
         await settle(model)
         #expect(model.commits.count == 1)
         model.tabShown = false
-        try t.commit(file: "b.txt", on: "main")
+        try await t.commit(file: "b.txt", on: "main")
         model.refresh()
         #expect(model.loadTask == nil)
         model.tabShown = true
@@ -274,7 +274,7 @@ import Workspace
     @Test func sessionChangeCancelsLoads() async throws {
         let a = try await TempRepo.offMain(), b = try await TempRepo.offMain()
         defer { a.cleanup(); b.cleanup() }
-        try history(a, 3)
+        try await history(a, 3)
         let slow = Runner { args, cwd in
             try await Task.sleep(for: .milliseconds(300))
             return try await Runner.local.run(args, cwd)
@@ -294,7 +294,7 @@ import Workspace
     @Test func selectingLoadsDetailsAndFileDiff() async throws {
         let t = try await TempRepo.offMain()
         defer { t.cleanup() }
-        try history(t, 1)
+        try await history(t, 1)
         let model = GitPanelModel()
         model.show(taskId: UUID(), root: t.repo, git: { Git(repo: $0) }, remote: false)
         model.tabShown = true

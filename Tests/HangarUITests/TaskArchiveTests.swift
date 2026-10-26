@@ -55,7 +55,7 @@ import Workspace
         await archiveTask(id, ctx: ctx)
         #expect(archived(app, id))
         #expect(!exists(wt))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(calls.archived == [id] && calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
@@ -63,8 +63,8 @@ import Workspace
         let (t, app, id, _, wt, _, ctx) = try await make()
         defer { t.cleanup() }
         try "one\ntwo\n".write(toFile: wt + "/new.txt", atomically: true, encoding: .utf8)
-        _ = try t.git("add", "new.txt", in: wt)
-        _ = try t.git("commit", "-q", "-m", "new", in: wt)
+        _ = try await t.git("add", "new.txt", in: wt)
+        _ = try await t.git("commit", "-q", "-m", "new", in: wt)
         let before = Date()
         await archiveTask(id, ctx: ctx)
         let task = try #require(app.state.tasks.first { $0.id == id })
@@ -80,13 +80,12 @@ import Workspace
         defer { t.cleanup() }
         // git asks the fsmonitor hook before the diff: it marks the moment and holds that call for a while.
         let marker = t.root + "/measuring", hook = t.root + "/fsmonitor.sh"
-        try """
+        try writeScript("""
         #!/bin/sh
-        case "$(ps -o args= -p $PPID)" in *--numstat*) touch '\(marker)'; sleep 2 ;; esac
+        case "$(ps -o args= -p $PPID)" in *--numstat*) touch "${0%/*}/measuring"; sleep 2 ;; esac
         exit 1
-        """.write(toFile: hook, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook)
-        _ = try t.git("config", "core.fsmonitor", hook, in: wt)
+        """, to: hook)
+        _ = try await t.git("config", "core.fsmonitor", hook, in: wt)
         let archiving = Task { await archiveTask(id, ctx: ctx) }
         #expect(await waitUntil { exists(marker) })
         #expect(await app.restoreFromArchive(id) == .restored)
@@ -118,22 +117,22 @@ import Workspace
         let (t, app, id, _, wt, calls, ctx) = try await make(answer: true)
         defer { t.cleanup() }
         try ".env\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)
-        _ = try t.git("add", ".gitignore", in: wt)
-        _ = try t.git("commit", "-q", "-m", "ignore", in: wt)
+        _ = try await t.git("add", ".gitignore", in: wt)
+        _ = try await t.git("commit", "-q", "-m", "ignore", in: wt)
         try "secret".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
         await archiveTask(id, ctx: ctx)
         #expect(calls.confirms == [L10n.worktreeIgnored])
         #expect(calls.infos.first?.contains(".env") == true)
         #expect(await waitUntil { archived(app, id) && !exists(wt) && !calls.archived.isEmpty })
         #expect(calls.archived == [id])
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
     /// Ignores `.env`, `node_modules`, `*.db` on branch x; the main folder has `.env` (`SECRET=1`).
-    private func ignoreSetup(_ t: TempRepo, _ wt: String) throws {
+    private func ignoreSetup(_ t: TempRepo, _ wt: String) async throws {
         try ".env\nnode_modules/\n*.db\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)
-        _ = try t.git("add", ".gitignore", in: wt)
-        _ = try t.git("commit", "-q", "-m", "ignore", in: wt)
+        _ = try await t.git("add", ".gitignore", in: wt)
+        _ = try await t.git("commit", "-q", "-m", "ignore", in: wt)
         try "SECRET=1".write(toFile: t.repo + "/.env", atomically: true, encoding: .utf8)
         try FileManager.default.createDirectory(atPath: wt + "/node_modules/pkg", withIntermediateDirectories: true)
         try "x".write(toFile: wt + "/node_modules/pkg/index.js", atomically: true, encoding: .utf8)
@@ -143,7 +142,7 @@ import Workspace
     @Test func copiesAndReinstallablesArchiveWithoutConfirm() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
-        try ignoreSetup(t, wt)
+        try await ignoreSetup(t, wt)
         try "SECRET=1".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
         await archiveTask(id, ctx: ctx)
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
@@ -155,7 +154,7 @@ import Workspace
     @Test func realLossAsksUniqueFirstAndDeclineRelaunchesLazily() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
-        try ignoreSetup(t, wt)
+        try await ignoreSetup(t, wt)
         try "CHANGED=1".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
         try "db".write(toFile: wt + "/dev.db", atomically: true, encoding: .utf8)
         let leaf = try #require(app.state.tasks.first { $0.id == id }?.tabs.first?.root.leaves.first)
@@ -170,13 +169,13 @@ import Workspace
     @Test func restoreRecreatesWorktreeFromBranch() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
-        try t.commit(file: "work.txt", on: "x", in: wt)
+        try await t.commit(file: "work.txt", on: "x", in: wt)
         await archiveTask(id, ctx: ctx)
         #expect(!exists(wt))
         await restoreArchivedTask(id, ctx: ctx, reselect: true)
         #expect(!archived(app, id))
         #expect(exists(wt + "/work.txt"))
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
         #expect(app.state.selectedTaskId == id)
         #expect(calls.errors.isEmpty)
     }
@@ -201,7 +200,7 @@ import Workspace
             s.setAgentSessionId(leafId: claude, "0b6c4a52-7c1e-4c1a-9a55-3f1a2b3c4d5e")
         }
         await archiveTask(id, ctx: ctx)
-        _ = try t.git("branch", "-D", "x", in: t.repo)
+        _ = try await t.git("branch", "-D", "x", in: t.repo)
         await restoreArchivedTask(id, ctx: ctx)
         #expect(calls.confirms == [L10n.branchGone("x")])
         #expect(await waitUntil { !archived(app, id) })
@@ -217,7 +216,7 @@ import Workspace
         let (t, app, id, _, _, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
         await archiveTask(id, ctx: ctx)
-        _ = try t.git("branch", "-D", "x", in: t.repo)
+        _ = try await t.git("branch", "-D", "x", in: t.repo)
         await restoreArchivedTask(id, ctx: ctx)
         #expect(calls.confirms == [L10n.branchGone("x")])
         #expect(archived(app, id))
@@ -231,7 +230,7 @@ import Workspace
         let outcome = await app.archiveRemovingWorktree(id, force: false)
         #expect(outcome == .archived(worktreeRemoved: true))
         #expect(!exists(wt))
-        #expect(try t.git("worktree", "list", in: t.repo).contains("/x\n") == false)
+        #expect(try await t.git("worktree", "list", in: t.repo).contains("/x\n") == false)
         #expect(await waitUntil { !exists(wt + ".hangar-removing") })
     }
 
@@ -253,7 +252,7 @@ import Workspace
     @Test func restoreRecreatesCorruptPartialFolder() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
-        try t.commit(file: "work.txt", on: "x", in: wt)
+        try await t.commit(file: "work.txt", on: "x", in: wt)
         await archiveTask(id, ctx: ctx)
         try FileManager.default.createDirectory(atPath: wt + "/src", withIntermediateDirectories: true)
         try "half".write(toFile: wt + "/src/left.txt", atomically: true, encoding: .utf8)
@@ -263,7 +262,7 @@ import Workspace
         #expect(orphan.hasPrefix(wt + ".hangar-orphan-") && exists(orphan + "/src/left.txt"))
         #expect(!archived(app, id))
         #expect(exists(wt + "/.git") && exists(wt + "/work.txt") && !exists(wt + "/src/left.txt"))
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
     }
 
     /// `.git` is there but git rejects the folder and `worktree repair` can't fix it: nothing is deleted.
@@ -289,7 +288,7 @@ import Workspace
         try "gitdir: /bogus/worktrees/x".write(toFile: wt + "/.git", atomically: true, encoding: .utf8)
         #expect(await app.restoreFromArchive(id) == .restored)
         #expect(!archived(app, id) && exists(wt + "/notes.txt"))
-        #expect(try t.git("rev-parse", "--is-inside-work-tree", in: wt) == "true")
+        #expect(try await t.git("rev-parse", "--is-inside-work-tree", in: wt) == "true")
     }
 
     /// Same rules over ssh: a broken folder with `.git` stays, one without is kept aside.
@@ -307,7 +306,7 @@ import Workspace
         try FileManager.default.removeItem(atPath: wt + "/.git")
         let outcome = try await reviveWorktree(wt, branch: "x", git: git, runner: runner)
         guard case .restoredKeeping(let orphan) = outcome else { Issue.record("\(outcome)"); return }
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
         #expect(!exists(wt + "/src") && exists(orphan + "/src"))
         _ = app
     }
@@ -335,7 +334,7 @@ import Workspace
         await #expect(throws: (any Error).self) { try await removeWorktreeFolder(t.repo, git: git, runner: runner) }
         #expect(exists(t.repo + "/a.txt") && !exists(t.repo + ".hangar-removing"))
         let plain = t.root + "/plain"
-        _ = try t.git("init", "-q", plain, in: t.root)
+        _ = try await t.git("init", "-q", plain, in: t.root)
         await #expect(throws: (any Error).self) { try await removeWorktreeFolder(plain, git: git, runner: runner) }
         #expect(exists(plain + "/.git"))
         try await removeWorktreeFolder(wt, git: git, runner: runner).value

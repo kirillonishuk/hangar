@@ -23,16 +23,14 @@ import Workspace
             let fm = FileManager.default
             try fm.createDirectory(atPath: home, withIntermediateDirectories: true)
             try fm.createDirectory(atPath: root + "/tmux", withIntermediateDirectories: true)
-            let r = shellQuote(root)
-            try "#!/bin/sh\nwhile [ $# -gt 0 ] && [ \"$1\" != -c ]; do shift; done\n[ $# -gt 0 ] || exec /bin/sh\nexec /bin/sh -c \"$2\"\n"
-                .write(toFile: login, atomically: true, encoding: .utf8)
+            try writeScript("#!/bin/sh\nwhile [ $# -gt 0 ] && [ \"$1\" != -c ]; do shift; done\n[ $# -gt 0 ] || exec /bin/sh\nexec /bin/sh -c \"$2\"\n", to: login)
+            // `<root>` from `$0`: no per-test content (see `writeScript`).
             let tail = decode
-                ? "eval \"set -- $1\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \(r)/remote\nexit 0\n"
-                : "export HOME=\(shellQuote(home))\ncd \"$HOME\" || exit 255\nexec /bin/sh -c \"$1\"\n"
-            let script = "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \(r)/argv\nprintf '%s' \"$TERM\" > \(r)/term\n"
+                ? "eval \"set -- $1\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \"$R/remote\"\nexit 0\n"
+                : "export HOME=\"$R/home\"\ncd \"$HOME\" || exit 255\nexec /bin/sh -c \"$1\"\n"
+            let script = "#!/bin/sh\nR=${0%/*}\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \"$R/argv\"\nprintf '%s' \"$TERM\" > \"$R/term\"\n"
                 + "while [ $# -gt 0 ] && [ \"$1\" != -- ]; do shift; done\nshift 2\n" + tail
-            try script.write(toFile: ssh, atomically: true, encoding: .utf8)
-            for x in [login, ssh] { try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: x) }
+            try writeScript(script, to: ssh)
             let tmuxDir = RemoteLaunchTests.tmuxPath.map { ($0 as NSString).deletingLastPathComponent } ?? "/usr/bin"
             env = ["PATH": "\(tmuxDir):/usr/bin:/bin", "SHELL": login, "HOME": home, "TMUX_TMPDIR": root + "/tmux",
                    "TERM": "xterm-ghostty", "LANG": "en_US.UTF-8"]
@@ -164,8 +162,7 @@ import Workspace
 
         // The connection drops: ssh's 255 is the tab's code (a local leaf: ↩ logs in again).
         let failing = f.root + "/ssh-255"
-        try "#!/bin/sh\nexit 255\n".write(toFile: failing, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: failing)
+        try writeScript("#!/bin/sh\nexit 255\n", to: failing)
         let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing).command], cwd: "/", env: f.env)
         #expect(lost.status == 255)
     }
@@ -311,9 +308,8 @@ import Workspace
         // A tmux on PATH that logs each subcommand (`tmux -L hangar <cmd> …`) and runs the real one.
         let wrap = f.root + "/wrap"
         try FileManager.default.createDirectory(atPath: wrap, withIntermediateDirectories: true)
-        try "#!/bin/sh\necho \"$3\" >> \(shellQuote(f.root + "/tmux.log"))\nexec \(shellQuote(RemoteLaunchTests.tmuxPath!)) \"$@\"\n"
-            .write(toFile: wrap + "/tmux", atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrap + "/tmux")
+        try writeScript("#!/bin/sh\nb=${0%/*}\necho \"$3\" >> \"${b%/*}/tmux.log\"\nexec \(shellQuote(RemoteLaunchTests.tmuxPath!)) \"$@\"\n",
+                        to: wrap + "/tmux")
         f.env["PATH"] = wrap + ":" + (f.env["PATH"] ?? "")
         _ = try? await runProcess(wrap + "/tmux", ["-V"], cwd: "/", env: f.env)  // first exec of a fresh script is slow
         let launches = { f.read("tmux.log").split(separator: "\n").map(String.init).filter { ["attach", "new-session", "has-session"].contains($0) } }

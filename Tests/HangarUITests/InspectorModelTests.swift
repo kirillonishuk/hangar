@@ -48,7 +48,7 @@ import Workspace
         defer { repo.cleanup() }
         try FileManager.default.createDirectory(atPath: repo.repo + "/sub/d", withIntermediateDirectories: true)
         try write("one\n", repo.repo + "/sub/t.txt")
-        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try await repo.git("add", "sub", in: repo.repo); try await repo.git("commit", "-q", "-m", "s", in: repo.repo)
         try write("two\n", repo.repo + "/sub/t.txt")
         try write("new\n", repo.repo + "/sub/d/n.txt")
         try write("outside\n", repo.repo + "/a.txt")
@@ -74,10 +74,10 @@ import Workspace
         defer { repo.cleanup() }
         try FileManager.default.createDirectory(atPath: repo.repo + "/sub", withIntermediateDirectories: true)
         try write("one\n", repo.repo + "/sub/t.txt")
-        try repo.git("add", "sub", in: repo.repo); try repo.git("commit", "-q", "-m", "s", in: repo.repo)
+        try await repo.git("add", "sub", in: repo.repo); try await repo.git("commit", "-q", "-m", "s", in: repo.repo)
         let wt = repo.worktrees + "/wt"
         try FileManager.default.createDirectory(atPath: repo.worktrees, withIntermediateDirectories: true)
-        try repo.git("worktree", "add", "-q", "-b", "wtb", wt, in: repo.repo)
+        try await repo.git("worktree", "add", "-q", "-b", "wtb", wt, in: repo.repo)
         try write("two\n", wt + "/sub/t.txt")
         try write("outside\n", wt + "/a.txt")
         var s = WorkspaceState()
@@ -104,8 +104,8 @@ import Workspace
     @Test func toggleModeReloads() async throws {
         let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
-        try repo.git("checkout", "-q", "-b", "task", in: repo.repo)
-        try repo.commit(file: "b.txt", on: "task")
+        try await repo.git("checkout", "-q", "-b", "task", in: repo.repo)
+        try await repo.commit(file: "b.txt", on: "task")
         try write("changed", repo.repo + "/a.txt")
         let model = InspectorModel()
         model.show(taskId: UUID(), root: repo.repo, baseBranch: { "main" })
@@ -142,7 +142,7 @@ import Workspace
         let git: @Sendable (String) -> Git = { Git(repo: $0, runner: Self.slow) }
         model.show(taskId: UUID(), root: a.repo, git: git, baseBranch: { "main" })
         model.show(taskId: UUID(), root: b.repo, git: git, baseBranch: { "main" })
-        let topB = try b.git("rev-parse", "--show-toplevel", in: b.repo)
+        let topB = try await b.git("rev-parse", "--show-toplevel", in: b.repo)
         func noA() -> Bool {
             model.changes?.files.contains { $0.path == "only-a.txt" } != true
                 && model.tree.children(of: "")?.contains { $0.name == "only-a.txt" } != true
@@ -276,7 +276,7 @@ import Workspace
     @Test func baseFollowsSettings() async throws {
         let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }
-        try repo.git("branch", "dev", in: repo.repo)
+        try await repo.git("branch", "dev", in: repo.repo)
         let current = OSAllocatedUnfairLock<String?>(initialState: nil)
         let base: @Sendable () async -> String? = { current.withLock { $0 } }
         let model = InspectorModel()
@@ -328,7 +328,7 @@ import Workspace
             Issue.record("diff is \(model.diff)"); return
         }
         #expect(!hunks.isEmpty)
-        try repo.git("checkout", "a.txt", in: repo.repo)
+        try await repo.git("checkout", "a.txt", in: repo.repo)
         model.refresh(.status)
         await settle(model)
         #expect(model.diff == .notChanged)

@@ -68,13 +68,14 @@ import Workspace
             // The fake ssh maps the Mac path to the server one in every argument (the remote command line included).
             let inner = h.ssh + "-inner"
             try fm.moveItem(atPath: h.ssh, toPath: inner)
+            // `<root>` from `$0` (see `writeScript`): `<root>/mac/app` → `<root>/server/app`.
             let wrapper = """
             #!/bin/sh
-            for a; do shift; set -- "$@" "$(printf '%s' "$a" | sed 's#\(mac)#\(server)#g')"; done
-            exec \(shellQuote(inner)) "$@"
+            R=${0%/*}
+            for a; do shift; set -- "$@" "$(printf '%s' "$a" | sed "s#$R/mac/app#$R/server/app#g")"; done
+            exec "$0-inner" "$@"
             """
-            try wrapper.write(toFile: h.ssh, atomically: true, encoding: .utf8)
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: h.ssh)
+            try writeScript(wrapper, to: h.ssh)
         }
         var project = UUID(), task = UUID()
         h.app.perform { s in

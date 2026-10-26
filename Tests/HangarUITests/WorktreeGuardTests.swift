@@ -43,9 +43,9 @@ import Testing
         let (t, _) = try await make()
         defer { t.cleanup() }
         let other = t.root + "/other", otherWt = t.root + "/other-wt"
-        _ = try t.git("init", "-q", "-b", "main", other, in: t.root)
-        try t.commit(file: "o.txt", on: "main", in: other)
-        _ = try t.git("worktree", "add", "-q", "-b", "y", otherWt, "main", in: other)
+        _ = try await t.git("init", "-q", "-b", "main", other, in: t.root)
+        try await t.commit(file: "o.txt", on: "main", in: other)
+        _ = try await t.git("worktree", "add", "-q", "-b", "y", otherWt, "main", in: other)
         for runner in try runners(t) {
             let git = Git(repo: t.repo, runner: runner)
             await #expect(throws: (any Error).self) { try await removeWorktreeFolder(otherWt, git: git, runner: runner) }
@@ -126,14 +126,14 @@ import Testing
         for runner in try runners(t) {
             let git = Git(repo: t.repo, runner: runner)
             try? FileManager.default.removeItem(atPath: wt)
-            _ = try t.git("worktree", "prune", in: t.repo)
+            _ = try await t.git("worktree", "prune", in: t.repo)
             try FileManager.default.createDirectory(atPath: wt, withIntermediateDirectories: true)
             try "mine".write(toFile: wt + "/notes.txt", atomically: true, encoding: .utf8)
             let outcome = try await reviveWorktree(wt, branch: "x", git: git, runner: runner)
             guard case .restoredKeeping(let orphan) = outcome else { Issue.record("\(outcome)"); return }
             #expect(orphan.hasPrefix(wt + ".hangar-orphan-"))
             #expect(exists(orphan + "/notes.txt"))
-            #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
+            #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
             try FileManager.default.removeItem(atPath: orphan)
         }
     }
@@ -144,6 +144,6 @@ import Testing
         defer { t.cleanup() }
         try FileManager.default.createDirectory(atPath: wt, withIntermediateDirectories: true)
         #expect(try await reviveWorktree(wt, branch: "x", git: git, runner: .local) == .restored)
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt) == "x")
     }
 }

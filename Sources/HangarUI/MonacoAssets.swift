@@ -102,7 +102,7 @@ enum MonacoTheme {
             "--tab-h": "\(e.fileTabHeight)px", "--tab-font": "\(e.fileTabFont)px", "--tab-pad": "\(e.fileTabPaddingH)px",
             "--tab-max": "\(e.fileTabMaxWidth)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
             "--radius": "\(e.radius)px", "--accent-line": "\(Theme.tabActiveLine)px",
-            "--tab-pad-v": "\(Theme.tabPaddingV)px", "--tab-gap": "\(Theme.tabGap)px", "--tab-lead": "\(Theme.tabTitleLeading)px",
+            "--tab-item-h": "\(Theme.tabPaddingV * 2 + Theme.iconSize)px", "--tab-gap": "\(Theme.tabGap)px", "--tab-lead": "\(Theme.tabTitleLeading)px",
             "--tab-radius": "\(Theme.tabRadius)px", "--selection": cssHex(Theme.selection),
             "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
             "--menu-item-h": "\(Theme.menuItemHeight)px", "--menu-item-pl": "\(Theme.menuItemPaddingLeading)px",

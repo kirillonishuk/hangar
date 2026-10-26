@@ -7,10 +7,13 @@ body.diff #tabs { display: none; }
 
 /* File tabs: the Hangar tab bar's look (DESIGN «Полоса вкладок», #81) — same height, font, paddings, rounded tops,
    `selection` fill and the accent line on top of the active one — so the two rows read as one system. */
-#tabs { display: flex; align-items: flex-end; gap: var(--tab-gap); height: var(--tab-h); flex: none; padding-left: var(--tab-lead);
-  background: var(--bar); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+/* As Hangar's bar: 34 in all, the tab as tall as padding + icon (28), the bottom line drawn over the tabs' last point. */
+#tabs { display: flex; align-items: flex-end; gap: var(--tab-gap); height: var(--tab-h); box-sizing: border-box; flex: none;
+  padding-left: var(--tab-lead); background: var(--bar); box-shadow: inset 0 -1px 0 var(--line);
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 #tabs::-webkit-scrollbar { display: none; }
-.tab { display: flex; align-items: center; gap: 6px; padding: var(--tab-pad-v) calc(var(--tab-pad) - 4px) var(--tab-pad-v) var(--tab-pad);
+.tab { display: flex; align-items: center; gap: 6px; padding: 0 calc(var(--tab-pad) - 4px) 0 var(--tab-pad);
+  height: var(--tab-item-h); box-sizing: border-box; box-shadow: inset 0 -1px 0 var(--line);
   max-width: var(--tab-max); flex: none; font-size: var(--tab-font); color: var(--text2); position: relative; cursor: pointer;
   white-space: nowrap; border-radius: var(--tab-radius) var(--tab-radius) 0 0; overflow: hidden; transition: background-color .12s; }
 .tab:hover { background: var(--hover); }
@@ -28,7 +31,7 @@ body.diff #tabs { display: none; }
 .tab.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .tab.dirty .x:hover::before { content: "×"; width: auto; height: auto; border-radius: 0; background: none; }
 .tabs-end { flex: 1; }
-.tool { display: flex; align-items: center; align-self: stretch; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
+.tool { display: flex; align-items: center; align-self: stretch; box-shadow: inset 0 -1px 0 var(--line); padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
 .tool:hover { color: var(--text); background: var(--hover); }
 .tool.on { color: var(--accent); }
 /* tsserver status (#82): a dot in the state's color, then "TS 5.6"; the text never moves the tabs (they end before it). */

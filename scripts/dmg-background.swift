@@ -15,7 +15,6 @@ let arrowColor = hex(0x5f687a)                        // Theme.text3
 let plateColor = hex(0xc4cad6)                       // light plate under Finder's black labels
 let labelY: CGFloat = 273                             // centre of Finder's 13 pt label under a 128 pt icon
 let captionColor = hex(0x8a93a6)                      // Theme.text2
-let captionColor2 = hex(0x5f687a)                     // Theme.text3
 
 func render(scale: CGFloat, to path: String) throws {
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(W * scale), pixelsHigh: Int(H * scale),
@@ -60,8 +59,7 @@ func render(scale: CGFloat, to path: String) throws {
             .font: NSFont.systemFont(ofSize: size, weight: .regular), .foregroundColor: color, .paragraphStyle: p])
         a.draw(in: NSRect(x: 0, y: y, width: W, height: size * 1.6))
     }
-    line("Перетащите Hangar в Программы", size: 14, color: captionColor, y: 312)
-    line("Drag Hangar to Applications", size: 12, color: captionColor2, y: 334)
+    line("Drag Hangar to Applications", size: 14, color: captionColor, y: 312)
 
     NSGraphicsContext.restoreGraphicsState()
     try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))

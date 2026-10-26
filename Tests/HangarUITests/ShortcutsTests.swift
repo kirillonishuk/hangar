@@ -125,7 +125,7 @@ import Testing
 
 @Suite struct MonogramTests {
     @Test func monogramFromName() {
-        #expect(monogram("frontend-cd") == "FC")
+        #expect(monogram("acme-web") == "AW")
         #expect(monogram("fix auth") == "FA")
         #expect(monogram("shopApi") == "SA")
         #expect(monogram("исправить_логин") == "ИЛ")

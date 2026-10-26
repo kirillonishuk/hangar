@@ -5,8 +5,8 @@ import Testing
 
 private let idA = "11111111-1111-4111-8111-111111111111"
 private let idB = "22222222-2222-4222-8222-222222222222"
-private let idX = "019e922d-e5c4-7760-82db-0720adc82050"
-private let idY = "019e922d-d36d-71f1-b86b-3979e118e30d"
+private let idX = "0190a1b2-c3d4-7e5f-8a6b-1c2d3e4f5a6b"
+private let idY = "0190a1b2-b3c4-7d5e-9f6a-2b3c4d5e6f7a"
 
 /// Synthetic `~/.claude` and `~/.codex` under a temp home; never the real ones.
 private struct Fixture {

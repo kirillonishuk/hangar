@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 import Workspace
 
-/// «Проект · Сессия ⎇ ветка»; a host's terminal has no project part («vultr · терминал»).
+/// «Проект · Сессия ⎇ ветка»; a host's terminal has no project part («devbox · терминал»).
 struct WindowTitle: Equatable {
     var project: String?
     var session: String

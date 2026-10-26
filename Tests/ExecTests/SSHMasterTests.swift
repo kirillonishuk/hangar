@@ -243,7 +243,7 @@ import Testing
     }
 
     @Test func diagnosticsNotSubstrings() {
-        #expect(sshFailure(status: 255, stderr: "kirill@box: Permission denied (publickey).\n") == .auth("kirill@box: Permission denied (publickey)."))
+        #expect(sshFailure(status: 255, stderr: "dev@box: Permission denied (publickey).\n") == .auth("dev@box: Permission denied (publickey)."))
         #expect(sshFailure(status: 255, stderr: "bash: /x: Permission denied\nConnection to x closed.\n") == .exited(255, "Connection to x closed."))
         #expect(sshFailure(status: 255, stderr: "motd: the build timed out\nx\n") == .exited(255, "x"))
         #expect(sshFailure(status: 255, stderr: "Timeout, server box not responding.\n") == .unreachable("Timeout, server box not responding."))
@@ -252,7 +252,7 @@ import Testing
     /// Real OpenSSH stderr lines, plus look-alikes from other programs.
     @Test func openSSHLines() {
         let table: [(String, SSHFailure)] = [
-            ("kirill@box: Permission denied (publickey).", .auth("kirill@box: Permission denied (publickey).")),
+            ("dev@box: Permission denied (publickey).", .auth("dev@box: Permission denied (publickey).")),
             ("deploy@10.0.0.5: Permission denied (publickey,password,keyboard-interactive).",
              .auth("deploy@10.0.0.5: Permission denied (publickey,password,keyboard-interactive).")),
             ("Permission denied (publickey,gssapi-keyex,gssapi-with-mic).", .auth("Permission denied (publickey,gssapi-keyex,gssapi-with-mic).")),

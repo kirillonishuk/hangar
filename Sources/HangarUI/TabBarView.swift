@@ -21,9 +21,13 @@ enum TabStrip {
     /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
     /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
     /// first, then scrolls at min.
-    static func layout(natural: [CGFloat], dots: [Bool] = [], width: CGFloat) -> Layout {
+    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to the max, #83).
+    static func layout(natural: [CGFloat], dots: [Bool] = [], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.tabBarButton
-        let floors = natural.indices.map { minWidth(dot: dots.indices.contains($0) && dots[$0]) }
+        let floors = natural.indices.map { i in
+            let least = minWidth(dot: dots.indices.contains(i) && dots[i])
+            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.tabMaxWidth)) : least
+        }
         if content(floors) <= width - control {
             let fit = widths(natural, floors: floors, room: width - control)
             let total = content(fit)
@@ -135,13 +139,15 @@ struct TabBarView: View {
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
         let dots = task.tabs.map { app.showsDot($0, state: app.displayState(of: $0)) }
         var natural = zip(task.tabs, dots).map { tab, dot in
-            let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab))
+            let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab), italic: tab.preview)
             return Self.natural(text: text, dot: dot)
         }
+        var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
         if let diff = app.diffTabs[task.id] {
-            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true), dot: false))
+            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true), dot: false))
+            whole.append(true)
         }
-        return TabStrip.layout(natural: natural, dots: dots, width: width)
+        return TabStrip.layout(natural: natural, dots: dots, whole: whole, width: width)
     }
 
     /// Index of the active tab in the strip (the diff tab is last).
@@ -285,7 +291,6 @@ struct TabBarView: View {
             if !shellOnly {
                 item("Claude", .claude)
                 item("Codex", .codex)
-                item(L10n.editor, .editor)
             }
             item("Shell", .shell)
         }
@@ -341,19 +346,25 @@ private struct WheelCatcher: NSViewRepresentable {
 private struct TabCloseButton: View {
     let active: Bool
     let tabHover: Bool
+    /// Unsaved file: a dot in the button's place until it is hovered (as in VS Code).
+    var dirty = false
     let help: String
     let action: () -> Void
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
-            IconView(icon: .close, active: active || hover, size: Theme.smallIconSize)
-                .padding(Theme.tabCloseInset)
+            ZStack {
+                IconView(icon: .close, active: active || hover, size: Theme.smallIconSize).opacity(dirty && !hover ? 0 : 1)
+                Circle().fill(active ? Theme.ui.textStrong : Theme.ui.text2).frame(width: Theme.statusDot, height: Theme.statusDot)
+                    .opacity(dirty && !hover ? 1 : 0)
+            }
+            .padding(Theme.tabCloseInset)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
         .environment(\.hoverPalette, .strong)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .opacity(hover ? 1 : tabHover ? Theme.closeOpacity : 0)
+        .opacity(hover || dirty ? 1 : tabHover ? Theme.closeOpacity : 0)
         // The hover box grows into the tab's padding, so the tab keeps its size.
         .padding(.vertical, -Theme.tabCloseInset)
         .padding(.leading, Theme.rowEndGap - Theme.tabCloseInset)
@@ -394,6 +405,11 @@ struct TabItem: View {
 
     private var app: AppState { ctx.app }
     private var target: ActionTarget { .tab(task: taskId, tab: tab.id) }
+    /// The file of a file tab (an unsplit editor leaf).
+    private var fileLeaf: Leaf? {
+        guard case .leaf(let leaf) = tab.root, leaf.kind == .editor else { return nil }
+        return leaf
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -401,15 +417,19 @@ struct TabItem: View {
             if app.showsDot(tab, state: dot) {
                 StatusDot(state: dot).padding(.trailing, Theme.rowEndGap).help(app.statusText(dot, leaves: tab.root.leaves))
             }
-            if let kind = tab.root.leaves.first?.kind {
+            // A file tab (#83): the file type's icon; a one-click preview reads in italics.
+            if let file = fileLeaf?.openFile {
+                FileIconView(name: (file as NSString).lastPathComponent).padding(.trailing, Theme.iconGap)
+            } else if let kind = tab.root.leaves.first?.kind {
                 IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)
             }
             if app.renaming == target {
                 RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
             } else {
-                Text(verbatim: app.tabLabel(tab)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             }
-            TabCloseButton(active: active, tabHover: hover, help: L10n.help(L10n.closeTabHelp, .closeTab)) { Action.closeTab.perform(target, ctx) }
+            TabCloseButton(active: active, tabHover: hover, dirty: fileLeaf.map { app.editorDirty.contains($0.id) } ?? false,
+                           help: L10n.help(L10n.closeTabHelp, .closeTab)) { Action.closeTab.perform(target, ctx) }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
@@ -422,7 +442,10 @@ struct TabItem: View {
         .onTapGesture {
             app.chromeClicked(target)
             app.activate(tabId: tab.id)
-            if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { Action.rename.perform(target, ctx) }
+            // A double click keeps a preview tab (as in VS Code); on any other tab it renames.
+            if (NSApp.currentEvent?.clickCount ?? 1) >= 2 {
+                if tab.preview { app.perform { $0.pinTab(taskId: taskId, tabId: tab.id) } } else { Action.rename.perform(target, ctx) }
+            }
         }
         // Global space: the dragged tab is offset while dragging, local translations would feed back.
         .simultaneousGesture(DragGesture(minimumDistance: Theme.dragThreshold, coordinateSpace: .global)
@@ -455,7 +478,7 @@ private struct DiffTabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             IconView(icon: .diff, active: tab.active).padding(.trailing, Theme.iconGap)
-            Text(verbatim: (tab.path as NSString).lastPathComponent).italic().lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(.system(size: Theme.fontSize.tab))

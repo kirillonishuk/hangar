@@ -37,7 +37,8 @@ import Foundation
             send(.activate(path: path, line: line, column: line == nil ? column : column ?? 1))
             return
         }
-        files[path] = File()  // a second open while this one reads only activates
+        // A second open while this one reads only activates; `refused` until loaded keeps disk checks and saves off it.
+        files[path] = File(readOnly: true, refused: true)
         var open = EditorOpen(path: path, text: nil, readOnly: true, notice: nil, line: line ?? 1, column: column ?? 1)
         var file = File(readOnly: true, refused: true)
         do {

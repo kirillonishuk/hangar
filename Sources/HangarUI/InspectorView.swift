@@ -186,7 +186,8 @@ private struct FilesList: View {
             return { row.expanded ? model.collapse(entry.path) : model.expand(entry.path) }
         }
         guard entry.opensInEditor, let root = model.root else { return nil }
-        return { app.openInEditor(path: root + "/" + entry.path, line: nil) }
+        // One click previews (one reused tab), a double click keeps the tab (as in VS Code, #83).
+        return { app.openInEditor(path: root + "/" + entry.path, line: nil, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2) }
     }
 }
 

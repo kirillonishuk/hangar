@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// The editor tab's restore model: open files, the active one, cursors (Monaco, decision #80).
+/// A file tab's restore model: its file and cursor (Monaco, decisions #80, #83).
 @Suite struct EditorModelTests {
     private func state() -> (WorkspaceState, task: UUID, leaf: UUID) {
         var s = WorkspaceState()
@@ -20,31 +20,6 @@ import Testing
         #expect(leaf(s).openFile == "/repo/a.ts")
     }
 
-    @Test func openAddsOnceAndActivates() {
-        var (s, _, id) = state()
-        s.openEditorFile(leafId: id, path: "/repo/b.ts", line: 7, column: 2)
-        s.openEditorFile(leafId: id, path: "/repo/a.ts", line: nil, column: nil)
-        #expect(leaf(s).editorFiles?.map(\.path) == ["/repo/a.ts", "/repo/b.ts"])
-        #expect(leaf(s).openFile == "/repo/a.ts")
-        #expect(leaf(s).editorFiles?[0].line == 3)  // reopening without a line keeps the cursor
-        s.openEditorFile(leafId: id, path: "/repo/b.ts", line: 9, column: nil)
-        #expect(leaf(s).editorFiles?[1] == EditorFile(path: "/repo/b.ts", line: 9, column: 1))
-    }
-
-    @Test func closeActivatesNeighbourAndReportsEmpty() {
-        var (s, _, id) = state()
-        s.openEditorFile(leafId: id, path: "/repo/b.ts", line: nil, column: nil)
-        s.openEditorFile(leafId: id, path: "/repo/c.ts", line: nil, column: nil)
-        s.activateEditorFile(leafId: id, path: "/repo/b.ts")
-        #expect(s.closeEditorFile(leafId: id, path: "/repo/b.ts") == false)
-        #expect(leaf(s).openFile == "/repo/c.ts")  // the one to the right, as in VS Code
-        #expect(s.closeEditorFile(leafId: id, path: "/repo/c.ts") == false)
-        #expect(leaf(s).openFile == "/repo/a.ts")
-        #expect(s.closeEditorFile(leafId: id, path: "/repo/a.ts") == true)
-        #expect(leaf(s).editorFiles == [])
-        #expect(leaf(s).openFile == nil)
-    }
-
     @Test func cursorIsSavedAndClamped() {
         var (s, _, id) = state()
         s.setEditorCursor(leafId: id, path: "/repo/a.ts", line: 12, column: 5)
@@ -57,11 +32,11 @@ import Testing
 
     @Test func restoresThroughJSON() throws {
         var (s, _, id) = state()
-        s.openEditorFile(leafId: id, path: "/repo/b.ts", line: 4, column: 8)
+        s.setEditorCursor(leafId: id, path: "/repo/a.ts", line: 4, column: 8)
         s.diffInline = true
         let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
         #expect(back == s)
-        #expect(leaf(back).editorFiles?.map(\.path) == ["/repo/a.ts", "/repo/b.ts"])
+        #expect(leaf(back).editorFiles == [EditorFile(path: "/repo/a.ts", line: 4, column: 8)])
         #expect(back.diffInline)
     }
 

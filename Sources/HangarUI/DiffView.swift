@@ -267,7 +267,7 @@ struct DiffView: View {
         .font(.system(size: Theme.Diff.font, design: .monospaced))
         .padding(.horizontal, Theme.Diff.headerPaddingH)
         // The slot of the editor's file-tab row: switching editor ↔ diff doesn't move the code.
-        .frame(height: Theme.Editor.fileTabHeight)
+        .frame(height: Theme.Editor.headerHeight)
         .background(Theme.ui.bg)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }

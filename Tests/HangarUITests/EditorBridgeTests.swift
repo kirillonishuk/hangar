@@ -13,12 +13,13 @@ import Testing
         #expect(msg(#"{"type":"changed","file":"/r/a.ts","dirty":true}"#) == .changed(file: "/r/a.ts", dirty: true))
         #expect(msg(#"{"type":"save","file":"/r/a.ts","text":"x\ny"}"#) == .save(file: "/r/a.ts", text: "x\ny"))
         #expect(msg(#"{"type":"cursor","file":"/r/a.ts","line":3,"column":7}"#) == .cursor(file: "/r/a.ts", line: 3, column: 7))
-        #expect(msg(#"{"type":"activate","file":"/r/a.ts"}"#) == .activate(file: "/r/a.ts"))
-        #expect(msg(#"{"type":"close","file":"/r/a.ts"}"#) == .close(file: "/r/a.ts"))
+        // The tab strip is Hangar's (#83): the page no longer activates or closes files itself.
+        #expect(msg(#"{"type":"activate","file":"/r/a.ts"}"#) == nil)
+        #expect(msg(#"{"type":"close","file":"/r/a.ts"}"#) == nil)
         #expect(msg(#"{"type":"openAt","line":12,"column":1}"#) == .openAt(line: 12, column: 1))
         #expect(msg(#"{"type":"conflict","file":"/r/a.ts","keepMine":true}"#) == .conflict(file: "/r/a.ts", keepMine: true))
         #expect(msg(#"{"type":"inline","on":true}"#) == .inline(true))
-        #expect(msg(#"{"type":"minimap","on":false}"#) == .minimap(false))
+        #expect(msg(#"{"type":"minimap","on":false}"#) == nil)  // the status bar's switch now
         #expect(msg(#"{"type":"request","id":4,"kind":"definition","file":"/r/a.ts","line":2,"column":5}"#)
                 == .request(ProviderRequest(id: 4, kind: .definition, file: "/r/a.ts", line: 2, column: 5)))
         #expect(msg(#"{"type":"focus"}"#) == .focus)
@@ -33,9 +34,9 @@ import Testing
             #"{"type":"cursor","file":"/a","line":"3","column":1}"#,
             #"{"type":"cursor","file":"/a","line":0,"column":1}"#,   // 1-based
             #"{"type":"cursor","file":"/a","line":1,"column":99999999999}"#,
-            #"{"type":"activate","file":"relative/a"}"#,             // paths are absolute
-            #"{"type":"activate","file":""}"#,
-            #"{"type":"activate","file":"/a\u0000b"}"#,
+            #"{"type":"cursor","file":"relative/a","line":1,"column":1}"#,  // paths are absolute
+            #"{"type":"cursor","file":"","line":1,"column":1}"#,
+            #"{"type":"cursor","file":"/a\u0000b","line":1,"column":1}"#,
             #"{"type":"request","id":-1,"kind":"definition","file":"/a","line":1,"column":1}"#,
             #"{"type":"request","id":1,"kind":"rm -rf","file":"/a","line":1,"column":1}"#,
         ]
@@ -46,7 +47,7 @@ import Testing
 
     @Test func boundsSizes() {
         let longPath = "/" + String(repeating: "a", count: 5000)
-        #expect(msg(#"{"type":"activate","file":"\#(longPath)"}"#) == nil)
+        #expect(msg(#"{"type":"cursor","file":"\#(longPath)","line":1,"column":1}"#) == nil)
         let big = String(repeating: "x", count: EditorLimits.refuseBytes + 1)
         #expect(msg(#"{"type":"save","file":"/a","text":"\#(big)"}"#) == nil)
         let ok = String(repeating: "y", count: 1000)
@@ -103,5 +104,28 @@ import Testing
         #expect(((rename?["items"] as? [[String: Any]])?.first)?["prefix"] as? String == "x: ")
         let rejected = (EditorCommand.resolve(id: 7, result: .rejected("no")).json as? [String: Any])?["result"] as? [String: Any]
         #expect(rejected?["kind"] as? String == "rejected" && rejected?["reason"] as? String == "no")
+    }
+
+    /// One shared page for every file tab (#83): messages name their tab (`doc`, a UUID), commands carry it back.
+    @Test func docsRouteMessagesAndCommands() throws {
+        let id = UUID()
+        let e = try #require(BridgeMessage.envelope(#"{"type":"changed","doc":"\#(id.uuidString)","file":"/r/a.ts","dirty":true}"#))
+        #expect(e.doc == id && e.message == .changed(file: "/r/a.ts", dirty: true))
+        #expect(BridgeMessage.envelope(#"{"type":"ready"}"#)?.doc == nil)
+        #expect(BridgeMessage.envelope(#"{"type":"focus","doc":"nope"}"#) == nil)   // a doc must be a UUID
+        #expect(BridgeMessage.envelope(#"{"type":"focus","doc":5}"#) == nil)
+        let cmd = try #require(EditorCommand.saved(path: "/r/a.ts").json(doc: id) as? [String: Any])
+        #expect(cmd["doc"] as? String == id.uuidString && cmd["type"] as? String == "saved")
+        #expect((EditorCommand.focus.json(doc: nil) as? [String: Any])?["doc"] == nil)
+    }
+
+    /// Semantic colors (#84): the request carries the buffer's length, the answer a flat list of spans.
+    @Test func semanticRequestAndResult() throws {
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1,"length":120}"#)
+                == .request(ProviderRequest(id: 9, kind: .semantic, file: "/r/a.ts", line: 1, column: 1, length: 120)))
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1}"#) == nil)
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1,"length":-1}"#) == nil)
+        let r = (EditorCommand.resolve(id: 9, result: .semantic([0, 5, 0, 0])).json as? [String: Any])?["result"] as? [String: Any]
+        #expect(r?["kind"] as? String == "semantic" && r?["data"] as? [Int] == [0, 5, 0, 0])
     }
 }

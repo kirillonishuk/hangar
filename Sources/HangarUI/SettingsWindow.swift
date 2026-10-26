@@ -176,6 +176,31 @@ struct SettingsView: View {
             }
             .sheetCard()
 
+            // Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills.
+            Text(verbatim: L10n.editor)
+                .font(.system(size: Theme.fontSize.tab, weight: .semibold))
+                .foregroundStyle(Theme.ui.text2)
+                .padding(.top, Theme.sheetGap)
+                .padding(.bottom, Theme.sheetGap / 2)
+            VStack(spacing: 0) {
+                row(L10n.editorPaletteTitle, first: true) {
+                    Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
+                        save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
+                    }
+                }
+                row(L10n.editorRainbowTitle) {
+                    Segment(selection: app.config.editorRainbowIndent, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
+                    }
+                }
+                row(L10n.editorTodoTitle) {
+                    Segment(selection: app.config.editorTodoHighlight, options: [(true, L10n.toggleOn), (false, L10n.toggleOff)]) { on in
+                        save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
+                    }
+                }
+            }
+            .sheetCard()
+
             HStack(spacing: 0) {
                 if let error = model.error {
                     Text(verbatim: error).foregroundStyle(Theme.ui.failed).lineLimit(2)

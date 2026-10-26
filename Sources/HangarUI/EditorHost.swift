@@ -8,9 +8,9 @@ import AppKit
     private(set) var shown: UUID?
     private var minimap: Bool
 
-    init(minimap: Bool) {
+    init(minimap: Bool, appearance: EditorAppearance) {
         self.minimap = minimap
-        page = MonacoPage(mode: .editor, inline: false, minimap: minimap)
+        page = MonacoPage(mode: .editor, inline: false, minimap: minimap, appearance: appearance)
         page.onMessage = { [weak self] m, doc in self?.route(m, doc: doc) }
     }
 

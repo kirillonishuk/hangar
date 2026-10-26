@@ -128,7 +128,7 @@ import Workspace
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
-        case editorRenameOtherFiles, editorRenameRefused, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
+        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -556,6 +556,9 @@ import Workspace
     static var editorDependencyReadOnly: String { s(.editorDependencyReadOnly) }
     static var editorRenameOtherFiles: String { s(.editorRenameOtherFiles) }
     static var editorRenameRefused: String { s(.editorRenameRefused) }
+    static var editorPaletteTitle: String { s(.editorPaletteTitle) }
+    static var editorRainbowTitle: String { s(.editorRainbowTitle) }
+    static var editorTodoTitle: String { s(.editorTodoTitle) }
     static func tsReady(_ version: String) -> String { f(.tsReady, version) }
     static func tsLoading(_ version: String) -> String { f(.tsLoading, version) }
     static var tsStopped: String { s(.tsStopped) }

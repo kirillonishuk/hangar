@@ -63,6 +63,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var editorLanguage: [UUID: LanguageStatus] = [:]
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// Settings → Editor changed: every editor and diff page restyles (set by `TerminalArea`).
+    @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
     /// TS/JS language features of the editors (tsserver, #82).

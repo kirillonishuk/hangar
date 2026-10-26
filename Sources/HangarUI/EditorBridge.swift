@@ -1,4 +1,5 @@
 import AppKit
+import Workspace
 
 /// Size rules of the editor (#80): up to `editable` bytes a file is edited, up to `refuse` read-only, above — refused.
 struct EditorLimits: Equatable, Sendable {
@@ -13,7 +14,7 @@ struct EditorLimits: Equatable, Sendable {
 /// A language-feature request from Monaco (answered by tsserver, #82). `details`: a completion entry's docs by `name`;
 /// `format`: the position is the document's end (the whole file is formatted).
 struct ProviderRequest: Equatable, Sendable {
-    enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format }
+    enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format, semantic }
     var id: Int
     var kind: Kind
     var file: String
@@ -23,6 +24,8 @@ struct ProviderRequest: Equatable, Sendable {
     /// `format`: the editor's indentation.
     var tabSize: Int? = nil
     var insertSpaces: Bool? = nil
+    /// `semantic`: the buffer's length (UTF-16 units), the whole file is classified.
+    var length: Int? = nil
 }
 
 /// One Monaco content change (1-based, end exclusive), in the order Monaco gives them (safe to apply in sequence).
@@ -130,6 +133,10 @@ enum BridgeMessage: Equatable {
                 guard let tab = int("tabSize", 1...16), let spaces = bool("insertSpaces") else { return nil }
                 (r.tabSize, r.insertSpaces) = (tab, spaces)
             }
+            if kind == .semantic {
+                guard let length = int("length", 0...maxBytes) else { return nil }
+                r.length = length
+            }
             return .request(r)
         case "edit":
             guard let f = file(), let list = m["changes"] as? [[String: Any]], list.count <= maxEdits else { return nil }
@@ -211,12 +218,29 @@ enum ProviderResult: Equatable, Sendable {
     case renames([EditorRename])
     /// `rename` refused, with the reason shown in the editor.
     case rejected(String)
+    /// `semantic`: start, length, type, modifiers per span (TS 2020 legend, #84).
+    case semantic([Int])
 }
 
 /// One span of a rename (1-based, end exclusive).
 struct EditorRename: Equatable, Sendable {
     var line: Int, column: Int, endLine: Int, endColumn: Int
     var prefix: String, suffix: String
+}
+
+/// Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills — every editor and diff page.
+struct EditorAppearance: Equatable {
+    var palette: HangarConfig.EditorPalette
+    var rainbow: Bool
+    var todo: Bool
+
+    init(_ config: HangarConfig) {
+        palette = config.editorPalette
+        rainbow = config.editorRainbowIndent
+        todo = config.editorTodoHighlight
+    }
+
+    var json: [String: Any] { ["palette": palette.rawValue, "rainbow": rainbow, "todo": todo] }
 }
 
 struct EditorOpen: Equatable {
@@ -255,6 +279,7 @@ enum EditorCommand: Equatable {
     case diff(EditorDiff)
     case options(inline: Bool, minimap: Bool)
     case focus
+    case appearance(EditorAppearance)
 
     /// With the file tab it is for (the shared editor page, #83).
     func json(doc: UUID?) -> Any {
@@ -288,6 +313,7 @@ enum EditorCommand: Equatable {
                     "line": n(d.line)]
         case .options(let inline, let minimap): return ["type": "options", "inline": inline, "minimap": minimap]
         case .focus: return ["type": "focus"]
+        case .appearance(let a): return a.json.merging(["type": "appearance"]) { $1 }
         }
     }
 
@@ -317,6 +343,7 @@ enum EditorCommand: Equatable {
                  "prefix": $0.prefix, "suffix": $0.suffix] as [String: Any]
             }]
         case .rejected(let reason): return ["kind": "rejected", "reason": reason]
+        case .semantic(let data): return ["kind": "semantic", "data": data]
         }
     }
 }

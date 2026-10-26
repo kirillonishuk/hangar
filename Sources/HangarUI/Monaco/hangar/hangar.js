@@ -18,6 +18,7 @@
   const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
   let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
+  let look = cfg.appearance;   // { palette, rainbow, todo } (Settings → Editor, #84)
   const queue = [];
   const pending = new Map(); // provider request id → resolve
 
@@ -58,27 +59,32 @@
       ls.html && ls.html.htmlDefaults]) {
       try { d && d.setModeConfiguration(off); } catch (e) { /* not in this build */ }
     }
-    monaco.editor.defineTheme('hangar', cfg.theme);
+    for (const [name, theme] of Object.entries(cfg.themes)) monaco.editor.defineTheme('hangar-' + name, theme);
+    patchTokenizers();
     // Hangar's palette (⌘P / ⇧⌘P) is the one palette: Monaco's F1 command palette is unbound.
     monaco.editor.addKeybindingRules([
       { keybinding: monaco.KeyCode.F1, command: '-editor.action.quickCommand' },
       { keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, command: '-editor.action.quickCommand' },
     ]);
     registerProviders();
-    const common = { theme: 'hangar', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: cfg.fontSize, lineHeight: cfg.lineHeight,
+    const common = { theme: 'hangar-' + look.palette, bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: 'active', indentation: true, highlightActiveIndentation: true }, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: cfg.fontSize, lineHeight: cfg.lineHeight,
       automaticLayout: true, minimap: { enabled: minimap }, scrollBeyondLastLine: false, smoothScrolling: false,
       cursorBlinking: 'solid', renderLineHighlight: 'all', fixedOverflowWidgets: true, contextmenu: false,
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false }, padding: { top: 6 },
       stickyScroll: { enabled: false }, overviewRulerBorder: false, hideCursorInOverviewRuler: true, mouseWheelZoom: false,
-      'semanticHighlighting.enabled': false };
+      'semanticHighlighting.enabled': true };
     if (cfg.mode === 'diff') {
       diff = monaco.editor.createDiffEditor($('host'), Object.assign({}, common, {
         renderSideBySide: !inline, originalEditable: false, readOnly: true, renderOverviewRuler: false,
         hideUnchangedRegions: { enabled: false }, useInlineViewWhenSpaceIsLimited: false, ignoreTrimWhitespace: false }));
       wireDiff();
+      decorations(diff.getOriginalEditor());
+      decorations(diff.getModifiedEditor());
     } else {
       editor = monaco.editor.create($('host'), Object.assign({}, common, { model: null }));
       wireEditor(editor);
+      decorations(editor);
     }
     window.hangar.ready = true;
     post({ type: 'ready' });
@@ -198,6 +204,91 @@
     f.dirty = false;
     if (view) editor.restoreViewState(view);
     renderChrome();
+  }
+
+  // MARK: Looks (#84): Dark+ tokens, rainbow indents, TODO pills
+
+  // Monarch can't tell `import`/`return` (control flow, purple in Dark+) from `const` (blue), nor an UPPER_CASE
+  // constant: the TS/JS tokenizers get both, once, from their own definitions.
+  const CONTROL = ['import', 'export', 'from', 'as', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case',
+    'break', 'continue', 'throw', 'try', 'catch', 'finally', 'default', 'await', 'yield', 'with'];
+  // Our own tokens factory for TS/JS (registered before any model, so it replaces Monaco's): its Monarch
+  // definition with the control-flow keywords and ALL_CAPS constants added.
+  function patchTokenizers() {
+    for (const id of ['typescript', 'javascript']) {
+      const def = monaco.languages.getLanguages().find((l) => l.id === id);
+      if (!def || !def.loader) continue;
+      monaco.languages.registerTokensProviderFactory(id, { create: () => def.loader().then((mod) => {
+        const lang = Object.assign({}, mod.language, { control: CONTROL });
+        const common = (lang.tokenizer.common || []).map((rule) => {
+          if (!Array.isArray(rule)) return rule;
+          const cases = rule[1] && rule[1].cases;
+          if (cases && cases['@keywords']) {
+            return [rule[0], { cases: Object.assign({ '@control': 'keyword.control', '@keywords': 'keyword' }, cases) }];
+          }
+          // Capitalised names are types to Monarch; ALL_CAPS ones are constants.
+          if (rule[1] === 'type.identifier') return [rule[0], { cases: { '[A-Z][A-Z0-9_]+': 'constant', '@default': 'type.identifier' } }];
+          return rule;
+        });
+        lang.tokenizer = Object.assign({}, lang.tokenizer, { common });
+        return lang;
+      }) });
+    }
+  }
+
+  // Rainbow indents (indent-rainbow's faint bands) and TODO/FIXME/HACK/XXX pills in comments: decorations for the
+  // visible lines only, recomputed once per frame after a scroll, an edit or a model switch (no timer otherwise).
+  const TODO = /\b(TODO|FIXME|HACK|XXX)\b:?/g;
+  function decorations(ed) {
+    const set = ed.createDecorationsCollection();
+    let queued = false;
+    const run = () => {
+      queued = false;
+      const model = ed.getModel();
+      if (!model || (!look.rainbow && !look.todo)) { set.clear(); return; }
+      const indent = model.getOptions().indentSize || model.getOptions().tabSize || 4;
+      const out = [];
+      for (const r of ed.getVisibleRanges()) {
+        for (let n = r.startLineNumber; n <= r.endLineNumber; n++) {
+          const text = model.getLineContent(n);
+          if (look.rainbow) {
+            let col = 0, width = 0, level = 0, start = 0;
+            while (col < text.length && (text[col] === ' ' || text[col] === '\t')) {
+              width += text[col] === '\t' ? indent - (width % indent) : 1;
+              col++;
+              if (width % indent === 0) {
+                out.push({ range: new monaco.Range(n, start + 1, n, col + 1), options: { inlineClassName: 'ir ir' + (level % 4) } });
+                level++; start = col;
+              }
+            }
+          }
+          if (look.todo) {
+            const slash = text.indexOf('//'), block = text.indexOf('/*');
+            const from = slash >= 0 ? slash : block >= 0 ? block : /^\s*\*/.test(text) ? 0 : -1;
+            if (from < 0) continue;
+            TODO.lastIndex = from;
+            for (let m; (m = TODO.exec(text));) {
+              out.push({ range: new monaco.Range(n, m.index + 1, n, m.index + m[0].length + 1),
+                options: { inlineClassName: 'todo todo-' + m[1].toLowerCase() } });
+            }
+          }
+        }
+      }
+      set.set(out);
+    };
+    const later = () => { if (!queued) { queued = true; requestAnimationFrame(run); } };
+    ed.onDidScrollChange(later);
+    ed.onDidChangeModelContent(later);
+    ed.onDidChangeModel(later);
+    ed.onDidLayoutChange(later);
+    redecorate.push(later);
+  }
+  const redecorate = [];
+
+  function setLook(c) {
+    look = { palette: c.palette, rainbow: c.rainbow, todo: c.todo };
+    monaco.editor.setTheme('hangar-' + look.palette);
+    redecorate.forEach((f) => f());
   }
 
   // MARK: Context menu
@@ -468,6 +559,25 @@
     go(target);
   }
 
+  const SEMANTIC = { tokenTypes: ['class', 'enum', 'interface', 'namespace', 'typeParameter', 'type', 'parameter', 'variable',
+    'enumMember', 'property', 'function', 'member', 'constant'], tokenModifiers: ['declaration', 'static', 'async', 'readonly',
+    'defaultLibrary', 'local'] };
+  const UPPER = /^[A-Z][A-Z0-9_]+$/;
+  // Offsets (UTF-16) → Monaco's relative line / column quintuples.
+  function encodeSemantic(model, data) {
+    const out = [];
+    let line = 0, char = 0;
+    for (let i = 0; i + 3 < data.length; i += 4) {
+      const p = model.getPositionAt(data[i]);
+      const l = p.lineNumber - 1, c = p.column - 1;
+      let type = data[i + 2];
+      if (type === 7 && UPPER.test(model.getValueInRange(monaco.Range.fromPositions(p, model.getPositionAt(data[i] + data[i + 1]))))) type = 12;
+      out.push(l - line, l === line ? c - char : c, data[i + 1], type, data[i + 3]);
+      line = l; char = c;
+    }
+    return { data: new Uint32Array(out) };
+  }
+
   function registerProviders() {
     const ls = monaco.languages;
     ls.registerDefinitionProvider('*', { provideDefinition: (m, p, t) => ask('definition', m, p, t)
@@ -500,6 +610,13 @@
     });
     // Rename and format: tsserver, TS/JS only (other languages have no server, so the menu greys them).
     for (const lang of ['typescript', 'javascript']) {
+      // tsserver's semantic classes (2020 legend; UPPER_CASE variables as `constant`, as Dark+ colours them).
+      ls.registerDocumentSemanticTokensProvider(lang, {
+        getLegend: () => SEMANTIC,
+        provideDocumentSemanticTokens: (m, _last, t) => ask('semantic', m, { lineNumber: 1, column: 1 }, t, undefined,
+          { length: m.getValueLength() }).then((r) => (r && r.kind === 'semantic' ? encodeSemantic(m, r.data) : null)),
+        releaseDocumentSemanticTokens: () => {},
+      });
       ls.registerRenameProvider(lang, {
         resolveRenameLocation: (m, p, t) => ask('rename', m, p, t).then((r) => {
           if (r && r.kind === 'rejected') return { range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column), text: '', rejectReason: r.reason };
@@ -557,6 +674,7 @@
         if (diff) diff.updateOptions({ renderSideBySide: !inline });
         if (editor) editor.updateOptions({ minimap: { enabled: minimap } });
         break;
+      case 'appearance': setLook(c); break;
       case 'focus': (editor || (diff && diff.getModifiedEditor())).focus(); break;
     }
   }

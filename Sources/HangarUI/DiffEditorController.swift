@@ -18,7 +18,7 @@ import Workspace
 
     init(app: AppState) {
         self.app = app
-        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false)
+        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, appearance: EditorAppearance(app.config))
         page.webView.frame = container.bounds
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)

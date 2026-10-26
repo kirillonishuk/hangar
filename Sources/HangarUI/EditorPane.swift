@@ -9,6 +9,7 @@ import Workspace
     let page: MonacoPage
     private let app: AppState
     private(set) var session: EditorSession
+    private let host: String?
     private var watcher: FileWatcher?
     private var watchedPaths: Set<String> = []
     private var visible = false
@@ -20,8 +21,10 @@ import Workspace
         self.app = app
         shownMinimap = app.state.editorMinimap
         page = MonacoPage(mode: .editor, inline: false, minimap: shownMinimap)
-        session = EditorSession(io: app.editorIO(host: app.remoteLeafHost(leafId))) { [page] in page.send($0) }
+        host = app.remoteLeafHost(leafId)
+        session = EditorSession(io: app.editorIO(host: host)) { [page] in page.send($0) }
         super.init(frame: .zero)
+        wireLanguages()
         page.webView.frame = bounds
         page.webView.autoresizingMask = [.width, .height]
         addSubview(page.webView)
@@ -32,6 +35,7 @@ import Workspace
 
     /// The leaf is closed: the page and the watcher go.
     func tearDown() {
+        app.languages.closedAll(owner: leafId)
         watcher?.stop()
         watcher = nil
         page.tearDown()
@@ -97,17 +101,25 @@ import Workspace
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
         case .minimap(let on): app.perform { $0.editorMinimap = on }
         case .request(let r):
+            let io = session.io, limit = EditorLimits.editableBytes
             Task {
-                let result = await app.editorProvider?(r)
+                let result = await app.languages.request(r, host: host) { path in
+                    guard case .text(let text, _)? = try? await io.read(path, limit) else { return nil }
+                    return text
+                }
                 page.send(.resolve(id: r.id, result: result))
             }
+        case .edit(let path, let edits): app.languages.edited(path, edits, host: host)
+        case .restartLanguage(let path): app.languages.restart(path, host: host)
         case .openAt, .inline, .log, .clipboard: break  // the diff's; logged / handled by the page
         }
     }
 
     /// The page (re)loaded: every file of the leaf in tab order with its cursor, then the active one.
     private func restore() {
+        app.languages.closedAll(owner: leafId)  // the page's models are gone
         session = EditorSession(io: session.io, limits: session.limits) { [page] in page.send($0) }
+        wireLanguages()
         guard let leaf = app.editorLeaf(leafId) else { return }
         Task {
             for f in leaf.editorFileList { await session.open(path: f.path, line: f.line, column: f.column) }
@@ -140,8 +152,19 @@ import Workspace
         }
     }
 
+    /// Opened TS/JS files go to tsserver; its markers and status come back to this page.
+    private func wireLanguages() {
+        session.onOpened = { [weak self] path, text in
+            guard let self else { return }
+            let owner = Languages.Owner(id: leafId, root: app.editorLeaf(leafId)?.cwd ?? "/", send: { [weak self] in self?.page.send($0) },
+                                        text: { [weak self] in await self?.page.text(of: $0) })
+            app.languages.opened(path, text: text, host: host, owner: owner)
+        }
+    }
+
     private func finishClose(_ path: String) {
         session.close(path: path)
+        app.languages.closed(path, host: host, owner: leafId)
         page.send(.close(path: path))
         var empty = false
         app.perform { empty = $0.closeEditorFile(leafId: leafId, path: path) }

@@ -456,4 +456,13 @@
 "editorMenuCut" = "Вырезать";
 "editorMenuCopy" = "Копировать";
 "editorMenuPaste" = "Вставить";
+"editorDependencyReadOnly" = "Файл зависимости — только для чтения";
+"tsReady" = "TS %@";
+"tsLoading" = "TS %@ · проект…";
+"tsStopped" = "TS остановлен";
+"tsNoTypeScript" = "TS недоступен — нет node_modules/typescript";
+"tsNoNode" = "TS недоступен — нет node";
+"tsNotConnected" = "TS недоступен — хост не подключён";
+"tsTooltip" = "%1$@\nnode: %2$@\nНажмите, чтобы перезапустить";
+"tsUnavailableTip" = "Определения, ссылки и ошибки берутся из TypeScript проекта (node_modules/typescript) и node. Нажмите, чтобы проверить снова";
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";

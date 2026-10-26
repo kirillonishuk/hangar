@@ -24,7 +24,7 @@ import Testing
         #expect(c.agentCommands[.codex] == "codex")
     }
 
-    /// The Helix-era `editor` key (#82) is ignored, so an old config still loads.
+    /// The Helix-era `editor` key (#81) is ignored, so an old config still loads.
     @Test func legacyEditorKeyIgnored() throws {
         #expect(try HangarConfig.parse(#"editor = "hx""#) == HangarConfig())
     }

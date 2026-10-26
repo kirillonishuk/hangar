@@ -57,6 +57,15 @@ import Testing
         #expect(shortcut(keyCode: 2, modifiers: cmd) == .splitRight)
     }
 
+    /// ⌃- / ⌃⇧- (back / forward over jumps) and F12 / ⇧F12 reach Monaco: Hangar has no shortcut on them (#82).
+    @Test func navigationKeysAreMonacos() {
+        for mods: NSEvent.ModifierFlags in [.control, [.control, .shift]] {
+            #expect(shortcut(keyCode: 27, modifiers: mods) == nil)
+            #expect(editorKeyRoute(keyCode: 27, modifiers: mods, focus: .editor) == nil)
+        }
+        for mods: NSEvent.ModifierFlags in [[], .shift] { #expect(shortcut(keyCode: 111, modifiers: mods) == nil) }
+    }
+
     @Test func diffKeysOutsideTheWebView() {
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: true, editingText: false, webFocused: false) == .up)
         #expect(diffKeyRoute(keyCode: 126, modifiers: [], diffActive: true, editingText: false, webFocused: true) == nil)

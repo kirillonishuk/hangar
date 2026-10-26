@@ -6,7 +6,7 @@ extension Theme {
     enum Editor {
         static let fontSize: CGFloat = 13
         static let lineHeight: CGFloat = 20
-        /// File tabs: the Hangar tab bar's own metrics (#82), so the two rows read as one system.
+        /// File tabs: the Hangar tab bar's own metrics (#81), so the two rows read as one system.
         static let fileTabHeight: CGFloat = Theme.tabBarHeight
         static let fileTabFont: CGFloat = Theme.fontSize.tab
         static let fileTabPaddingH: CGFloat = Theme.tabPaddingH
@@ -77,8 +77,14 @@ enum MonacoTheme {
             "diffEditor.diagonalFill": cssHex(Theme.line), "diffEditor.border": cssHex(Theme.line),
             "diffEditor.unchangedRegionBackground": cssHex(Theme.bottomBar),
             "diffEditor.unchangedRegionForeground": cssHex(Theme.text2),
-            "peekView.border": cssHex(Theme.accent), "peekViewEditor.background": cssHex(Theme.panel),
+            "peekView.border": cssHex(Theme.sheetBorder), "peekViewEditor.background": cssHex(Theme.panel),
             "peekViewResult.background": cssHex(Theme.sheet), "peekViewTitle.background": cssHex(Theme.sheet),
+            "peekViewTitleLabel.foreground": cssHex(Theme.textStrong), "peekViewTitleDescription.foreground": cssHex(Theme.text3),
+            "peekViewResult.fileForeground": cssHex(Theme.text), "peekViewResult.lineForeground": cssHex(Theme.text2),
+            "peekViewResult.selectionBackground": cssHex(Theme.selection), "peekViewResult.selectionForeground": cssHex(Theme.textStrong),
+            "peekViewResult.matchHighlightBackground": cssHex(Theme.waiting, alpha: 0.25),
+            "peekViewEditor.matchHighlightBackground": cssHex(Theme.waiting, alpha: 0.25),
+            "peekViewEditorGutter.background": cssHex(Theme.panel),
             "editorStickyScroll.background": cssHex(Theme.panel), "editorStickyScrollHover.background": cssHex(Theme.hover),
         ]
         return ["base": "vs-dark", "inherit": true, "rules": rules, "colors": colors]
@@ -92,7 +98,7 @@ enum MonacoTheme {
             "--text-strong": cssHex(Theme.textStrong), "--text2": cssHex(Theme.text2), "--text3": cssHex(Theme.text3),
             "--hover": cssHex(Theme.hover), "--active": cssHex(Theme.activeSegment), "--accent": cssHex(Theme.accent),
             "--waiting": cssHex(Theme.waiting), "--button": cssHex(Theme.button), "--button-hover": cssHex(Theme.controlBorderStrong),
-            "--sheet": cssHex(Theme.sheet), "--failed": cssHex(Theme.failed),
+            "--sheet": cssHex(Theme.sheet), "--failed": cssHex(Theme.failed), "--done": cssHex(Theme.done),
             "--tab-h": "\(e.fileTabHeight)px", "--tab-font": "\(e.fileTabFont)px", "--tab-pad": "\(e.fileTabPaddingH)px",
             "--tab-max": "\(e.fileTabMaxWidth)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
             "--radius": "\(e.radius)px", "--accent-line": "\(Theme.tabActiveLine)px",

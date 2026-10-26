@@ -104,7 +104,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         self.init(id: try c.decode(UUID.self, forKey: .id), kind: try c.decode(LeafKind.self, forKey: .kind),
                   cwd: try c.decode(String.self, forKey: .cwd),
                   agentSessionId: try c.decodeIfPresent(String.self, forKey: .agentSessionId),
-                  // A Helix-era editor leaf (decision #82): `openFile` + `openLine` become its one file tab.
+                  // A Helix-era editor leaf (decision #81): `openFile` + `openLine` become its one file tab.
                   openFile: try c.decodeIfPresent(String.self, forKey: .openFile),
                   openLine: try c.decodeIfPresent(Int.self, forKey: .openLine))
         if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }

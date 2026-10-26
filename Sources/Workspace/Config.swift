@@ -70,7 +70,7 @@ public struct HangarConfig: Equatable, Sendable {
                 }
                 config.defaultAgent = kind
             case ("", "editor"):
-                continue  // the Helix-era terminal editor (#82): ignored, so old configs still load
+                continue  // the Helix-era terminal editor (#81): ignored, so old configs still load
             case ("", "terminal_background"):
                 guard let bg = TerminalBackground(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")

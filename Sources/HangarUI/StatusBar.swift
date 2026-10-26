@@ -44,6 +44,8 @@ struct StatusBarLine: Equatable {
     var counts = StatusCounts()
     var panes: Int?
     var process: String?
+    /// The focused pane is a file tab's editor (#83): its tsserver status and the minimap switch show.
+    var editor: UUID?
 
     var remote: Bool { host != nil }
     @MainActor var left: [String] { [host ?? L10n.thisMac] + [project].compactMap { $0 } }
@@ -76,7 +78,8 @@ func statusBarLine(_ s: WorkspaceState, summary: (Leaf) -> (state: AgentState, s
     let focused = tab.flatMap { $0.root.leaf(id: $0.focusedLeafId) }
     return StatusBarLine(host: project?.host ?? s.hostShell(ofTask: id)?.host, project: project?.name,
                          counts: StatusCounts(siblings.flatMap(leaves).map(summary)),
-                         panes: tab?.root.leaves.count, process: focused.map(process))
+                         panes: tab?.root.leaves.count, process: focused.map(process),
+                         editor: focused?.kind == .editor ? focused?.id : nil)
 }
 
 /// The first id after `after` (wrapping) that is in `working`.
@@ -163,6 +166,19 @@ struct WindowStatusBar: View {
                 if let process = line.process {
                     separator
                     Text(verbatim: process).font(.system(size: Theme.fontSize.footer, design: .monospaced)).modifier(StatusItem())
+                }
+                if let editor = line.editor {
+                    // VS Code's status bar: the language server's state (a click restarts it) and the minimap.
+                    if let lang = app.editorLanguage[editor] {
+                        StatusButton(help: lang.tooltip, action: { app.restartLanguage(leafId: editor) }) {
+                            Circle().fill(lang.level == .ready ? Theme.ui.done : lang.level == .busy ? Theme.ui.waiting : Theme.ui.text3)
+                                .frame(width: Theme.statusDot, height: Theme.statusDot)
+                            Text(verbatim: lang.text)
+                        }
+                    }
+                    StatusButton(help: L10n.editorMinimap, action: { app.perform { $0.editorMinimap.toggle() } }) {
+                        Text(verbatim: L10n.editorMinimap).foregroundStyle(app.state.editorMinimap ? Theme.ui.accent : Theme.ui.text2)
+                    }
                 }
             }
         }

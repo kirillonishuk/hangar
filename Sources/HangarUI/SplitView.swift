@@ -100,7 +100,7 @@ final class FillView: NSView {
     /// An editor leaf holds Monaco instead of a terminal (#80).
     private(set) var editor: EditorPane?
     /// What takes the keyboard in this leaf.
-    var keyView: NSView? { surface ?? editor?.page.webView }
+    var keyView: NSView? { surface ?? editor?.webView }
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
     private var mode: LaunchMode?
@@ -402,6 +402,8 @@ final class FillView: NSView {
     /// The task's diff tab is shown instead of its tabs (created on first use).
     /// Each task's diff tab, with its Monaco page, while that diff tab exists (an edited buffer survives task switches).
     private var diffHosts: [UUID: (host: DiffHostView, editor: DiffEditorController)] = [:]
+    /// The one Monaco page of every file tab (#83); made with the first file tab, gone with the last.
+    private var editorHost: EditorHost?
     /// The selected task's.
     private var diffHost: DiffHostView? { app.selectedTask.flatMap { diffHosts[$0.id]?.host } }
     private var shownDiff = false
@@ -424,7 +426,7 @@ final class FillView: NSView {
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
         app.onOpenInEditor = { [weak self] leaf, path, line, column in
-            guard let pane = self?.leafViews[leaf]?.editor else { return }  // a never-shown tab loads its files from the model
+            guard let pane = self?.leafViews[leaf]?.editor else { return }  // a never-shown tab loads its file from the model
             pane.open(path: path, line: line, column: column)
             pane.focusEditor()
         }
@@ -541,6 +543,7 @@ final class FillView: NSView {
             leaf.editor?.tearDown()
             leaf.removeFromSuperview()
             leafViews[id] = nil
+            if let host = editorHost, host.isEmpty { host.tearDown(); editorHost = nil }  // the last file tab: no web view
             lastVisible[id] = nil
             app.leafTitles[id] = nil
             uiLog.info("surface closed leaf=\(id.uuidString.prefix(8), privacy: .public)")
@@ -561,6 +564,7 @@ final class FillView: NSView {
             content.addSubview(host)
             diffHosts[id] = (host, editor)
         }
+        editorHost?.setMinimap(state.editorMinimap)
         for (id, d) in diffHosts { d.host.isHidden = !diffShown || id != app.selectedTask?.id }
         let active = activeTab
         if let tab = active { show(tab) }
@@ -572,7 +576,6 @@ final class FillView: NSView {
             for leaf in tab.root.leaves {
                 if let view = leafViews[leaf.id], let pane = view.editor {
                     pane.setVisible(!diffShown && tab.id == active?.id)
-                    pane.apply(minimap: state.editorMinimap)
                     view.setHeader(app.title(of: leaf))
                     view.headerFocused = leaf.id == tab.focusedLeafId
                     continue
@@ -635,7 +638,9 @@ final class FillView: NSView {
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
             if leaf.kind == .editor {
-                let pane = EditorPane(leafId: leaf.id, app: app)
+                let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap)
+                editorHost = host
+                let pane = EditorPane(leafId: leaf.id, app: app, host: host)
                 view.attachEditor(pane)
                 uiLog.info("editor created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
                 continue
@@ -732,11 +737,12 @@ final class FillView: NSView {
         }
     }
 
-    /// The editor pane with the keyboard, if any (⌘W, ⌥⌘←/→ go to it).
-    var focusedEditor: EditorPane? {
-        guard let responder = window?.firstResponder as? NSView else { return nil }
-        return leafViews.values.lazy.compactMap(\.editor).first { responder.isDescendant(of: $0) }
+    /// The file tab on screen (its leaf in the active tab), for the status bar's tsserver item.
+    var shownEditor: EditorPane? {
+        guard let tab = activeTab else { return nil }
+        return tab.root.leaves.lazy.compactMap { self.leafViews[$0.id]?.editor }.first
     }
+
 
     /// ⌘⌥ + arrow: focus the pane on that side of the focused one; false when there is none (or the drawer / diff has the keys).
     func focusSplit(_ direction: SplitDirection) -> Bool {
@@ -768,8 +774,7 @@ final class FillView: NSView {
     /// The Monaco page on screen: the diff's, else the active tab's focused (or first) editor.
     var debugMonaco: MonacoPage? {
         if app.activeDiff != nil, let id = app.selectedTask?.id { return diffHosts[id]?.editor.page }
-        guard let tab = activeTab else { return nil }
-        return (leafViews[tab.focusedLeafId]?.editor ?? tab.root.leaves.lazy.compactMap { self.leafViews[$0.id]?.editor }.first)?.page
+        return shownEditor?.host.page
     }
 
     var debugDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
@@ -779,9 +784,10 @@ final class FillView: NSView {
             guard let pane = view.editor, let leaf = app.editorLeaf(view.leafId) else { return nil }
             let files = leaf.editorFileList.map { f in
                 let s = pane.session.files[f.path]
-                return "\(f.path == leaf.openFile ? "*" : "")\((f.path as NSString).lastPathComponent):\(f.line):\(f.column)\(s?.dirty == true ? " dirty" : "")\(s?.conflict == true ? " conflict" : "")\(s?.readOnly == true ? " ro" : "")"
+                return "\(pane.host.shown == view.leafId ? "*" : "")\((f.path as NSString).lastPathComponent):\(f.line):\(f.column)\(s?.dirty == true ? " dirty" : "")\(s?.conflict == true ? " conflict" : "")\(s?.readOnly == true ? " ro" : "")"
             }
-            return "editor leaf=\(view.leafId.uuidString.prefix(8)) ready=\(pane.page.isReady) files=\(files)"
+            let web = pane.host.page.webView
+            return "editor leaf=\(view.leafId.uuidString.prefix(8)) ready=\(pane.host.page.isReady) files=\(files) pane=\(pane.frame) web=\(web.superview === pane ? "in" : "out") \(web.frame) hidden=\(web.isHiddenOrHasHiddenAncestor)"
         }
     }
 

@@ -2,15 +2,13 @@ import AppKit
 import WebKit
 
 extension Theme {
-    /// The Monaco editor and diff (#80): code font and the page's own chrome (file tabs, bars).
+    /// The Monaco editor and diff (#80): code font and the page's own chrome (bars, buttons).
     enum Editor {
         static let fontSize: CGFloat = 13
         static let lineHeight: CGFloat = 20
-        /// File tabs: the Hangar tab bar's own metrics (#81), so the two rows read as one system.
-        static let fileTabHeight: CGFloat = Theme.tabBarHeight
-        static let fileTabFont: CGFloat = Theme.fontSize.tab
-        static let fileTabPaddingH: CGFloat = Theme.tabPaddingH
-        static let fileTabMaxWidth: CGFloat = Theme.tabMaxWidth
+        /// The diff's header row: as tall as the tab bar above it.
+        static let headerHeight: CGFloat = Theme.tabBarHeight
+        static let buttonFont: CGFloat = Theme.fontSize.tab
         /// The conflict / notice bar above the text.
         static let barHeight: CGFloat = 30
         static let barFont: CGFloat = Theme.fontSize.base
@@ -94,16 +92,13 @@ enum MonacoTheme {
     static var css: [String: String] {
         let e = Theme.Editor.self
         return [
-            "--bg": cssHex(Theme.panel), "--bar": cssHex(Theme.bg), "--line": cssHex(Theme.line), "--text": cssHex(Theme.text),
+            "--bg": cssHex(Theme.panel), "--line": cssHex(Theme.line), "--text": cssHex(Theme.text),
             "--text-strong": cssHex(Theme.textStrong), "--text2": cssHex(Theme.text2), "--text3": cssHex(Theme.text3),
-            "--hover": cssHex(Theme.hover), "--active": cssHex(Theme.activeSegment), "--accent": cssHex(Theme.accent),
+            "--accent": cssHex(Theme.accent),
             "--waiting": cssHex(Theme.waiting), "--button": cssHex(Theme.button), "--button-hover": cssHex(Theme.controlBorderStrong),
-            "--sheet": cssHex(Theme.sheet), "--failed": cssHex(Theme.failed), "--done": cssHex(Theme.done),
-            "--tab-h": "\(e.fileTabHeight)px", "--tab-font": "\(e.fileTabFont)px", "--tab-pad": "\(e.fileTabPaddingH)px",
-            "--tab-max": "\(e.fileTabMaxWidth)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
-            "--radius": "\(e.radius)px", "--accent-line": "\(Theme.tabActiveLine)px",
-            "--tab-item-h": "\(Theme.tabPaddingV * 2 + Theme.iconSize)px", "--tab-gap": "\(Theme.tabGap)px", "--tab-lead": "\(Theme.tabTitleLeading)px",
-            "--tab-radius": "\(Theme.tabRadius)px", "--selection": cssHex(Theme.selection),
+            "--sheet": cssHex(Theme.sheet),
+            "--button-font": "\(e.buttonFont)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
+            "--radius": "\(e.radius)px",
             "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
             "--menu-item-h": "\(Theme.menuItemHeight)px", "--menu-item-pl": "\(Theme.menuItemPaddingLeading)px",
             "--menu-item-pr": "\(Theme.menuItemPaddingTrailing)px", "--menu-item-r": "\(Theme.menuItemRadius)px",

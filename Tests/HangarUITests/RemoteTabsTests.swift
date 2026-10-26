@@ -139,8 +139,7 @@ import Workspace
     @Test func quitIgnoresTmuxLeaves() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let tmux = h.bin + "/tmux"
-        try "#!/bin/sh\necho 'tmux 3.4'\n".write(toFile: tmux, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmux)
+        try writeScript("#!/bin/sh\necho 'tmux 3.4'\n", to: tmux)
         try await RemoteHostsTests.run(tmux, ["-V"])
         #expect(await h.remote.connect("dev") == .connected)
         #expect(h.remote.hosts["dev"]?.report?.tmux == true)

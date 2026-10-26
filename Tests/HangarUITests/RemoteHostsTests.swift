@@ -62,13 +62,11 @@ import Workspace
                 // `<root>/shell`, if present, names another login shell (the csh test).
                 let login = bin + "/login-sh"
                 // `<root>/login-bin` is only on the login PATH (empty unless a test puts tools there).
-                try "#!/bin/sh\nPATH=\(shellQuote(root + "/login-bin")):$PATH; export PATH\nshift 3\nexec /bin/sh -c \"$1\"\n"
-                    .write(toFile: login, atomically: true, encoding: .utf8)
-                try "#!/bin/sh\nexit 0\n".write(toFile: bin + "/tcsh", atomically: true, encoding: .utf8)
-                let wrapper = "#!/bin/sh\nSHELL=\(shellQuote(login))\n[ -f \(shellQuote(root + "/shell")) ] && SHELL=$(cat \(shellQuote(root + "/shell")))\n"
-                    + "export SHELL PATH=\(shellQuote(bin)):/usr/bin:/bin\nexec \(shellQuote(f.path)) \"$@\"\n"
-                try wrapper.write(toFile: ssh, atomically: true, encoding: .utf8)
-                for x in [login, bin + "/tcsh", ssh] { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: x) }
+                // Paths come from `$0` (no per-test content): see `writeScript`.
+                try writeScript("#!/bin/sh\nb=${0%/*}\nPATH=\"${b%/*}/login-bin:$PATH\"; export PATH\nshift 3\nexec /bin/sh -c \"$1\"\n", to: login)
+                try writeScript("#!/bin/sh\nexit 0\n", to: bin + "/tcsh")
+                try writeScript("#!/bin/sh\nR=${0%/*}\nSHELL=\"$R/bin/login-sh\"\n[ -f \"$R/shell\" ] && SHELL=$(cat \"$R/shell\")\n"
+                    + "export SHELL PATH=\"$R/bin:/usr/bin:/bin\"\nexec \"$R/fake/ssh\" \"$@\"\n", to: ssh)
                 return f
             }
             log = f.log; home = f.home
@@ -133,10 +131,8 @@ import Workspace
         /// A `git` (the check's first tool) whose `--version` hangs, so the check does; its pid → `<root>/tool.pid`.
         func hangingGit() async throws {
             let git = bin + "/git"
-            try "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho $$ > \(shellQuote(root + "/tool.pid"))\nexec sleep 300\n"
-                .write(toFile: git, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: git)
-            // The first exec of a fresh script is slow on macOS (security scan): it would outlast the check deadline.
+            try writeScript("#!/bin/sh\n[ \"$1\" = warm ] && exit 0\nb=${0%/*}\necho $$ > \"${b%/*}/tool.pid\"\nexec sleep 300\n", to: git)
+            // The first exec of a new script is slow on macOS (security scan): it would outlast the check deadline.
             try await RemoteHostsTests.run(git, ["warm"])
         }
 
@@ -145,10 +141,9 @@ import Workspace
             let dir = root + "/login-bin"
             try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             for (tool, version) in [("tmux", "tmux 3.4"), ("git", "git version 9.9")] {
-                let script = "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\necho \"\(tool) $*\" >> \(shellQuote(root + "/tools.log"))\n"
+                let script = "#!/bin/sh\n[ \"$1\" = warm ] && exit 0\nb=${0%/*}\necho \"\(tool) $*\" >> \"${b%/*}/tools.log\"\n"
                     + "case $1 in -V|--version) echo '\(version)' ;; esac\nexit 0\n"
-                try script.write(toFile: dir + "/" + tool, atomically: true, encoding: .utf8)
-                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir + "/" + tool)
+                try writeScript(script, to: dir + "/" + tool)
                 try await RemoteHostsTests.run(dir + "/" + tool, ["warm"])
             }
         }

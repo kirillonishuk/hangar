@@ -89,6 +89,28 @@ struct TempRepo {
         try git("push", "-q", "origin", branch, in: repo)
     }
 
+    // The same calls for async tests, each git on its own thread: the main actor is shared by every suite of a
+    // parallel run (fake apps answer CLIs there within 10 s), and @MainActor tests running git on it stalled it for
+    // over 10 s; the cooperative pool and GCD's global queue are no better places for blocking waits.
+    @discardableResult
+    func git(_ args: String..., in dir: String) async throws -> String { try await off { try $0.run(args, in: dir) } }
+
+    @discardableResult
+    func run(_ args: [String], in dir: String, extraEnv: [String: String] = [:]) async throws -> String {
+        try await off { try $0.run(args, in: dir, extraEnv: extraEnv) }
+    }
+
+    func commit(file: String, on branch: String, in dir: String? = nil, date: Int? = nil) async throws {
+        try await off { try $0.commit(file: file, on: branch, in: dir, date: date) }
+    }
+
+    func pushBranch(_ branch: String) async throws { try await off { try $0.pushBranch(branch) } }
+
+    private func off<T: Sendable>(_ work: @escaping @Sendable (TempRepo) throws -> T) async throws -> T {
+        let repo = self
+        return try await withCheckedThrowingContinuation { c in Thread { c.resume(with: Result { try work(repo) }) }.start() }
+    }
+
     func cleanup() {
         try? FileManager.default.removeItem(atPath: root)
     }

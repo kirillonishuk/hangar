@@ -38,7 +38,7 @@ import Workspace
             throw CancellationError()
         }
         #expect(branch == name && wt == root + "/" + slug)
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == name)
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt) == name)
         // `--no-track`: no upstream, so a push goes to the same-named branch, not to the base.
         #expect(throws: (any Error).self) { try t.git("rev-parse", "--abbrev-ref", name + "@{upstream}", in: wt) }
 
@@ -54,9 +54,9 @@ import Workspace
     private func archiveAndRestore(_ t: TempRepo, _ app: AppState, _ id: UUID, _ wt: String) async throws {
         #expect(await app.archiveRemovingWorktree(id, force: false) == .archived(worktreeRemoved: true))
         #expect(!exists(wt))
-        #expect(try t.git("branch", "--list", name, in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", name, in: t.repo) != "")
         #expect(await app.restoreFromArchive(id) == .restored)
-        #expect(try t.git("symbolic-ref", "--short", "HEAD", in: wt) == name)
+        #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt) == name)
         #expect(app.state.tasks.first { $0.id == id }?.archived == false)
     }
 

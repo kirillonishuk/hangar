@@ -214,8 +214,7 @@ import Testing
         }
         func tool(_ name: String, _ body: String) throws {
             let p = bin + "/" + name
-            try "#!/bin/sh\nprintf '%s %s\\n' \(name) \"$*\" >> \(shellQuote(root + "/calls"))\n\(body)\n".write(toFile: p, atomically: true, encoding: .utf8)
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: p)
+            try writeScript("#!/bin/sh\nb=${0%/*}\nprintf '%s %s\\n' \(name) \"$*\" >> \"${b%/*}/calls\"\n\(body)\n", to: p)
         }
         try tool("git", "echo 'git version 2.43.0'")
         try tool("tmux", #"[ "$1" = -V ] && echo 'tmux 3.4' || { echo usage >&2; exit 1; }"#)
@@ -283,9 +282,7 @@ import Testing
         let fake = try FakeSSH.make(dir: root + "/fake")
         // The login shell is /bin/sh with a system PATH so no real agent binary of this Mac is ever started.
         let wrapper = root + "/ssh"
-        try "#!/bin/sh\nexport SHELL=/bin/sh PATH=/usr/bin:/bin\nexec \(shellQuote(fake.path)) \"$@\"\n"
-            .write(toFile: wrapper, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrapper)
+        try writeScript("#!/bin/sh\nexport SHELL=/bin/sh PATH=/usr/bin:/bin\nexec \"${0%/*}/fake/ssh\" \"$@\"\n", to: wrapper)
         let runner = Runner.ssh(host: "dev", controlPath: root + "/cm", sshPath: wrapper)
 
         let r = await checkServer(runner)
@@ -310,14 +307,10 @@ import Testing
         // macOS mktemp ignores TMPDIR: a fake one creates its files in `<root>/tmp` so leftovers can be seen.
         let tmp = root + "/tmp"
         try fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
-        try "#!/bin/sh\nf=\(shellQuote(tmp))/t.$$\n: > \"$f\"\nprintf '%s\\n' \"$f\"\n"
-            .write(toFile: bin + "/mktemp", atomically: true, encoding: .utf8)
-        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/mktemp")
+        try writeScript("#!/bin/sh\nb=${0%/*}\nf=\"${b%/*}/tmp/t.$$\"\n: > \"$f\"\nprintf '%s\\n' \"$f\"\n", to: bin + "/mktemp")
         for name in ["sudo", "apt-get", "curl", "bash"] {
             let body = name == "sudo" ? #""$@""# : (failing.contains(name) ? "exit 7" : "exit 0")
-            try "#!/bin/sh\nprintf '%s %s\\n' \(name) \"$*\" >> \(shellQuote(root + "/calls"))\n\(body)\n"
-                .write(toFile: bin + "/" + name, atomically: true, encoding: .utf8)
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/" + name)
+            try writeScript("#!/bin/sh\nb=${0%/*}\nprintf '%s %s\\n' \(name) \"$*\" >> \"${b%/*}/calls\"\n\(body)\n", to: bin + "/" + name)
         }
         let r = try await Runner.local.run(["env", "-i", "PATH=" + bin, "/bin/sh", "-c", script], "/")
         let calls = ((try? String(contentsOfFile: root + "/calls", encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)

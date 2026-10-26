@@ -42,8 +42,8 @@ import Workspace
     @Test func defaultsFromProject() async throws {
         let t = try await repo()
         defer { t.cleanup() }
-        try t.git("branch", "release", in: t.repo)
-        try t.pushBranch("release")
+        try await t.git("branch", "release", in: t.repo)
+        try await t.pushBranch("release")
         let m = model(t, worktreeByDefault: true, lastBase: "origin/release")
         #expect(m.worktree == true)
         await m.load()
@@ -64,9 +64,9 @@ import Workspace
     @Test func refreshFetchesNewRemoteBranches() async throws {
         let t = try await repo()
         defer { t.cleanup() }
-        try t.git("branch", "only-remote", in: t.repo)
-        try t.pushBranch("only-remote")
-        try t.git("branch", "-r", "-d", "origin/only-remote", in: t.repo)
+        try await t.git("branch", "only-remote", in: t.repo)
+        try await t.pushBranch("only-remote")
+        try await t.git("branch", "-r", "-d", "origin/only-remote", in: t.repo)
         let m = model(t)
         await m.load()
         #expect(m.fetch == .done)
@@ -77,7 +77,7 @@ import Workspace
     @Test func existingBranchIsRejected() async throws {
         let t = try await repo()
         defer { t.cleanup() }
-        try t.git("branch", "fix", in: t.repo)
+        try await t.git("branch", "fix", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         await m.load()
         m.name = "n"
@@ -100,10 +100,10 @@ import Workspace
     @Test func suggestedBranchSkipsTakenNamesAndFolders() async throws {
         let t = try await repo()
         defer { t.cleanup() }
-        try t.git("branch", "pochinit-login", in: t.repo)                // local
-        try t.git("branch", "pochinit-login-2", in: t.repo)
-        try t.pushBranch("pochinit-login-2")
-        try t.git("branch", "-D", "pochinit-login-2", in: t.repo)          // remote only
+        try await t.git("branch", "pochinit-login", in: t.repo)                // local
+        try await t.git("branch", "pochinit-login-2", in: t.repo)
+        try await t.pushBranch("pochinit-login-2")
+        try await t.git("branch", "-D", "pochinit-login-2", in: t.repo)          // remote only
         try FileManager.default.createDirectory(atPath: t.repo + ".worktrees/pochinit-login-3",
                                                 withIntermediateDirectories: true)   // folder only
         let m = model(t, worktreeByDefault: true)
@@ -210,7 +210,7 @@ import Workspace
     @Test func fetchFailureBlocksUntilSkip() async throws {
         let t = try await repo()
         defer { t.cleanup() }
-        try t.git("remote", "set-url", "origin", "/nonexistent", in: t.repo)
+        try await t.git("remote", "set-url", "origin", "/nonexistent", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         await m.load()
         m.name = "task"
@@ -236,14 +236,14 @@ import Workspace
         #expect(await m.create(skipFetch: false) == nil)
         #expect(m.createError?.isEmpty == false)
         #expect(FileManager.default.fileExists(atPath: path + "/keep.txt"))
-        #expect(try t.git("branch", "--list", "busy", in: t.repo).isEmpty)  // the failed add left no branch
+        #expect(try await t.git("branch", "--list", "busy", in: t.repo).isEmpty)  // the failed add left no branch
         #expect(!m.creating)  // the sheet is usable again: the user can fix the name and retry
     }
 
     @Test func noRemoteSkipsFetch() async throws {
         let t = try await emptyRepo()
         defer { t.cleanup() }
-        try t.commit(file: "a.txt", on: "main")
+        try await t.commit(file: "a.txt", on: "main")
         let m = model(t, worktreeByDefault: true)
         await m.load()
         #expect(m.fetch == .noRemote)
@@ -282,8 +282,8 @@ import Workspace
         let t = try await repo()
         defer { t.cleanup() }
         // A remote that never answers (the helper just sleeps).
-        try t.git("config", "protocol.ext.allow", "always", in: t.repo)
-        try t.git("remote", "set-url", "origin", "ext::sleep 120", in: t.repo)
+        try await t.git("config", "protocol.ext.allow", "always", in: t.repo)
+        try await t.git("remote", "set-url", "origin", "ext::sleep 120", in: t.repo)
         let m = model(t, worktreeByDefault: true)
         let loading = Task { await m.load() }
         // Long deadlines: under a full parallel run load() and create's first awaits wait for busy git spawns.

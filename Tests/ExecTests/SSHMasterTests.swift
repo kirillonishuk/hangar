@@ -33,8 +33,7 @@ import Testing
         let root = NSTemporaryDirectory() + "hangar-sshm-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         let path = root + "/ssh"
-        try ("#!/bin/sh\n[ \"$1\" = warm ] && exit 0\n" + body).write(toFile: path, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        try writeScript("#!/bin/sh\n[ \"$1\" = warm ] && exit 0\n" + body, to: path)
         _ = try await Runner.local.run([path, "warm"], "/")
         return (SSHMaster(host: "dev", controlPath: root + "/cm", sshPath: path), root, { Self.cleanup(root) })
     }

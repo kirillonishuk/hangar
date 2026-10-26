@@ -12,11 +12,14 @@ import Workspace
     }
 
     /// Archived worktree task "x" on branch x with a real worktree under `<repo>.worktrees/x`.
-    private func make(answer: Bool = true) throws -> (TempRepo, AppState, UUID, String, Calls, ActionContext) {
-        let t = try TempRepo()
+    private func make(answer: Bool = true) async throws -> (TempRepo, AppState, UUID, String, Calls, ActionContext) {
+        let t = try await TempRepo.offMain {
+            let t = try TempRepo()
+            try FileManager.default.createDirectory(atPath: t.worktrees, withIntermediateDirectories: true)
+            try t.git("worktree", "add", "-q", "-b", "x", t.worktrees + "/x", "main", in: t.repo)
+            return t
+        }
         let wt = t.worktrees + "/x"
-        try FileManager.default.createDirectory(atPath: t.worktrees, withIntermediateDirectories: true)
-        try t.git("worktree", "add", "-q", "-b", "x", wt, "main", in: t.repo)
         var s = WorkspaceState()
         let p = s.addProject(name: "app", path: t.repo)
         let id = s.addTask(projectId: p, name: "x", mode: .worktree(path: wt, branch: "x", base: "main"))
@@ -33,28 +36,28 @@ import Workspace
     private func exists(_ p: String) -> Bool { FileManager.default.fileExists(atPath: p) }
 
     @Test func withoutCheckboxKeepsWorktreeAndBranch() async throws {
-        let (t, app, id, wt, calls, ctx) = try make()
+        let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
         await deleteTaskPermanently(id, alsoWorktree: false, ctx: ctx, git: Git(repo: t.repo))
         #expect(!app.state.tasks.contains { $0.id == id })
         #expect(exists(wt))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
     @Test func cleanWorktreeAndMergedBranchRemoved() async throws {
-        let (t, app, id, wt, calls, ctx) = try make()
+        let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(!app.state.tasks.contains { $0.id == id })
         #expect(!exists(wt))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) == "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) == "")
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
     /// A task whose worktree path is the main checkout: delete refuses, nothing is moved, the task stays.
     @Test func mainCheckoutIsNeverRemoved() async throws {
-        let (t, app, _, _, calls, ctx) = try make()
+        let (t, app, _, _, calls, ctx) = try await make()
         defer { t.cleanup() }
         let pid = app.state.projects[0].id
         var bad = UUID()
@@ -66,7 +69,7 @@ import Workspace
     }
 
     @Test func dirtyAsksThenForces() async throws {
-        let (t, app, id, wt, calls, ctx) = try make(answer: true)
+        let (t, app, id, wt, calls, ctx) = try await make(answer: true)
         defer { t.cleanup() }
         try "u".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
@@ -79,28 +82,28 @@ import Workspace
     }
 
     @Test func dirtyDeclinedChangesNothing() async throws {
-        let (t, app, id, wt, calls, ctx) = try make(answer: false)
+        let (t, app, id, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
         try "u".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeDirty])
         #expect(exists(wt) && app.state.tasks.contains { $0.id == id })
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
     /// `.env`-style file: ignored, so `status --porcelain` is clean but `worktree remove` would delete it silently.
-    private func addIgnored(_ t: TempRepo, _ wt: String) throws {
+    private func addIgnored(_ t: TempRepo, _ wt: String) async throws {
         try ".env\n".write(toFile: t.repo + "/.gitignore", atomically: true, encoding: .utf8)
-        try t.git("add", ".gitignore", in: t.repo)
-        try t.git("commit", "-q", "-m", "ignore", in: t.repo)
-        try t.git("merge", "-q", "main", in: wt)
+        try await t.git("add", ".gitignore", in: t.repo)
+        try await t.git("commit", "-q", "-m", "ignore", in: t.repo)
+        try await t.git("merge", "-q", "main", in: wt)
         try "secret".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
     }
 
     @Test func ignoredOnlyAsksThenForces() async throws {
-        let (t, app, id, wt, calls, ctx) = try make(answer: true)
+        let (t, app, id, wt, calls, ctx) = try await make(answer: true)
         defer { t.cleanup() }
-        try addIgnored(t, wt)
+        try await addIgnored(t, wt)
         #expect(try await Git(repo: t.repo).isDirty(path: wt) == false)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeIgnored])
@@ -112,44 +115,44 @@ import Workspace
     }
 
     @Test func ignoredDeclinedChangesNothing() async throws {
-        let (t, app, id, wt, calls, ctx) = try make(answer: false)
+        let (t, app, id, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
-        try addIgnored(t, wt)
+        try await addIgnored(t, wt)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(calls.confirms == [L10n.worktreeIgnored])
         #expect(exists(wt + "/.env") && app.state.tasks.contains { $0.id == id })
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
     @Test func unmergedBranchIsKept() async throws {
-        let (t, app, id, wt, calls, ctx) = try make()
+        let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
-        try t.commit(file: "b.txt", on: "x", in: wt)
+        try await t.commit(file: "b.txt", on: "x", in: wt)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(!app.state.tasks.contains { $0.id == id } && !exists(wt))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
         #expect(calls.errors.map(\.0) == [L10n.branchKept("x")])
     }
 
     @Test func missingWorktreeFolderIsPruned() async throws {
-        let (t, app, id, wt, calls, ctx) = try make()
+        let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
         try FileManager.default.removeItem(atPath: wt)
         await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
         #expect(!app.state.tasks.contains { $0.id == id })
-        #expect(!(try t.git("worktree", "list", in: t.repo)).contains("/x"))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) == "")
+        #expect(!(try await t.git("worktree", "list", in: t.repo)).contains("/x"))
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) == "")
         #expect(calls.errors.isEmpty && calls.confirms.isEmpty)
     }
 
-    @Test func archiveAndRemoveProjectKeepWorktree() throws {
-        let (t, app, id, wt, _, _) = try make()
+    @Test func archiveAndRemoveProjectKeepWorktree() async throws {
+        let (t, app, id, wt, _, _) = try await make()
         defer { t.cleanup() }
         app.restore(taskId: id)
         app.archive(taskId: id)
         let project = app.state.projects[0].id
         app.perform { $0.removeProject(id: project) }
         #expect(exists(wt))
-        #expect(try t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 }

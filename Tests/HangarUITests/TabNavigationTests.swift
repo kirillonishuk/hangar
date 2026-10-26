@@ -68,6 +68,23 @@ import Testing
         #expect(undo.taskId == nil)
     }
 
+    /// A dead `hangar://` link (#88): a message without «Отменить»; an archive replaces it, and the other way round.
+    @Test func messageToastHasNothingToUndo() {
+        let undo = ArchiveUndo(delay: 60)
+        undo.show(message: "gone")
+        #expect(undo.message == "gone" && undo.taskId == nil)
+        var restored: [UUID] = []
+        undo.undo { restored.append($0) }
+        #expect(restored.isEmpty)
+        let id = UUID()
+        undo.show(id)
+        #expect(undo.message == nil && undo.taskId == id)
+        undo.show(message: "gone")
+        #expect(undo.taskId == nil)
+        undo.dismiss()
+        #expect(undo.message == nil)
+    }
+
     @Test func newArchiveReplacesTheToast() {
         let undo = ArchiveUndo(delay: 60)
         let a = UUID(), b = UUID()

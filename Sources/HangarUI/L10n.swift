@@ -90,7 +90,7 @@ import Workspace
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case copyLink, attentionOnly, nobodyWaiting
+        case copyLink, linkNotFound, attentionOnly, nobodyWaiting
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -400,6 +400,7 @@ import Workspace
     static var copyPath: String { s(.copyPath) }
     static func portCopy(_ port: Int) -> String { f(.portCopy, String(port)) }  // %@: a port is never digit-grouped
     static var copyLink: String { s(.copyLink) }
+    static var linkNotFound: String { s(.linkNotFound) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }
     static func openIn(_ arg: String) -> String { f(.openIn, arg) }

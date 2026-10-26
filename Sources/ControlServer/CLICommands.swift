@@ -19,7 +19,8 @@ usage:
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
-  hangar link session|tab|project <ref> [--json]   (prints a hangar:// link; opening it only selects, nothing runs)
+  hangar link session|tab|project|host|sessions <ref> [--json]   (prints a hangar:// link; opening it only shows, nothing runs;
+    host: an SSH HOSTS name; sessions: the «Sessions» view of project <ref>)
   (S: a session id, a unique id prefix or a name; T: a tab id, a leaf id or a session's drawer leaf id from `sessions list`, or a unique prefix)
   (--json keeps the keys "tasks" and "task" for compatibility; `tasks …` and `--task` still work as aliases)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
@@ -48,7 +49,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     case "ssh": Grammar(positionals: 1...1)
-    case "link session", "link tab", "link project": Grammar(positionals: 1...1)
+    case "link session", "link tab", "link project", "link host", "link sessions": Grammar(positionals: 1...1)
     default: nil
     }
 }
@@ -135,7 +136,7 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let text = words.isEmpty ? nil : words.joined(separator: " ")
         guard text != nil || !keys.isEmpty else { return .usage("nothing to send: pass text, --key or --enter") }
         call = .tabsSend(tab: tab, text: text, keys: keys, wait: flags.contains("--wait"))
-    case "link session", "link tab", "link project":
+    case "link session", "link tab", "link project", "link host", "link sessions":
         call = .linksCreate(kind: args[1] == "session" ? .task : LinkKind(rawValue: args[1])!, ref: words[0])
     default:  // tabs read
         guard let tab = required("tab") else { return missing("tab") }

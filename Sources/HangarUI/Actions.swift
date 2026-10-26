@@ -55,7 +55,7 @@ enum Action: CaseIterable {
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
             return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
-            return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath] + editor + [.removeProject]
+            return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
             return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
         }
@@ -160,7 +160,7 @@ enum Action: CaseIterable {
             guard let port = app.port(of: target) else { return }
             ctx.pasteboard.clearContents()
             ctx.pasteboard.setString(String(port), forType: .string)
-        case (.copyLink, .task), (.copyLink, .tab):
+        case (.copyLink, _):
             guard let link = LinkTarget(target)?.link else { return }
             ctx.pasteboard.clearContents()
             ctx.pasteboard.setString(link.url.absoluteString, forType: .string)

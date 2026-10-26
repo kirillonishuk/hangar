@@ -54,7 +54,7 @@ import Workspace
         #expect(Action.list(for: .task(a), app: app)
             == [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink, .openInEditor, .archive])
         #expect(Action.list(for: .project(p), app: app)
-            == [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .openInEditor, .removeProject])
+            == [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .copyLink, .openInEditor, .removeProject])
         let tab = UUID()
         #expect(Action.list(for: .tab(task: a, tab: tab), app: app) == [.rename, .copyLink, .splitRight, .splitDown, .closeTab])
         #expect(Action.openInEditor.title(for: .task(a), app: app) == L10n.openIn("Zed"))
@@ -92,7 +92,7 @@ import Workspace
     }
 
     @Test func copyLinkPutsHangarLinkOnPasteboard() throws {
-        let (app, _, a, _) = try makeApp()
+        let (app, p, a, _) = try makeApp()
         defer { cleanup() }
         let tab = UUID()
         let board = NSPasteboard(name: .init("hangar-test-\(UUID())"))
@@ -103,6 +103,8 @@ import Workspace
         #expect(board.string(forType: .string) == "hangar://task/\(a.uuidString.lowercased())")
         Action.copyLink.perform(.tab(task: a, tab: tab), ctx)
         #expect(board.string(forType: .string) == "hangar://tab/\(tab.uuidString.lowercased())")
+        Action.copyLink.perform(.project(p), ctx)
+        #expect(board.string(forType: .string) == "hangar://project/\(p.uuidString.lowercased())")
     }
 
     @Test func shortcutsForActions() {

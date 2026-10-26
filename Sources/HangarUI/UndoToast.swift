@@ -2,9 +2,12 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The «Сессия в архиве · Отменить» toast: one at a time, hides after `delay` by a one-shot work item (no polling).
+/// The «Сессия в архиве · Отменить» toast, or a plain message (a dead `hangar://` link, #88): one at a time, hides after
+/// `delay` by a one-shot work item (no polling).
 @MainActor @Observable final class ArchiveUndo {
     private(set) var taskId: UUID?
+    /// A message without «Отменить»; nil while the archive toast (or nothing) is shown.
+    private(set) var message: String?
     /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).
     @ObservationIgnored var onUndo: (UUID) -> Void = { _ in }
     @ObservationIgnored private var hide: DispatchWorkItem?
@@ -20,8 +23,17 @@ import SwiftUI
 
     /// A newer archive replaces the toast and restarts its timer.
     func show(_ id: UUID) {
+        present(taskId: id, message: nil)
+    }
+
+    func show(message text: String) {
+        present(taskId: nil, message: text)
+    }
+
+    private func present(taskId id: UUID?, message text: String?) {
         hide?.cancel()
         taskId = id
+        message = text
         let item = DispatchWorkItem { [weak self] in self?.dismiss() }
         hide = item
         schedule(delay, item)
@@ -31,6 +43,7 @@ import SwiftUI
         hide?.cancel()
         hide = nil
         taskId = nil
+        message = nil
     }
 
     /// Restores the archived task once; the toast goes away.
@@ -48,7 +61,15 @@ struct UndoToastView: View {
     @State private var hover = false
 
     var body: some View {
-        if undo.taskId != nil {
+        if let message = undo.message {
+            Text(message).foregroundStyle(Theme.ui.text)
+                .font(.system(size: Theme.fontSize.base))
+                .padding(.horizontal, Theme.toastPaddingH)
+                .padding(.vertical, Theme.toastPaddingV + Theme.buttonPaddingV)
+                .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.sheet))
+                .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.sheetBorder, lineWidth: 1))
+                .fixedSize()
+        } else if undo.taskId != nil {
             HStack(spacing: Theme.toastGap) {
                 Text(L10n.taskArchived).foregroundStyle(Theme.ui.text)
                 Button { undo.undo(restore) } label: {

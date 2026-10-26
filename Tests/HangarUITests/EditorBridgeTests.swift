@@ -8,6 +8,8 @@ import Testing
 
     @Test func decodesEachKind() {
         #expect(msg(#"{"type":"ready"}"#) == .ready)
+        #expect(msg(#"{"type":"clipboard","action":"paste"}"#) == .clipboard(.paste))
+        #expect(msg(#"{"type":"clipboard","action":"selectAll"}"#) == nil)
         #expect(msg(#"{"type":"changed","file":"/r/a.ts","dirty":true}"#) == .changed(file: "/r/a.ts", dirty: true))
         #expect(msg(#"{"type":"save","file":"/r/a.ts","text":"x\ny"}"#) == .save(file: "/r/a.ts", text: "x\ny"))
         #expect(msg(#"{"type":"cursor","file":"/r/a.ts","line":3,"column":7}"#) == .cursor(file: "/r/a.ts", line: 3, column: 7))

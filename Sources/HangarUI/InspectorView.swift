@@ -81,7 +81,7 @@ private struct SegmentItem: View {
 
 /// Context menu of a Files / Changes row (Pane «File previews»); Finder sees only this Mac's disk.
 enum FileMenuItem: Equatable, CaseIterable {
-    case openInHelix, revealInFinder, copyPath, copyRelativePath
+    case openInEditorTab, revealInFinder, copyPath, copyRelativePath
 
     static func items(remote: Bool) -> [FileMenuItem] { allCases.filter { !remote || $0 != .revealInFinder } }
 
@@ -90,13 +90,13 @@ enum FileMenuItem: Equatable, CaseIterable {
         switch self {
         case .copyPath: (host.map { $0 + ":" } ?? "") + root + "/" + relative
         case .copyRelativePath: relative
-        case .openInHelix, .revealInFinder: nil
+        case .openInEditorTab, .revealInFinder: nil
         }
     }
 
     @MainActor var title: String {
         switch self {
-        case .openInHelix: L10n.openInHelix
+        case .openInEditorTab: L10n.openInEditorTab
         case .revealInFinder: L10n.revealInFinder
         case .copyPath: L10n.copyPath
         case .copyRelativePath: L10n.copyRelativePath
@@ -105,22 +105,22 @@ enum FileMenuItem: Equatable, CaseIterable {
 
     var icon: Icon {
         switch self {
-        case .openInHelix: .editor
+        case .openInEditorTab: .editor
         case .revealInFinder: .finder
         case .copyPath, .copyRelativePath: .copy
         }
     }
 }
 
-/// The custom menu for `relative` under the inspector's root; `opens`: the row can open in Helix (not a directory or deleted file).
+/// The custom menu for `relative` under the inspector's root; `opens`: the row opens in the editor (not a directory or deleted file).
 @MainActor func fileMenu(app: AppState, relative: String, opens: Bool) -> [PopoverMenuEntry] {
     guard let root = app.inspector.root else { return [] }
     let host = remoteHost(app)
-    return FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInHelix }.map { item in
+    return FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInEditorTab }.map { item in
         .item(PopoverMenuItem(title: item.title, icon: item.icon) {
             let path = root + "/" + relative
             switch item {
-            case .openInHelix: app.openInEditor(path: path, line: nil)
+            case .openInEditorTab: app.openInEditor(path: path, line: nil)
             case .revealInFinder: NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             case .copyPath, .copyRelativePath:
                 guard let text = item.copied(root: root, relative: relative, host: host) else { return }

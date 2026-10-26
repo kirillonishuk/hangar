@@ -9,17 +9,17 @@ import Workspace
 /// The app's checks of `hangar doctor` (#61), from the values they read.
 @MainActor @Suite struct DoctorChecksTests {
     @Test func toolProbeSkipsNoise() {
-        let out = "motd line\nHANGAR-DOCTOR\tclaude\t/opt/bin/claude\t2.1.3 (Claude Code)\nHANGAR-DOCTOR\tbad\nHANGAR-DOCTOR\thx\t/opt/hx\t\n"
+        let out = "motd line\nHANGAR-DOCTOR\tclaude\t/opt/bin/claude\t2.1.3 (Claude Code)\nHANGAR-DOCTOR\tbad\nHANGAR-DOCTOR\tcodex\t/opt/codex\t\n"
         let found = parseToolProbe(out)
         #expect(found["claude"]?.path == "/opt/bin/claude" && found["claude"]?.version == "2.1.3 (Claude Code)")
-        #expect(found["hx"]?.version == "" && found["bad"] == nil && found.count == 2)
+        #expect(found["codex"]?.version == "" && found["bad"] == nil && found.count == 2)
     }
 
     @Test func toolLevels() {
         #expect(toolCheck("claude", "claude", ("/b/claude", "2.1"), missing: .fail) == DoctorCheck(name: "claude", level: .ok, detail: "/b/claude  2.1"))
         #expect(toolCheck("claude", "claude", nil, missing: .fail).level == .fail)
-        let hx = toolCheck("helix", "hx", nil, missing: .warn)
-        #expect(hx.level == .warn && hx.fix?.contains("brew install helix") == true)
+        let codex = toolCheck("codex", "codex", nil, missing: .warn)
+        #expect(codex.level == .warn && codex.fix?.contains("[agents]") == true)
     }
 
     @Test func hookLevels() {
@@ -60,7 +60,6 @@ import Workspace
         defer { try? FileManager.default.removeItem(at: dir) }
         var config = HangarConfig()
         config.agentCommands = [.claude: "true", .codex: "hangar-no-such-agent"]
-        config.editor = "true"
         let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: config,
                            configURL: dir.appendingPathComponent("config.toml"), socketPath: dir.path + "/hangar.sock")
         app.keepAwake = .inert()

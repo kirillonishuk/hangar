@@ -17,7 +17,6 @@ import Testing
     HANGAR missing tmux
     HANGAR tool claude /home/dev/.local/bin/claude 2.0.1 (Claude Code)
     HANGAR missing codex
-    HANGAR missing hx
     HANGAR tool curl /usr/bin/curl curl 8.5.0 (x86_64-pc-linux-gnu)
     HANGAR missing npm
     HANGAR client python3
@@ -109,92 +108,72 @@ import Testing
         #expect(parseServerReport(Self.ubuntu.replacingOccurrences(of: "\n", with: "\r\n")) == parseServerReport(Self.ubuntu))
     }
 
-    /// codex and hx are optional: left out (not even «install yourself») until the user ticks them.
+    /// codex is optional: left out (not even «install yourself») until the user ticks it.
     @Test func optionalToolsOnlyWhenChosen() {
-        #expect(RemoteTool.optionalInstalls == [.codex, .hx])
-        let r = report(pm: .brew, have: without([.tmux, .hx, .codex]))
+        #expect(RemoteTool.optionalInstalls == [.codex])
+        let r = report(pm: .brew, have: without([.tmux, .codex]))
         var p = installPlan(r, remoteVersion: 1, optional: [])
         #expect(p.steps.map(\.command) == ["brew install tmux"])
         #expect(p.manual.isEmpty)
         p = installPlan(r, remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.command) == ["brew install tmux", "brew install codex"])
-        p = installPlan(r, remoteVersion: 1, optional: [.hx])
-        #expect(p.steps.map(\.command) == ["brew install tmux helix"])
-        // Chosen but not installable here → manual.
-        p = installPlan(report(have: without([.hx])), remoteVersion: 1, optional: [.hx])
-        #expect(p.steps.isEmpty && p.manual == [.hx])
     }
 
     @Test func planTable() {
-        // apt + no git, tmux, hx → hx is manual (no helix package on most apt releases).
-        var p = installPlan(report(have: without([.git, .tmux, .hx])), remoteVersion: 1, optional: [.hx, .codex])
+        var p = installPlan(report(have: without([.git, .tmux])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps == [InstallStep(title: "packages", command: "sudo apt-get update\nsudo apt-get install -y git tmux", inTerminal: true)])
-        #expect(p.manual == [.hx])
-
-        p = installPlan(report(pm: .pacman, uid: 0, sudo: false, have: without([.git, .tmux, .hx])), remoteVersion: 1, optional: [.hx, .codex])
-        #expect(p.steps.map(\.command) == ["pacman -S --needed --noconfirm git tmux helix"])
         #expect(p.manual.isEmpty)
 
-        p = installPlan(report(pm: .brew, have: without([.tmux, .hx])), remoteVersion: 1, optional: [.hx, .codex])
-        #expect(p.steps.map(\.command) == ["brew install tmux helix"])
-
-        p = installPlan(report(pm: .dnf, have: without([.tmux])), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(pm: .pacman, uid: 0, sudo: false, have: without([.git, .tmux])), remoteVersion: 1, optional: [.codex])
+        #expect(p.steps.map(\.command) == ["pacman -S --needed --noconfirm git tmux"])
+        p = installPlan(report(pm: .brew, have: without([.tmux])), remoteVersion: 1, optional: [.codex])
+        #expect(p.steps.map(\.command) == ["brew install tmux"])
+        p = installPlan(report(pm: .dnf, have: without([.tmux])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.command) == ["sudo dnf install -y tmux"])
-        // helix only where the distro's own repos have it: Fedora yes, RHEL/Rocky/Alma/Amazon no.
-        p = installPlan(report(pm: .dnf, distro: "fedora", have: without([.hx])), remoteVersion: 1, optional: [.hx, .codex])
-        #expect(p.steps.map(\.command) == ["sudo dnf install -y helix"])
-        #expect(p.manual.isEmpty)
-        for distro in ["rocky", "rhel", "almalinux", "amzn", nil] as [String?] {
-            p = installPlan(report(pm: .dnf, distro: distro, have: without([.hx])), remoteVersion: 1, optional: [.hx, .codex])
-            #expect(p.steps.isEmpty, "\(String(describing: distro))")
-            #expect(p.manual == [.hx])
-        }
-        p = installPlan(report(pm: .apk, uid: 0, have: without([.hx])), remoteVersion: 1, optional: [.hx, .codex])
-        #expect(p.steps.map(\.command) == ["apk add helix"])
-        p = installPlan(report(pm: .yum, have: without([.tmux])), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(pm: .yum, have: without([.tmux])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.command) == ["sudo yum install -y tmux"])
-        p = installPlan(report(pm: .apk, uid: 0, have: without([.git]), client: nil), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(pm: .apk, uid: 0, have: without([.git]), client: nil), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.command) == ["apk add git socat"])
 
         // No sudo for a normal user, or no package manager → nothing to run, everything manual.
-        for r in [report(sudo: false, have: without([.git, .tmux, .hx])), report(pm: nil, have: without([.git, .tmux, .hx]))] {
-            p = installPlan(r, remoteVersion: 1, optional: [.hx, .codex])
+        for r in [report(sudo: false, have: without([.git, .tmux])), report(pm: nil, have: without([.git, .tmux]))] {
+            p = installPlan(r, remoteVersion: 1, optional: [.codex])
             #expect(p.steps.isEmpty)
-            #expect(p.manual == [.git, .tmux, .hx])
+            #expect(p.manual == [.git, .tmux])
         }
 
         // No claude and no curl → curl in the packages, the installer after them.
-        p = installPlan(report(have: without([.claude, .curl])), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(have: without([.claude, .curl])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.command) == ["sudo apt-get update\nsudo apt-get install -y curl", Self.claudeInstall])
         // …and without a way to get curl, claude is manual too.
-        p = installPlan(report(pm: nil, have: without([.claude, .curl])), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(pm: nil, have: without([.claude, .curl])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.isEmpty)
         #expect(p.manual == [.curl, .claude])
 
         // codex: brew, else npm, else manual.
-        #expect(installPlan(report(pm: .brew, have: without([.codex])), remoteVersion: 1, optional: [.hx, .codex]).steps.map(\.command) == ["brew install codex"])
-        #expect(installPlan(report(have: without([.codex])), remoteVersion: 1, optional: [.hx, .codex]).steps.map(\.command) == ["npm install -g @openai/codex"])
-        p = installPlan(report(have: without([.codex, .npm])), remoteVersion: 1, optional: [.hx, .codex])
+        #expect(installPlan(report(pm: .brew, have: without([.codex])), remoteVersion: 1, optional: [.codex]).steps.map(\.command) == ["brew install codex"])
+        #expect(installPlan(report(have: without([.codex])), remoteVersion: 1, optional: [.codex]).steps.map(\.command) == ["npm install -g @openai/codex"])
+        p = installPlan(report(have: without([.codex, .npm])), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.isEmpty)
         #expect(p.manual == [.codex])
 
         // Everything present and hangar-remote current → nothing.
-        p = installPlan(report(), remoteVersion: 1, optional: [.hx, .codex])
+        p = installPlan(report(), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.isEmpty && p.manual.isEmpty)
 
         // hangar-remote missing or older → written over ssh stdin, not in the terminal.
         for old in [nil, 1] as [Int?] {
-            p = installPlan(report(remote: old), remoteVersion: 2, optional: [.hx, .codex])
+            p = installPlan(report(remote: old), remoteVersion: 2, optional: [.codex])
             #expect(p.steps == [InstallStep(title: "hangar-remote", command: Self.remoteInstall, inTerminal: false)])
         }
     }
 
     @Test func planIsWhatRuns() {
-        let p = installPlan(report(have: [.npm], client: nil, remote: nil), remoteVersion: 1, optional: [.hx, .codex])
+        let p = installPlan(report(have: [.npm], client: nil, remote: nil), remoteVersion: 1, optional: [.codex])
         #expect(p.steps.map(\.title) == ["packages", "claude", "codex", "hangar-remote"])
         #expect(p.steps[0].command == "sudo apt-get update\nsudo apt-get install -y git tmux socat curl")
         #expect(p.steps[1].command == Self.claudeInstall)
-        #expect(p.manual == [.hx])
+        #expect(p.manual.isEmpty)
         #expect(terminalScript(p.steps) == "set -e\n" + p.steps.filter(\.inTerminal).map(\.command).joined(separator: "\n"))
         #expect(!terminalScript(p.steps).contains("hangar-remote"))
     }
@@ -220,8 +199,6 @@ import Testing
         try tool("tmux", #"[ "$1" = -V ] && echo 'tmux 3.4' || { echo usage >&2; exit 1; }"#)
         try tool("claude", "echo " + String(repeating: "x", count: 120) + "; echo second line")
         try tool("curl", "printf 'curl 8.5\\033[2J\\n'")
-        // Like helix: writes a log under its cache dir on start.
-        try tool("hx", #"c=${XDG_CACHE_HOME:-$HOME/.cache}; mkdir -p "$c/helix" && echo x > "$c/helix/log"; printf '%s\n' "$c" > "$(dirname "$0")/../hxcache"; echo 'helix 25.01'"#)
         try tool("apt-get", "exit 0")
         try tool("brew", "exit 0")
         try tool("sudo", "exit 0")
@@ -253,19 +230,14 @@ import Testing
             #expect(rep.tools[.tmux]?.version == "tmux 3.4")
             #expect(rep.tools[.claude]?.version == String(repeating: "x", count: 80))
             #expect(rep.tools[.curl]?.version == "curl 8.5[2J")
-            #expect(rep.tools[.hx]?.version == "helix 25.01")
             #expect(rep.tools[.codex] == nil && rep.tools[.npm] == nil)
-            // hx gets a temp XDG dir outside HOME, removed afterwards.
-            let hxCache = try String(contentsOfFile: f.root + "/hxcache", encoding: .utf8).trimmingCharacters(in: .newlines)
-            #expect(!hxCache.isEmpty && !hxCache.hasPrefix(f.home), "\(hxCache)")
-            #expect(!FileManager.default.fileExists(atPath: hxCache))
             #expect(rep.socketClient == "python3")
             #expect(rep.remoteVersion == 3)
             #expect(rep.claudeDir == "/cfg/claude")
             #expect(rep.codexHome == f.home + "/.codex")
             // Read-only: tools only asked for their version, nothing written under HOME, sudo / package managers never run.
             let calls = (try String(contentsOfFile: f.root + "/calls", encoding: .utf8)).split(separator: "\n").sorted()
-            #expect(calls == ["claude --version", "curl --version", "git --version", "hx --version", "tmux -V"], "\(sh)")
+            #expect(calls == ["claude --version", "curl --version", "git --version", "tmux -V"], "\(sh)")
             #expect(try FileManager.default.subpathsOfDirectory(atPath: f.home).sorted() == before)
         }
     }
@@ -319,7 +291,7 @@ import Testing
     }
 
     @Test func terminalScriptStopsOnFailure() async throws {
-        let script = terminalScript(installPlan(report(have: without([.git, .claude, .curl])), remoteVersion: 1, optional: [.hx, .codex]).steps)
+        let script = terminalScript(installPlan(report(have: without([.git, .claude, .curl])), remoteVersion: 1, optional: [.codex]).steps)
         // apt-get update fails → install never runs.
         var r = try await runInstall(script, failing: ["apt-get"])
         #expect(r.status != 0)
@@ -342,7 +314,7 @@ import Testing
         let home = NSTemporaryDirectory() + "hangar-rinst-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: home) }
         try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
-        let step = try #require(installPlan(report(remote: nil), remoteVersion: 1, optional: [.hx, .codex]).steps.last)
+        let step = try #require(installPlan(report(remote: nil), remoteVersion: 1, optional: [.codex]).steps.last)
         let text = "#!/bin/sh\n# hangar-remote 1\n"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")

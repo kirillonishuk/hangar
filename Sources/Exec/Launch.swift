@@ -26,7 +26,7 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let isZsh = (userShell as NSString).lastPathComponent == "zsh"
     let userShellQuoted = (isZsh ? ghosttyZshIntegration : "") + shellQuote(userShell)
     let shell = shellQuote(posixShell(userShell))
-    let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue }, editor: config.editor,
+    let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue },
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
@@ -45,17 +45,6 @@ public func resolveUserShell(passwd: String?, env: String?) -> String {
 /// whose .zshenv then restores ZDOTDIR; `_ghostty_state` there means it was injected (not `shell-integration = none`).
 public let ghosttyZshIntegration = #"(( ${+_ghostty_state} )) && { [[ -n ${ZDOTDIR+x} ]] && export GHOSTTY_ZSH_ZDOTDIR="$ZDOTDIR"; export ZDOTDIR="$GHOSTTY_RESOURCES_DIR/shell-integration/zsh"; }; "#
 
-/// Basename of the first word of the editor command.
-private func editorName(_ command: String) -> String {
-    let word = command.split(separator: " ", omittingEmptySubsequences: true).first.map(String.init) ?? ""
-    return (word as NSString).lastPathComponent
-}
-
-/// Helix takes `path:line`; other editors need their own syntax.
-public func isHelix(_ editorCommand: String) -> Bool {
-    ["hx", "helix"].contains(editorName(editorCommand))
-}
-
 /// Shell for `-l -i -c` wrappers.
 // shortcut: non-POSIX shells get the zsh wrapper; agents then see zsh's PATH, change if a fish user hits it
 public func posixShell(_ userShell: String) -> String {
@@ -65,7 +54,7 @@ public func posixShell(_ userShell: String) -> String {
 
 /// What the tab runs inside its shell, for local and remote launches alike; `agent` names the CLI per kind
 /// (locally `[agents]` from the config, on a server the bare name).
-public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: String, shell: String,
+public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: String,
                          restoring: Bool, initialPrompt: String?) -> String {
     // A known id is used only when resuming: a fresh start after a failed `--resume <id>` ignores it.
     // state.json is editable: an id that is not valid falls back to the no-id resume instead of reaching argv.
@@ -76,12 +65,8 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, editor: St
         guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
         return "\(script)\n\(shell) -l -i"
     case .editor:
-        guard let file = leaf.openFile else { return editor }
-        let path = file.hasPrefix("-") ? "./" + file : file
-        guard let line = leaf.openLine, line >= 1 else { return "\(editor) \(shellQuote(path))" }
-        if isHelix(editor) { return "\(editor) \(shellQuote("\(path):\(line)"))" }
-        if ["nvim", "vim"].contains(editorName(editor)) { return "\(editor) +\(line) \(shellQuote(path))" }
-        return "\(editor) \(shellQuote(path))"
+        // The editor is Monaco (#82) and never launches a terminal; a shell if one ever does.
+        return "\(shell) -l -i"
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }
         if restoring { return "\(agent(.claude)) --continue" }

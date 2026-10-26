@@ -5,7 +5,7 @@ body { display: flex; flex-direction: column; }
 #host { flex: 1; min-height: 0; position: relative; }
 body.diff #tabs { display: none; }
 
-/* File tabs: the Hangar tab bar's look (DESIGN «Полоса вкладок», #82) — same height, font, paddings, rounded tops,
+/* File tabs: the Hangar tab bar's look (DESIGN «Полоса вкладок», #81) — same height, font, paddings, rounded tops,
    `selection` fill and the accent line on top of the active one — so the two rows read as one system. */
 #tabs { display: flex; align-items: flex-end; gap: var(--tab-gap); height: var(--tab-h); flex: none; padding-left: var(--tab-lead);
   background: var(--bar); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
@@ -31,6 +31,20 @@ body.diff #tabs { display: none; }
 .tool { display: flex; align-items: center; align-self: stretch; padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
 .tool:hover { color: var(--text); background: var(--hover); }
 .tool.on { color: var(--accent); }
+/* tsserver status (#82): a dot in the state's color, then "TS 5.6"; the text never moves the tabs (they end before it). */
+.tool.lang { gap: 6px; color: var(--text2); }
+.tool.lang::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--done); }
+.tool.lang.busy::before { background: var(--waiting); }
+.tool.lang.off { color: var(--text3); }
+.tool.lang.off::before { background: var(--text3); }
+
+/* The references / definition peek: Hangar's sheet look, not VS Code's blue frame. */
+.monaco-editor .peekview-widget { border-radius: var(--radius); overflow: hidden; }
+.monaco-editor .peekview-widget .head { font-family: -apple-system, system-ui, sans-serif; font-size: var(--bar-font); }
+.monaco-editor .peekview-widget .head .peekview-title .filename { color: var(--text-strong); }
+.monaco-editor .peekview-widget .head .peekview-title .dirname, .monaco-editor .peekview-widget .head .peekview-title .meta { color: var(--text3); }
+.monaco-editor .reference-zone-widget .ref-tree { font-family: -apple-system, system-ui, sans-serif; font-size: var(--bar-font); }
+.monaco-editor .reference-zone-widget .ref-tree .reference-file .count { border-radius: 8px; }
 
 /* Conflict bar and notices: calm, one line above the text (it never shifts under the cursor while typing). */
 #bar, #notice { flex: none; height: var(--bar-h); display: flex; align-items: center; gap: 8px; padding: 0 12px;
@@ -59,7 +73,7 @@ button.primary:hover { filter: brightness(1.08); }
 .monaco-scrollable-element > .scrollbar > .slider { border-radius: 5px; }
 .monaco-editor .monaco-hover, .monaco-editor .suggest-widget { font-family: -apple-system, system-ui, sans-serif; }
 
-/* The context menu (#82): Hangar's popover menu (sheet, 10 radius, 30 rows, `text3` keys), not Monaco's. */
+/* The context menu (#81): Hangar's popover menu (sheet, 10 radius, 30 rows, `text3` keys), not Monaco's. */
 .ctx { position: fixed; z-index: 100; min-width: var(--menu-w); box-sizing: border-box; padding: var(--menu-pad); background: var(--sheet);
   border: 1px solid var(--menu-border); border-radius: var(--menu-r); box-shadow: 0 8px 24px rgba(0,0,0,.4);
   font: var(--menu-font) -apple-system, system-ui, sans-serif; color: var(--text); }

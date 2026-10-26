@@ -115,7 +115,7 @@ import Workspace
         #expect(try inner(spec(leaf(.codex), prompt: "-x")) == "codex ' -x'")
     }
 
-    /// The editor is Monaco (#82): an editor leaf never runs a terminal editor, only a shell if it is ever launched.
+    /// The editor is Monaco (#81): an editor leaf never runs a terminal editor, only a shell if it is ever launched.
     @Test func editorLeafRunsNoTerminalEditor() throws {
         #expect(try inner(spec(leaf(.editor, file: "src/a b.ts", line: 3))) == ghosttyZshIntegration + "/bin/zsh -l -i")
     }

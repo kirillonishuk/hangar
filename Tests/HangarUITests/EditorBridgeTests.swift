@@ -61,8 +61,27 @@ import Testing
         #expect(obj["type"] as? String == "open")
         #expect(obj["path"] as? String == "/r/a.tsx")
         #expect(obj["line"] as? Int == 2)
-        let resolve = EditorCommand.resolve(id: 3, result: .locations([EditorLocation(path: "/r/b.ts", line: 1, column: 2)])).json as? [String: Any]
+        let resolve = EditorCommand.resolve(id: 3, result: .locations([EditorLocation(path: "/r/b.ts", line: 1, column: 2)], previews: ["/r/b.ts": "x"])).json as? [String: Any]
         #expect(resolve?["type"] as? String == "resolve")
         #expect((resolve?["result"] as? [String: Any])?["kind"] as? String == "locations")
+        let result = resolve?["result"] as? [String: Any]
+        #expect((result?["previews"] as? [String: String])?["/r/b.ts"] == "x")
+        let status = EditorCommand.language(path: "/r/a.ts", LanguageStatus(text: "TS 5.6", tooltip: "t", level: .ready)).json as? [String: Any]
+        #expect((status?["status"] as? [String: Any])?["level"] as? String == "ready")
+    }
+
+    /// M2 (#82): incremental edits, the language restart, completion details by name.
+    @Test func languageMessages() {
+        #expect(msg(#"{"type":"edit","file":"/r/a.ts","changes":[{"line":1,"column":2,"endLine":1,"endColumn":4,"text":"ab"}]}"#)
+                == .edit(file: "/r/a.ts", [EditorEdit(line: 1, column: 2, endLine: 1, endColumn: 4, text: "ab")]))
+        #expect(msg(#"{"type":"edit","file":"/r/a.ts","changes":[{"line":1,"column":2,"endLine":1,"endColumn":4}]}"#) == nil)
+        #expect(msg(#"{"type":"edit","file":"/r/a.ts","changes":"x"}"#) == nil)
+        #expect(msg(#"{"type":"edit","file":"/r/a.ts","changes":[{"line":0,"column":2,"endLine":1,"endColumn":4,"text":""}]}"#) == nil)
+        #expect(msg(#"{"type":"restartLanguage","file":"/r/a.ts"}"#) == .restartLanguage(file: "/r/a.ts"))
+        #expect(msg(#"{"type":"request","id":5,"kind":"details","file":"/r/a.ts","line":1,"column":1,"name":"foo"}"#)
+                == .request(ProviderRequest(id: 5, kind: .details, file: "/r/a.ts", line: 1, column: 1, name: "foo")))
+        #expect(msg(#"{"type":"request","id":5,"kind":"details","file":"/r/a.ts","line":1,"column":1}"#) == nil)  // details need a name
+        let long = String(repeating: "n", count: 600)
+        #expect(msg(#"{"type":"request","id":5,"kind":"details","file":"/r/a.ts","line":1,"column":1,"name":"\#(long)"}"#) == nil)
     }
 }

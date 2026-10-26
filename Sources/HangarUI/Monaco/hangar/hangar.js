@@ -48,8 +48,8 @@
       documentHighlights: false, rename: false, diagnostics: false, documentRangeFormattingEdits: false,
       signatureHelp: false, onTypeFormattingEdits: false, codeActions: false, inlayHints: false, links: false,
       colors: false, foldingRanges: false, selectionRanges: false, tokens: false, documentFormattingEdits: false };
-    const ls = monaco.languages;
-    for (const d of [ls.typescript && ls.typescript.typescriptDefaults, ls.typescript && ls.typescript.javascriptDefaults,
+    const ls = monaco.languages, mts = monaco.typescript || ls.typescript;
+    for (const d of [mts && mts.typescriptDefaults, mts && mts.javascriptDefaults,
       ls.css && ls.css.cssDefaults, ls.css && ls.css.scssDefaults, ls.css && ls.css.lessDefaults, ls.json && ls.json.jsonDefaults,
       ls.html && ls.html.htmlDefaults]) {
       try { d && d.setModeConfiguration(off); } catch (e) { /* not in this build */ }
@@ -87,6 +87,8 @@
   function wireEditor(ed) {
     wireMenu(ed);
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => save());
+    ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Minus, () => navigate(back, fwd));
+    ed.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyMod.Shift | monaco.KeyCode.Minus, () => navigate(fwd, back));
     ed.onDidFocusEditorText(() => post({ type: 'focus' }));
     let timer = null;
     // One-shot, only after a move: the cursor is kept for restore without a message per keystroke.
@@ -110,13 +112,20 @@
     if (f && f.model && !f.readOnly) post({ type: 'save', file: active, text: f.model.getValue() });
   }
 
+  // TS/JS buffers are mirrored in tsserver (#82): every change goes to Swift as an incremental edit.
+  const tsLike = /\.(m|c)?[jt]sx?$/i;
+
   function open(c) {
     if (!files.has(c.path)) {
-      const f = { readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false, refused: c.text == null, view: null, model: null };
+      const f = { readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false, refused: c.text == null, view: null, model: null, lang: null };
       if (c.text != null) {
+        dropPreview(c.path);
         f.model = monaco.editor.createModel(c.text, undefined, monaco.Uri.file(c.path));
         f.saved = f.model.getAlternativeVersionId();
-        f.model.onDidChangeContent(() => {
+        const mirror = tsLike.test(c.path);
+        f.model.onDidChangeContent((e) => {
+          if (mirror) post({ type: 'edit', file: c.path, changes: e.changes.map((ch) => ({ line: ch.range.startLineNumber,
+            column: ch.range.startColumn, endLine: ch.range.endLineNumber, endColumn: ch.range.endColumn, text: ch.text })) });
           const dirty = f.model.getAlternativeVersionId() !== f.saved;
           if (dirty !== f.dirty) { f.dirty = dirty; post({ type: 'changed', file: c.path, dirty }); renderTabs(); }
         });
@@ -201,6 +210,16 @@
     const end = document.createElement('div');
     end.className = 'tabs-end';
     bar.appendChild(end);
+    const cur = active && files.get(active);
+    if (cur && cur.lang) {
+      // tsserver's state for this file; a click restarts it (or looks for TypeScript again).
+      const s = document.createElement('div');
+      s.className = 'tool lang ' + cur.lang.level;
+      s.textContent = cur.lang.text;
+      s.title = cur.lang.tooltip;
+      s.onclick = () => post({ type: 'restartLanguage', file: active });
+      bar.appendChild(s);
+    }
     const map = document.createElement('div');
     map.className = 'tool' + (minimap ? ' on' : '');
     map.textContent = cfg.strings.minimap;
@@ -222,7 +241,7 @@
 
   // MARK: Context menu
 
-  // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, #82): a fixed list,
+  // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, #81): a fixed list,
   // greyed when the editor can't run an item (no language provider yet, read-only). Labels come from Hangar's L10n.
   const MENU = [
     { action: 'editor.action.revealDefinition', label: 'definition', keys: 'F12' },
@@ -392,41 +411,127 @@
     diff.getModifiedEditor().focus();
   }
 
-  // MARK: Language features (M2 answers from Swift; nothing yet)
+  // MARK: Language features (tsserver through Swift, #82)
 
   let nextId = 1;
-  function ask(kind, model, position, token) {
+  function ask(kind, model, position, token, name) {
     const file = model.uri.scheme === 'file' ? model.uri.path : null;
     if (!file) return Promise.resolve(null);
     const id = nextId++;
     return new Promise((resolve) => {
       pending.set(id, resolve);
       token.onCancellationRequested(() => { pending.delete(id); resolve(null); });
-      post({ type: 'request', id, kind, file, line: position.lineNumber, column: position.column });
+      post({ type: 'request', id, kind, file, line: position.lineNumber, column: position.column, name });
     });
   }
-  const loc = (i) => ({ uri: monaco.Uri.file(i.path), range: new monaco.Range(i.line, i.column, i.line, i.column) });
+  const loc = (i) => ({ uri: monaco.Uri.file(i.path), range: new monaco.Range(i.line, i.column, i.endLine || i.line, i.endColumn || i.column) });
+
+  // Files the references peek shows but the page has no model of: read-only previews until the next search.
+  const previews = new Map();
+  function dropPreview(path) {
+    const m = previews.get(path);
+    if (m) { m.dispose(); previews.delete(path); }
+  }
+  function setPreviews(texts) {
+    for (const p of [...previews.keys()]) if (!(p in texts)) dropPreview(p);
+    for (const [p, text] of Object.entries(texts || {})) {
+      if (files.has(p) || previews.has(p) || monaco.editor.getModel(monaco.Uri.file(p))) continue;
+      previews.set(p, monaco.editor.createModel(text, undefined, monaco.Uri.file(p)));
+    }
+  }
+
+  // tsserver's ScriptElementKind → the list's icon.
+  function completionKind(k) {
+    const K = monaco.languages.CompletionItemKind;
+    switch (k) {
+      case 'method': case 'construct': return K.Method;
+      case 'function': case 'local function': return K.Function;
+      case 'constructor': return K.Constructor;
+      case 'property': case 'getter': case 'setter': return K.Property;
+      case 'var': case 'let': case 'local var': case 'parameter': return K.Variable;
+      case 'const': return K.Constant;
+      case 'class': case 'local class': return K.Class;
+      case 'interface': return K.Interface;
+      case 'type': case 'alias': case 'type parameter': return K.TypeParameter;
+      case 'enum': return K.Enum;
+      case 'enum member': return K.EnumMember;
+      case 'module': case 'external module name': return K.Module;
+      case 'keyword': return K.Keyword;
+      case 'directory': return K.Folder;
+      case 'script': return K.File;
+      default: return K.Text;
+    }
+  }
+
+  // Back / forward over jumps (⌃- / ⌃⇧-, as in VS Code): positions before each go-to-definition or peek open.
+  const back = [], fwd = [];
+  function here() {
+    const p = editor && editor.getPosition();
+    return active && p ? { path: active, line: p.lineNumber, column: p.column } : null;
+  }
+  function go(t) {
+    if (t.path === active) {
+      const pos = { lineNumber: t.line, column: t.column };
+      editor.setPosition(pos);
+      editor.revealPositionInCenterIfOutsideViewport(pos);
+      editor.focus();
+    } else {
+      post({ type: 'openFile', file: t.path, line: t.line, column: t.column });
+    }
+  }
+  function remember() {
+    const h = here();
+    if (!h) return;
+    back.push(h);
+    if (back.length > 50) back.shift();
+    fwd.length = 0;
+  }
+  function navigate(from, to) {
+    const target = from.pop();
+    if (!target) return;
+    const h = here();
+    if (h) to.push(h);
+    go(target);
+  }
 
   function registerProviders() {
     const ls = monaco.languages;
     ls.registerDefinitionProvider('*', { provideDefinition: (m, p, t) => ask('definition', m, p, t)
       .then((r) => (r && r.kind === 'locations' ? r.items.map(loc) : null)) });
-    ls.registerReferenceProvider('*', { provideReferences: (m, p, _c, t) => ask('references', m, p, t)
-      .then((r) => (r && r.kind === 'locations' ? r.items.map(loc) : null)) });
+    ls.registerReferenceProvider('*', { provideReferences: (m, p, _c, t) => ask('references', m, p, t).then((r) => {
+      if (!r || r.kind !== 'locations') return null;
+      setPreviews(r.previews);
+      return r.items.map(loc);
+    }) });
     ls.registerHoverProvider('*', { provideHover: (m, p, t) => ask('hover', m, p, t)
       .then((r) => (r && r.kind === 'hover' ? { contents: [{ value: r.markdown, isTrusted: false }] } : null)) });
-    ls.registerCompletionItemProvider('*', { provideCompletionItems: (m, p, _c, t) => ask('completion', m, p, t).then((r) => {
-      if (!r || r.kind !== 'completions') return { suggestions: [] };
-      const w = m.getWordUntilPosition(p);
-      const range = new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn);
-      return { suggestions: r.items.map((i) => ({ label: i.label, detail: i.detail || undefined, insertText: i.insertText,
-        kind: ls.CompletionItemKind.Text, range })) };
-    }) });
-    // Go to a definition in another file: Hangar opens it (in this editor tab).
+    ls.registerCompletionItemProvider('*', {
+      triggerCharacters: ['.'],
+      provideCompletionItems: (m, p, _c, t) => ask('completion', m, p, t).then((r) => {
+        if (!r || r.kind !== 'completions') return { suggestions: [] };
+        const w = m.getWordUntilPosition(p);
+        const range = new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn);
+        return { suggestions: r.items.map((i) => ({ label: i.label, detail: i.detail || undefined, insertText: i.insertText,
+          kind: completionKind(i.kind), sortText: i.sortText || undefined, range, hangarAt: { model: m, position: p } })) };
+      }),
+      // The docs of the selected entry, on demand.
+      resolveCompletionItem: (item, t) => {
+        const at = item.hangarAt;
+        if (!at || at.model.isDisposed()) return item;
+        return ask('details', at.model, at.position, t, item.label).then((r) => {
+          if (r && r.kind === 'hover') item.documentation = { value: r.markdown, isTrusted: false };
+          return item;
+        });
+      },
+    });
+    // Every go-to-definition and peek open lands here: same file in place, another one through Hangar (this tab).
     monaco.editor.registerEditorOpener({ openCodeEditor(_src, uri, sel) {
       if (uri.scheme !== 'file') return false;
       const s = sel && (sel.startLineNumber ? { line: sel.startLineNumber, column: sel.startColumn } : { line: sel.lineNumber, column: sel.column });
-      post({ type: 'openFile', file: uri.path, line: (s && s.line) || 1, column: (s && s.column) || 1 });
+      const target = { path: uri.path, line: (s && s.line) || 1, column: (s && s.column) || 1 };
+      if (!editor) { post({ type: 'openFile', file: target.path, line: target.line, column: target.column }); return true; }
+      remember();
+      go(target);
       return true;
     } });
   }
@@ -446,6 +551,7 @@
       case 'markers': { const f = files.get(c.path); if (f && f.model) monaco.editor.setModelMarkers(f.model, 'hangar', c.markers.map((m) => ({
         startLineNumber: m.line, startColumn: m.column, endLineNumber: m.endLine, endColumn: m.endColumn, message: m.message,
         severity: { error: 8, warning: 4, info: 2, hint: 1 }[m.severity] }))); break; }
+      case 'language': { const f = files.get(c.path); if (f) { f.lang = c.status; if (c.path === active) renderTabs(); } break; }
       case 'resolve': { const r = pending.get(c.id); if (r) { pending.delete(c.id); r(c.result); } break; }
       case 'diff': showDiff(c); break;
       case 'options':

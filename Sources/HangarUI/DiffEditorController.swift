@@ -79,8 +79,10 @@ import Workspace
         case .openAt(let line, let column): app.openActiveDiffInEditor(line: line, column: column)
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
         case .request(let r):
+            // shortcut: the diff's buffer is not sent to tsserver; it answers only for a file also open in an editor tab.
+            let host = app.selectedTask.flatMap { app.project($0.projectId)?.host }
             Task {
-                let result = await app.editorProvider?(r)
+                let result = await app.languages.request(r, host: host) { _ in nil }
                 page.send(.resolve(id: r.id, result: result))
             }
         default: break

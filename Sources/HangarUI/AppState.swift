@@ -62,8 +62,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
-    /// M2 hook: answers Monaco's definition / references / hover / completion requests; nil = none (#80).
-    @ObservationIgnored var editorProvider: EditorProvider?
+    /// TS/JS language features of the editors (tsserver, #82).
+    @ObservationIgnored lazy var languages: Languages = makeLanguages()
+    /// `node` from the login shell, looked up once (#82).
+    @ObservationIgnored var localNode: Task<String?, Never>?
     /// Asks before the diff tab drops an edited buffer (set by `TerminalArea` with the diff editor).
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
     /// Diff tabs with an edited, unsaved working file (quitting asks).
@@ -274,7 +276,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// An editor is «Editor» (its file tabs are inside it, #82); others go by their terminal title.
+    /// An editor is «Editor» (its file tabs are inside it, #81); others go by their terminal title.
     func title(of leaf: Leaf) -> String {
         if leaf.kind == .editor { return defaultTitle(.editor) }
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
@@ -486,7 +488,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the task's Monaco editor tab (#80, #82) — its focused editor
+    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the task's Monaco editor tab (#80, #81) — its focused editor
     /// leaf in the active tab, else the first one — else a new editor tab. Without a selected task — nothing.
     func openInEditor(path: String, line: Int?, column: Int? = nil) {
         guard let task = selectedTask else { return }

@@ -65,7 +65,7 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
         guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
         return "\(script)\n\(shell) -l -i"
     case .editor:
-        // The editor is Monaco (#82) and never launches a terminal; a shell if one ever does.
+        // The editor is Monaco (#81) and never launches a terminal; a shell if one ever does.
         return "\(shell) -l -i"
     case .claude:
         if let id { return "\(agent(.claude)) --resume \(id)" }

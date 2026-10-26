@@ -61,19 +61,34 @@ public enum ReleaseFeed {
     /// Release notes longer than this are cut (the sheet links the release page).
     static let notesLimit = 4000
 
-    /// The release of `data` when it is a published, non-pre-release one with `Hangar-X.Y.Z.dmg` and its `.sha256`;
-    /// nil otherwise. Throws on JSON that isn't a release.
-    public static func parse(_ data: Data) throws -> UpdateOffer? {
+    /// Hosts a release may point at: the API feed, the release page and the asset downloads (and their redirects).
+    public static let trustedHosts: Set<String> = [
+        "api.github.com", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com",
+    ]
+
+    /// https on an allow-listed host; everything else is refused at parse time and on redirects.
+    public static func isTrusted(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "https" && trustedHosts.contains(url.host?.lowercased() ?? "")
+    }
+
+    /// `vX.Y.Z` / `X.Y.Z` only (no suffixes, no padding): the canonical `X.Y.Z`, else nil.
+    public static func releaseVersion(_ tag: String) -> String? {
+        guard tag.range(of: #"^v?[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil else { return nil }
+        return SemVer(tag)?.description
+    }
+
+    /// The release of `data` when it is a published, non-pre-release `vX.Y.Z` with `Hangar-X.Y.Z.dmg` and its
+    /// `.sha256` on `trusted` URLs; nil otherwise. Throws on JSON that isn't a release.
+    public static func parse(_ data: Data, trusted: (URL) -> Bool = isTrusted) throws -> UpdateOffer? {
         let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-        guard release.draft != true, release.prerelease != true, let version = SemVer(release.tag_name) else { return nil }
-        let tag = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
-        // The workflow names assets after the tag (`Hangar-0.3.0.dmg`), which may differ from SemVer's padding.
-        let names = Set([tag, version.description])
-        func asset(_ suffix: String) -> URL? {
-            release.assets.first { a in names.contains { a.name == "Hangar-\($0)\(suffix)" } }?.browser_download_url
+        guard release.draft != true, release.prerelease != true, let version = releaseVersion(release.tag_name) else { return nil }
+        func asset(_ name: String) -> URL? {
+            release.assets.first { $0.name == name }?.browser_download_url
         }
-        guard let dmg = asset(".dmg"), let sum = asset(".dmg.sha256") else { return nil }
-        return UpdateOffer(version: tag, notes: trimNotes(release.body ?? ""), dmg: dmg, checksum: sum, page: release.html_url)
+        guard let dmg = asset("Hangar-\(version).dmg"), let sum = asset("Hangar-\(version).dmg.sha256"),
+              trusted(dmg), trusted(sum) else { return nil }
+        let page = release.html_url.flatMap { trusted($0) ? $0 : nil }
+        return UpdateOffer(version: version, notes: trimNotes(release.body ?? ""), dmg: dmg, checksum: sum, page: page)
     }
 
     private static func headingLevel(_ line: Substring) -> Int? {

@@ -79,6 +79,7 @@ struct UpdateSheet: View {
             }
         case .preparing: message(L10n.updatePreparing, Theme.ui.text2)
         case .ready: message(L10n.updateReady, Theme.ui.done)
+        case .otherInstance: message(L10n.updateOtherInstance, Theme.ui.waiting)
         case .manual: message(L10n.updateManual(tildePath(model.bundle.deletingLastPathComponent().path)), Theme.ui.waiting)
         case .failed(let why): message(L10n.updateFailed(why), Theme.ui.failedText)
         default:

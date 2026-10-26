@@ -15,7 +15,19 @@ import Update
         case ready
         /// No write access to the bundle's folder: the DMG is open in Finder.
         case manual
+        /// Another copy of this bundle is running: swapping it under that copy is refused.
+        case otherInstance
         case failed(String)
+    }
+
+    struct Staged: Equatable {
+        var app: URL, mount: URL, dir: URL
+    }
+
+    enum Prepared: Equatable {
+        case staged(Staged)
+        /// The DMG was opened in Finder (no write access to the bundle's folder).
+        case manual
     }
 
     private(set) var phase: Phase = .idle
@@ -40,8 +52,20 @@ import Update
     }
     @ObservationIgnored var now: () -> Date = Date.init
     @ObservationIgnored var fetch: (URL) async throws -> Data
+    /// Download, checksum, mount and app checks (tests replace it).
+    @ObservationIgnored lazy var prepare: (UpdateOffer, @escaping @Sendable (Double) -> Void) async throws -> Prepared = {
+        [bundle, trusted] offer, progress in
+        try await Self.prepare(offer, bundle: bundle, bundleId: Bundle.main.bundleIdentifier ?? "app.hangar.Hangar",
+                               trusted: trusted, progress: progress)
+    }
+    @ObservationIgnored var otherInstanceRunning: () -> Bool = {
+        guard let id = Bundle.main.bundleIdentifier else { return false }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id).contains { $0.processIdentifier != getpid() }
+    }
+    /// Feed, asset and redirect URLs allowed (GitHub over https; anything for a DEBUG test feed).
+    @ObservationIgnored let trusted: @Sendable (URL) -> Bool
     @ObservationIgnored private var work: Task<Void, Never>?
-    @ObservationIgnored private var staged: (app: URL, mount: URL, dir: URL)?
+    @ObservationIgnored private(set) var staged: Staged?
 
     init(stateDir: URL, current: String? = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
          feed: URL? = UpdateModel.defaultFeed, bundle: URL = Bundle.main.bundleURL) {
@@ -49,8 +73,12 @@ import Update
         self.current = current
         self.feed = current == nil ? nil : feed
         self.bundle = bundle
+        // Only a DEBUG test feed (HANGAR_UPDATE_FEED, file:// or a local server) may point anywhere.
+        let anyHost = feed != nil && feed != ReleaseFeed.github
+        let trusted: @Sendable (URL) -> Bool = { anyHost || ReleaseFeed.isTrusted($0) }
+        self.trusted = trusted
         let agent = "Hangar/\(current ?? "dev")"
-        fetch = { try await Updater.fetch($0, userAgent: agent) }
+        fetch = { try await Updater.fetch($0, userAgent: agent, trusted: trusted) }
     }
 
     nonisolated static var defaultFeed: URL? {
@@ -66,9 +94,20 @@ import Update
     var errorURL: URL { stateDir.appendingPathComponent("update-error.txt") }
 
     /// Newer than the running version (a stored offer of the version now running is gone).
+    /// The stored one is checked again like a parsed one (strict version, trusted URLs).
     var offer: UpdateOffer? {
-        guard let offer = record.offer, let current, ReleaseFeed.isNewer(offer.version, than: current) else { return nil }
+        guard let offer = record.offer, let current, ReleaseFeed.releaseVersion(offer.version) == offer.version,
+              trusted(offer.dmg), trusted(offer.checksum), ReleaseFeed.isNewer(offer.version, than: current) else { return nil }
         return offer
+    }
+
+    /// Downloading, checking or staged: no check may replace the offer being installed.
+    var installing: Bool {
+        if staged != nil { return true }
+        switch phase {
+        case .downloading, .preparing, .ready: return true
+        default: return false
+        }
     }
 
     /// The status-bar pill: an offer that wasn't skipped, while checks are on.
@@ -89,13 +128,13 @@ import Update
 
     /// Launch and app activation: a check when on and ≥ 24 h since the last one.
     func checkIfDue() {
-        guard feed != nil, enabled(), work == nil, record.checkDue(now: now()) else { return }
+        guard feed != nil, enabled(), work == nil, !installing, record.checkDue(now: now()) else { return }
         check(manual: false)
     }
 
     /// «Проверить сейчас»: ignores the 24 h and un-skips the version it finds.
     func checkNow() {
-        guard feed != nil, work == nil else { return }
+        guard feed != nil, work == nil, !installing else { return }
         check(manual: true)
     }
 
@@ -105,13 +144,16 @@ import Update
         work = Task {
             defer { work = nil }
             do {
-                let found = try ReleaseFeed.parse(try await fetch(feed))
+                let found = try ReleaseFeed.parse(try await fetch(feed), trusted: trusted)
                 record.lastCheck = now()
                 record.offer = found.flatMap { ReleaseFeed.isNewer($0.version, than: current) ? $0 : nil }
                 if manual, record.offer?.version == record.skipped { record.skipped = nil }
                 save()
                 phase = record.offer == nil ? .upToDate : .idle
             } catch {
+                // Offline or rate-limited: the next try is a day away too, not on every activation.
+                record.lastCheck = now()
+                save()
                 phase = .checkFailed(describe(error))
             }
         }
@@ -130,47 +172,69 @@ import Update
     }
 
     /// «Обновить»: download, verify the checksum, mount, verify the app, then quit (the swap runs after we exit).
+    /// Staged already (the quit was cancelled): only quits again.
     func install() {
-        if phase == .ready { quit(); return }
-        guard let offer, work == nil else { return }
+        if staged != nil { phase = .ready; quit(); return }
+        guard let offer, work == nil, !installing else { return }
+        guard !otherInstanceRunning() else { phase = .otherInstance; return }
         installError = nil
         phase = .downloading(nil)
-        let bundle = self.bundle
-        let bundleId = Bundle.main.bundleIdentifier ?? "app.hangar.Hangar"
         work = Task {
             defer { work = nil }
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-update-\(offer.version)-\(UUID().uuidString.prefix(8))")
             do {
-                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let dmg = dir.appendingPathComponent(offer.dmg.lastPathComponent)
-                let sum = dir.appendingPathComponent(offer.checksum.lastPathComponent)
-                try await Updater.download(offer.checksum, to: sum) { _ in }
-                try await Updater.download(offer.dmg, to: dmg) { p in Task { @MainActor [weak self] in self?.progress(p) } }
-                try Task.checkCancellation()
-                phase = .preparing
-                try await Task.detached { try Updater.verify(dmg, checksumFile: sum) }.value
-                guard Updater.canReplace(bundle) else {
-                    NSWorkspace.shared.open(dmg)
-                    phase = .manual
-                    return
+                let prepared = try await prepare(offer) { p in Task { @MainActor [weak self] in self?.progress(p) } }
+                switch prepared {
+                case .manual: phase = .manual
+                case .staged(let s):
+                    guard !Task.isCancelled else { Self.discard(s); phase = .idle; return }
+                    staged = s
+                    phase = .ready
+                    quit()
                 }
-                let mount = try await Task.detached { try Updater.mount(dmg) }.value
-                do {
-                    let app = try Updater.findApp(in: mount)
-                    try Updater.verifyBundle(app, bundleId: bundleId, version: offer.version)
-                    try Task.checkCancellation()
-                    staged = (app, mount, dir)
-                } catch {
-                    Task.detached { Updater.detach(mount) }
-                    throw error
-                }
-                phase = .ready
-                quit()
             } catch {
                 // «Позже» cancels: the download's own error is not a failure to report.
                 phase = Task.isCancelled ? .idle : .failed(describe(error))
-                try? FileManager.default.removeItem(at: dir)
             }
+        }
+    }
+
+    /// The real pipeline: a fresh temp dir with fixed names, everything removed again on failure.
+    nonisolated static func prepare(_ offer: UpdateOffer, bundle: URL, bundleId: String, trusted: @escaping @Sendable (URL) -> Bool,
+                                    progress: @escaping @Sendable (Double) -> Void) async throws -> Prepared {
+        guard let version = ReleaseFeed.releaseVersion(offer.version) else { throw UpdateError.wrongVersion(offer.version) }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-update-\(version)-\(UUID().uuidString.prefix(8))")
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dmg = dir.appendingPathComponent("Hangar.dmg")
+            let sum = dir.appendingPathComponent("Hangar.dmg.sha256")
+            try await Updater.download(offer.checksum, to: sum, trusted: trusted) { _ in }
+            try await Updater.download(offer.dmg, to: dmg, trusted: trusted, progress: progress)
+            try Task.checkCancellation()
+            try Updater.verify(dmg, checksumFile: sum)
+            guard Updater.canReplace(bundle) else {
+                await MainActor.run { _ = NSWorkspace.shared.open(dmg) }
+                return .manual
+            }
+            let mount = try Updater.mount(dmg)
+            do {
+                let app = try Updater.findApp(in: mount)
+                try Updater.verifyBundle(app, bundleId: bundleId, version: version)
+                try Updater.verifySignature(app)
+                return .staged(Staged(app: app, mount: mount, dir: dir))
+            } catch {
+                Updater.detach(mount)
+                throw error
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: dir)
+            throw error
+        }
+    }
+
+    nonisolated private static func discard(_ s: Staged) {
+        Task.detached {
+            Updater.detach(s.mount)
+            try? FileManager.default.removeItem(at: s.dir)
         }
     }
 
@@ -210,6 +274,8 @@ import Update
         case .wrongBundle(let id)?: L10n.updateWrongApp(id)
         case .wrongVersion(let v)?: L10n.updateWrongApp(v)
         case .helper(let text)?: text
+        case .untrusted(let url)?: L10n.updateUntrusted(url)
+        case .signature?: L10n.updateBadSignature
         case nil: error.localizedDescription
         }
     }
@@ -243,4 +309,7 @@ extension L10n {
     static var updateUpToDate: String { s(.updateUpToDate) }
     static func updateCheckFailed(_ why: String) -> String { f(.updateCheckFailed, why) }
     static var updateDevBuild: String { s(.updateDevBuild) }
+    static var updateOtherInstance: String { s(.updateOtherInstance) }
+    static func updateUntrusted(_ url: String) -> String { f(.updateUntrusted, url) }
+    static var updateBadSignature: String { s(.updateBadSignature) }
 }

@@ -141,6 +141,7 @@ import Workspace
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
         case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
         case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
+        case updateOtherInstance, updateUntrusted, updateBadSignature
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
         case segmentGit, showGit, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors

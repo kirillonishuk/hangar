@@ -13,24 +13,59 @@ public enum UpdateError: Error, Equatable, Sendable {
     /// The DMG's app has another version than the release (the found one).
     case wrongVersion(String)
     case helper(String)
+    /// A redirect to a host outside `ReleaseFeed.trustedHosts`.
+    case untrusted(String)
+    /// `codesign --verify --deep --strict` refused the new app.
+    case signature(String)
+}
+
+/// Follows a redirect only to a trusted URL (`ReleaseFeed.isTrusted` in release builds).
+final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    let trusted: @Sendable (URL) -> Bool
+    private let lock = NSLock()
+    private var refused: URL?
+
+    init(trusted: @escaping @Sendable (URL) -> Bool) { self.trusted = trusted }
+
+    var refusedURL: URL? { lock.withLock { refused } }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
+        guard let url = request.url, trusted(url) else {
+            lock.withLock { refused = request.url }
+            completionHandler(nil)
+            task.cancel()
+            return
+        }
+        completionHandler(request)
+    }
 }
 
 /// Fetching, checking and installing a release (decision #86). No UI: `UpdateModel` (HangarUI) drives it.
 public enum Updater {
     /// GET with the GitHub API headers; the system proxy applies (URLSession). Non-2xx HTTP → `.http(code)`.
-    public static func fetch(_ url: URL, userAgent: String) async throws -> Data {
+    public static func fetch(_ url: URL, userAgent: String,
+                             trusted: @escaping @Sendable (URL) -> Bool = ReleaseFeed.isTrusted) async throws -> Data {
+        guard trusted(url) else { throw UpdateError.untrusted(url.absoluteString) }
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        let guardian = RedirectGuard(trusted: trusted)
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await URLSession.shared.data(for: request) } catch { throw UpdateError.network(error.localizedDescription) }
+        do { (data, response) = try await URLSession.shared.data(for: request, delegate: guardian) } catch {
+            if let bad = guardian.refusedURL { throw UpdateError.untrusted(bad.absoluteString) }
+            throw UpdateError.network(error.localizedDescription)
+        }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { throw UpdateError.http(http.statusCode) }
         return data
     }
 
-    /// Downloads `url` to `dest` (replaced), reporting 0…1 (or nothing when the size is unknown).
-    public static func download(_ url: URL, to dest: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
-        try await Download(dest: dest, progress: progress).run(url)
+    /// Downloads `url` to `dest` (replaced), reporting 0…1 (or nothing when the size is unknown); the URL and every
+    /// redirect must be `trusted`.
+    public static func download(_ url: URL, to dest: URL, trusted: @escaping @Sendable (URL) -> Bool = ReleaseFeed.isTrusted,
+                                progress: @escaping @Sendable (Double) -> Void) async throws {
+        guard trusted(url) else { throw UpdateError.untrusted(url.absoluteString) }
+        try await Download(dest: dest, trusted: trusted, progress: progress).run(url)
     }
 
     /// The hash of a `shasum -a 256` line (`<hex>  Hangar-X.Y.Z.dmg`), lower-cased; nil if it isn't one.
@@ -70,13 +105,23 @@ public enum Updater {
         _ = try? run("/usr/bin/hdiutil", ["detach", mountPoint.path, "-quiet"])
     }
 
-    /// `Hangar.app` at the top of the image, else the only `.app` there.
+    /// `Hangar.app` at the top of the image, else the only `.app` there; a real directory, never a symlink.
     public static func findApp(in dir: URL) throws -> URL {
+        let fm = FileManager.default
+        // `attributesOfItem` doesn't follow symlinks: a link to elsewhere is not an app.
+        func isRealDir(_ url: URL) -> Bool { (try? fm.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeDirectory }
         let hangar = dir.appendingPathComponent("Hangar.app")
-        if FileManager.default.fileExists(atPath: hangar.path) { return hangar }
-        let apps = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".app") }
+        if isRealDir(hangar) { return hangar }
+        let apps = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".app") }
+            .map { dir.appendingPathComponent($0) }.filter(isRealDir)
         guard apps.count == 1 else { throw UpdateError.noApp }
-        return dir.appendingPathComponent(apps[0])
+        return apps[0]
+    }
+
+    /// The new app's signature must be intact (ad-hoc releases: integrity, not identity — decision #86).
+    public static func verifySignature(_ app: URL) throws {
+        let out = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path])
+        guard out.status == 0 else { throw UpdateError.signature(out.error) }
     }
 
     /// The new app must be Hangar (`bundleId`) of exactly the release's `version`.
@@ -111,11 +156,17 @@ public enum Updater {
     #!/bin/sh
     # Hangar updater (decision #86): args pid source target mount errorfile relaunch [executable]
     pid=$1 src=$2 dst=$3 mnt=$4 err=$5 relaunch=$6 exe=$7
+    here=$(dirname "$0")
     fail() { printf '%s\n' "$1" > "$err"; }
+    # The image is detached and the download dir (DMG, checksum, this script) removed on every path.
+    cleanup() {
+      if [ -n "$mnt" ]; then hdiutil detach "$mnt" -quiet >/dev/null 2>&1; fi
+      case "$(basename "$here")" in hangar-update-*) rm -rf "$here" ;; esac
+    }
     i=0
     while kill -0 "$pid" 2>/dev/null; do
       i=$((i + 1))
-      if [ "$i" -gt 600 ]; then fail "Hangar did not quit"; exit 1; fi
+      if [ "$i" -gt "${HANGAR_UPDATE_WAIT:-600}" ]; then fail "Hangar did not quit"; cleanup; exit 1; fi
       sleep 0.2
     done
     dir=$(dirname "$dst"); name=$(basename "$dst")
@@ -124,6 +175,8 @@ public enum Updater {
     rm -rf "$new"
     if ! ditto "$src" "$new" 2>/dev/null; then
       fail "cannot copy the new app to $dir"
+    elif [ ! -d "$new" ] || [ -L "$new" ]; then
+      fail "the new app is not a folder"
     else
       xattr -dr com.apple.quarantine "$new" 2>/dev/null
       if ! mv "$dst" "$old" 2>/dev/null; then
@@ -137,13 +190,11 @@ public enum Updater {
       fi
     fi
     rm -rf "$new"
-    if [ -n "$mnt" ]; then hdiutil detach "$mnt" -quiet >/dev/null 2>&1; fi
+    cleanup
     case "$relaunch" in
       open) open "$dst" ;;
       exec) nohup "$dst/$exe" >/dev/null 2>&1 & ;;
     esac
-    # The download dir (DMG, checksum, this script) is ours to remove; tests run the script from elsewhere.
-    case "$(basename "$(dirname "$0")")" in hangar-update-*) rm -rf "$(dirname "$0")" ;; esac
     [ "$ok" = 1 ]
     """#
 
@@ -181,10 +232,11 @@ public enum Updater {
     }
 
     /// Runs a tool to completion (call off the main thread).
-    static func run(_ tool: String, _ args: [String]) throws -> Output {
+    static func run(_ tool: String, _ args: [String], environment: [String: String]? = nil) throws -> Output {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: tool)
         p.arguments = args
+        if let environment { p.environment = environment }
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
@@ -201,13 +253,15 @@ public enum Updater {
 /// One download task with progress (the async `URLSession.download` reports none).
 private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let dest: URL
+    private let guardian: RedirectGuard
     private let progress: @Sendable (Double) -> Void
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Void, Error>?
     private var failure: Error?
 
-    init(dest: URL, progress: @escaping @Sendable (Double) -> Void) {
+    init(dest: URL, trusted: @escaping @Sendable (URL) -> Bool, progress: @escaping @Sendable (Double) -> Void) {
         self.dest = dest
+        guardian = RedirectGuard(trusted: trusted)
         self.progress = progress
     }
 
@@ -221,6 +275,11 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
                 task.resume()
             }
         } onCancel: { task.cancel() }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
+        guardian.urlSession(session, task: task, willPerformHTTPRedirection: response, newRequest: request, completionHandler: completionHandler)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
@@ -247,7 +306,8 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
             defer { continuation = nil }
             return (continuation, failure)
         }
-        if let error { c?.resume(throwing: UpdateError.network(error.localizedDescription)) }
+        if let bad = guardian.refusedURL { c?.resume(throwing: UpdateError.untrusted(bad.absoluteString)) }
+        else if let error { c?.resume(throwing: UpdateError.network(error.localizedDescription)) }
         else if let stored { c?.resume(throwing: stored) }
         else { c?.resume() }
     }

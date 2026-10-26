@@ -518,3 +518,6 @@
 "updateUpToDate" = "You’re up to date";
 "updateCheckFailed" = "Couldn’t check: %@";
 "updateDevBuild" = "Development build: updates off";
+"updateOtherInstance" = "Another copy of Hangar is running — quit it and try again";
+"updateUntrusted" = "not a GitHub address (%@)";
+"updateBadSignature" = "the app in the image fails the signature check";

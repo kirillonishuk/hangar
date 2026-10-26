@@ -518,3 +518,6 @@
 "updateUpToDate" = "Установлена последняя версия";
 "updateCheckFailed" = "Не удалось проверить: %@";
 "updateDevBuild" = "Сборка для разработки: обновления выключены";
+"updateOtherInstance" = "Запущена другая копия Hangar — закройте её и повторите";
+"updateUntrusted" = "адрес не из GitHub (%@)";
+"updateBadSignature" = "подпись приложения в образе не проходит проверку";

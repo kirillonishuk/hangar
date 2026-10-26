@@ -7,6 +7,7 @@ name: Release
 # Tag only, no commit back: main is protected (PR + CI) and the Actions bot cannot bypass a ruleset. No loop either:
 # the tag is pushed with GITHUB_TOKEN, which never triggers workflows.
 # Also: a pushed v* tag releases that tag as-is; workflow_dispatch releases main with a chosen bump.
+# A merged PR labelled no-release (docs/ci/chore) cuts nothing. Rules: docs/RELEASING.md.
 
 on:
   pull_request:
@@ -32,7 +33,9 @@ permissions:
 jobs:
   ghosttykit:
     name: GhosttyKit
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release'))
     runs-on: macos-15
     timeout-minutes: 60
     steps:

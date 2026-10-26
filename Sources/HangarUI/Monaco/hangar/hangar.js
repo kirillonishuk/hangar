@@ -125,15 +125,18 @@
   // TS/JS buffers are mirrored in tsserver (#82): every change goes to Swift as an incremental edit.
   const tsLike = /\.(m|c)?[jt]sx?$/i;
 
-  // A tab's file arrives (also for tabs not on screen: their models wait). Its URI carries the tab, so one file
-  // open in two sessions' tabs is two buffers.
+  // A tab's file arrives (also for tabs not on screen: their models wait). One file open in two sessions' tabs is
+  // two buffers.
   function open(c) {
     if (files.has(c.doc)) return;
     const f = { doc: c.doc, path: c.path, readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false,
       refused: c.text == null, view: null, model: null, at: { line: c.line, column: c.column } };
     if (c.text != null) {
       dropPreview(c.path);
-      f.model = monaco.editor.createModel(c.text, undefined, monaco.Uri.from({ scheme: 'file', authority: c.doc.toLowerCase(), path: c.path }));
+      // The plain file URI (titles, peeks read it); a second tab of the same file (another session) gets its own.
+      const plain = monaco.Uri.file(c.path);
+      f.model = monaco.editor.createModel(c.text, undefined,
+        monaco.editor.getModel(plain) ? monaco.Uri.from({ scheme: 'file', authority: c.doc.toLowerCase(), path: c.path }) : plain);
       f.saved = f.model.getAlternativeVersionId();
       const mirror = tsLike.test(c.path);
       f.model.onDidChangeContent((e) => {

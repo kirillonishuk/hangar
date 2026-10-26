@@ -124,6 +124,39 @@ enum TsMap {
         return (file, out)
     }
 
+    /// `format` (CodeEdit[]) → edits of the formatted file.
+    static func format(_ body: Any?) -> [EditorEdit] {
+        guard let list = body as? [Any] else { return [] }
+        return list.prefix(maxItems * 10).compactMap { item in
+            guard let e = item as? [String: Any], let (l, c) = position(e["start"]), let (el, ec) = position(e["end"]),
+                  (el, ec) >= (l, c), let text = e["newText"] as? String, text.count <= maxText else { return nil }
+            return EditorEdit(line: l, column: c, endLine: el, endColumn: ec, text: text)
+        }
+    }
+
+    /// `rename` → spans in `file`. shortcut: a rename that reaches other files is refused (they may be unopened or
+    /// unsaved, so no partial rename is written); lift when the editor can apply edits to files it has not opened.
+    @MainActor static func rename(_ body: Any?, file: String) -> ProviderResult? {
+        guard let b = body as? [String: Any], let info = b["info"] as? [String: Any] else { return nil }
+        guard info["canRename"] as? Bool == true else {
+            let why = (info["localizedErrorMessage"] as? String).map { String($0.prefix(500)) } ?? ""
+            return .rejected(why.isEmpty ? L10n.editorRenameRefused : why)
+        }
+        var out: [EditorRename] = []
+        for group in (b["locs"] as? [Any] ?? []).prefix(maxItems) {
+            guard let g = group as? [String: Any], let f = g["file"] as? String else { continue }
+            guard f == file else { return .rejected(L10n.editorRenameOtherFiles) }
+            for item in (g["locs"] as? [Any] ?? []).prefix(maxItems) {
+                guard let span = item as? [String: Any], let (l, c) = position(span["start"]), let (el, ec) = position(span["end"]),
+                      (el, ec) >= (l, c) else { continue }
+                let prefix = (span["prefixText"] as? String).map { String($0.prefix(256)) } ?? ""
+                let suffix = (span["suffixText"] as? String).map { String($0.prefix(256)) } ?? ""
+                out.append(EditorRename(line: l, column: c, endLine: el, endColumn: ec, prefix: prefix, suffix: suffix))
+            }
+        }
+        return out.isEmpty ? nil : .renames(out)
+    }
+
     static func change(file: String, _ e: EditorEdit) -> [String: Any] {
         ["file": file, "line": e.line, "offset": e.column, "endLine": e.endLine, "endOffset": e.endColumn, "insertString": e.text]
     }

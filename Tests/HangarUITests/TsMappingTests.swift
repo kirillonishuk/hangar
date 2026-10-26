@@ -150,4 +150,33 @@ import Exec
         // The root's own parent is never searched.
         #expect(try await run(base + "/repo/packages/web/src", base + "/repo/packages") == nil)
     }
+
+    /// `format` → page edits; bad entries and huge texts are skipped.
+    @Test func formatEdits() {
+        let body: [Any] = [
+            ["start": ["line": 1, "offset": 1], "end": ["line": 1, "offset": 3], "newText": "  "],
+            ["start": ["line": 0, "offset": 1], "end": ["line": 1, "offset": 3], "newText": "x"],
+            ["start": ["line": 2, "offset": 1], "end": ["line": 2, "offset": 1]],
+            ["start": ["line": 3, "offset": 1], "end": ["line": 3, "offset": 2], "newText": String(repeating: "a", count: TsMap.maxText + 1)],
+        ]
+        #expect(TsMap.format(body) == [EditorEdit(line: 1, column: 1, endLine: 1, endColumn: 3, text: "  ")])
+        #expect(TsMap.format("nope").isEmpty)
+    }
+
+    /// `rename`: spans in this file only; a refusal or another file's span is a reason, not a partial rename.
+    @MainActor @Test func renameSpans() {
+        func group(_ file: String, _ locs: [[String: Any]]) -> [String: Any] { ["file": file, "locs": locs] }
+        let loc: [String: Any] = ["start": ["line": 2, "offset": 5], "end": ["line": 2, "offset": 8]]
+        let ok: [String: Any] = ["info": ["canRename": true], "locs": [group("/w/app/a.ts", [loc, loc.merging(["prefixText": "x: "]) { $1 }])]]
+        #expect(TsMap.rename(ok, file: "/w/app/a.ts") == .renames([
+            EditorRename(line: 2, column: 5, endLine: 2, endColumn: 8, prefix: "", suffix: ""),
+            EditorRename(line: 2, column: 5, endLine: 2, endColumn: 8, prefix: "x: ", suffix: ""),
+        ]))
+        let other: [String: Any] = ["info": ["canRename": true], "locs": [group("/w/app/a.ts", [loc]), group("/w/app/b.ts", [loc])]]
+        #expect(TsMap.rename(other, file: "/w/app/a.ts") == .rejected(L10n.editorRenameOtherFiles))
+        let no: [String: Any] = ["info": ["canRename": false, "localizedErrorMessage": "You cannot rename this element."]]
+        #expect(TsMap.rename(no, file: "/w/app/a.ts") == .rejected("You cannot rename this element."))
+        #expect(TsMap.rename(["info": ["canRename": true], "locs": []], file: "/w/app/a.ts") == nil)
+        #expect(TsMap.rename(42, file: "/w/app/a.ts") == nil)
+    }
 }

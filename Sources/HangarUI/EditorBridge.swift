@@ -10,15 +10,19 @@ struct EditorLimits: Equatable, Sendable {
 
 // MARK: JS → Swift
 
-/// A language-feature request from Monaco (answered by tsserver, #82). `details`: a completion entry's docs by `name`.
+/// A language-feature request from Monaco (answered by tsserver, #82). `details`: a completion entry's docs by `name`;
+/// `format`: the position is the document's end (the whole file is formatted).
 struct ProviderRequest: Equatable, Sendable {
-    enum Kind: String, Sendable { case definition, references, hover, completion, details }
+    enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format }
     var id: Int
     var kind: Kind
     var file: String
     var line: Int
     var column: Int
     var name: String? = nil
+    /// `format`: the editor's indentation.
+    var tabSize: Int? = nil
+    var insertSpaces: Bool? = nil
 }
 
 /// One Monaco content change (1-based, end exclusive), in the order Monaco gives them (safe to apply in sequence).
@@ -114,7 +118,12 @@ enum BridgeMessage: Equatable {
                   let f = file(), let (l, c) = position() else { return nil }
             let name = str("name")
             if kind == .details { guard let name, !name.isEmpty, name.utf8.count <= 512 else { return nil } }
-            return .request(ProviderRequest(id: id, kind: kind, file: f, line: l, column: c, name: kind == .details ? name : nil))
+            var r = ProviderRequest(id: id, kind: kind, file: f, line: l, column: c, name: kind == .details ? name : nil)
+            if kind == .format {
+                guard let tab = int("tabSize", 1...16), let spaces = bool("insertSpaces") else { return nil }
+                (r.tabSize, r.insertSpaces) = (tab, spaces)
+            }
+            return .request(r)
         case "edit":
             guard let f = file(), let list = m["changes"] as? [[String: Any]], list.count <= maxEdits else { return nil }
             var edits: [EditorEdit] = []
@@ -189,6 +198,18 @@ enum ProviderResult: Equatable, Sendable {
     case locations([EditorLocation], previews: [String: String])
     case hover(markdown: String)
     case completions([EditorCompletion])
+    /// `format`: edits of the asked file (Monaco applies them; the page mirrors them to tsserver as usual).
+    case edits([EditorEdit])
+    /// `rename`: spans of the asked file; the page writes `prefix + newName + suffix` into each.
+    case renames([EditorRename])
+    /// `rename` refused, with the reason shown in the editor.
+    case rejected(String)
+}
+
+/// One span of a rename (1-based, end exclusive).
+struct EditorRename: Equatable, Sendable {
+    var line: Int, column: Int, endLine: Int, endColumn: Int
+    var prefix: String, suffix: String
 }
 
 struct EditorOpen: Equatable {
@@ -272,6 +293,16 @@ enum EditorCommand: Equatable {
                 ["label": $0.label, "detail": $0.detail ?? NSNull(), "insertText": $0.insertText, "kind": $0.kind ?? NSNull(),
                  "sortText": $0.sortText ?? NSNull()] as [String: Any]
             }]
+        case .edits(let list):
+            return ["kind": "edits", "items": list.map {
+                ["line": $0.line, "column": $0.column, "endLine": $0.endLine, "endColumn": $0.endColumn, "text": $0.text] as [String: Any]
+            }]
+        case .renames(let list):
+            return ["kind": "renames", "items": list.map {
+                ["line": $0.line, "column": $0.column, "endLine": $0.endLine, "endColumn": $0.endColumn,
+                 "prefix": $0.prefix, "suffix": $0.suffix] as [String: Any]
+            }]
+        case .rejected(let reason): return ["kind": "rejected", "reason": reason]
         }
     }
 }

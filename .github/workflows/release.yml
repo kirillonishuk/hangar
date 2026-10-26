@@ -40,8 +40,6 @@ jobs:
         with:
           ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
       - uses: ./.github/actions/ghosttykit
-        with:
-          build: "true"
 
   release:
     name: Build & publish

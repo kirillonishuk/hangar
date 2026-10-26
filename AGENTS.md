@@ -63,6 +63,7 @@ Hangar — нативное macOS-приложение (Swift, AppKit + SwiftUI)
 
 ## Релизы
 Правила — `docs/RELEASING.md`. В `main` только через PR (без прямых и force push); перед merge — чек-лист оттуда; после merge — проверь релиз (DMG, sha256, версия, подпись).
+Коммиты — только от автора из `git config` (не переопределять `--author` / `GIT_AUTHOR_*`), без трейлеров `Co-Authored-By` и прочих подписей; CI это проверяет.
 Release-сборку Hangar.app никогда не запускать: она игнорирует `HANGAR_STATE_DIR` и перезаписывает настоящий `state.json`.
 
 ## Общение

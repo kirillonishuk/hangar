@@ -13,6 +13,22 @@ permissions:
   contents: read
 
 jobs:
+  commits:
+    name: Commit authorship
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Owner-only authors, no Co-Authored-By
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        run: scripts/check-commits.sh "$RANGE"
+
   ghosttykit:
     name: GhosttyKit
     runs-on: macos-15

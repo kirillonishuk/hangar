@@ -85,7 +85,7 @@ ANSI-палитра терминала (0–7, 8–15):
 - Моно (`JetBrains Mono` → `SF Mono` → Menlo): пути, ветки, имена файлов в diff, номера строк, команды. В терминале — шрифт Ghostty.
 - Капс + разрядка `.06em` — только заголовки секций сайдбара (`ЗАКРЕПЛЁННЫЕ`, `ПРОЕКТЫ`, `АРХИВ`) и секции выпадающего списка веток. Больше нигде.
 - Иконки — SF Symbols через один `enum Icon`, вес regular, 15 pt, цвет `text2` (выбранное — `textStrong`); агенты — логотипы (Claude `#d97757`, OpenAI белым).
-- Иконка приложения — концепт A (ворота ангара с `>_`); исходники: `docs/superpowers/mockups/app-icon/A-master.svg` и `A-small.svg`, сборка `scripts/make-icon.sh` → `Resources/AppIcon.icns`.
+- Иконка приложения — концепт A (ворота ангара с `>_`) в цветах Dark+, тело — squircle (решение #92, `app-icon-v2.html`, вариант A1); исходники: `docs/superpowers/mockups/app-icon/A-master.svg` и `A-small.svg`, сборка `scripts/make-icon.sh` → `Resources/AppIcon.icns`.
 - Установщик DMG — `scripts/bundle.sh && scripts/make-dmg.sh` → `build/Hangar.dmg`: окно 640×400 на navy-фоне (`scripts/dmg-background.swift`), Hangar слева, «Программы» справа, стрелка и подпись ru/en; при первом запуске разрешить Terminal управлять Finder.
 
 ## Раскладка

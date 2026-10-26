@@ -3,43 +3,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
   font: var(--bar-font) -apple-system, system-ui, sans-serif; -webkit-user-select: none; cursor: default; }
 body { display: flex; flex-direction: column; }
 #host { flex: 1; min-height: 0; position: relative; }
-body.diff #tabs { display: none; }
-
-/* File tabs: the Hangar tab bar's look (DESIGN «Полоса вкладок», #81) — same height, font, paddings, rounded tops,
-   `selection` fill and the accent line on top of the active one — so the two rows read as one system. */
-/* As Hangar's bar: 34 in all, the tab as tall as padding + icon (28), the bottom line drawn over the tabs' last point. */
-#tabs { display: flex; align-items: flex-end; gap: var(--tab-gap); height: var(--tab-h); box-sizing: border-box; flex: none;
-  padding-left: var(--tab-lead); background: var(--bar); box-shadow: inset 0 -1px 0 var(--line);
-  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-#tabs::-webkit-scrollbar { display: none; }
-.tab { display: flex; align-items: center; gap: 6px; padding: 0 calc(var(--tab-pad) - 4px) 0 var(--tab-pad);
-  height: var(--tab-item-h); box-sizing: border-box; box-shadow: inset 0 -1px 0 var(--line);
-  max-width: var(--tab-max); flex: none; font-size: var(--tab-font); color: var(--text2); position: relative; cursor: pointer;
-  white-space: nowrap; border-radius: var(--tab-radius) var(--tab-radius) 0 0; overflow: hidden; transition: background-color .12s; }
-.tab:hover { background: var(--hover); }
-.tab.active { background: var(--selection); color: var(--text-strong); }
-.tab.active::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--accent-line); background: var(--accent); }
-.tab .name { overflow: hidden; text-overflow: ellipsis; }
-.tab .dir { color: var(--text3); overflow: hidden; text-overflow: ellipsis; }
-/* The close box: `×` on hover / active, a dot while dirty (as in VS Code), `×` again when hovering a dirty tab. */
-.tab .x { width: 18px; height: 18px; flex: none; border-radius: 4px; display: grid; place-items: center; color: var(--text2);
-  visibility: hidden; cursor: pointer; }
-.tab .x::before { content: "×"; font-size: 15px; line-height: 1; }
-.tab:hover .x, .tab.active .x { visibility: visible; }
-.tab .x:hover { background: var(--button); color: var(--text-strong); }
-.tab.dirty .x { visibility: visible; }
-.tab.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
-.tab.dirty .x:hover::before { content: "×"; width: auto; height: auto; border-radius: 0; background: none; }
-.tabs-end { flex: 1; }
-.tool { display: flex; align-items: center; align-self: stretch; box-shadow: inset 0 -1px 0 var(--line); padding: 0 10px; color: var(--text3); font-size: var(--tab-font); cursor: pointer; flex: none; }
-.tool:hover { color: var(--text); background: var(--hover); }
-.tool.on { color: var(--accent); }
-/* tsserver status (#82): a dot in the state's color, then "TS 5.6"; the text never moves the tabs (they end before it). */
-.tool.lang { gap: 6px; color: var(--text2); }
-.tool.lang::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--done); }
-.tool.lang.busy::before { background: var(--waiting); }
-.tool.lang.off { color: var(--text3); }
-.tool.lang.off::before { background: var(--text3); }
 
 /* The references / definition peek: Hangar's sheet look, not VS Code's blue frame. */
 .monaco-editor .peekview-widget { border-radius: var(--radius); overflow: hidden; }
@@ -57,7 +20,7 @@ body.diff #tabs { display: none; }
   margin-right: 8px; vertical-align: 1px; }
 #notice { color: var(--text2); }
 .spacer { flex: 1; }
-button { font: inherit; font-size: var(--tab-font); color: var(--text); background: var(--button); border: 0; border-radius: var(--radius);
+button { font: inherit; font-size: var(--button-font); color: var(--text); background: var(--button); border: 0; border-radius: var(--radius);
   padding: 3px 10px; cursor: pointer; }
 button:hover { background: var(--button-hover); }
 button.primary { background: var(--accent); color: var(--bg); }
@@ -87,3 +50,15 @@ button.primary:hover { filter: brightness(1.08); }
 .ctx .item.off:hover { background: none; }
 .ctx .keys { margin-left: auto; color: var(--text3); font-size: var(--menu-key-font); }
 .ctx .sep { height: 1px; background: var(--line-sheet); margin: var(--menu-sep-v) var(--menu-sep-h); }
+
+/* Rainbow indents (#84): indent-rainbow's faint bands by level. */
+.monaco-editor .ir0 { background: rgba(255, 255, 64, 0.07); }
+.monaco-editor .ir1 { background: rgba(127, 255, 127, 0.07); }
+.monaco-editor .ir2 { background: rgba(255, 127, 255, 0.07); }
+.monaco-editor .ir3 { background: rgba(79, 236, 236, 0.07); }
+/* TODO pills in comments: FIXME pink as in VS Code's TODO Highlight, the others in their own tints. */
+.monaco-editor .todo { color: #ffffff !important; border-radius: 3px; font-weight: 600; }
+.monaco-editor .todo-fixme { background: #d0587e; }
+.monaco-editor .todo-todo { background: #b38a3c; }
+.monaco-editor .todo-hack { background: #8a63b8; }
+.monaco-editor .todo-xxx { background: #c14e4e; }

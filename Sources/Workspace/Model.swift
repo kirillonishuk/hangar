@@ -188,6 +188,8 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
     public var focusedLeafId: UUID
     /// Set by the user (rename); wins over the terminal's own title.
     public var customTitle: String?
+    /// A file opened with one click (Files): the next such open reuses this tab, until it is edited or opened for real (#83).
+    public var preview: Bool = false
 
     public init(id: UUID = UUID(), title: String, root: SplitNode, focusedLeafId: UUID, customTitle: String? = nil) {
         self.id = id
@@ -195,6 +197,26 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
         self.root = root
         self.focusedLeafId = focusedLeafId
         self.customTitle = customTitle
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, title, root, focusedLeafId, customTitle, preview }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(UUID.self, forKey: .id), title: try c.decode(String.self, forKey: .title),
+                  root: try c.decode(SplitNode.self, forKey: .root), focusedLeafId: try c.decode(UUID.self, forKey: .focusedLeafId),
+                  customTitle: try c.decodeIfPresent(String.self, forKey: .customTitle))
+        preview = try c.decodeIfPresent(Bool.self, forKey: .preview) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(root, forKey: .root)
+        try c.encode(focusedLeafId, forKey: .focusedLeafId)
+        try c.encodeIfPresent(customTitle, forKey: .customTitle)
+        if preview { try c.encode(true, forKey: .preview) }
     }
 
     public func label(auto: String) -> String { customTitle ?? auto }
@@ -347,6 +369,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         assignMissingPorts()
+        splitEditorTabs()
     }
 
     // MARK: Projects / tasks
@@ -416,7 +439,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     // MARK: Tabs / leaves
 
-    private func cwd(for task: HangarTask) -> String {
+    func cwd(for task: HangarTask) -> String {
         switch task.mode {
         case .worktree(let path, _, _): return path
         case .mainFolder: return projects.first { $0.id == task.projectId }?.path ?? ""

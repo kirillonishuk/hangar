@@ -1,4 +1,5 @@
 import AppKit
+import Workspace
 
 /// Size rules of the editor (#80): up to `editable` bytes a file is edited, up to `refuse` read-only, above — refused.
 struct EditorLimits: Equatable, Sendable {
@@ -13,7 +14,7 @@ struct EditorLimits: Equatable, Sendable {
 /// A language-feature request from Monaco (answered by tsserver, #82). `details`: a completion entry's docs by `name`;
 /// `format`: the position is the document's end (the whole file is formatted).
 struct ProviderRequest: Equatable, Sendable {
-    enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format }
+    enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format, semantic }
     var id: Int
     var kind: Kind
     var file: String
@@ -23,6 +24,8 @@ struct ProviderRequest: Equatable, Sendable {
     /// `format`: the editor's indentation.
     var tabSize: Int? = nil
     var insertSpaces: Bool? = nil
+    /// `semantic`: the buffer's length (UTF-16 units), the whole file is classified.
+    var length: Int? = nil
 }
 
 /// One Monaco content change (1-based, end exclusive), in the order Monaco gives them (safe to apply in sequence).
@@ -40,8 +43,6 @@ enum BridgeMessage: Equatable {
     case changed(file: String, dirty: Bool)
     case save(file: String, text: String)
     case cursor(file: String, line: Int, column: Int)
-    case activate(file: String)
-    case close(file: String)
     /// The diff: open the working file in the editor here.
     case openAt(line: Int, column: Int)
     /// Go to definition landed in another file.
@@ -49,7 +50,6 @@ enum BridgeMessage: Equatable {
     /// The conflict bar's choice.
     case conflict(file: String, keepMine: Bool)
     case inline(Bool)
-    case minimap(Bool)
     case request(ProviderRequest)
     /// The context menu's Cut / Copy / Paste.
     case clipboard(ClipboardAction)
@@ -65,10 +65,23 @@ enum BridgeMessage: Equatable {
     private static let maxPosition = 10_000_000
     private static let maxEdits = 10_000
 
-    static func decode(_ body: Any) -> BridgeMessage? {
+    static func decode(_ body: Any) -> BridgeMessage? { envelope(body)?.message }
+
+    /// The message and the file tab it is about (`doc`: the editor leaf's id; nil for the page itself or the diff).
+    static func envelope(_ body: Any) -> (doc: UUID?, message: BridgeMessage)? {
         guard let string = body as? String, string.utf8.count <= maxBytes,
               let object = try? JSONSerialization.jsonObject(with: Data(string.utf8)),
-              let m = object as? [String: Any], let type = m["type"] as? String else { return nil }
+              let m = object as? [String: Any], m["type"] is String else { return nil }
+        var doc: UUID?
+        if let raw = m["doc"] {
+            guard let s = raw as? String, let id = UUID(uuidString: s) else { return nil }
+            doc = id
+        }
+        return message(m).map { (doc, $0) }
+    }
+
+    private static func message(_ m: [String: Any]) -> BridgeMessage? {
+        guard let type = m["type"] as? String else { return nil }
         func str(_ key: String) -> String? { m[key] as? String }
         func file() -> String? {
             guard let f = str("file"), f.hasPrefix("/"), f.utf8.count <= maxPath, !f.contains("\0") else { return nil }
@@ -99,8 +112,6 @@ enum BridgeMessage: Equatable {
         case "cursor":
             guard let f = file(), let (l, c) = position() else { return nil }
             return .cursor(file: f, line: l, column: c)
-        case "activate": return file().map { .activate(file: $0) }
-        case "close": return file().map { .close(file: $0) }
         case "openFile":
             guard let f = file(), let (l, c) = position() else { return nil }
             return .openFile(file: f, line: l, column: c)
@@ -112,7 +123,6 @@ enum BridgeMessage: Equatable {
             return .conflict(file: f, keepMine: k)
         case "clipboard": return str("action").flatMap(ClipboardAction.init(rawValue:)).map { .clipboard($0) }
         case "inline": return bool("on").map { .inline($0) }
-        case "minimap": return bool("on").map { .minimap($0) }
         case "request":
             guard let id = int("id", 0...Int(Int32.max)), let kind = str("kind").flatMap(ProviderRequest.Kind.init(rawValue:)),
                   let f = file(), let (l, c) = position() else { return nil }
@@ -122,6 +132,10 @@ enum BridgeMessage: Equatable {
             if kind == .format {
                 guard let tab = int("tabSize", 1...16), let spaces = bool("insertSpaces") else { return nil }
                 (r.tabSize, r.insertSpaces) = (tab, spaces)
+            }
+            if kind == .semantic {
+                guard let length = int("length", 0...maxBytes) else { return nil }
+                r.length = length
             }
             return .request(r)
         case "edit":
@@ -204,12 +218,29 @@ enum ProviderResult: Equatable, Sendable {
     case renames([EditorRename])
     /// `rename` refused, with the reason shown in the editor.
     case rejected(String)
+    /// `semantic`: start, length, type, modifiers per span (TS 2020 legend, #84).
+    case semantic([Int])
 }
 
 /// One span of a rename (1-based, end exclusive).
 struct EditorRename: Equatable, Sendable {
     var line: Int, column: Int, endLine: Int, endColumn: Int
     var prefix: String, suffix: String
+}
+
+/// Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills — every editor and diff page.
+struct EditorAppearance: Equatable {
+    var palette: HangarConfig.EditorPalette
+    var rainbow: Bool
+    var todo: Bool
+
+    init(_ config: HangarConfig) {
+        palette = config.editorPalette
+        rainbow = config.editorRainbowIndent
+        todo = config.editorTodoHighlight
+    }
+
+    var json: [String: Any] { ["palette": palette.rawValue, "rainbow": rainbow, "todo": todo] }
 }
 
 struct EditorOpen: Equatable {
@@ -248,6 +279,14 @@ enum EditorCommand: Equatable {
     case diff(EditorDiff)
     case options(inline: Bool, minimap: Bool)
     case focus
+    case appearance(EditorAppearance)
+
+    /// With the file tab it is for (the shared editor page, #83).
+    func json(doc: UUID?) -> Any {
+        guard var object = json as? [String: Any] else { return json }
+        if let doc { object["doc"] = doc.uuidString }
+        return object
+    }
 
     var json: Any {
         switch self {
@@ -274,6 +313,7 @@ enum EditorCommand: Equatable {
                     "line": n(d.line)]
         case .options(let inline, let minimap): return ["type": "options", "inline": inline, "minimap": minimap]
         case .focus: return ["type": "focus"]
+        case .appearance(let a): return a.json.merging(["type": "appearance"]) { $1 }
         }
     }
 
@@ -303,6 +343,7 @@ enum EditorCommand: Equatable {
                  "prefix": $0.prefix, "suffix": $0.suffix] as [String: Any]
             }]
         case .rejected(let reason): return ["kind": "rejected", "reason": reason]
+        case .semantic(let data): return ["kind": "semantic", "data": data]
         }
     }
 }

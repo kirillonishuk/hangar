@@ -69,6 +69,13 @@ import Testing
         let shared = await langs.request(ProviderRequest(id: 5, kind: .rename, file: root + "/src/a.ts", line: 1, column: 10), host: nil) { _ in nil }
         #expect(shared == .rejected(L10n.editorRenameOtherFiles))
 
+        // Semantic colors: `new Greeter` (offset 54) is a class (type 0), `msg` a readonly declared variable (7, 1|8).
+        let sem = await langs.request(ProviderRequest(id: 7, kind: .semantic, file: root + "/src/a.ts", line: 1, column: 1,
+                                                      length: a.utf16.count), host: nil) { _ in nil }
+        guard case .semantic(let spans)? = sem else { Issue.record("no semantic spans"); return }
+        let quads = stride(from: 0, to: spans.count, by: 4).map { Array(spans[$0..<$0 + 4]) }
+        #expect(quads.contains { $0 == [54, 7, 0, 0] } && quads.contains { $0 == [44, 3, 7, 9] })
+
         // Format the whole file, its end as the position, with the editor's indentation.
         let c = "function f(){\nreturn  1\n}\n"
         langs.opened(root + "/src/c.ts", text: c, host: nil, owner: owner)

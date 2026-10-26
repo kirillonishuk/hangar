@@ -456,6 +456,9 @@
 "editorMenuCut" = "Cut";
 "editorMenuCopy" = "Copy";
 "editorMenuPaste" = "Paste";
+"editorPaletteTitle" = "Highlighting";
+"editorRainbowTitle" = "Rainbow indents";
+"editorTodoTitle" = "TODO highlights";
 "editorRenameOtherFiles" = "The rename reaches other files — only single-file renames for now";
 "editorRenameRefused" = "This symbol can’t be renamed";
 "editorDependencyReadOnly" = "Dependency file — read-only";

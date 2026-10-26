@@ -58,8 +58,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
     @ObservationIgnored var onHostConnected: ((String) -> Void)?
-    /// Shows a file (at a line and column) in an existing editor leaf's page and focuses it; set by `TerminalArea`.
+    /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the status bar), by editor leaf (#83).
+    var editorDirty: Set<UUID> = []
+    var editorLanguage: [UUID: LanguageStatus] = [:]
+    /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// Settings → Editor changed: every editor and diff page restyles (set by `TerminalArea`).
+    @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
     /// TS/JS language features of the editors (tsserver, #82).
@@ -276,9 +281,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// An editor is «Editor» (its file tabs are inside it, #81); others go by their terminal title.
+    /// A file tab is its file's name (#83; «Editor» without one); others go by their terminal title.
     func title(of leaf: Leaf) -> String {
-        if leaf.kind == .editor { return defaultTitle(.editor) }
+        if leaf.kind == .editor { return leaf.openFile.map { ($0 as NSString).lastPathComponent } ?? defaultTitle(.editor) }
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
     }
 
@@ -488,21 +493,24 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the task's Monaco editor tab (#80, #81) — its focused editor
-    /// leaf in the active tab, else the first one — else a new editor tab. Without a selected task — nothing.
-    func openInEditor(path: String, line: Int?, column: Int? = nil) {
+    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the file's own tab in the selected task (#83) — focused if
+    /// open, else new (`preview`: a Files click, which reuses the task's preview tab). Without a selected task — nothing.
+    func openInEditor(path: String, line: Int?, column: Int? = nil, preview: Bool = false) {
         guard let task = selectedTask else { return }
-        deactivateDiff()  // the editor tab (also a new one) is shown instead
-        guard let (tab, leaf) = editorTarget(task: task) else {
-            perform { $0.addTab(taskId: task.id, kind: .editor, openFile: path, openLine: line) }
-            return
-        }
-        perform {
-            $0.openEditorFile(leafId: leaf, path: path, line: line, column: column)
-            $0.setFocusedLeaf(taskId: task.id, tabId: tab, leafId: leaf)
-        }
-        activate(tabId: tab)
-        onOpenInEditor?(leaf, path, line, column)
+        deactivateDiff()  // the file's tab is shown instead
+        var opened: (tab: UUID, leaf: UUID)?
+        perform { opened = $0.openFileTab(taskId: task.id, path: path, line: line, column: column, preview: preview) }
+        guard let opened else { return }
+        activate(tabId: opened.tab)
+        onOpenInEditor?(opened.leaf, path, line, column)
+    }
+
+    /// A file tab's buffer became dirty or clean: its dot; the first edit pins a preview tab.
+    func editorDirtyChanged(leafId: UUID, dirty: Bool) {
+        if dirty { editorDirty.insert(leafId) } else { editorDirty.remove(leafId) }
+        guard dirty, let loc = location(ofLeaf: leafId),
+              state.tasks.first(where: { $0.id == loc.task })?.tabs.first(where: { $0.id == loc.tab })?.preview == true else { return }
+        perform { $0.pinTab(taskId: loc.task, tabId: loc.tab) }
     }
 
     /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git

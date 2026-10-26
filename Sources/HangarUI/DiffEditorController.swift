@@ -18,11 +18,11 @@ import Workspace
 
     init(app: AppState) {
         self.app = app
-        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false)
+        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, appearance: EditorAppearance(app.config))
         page.webView.frame = container.bounds
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)
-        page.onMessage = { [weak self] in self?.handle($0) }
+        page.onMessage = { [weak self] m, _ in self?.handle(m) }
     }
 
     func tearDown() { page.tearDown() }

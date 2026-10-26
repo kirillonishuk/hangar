@@ -18,8 +18,13 @@ public struct HangarConfig: Equatable, Sendable {
     public var keepAwake = true
     /// Dock badge with the number of tasks waiting for the user, and a Dock bounce when one starts waiting out of focus.
     public var dockBadge = true
+    /// The editor's syntax colors (#84): VS Code Dark+ or Hangar's muted palette; rainbow indents and TODO pills.
+    public var editorPalette: EditorPalette = .darkPlus
+    public var editorRainbowIndent = true
+    public var editorTodoHighlight = true
 
     public enum TerminalBackground: String, Sendable { case hangar, theme }
+    public enum EditorPalette: String, Sendable, CaseIterable { case darkPlus = "dark-plus", hangar }
 
     public init() {}
 
@@ -52,12 +57,15 @@ public struct HangarConfig: Equatable, Sendable {
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let rawValue = line[line.index(after: eq)...]
-            if section.isEmpty, key == "notifications" || key == "limit_notifications" || key == "keep_awake" || key == "dock_badge" {
+            let flags = ["notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight"]
+            if section.isEmpty, flags.contains(key) {
                 let flag = try boolValue(rawValue, line: n + 1)
                 switch key {
                 case "notifications": config.notifications = flag
                 case "limit_notifications": config.limitNotifications = flag
                 case "dock_badge": config.dockBadge = flag
+                case "editor_rainbow_indent": config.editorRainbowIndent = flag
+                case "editor_todo_highlight": config.editorTodoHighlight = flag
                 default: config.keepAwake = flag
                 }
                 continue
@@ -76,6 +84,11 @@ public struct HangarConfig: Equatable, Sendable {
                     throw ParseError.syntax(line: n + 1, reason: "terminal_background must be \"hangar\" or \"theme\"")
                 }
                 config.terminalBackground = bg
+            case ("", "editor_palette"):
+                guard let palette = EditorPalette(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "dark-plus" or "hangar""#)
+                }
+                config.editorPalette = palette
             case ("", "language"):
                 guard let lang = Language(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: #"language must be "system", "ru" or "en""#)

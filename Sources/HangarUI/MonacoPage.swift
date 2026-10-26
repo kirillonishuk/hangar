@@ -7,24 +7,24 @@ import WebKit
     enum Mode: String { case editor, diff }
 
     let webView: WKWebView
-    var onMessage: ((BridgeMessage) -> Void)?
+    /// The message and its file tab (`doc`, the shared editor page's tabs, #83; nil for the page or the diff).
+    var onMessage: ((BridgeMessage, UUID?) -> Void)?
     private var ready = false
     var isReady: Bool { ready }
-    private var pending: [EditorCommand] = []
+    private var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
 
-    init(mode: Mode, inline: Bool, minimap: Bool) {
+    init(mode: Mode, inline: Bool, minimap: Bool, appearance: EditorAppearance) {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(MonacoSchemeHandler(), forURLScheme: monacoScheme)
         config.websiteDataStore = .nonPersistent()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.suppressesIncrementalRendering = true  // no half-styled flash while Monaco loads
         let settings: [String: Any] = [
-            "mode": mode.rawValue, "theme": MonacoTheme.json, "css": MonacoTheme.css,
+            "mode": mode.rawValue, "themes": MonacoTheme.all, "appearance": appearance.json, "css": MonacoTheme.css,
             "inline": inline, "minimap": minimap, "lang": L10n.resolve(L10n.language).rawValue,
             "fontSize": Theme.Editor.fontSize, "lineHeight": Theme.Editor.lineHeight,
-            "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict,
-                        "minimap": L10n.editorMinimap],
+            "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict],
             "menu": L10n.editorMenu,
         ]
         let json = (try? JSONSerialization.data(withJSONObject: settings)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
@@ -36,6 +36,12 @@ import WebKit
         webView.setValue(false, forKey: "drawsBackground")  // the panel color shows until the page paints
         #if DEBUG
         webView.isInspectable = true
+        // Snapshot runs leave the window behind others: the page must still paint for `edsnap`.
+        let occlusion = NSSelectorFromString("_setWindowOcclusionDetectionEnabled:")
+        if ProcessInfo.processInfo.environment["HANGAR_DEBUG_NO_ACTIVATE"] != nil, webView.responds(to: occlusion) {
+            typealias Set = @convention(c) (AnyObject, Selector, Bool) -> Void
+            unsafeBitCast(webView.method(for: occlusion), to: Set.self)(webView, occlusion, false)
+        }
         #endif
         config.userContentController.add(WeakHandler(self), contentWorld: .page, name: Self.handlerName)
         Self.withBlockList { [weak self] list in
@@ -53,17 +59,17 @@ import WebKit
         onMessage = nil
     }
 
-    func send(_ command: EditorCommand) {
-        guard ready else { pending.append(command); return }
-        webView.callAsyncJavaScript("hangar.receive(c)", arguments: ["c": command.json], in: nil, in: .page) { result in
+    func send(_ command: EditorCommand, doc: UUID? = nil) {
+        guard ready else { pending.append((command, doc)); return }
+        webView.callAsyncJavaScript("hangar.receive(c)", arguments: ["c": command.json(doc: doc)], in: nil, in: .page) { result in
             if case .failure(let error) = result { uiLog.error("editor command failed: \(String(describing: error), privacy: .public)") }
         }
     }
 
-    /// The buffer of an open file (to save it before closing).
-    func text(of path: String) async -> String? {
+    /// The buffer of an open file (to save it before closing): by its tab (`doc`) in the editor, by path in the diff.
+    func text(of key: String) async -> String? {
         guard ready else { return nil }
-        return try? await webView.callAsyncJavaScript("return hangar.text(p)", arguments: ["p": path], contentWorld: .page) as? String
+        return try? await webView.callAsyncJavaScript("return hangar.text(p)", arguments: ["p": key], contentWorld: .page) as? String
     }
 
     #if DEBUG
@@ -73,7 +79,7 @@ import WebKit
     fileprivate func receive(_ message: WKScriptMessage) {
         // Only the bundled page's own frame speaks for the editor.
         guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.protocol == monacoScheme,
-              let m = BridgeMessage.decode(message.body) else {
+              let (doc, m) = BridgeMessage.envelope(message.body) else {
             uiLog.error("editor: rejected a page message")
             return
         }
@@ -87,9 +93,9 @@ import WebKit
             ready = true
             let queued = pending
             pending = []
-            queued.forEach(send)
+            queued.forEach { send($0.0, doc: $0.1) }
         }
-        onMessage?(m)
+        onMessage?(m, doc)
     }
 
     // MARK: Navigation: the page itself and nothing else

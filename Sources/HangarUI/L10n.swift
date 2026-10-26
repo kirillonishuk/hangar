@@ -128,7 +128,7 @@ import Workspace
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
-        case editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
+        case editorRenameOtherFiles, editorRenameRefused, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -550,10 +550,12 @@ import Workspace
     static var editorMenu: [String: String] {
         ["definition": s(.editorMenuDefinition), "references": s(.editorMenuReferences), "rename": s(.editorMenuRename),
          "format": s(.editorMenuFormat), "comment": s(.editorMenuComment), "cut": s(.editorMenuCut),
-         "copy": s(.editorMenuCopy), "paste": s(.editorMenuPaste)]
+         "copy": s(.editorMenuCopy), "paste": s(.editorMenuPaste), "renameRefused": s(.editorRenameRefused)]
     }
     static func editorUnsavedQuit(_ n: Int) -> String { f(.editorUnsavedQuit, Int32(clamping: n)) }
     static var editorDependencyReadOnly: String { s(.editorDependencyReadOnly) }
+    static var editorRenameOtherFiles: String { s(.editorRenameOtherFiles) }
+    static var editorRenameRefused: String { s(.editorRenameRefused) }
     static func tsReady(_ version: String) -> String { f(.tsReady, version) }
     static func tsLoading(_ version: String) -> String { f(.tsLoading, version) }
     static var tsStopped: String { s(.tsStopped) }

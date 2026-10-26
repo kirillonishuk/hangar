@@ -414,16 +414,17 @@
   // MARK: Language features (tsserver through Swift, #82)
 
   let nextId = 1;
-  function ask(kind, model, position, token, name) {
+  function ask(kind, model, position, token, name, extra) {
     const file = model.uri.scheme === 'file' ? model.uri.path : null;
     if (!file) return Promise.resolve(null);
     const id = nextId++;
     return new Promise((resolve) => {
       pending.set(id, resolve);
       token.onCancellationRequested(() => { pending.delete(id); resolve(null); });
-      post({ type: 'request', id, kind, file, line: position.lineNumber, column: position.column, name });
+      post(Object.assign({ type: 'request', id, kind, file, line: position.lineNumber, column: position.column, name }, extra));
     });
   }
+  const range = (i) => new monaco.Range(i.line, i.column, i.endLine, i.endColumn);
   const loc = (i) => ({ uri: monaco.Uri.file(i.path), range: new monaco.Range(i.line, i.column, i.endLine || i.line, i.endColumn || i.column) });
 
   // Files the references peek shows but the page has no model of: read-only previews until the next search.
@@ -524,6 +525,31 @@
         });
       },
     });
+    // Rename and format: tsserver, TS/JS only (other languages have no server, so the menu greys them).
+    for (const lang of ['typescript', 'javascript']) {
+      ls.registerRenameProvider(lang, {
+        resolveRenameLocation: (m, p, t) => ask('rename', m, p, t).then((r) => {
+          if (r && r.kind === 'rejected') return { range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column), text: '', rejectReason: r.reason };
+          const w = m.getWordAtPosition(p);
+          return w ? { range: new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn), text: w.word }
+            : { range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column), text: '', rejectReason: cfg.menu.renameRefused };
+        }),
+        provideRenameEdits: (m, p, newName, t) => ask('rename', m, p, t).then((r) => {
+          if (!r) return { edits: [] };
+          if (r.kind === 'rejected') return { edits: [], rejectReason: r.reason };
+          const versionId = m.getVersionId();
+          return { edits: r.items.map((i) => ({ resource: m.uri, versionId,
+            textEdit: { range: range(i), text: i.prefix + newName + i.suffix } })) };
+        }),
+      });
+      ls.registerDocumentFormattingEditProvider(lang, {
+        provideDocumentFormattingEdits: (m, o, t) => {
+          const end = { lineNumber: m.getLineCount(), column: m.getLineMaxColumn(m.getLineCount()) };
+          return ask('format', m, end, t, undefined, { tabSize: o.tabSize, insertSpaces: o.insertSpaces })
+            .then((r) => (r && r.kind === 'edits' ? r.items.map((i) => ({ range: range(i), text: i.text })) : []));
+        },
+      });
+    }
     // Every go-to-definition and peek open lands here: same file in place, another one through Hangar (this tab).
     monaco.editor.registerEditorOpener({ openCodeEditor(_src, uri, sel) {
       if (uri.scheme !== 'file') return false;

@@ -456,6 +456,8 @@
 "editorMenuCut" = "Cut";
 "editorMenuCopy" = "Copy";
 "editorMenuPaste" = "Paste";
+"editorRenameOtherFiles" = "The rename reaches other files — only single-file renames for now";
+"editorRenameRefused" = "This symbol can’t be renamed";
 "editorDependencyReadOnly" = "Dependency file — read-only";
 "tsReady" = "TS %@";
 "tsLoading" = "TS %@ · project…";

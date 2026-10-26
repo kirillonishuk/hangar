@@ -84,4 +84,24 @@ import Testing
         let long = String(repeating: "n", count: 600)
         #expect(msg(#"{"type":"request","id":5,"kind":"details","file":"/r/a.ts","line":1,"column":1,"name":"\#(long)"}"#) == nil)
     }
+
+    /// Rename and format through tsserver: the format request carries the editor's indentation.
+    @Test func renameAndFormat() {
+        #expect(msg(#"{"type":"request","id":7,"kind":"rename","file":"/r/a.ts","line":2,"column":3}"#)
+                == .request(ProviderRequest(id: 7, kind: .rename, file: "/r/a.ts", line: 2, column: 3)))
+        #expect(msg(#"{"type":"request","id":8,"kind":"format","file":"/r/a.ts","line":1,"column":1,"tabSize":2,"insertSpaces":false}"#)
+                == .request(ProviderRequest(id: 8, kind: .format, file: "/r/a.ts", line: 1, column: 1, tabSize: 2, insertSpaces: false)))
+        #expect(msg(#"{"type":"request","id":8,"kind":"format","file":"/r/a.ts","line":1,"column":1,"tabSize":99,"insertSpaces":true}"#) == nil)
+        #expect(msg(#"{"type":"request","id":8,"kind":"format","file":"/r/a.ts","line":1,"column":1,"tabSize":"2","insertSpaces":true}"#) == nil)
+        let edits = EditorCommand.resolve(id: 8, result: .edits([EditorEdit(line: 1, column: 1, endLine: 1, endColumn: 3, text: "  ")])).json as? [String: Any]
+        let r = edits?["result"] as? [String: Any]
+        #expect(r?["kind"] as? String == "edits")
+        #expect(((r?["items"] as? [[String: Any]])?.first)?["text"] as? String == "  ")
+        let rename = (EditorCommand.resolve(id: 7, result: .renames([EditorRename(line: 2, column: 5, endLine: 2, endColumn: 8, prefix: "x: ", suffix: "")])).json
+            as? [String: Any])?["result"] as? [String: Any]
+        #expect(rename?["kind"] as? String == "renames")
+        #expect(((rename?["items"] as? [[String: Any]])?.first)?["prefix"] as? String == "x: ")
+        let rejected = (EditorCommand.resolve(id: 7, result: .rejected("no")).json as? [String: Any])?["result"] as? [String: Any]
+        #expect(rejected?["kind"] as? String == "rejected" && rejected?["reason"] as? String == "no")
+    }
 }

@@ -169,6 +169,15 @@ import Foundation
         case .details:
             guard let name = r.name else { return nil }
             return TsMap.details(await ask("completionEntryDetails", ["entryNames": [name]])).map { .hover(markdown: $0) }
+        case .rename:
+            return TsMap.rename(await ask("rename", ["findInStrings": false, "findInComments": false]), file: r.file)
+        case .format:
+            let tab = r.tabSize ?? 4, spaces = r.insertSpaces ?? true
+            _ = await server.request("configure", ["file": r.file, "formatOptions": ["tabSize": tab, "indentSize": tab,
+                                                                                        "convertTabsToSpaces": spaces]])
+            // The whole file: the page sends its end as the position (tsserver fails on a line past the end).
+            let edits = TsMap.format(await ask("format", ["line": 1, "offset": 1, "endLine": r.line, "endOffset": r.column]))
+            return edits.isEmpty ? nil : .edits(edits)
         }
     }
 

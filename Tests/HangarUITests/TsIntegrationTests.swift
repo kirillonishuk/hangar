@@ -62,5 +62,23 @@ import Testing
         let end = Date().addingTimeInterval(30)
         while Date() < end, !markers.contains(where: { $0.line == 3 && $0.severity == .error }) { try await Task.sleep(for: .milliseconds(100)) }
         #expect(markers.contains { $0.line == 3 && $0.severity == .error })
+
+        // Rename: a local (`n`, line 3) → spans in a.ts; the exported class reaches b.ts → refused, nothing partial.
+        let local = await langs.request(ProviderRequest(id: 4, kind: .rename, file: root + "/src/a.ts", line: 3, column: 7), host: nil) { _ in nil }
+        #expect(local == .renames([EditorRename(line: 3, column: 7, endLine: 3, endColumn: 8, prefix: "", suffix: "")]))
+        let shared = await langs.request(ProviderRequest(id: 5, kind: .rename, file: root + "/src/a.ts", line: 1, column: 10), host: nil) { _ in nil }
+        #expect(shared == .rejected(L10n.editorRenameOtherFiles))
+
+        // Format the whole file, its end as the position, with the editor's indentation.
+        let c = "function f(){\nreturn  1\n}\n"
+        langs.opened(root + "/src/c.ts", text: c, host: nil, owner: owner)
+        var fmt: ProviderResult?
+        for _ in 0..<60 where fmt == nil {  // c.ts attaches to the running server asynchronously
+            fmt = await langs.request(ProviderRequest(id: 6, kind: .format, file: root + "/src/c.ts", line: 4, column: 1,
+                                                      tabSize: 2, insertSpaces: true), host: nil) { _ in nil }
+            if fmt == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        guard case .edits(let edits)? = fmt else { Issue.record("no format edits: \(String(describing: fmt))"); return }
+        #expect(edits.contains { $0.line == 2 && $0.column == 1 && $0.text == "  " })
     }
 }

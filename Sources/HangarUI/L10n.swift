@@ -87,7 +87,7 @@ import Workspace
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
-        case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError
+        case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case copyLink, attentionOnly, nobodyWaiting
@@ -321,6 +321,8 @@ import Workspace
     static var pillUnavailable: String { s(.pillUnavailable) }
     static var pillChecking: String { s(.pillChecking) }
     static var pillError: String { s(.pillError) }
+    static var sectionProjectTitle: String { s(.sectionProjectTitle) }
+    static var sectionToolsTitle: String { s(.sectionToolsTitle) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
     static var notificationsTitle: String { s(.notificationsTitle) }
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }

@@ -99,11 +99,7 @@ struct RemoteProjectSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.remoteProjectTitle)
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
-                .foregroundStyle(Theme.ui.sheetText)
-                .padding(.top, Theme.sheetHeaderTop)
-                .padding(.bottom, Theme.sheetHeaderBottom)
+            SheetHeader(title: L10n.remoteProjectTitle)
 
             card.padding(.top, Theme.sheetNameTop)
             status
@@ -111,13 +107,9 @@ struct RemoteProjectSheet: View {
                 ServerCheckView(model: server, embedded: true, maxHeight: windowHeight - Theme.remoteSheetChrome)
                     .padding(.top, Theme.sheetGap)
             }
-            footer.padding(.vertical, Theme.sheetFooterPaddingV)
+            footer
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .lineLimit(1)
-        .background(Theme.ui.sheet)
+        .sheetFrame()
         .onAppear { focus = .host }
     }
 
@@ -165,11 +157,8 @@ struct RemoteProjectSheet: View {
     }
 
     private var footer: some View {
-        HStack(spacing: Theme.sheetButtonGap) {
-            // Esc goes to the install terminal while it runs (as in «Сервер»).
-            Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-                .opacity(model.server?.phase == .installing ? 0 : 1)
-            Spacer(minLength: 0)
+        // Esc goes to the install terminal while it runs (as in «Сервер»).
+        SheetFooter(hintHidden: model.server?.phase == .installing) {
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
             Button(L10n.cancel, action: onCancel)
                 .buttonStyle(SheetButton(primary: false))

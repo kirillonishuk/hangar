@@ -82,6 +82,8 @@
 "pillUnavailable" = "unavailable";
 "pillChecking" = "checking…";
 "pillError" = "error";
+"sectionProjectTitle" = "Project";
+"sectionToolsTitle" = "Tools";
 "saveFailed" = "Couldn't save config.toml: %@";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";

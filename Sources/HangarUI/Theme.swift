@@ -141,7 +141,8 @@ public enum Theme {
     public static let inactiveOpacity: Double = 0.38
     public static let disabledButtonOpacity: Double = 0.45
 
-    public static let sheetWidth: CGFloat = 580
+    /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
+    public static let sheetWidth: CGFloat = 620
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
     public static let sheetPaddingH: CGFloat = 18
@@ -175,7 +176,8 @@ public enum Theme {
     public static let segmentItemPaddingH: CGFloat = 11
 
     // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
-    public static let cardLabelWidth: CGFloat = 110
+    /// One label column in every sheet: «Команда после создания» (~165 at `sheetRow`, ru) on one line.
+    public static let cardLabelWidth: CGFloat = 168
     /// Branch rows without worktree.
     public static let dimmedRowOpacity: Double = 0.38
     /// git stderr shown under the card.

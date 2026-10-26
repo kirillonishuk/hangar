@@ -67,14 +67,6 @@ func settingsLabelWidth(_ lang: Language) -> CGFloat {
     }
 }
 
-/// An integration's status color in the server sheet: red is kept for failures, a missing or outdated one is a to-do.
-@MainActor func integrationStatusColor(_ state: IntegrationState) -> Color {
-    switch state {
-    case .installed, .installedStatuslineByUser: Theme.ui.text2
-    case .outdated, .notInstalled: Theme.ui.waiting
-    }
-}
-
 struct SettingsView: View {
     @Bindable var model: SettingsModel
     private var app: AppState { model.app }
@@ -137,7 +129,7 @@ struct SettingsView: View {
     // MARK: Pages
 
     private var general: some View {
-        SettingsSection {
+        CardSection {
             row(L10n.languageTitle, first: true) {
                 Segment(selection: app.language, options: [
                     (.system, L10n.languageSystem), (.ru, L10n.languageRu), (.en, L10n.languageEn),
@@ -162,14 +154,14 @@ struct SettingsView: View {
     // Themes (themes-v1.html): three preview tiles; the terminal background follows the theme or Ghostty.
     private var appearance: some View {
         VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            SettingsSection(title: L10n.themeTitle, card: false) {
+            CardSection(title: L10n.themeTitle, card: false) {
                 HStack(spacing: Theme.themeTileGap) {
                     ForEach(AppTheme.allCases, id: \.self) { theme in
                         ThemeTile(theme: theme, selected: Theme.current == theme) { save { try app.setTheme(theme) } }
                     }
                 }
             }
-            SettingsSection {
+            CardSection {
                 row(L10n.terminalBackground, first: true) {
                     Segment(selection: app.config.terminalBackground,
                             options: [(.hangar, L10n.backgroundAsTheme), (.ghostty, L10n.backgroundGhostty)]) { bg in
@@ -182,19 +174,19 @@ struct SettingsView: View {
 
     // Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills.
     private var editor: some View {
-        SettingsSection {
+        CardSection {
             row(L10n.editorPaletteTitle, first: true) {
                 Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
                     save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
                 }
             }
             row(L10n.editorRainbowTitle) {
-                SettingsSwitch(on: app.config.editorRainbowIndent) { on in
+                CardSwitch(on: app.config.editorRainbowIndent) { on in
                     save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
                 }
             }
             row(L10n.editorTodoTitle) {
-                SettingsSwitch(on: app.config.editorTodoHighlight) { on in
+                CardSwitch(on: app.config.editorTodoHighlight) { on in
                     save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
                 }
             }
@@ -202,25 +194,25 @@ struct SettingsView: View {
     }
 
     private var notifications: some View {
-        SettingsSection {
+        CardSection {
             row(L10n.notificationsTitle, first: true) {
-                SettingsSwitch(on: app.config.notifications) { on in
+                CardSwitch(on: app.config.notifications) { on in
                     save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
                 }
             }
             row(L10n.limitNotificationsTitle) {
-                SettingsSwitch(on: app.config.limitNotifications) { on in
+                CardSwitch(on: app.config.limitNotifications) { on in
                     save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
                 }
             }
             row(L10n.dockBadgeTitle) {
-                SettingsSwitch(on: app.config.dockBadge) { on in
+                CardSwitch(on: app.config.dockBadge) { on in
                     save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
                 }
             }
             .help(L10n.dockBadgeHelp)
             row(L10n.keepAwakeShort) {
-                SettingsSwitch(on: app.config.keepAwake) { on in
+                CardSwitch(on: app.config.keepAwake) { on in
                     save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                 }
             }
@@ -230,18 +222,18 @@ struct SettingsView: View {
 
     private var integrations: some View {
         VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            SettingsSection {
+            CardSection {
                 row(L10n.integrationClaude, first: true) { integrationValue(.claude) }
                 row(L10n.integrationCodex) { integrationValue(.codex) }
                 if model.integration.cli == nil { mcpValue }
             }
             // The commands to add Hangar's MCP server, one row per agent.
-            if model.integration.cli != nil { SettingsSection(title: L10n.integrationMCP) { mcpValue } }
+            if model.integration.cli != nil { CardSection(title: L10n.integrationMCP) { mcpValue } }
         }
     }
 
     private var advanced: some View {
-        SettingsSection {
+        CardSection {
             row(L10n.configFile, first: true) {
                 let path = tildePath(app.configURL.path)
                 Text(verbatim: path)
@@ -379,55 +371,6 @@ private struct SettingsSidebar: View {
     }
 }
 
-/// A section of a page: an optional header on the card's left edge, then its card of rows (full page width).
-private struct SettingsSection<Content: View>: View {
-    var title: String?
-    var card = true
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
-            if let title {
-                Text(verbatim: title)
-                    .font(.system(size: Theme.fontSize.tab, weight: .semibold))
-                    .foregroundStyle(Theme.ui.text2)
-            }
-            if card {
-                VStack(spacing: 0) { content }
-                    .frame(maxWidth: .infinity)
-                    .sheetCard()
-            } else {
-                content
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// On/off switch (themes-v1.html `.sw`): `primary` track when on, `control` when off; the whole switch is the button.
-struct SettingsSwitch: View {
-    let on: Bool
-    let toggle: (Bool) -> Void
-
-    var body: some View {
-        let knob = Theme.switchHeight - 2 * Theme.switchInset
-        Button { toggle(!on) } label: {
-            ZStack(alignment: on ? .trailing : .leading) {
-                Capsule().fill(on ? Theme.ui.primary : Theme.ui.control)
-                Circle().fill(on ? Theme.ui.primaryText : Theme.ui.text2)
-                    .frame(width: knob, height: knob)
-                    .padding(.horizontal, Theme.switchInset)
-            }
-            .frame(width: Theme.switchWidth, height: Theme.switchHeight)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .animation(Motion.ease(Theme.selectionFade), value: on)
-        .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
-    }
-}
-
 /// A theme as a tile (themes-v1.html `.tcard`): a mini window in its own colours over its name; the chosen one is
 /// outlined in the current `accent`.
 private struct ThemeTile: View {
@@ -484,23 +427,6 @@ private struct ThemeTile: View {
             Capsule().fill(Theme.ui.of(color)).frame(width: g.size.width * fraction)
         }
         .frame(height: Theme.themeTileLine)
-    }
-}
-
-/// Integration status: a word in its colour on that colour at 15 %.
-private struct Pill: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.tab))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, Theme.pillPaddingH)
-            .frame(height: Theme.pillHeight)
-            .background(Capsule().fill(color.opacity(Theme.pillFillOpacity)))
-            .fixedSize()
     }
 }
 

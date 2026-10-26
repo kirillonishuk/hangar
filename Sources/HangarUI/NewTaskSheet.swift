@@ -16,14 +16,7 @@ struct NewTaskSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
-                Text(L10n.newTask)
-                    .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
-                    .foregroundStyle(Theme.ui.sheetText)
-                Text(projectName).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
-            }
-            .padding(.top, Theme.sheetHeaderTop)
-            .padding(.bottom, Theme.sheetHeaderBottom)
+            SheetHeader(title: L10n.newTask, subtitle: projectName)
 
             TextField("", text: $model.name, prompt: Text(L10n.taskNamePlaceholder).foregroundStyle(Theme.ui.text3))
                 .font(.system(size: Theme.fontSize.taskName, design: .monospaced))
@@ -52,13 +45,9 @@ struct NewTaskSheet: View {
                 .modifier(SheetField(focused: focus == .message))
                 .padding(.top, Theme.sheetGap)
 
-            footer.padding(.vertical, Theme.sheetFooterPaddingV)
+            footer
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .lineLimit(1)
-        .background(Theme.ui.sheet)
+        .sheetFrame()
         .onAppear { focus = .name }
         .onChange(of: model.branch) {
             if !model.branchFollowsName { Task { await model.validateBranch() } }
@@ -72,13 +61,8 @@ struct NewTaskSheet: View {
             CardRow(label: L10n.worktreeLabel, first: true) {
                 Text(worktreeHint).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: Theme.cardRowGap)
-                Toggle("", isOn: $model.worktree)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .tint(Theme.ui.primary)
+                CardSwitch(isOn: $model.worktree)
                     .disabled(model.availability != .ready || model.creating)
-                    .pointingHand(model.availability == .ready && !model.creating)
             }
             CardRow(label: L10n.fromBranch) {
                 BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
@@ -111,14 +95,10 @@ struct NewTaskSheet: View {
                     Text(verbatim: command).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
                         .truncationMode(.middle)
+                        .help(command)
                     Spacer(minLength: Theme.cardRowGap)
-                    Toggle("", isOn: $model.runSetup)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .tint(Theme.ui.primary)
+                    CardSwitch(isOn: $model.runSetup)
                         .disabled(!model.worktree || model.creating)
-                        .pointingHand(model.worktree && !model.creating)
                 } else {
                     Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)
@@ -215,9 +195,7 @@ struct NewTaskSheet: View {
     // MARK: Footer
 
     private var footer: some View {
-        HStack(spacing: Theme.sheetButtonGap) {
-            Text(footerHint).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-            Spacer(minLength: 0)
+        SheetFooter(hint: footerHint) {
             Button(L10n.cancel, action: cancel)
                 .buttonStyle(SheetButton(primary: false))
                 .keyboardShortcut(.cancelAction)
@@ -278,28 +256,31 @@ struct SheetField: ViewModifier {
     }
 }
 
-/// Sheet / settings button: `primary` fill or `button`; lighter on hover (120 ms), hand only while enabled.
+/// Sheet / settings button: `primary` fill or `button`; `destructive` — `failedText` on `failed` 18 % (white on red
+/// fails AA); lighter on hover (120 ms), hand only while enabled.
 struct SheetButton: ButtonStyle {
     let primary: Bool
+    var destructive = false
 
     func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, primary: primary, pressed: configuration.isPressed)
+        Body(label: configuration.label, primary: primary, destructive: destructive, pressed: configuration.isPressed)
     }
 
     private struct Body<Label: View>: View {
         let label: Label
         let primary: Bool
+        let destructive: Bool
         let pressed: Bool
         @Environment(\.isEnabled) private var enabled
         @State private var hover = false
 
         var body: some View {
             label
-                .foregroundStyle(primary ? Theme.ui.primaryText : Theme.ui.sheetText)
+                .foregroundStyle(destructive ? Theme.ui.failedText : primary ? Theme.ui.primaryText : Theme.ui.sheetText)
                 .padding(.vertical, Theme.buttonPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                    .fill(primary ? Theme.ui.primary : Theme.ui.button)
+                    .fill(destructive ? Theme.ui.failed.opacity(Theme.destructiveFillOpacity) : primary ? Theme.ui.primary : Theme.ui.button)
                     .brightness(hover && enabled ? Theme.sheetButtonHoverBrightness : 0))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
                 .opacity(pressed ? Theme.pressedOpacity : 1)

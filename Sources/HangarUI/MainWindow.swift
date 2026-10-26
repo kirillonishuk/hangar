@@ -949,7 +949,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.projectSheetWidth, height: Theme.sheetPlaceholderHeight),
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.sheet
         sheet.appearance = window.appearance
@@ -978,25 +978,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         confirm(message, info, button, checkbox: nil) { _ in then() }
     }
 
-    /// `checkbox` (unchecked by default) is shown as the alert's suppression button; `then` gets its state.
+    /// Archive / delete / remove confirmation as a Hangar sheet (`ConfirmSheet`); `checkbox` (off by default) is its
+    /// switch row, and `then` gets its state.
     private func confirm(_ message: String, _ info: String, _ button: String, checkbox: String?, _ then: @escaping (Bool) -> Void) {
         guard let window, window.attachedSheet == nil else { return }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = message
-        alert.informativeText = info
-        alert.addButton(withTitle: button).hasDestructiveAction = true
-        alert.addButton(withTitle: L10n.cancel)
-        if let checkbox {
-            alert.showsSuppressionButton = true
-            alert.suppressionButton?.title = checkbox
-            alert.suppressionButton?.state = .off
+        let sheet = makeSheet(over: window)
+        let close: () -> Void = { [weak self, weak sheet] in
+            guard let self, let sheet else { return }
+            window.endSheet(sheet)
+            self.sheetWindow = nil
         }
-        alert.beginSheetModal(for: window) { response in
-            guard response == .alertFirstButtonReturn else { return }
-            let checked = alert.suppressionButton?.state == .on
-            MainActor.assumeIsolated { then(checked) }
-        }
+        let view = ConfirmSheet(message: message, info: info, button: button, checkbox: checkbox,
+                                onConfirm: { checked in close(); then(checked) }, onCancel: close)
+        begin(sheet, view, on: window)
     }
 
     private func showError(_ message: String, _ info: String) {

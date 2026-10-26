@@ -21,9 +21,13 @@ enum TabStrip {
     /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
     /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
     /// first, then scrolls at min.
-    static func layout(natural: [CGFloat], dots: [Bool] = [], width: CGFloat) -> Layout {
+    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to the max, #83).
+    static func layout(natural: [CGFloat], dots: [Bool] = [], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.tabBarButton
-        let floors = natural.indices.map { minWidth(dot: dots.indices.contains($0) && dots[$0]) }
+        let floors = natural.indices.map { i in
+            let least = minWidth(dot: dots.indices.contains(i) && dots[i])
+            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.tabMaxWidth)) : least
+        }
         if content(floors) <= width - control {
             let fit = widths(natural, floors: floors, room: width - control)
             let total = content(fit)
@@ -135,13 +139,15 @@ struct TabBarView: View {
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
         let dots = task.tabs.map { app.showsDot($0, state: app.displayState(of: $0)) }
         var natural = zip(task.tabs, dots).map { tab, dot in
-            let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab))
+            let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab), italic: tab.preview)
             return Self.natural(text: text, dot: dot)
         }
+        var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
         if let diff = app.diffTabs[task.id] {
-            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true), dot: false))
+            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true), dot: false))
+            whole.append(true)
         }
-        return TabStrip.layout(natural: natural, dots: dots, width: width)
+        return TabStrip.layout(natural: natural, dots: dots, whole: whole, width: width)
     }
 
     /// Index of the active tab in the strip (the diff tab is last).

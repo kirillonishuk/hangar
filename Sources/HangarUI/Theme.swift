@@ -215,8 +215,9 @@ public enum Theme {
     public static let iconStroke: CGFloat = 1.5
     public static let iconGap: CGFloat = 6
     public static let smallIconSize: CGFloat = 10
-    public static let gutterMarkerX: CGFloat = 20
-    public static let gutterTextX: CGFloat = 32
+    /// Row markers sit on the rail's centre line in both modes (icons-sidebar.html `.g`), so the rail's icons line up with its tiles.
+    public static let gutterMarkerX: CGFloat = sidebarRailWidth / 2
+    public static let gutterTextX: CGFloat = 34
     public static let sectionGap: CGFloat = 10
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18

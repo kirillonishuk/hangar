@@ -12,7 +12,7 @@ extension Theme {
         static func lane(_ index: Int) -> Color { lanes[((index % lanes.count) + lanes.count) % lanes.count] }
 
         /// Side padding of the segment, search field, chips and headers (`Metric.inspectorPadding`).
-        static let padding: CGFloat = 12
+        static let padding: CGFloat = Theme.inspectorSegmentPaddingH
         /// Tree rows (branches, commit files): height, highlight inset from the edges, radius, one level's indent.
         static let treeRow: CGFloat = 24
         static let rowInset: CGFloat = 6

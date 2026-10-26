@@ -14,14 +14,14 @@ import WebKit
     private var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
 
-    init(mode: Mode, inline: Bool, minimap: Bool) {
+    init(mode: Mode, inline: Bool, minimap: Bool, appearance: EditorAppearance) {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(MonacoSchemeHandler(), forURLScheme: monacoScheme)
         config.websiteDataStore = .nonPersistent()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.suppressesIncrementalRendering = true  // no half-styled flash while Monaco loads
         let settings: [String: Any] = [
-            "mode": mode.rawValue, "theme": MonacoTheme.json, "css": MonacoTheme.css,
+            "mode": mode.rawValue, "themes": MonacoTheme.all, "appearance": appearance.json, "css": MonacoTheme.css,
             "inline": inline, "minimap": minimap, "lang": L10n.resolve(L10n.language).rawValue,
             "fontSize": Theme.Editor.fontSize, "lineHeight": Theme.Editor.lineHeight,
             "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict],
@@ -36,6 +36,12 @@ import WebKit
         webView.setValue(false, forKey: "drawsBackground")  // the panel color shows until the page paints
         #if DEBUG
         webView.isInspectable = true
+        // Snapshot runs leave the window behind others: the page must still paint for `edsnap`.
+        let occlusion = NSSelectorFromString("_setWindowOcclusionDetectionEnabled:")
+        if ProcessInfo.processInfo.environment["HANGAR_DEBUG_NO_ACTIVATE"] != nil, webView.responds(to: occlusion) {
+            typealias Set = @convention(c) (AnyObject, Selector, Bool) -> Void
+            unsafeBitCast(webView.method(for: occlusion), to: Set.self)(webView, occlusion, false)
+        }
         #endif
         config.userContentController.add(WeakHandler(self), contentWorld: .page, name: Self.handlerName)
         Self.withBlockList { [weak self] list in

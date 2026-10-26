@@ -171,6 +171,10 @@ import Foundation
             return TsMap.details(await ask("completionEntryDetails", ["entryNames": [name]])).map { .hover(markdown: $0) }
         case .rename:
             return TsMap.rename(await ask("rename", ["findInStrings": false, "findInComments": false]), file: r.file)
+        case .semantic:
+            let spans = TsMap.semantic(await ask("encodedSemanticClassifications-full",
+                                                 ["start": 0, "length": r.length ?? 0, "format": "2020"]))
+            return spans.isEmpty ? nil : .semantic(spans)
         case .format:
             let tab = r.tabSize ?? 4, spaces = r.insertSpaces ?? true
             _ = await server.request("configure", ["file": r.file, "formatOptions": ["tabSize": tab, "indentSize": tab,

@@ -118,4 +118,14 @@ import Testing
         #expect(cmd["doc"] as? String == id.uuidString && cmd["type"] as? String == "saved")
         #expect((EditorCommand.focus.json(doc: nil) as? [String: Any])?["doc"] == nil)
     }
+
+    /// Semantic colors (#84): the request carries the buffer's length, the answer a flat list of spans.
+    @Test func semanticRequestAndResult() throws {
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1,"length":120}"#)
+                == .request(ProviderRequest(id: 9, kind: .semantic, file: "/r/a.ts", line: 1, column: 1, length: 120)))
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1}"#) == nil)
+        #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1,"length":-1}"#) == nil)
+        let r = (EditorCommand.resolve(id: 9, result: .semantic([0, 5, 0, 0])).json as? [String: Any])?["result"] as? [String: Any]
+        #expect(r?["kind"] as? String == "semantic" && r?["data"] as? [Int] == [0, 5, 0, 0])
+    }
 }

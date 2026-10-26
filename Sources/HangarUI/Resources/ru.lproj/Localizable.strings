@@ -456,6 +456,9 @@
 "editorMenuCut" = "Вырезать";
 "editorMenuCopy" = "Копировать";
 "editorMenuPaste" = "Вставить";
+"editorPaletteTitle" = "Подсветка";
+"editorRainbowTitle" = "Радужные отступы";
+"editorTodoTitle" = "Подсветка TODO";
 "editorRenameOtherFiles" = "Переименование затрагивает другие файлы — пока переименовываются только символы одного файла";
 "editorRenameRefused" = "Этот символ нельзя переименовать";
 "editorDependencyReadOnly" = "Файл зависимости — только для чтения";

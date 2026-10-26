@@ -431,6 +431,10 @@ final class FillView: NSView {
             pane.focusEditor()
         }
         app.editorUnsaved = { [weak self] id in self?.leafViews[id]?.editor?.unsaved ?? [] }
+        app.onEditorAppearance = { [weak self] look in
+            self?.editorHost?.page.send(.appearance(look))
+            self?.diffHosts.values.forEach { $0.editor.page.send(.appearance(look)) }
+        }
         app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
         app.confirmLeaveDiff = { [weak self] then in
             if let id = self?.app.selectedTask?.id, let editor = self?.diffHosts[id]?.editor { editor.confirmLeave(then) } else { then() }
@@ -638,7 +642,7 @@ final class FillView: NSView {
             leafViews[leaf.id] = view
             tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
             if leaf.kind == .editor {
-                let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap)
+                let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap, appearance: EditorAppearance(app.config))
                 editorHost = host
                 let pane = EditorPane(leafId: leaf.id, app: app, host: host)
                 view.attachEditor(pane)

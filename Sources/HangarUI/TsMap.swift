@@ -157,6 +157,25 @@ enum TsMap {
         return out.isEmpty ? nil : .renames(out)
     }
 
+    /// tsserver's 2020 token types (class … member) and modifiers (declaration … local): the page's legend.
+    static let semanticTypes = 12, semanticModifiers = 6
+
+    /// `encodedSemanticClassifications-full` (format 2020) → flat start, length, type, modifiers.
+    static func semantic(_ body: Any?) -> [Int] {
+        guard let spans = (body as? [String: Any])?["spans"] as? [Any] else { return [] }
+        var out: [Int] = []
+        var i = 0
+        while i + 2 < spans.count, out.count < maxItems * 200 {
+            defer { i += 3 }
+            guard let start = spans[i] as? Int, let length = spans[i + 1] as? Int, let code = spans[i + 2] as? Int,
+                  start >= 0, length > 0 else { continue }
+            let type = (code >> 8) - 1, mods = code & 0xff
+            guard (0..<semanticTypes).contains(type), mods < 1 << semanticModifiers else { continue }
+            out += [start, length, type, mods]
+        }
+        return out
+    }
+
     static func change(file: String, _ e: EditorEdit) -> [String: Any] {
         ["file": file, "line": e.line, "offset": e.column, "endLine": e.endLine, "endOffset": e.endColumn, "insertString": e.text]
     }

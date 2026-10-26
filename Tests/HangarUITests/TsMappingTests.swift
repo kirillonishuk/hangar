@@ -179,4 +179,13 @@ import Exec
         #expect(TsMap.rename(["info": ["canRename": true], "locs": []], file: "/w/app/a.ts") == nil)
         #expect(TsMap.rename(42, file: "/w/app/a.ts") == nil)
     }
+
+    /// `encodedSemanticClassifications-full` (format 2020): triples start, length, (type+1)<<8 | modifiers →
+    /// start, length, type, modifiers; unknown types, bad spans and a ragged tail are dropped.
+    @Test func semanticClassifications() {
+        let body: [String: Any] = ["spans": [0, 5, (0 + 1) << 8, 10, 3, (10 + 1) << 8 | 1, 20, 0, (7 + 1) << 8, 30, 4, (99 + 1) << 8, -1, 2, 256, 40, 2]]
+        #expect(TsMap.semantic(body) == [0, 5, 0, 0, 10, 3, 10, 1])
+        #expect(TsMap.semantic(["spans": "x"]).isEmpty)
+        #expect(TsMap.semantic(nil).isEmpty)
+    }
 }

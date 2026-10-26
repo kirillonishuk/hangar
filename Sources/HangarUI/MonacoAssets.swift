@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import Workspace
 
 extension Theme {
     /// The Monaco editor and diff (#80): code font and the page's own chrome (bars, buttons).
@@ -23,21 +24,54 @@ func cssHex(_ color: NSColor, alpha: Double? = nil) -> String {
     return "#" + h(c.redComponent) + h(c.greenComponent) + h(c.blueComponent) + (alpha.map { h(CGFloat($0)) } ?? "")
 }
 
-/// Hangar's Monaco theme: the navy palette and the diff's syntax colors, so the editor reads as part of the app.
+/// Hangar's Monaco theme: the navy chrome with the chosen syntax palette (#84) — VS Code Dark+ (default) or the diff's
+/// muted colors. Rules cover Monarch tokens and tsserver's semantic types (class, function, variable …).
 enum MonacoTheme {
-    static var json: [String: Any] {
-        func hex(_ kind: SyntaxKind) -> String { String(format: "%06x", Theme.Diff.syntaxHex(kind)) }
-        let token: [(String, SyntaxKind)] = [
-            ("keyword", .keyword), ("tag", .keyword), ("metatag", .keyword), ("string", .string), ("string.key.json", .type),
-            ("attribute.value", .string), ("regexp", .string), ("comment", .comment), ("comment.doc", .comment),
-            ("number", .number), ("constant", .number), ("type", .type), ("type.identifier", .type),
-            ("attribute.name", .type), ("annotation", .type), ("predefined", .type),
-        ]
-        var rules = token.map { ["token": $0.0, "foreground": hex($0.1)] }
-        rules[rules.firstIndex { $0["token"] == "comment" }!]["fontStyle"] = "italic"
-        rules.append(["token": "", "foreground": String(cssHex(Theme.text).dropFirst())])
+    static func json(_ palette: HangarConfig.EditorPalette) -> [String: Any] {
+        ["base": "vs-dark", "inherit": true, "rules": rules(palette), "colors": colors]
+    }
+
+    /// Both themes for the page; it switches between them when the setting changes.
+    static var all: [String: Any] {
+        Dictionary(uniqueKeysWithValues: HangarConfig.EditorPalette.allCases.map { ($0.rawValue, json($0)) })
+    }
+
+    private static func rules(_ palette: HangarConfig.EditorPalette) -> [[String: String]] {
+        let token: [(String, String)]
+        switch palette {
+        case .darkPlus:
+            let keyword = "569CD6", control = "C586C0", variable = "9CDCFE", type = "4EC9B0", function = "DCDCAA"
+            token = [
+                ("keyword", keyword), ("keyword.control", control), ("identifier", variable), ("type.identifier", type),
+                ("type", type), ("class", type), ("interface", type), ("enum", type), ("namespace", type), ("typeParameter", type),
+                ("variable", variable), ("parameter", variable), ("property", variable), ("enumMember", "4FC1FF"),
+                ("function", function), ("member", function), ("string", "CE9178"), ("string.escape", "D7BA7D"),
+                ("regexp", "D16969"), ("number", "B5CEA8"), ("comment", "6A9955"), ("comment.doc", "6A9955"),
+                ("constant", "4FC1FF"), ("delimiter", "D4D4D4"), ("delimiter.bracket", "D4D4D4"), ("operator", "D4D4D4"),
+                ("tag", keyword), ("metatag", keyword), ("attribute.name", variable), ("attribute.value", "CE9178"),
+                ("string.key.json", variable), ("annotation", type), ("predefined", function), ("", "D4D4D4"),
+            ]
+        case .hangar:
+            func hex(_ kind: SyntaxKind) -> String { String(format: "%06x", Theme.Diff.syntaxHex(kind)) }
+            let pairs: [(String, SyntaxKind)] = [
+                ("keyword", .keyword), ("keyword.control", .keyword), ("tag", .keyword), ("metatag", .keyword), ("string", .string),
+                ("string.key.json", .type), ("attribute.value", .string), ("regexp", .string), ("comment", .comment),
+                ("comment.doc", .comment), ("number", .number), ("constant", .number), ("enumMember", .number), ("type", .type),
+                ("type.identifier", .type), ("class", .type), ("interface", .type), ("enum", .type), ("namespace", .type),
+                ("typeParameter", .type), ("attribute.name", .type), ("annotation", .type), ("predefined", .type),
+            ]
+            token = pairs.map { ($0.0, hex($0.1)) } + [("", String(cssHex(Theme.text).dropFirst()))]
+        }
+        var rules = token.map { ["token": $0.0, "foreground": $0.1] }
+        if palette == .hangar { rules[rules.firstIndex { $0["token"] == "comment" }!]["fontStyle"] = "italic" }
+        return rules
+    }
+
+    private static var colors: [String: String] {
         let add = "#98c379", del = "#e06c75"
-        let colors: [String: String] = [
+        // Bracket pairs as in VS Code: gold, orchid, blue by depth.
+        let brackets = ["#FFD700", "#DA70D6", "#179FFF"]
+        return [
             "editor.background": cssHex(Theme.panel), "editor.foreground": cssHex(Theme.text),
             "editorLineNumber.foreground": cssHex(Theme.text3), "editorLineNumber.activeForeground": cssHex(Theme.text2),
             "editorCursor.foreground": cssHex(Theme.accent), "editor.selectionBackground": cssHex(Theme.selection),
@@ -84,8 +118,11 @@ enum MonacoTheme {
             "peekViewEditor.matchHighlightBackground": cssHex(Theme.waiting, alpha: 0.25),
             "peekViewEditorGutter.background": cssHex(Theme.panel),
             "editorStickyScroll.background": cssHex(Theme.panel), "editorStickyScrollHover.background": cssHex(Theme.hover),
+            "editorBracketHighlight.foreground1": brackets[0], "editorBracketHighlight.foreground2": brackets[1],
+            "editorBracketHighlight.foreground3": brackets[2], "editorBracketHighlight.unexpectedBracket.foreground": cssHex(Theme.failed),
+            "editorBracketPairGuide.activeBackground1": brackets[0] + "80", "editorBracketPairGuide.activeBackground2": brackets[1] + "80",
+            "editorBracketPairGuide.activeBackground3": brackets[2] + "80",
         ]
-        return ["base": "vs-dark", "inherit": true, "rules": rules, "colors": colors]
     }
 
     /// CSS variables of the page's own chrome (file tabs, bars, the diff header's toggle).

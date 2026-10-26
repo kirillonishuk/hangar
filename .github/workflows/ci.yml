@@ -46,10 +46,10 @@ jobs:
       - name: System language ru
         run: defaults write -g AppleLanguages -array ru en
 
-      # A fresh runner security-scans every new test helper executable on first exec (XProtect), which stalls the
-      # first run past the tests' 20 s timeouts; the scripts are content-addressed, so a second run is not scanned.
+      # Serial: hosted runners have 3 cores, and the suite's process/socket tests starve each other in parallel
+      # (20 s timeouts blown); serially the suite takes a few minutes. One retry absorbs a cold-runner hiccup.
       - name: Test
         run: |
-          swift test && exit 0
-          echo "::warning::First test run failed; retrying once with the helpers already scanned"
-          swift test
+          swift test --no-parallel && exit 0
+          echo "::warning::Test run failed; retrying once"
+          swift test --no-parallel

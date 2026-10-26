@@ -1,0 +1,132 @@
+name: Release
+
+# A merged PR into main → next semver (PR label major/minor/patch, else the PR title's conventional-commit type,
+# default patch) → Info.plist bump committed back by the bot → tag vX.Y.Z → .app + DMG → GitHub Release.
+# Also: a pushed v* tag releases that tag as-is; workflow_dispatch releases main with a chosen bump.
+# No loop: pushes made with GITHUB_TOKEN never trigger workflows, and the bump commit carries [skip ci].
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+          fetch-depth: 0
+
+      - name: Next version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BUMP_INPUT: ${{ inputs.bump }}
+        run: |
+          PLIST=Resources/Info.plist
+          CURRENT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          if [ "$EVENT" = push ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n 1)
+            if [ -z "$LAST" ]; then
+              VERSION="$CURRENT"  # first release ships the version already in Info.plist
+            else
+              if [ "$EVENT" = workflow_dispatch ]; then BUMP="$BUMP_INPUT"
+              elif [[ " $LABELS " == *" major "* ]]; then BUMP=major
+              elif [[ " $LABELS " == *" minor "* ]]; then BUMP=minor
+              elif [[ " $LABELS " == *" patch "* ]]; then BUMP=patch
+              elif [[ "$TITLE" =~ ^[a-z]+(\([^\)]*\))?!: ]]; then BUMP=major
+              elif [[ "$TITLE" =~ ^feat(\([^\)]*\))?: ]]; then BUMP=minor
+              else BUMP=patch; fi
+              IFS=. read -r MA MI PA <<< "${LAST#v}"
+              case "$BUMP" in
+                major) VERSION="$((MA + 1)).0.0" ;;
+                minor) VERSION="$MA.$((MI + 1)).0" ;;
+                *)     VERSION="$MA.$MI.$((PA + 1))" ;;
+              esac
+            fi
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version '$VERSION'"; exit 1; }
+          if [ "$EVENT" != push ] && git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (Info.plist had $CURRENT)"
+
+      - name: Stamp Info.plist
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git rev-list --count HEAD)" Resources/Info.plist
+
+      - uses: ./.github/actions/setup
+
+      - name: Build Hangar.app
+        run: scripts/bundle.sh
+
+      - name: Build DMG
+        run: |
+          scripts/make-dmg.sh
+          mv build/Hangar.dmg "build/Hangar-${{ steps.version.outputs.version }}.dmg"
+          cd build && shasum -a 256 "Hangar-${{ steps.version.outputs.version }}.dmg" > "Hangar-${{ steps.version.outputs.version }}.dmg.sha256"
+
+      - name: Commit version and tag
+        if: steps.version.outputs.tagged == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- Resources/Info.plist; then
+            git commit -m "chore(release): v$VERSION [skip ci]" -- Resources/Info.plist
+            # Branch protection may refuse the bot; the tag still marks what was built.
+            if ! git push origin HEAD:main; then
+              echo "::warning::Could not push the version bump to main; tagging the built commit only"
+              git reset -q --soft HEAD~1
+            fi
+          fi
+          git tag -a "v$VERSION" -m "Hangar $VERSION"
+          git push origin "v$VERSION"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          ### Install
+
+          1. Download **Hangar-$VERSION.dmg** below, open it and drag **Hangar** to **Applications**.
+          2. The build is ad-hoc signed (not notarized), so macOS blocks the first launch: right-click Hangar → **Open**, or run
+             \`xattr -dr com.apple.quarantine /Applications/Hangar.app\`.
+
+          Requires macOS 14 or later on Apple silicon.
+          EOF
+          gh release create "v$VERSION" \
+            "build/Hangar-$VERSION.dmg" "build/Hangar-$VERSION.dmg.sha256" docs/assets/hangar-demo.mp4 \
+            --title "Hangar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes --verify-tag

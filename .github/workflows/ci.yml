@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & test
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      # Tests create commits in temporary repositories.
+      - name: Git identity for tests
+        run: |
+          git config --global user.name "Hangar CI"
+          git config --global user.email "ci@users.noreply.github.com"
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test

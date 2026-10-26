@@ -196,24 +196,49 @@ let diffHighlightMaxBytes = 1_000_000
     }
 }
 
-/// The shown diff tab: path header with `+N −M`, then the unified diff.
+/// The shown diff tab: path header with `+N −M` and the side-by-side / inline switch, then Monaco's diff editor
+/// (#80); binary, too large and failed diffs show their notice instead.
 struct DiffView: View {
     let app: AppState
+    /// Its task: another task's diff never loads into this page.
+    let taskId: UUID
+    let editor: DiffEditorController
 
     var body: some View {
-        if let tab = app.activeDiff {
+        if app.selectedTask?.id == taskId, let tab = app.activeDiff {
             let content = app.activeDiffContent
             VStack(spacing: 0) {
                 header(tab.path, commit: tab.commit, content)
-                DiffLines(content: content, selected: app.activeDiffSelection,
-                          select: { app.selectDiffRow($0) }, open: { app.openActiveDiffInEditor() })
-                    .equatable()
-                    .id(tab.path + (tab.commit ?? ""))  // another file (or commit) starts at the top
+                ForEach(Array(notes(content).enumerated()), id: \.offset) { _, text in
+                    Text(verbatim: text)
+                        .font(.system(size: Theme.Diff.font, design: .monospaced))
+                        .foregroundStyle(Theme.ui.text3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, Theme.Diff.headerPaddingV)
+                        .padding(.horizontal, Theme.Diff.headerPaddingH)
+                }
+                if content.isText {
+                    MonacoDiffView(editor: editor)
+                        // Every new load (another file, a refresh after an edit on disk) goes to the page.
+                        .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Theme.ui.panel)
         } else {
             Theme.ui.panel
+        }
+    }
+
+    /// «Переименован из …», a mode change, or the notice that replaces the diff.
+    private func notes(_ content: DiffContent) -> [String] {
+        content.rows.compactMap { row in
+            switch row {
+            case .meta(let s), .notice(let s): s
+            case .hunk, .line: nil
+            }
         }
     }
 
@@ -231,143 +256,40 @@ struct DiffView: View {
                 Text(verbatim: "−\(content.deleted)").foregroundStyle(Theme.Diff.badgeD)
             }
             Spacer(minLength: 0)
+            if content.isText {
+                HStack(spacing: Theme.Diff.headerGap) {
+                    modeButton(L10n.diffSideBySide, inline: false)
+                    modeButton(L10n.diffInline, inline: true)
+                }
+                .font(.system(size: Theme.fontSize.segment))
+            }
         }
         .font(.system(size: Theme.Diff.font, design: .monospaced))
         .padding(.vertical, Theme.Diff.headerPaddingV)
         .padding(.horizontal, Theme.Diff.headerPaddingH)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
-}
 
-/// A clickable diff line (click selects, double click opens in hx) lights up under the pointer.
-private struct LineHover: ViewModifier {
-    let enabled: Bool
-    @State private var hover = false
-
-    func body(content: Content) -> some View {
-        content
-            .overlay { if enabled && hover { Theme.ui.hover.opacity(Theme.diffHoverOpacity).allowsHitTesting(false) } }
-            .onHover { h in if enabled { withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } } }
-    }
-}
-
-/// Redrawn only when the load or the selection changes (closures are not compared).
-private struct DiffLines: View, Equatable {
-    let content: DiffContent
-    let selected: Int?
-    let select: (Int?) -> Void
-    let open: () -> Void
-
-    nonisolated static func == (a: Self, b: Self) -> Bool { a.content.version == b.content.version && a.selected == b.selected }
-
-    private static let charWidth: CGFloat = {
-        let font = NSFont.monospacedSystemFont(ofSize: Theme.Diff.font, weight: .regular)
-        return ("0" as NSString).size(withAttributes: [.font: font]).width
-    }()
-
-    var body: some View {
-        GeometryReader { geo in
-            let textWidth = CGFloat(content.maxChars) * Self.charWidth
-            let lineWidth = Theme.Diff.gutter + Theme.Diff.paddingH + Theme.Diff.markerWidth + textWidth + Theme.Diff.headerPaddingH
-            let width = max(geo.size.width, lineWidth)
-            ScrollView([.vertical, .horizontal]) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(content.items) { item in
-                        // Only rows the lazy stack renders are highlighted.
-                        DiffRowView(row: item.row, highlighted: highlighted(item), selected: item.index == selected, width: width)
-                            .contentShape(Rectangle())
-                            .onTapGesture { tap(item) }
-                            .pointingHand(item.row.isClickable)
-                            .modifier(LineHover(enabled: item.row.isClickable))
-                    }
-                }
-                .padding(.bottom, Theme.Diff.headerPaddingV)
-            }
-            // A two-axis scroll view starts centered (and centers smaller content): start at the top left.
-            .defaultScrollAnchor(.topLeading)
+    /// Side by side / inline; the choice persists (`WorkspaceState.diffInline`).
+    private func modeButton(_ title: String, inline: Bool) -> some View {
+        let on = app.state.diffInline == inline
+        return Button {
+            guard !on else { return }
+            app.perform { $0.diffInline = inline }
+            editor.setInline(inline)
+        } label: {
+            Text(verbatim: title).foregroundStyle(on ? Theme.ui.text : Theme.ui.text3)
         }
-    }
-
-    private func highlighted(_ item: DiffContent.Item) -> AttributedString? {
-        guard let h = content.highlighter, case .line(let l) = item.row else { return nil }
-        return h.text(at: item.index, diffDisplayText(l.text))
-    }
-
-    /// One tap handler: a separate count-2 gesture would delay every single click.
-    private func tap(_ item: DiffContent.Item) {
-        guard item.row.isClickable else { return }
-        select(item.index)
-        if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { open() }
+        .buttonStyle(.plain)
+        .pointingHand(!on)
     }
 }
 
-private extension DiffRow {
-    var isClickable: Bool {
-        switch self {
-        case .hunk, .line: true
-        case .meta, .notice: false
-        }
-    }
-}
-
-private struct DiffRowView: View {
-    let row: DiffRow
-    /// The line's text with syntax colors (nil: plain).
-    let highlighted: AttributedString?
-    let selected: Bool
-    /// The background reaches the right edge (or the longest line).
-    let width: CGFloat
-
-    var body: some View {
-        content
-            .font(.system(size: Theme.Diff.font, design: .monospaced))
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: width, alignment: .leading)
-            // The selection tints the add/del background, under the text: an overlay dimmed the line's syntax colors.
-            .background { ZStack { background; if selected { Theme.ui.selection.opacity(Theme.Diff.selectedOpacity) } } }
-    }
-
-    @ViewBuilder private var content: some View {
-        switch row {
-        case .meta(let text), .notice(let text):
-            Text(verbatim: text)
-                .foregroundStyle(Theme.ui.text3)
-                .padding(.vertical, Theme.Diff.headerPaddingV)
-                .padding(.horizontal, Theme.Diff.headerPaddingH)
-        case .hunk(let header):
-            Text(verbatim: header.replacingOccurrences(of: "\t", with: String(repeating: " ", count: diffTabWidth)))
-                .foregroundStyle(Theme.Diff.hunk)
-                .padding(.vertical, Theme.Diff.hunkPaddingV)
-                .padding(.horizontal, Theme.Diff.headerPaddingH)
-        case .line(let line):
-            HStack(spacing: 0) {
-                // One column: the new number at added/context lines, the old one at deleted lines.
-                Text(verbatim: (line.kind == .deleted ? line.oldLine : line.newLine).map(String.init) ?? "")
-                    .foregroundStyle(Theme.ui.text3)
-                    .frame(width: Theme.Diff.gutter, alignment: .trailing)
-                    .padding(.trailing, Theme.Diff.paddingH)
-                Text(verbatim: line.kind == .added ? "+" : line.kind == .deleted ? "-" : "")
-                    .foregroundStyle(line.kind == .added ? Theme.Diff.addMarker : Theme.Diff.delMarker)
-                    .frame(width: Theme.Diff.markerWidth, alignment: .leading)
-                Group {
-                    if let highlighted { Text(highlighted) } else { Text(verbatim: diffDisplayText(line.text)) }
-                }
-                    .foregroundStyle(Theme.ui.text)
-                    .padding(.trailing, Theme.Diff.headerPaddingH)
-            }
-            .padding(.vertical, Theme.Diff.linePaddingV)
-        }
-    }
-
-    private var background: Color {
-        switch row {
-        case .hunk: Theme.Diff.hunkBg
-        case .line(let l) where l.kind == .added: Theme.Diff.add
-        case .line(let l) where l.kind == .deleted: Theme.Diff.del
-        default: .clear
-        }
-    }
+/// The diff page's web view inside the SwiftUI tab (one view for the controller's life, reparented as needed).
+private struct MonacoDiffView: NSViewRepresentable {
+    let editor: DiffEditorController
+    func makeNSView(context: Context) -> NSView { editor.container }
+    func updateNSView(_ view: NSView, context: Context) {}
 }
 
 /// Takes the keyboard while the diff tab is shown, so typing never reaches the hidden terminal.

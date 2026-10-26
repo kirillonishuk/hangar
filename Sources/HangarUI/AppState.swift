@@ -58,8 +58,16 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
     @ObservationIgnored var onHostConnected: ((String) -> Void)?
-    /// Opens an absolute path (optionally at a line) in the selected task's editor; set by `TerminalArea`.
-    @ObservationIgnored var onOpenInEditor: ((String, Int?) -> Void)?
+    /// Opens an absolute path (optionally at a line and column) in the selected task's editor; set by `TerminalArea`.
+    @ObservationIgnored var onOpenInEditor: ((String, Int?, Int?) -> Void)?
+    /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
+    @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
+    /// M2 hook: answers Monaco's definition / references / hover / completion requests; nil = none (#80).
+    @ObservationIgnored var editorProvider: EditorProvider?
+    /// Asks before the diff tab drops an edited buffer (set by `TerminalArea` with the diff editor).
+    @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
+    /// Diff tabs with an edited, unsaved working file (quitting asks).
+    @ObservationIgnored var diffUnsaved: (() -> Int)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.
@@ -478,11 +486,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// Inspector clicks: the task's Helix, else a new editor tab (decision #44). Without a selected task — nothing.
-    func openInEditor(path: String, line: Int?) {
+    /// Files, ⌘P, diff ↩, links: the task's editor tab (Monaco, #80), else a new one. Without a selected task — nothing.
+    func openInEditor(path: String, line: Int?, column: Int? = nil) {
         guard selectedTask != nil else { return }
         deactivateDiff()  // the editor tab (also a new one) is shown instead
-        onOpenInEditor?(path, line)
+        onOpenInEditor?(path, line, column)
     }
 
     /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git

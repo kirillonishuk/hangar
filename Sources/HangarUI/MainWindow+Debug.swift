@@ -323,6 +323,7 @@ extension MainWindowController {
             switch f.first ?? "" {
             case "files": m.segment = .files
             case "changes": m.segment = .changes
+            case "git": m.segment = .git
             case "toggleMode": m.toggleMode()
             case "expand": if f.count > 1 { m.expand(f[1]) }
             case "diff": if f.count > 1 { m.loadDiff(path: f[1]) }

@@ -517,7 +517,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var firstResponderKind: FirstResponderKind {
         guard let responder = window?.firstResponder else { return .other }
         let view = responder as? NSView
-        return responderKind(isText: responder is NSText, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
+        return responderKind(isText: responder is NSText, isWeb: webFocus != .none, inTerminalArea: view?.isDescendant(of: column.terminalArea) == true,
                              isDiff: sequence(first: view, next: { $0?.superview }).contains { $0 is DiffHostView })
     }
 

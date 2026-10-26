@@ -226,6 +226,15 @@ import Workspace
         #expect(f2Route(.other, lastInteraction: .chromeClick(.task(task)), selectedTask: nil) == .rename(.task(task)))
     }
 
+    /// Monaco (editor or the diff's editable side) types like a text field: F2 is its rename, not the session's.
+    @Test func monacoFocusIsTyping() {
+        #expect(responderKind(isText: false, isWeb: true, inTerminalArea: true, isDiff: true) == .text)
+        #expect(responderKind(isText: false, isWeb: true, inTerminalArea: true, isDiff: false) == .text)
+        #expect(responderKind(isText: false, isWeb: false, inTerminalArea: true, isDiff: true) == .other)
+        #expect(f2Route(responderKind(isText: false, isWeb: true, inTerminalArea: true, isDiff: true), lastInteraction: .typing,
+                        selectedTask: UUID()) == .passthrough)
+    }
+
     @Test func clickTypeThenF2PassesThrough() throws {
         let (app, p, _, _) = try makeApp()
         defer { cleanup() }

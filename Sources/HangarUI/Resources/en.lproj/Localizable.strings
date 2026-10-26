@@ -89,6 +89,7 @@
 "copyPath" = "Copy Path";
 "portCopy" = "Port: %@ (copy)";
 "copyLink" = "Copy Link";
+"linkNotFound" = "Link leads nowhere: its target is not in Hangar";
 "attentionOnly" = "Waiting only";
 "nobodyWaiting" = "Nobody is waiting";
 "openIn" = "Open in %@";

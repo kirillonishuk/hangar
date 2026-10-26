@@ -89,6 +89,7 @@
 "copyPath" = "Скопировать путь";
 "portCopy" = "Порт: %@ (копировать)";
 "copyLink" = "Скопировать ссылку";
+"linkNotFound" = "Ссылка никуда не ведёт: её цели в Hangar нет";
 "attentionOnly" = "Только ждущие";
 "nobodyWaiting" = "Никто не ждёт";
 "openIn" = "Открыть в %@";

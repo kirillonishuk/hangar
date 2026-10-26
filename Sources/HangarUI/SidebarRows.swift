@@ -1,4 +1,6 @@
 import AgentStatus
+import AppKit
+import ControlServer
 import SwiftUI
 
 /// One sidebar row. The marker (dot/icon) sits at `Theme.gutterMarkerX` in both expanded and rail mode;
@@ -232,7 +234,12 @@ struct MenuEntry {
 /// (while not connected), «Проверить сервер» (connected), «Отключиться».
 @MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
     let terminal = MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) }
-    guard app.sshHosts.contains(host) else { return [terminal] }
+    // `hangar://host/…` (#88): only for names a link carries as is.
+    let link = HangarLink.isLinkableHost(host) ? [MenuEntry(title: L10n.copyLink, icon: .copy) {
+        ctx.pasteboard.clearContents()
+        ctx.pasteboard.setString(LinkTarget.host(host).link.url.absoluteString, forType: .string)
+    }] : []
+    guard app.sshHosts.contains(host) else { return [terminal] + link }
     let state = app.remote.hosts[host]?.state ?? .disconnected
     let down = state == .disconnected || { if case .unreachable = state { true } else { false } }()
     return [
@@ -240,7 +247,7 @@ struct MenuEntry {
         MenuEntry(title: L10n.reconnect, icon: .reconnect, enabled: state != .connected) { app.reconnect(host: host) },
         MenuEntry(title: L10n.checkServer, icon: .checkServer, enabled: state == .connected) { ctx.checkServer(host) },
         MenuEntry(title: L10n.disconnect, icon: .disconnect, enabled: !down) { app.remote.disconnect(host) },
-    ]
+    ] + link
 }
 
 /// The custom menu at the pointer (a click on a whole row), or at `point` in `view` (keyboard: mid-window).

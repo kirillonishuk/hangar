@@ -93,11 +93,42 @@ import Workspace
         #expect(resumeSet(for: s) == Set(ids))
     }
 
-    @Test func sessionIdAlwaysResumes() {
+    /// #89: `--continue` next to a leaf with a known id would most likely attach to that leaf's conversation.
+    @Test func sessionIdAlwaysResumesAndTakesTheContinueSlot() {
         let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"),
-                              Leaf(kind: .claude, cwd: "/a", agentSessionId: "y")])
+                              Leaf(kind: .claude, cwd: "/a/", agentSessionId: "y"), Leaf(kind: .claude, cwd: "/b"),
+                              Leaf(kind: .codex, cwd: "/a")])
         let set = resumeSet(for: s)
-        #expect(set.contains(ids[1]) && set.contains(ids[2]) && set.contains(ids[0]))
+        #expect(set.contains(ids[1]) && set.contains(ids[2]))
+        #expect(!set.contains(ids[0]))
+        #expect(set.contains(ids[3]) && set.contains(ids[4]))  // another folder, another agent: their own slots
+    }
+
+    /// The slot is per folder across sessions: a leaf with an id in another live session blocks it too.
+    @Test func sessionIdInAnotherTaskBlocksContinue() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        s.addTask(projectId: p, name: "one")
+        s.addTask(projectId: p, name: "two")
+        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")
+        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
+        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(b), focusedLeafId: b.id)]
+        #expect(resumeSet(for: s) == [b.id])
+    }
+
+    /// Two leaves without ids: the first continues; once its hooks give it an id, ↩ on the second still starts fresh
+    /// (before #89 the second became "first without an id" and `--continue`d the first one's conversation).
+    @Test func relaunchAfterNeighbourGotIdStartsFresh() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
+        let app = app(s)
+        let tabs = app.state.tasks[0].tabs
+        app.perform { $0.setAgentSessionId(leafId: tabs[0].root.leaves[0].id, "s1") }
+        let previous = LaunchMode(restoring: true, initialPrompt: nil)
+        let second = try app.spec(for: tabs[1].root.leaves[0], tabId: tabs[1].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(!second.1.restoring)
+        #expect(!second.0.command.contains("--continue"))
+        let first = try app.spec(for: tabs[0].root.leaves[0], tabId: tabs[0].id, context: .relaunch(previous: previous, exitCode: 0))
+        #expect(first.1.restoring && first.0.command.contains("--resume s1"))
     }
 
     @Test func codexSameRule() {
@@ -160,7 +191,7 @@ import Workspace
         let app = app(s)
         #expect(app.launchContext(for: a.id) == .created(prompt: nil))  // archived at startup: not restored
         app.restore(taskId: old)
-        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: false))  // c's known id takes the folder's slot (#89)
         #expect(app.launchContext(for: b.id) == .restored(inResumeSet: false))
         #expect(app.launchContext(for: c.id) == .restored(inResumeSet: true))
         #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))

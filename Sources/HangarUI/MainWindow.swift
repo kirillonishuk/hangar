@@ -691,10 +691,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         column.terminalArea.focus(leafId: leafId)
     }
 
-    /// A clicked `hangar://` link (#66): select and bring the window up; a tab link focuses its terminal.
+    /// A clicked `hangar://` link (#66, #88): select and bring the window up; a tab link focuses its terminal.
+    /// A malformed or dead link: the window comes up with a toast, nothing else changes.
     public func openLink(_ url: URL) {
-        guard let target = app.openLink(url) else { return }
-        if case .tab(let task, let tab) = target,
+        let target = app.openLink(url)
+        if target == nil { column.archiveUndo.show(message: L10n.linkNotFound) }
+        if case .tab(let task, let tab)? = target,
            let leaf = app.state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab })?.focusedLeafId {
             reveal(leafId: leaf)
             return

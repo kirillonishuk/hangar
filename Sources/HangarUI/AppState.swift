@@ -628,8 +628,9 @@ func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting 
 }
 
 /// Leaves of `tasks` that start with `restoring: true` (at startup: all live tasks; on unarchive: that task).
-/// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so among
-/// claude/codex leaves without an id only the first per (kind, host, cwd) continues; later ones start fresh.
+/// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so at most one
+/// claude/codex leaf without an id per (kind, host, cwd) continues, and only if no leaf there has an id (#89): that
+/// leaf's conversation is likely the latest one, and `--continue` would attach a second tab to it. The rest start fresh.
 /// Leaves with an id always resume; shell and editor leaves are always restored. `host`: a project's ssh host, nil if local.
 func resumeSet(for state: WorkspaceState) -> Set<UUID> {
     resumeSet(for: state.tasks.filter { !$0.archived }, host: { id in state.projects.first { $0.id == id }?.host })
@@ -637,22 +638,24 @@ func resumeSet(for state: WorkspaceState) -> Set<UUID> {
 
 func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
     struct Key: Hashable { var kind: LeafKind; var host: String?; var cwd: String }
-    var claimed = Set<Key>()
+    var agents: [(leaf: Leaf, key: Key)] = []
     var result = Set<UUID>()
-    func visit(_ leaf: Leaf, host: String?) {
-        switch leaf.kind {
-        case .shell, .editor: result.insert(leaf.id)
-        case .claude, .codex:
-            if validSessionId(leaf.agentSessionId) != nil { result.insert(leaf.id); return }
-            var cwd = leaf.cwd
-            while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }
-            if claimed.insert(Key(kind: leaf.kind, host: host, cwd: cwd)).inserted { result.insert(leaf.id) }
-        }
-    }
     for task in tasks {
         let host = host(task.projectId)
-        for tab in task.tabs { tab.root.leaves.forEach { visit($0, host: host) } }
-        if let leaf = task.drawer.leaf { visit(leaf, host: host) }
+        for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
+            switch leaf.kind {
+            case .shell, .editor: result.insert(leaf.id)
+            case .claude, .codex:
+                var cwd = leaf.cwd
+                while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }
+                agents.append((leaf, Key(kind: leaf.kind, host: host, cwd: cwd)))
+            }
+        }
+    }
+    // A folder with a known conversation has no `--continue` slot left.
+    var claimed = Set(agents.filter { validSessionId($0.leaf.agentSessionId) != nil }.map(\.key))
+    for (leaf, key) in agents {
+        if validSessionId(leaf.agentSessionId) != nil || claimed.insert(key).inserted { result.insert(leaf.id) }
     }
     return result
 }

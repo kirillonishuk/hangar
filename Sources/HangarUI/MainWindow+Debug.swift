@@ -122,6 +122,7 @@ extension MainWindowController {
                 PopoverMenu.show(actionMenu(for: target, ctx: ctx), at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
             }
         case "project": app.addProject(path: arg)
+        case "link": if let url = URL(string: arg) { openLink(url) }  // link <url>: as a clicked hangar:// link (#88)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
             let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)

@@ -66,7 +66,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksArchive: "Archive a session. A worktree session's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived session. A worktree session's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
-        case .linksCreate: "Get a hangar:// link to a session, a tab or a project. Clicking it in Hangar only selects and focuses it; nothing runs."
+        case .linksCreate: "Get a hangar:// link to a session, a tab, a project, an SSH host or a project's Sessions view. Clicking it in Hangar only selects and shows it; nothing runs."
         }
     }
 
@@ -127,9 +127,9 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
         case .linksCreate:
             return [
-                ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at."),
+                ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at: task (a session), tab, project, host, sessions (a project's Sessions view)."),
                 ParamSpec(name: "ref", type: ref, required: true,
-                          summary: "Session or project id (or unique prefix) or name; for a tab, a tab or leaf id from sessions_list (or unique prefix)."),
+                          summary: "Session or project id (or unique prefix) or name (sessions: the project); for a tab, a tab or leaf id from sessions_list (or unique prefix); for a host, its name in SSH HOSTS."),
             ]
         }
     }

@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Hangar — темы приложения v1</title>
+<!--
+  Макет тем. Раскладка — ровно redesign-v1 (строка заголовка, сайдбар 240, вкладки 34, правый сайдбар 340 с Git, строка состояния 24),
+  меняются только цвета. Одно окно-шаблон клонируется в каждую тему; токены — объект THEMES ниже, из него же строятся таблицы и проверка контраста.
+  Синтаксис редактора во всех темах — Dark+ (как в VS Code пользователя); от темы зависят только фон, номера строк, выделение, текущая строка.
+-->
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0d0d0d;color:#d6d6d6;font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:32px 40px 120px}
+h1{font-size:24px;color:#fff;margin:0 0 6px} h2{font-size:20px;color:#fff;margin:0 0 4px}
+h3{font-size:15px;color:#fff;margin:22px 0 8px}
+.lead{color:#a0a0a0;max-width:1180px}
+code,.mono{font-family:"JetBrains Mono","SF Mono",Menlo,monospace}
+code{font-size:12px}
+.toc{display:flex;gap:10px;margin:16px 0 8px;flex-wrap:wrap}
+.toc a{color:#d6d6d6;text-decoration:none;border:1px solid #333;border-radius:8px;padding:6px 12px;font-size:13px;display:flex;gap:8px;align-items:center}
+.toc a i{width:14px;height:14px;border-radius:4px;display:block}
+.toc a.rec{border-color:#007acc}
+
+/* ===== theme section (all colours via CSS vars set from THEMES) ===== */
+.theme{margin-top:56px;padding:28px;border-radius:16px;background:var(--page)}
+.theme .hd{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.theme .hd h2{color:var(--strong)}
+.theme .hd .k{font:12px "JetBrains Mono","SF Mono",Menlo,monospace;color:var(--tx3)}
+.theme .hd .tag{font-size:12px;border-radius:5px;padding:1px 8px;background:var(--accentSoft);color:var(--accentText)}
+.theme .about{color:var(--tx2);font-size:13px;max-width:1180px;margin:0 0 16px}
+.theme .about b{color:var(--tx);font-weight:500}
+
+svg.i{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+
+/* window */
+.win{position:relative;width:1380px;height:820px;border-radius:12px;overflow:hidden;background:var(--bg);border:1px solid var(--winBorder);box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column;color:var(--tx)}
+.tb{height:38px;flex:none;display:flex;align-items:center;border-bottom:1px solid var(--line);position:relative;background:var(--titlebar)}
+.lights{position:absolute;left:20px;top:13px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57;display:block}
+.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.ib{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--tx2);cursor:pointer;transition:background .12s}
+.ib:hover{background:var(--hover);color:var(--tx)}
+.tb .tog{position:absolute;left:84px;top:5px}
+.crumb{position:absolute;left:50%;transform:translateX(-50%);font-size:13px;color:var(--tx2);display:flex;gap:8px;align-items:center;white-space:nowrap}
+.crumb b{color:var(--strong);font-weight:500}
+.crumb .br{font-size:12px;color:var(--tx3);display:flex;gap:4px;align-items:center}
+.tb .rt{position:absolute;right:10px;top:5px;display:flex;gap:4px}
+.qo{height:24px;margin-top:2px;padding:0 10px;border-radius:6px;border:1px solid var(--control);color:var(--tx3);font-size:12px;display:flex;align-items:center;gap:8px;margin-right:8px;cursor:pointer;background:var(--field)}
+.body{flex:1;display:flex;min-height:0}
+.stbar{height:24px;flex:none;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 12px;font-size:12px;color:var(--tx2);gap:12px;white-space:nowrap;background:var(--status)}
+.stbar .sp{flex:1} .stbar .sep{color:var(--tx3)}
+.stbar .it{display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:4px;padding:0 4px;height:20px}
+.stbar .it:hover{background:var(--hover)}
+
+/* left sidebar */
+.sb{width:240px;flex:none;background:var(--sidebar);display:flex;flex-direction:column;border-right:1px solid var(--line);min-height:0;position:relative}
+.newbtn{margin:8px 8px 4px;height:32px;border-radius:8px;background:var(--hoverStrong);display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;font-size:13.5px;color:var(--strong);cursor:pointer}
+.newbtn .k{margin-left:auto;font-size:12px;color:var(--tx3)}
+.nav,.proj,.pinrow{margin:0 8px;height:32px;border-radius:8px;display:flex;align-items:center;font-size:13.5px;cursor:pointer;position:relative}
+.nav:hover,.proj:hover,.pinrow:hover{background:var(--sbHover)}
+.gut{width:24px;flex:none;display:flex;justify-content:center;color:var(--tx2)}
+.nav .cnt{margin-left:auto;margin-right:10px;font-size:12px;color:var(--tx3)}
+.proj{font-weight:600;color:var(--strong)} .proj .gut{color:var(--tx3)}
+.pinrow .p{color:var(--tx3);font-size:12px;margin-left:8px}
+.sec{height:28px;margin-top:8px;display:flex;align-items:center;padding:0 12px 0 20px;font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--tx3);text-transform:uppercase}
+.srow{margin:0 8px;height:44px;border-radius:8px;display:flex;align-items:center;cursor:pointer;position:relative;transition:background .12s}
+.srow:hover,.srow.h{background:var(--sbHover)} .srow.sel{background:var(--selected)}
+.srow .gut{align-self:flex-start;padding-top:9px}
+.srow .st{flex:1;min-width:0;padding-right:8px}
+.srow .l1{display:flex;align-items:center;height:20px}
+.srow .nm{font-size:13.5px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.srow.sel .nm{color:var(--strong)}
+.srow .l2{font-size:12px;color:var(--tx2);height:16px;line-height:16px;display:flex;gap:4px;align-items:center;white-space:nowrap}
+.srow .l2 .w{color:var(--waiting)}
+.badge{font:12px/18px "JetBrains Mono","SF Mono",Menlo,monospace;height:20px;padding:0 6px;border-radius:6px;border:1px solid var(--control);display:flex;gap:6px;align-items:center;margin-left:6px}
+.badge .a{color:var(--gitA);font-weight:400} .badge .d{color:var(--gitD);font-weight:400}
+.srow .more{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--strong);background:var(--moreBg);margin-left:6px}
+.dot{width:8px;height:8px;border-radius:50%;display:block;flex:none}
+.dot.run{background:var(--working)} .dot.wait{background:var(--waiting);box-shadow:0 0 0 3px var(--waitingHalo)}
+.dot.done{background:var(--done)} .dot.fail{background:var(--failed)} .dot.idle{background:var(--idle)}
+.dot.ring{background:transparent;border:1.5px solid var(--waiting)}
+.sbbot{margin-top:auto;background:var(--bottomBar);border-top:1px solid var(--line);padding:6px 0 8px}
+.lim{margin:0 8px;height:28px;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;font-size:12px;color:var(--tx2)}
+.lim .n{width:44px}
+.bar{height:4px;border-radius:2px;background:var(--limTrack);flex:1;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--limOk);border-radius:2px}
+.bar i.w{background:var(--waiting)}
+.lim .pc{width:32px;text-align:right;color:var(--tx)}
+.brow{margin:0 8px;height:32px;border-radius:8px;display:flex;align-items:center;font-size:13px;color:var(--tx2)}
+.brow .gut.on{color:var(--accentText)}
+.sw{margin-left:auto;margin-right:10px;width:30px;height:18px;border-radius:9px;background:var(--control);position:relative}
+.sw::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px}
+.sw.on{background:var(--primary)} .sw.on::after{left:14px}
+.brow .k{margin-left:auto;margin-right:10px;font-size:12px;color:var(--tx3)}
+
+/* main column */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.tabs{height:34px;flex:none;display:flex;align-items:flex-end;border-bottom:1px solid var(--line);padding:0 8px;gap:2px;background:var(--tabStrip)}
+.tab{height:30px;min-width:110px;max-width:210px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;font-size:12.5px;color:var(--tx2);border-radius:6px 6px 0 0;cursor:pointer;position:relative;white-space:nowrap;background:var(--tabInactive)}
+.tab:hover{background:var(--hover);color:var(--tx)}
+.tab.act{background:var(--tabActive);color:var(--strong)}
+.tab.act::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent);border-radius:6px 6px 0 0}
+.tab.act::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--tabActive)}
+.tab .x{margin-left:auto;opacity:.5}
+.tab .it{font-style:italic}
+.tab .cl{color:var(--claude);font-size:13px}
+.tabs .tail{margin-left:auto;display:flex;align-self:center;gap:2px}
+.crumbs2{height:24px;flex:none;display:flex;align-items:center;gap:6px;padding:0 16px;font-size:12px;color:var(--tx2);background:var(--editorBg)}
+.crumbs2 .sep{color:var(--tx3)}
+
+/* editor (Dark+ token colours, theme-dependent chrome) */
+.ed{flex:1;display:flex;background:var(--editorBg);font:13px/20px "JetBrains Mono","SF Mono",Menlo,monospace;overflow:hidden;color:#d4d4d4;min-height:0}
+.ed .gutter{width:52px;flex:none;text-align:right;padding:4px 14px 0 0;color:var(--edGutter);user-select:none}
+.ed .gutter .cur{color:var(--edGutterActive)}
+.ed .code{flex:1;padding:4px 0 0 4px;white-space:pre;position:relative}
+.ed .ln{display:block;height:20px;position:relative}
+.ed .ln.cur{background:var(--edLine)}
+.ed .ln.add{background:var(--diffAdd)} .ed .ln.del{background:var(--diffDel)}
+.ed .ln.add::before,.ed .ln.del::before{position:absolute;left:-14px;width:10px;text-align:center}
+.ed .ln.add::before{content:"+";color:var(--gitA)} .ed .ln.del::before{content:"−";color:var(--gitD)}
+.ed .sel{background:var(--edSel)}
+.ed .ig{box-shadow:inset 1px 0 0 var(--edIndent)}
+.ed .caret{display:inline-block;width:2px;height:16px;background:#aeafad;vertical-align:-3px}
+/* Dark+ syntax */
+.kc{color:#c586c0}.kw{color:#569cd6}.ty{color:#4ec9b0}.fn{color:#dcdcaa}.va{color:#9cdcfe}.st{color:#ce9178}.nu{color:#b5cea8}.co{color:#6a9955}.cn{color:#4fc1ff}.pu{color:#d4d4d4}.b1{color:#ffd700}.b2{color:#da70d6}.b3{color:#179fff}
+.drawer{height:28px;flex:none;background:var(--bottomBar);border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:11.5px;font-weight:600;color:var(--tx2)}
+.drawer .k{margin-left:auto;font-weight:400;color:var(--tx3);font-size:12px}
+.termmini{height:150px;flex:none;background:var(--termBg);border-top:1px solid var(--line);padding:8px 14px;font:12.5px/1.6 "JetBrains Mono","SF Mono",Menlo,monospace;white-space:pre;color:var(--ansi7);overflow:hidden}
+
+/* right sidebar: Git */
+.rs{width:340px;flex:none;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--panel)}
+.seg{margin:8px 12px;height:28px;flex:none;border-radius:7px;background:var(--field);border:1px solid var(--control);padding:2px;display:flex;gap:2px}
+.seg span{flex:1;border-radius:5px;font-size:12px;color:var(--tx2);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.seg span.on{background:var(--control);color:var(--strong)}
+.seg span em{font-style:normal;color:var(--tx3)}
+.rsec{height:28px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px;font-size:12px;font-weight:600;color:var(--tx3)}
+.tr{height:24px;display:flex;align-items:center;gap:6px;margin:0 6px;padding-right:8px;border-radius:6px;font-size:13px;color:var(--tx);white-space:nowrap}
+.tr:hover{background:var(--hover)} .tr.sel{background:var(--selected);color:var(--strong)}
+.tr .chev{width:16px;color:var(--tx3);display:flex;justify-content:center}
+.tr .dim{color:var(--tx3);margin-left:auto;font-size:12px}
+.tr .num{margin-left:auto;font:12px "JetBrains Mono","SF Mono",Menlo,monospace;display:flex;gap:6px}
+.tr .num .a{color:var(--gitA)} .tr .num .d{color:var(--gitD)}
+.tr .bd{margin-left:8px;font:600 12px "JetBrains Mono","SF Mono",Menlo,monospace;width:14px;text-align:center}
+.bd.M{color:var(--gitM)} .bd.A{color:var(--gitA)} .bd.D{color:var(--gitD)}
+.search{margin:0 12px;height:28px;flex:none;border-radius:7px;background:var(--field);border:1px solid var(--accent);box-shadow:0 0 0 3px var(--accentRing);display:flex;align-items:center;gap:8px;padding:0 8px;font-size:13px;color:var(--tx)}
+.search .r{margin-left:auto;font-size:12px;color:var(--tx3)}
+.chips{display:flex;gap:6px;margin:8px 12px;flex:none}
+.chip{height:24px;padding:0 8px;border-radius:6px;font-size:12px;color:var(--tx2);display:flex;align-items:center;border:1px solid transparent}
+.chip.on{background:var(--accentSoft);color:var(--accentText);border-color:var(--accentSoftBorder)}
+.log{position:relative;flex:none}
+.log svg.gr{position:absolute;left:6px;top:0}
+.lr{height:28px;margin:0 6px;border-radius:6px;display:flex;align-items:center;padding-left:40px;padding-right:8px;font-size:13px;color:var(--tx);white-space:nowrap;gap:6px}
+.lr:hover{background:var(--hover)} .lr.sel{background:var(--selected);color:var(--strong)}
+.lr .s{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.lr .s.m{color:var(--tx2)}
+.lr .tm{font:12px "JetBrains Mono","SF Mono",Menlo,monospace;color:var(--tx3);flex:none}
+.ref{font:12px/18px "JetBrains Mono","SF Mono",Menlo,monospace;height:18px;padding:0 5px;border-radius:4px;background:var(--accentSoft);color:var(--accentText);flex:none}
+.ref.r{background:var(--hover);color:var(--tx2)}
+.split{height:1px;background:var(--line);flex:none}
+.det{flex:1;min-height:0;overflow:hidden}
+.det .h{height:32px;display:flex;align-items:center;padding:0 12px;font-size:12px;font-weight:600;color:var(--tx3)}
+.det .msg{padding:0 12px;font-size:13.5px;line-height:20px;color:var(--strong);font-weight:500}
+.det .meta{display:flex;gap:8px;padding:8px 12px;font-size:12px;color:var(--tx2)}
+.det .meta .hs{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;color:var(--accentText)}
+.det .fh{height:28px;display:flex;align-items:center;padding:0 12px;font-size:12px;font-weight:600;color:var(--tx3);border-top:1px solid var(--line)}
+.det .fh .num{margin-left:auto;font:400 12px "JetBrains Mono","SF Mono",Menlo,monospace;display:flex;gap:6px}
+.det .fh .a{color:var(--gitA)} .det .fh .d{color:var(--gitD)}
+
+/* popover menu */
+.menu{width:256px;background:var(--sheet);border:1px solid var(--controlStrong);border-radius:10px;padding:6px;box-shadow:0 18px 44px rgba(0,0,0,.55),0 2px 6px rgba(0,0,0,.3)}
+.mhd{height:28px;display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--tx3)}
+.mi{height:30px;display:flex;align-items:center;gap:10px;padding:0 10px 0 8px;border-radius:6px;font-size:13px;color:var(--tx);white-space:nowrap}
+.mi .k{margin-left:auto;font-size:12px;color:var(--tx3)}
+.mi.h{background:var(--menuHover);color:var(--menuHoverText)}
+.mi.h .k{color:var(--menuHoverText);opacity:.7}
+.mi.dz{color:var(--failedText)}
+.msep{height:1px;background:var(--lineSheet);margin:6px 2px}
+
+/* sheet */
+.sheetwrap{position:relative;width:640px;height:430px;border-radius:12px;background:var(--bg);overflow:hidden;border:1px solid var(--winBorder);flex:none}
+.sheetwrap::before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:30px;top:20px;width:580px;background:var(--sheet);border:1px solid var(--controlStrong);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.55);padding:16px 18px 16px;color:var(--tx)}
+.sheet .t{font-size:14.5px;font-weight:600;color:var(--strong);margin-bottom:12px}
+.fld{height:36px;border-radius:7px;background:var(--field);border:1px solid var(--accent);box-shadow:0 0 0 3px var(--accentRing);display:flex;align-items:center;padding:0 10px;font-size:15px;color:var(--strong)}
+.fld .ph{color:var(--tx3);font-size:13px;margin-left:auto}
+.card{margin-top:12px;border:1px solid var(--lineSheet);border-radius:8px;overflow:hidden}
+.crow{height:40px;display:flex;align-items:center;padding:0 12px;font-size:13.5px;border-top:1px solid var(--lineSheet)}
+.crow:first-child{border-top:0}
+.crow .lb{width:110px;color:var(--tx2)}
+.dd{margin-left:auto;height:26px;border-radius:7px;border:1px solid var(--controlStrong);background:var(--field);padding:0 8px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tx);min-width:200px}
+.dd .c{margin-left:auto;color:var(--tx3)}
+.crow .sw{margin-right:0}
+.sheet .hint{font-size:12px;color:var(--tx3);margin-top:10px}
+.sheet .ft{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.btn{height:28px;padding:0 14px;border-radius:7px;font-size:13px;display:flex;align-items:center;gap:8px;background:var(--button);color:var(--tx);border:1px solid var(--controlStrong)}
+.btn.p{background:var(--primary);color:var(--primaryText);border-color:transparent;font-weight:500}
+.btn .k{opacity:.65;font-size:12px}
+
+/* token table */
+.lower{display:flex;gap:28px;margin-top:22px;align-items:flex-start}
+table.tok{border-collapse:collapse;font-size:12.5px;width:100%}
+table.tok th,table.tok td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--tx)}
+table.tok th{color:var(--tx3);font-weight:500;font-size:12px}
+table.tok td.n{white-space:nowrap;font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:12px;color:var(--tx2)}
+table.tok td.v{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:12px;white-space:nowrap}
+.sw2{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-3px;margin-right:6px;border:1px solid rgba(255,255,255,.15)}
+.cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 24px;width:1380px}
+.ansi{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:6px}
+.ansi i{height:22px;border-radius:4px;display:block;border:1px solid rgba(255,255,255,.08);font:10px/22px "SF Mono",Menlo,monospace;font-style:normal;text-align:center;color:rgba(255,255,255,.75);text-shadow:0 0 2px #000}
+.cr{font:12px "JetBrains Mono","SF Mono",Menlo,monospace}
+.cr .ok{color:var(--done)} .cr .bad{color:var(--failedText);font-weight:600}
+.verdict{margin-top:10px;font-size:12.5px;color:var(--tx2)}
+.verdict b{color:var(--tx)}
+
+/* settings mock + plain doc blocks (neutral page) */
+.doc{max-width:1180px;margin-top:56px;color:#bdbdbd}
+.doc h2{margin-bottom:10px}
+.doc li{margin:4px 0}
+.doc b{color:#fff;font-weight:500}
+.doc table{border-collapse:collapse;font-size:13px;margin-top:8px}
+.doc th,.doc td{text-align:left;padding:6px 10px;border-bottom:1px solid #333;vertical-align:top}
+.doc th{color:#8a8a8a;font-weight:500}
+.settings{width:760px;border-radius:12px;overflow:hidden;border:1px solid #3c3c3c;background:#1e1e1e;color:#ccc;box-shadow:0 30px 80px rgba(0,0,0,.6);margin-top:14px}
+.settings .stb{height:38px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;border-bottom:1px solid #333;position:relative;background:#252526}
+.settings .stb .lights{top:13px}
+.settings .sbody{display:flex}
+.settings .snav{width:180px;background:#252526;padding:8px;border-right:1px solid #333}
+.settings .snav div{height:30px;border-radius:7px;display:flex;align-items:center;padding:0 10px;font-size:13px;color:#ccc}
+.settings .snav div.on{background:#37373d;color:#fff}
+.settings .smain{flex:1;padding:16px 20px}
+.settings .lbl{font-size:12px;color:#9d9d9d;margin:0 0 8px}
+.tcards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.tcard{border-radius:9px;border:1px solid #3c3c3c;padding:6px;cursor:pointer;background:#252526}
+.tcard.on{border-color:#007acc;box-shadow:0 0 0 2px rgba(0,122,204,.35)}
+.tcard .pv{height:62px;border-radius:5px;overflow:hidden;display:flex}
+.tcard .pv .s{width:30%} .tcard .pv .m{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px}
+.tcard .pv .m i{height:4px;border-radius:2px;display:block}
+.tcard .nm{font-size:12.5px;color:#ddd;margin-top:6px;padding:0 2px}
+.tcard .nm span{color:#8a8a8a;font-size:11.5px;display:block}
+.srow2{display:flex;align-items:center;height:40px;border-top:1px solid #333;font-size:13px;margin-top:14px}
+.srow2 + .srow2{margin-top:0}
+.srow2 .l{width:180px;color:#9d9d9d}
+.segs{display:flex;background:#3c3c3c;border-radius:7px;padding:2px;gap:2px}
+.segs span{padding:3px 10px;border-radius:5px;font-size:12px;color:#ccc}
+.segs span.on{background:#1e1e1e;color:#fff}
+.sub{font-size:12px;color:#8a8a8a;margin-left:12px}
+</style></head><body>
+
+<h1>Hangar — темы приложения v1</h1>
+<p class="lead">Запрос: «давай и тему самого приложения тогда переделаем» — после того как редактор получил подсветку VS Code Dark+. Раскладка — ровно утверждённый <code>redesign-v1</code>; меняются только цвета. Синтаксис кода во всех темах — Dark+ (одни и те же цвета токенов, как в VS Code пользователя); от темы зависят фон редактора, номера строк, текущая строка, выделение, фон diff. Внутри каждого окна открыт поповер «⋯» сессии; под окном — лист «Новая сессия», полная таблица токенов, палитра ANSI для терминала и проверка контраста WCAG AA (считается в странице из тех же токенов).</p>
+<div class="toc" id="toc"></div>
+
+<template id="win-tpl">
+<div class="win">
+  <div class="tb">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="ib tog"><svg class="i" width="16" height="16" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M6 2.75v10.5"/></svg></div>
+    <div class="crumb">frontend-cd <span style="color:var(--tx3)">·</span> <b>redesign-v1</b> <span class="br mono"><svg class="i" width="12" height="12" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.75"/><circle cx="4.5" cy="12.5" r="1.75"/><circle cx="11.5" cy="5.5" r="1.75"/><path d="M4.5 5.25v5.5M11.5 7.25c0 2.5-3 2.5-7 3.5"/></svg>feat/redesign-v1</span></div>
+    <div class="rt">
+      <div class="qo"><svg class="i" width="13" height="13" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.75"/><path d="m10.5 10.5 3.25 3.25"/></svg>Файлы и сессии<span style="margin-left:24px">⌘P</span></div>
+      <div class="ib" style="color:var(--strong)"><svg class="i" width="16" height="16" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M10 2.75v10.5"/></svg></div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="sb">
+      <div class="newbtn"><svg class="i" width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>Новая сессия<span class="k">⌘N</span></div>
+      <div class="nav"><span class="gut"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><path d="M1.75 8A6.25 6.25 0 1 0 3.58 3.58L1.75 5.4"/><path d="M1.75 2.25V5.4h3.15M8 4.75V8l2.25 1.5"/></svg></span><span>Сессии</span><span class="cnt">109</span></div>
+      <div class="sec">Закреплённые</div>
+      <div class="pinrow"><span class="gut"><i class="dot done"></i></span><span>release-2.4</span><span class="p">hangar</span></div>
+      <div class="sec">Проекты</div>
+      <div class="proj"><span class="gut"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><path d="M1.75 4.25c0-.83.67-1.5 1.5-1.5h3l1.5 1.75h5c.83 0 1.5.67 1.5 1.5v5.75c0 .83-.67 1.5-1.5 1.5h-9.5c-.83 0-1.5-.67-1.5-1.5z"/></svg></span><span>frontend-cd</span></div>
+      <div class="srow sel"><span class="gut"><i class="dot run"></i></span><div class="st"><div class="l1"><span class="nm">redesign-v1</span><span class="badge"><b class="a">+541</b><b class="d">−88</b></span></div><div class="l2">⎇ работает · 2 субагента</div></div></div>
+      <div class="srow h"><span class="gut"><i class="dot wait"></i></span><div class="st"><div class="l1"><span class="nm">fix-login-redirect</span><span class="more">⋯</span></div><div class="l2">⎇ <span class="w">ждёт</span> · 1 агент</div></div></div>
+      <div class="srow"><span class="gut"><i class="dot done"></i></span><div class="st"><div class="l1"><span class="nm">api-cache</span><span class="badge"><b class="a">+204</b><b class="d">−61</b></span></div><div class="l2">⎇ готово · 1 агент</div></div></div>
+      <div class="srow"><span class="gut"><i class="dot fail"></i></span><div class="st"><div class="l1"><span class="nm">e2e-flaky</span></div><div class="l2" style="color:var(--failedText)">ошибка · лимит исчерпан</div></div></div>
+      <div class="srow"><span class="gut"><i class="dot idle"></i></span><div class="st"><div class="l1"><span class="nm">main</span></div><div class="l2">нет агентов · 1 вкладка</div></div></div>
+      <div class="proj"><span class="gut"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><path d="M1.75 4.25c0-.83.67-1.5 1.5-1.5h3l1.5 1.75h5c.83 0 1.5.67 1.5 1.5v5.75c0 .83-.67 1.5-1.5 1.5h-9.5c-.83 0-1.5-.67-1.5-1.5z"/></svg></span><span>hangar</span></div>
+      <div class="sbbot">
+        <div class="lim"><span class="n">claude</span><span class="bar"><i style="width:42%"></i></span><span class="bar"><i style="width:18%"></i></span><span class="pc">42%</span></div>
+        <div class="lim"><span class="n">codex</span><span class="bar"><i class="w" style="width:84%"></i></span><span class="bar"><i style="width:31%"></i></span><span class="pc" style="color:var(--waiting)">84%</span></div>
+        <div class="brow"><span class="gut on"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><path d="M13.5 9.5A5.75 5.75 0 0 1 6.5 2.5a5.75 5.75 0 1 0 7 7z"/></svg></span><span style="color:var(--tx)">Не засыпать</span><span class="sw on"></span></div>
+        <div class="brow"><span class="gut"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.25"/><path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05"/></svg></span><span>Настройки</span><span class="k">⌘,</span></div>
+      </div>
+      <div class="menu" style="position:absolute;left:200px;top:236px;z-index:5">
+        <div class="mhd">fix-login-redirect · fix/login-redirect</div>
+        <div class="mi">Новая вкладка<span class="k">⌘T</span></div>
+        <div class="mi h">Переименовать<span class="k">F2</span></div>
+        <div class="mi">Закрепить</div>
+        <div class="msep"></div>
+        <div class="mi">Открыть в Finder<span class="k">⌥⌘R</span></div>
+        <div class="mi">Скопировать путь<span class="k">⌥⌘C</span></div>
+        <div class="msep"></div>
+        <div class="mi dz">Закрыть сессию<span class="k">⇧⌘W</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabs">
+        <div class="tab"><i class="dot run"></i><span class="cl">✻</span><span>claude</span></div>
+        <div class="tab"><i class="dot wait" style="box-shadow:none"></i><span class="cl">✻</span><span>claude · review</span></div>
+        <div class="tab act"><svg class="i" width="14" height="14" viewBox="0 0 16 16" style="color:#3178c6"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 7h4M7 7v5M13 7.5c-.5-.6-2.5-.8-2.5.4 0 1.3 2.5.8 2.5 2.4 0 1.2-2 1.2-2.7.5"/></svg><span class="it">groupByProject.ts</span><span class="x">×</span></div>
+        <div class="tab"><svg class="i" width="14" height="14" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg><span>zsh</span></div>
+        <div class="tail"><span class="ib"><svg class="i" width="15" height="15" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></span></div>
+      </div>
+      <div class="crumbs2">src <span class="sep">›</span> sessions <span class="sep">›</span> <span style="color:var(--tx)">groupByProject.ts</span> <span class="sep">›</span> <span class="fn">groupByProject</span><span style="margin-left:auto;color:var(--tx3)">2 изменения</span></div>
+      <div class="ed">
+        <div class="gutter"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div class="cur">12</div><div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div><div>21</div></div>
+        <div class="code"><span class="ln"><span class="kc">import</span> <span class="b1">{</span> <span class="va">useMemo</span> <span class="b1">}</span> <span class="kc">from</span> <span class="st">'react'</span><span class="pu">;</span></span><span class="ln"><span class="kc">import</span> <span class="kw">type</span> <span class="b1">{</span> <span class="ty">Session</span><span class="pu">,</span> <span class="ty">Project</span> <span class="b1">}</span> <span class="kc">from</span> <span class="st">'./model'</span><span class="pu">;</span></span><span class="ln"> </span><span class="ln"><span class="kc">export</span> <span class="kw">type</span> <span class="ty">Status</span> <span class="pu">=</span> <span class="st">'working'</span> <span class="pu">|</span> <span class="st">'waiting'</span> <span class="pu">|</span> <span class="st">'done'</span><span class="pu">;</span></span><span class="ln"><span class="kc">export</span> <span class="kw">const</span> <span class="cn">MAX_SESSIONS</span> <span class="pu">=</span> <span class="nu">50</span><span class="pu">;</span></span><span class="ln"> </span><span class="ln"><span class="co">// Сессии группируются по проекту; порядок проектов — по имени</span></span><span class="ln"><span class="kc">export</span> <span class="kw">function</span> <span class="fn">groupByProject</span><span class="b1">(</span><span class="va">sessions</span><span class="pu">:</span> <span class="ty">Session</span><span class="pu">[],</span> <span class="va">limit</span> <span class="pu">=</span> <span class="cn">MAX_SESSIONS</span><span class="b1">)</span> <span class="b1">{</span></span><span class="ln"><span class="ig">  </span><span class="kw">const</span> <span class="cn">groups</span> <span class="pu">=</span> <span class="kw">new</span> <span class="ty">Map</span><span class="pu">&lt;</span><span class="ty">string</span><span class="pu">,</span> <span class="ty">Session</span><span class="pu">[]&gt;</span><span class="b2">()</span><span class="pu">;</span></span><span class="ln"><span class="ig">  </span><span class="kc">for</span> <span class="b2">(</span><span class="kw">const</span> <span class="cn">s</span> <span class="kw">of</span> <span class="va">sessions</span><span class="pu">.</span><span class="fn">slice</span><span class="b3">(</span><span class="nu">0</span><span class="pu">,</span> <span class="va">limit</span><span class="b3">)</span><span class="b2">)</span> <span class="b2">{</span></span><span class="ln del"><span class="ig">  </span><span class="ig">  </span><span class="kw">const</span> <span class="cn">list</span> <span class="pu">=</span> <span class="va">groups</span><span class="pu">.</span><span class="fn">get</span><span class="b3">(</span><span class="va">s</span><span class="pu">.</span><span class="va">project</span><span class="b3">)</span> <span class="pu">||</span> <span class="b3">[]</span><span class="pu">;</span></span><span class="ln add cur"><span class="ig">  </span><span class="ig">  </span><span class="kw">const</span> <span class="cn">list</span> <span class="pu">=</span> <span class="va">groups</span><span class="pu">.</span><span class="fn">get</span><span class="b3">(</span><span class="va">s</span><span class="pu">.</span><span class="va">project</span><span class="b3">)</span> <span class="pu">??</span> <span class="b3">[]</span><span class="pu">;</span><span class="caret"></span></span><span class="ln"><span class="ig">  </span><span class="ig">  </span><span class="va">list</span><span class="pu">.</span><span class="fn">push</span><span class="b3">(</span><span class="va">s</span><span class="b3">)</span><span class="pu">;</span></span><span class="ln"><span class="ig">  </span><span class="ig">  </span><span class="va">groups</span><span class="pu">.</span><span class="fn">set</span><span class="b3">(</span><span class="va">s</span><span class="pu">.</span><span class="va">project</span><span class="pu">,</span> <span class="va">list</span><span class="b3">)</span><span class="pu">;</span></span><span class="ln"><span class="ig">  </span><span class="b2">}</span></span><span class="ln"><span class="ig">  </span><span class="kc">return</span> <span class="b2">[</span><span class="pu">...</span><span class="va">groups</span><span class="pu">.</span><span class="fn">entries</span><span class="b3">()</span><span class="b2">]</span><span class="pu">.</span><span class="fn">sort</span><span class="b2">(</span><span class="b3">(</span><span class="b1">[</span><span class="va">a</span><span class="b1">]</span><span class="pu">,</span> <span class="b1">[</span><span class="va">b</span><span class="b1">]</span><span class="b3">)</span> <span class="kw">=&gt;</span> <span class="va">a</span><span class="pu">.</span><span class="fn">localeCompare</span><span class="b3">(</span><span class="va">b</span><span class="b3">)</span><span class="b2">)</span><span class="pu">;</span></span><span class="ln"><span class="b1">}</span></span><span class="ln"> </span><span class="ln"><span class="kc">export</span> <span class="kw">const</span> <span class="fn">useGroups</span> <span class="pu">=</span> <span class="b1">(</span><span class="va">p</span><span class="pu">:</span> <span class="ty">Project</span><span class="b1">)</span> <span class="kw">=&gt;</span></span><span class="ln"><span class="ig">  </span><span class="fn">useMemo</span><span class="b1">(</span><span class="b2">()</span> <span class="kw">=&gt;</span> <span class="fn">groupByProject</span><span class="b2">(</span><span class="va">p</span><span class="pu">.</span><span class="va">sessions</span><span class="b2">)</span><span class="pu">,</span> <span class="b2">[</span><span class="va">p</span><span class="pu">.</span><span class="va">sessions</span><span class="b2">]</span><span class="b1">)</span><span class="pu">;</span> <span class="co">// <span class="sel">memoised per project</span></span></span></div>
+      </div>
+      <div class="drawer"><svg class="i" width="14" height="14" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="m4.5 6 2 2-2 2M8.5 10.5h3"/></svg>ТЕРМИНАЛ<span class="k">⌘J</span></div>
+      <div class="termmini"><span style="color:var(--ansi10)">➜</span>  <span style="color:var(--ansi6)">redesign-v1</span> <span style="color:var(--ansi4)">git:(</span><span style="color:var(--ansi1)">feat/redesign-v1</span><span style="color:var(--ansi4)">)</span> <span style="color:var(--ansi3)">✗</span> npm test -- groupByProject
+<span style="color:var(--ansi0);background:var(--ansi2)"> PASS </span> src/sessions/groupByProject.test.ts
+  <span style="color:var(--ansi2)">✓</span> groups by project <span style="color:var(--ansi8)">(3 ms)</span>
+  <span style="color:var(--ansi1)">✕</span> keeps empty projects <span style="color:var(--ansi8)">(1 ms)</span>
+<span style="color:var(--ansi3)">warn</span>  <span style="color:var(--ansi5)">vite</span> deprecated option <span style="color:var(--ansi14)">server.hmr.port</span></div>
+    </div>
+
+    <div class="rs">
+      <div class="seg"><span>Files</span><span>Changes <em>4</em></span><span class="on">Git</span></div>
+      <div class="rsec">Ветки</div>
+      <div class="tr sel"><span class="chev"></span><span>HEAD</span><span class="ref" style="margin-left:4px">feat/redesign-v1</span></div>
+      <div class="tr"><span class="chev">›</span>Local<span class="dim">6</span></div>
+      <div class="tr"><span class="chev">›</span>Remote<span class="dim">origin · 23</span></div>
+      <div style="height:8px"></div>
+      <div class="search"><svg class="i" width="13" height="13" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.75"/><path d="m10.5 10.5 3.25 3.25"/></svg>sidebar<span class="r">⌘F</span></div>
+      <div class="chips"><span class="chip on">feat/redesign-v1 ▾</span><span class="chip">Автор ▾</span><span class="chip">Дата ▾</span><span class="chip">Путь ▾</span></div>
+      <div class="log">
+        <svg class="gr" width="36" height="224" viewBox="0 0 36 224" fill="none" stroke-width="1.5" stroke-linecap="round">
+          <path d="M10 14V224" stroke="var(--lane1)"/>
+          <path d="M10 42Q22 42 22 56V98Q22 126 10 126" stroke="var(--lane2)"/>
+          <path d="M10 154Q22 154 22 168V196Q22 210 10 210" stroke="var(--lane3)"/>
+          <circle cx="10" cy="14" r="4" fill="var(--lane1)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="10" cy="42" r="3.5" fill="var(--panel)" stroke="var(--lane1)"/>
+          <circle cx="22" cy="70" r="4" fill="var(--lane2)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="22" cy="98" r="4" fill="var(--lane2)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="10" cy="126" r="4" fill="var(--lane1)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="10" cy="154" r="3.5" fill="var(--selected)" stroke="var(--lane1)"/>
+          <circle cx="22" cy="182" r="4" fill="var(--lane3)" stroke="var(--panel)" stroke-width="2"/>
+          <circle cx="10" cy="210" r="4" fill="var(--lane1)" stroke="var(--panel)" stroke-width="2"/>
+        </svg>
+        <div class="lr"><span class="ref">feat/redesign-v1</span><span class="s">Sidebar toggle moves to the titlebar</span><span class="tm">17:42</span></div>
+        <div class="lr"><span class="s m">Merge fix/hover-actions</span><span class="tm">17:16</span></div>
+        <div class="lr"><span class="s">Inline row actions fade in on hover</span><span class="tm">16:58</span></div>
+        <div class="lr"><span class="s">Row highlight: inset 8, radius 8</span><span class="tm">16:40</span></div>
+        <div class="lr"><span class="s">Status bar spans the window</span><span class="tm">16:21</span></div>
+        <div class="lr sel"><span class="s m" style="color:var(--strong)">Merge feat/git-tab: read-only log</span><span class="tm">16:03</span></div>
+        <div class="lr"><span class="s">Commit log with graph lanes</span><span class="tm">15:53</span></div>
+        <div class="lr"><span class="ref r">origin/main</span><span class="s">Sessions history</span><span class="tm">15:44</span></div>
+      </div>
+      <div class="split"></div>
+      <div class="det">
+        <div class="h">Коммит</div>
+        <div class="msg">Merge feat/git-tab: read-only log in the right sidebar</div>
+        <div class="meta"><span class="hs">5158cd1</span><span style="color:var(--tx3)">·</span>kirill<span style="color:var(--tx3)">·</span>сегодня 16:03</div>
+        <div class="fh">6 файлов<span class="num"><span class="a">+312</span><span class="d">−41</span></span></div>
+        <div class="tr"><span class="chev"></span><span>GitLogView.swift</span><span class="num"><span class="a">+184</span><span class="d">−0</span></span><span class="bd A">A</span></div>
+        <div class="tr"><span class="chev"></span><span>CommitDetail.swift</span><span class="num"><span class="a">+13</span><span class="d">−12</span></span><span class="bd M">M</span></div>
+        <div class="tr"><span class="chev"></span><span>OldGraph.swift</span><span class="num"><span class="a">+0</span><span class="d">−29</span></span><span class="bd D">D</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="stbar">
+    <span class="it">Этот Mac</span><span class="sep">·</span><span class="it">frontend-cd</span><span class="sep">·</span>
+    <span class="it"><i class="dot run"></i>1 работает</span><span class="it"><i class="dot ring"></i>3 ждут</span>
+    <span class="sp"></span>
+    <span class="it">Ln 12, Col 52</span><span class="sep">·</span><span class="it">TypeScript</span><span class="sep">·</span><span class="it mono">zsh</span>
+  </div>
+</div>
+</template>
+
+<template id="sheet-tpl">
+<div class="sheetwrap">
+  <div class="sheet">
+    <div class="t">Новая сессия в frontend-cd</div>
+    <div class="fld">fix-login-redirect<span class="ph">название</span></div>
+    <div class="card">
+      <div class="crow"><span class="lb">Проект</span><span class="dd">frontend-cd<span class="c">⌄</span></span></div>
+      <div class="crow"><span class="lb">От ветки</span><span class="dd mono" style="font-size:12.5px">main<span class="c">⌄</span></span></div>
+      <div class="crow"><span class="lb">Worktree</span><span style="color:var(--tx2);font-size:12.5px">отдельная копия, ветка fix/login-redirect</span><span class="sw on" style="margin-left:auto"></span></div>
+      <div class="crow"><span class="lb">Задача</span><span style="color:var(--tx3);font-size:13px">Опишите, что сделать агенту…</span></div>
+    </div>
+    <div class="hint">Агент — claude. Другие агенты — через «+» во вкладках.</div>
+    <div class="ft"><span class="btn">Отмена <span class="k">esc</span></span><span class="btn p">Создать <span class="k">⌘↩</span></span></div>
+  </div>
+</div>
+</template>
+
+<div id="themes"></div>
+
+<div class="doc" id="switching">
+<h2>Как переключается тема</h2>
+<div class="settings">
+  <div class="stb"><div class="lights" style="position:absolute;left:14px"><i></i><i></i><i></i></div>Настройки</div>
+  <div class="sbody">
+    <div class="snav"><div>Основные</div><div class="on">Оформление</div><div>Агенты</div><div>Терминал</div><div>Клавиши</div></div>
+    <div class="smain">
+      <div class="lbl">Тема</div>
+      <div class="tcards" id="tcards"></div>
+      <div class="srow2"><span class="l">Фон терминала</span><span class="segs"><span class="on">Тема Hangar</span><span>Из Ghostty</span></span></div>
+      <div class="srow2"><span class="l">Палитра ANSI</span><span class="segs"><span class="on">Тема Hangar</span><span>Из Ghostty</span></span><span class="sub">если в Ghostty задана palette — по умолчанию «Из Ghostty»</span></div>
+      <div class="srow2"><span class="l">Акцент</span><span class="segs"><span class="on">Как в теме</span><span>Системный</span></span></div>
+    </div>
+  </div>
+</div>
+<ul style="margin-top:18px">
+<li><b>Где.</b> Настройки → Оформление → Тема: четыре карточки с мини-превью (выбор — рамка <code>accent</code>). Пишется в конфиг Hangar: <code>theme = "dark-plus" | "graphite" | "navy" | "dark-modern"</code>. По умолчанию для новых установок — Dark+; у существующих пользователей остаётся Navy, пока не выберут другую.</li>
+<li><b>Живое переключение, без перезапуска.</b> <code>Theme</code> перестаёт быть набором статических констант: токены — поля значения <code>Palette</code>, текущая палитра — один <code>@Observable ThemeStore.current</code>; SwiftUI-вью читают её и перерисовываются сами, AppKit-части (окно, NSPopover, разделители) подписываются на одно уведомление <code>themeDidChange</code>. Смена — без анимации (одним кадром), чтобы не было «переливания» и прыжков.</li>
+<li><b>Терминал.</b> Фон терминала = <code>termBg</code> темы — Hangar передаёт его в Ghostty поверх конфига пользователя (как сейчас, решение #36) и на смене темы вызывает обновление конфига приложения GhosttyKit для всех surface, так что открытые терминалы меняют фон сразу. «Фон терминала: Из Ghostty» = существующее <code>terminal_background = "theme"</code>: тогда фон берётся из конфига Ghostty пользователя, а тема Hangar его не трогает. Палитра ANSI: если в конфиге Ghostty пользователя есть <code>palette</code>/<code>theme</code>, она побеждает; иначе подставляется палитра темы Hangar (таблицы ниже). Файл конфига Ghostty Hangar не меняет никогда.</li>
+<li><b>Редактор и diff.</b> Monaco получает по теме свою <code>defineTheme</code> (база <code>vs-dark</code> + правила токенов Dark+ одинаковые во всех темах; от темы — <code>editor.background</code>, <code>editorLineNumber.*</code>, <code>editor.lineHighlightBackground</code>, <code>editor.selectionBackground</code>, <code>editorIndentGuide.*</code>, <code>diffEditor.inserted/removedLineBackground</code>, <code>editorGutter.*</code>). На смене темы мост шлёт <code>monaco.editor.setTheme(id)</code> во все открытые редакторы — без перезагрузки страницы, курсор и undo сохраняются.</li>
+<li><b>Что не зависит от темы.</b> Цвета синтаксиса (Dark+), логотипы агентов (Claude <code>#d97757</code>), светофор, раскладка и размеры.</li>
+<li><b>Только тёмные.</b> Светлых тем в v1 нет (DESIGN.md: «только тёмная тема в v1»); системный режим не отслеживается.</li>
+</ul>
+</div>
+
+<script>
+// Token source of truth for the mockup. ansi: 0–7 normal, 8–15 bright.
+const THEMES = [
+ { id:'dark-plus', name:'A · VS Code Dark+', tag:'рекомендую по умолчанию', page:'#141414',
+   about:'<b>Нейтральные серые VS Code.</b> Окно и редактор — <code>#1e1e1e</code>, хром (заголовок, полоса вкладок, сайдбары, строка состояния) — <code>#252526</code>, неактивная вкладка — <code>#2d2d2d</code>, активная — цвета редактора с синей полосой <code>#007acc</code>. Поля — <code>#3c3c3c</code>, как в VS Code; рамка меню <code>#454545</code>; выделение в списках <code>#37373d</code>, наведение <code>#2a2d2e</code>, наведение в меню — синее <code>#04395e</code>. Статусы и git — цвета VS Code (<code>gitDecoration</code>, <code>testing</code>). Редактор и терминал сливаются с окном — как в VS Code. <code>text2</code> чуть светлее, чем <code>descriptionForeground #9d9d9d</code> VS Code: тот на выбранной строке <code>#37373d</code> даёт 4.36 : 1 — не AA. Строку состояния синей не делаю: в Hangar она информационная, синяя полоса спорила бы с точками статусов.',
+   t:{bg:'#1e1e1e',titlebar:'#252526',sidebar:'#252526',panel:'#252526',status:'#252526',bottomBar:'#252526',tabStrip:'#252526',tabActive:'#1e1e1e',tabInactive:'#2d2d2d',
+      hover:'#2a2d2e',sbHover:'#2a2d2e',hoverStrong:'#37373d',selected:'#37373d',menuHover:'#04395e',menuHoverText:'#ffffff',moreBg:'#45494e',
+      line:'#333333',lineSheet:'#3c3c3c',control:'#3c3c3c',controlStrong:'#454545',winBorder:'#3c3c3c',sheet:'#252526',field:'#3c3c3c',button:'#3a3d41',
+      tx:'#cccccc',strong:'#ffffff',tx2:'#a3a3a3',tx3:'#6e6e6e',
+      accent:'#007acc',accentText:'#3794ff',primary:'#0e639c',primaryText:'#ffffff',
+      working:'#4fc1ff',waiting:'#e8a33d',done:'#89d185',failed:'#f14c4c',failedText:'#f48771',idle:'#6e6e6e',
+      limOk:'#3794ff',limTrack:'#3c3c3c',gitM:'#e2c08d',gitA:'#73c991',gitD:'#f48771',
+      diffAdd:'rgba(155,185,85,.20)',diffDel:'rgba(255,0,0,.20)',
+      editorBg:'#1e1e1e',edGutter:'#858585',edGutterActive:'#c6c6c6',edLine:'#2a2a2a',edSel:'#264f78',edIndent:'#404040',
+      termBg:'#1e1e1e',lane1:'#3794ff',lane2:'#c586c0',lane3:'#73c991',claude:'#d97757'},
+   ansi:['#000000','#cd3131','#0dbc79','#e5e510','#2472c8','#bc3fbc','#11a8cd','#e5e5e5','#666666','#f14c4c','#23d18b','#f5f543','#3b8eea','#d670d6','#29b8db','#ffffff'] },
+
+ { id:'graphite', name:'B · Graphite', tag:'как Drakkar', page:'#161514',
+   about:'<b>Тёплый нейтральный серый с янтарно-оранжевым акцентом</b>, как Drakkar. Серые с лёгким тёплым сдвигом (R > G > B на 2–4 единицы), заголовок и полоса вкладок темнее сайдбара. Акцент <code>#e8853d</code> — полоса активной вкладки, фокус, чипы, «+ Новая сессия». <b>Конфликт:</b> оранжевый акцент близок к логотипу Claude <code>#d97757</code> и к статусу «ждёт» — поэтому «ждёт» здесь жёлтый <code>#f0c048</code> (с ореолом остаётся самым заметным), а основная кнопка — оранжевая с тёмным текстом (белый на оранжевом не проходит AA).',
+   t:{bg:'#232220',titlebar:'#1f1e1c',sidebar:'#292826',panel:'#252422',status:'#1f1e1c',bottomBar:'#262523',tabStrip:'#1f1e1c',tabActive:'#2b2a27',tabInactive:'#1f1e1c',
+      hover:'#2e2d2a',sbHover:'#34332f',hoverStrong:'#3a3834',selected:'#3d3b37',menuHover:'#3d3b37',menuHoverText:'#fbf8f3',moreBg:'#4a4743',
+      line:'#363430',lineSheet:'#3b3935',control:'#3d3b37',controlStrong:'#4a4743',winBorder:'#3d3b37',sheet:'#2c2b28',field:'#1f1e1c',button:'#3a3834',
+      tx:'#e6e2dc',strong:'#fbf8f3',tx2:'#aea79e',tx3:'#77726b',
+      accent:'#e8853d',accentText:'#f0975a',primary:'#e8853d',primaryText:'#1c1b19',
+      working:'#6cb0f0',waiting:'#f0c048',done:'#8fcf7f',failed:'#f0605a',failedText:'#ff8a80',idle:'#77726b',
+      limOk:'#6cb0f0',limTrack:'#3d3b37',gitM:'#e2c08d',gitA:'#8fcf7f',gitD:'#f07a6e',
+      diffAdd:'rgba(143,207,127,.14)',diffDel:'rgba(240,96,90,.15)',
+      editorBg:'#232220',edGutter:'#77726b',edGutterActive:'#cfc9c0',edLine:'#2b2a27',edSel:'#2f4a68',edIndent:'#3b3935',
+      termBg:'#232220',lane1:'#e8853d',lane2:'#6cb0f0',lane3:'#8fcf7f',claude:'#d97757'},
+   ansi:['#2b2a27','#f0605a','#8fcf7f','#f0c048','#6cb0f0','#d391d8','#5fc4c4','#d9d4cc','#77726b','#ff8a80','#a8e09a','#ffd77a','#8fc4ff','#e3aee6','#86dada','#fbf8f3'] },
+
+ { id:'navy', name:'C · Hangar Navy (refined)', tag:'текущая, доработана', page:'#0b0f18',
+   about:'<b>Текущая navy, сведённая с Dark+.</b> Фоны почти те же (<code>bg #121826</code>, сайдбар чуть темнее и менее синий — <code>#1d2534</code>, чтобы тёплые строки <code>#ce9178</code> и жёлтые функции <code>#dcdcaa</code> не «светились» на синем). Разделители <code>#1b212f → #222b3b</code> — прежние почти не видны. Акцент <code>#61afef</code> (One Dark) → <code>#4ea1f3</code>, ближе к <code>#569cd6</code>/<code>#3794ff</code> Dark+; «работает» — <code>#4fc1ff</code> (константы Dark+). git-бейджи — цвета <code>gitDecoration</code> VS Code вместо One Dark, чтобы совпадать с редактором. <code>text2 #8a93a6 → #9ba4b7</code>, основная кнопка <code>#3b82f6 → #2a6fd6</code> (белый текст на #3b82f6 — 3.7 : 1, не AA), <code>text3 #5f687a → #687185</code> (подписи в сайдбаре были на грани AA).',
+   t:{bg:'#121826',titlebar:'#121826',sidebar:'#1d2534',panel:'#121826',status:'#121826',bottomBar:'#1b2231',tabStrip:'#121826',tabActive:'#1c2433',tabInactive:'#121826',
+      hover:'#1a2130',sbHover:'#273044',hoverStrong:'#2b3444',selected:'#2e3749',menuHover:'#273044',menuHoverText:'#ffffff',moreBg:'#3a4456',
+      line:'#222b3b',lineSheet:'#2b3444',control:'#2b3444',controlStrong:'#3a4456',winBorder:'#2b3446',sheet:'#1d2534',field:'#121826',button:'#2b3444',
+      tx:'#e3e7ef',strong:'#ffffff',tx2:'#9ba4b7',tx3:'#687185',
+      accent:'#4ea1f3',accentText:'#5fb0ff',primary:'#2a6fd6',primaryText:'#ffffff',
+      working:'#4fc1ff',waiting:'#ffb340',done:'#73c991',failed:'#f14c4c',failedText:'#ff6b61',idle:'#5f687a',
+      limOk:'#5b8def',limTrack:'#2b3444',gitM:'#e2c08d',gitA:'#73c991',gitD:'#f07a6e',
+      diffAdd:'rgba(115,201,145,.13)',diffDel:'rgba(241,76,76,.15)',
+      editorBg:'#121826',edGutter:'#5f687a',edGutterActive:'#c6cbd6',edLine:'#19202e',edSel:'#264f78',edIndent:'#262f40',
+      termBg:'#121826',lane1:'#4ea1f3',lane2:'#c586c0',lane3:'#73c991',claude:'#d97757'},
+   ansi:['#1d2534','#f14c4c','#73c991','#e5c07b','#3794ff','#c586c0','#4fc1ff','#d4d9e3','#5f687a','#ff6b61','#8fe0ab','#f5d58a','#6cb0ff','#d7a2e6','#7fd6ff','#ffffff'] },
+
+ { id:'dark-modern', name:'D · VS Code Dark Modern', tag:'темнее хром, светлее код', page:'#101010',
+   about:'<b>Нынешняя тема VS Code по умолчанию</b> (у пользователя на скриншоте фон ≈ <code>#1f1f1f</code> — это может быть и она). Хром темнее кода: заголовок, сайдбары, вкладки, терминал — <code>#181818</code>, редактор — <code>#1f1f1f</code>, все разделители видимые <code>#2b2b2b</code>, акцент <code>#0078d4</code>, номера строк <code>#6e7681</code>. Ближе всего к Drakkar по структуре (тёмная рамка вокруг кода), но холодно-нейтральная и с синим акцентом.',
+   t:{bg:'#181818',titlebar:'#181818',sidebar:'#181818',panel:'#181818',status:'#181818',bottomBar:'#181818',tabStrip:'#181818',tabActive:'#1f1f1f',tabInactive:'#181818',
+      hover:'#2a2a2a',sbHover:'#2a2d2e',hoverStrong:'#313131',selected:'#37373d',menuHover:'#0078d4',menuHoverText:'#ffffff',moreBg:'#45494e',
+      line:'#2b2b2b',lineSheet:'#3c3c3c',control:'#313131',controlStrong:'#454545',winBorder:'#3c3c3c',sheet:'#1f1f1f',field:'#313131',button:'#313131',
+      tx:'#cccccc',strong:'#ffffff',tx2:'#a3a3a3',tx3:'#6e7681',
+      accent:'#0078d4',accentText:'#4daafc',primary:'#0078d4',primaryText:'#ffffff',
+      working:'#4fc1ff',waiting:'#e8a33d',done:'#89d185',failed:'#f85149',failedText:'#f48771',idle:'#6e7681',
+      limOk:'#4daafc',limTrack:'#313131',gitM:'#e2c08d',gitA:'#73c991',gitD:'#f48771',
+      diffAdd:'rgba(46,160,67,.18)',diffDel:'rgba(248,81,73,.18)',
+      editorBg:'#1f1f1f',edGutter:'#6e7681',edGutterActive:'#cccccc',edLine:'#282828',edSel:'#264f78',edIndent:'#404040',
+      termBg:'#181818',lane1:'#4daafc',lane2:'#c586c0',lane3:'#73c991',claude:'#d97757'},
+   ansi:['#000000','#cd3131','#0dbc79','#e5e510','#2472c8','#bc3fbc','#11a8cd','#e5e5e5','#666666','#f14c4c','#23d18b','#f5f543','#3b8eea','#d670d6','#29b8db','#ffffff'] },
+];
+
+// ---- contrast (WCAG 2.x) ----
+function rgb(h){h=h.replace('#','');return [0,2,4].map(i=>parseInt(h.substr(i,2),16))}
+function lum(h){return rgb(h).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0)}
+function cr(a,b){const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+function hexa(h,a){const [r,g,b]=rgb(h);return `rgba(${r},${g},${b},${a})`}
+
+const ROWS = [
+ ['Поверхности',[
+  ['bg','окно, редактор по умолчанию'],['titlebar','строка заголовка'],['sidebar','левый сайдбар'],['panel','правый сайдбар (Git/Files)'],
+  ['tabStrip','полоса вкладок'],['tabActive','активная вкладка'],['tabInactive','неактивная вкладка'],['status','строка состояния'],['bottomBar','низ сайдбара, «ТЕРМИНАЛ»'],
+  ['sheet','лист, поповер'],['field','поля ввода']]],
+ ['Состояния',[['hover','наведение на bg'],['sbHover','наведение в сайдбаре/меню'],['hoverStrong','«+ Новая сессия»'],['selected','выбранная строка'],['menuHover','пункт меню под курсором']]],
+ ['Линии',[['line','разделители окна'],['lineSheet','разделители в листе'],['control','рамки полей, сегмент'],['controlStrong','рамка меню, выпадающий']]],
+ ['Текст',[['tx','text1 — основной'],['strong','textStrong — заголовки, активное'],['tx2','text2 — вторичный'],['tx3','text3 — счётчики, подсказки']]],
+ ['Акцент',[['accent','полоса вкладки, фокус-рамка'],['accentText','акцент текстом (ссылки, хеш, чип)'],['primary','основная кнопка'],['primaryText','текст основной кнопки']]],
+ ['Статусы',[['working','работает'],['waiting','ждёт (+ ореол 25%)'],['done','готово'],['failed','ошибка'],['failedText','текст ошибки'],['idle','простой'],['limOk','лимит < 80%'],['waiting','лимит ≥ 80% (= waiting)'],['failed','лимит исчерпан (= failed)']]],
+ ['Git / diff',[['gitA','A, +N'],['gitM','M'],['gitD','D, −N'],['diffAdd','фон добавленной строки'],['diffDel','фон удалённой строки']]],
+ ['Редактор / терминал',[['editorBg','фон Monaco'],['edGutter','номера строк'],['edGutterActive','номер текущей строки'],['edLine','текущая строка'],['edSel','выделение'],['edIndent','направляющие отступов'],['termBg','фон терминала']]],
+];
+
+const toc=document.getElementById('toc'), root=document.getElementById('themes');
+const winTpl=document.getElementById('win-tpl'), sheetTpl=document.getElementById('sheet-tpl');
+const tcards=document.getElementById('tcards');
+
+THEMES.forEach((th,idx)=>{
+  const t=th.t, sec=document.createElement('section'); sec.className='theme'; sec.id=th.id;
+  const vars={...t,page:th.page,accentSoft:hexa(t.accent,.16),accentSoftBorder:hexa(t.accent,.3),accentRing:hexa(t.accent,.22),waitingHalo:hexa(t.waiting,.25)};
+  th.ansi.forEach((c,i)=>vars['ansi'+i]=c);
+  sec.setAttribute('style',Object.entries(vars).map(([k,v])=>`--${k}:${v}`).join(';'));
+  sec.innerHTML=`<div class="hd"><h2>${th.name}</h2><span class="k">theme = "${th.id}"</span><span class="tag">${th.tag}</span></div><p class="about">${th.about}</p>`;
+  sec.appendChild(winTpl.content.cloneNode(true));
+
+  // contrast checks: text1/text2 on every surface they sit on
+  const surfaces=[['bg',t.bg],['sidebar',t.sidebar],['panel',t.panel],['sheet',t.sheet],['selected',t.selected],['sbHover',t.sbHover],['tabInactive',t.tabInactive]];
+  const chk=[]; let fails=[];
+  [['text1',t.tx],['text2',t.tx2]].forEach(([n,c])=>{
+    let min=99,where='';
+    surfaces.forEach(([s,b])=>{const r=cr(c,b); if(r<min){min=r;where=s}});
+    chk.push([n,c,min,where]); if(min<4.5) fails.push(`${n} на ${where}`);
+  });
+  const extra=[['text3 на sidebar',t.tx3,t.sidebar,3],['accentText на panel',t.accentText,t.panel,4.5],['primaryText на primary',t.primaryText,t.primary,4.5],['failedText на sidebar',t.failedText,t.sidebar,4.5],['waiting на sidebar',t.waiting,t.sidebar,3],['menuHoverText на menuHover',t.menuHoverText,t.menuHover,4.5]];
+  extra.forEach(([n,a,b,need])=>{const r=cr(a,b); chk.push([n,a,r,'',need]); if(r<need) fails.push(n)});
+
+  const lower=document.createElement('div'); lower.className='lower';
+  lower.appendChild(sheetTpl.content.cloneNode(true));
+  const right=document.createElement('div'); right.style.flex='1'; right.style.minWidth='0';
+  let tok='<h3 style="color:var(--strong)">Токены</h3><div class="cols">';
+  const breaks=[0,2,5];
+  ROWS.forEach(([g,list],gi)=>{
+    if(breaks.includes(gi)) tok+=(gi?'</table></div>':'')+'<div><table class="tok">';
+    tok+=`<tr><th colspan="3">${g}</th></tr>`;
+    list.forEach(([k,d])=>{tok+=`<tr><td class="n">${k}</td><td class="v"><span class="sw2" style="background:${t[k]}"></span>${t[k]}</td><td>${d}</td></tr>`});
+  });
+  tok+='</table></div></div>';
+  let html='';
+  html+='<h3 style="color:var(--strong);margin-top:0">Терминал: фон <code>'+t.termBg+'</code>, палитра ANSI (если в Ghostty не задана своя)</h3><div class="ansi">'+th.ansi.map((c,i)=>`<i style="background:${c}">${i}</i>`).join('')+'</div>';
+  html+='<h3 style="color:var(--strong)">Контраст WCAG AA</h3><table class="tok cr">'+chk.map(([n,c,r,w,need])=>{need=need||4.5;const ok=r>=need;return `<tr><td class="n">${n}${w?' (худший фон: '+w+')':''}</td><td class="v"><span class="sw2" style="background:${c}"></span>${c}</td><td class="${ok?'ok':'bad'}">${r.toFixed(2)} : 1 ${ok?'✓':'✗'} (нужно ${need})</td></tr>`}).join('')+'</table>';
+  html+=`<div class="verdict">${fails.length?'<b>Не проходит:</b> '+fails.join(', '):'<b>text1 и text2 проходят AA (≥ 4.5) на всех поверхностях.</b>'} text3 — декоративный/третичный, для него цель 3 : 1.</div>`;
+  right.innerHTML=html; lower.appendChild(right); sec.appendChild(lower); const tw=document.createElement('div'); tw.innerHTML=tok; sec.appendChild(tw); root.appendChild(sec);
+
+  const a=document.createElement('a'); a.href='#'+th.id; if(idx===0) a.className='rec';
+  a.innerHTML=`<i style="background:${t.bg};box-shadow:inset -5px 0 0 ${t.accent}"></i>${th.name}`; toc.appendChild(a);
+
+  const c=document.createElement('div'); c.className='tcard'+(idx===0?' on':'');
+  c.innerHTML=`<div class="pv" style="background:${t.editorBg}"><div class="s" style="background:${t.sidebar}"></div><div class="m"><i style="width:70%;background:#569cd6"></i><i style="width:50%;background:#ce9178"></i><i style="width:80%;background:#dcdcaa"></i><i style="width:30%;background:${t.accent}"></i></div></div><div class="nm">${th.name.split(' · ')[1]}<span>${th.tag}</span></div>`;
+  tcards.appendChild(c);
+});
+const sw=document.createElement('a'); sw.href='#switching'; sw.textContent='Переключение тем'; toc.appendChild(sw);
+</script>
+</body></html>

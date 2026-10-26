@@ -42,5 +42,14 @@ jobs:
       - name: Build
         run: swift build
 
+      # Some UI-string tests expect the Russian system language the project is developed under.
+      - name: System language ru
+        run: defaults write -g AppleLanguages -array ru en
+
+      # A fresh runner security-scans every new test helper executable on first exec (XProtect), which stalls the
+      # first run past the tests' 20 s timeouts; the scripts are content-addressed, so a second run is not scanned.
       - name: Test
-        run: swift test
+        run: |
+          swift test && exit 0
+          echo "::warning::First test run failed; retrying once with the helpers already scanned"
+          swift test

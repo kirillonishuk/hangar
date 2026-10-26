@@ -8,7 +8,7 @@
 Run Claude Code and Codex side by side in real terminal tabs, one session per task,
 with Git, diffs and a TypeScript-aware editor right next to them.
 
-[![Release](https://img.shields.io/github/v/release/kirillonishuk/hangar?sort=semver&color=4c8dff)](https://github.com/kirillonishuk/hangar/releases/latest)
+[![Release](https://img.shields.io/github/v/release/kirillonishuk/hangar?sort=semver&filter=v*&color=4c8dff)](https://github.com/kirillonishuk/hangar/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/kirillonishuk/hangar/ci.yml?label=CI)](https://github.com/kirillonishuk/hangar/actions/workflows/ci.yml)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-1f2430?logo=apple)](#install)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)](Package.swift)
@@ -159,10 +159,12 @@ Design notes live in [`docs/`](docs): the spec, the decision log and the design 
 
 ## Releases
 
-Every pull request merged into `main` builds and publishes a release: the version is bumped from the PR label
-(`major`, `minor`, `patch`) or the PR title's conventional-commit type (`feat!:` → major, `feat:` → minor, anything else
-→ patch), written to `Resources/Info.plist`, tagged `vX.Y.Z`, and the DMG is attached to a GitHub Release with generated
-notes. Pushing a `v*` tag or running the **Release** workflow manually works too. See
+Every pull request merged into `main` builds and publishes a release. The version is `CFBundleShortVersionString` from
+`Resources/Info.plist` when the PR raised it above the last tag; otherwise the last `vX.Y.Z` tag is bumped by the PR
+label (`major`, `minor`, `patch`) or the PR title's conventional-commit type (`feat!:` → major, `feat:` → minor,
+anything else → patch). The workflow stamps that version into the app, tags the merge commit and attaches the DMG, its
+SHA-256 and the demo video to a GitHub Release with generated notes. Pushing a `v*` tag or running the **Release**
+workflow manually works too. `main` accepts changes only through pull requests with a green **Build & test** check. See
 [`.github/workflows`](.github/workflows).
 
 ## Acknowledgements

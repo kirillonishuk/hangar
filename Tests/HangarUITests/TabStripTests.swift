@@ -109,4 +109,15 @@ import Testing
         #expect(tabIndex(number: 5, count: 3) == nil)
         #expect(tabIndex(number: 9, count: 0) == nil)
     }
+
+    /// File tabs (#83) keep their whole name, as in VS Code: never narrower than their natural width (up to the max);
+    /// a crowded strip scrolls instead of truncating "main.ts" to "main…".
+    @Test func fileTabsKeepTheirNames() {
+        let natural: [CGFloat] = [150, 126, 140, 400]
+        let l = TabStrip.layout(natural: natural, whole: [false, true, true, true], width: 500)
+        #expect(l.overflow)
+        #expect(l.widths == [Theme.tabMinWidth, 126, 140, Theme.tabMaxWidth])
+        let roomy = TabStrip.layout(natural: natural, whole: [false, true, true, true], width: 2000)
+        #expect(roomy.widths == [150, 126, 140, Theme.tabMaxWidth] && !roomy.overflow)
+    }
 }

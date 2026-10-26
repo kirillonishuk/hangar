@@ -135,6 +135,7 @@ extension MainWindowController {
             try? "lights \(frames) content=\(String(describing: self.window?.contentView?.frame))".write(toFile: arg, atomically: true, encoding: .utf8)
         case "git": debugGit(arg)
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
+        case "peek": app.openInEditor(path: arg, line: nil, preview: true)  // peek <absolute path>: a one-click Files open
         case "open":
             // open <absolute path> [line]: as an inspector click would.
             var path = arg, line: Int?

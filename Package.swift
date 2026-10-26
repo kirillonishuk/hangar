@@ -34,7 +34,7 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration", "Power", "History"], resources: [.process("Resources"), .copy("FileIcons")]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration", "Power", "History"], resources: [.process("Resources"), .copy("FileIcons"), .copy("Monaco")]),
         .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer", "Exec"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),

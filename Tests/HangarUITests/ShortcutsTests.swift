@@ -57,7 +57,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 39)  // + inspectorGit (C), sessions (D)
+        #expect(Shortcut.allCases.count == 40)  // + inspectorGit (C), sessions (D), findInFiles (#91)
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -67,14 +67,27 @@ import Testing
         #expect(shortcut(keyCode: 15, modifiers: [.command, .option]) == .revealInFinder)
         #expect(shortcut(keyCode: 8, modifiers: [.command, .option]) == .copyPath)
         #expect(shortcut(keyCode: 20, modifiers: [.command, .option]) == .inspectorGit)  // ⌥⌘3 (redesign v1)
-        // ⌘1/⌘2 stay tabs; ⌥⌘4…9 are free.
+        // ⌘1/⌘2 stay tabs; ⌥⌘4 is the silent alias of ⇧⌘F (#91), ⌥⌘5…9 are free.
         #expect(shortcut(keyCode: 18, modifiers: .command) == .tab(1))
         #expect(shortcut(keyCode: 19, modifiers: .command) == .tab(2))
-        #expect(shortcut(keyCode: 21, modifiers: [.command, .option]) == nil)
+        #expect(shortcut(keyCode: 21, modifiers: [.command, .option]) == .findInFiles)
+        #expect(shortcut(keyCode: 23, modifiers: [.command, .option]) == nil)
         #expect(shortcut(keyCode: 15, modifiers: .command) == nil)
         #expect(shortcut(keyCode: 8, modifiers: .command) == nil)  // ⌘C is the terminal's copy
         #expect(Action.revealInFinder.shortcut == .revealInFinder)
         #expect(Action.copyPath.shortcut == .copyPath)
+    }
+
+    /// ⇧⌘F find in files (#91): F by keyCode (А in the Russian layout); ⌘F and ⌥⌘F keep their meaning; labels show ⇧⌘F.
+    @Test func findInFilesKey() {
+        #expect(shortcut(keyCode: 3, modifiers: [.command, .shift]) == .findInFiles)
+        #expect(shortcut(keyCode: 3, modifiers: [.command, .option]) == .attentionFilter)
+        #expect(shortcut(keyCode: 3, modifiers: .command) == nil)
+        #expect(Shortcut.findInFiles.label == "⇧⌘F")
+        // Monaco keeps ⌘F / ⌥⌘F only: ⇧⌘F reaches Hangar from the editor and the diff too.
+        for focus in [WebFocus.editor, .diff, .none] {
+            #expect(editorKeyRoute(keyCode: 3, modifiers: [.command, .shift], focus: focus) == nil)
+        }
     }
 
     /// ⌘B: the silent Pane-habit alias of ⌘0 (decision #39); labels show ⌘0 only.

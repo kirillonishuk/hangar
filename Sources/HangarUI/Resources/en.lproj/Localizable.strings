@@ -526,3 +526,24 @@
 "updateOtherInstance" = "Another copy of Hangar is running — quit it and try again";
 "updateUntrusted" = "not a GitHub address (%@)";
 "updateBadSignature" = "the app in the image fails the signature check";
+
+"segmentSearch" = "Search";
+"cmdFindInFiles" = "Find in Files";
+"searchPlaceholder" = "Search";
+"searchInclude" = "Include: *.swift, src/**";
+"searchExclude" = "Exclude: node_modules, *.min.js";
+"searchCase" = "Match case";
+"searchRegex" = "Regular expression";
+"searchWord" = "Whole word";
+"searchClear" = "Clear search";
+"searchRunning" = "Searching…";
+"searchNothing" = "No results";
+"searchFailed" = "Search failed: %@";
+"searchTruncated" = "First %d lines shown, more results not shown. Refine the search";
+"searchFileTruncated" = "First %d lines of this file shown";
+"searchMatchOne" = "%d result";
+"searchMatchFew" = "%d results";
+"searchMatchMany" = "%d results";
+"searchInFilesOne" = "in %d file";
+"searchInFilesFew" = "in %d files";
+"searchInFilesMany" = "in %d files";

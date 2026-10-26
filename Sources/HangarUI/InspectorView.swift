@@ -1,7 +1,7 @@
 import Git
 import SwiftUI
 
-/// Right column (decision #44): segment Files / Changes N (git only), the lazy file tree or the changes list.
+/// Right column (decision #44): segment Files / Changes N / Git (git only) / Search (#91), the lazy file tree or the changes list.
 /// Top: the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
     let app: AppState
@@ -17,6 +17,8 @@ struct InspectorView: View {
                 ChangesList(app: app, model: model)
             } else if model.segment == .git && model.isGit {
                 GitPanelView(app: app)
+            } else if model.segment == .search {
+                SearchPanel(app: app)
             } else {
                 FilesList(app: app, model: model)
             }
@@ -28,7 +30,7 @@ struct InspectorView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            if app.selectedTask != nil, model.isGit { segment }
+            if app.selectedTask != nil { segment }
         }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.tabBarHeight, maxHeight: Theme.tabBarHeight)
@@ -36,12 +38,15 @@ struct InspectorView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    /// Equal thirds, so a changing count never moves the other labels.
+    /// Equal parts, so a changing count never moves the other labels; a plain folder has only Files and Search.
     private var segment: some View {
         HStack(spacing: 0) {
             segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
-            segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
-            segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
+            if model.isGit {
+                segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
+                segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
+            }
+            segmentItem(L10n.segmentSearch, .search, help: L10n.help(L10n.findInFiles, .findInFiles))
         }
         .padding(Theme.segmentPadding)
         // As the settings segment: on `bg` a `panel` track alone would be invisible.
@@ -55,7 +60,7 @@ struct InspectorView: View {
     }
 }
 
-/// One third of the Files / Changes / Git segment; an inactive one lights up on hover.
+/// One part of the Files / Changes / Git / Search segment; an inactive one lights up on hover.
 private struct SegmentItem: View {
     let title: String
     let on: Bool

@@ -94,6 +94,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     #endif
     /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
     let gitPanel = GitPanelModel()
+    /// The inspector's Search tab (find in files, #91).
+    let search = SearchModel()
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -201,6 +203,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
         inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
         inspector.onStatusLoad = { [weak self] id in self?.refreshBadge(taskId: id) }
+        search.launcher = { [weak self] q, target, column in await self?.searchLaunch(q, target, gitColumn: column) }
+        search.currentTarget = { [weak self] in self?.searchTarget }
     }
 
     func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
@@ -521,11 +525,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         perform { $0.pinTab(taskId: loc.task, tabId: loc.tab) }
     }
 
-    /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3 and the status line's change counter: shows the inspector on that segment. Changes and Git
+    /// ⌥⌘1 / ⌥⌘2 / ⌥⌘3, ⇧⌘F and the status line's change counter: shows the inspector on that segment. Changes and Git
     /// only for git projects; while the inspector hasn't loaded this task yet, its load resets a non-git one to Files.
     func showInspector(_ segment: InspectorModel.Segment) {
         guard let task = selectedTask else { return }
-        if segment != .files, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        if segment == .changes || segment == .git, inspector.shownTaskId == task.id, !inspector.isGit { return }
         inspector.segment = segment
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }

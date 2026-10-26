@@ -526,3 +526,24 @@
 "updateOtherInstance" = "Запущена другая копия Hangar — закройте её и повторите";
 "updateUntrusted" = "адрес не из GitHub (%@)";
 "updateBadSignature" = "подпись приложения в образе не проходит проверку";
+
+"segmentSearch" = "Search";
+"cmdFindInFiles" = "Найти в файлах";
+"searchPlaceholder" = "Поиск";
+"searchInclude" = "Включить: *.swift, src/**";
+"searchExclude" = "Исключить: node_modules, *.min.js";
+"searchCase" = "Учитывать регистр";
+"searchRegex" = "Регулярное выражение";
+"searchWord" = "Слово целиком";
+"searchClear" = "Очистить поиск";
+"searchRunning" = "Поиск…";
+"searchNothing" = "Ничего не найдено";
+"searchFailed" = "Поиск не удался: %@";
+"searchTruncated" = "Показаны первые %d строк, остальные — нет. Уточните запрос";
+"searchFileTruncated" = "Показаны первые %d строк файла";
+"searchMatchOne" = "%d совпадение";
+"searchMatchFew" = "%d совпадения";
+"searchMatchMany" = "%d совпадений";
+"searchInFilesOne" = "в %d файле";
+"searchInFilesFew" = "в %d файлах";
+"searchInFilesMany" = "в %d файлах";

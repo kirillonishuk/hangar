@@ -205,6 +205,11 @@ import Workspace
         #expect(model.changes == nil)
         #expect(model.tree.children(of: "")?.map(\.name) == ["sub", "a.txt"])
         #expect(model.tree.children(of: "sub") == nil)
+        // Search works in a plain folder: a load does not throw the Search tab back to Files.
+        model.segment = .search
+        model.refresh(.tree)
+        await settle(model)
+        #expect(model.segment == .search)
         model.expand("sub")
         await settle(model)
         #expect(model.expanded.contains("sub"))

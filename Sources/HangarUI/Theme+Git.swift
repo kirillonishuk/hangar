@@ -97,4 +97,21 @@ extension Theme {
         static let noticePaddingV: CGFloat = 8
         static let blockGap: CGFloat = 8
     }
+
+    /// Search tab (#91): the Git tab's field look (`GitTab.search…`), toggles inside the query field, file groups.
+    enum SearchTab {
+        /// Aa / .* / ab toggles: box, radius, label size; on = `accent` 14 % with an `accent` 25 % border (as filter chips).
+        static let toggle: CGFloat = 20
+        static let toggleRadius: CGFloat = 4
+        static let toggleFont: CGFloat = 11.5
+        static let toggleGap: CGFloat = 2
+        /// Include / exclude fields under the query.
+        static let globHeight: CGFloat = 26
+        static let gap: CGFloat = 6
+        /// A file group's header and its lines' indent (under the file name, past the chevron and icon).
+        static let fileRow: CGFloat = 24
+        static let hitIndent: CGFloat = 36
+        static let hitPaddingV: CGFloat = 3
+        static let mono: CGFloat = 12
+    }
 }

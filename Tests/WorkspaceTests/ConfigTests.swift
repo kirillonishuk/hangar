@@ -60,9 +60,22 @@ import Testing
 
     @Test func terminalBackgroundDefaultsToHangar() throws {
         #expect(try HangarConfig.parse("").terminalBackground == .hangar)
-        #expect(try HangarConfig.parse(#"terminal_background = "theme""#).terminalBackground == .theme)
+        #expect(try HangarConfig.parse(#"terminal_background = "ghostty""#).terminalBackground == .ghostty)
         #expect(try HangarConfig.parse(#"terminal_background = "hangar""#).terminalBackground == .hangar)
+        // The old «theme» meant the Ghostty theme's background: it migrates to «ghostty», not to the Hangar theme.
+        #expect(try HangarConfig.parse(#"terminal_background = "theme""#).terminalBackground == .ghostty)
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"terminal_background = "blue""#) }
+    }
+
+    /// App theme (themes-v1.html): Dark+ by default, for new and existing configs alike.
+    @Test func themeFromConfig() throws {
+        #expect(try HangarConfig.parse("").theme == .darkPlus)
+        #expect(try HangarConfig.parse("language = \"en\"\nterminal_background = \"hangar\"").theme == .darkPlus)
+        #expect(try HangarConfig.parse(#"theme = "dark-plus""#).theme == .darkPlus)
+        #expect(try HangarConfig.parse(#"theme = "graphite""#).theme == .graphite)
+        #expect(try HangarConfig.parse(#"theme = "navy""#).theme == .navy)
+        #expect(AppTheme.allCases.map(\.rawValue) == ["dark-plus", "graphite", "navy"])
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"theme = "dark-modern""#) }
     }
 
     @Test func languageFromConfig() throws {

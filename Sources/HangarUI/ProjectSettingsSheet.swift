@@ -86,21 +86,12 @@ struct ProjectSettingsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
-                Text(L10n.projectSettings)
-                    .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
-                    .foregroundStyle(Theme.ui.sheetText)
-                Text(project.name).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
-            }
-            .padding(.top, Theme.sheetHeaderTop)
-            .padding(.bottom, Theme.sheetHeaderBottom)
+            SheetHeader(title: L10n.projectSettings, subtitle: project.name)
 
             card.padding(.top, Theme.sheetNameTop)
             messages
 
-            HStack(spacing: Theme.sheetButtonGap) {
-                Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-                Spacer(minLength: 0)
+            SheetFooter {
                 Button(L10n.cancel, action: onCancel)
                     .buttonStyle(SheetButton(primary: false))
                     .keyboardShortcut(.cancelAction)
@@ -110,14 +101,9 @@ struct ProjectSettingsSheet: View {
                     .disabled(!canSave)
                     .opacity(canSave ? 1 : Theme.disabledButtonOpacity)
             }
-            .padding(.vertical, Theme.sheetFooterPaddingV)
             .padding(.top, Theme.sheetGap)
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.projectSheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .lineLimit(1)
-        .background(Theme.ui.sheet)
+        .sheetFrame()
         .onAppear { focus = .name }
         .task { await loadGit() }
     }
@@ -126,31 +112,39 @@ struct ProjectSettingsSheet: View {
 
     /// One card of rows (DESIGN.md «Правила»): name, path + «Выбрать…», then the git-only rows.
     private var card: some View {
-        VStack(spacing: 0) {
-            CardRow(label: L10n.projectName, labelWidth: Theme.projectCardLabelWidth, first: true) {
+        VStack(spacing: Theme.sheetGap) {
+            CardSection(title: L10n.sectionProjectTitle) { projectRows }
+            if isGit == true { CardSection(title: "Worktree") { worktreeRows } }
+        }
+    }
+
+    @ViewBuilder private var projectRows: some View {
+            CardRow(label: L10n.projectName, first: true) {
                 TextField("", text: $name)
                     .modifier(CardField())
                     .focused($focus, equals: .name)
                     .onSubmit(save)
             }
-            CardRow(label: L10n.projectPath, labelWidth: Theme.projectCardLabelWidth) {
+            CardRow(label: L10n.projectPath) {
                 pathField($path, placeholder: "", field: .path)
                     .onChange(of: path) { error = nil }
                 if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
             }
-            if isGit == true {
-                CardRow(label: L10n.defaultBranch, labelWidth: Theme.projectCardLabelWidth) {
+    }
+
+    @ViewBuilder private var worktreeRows: some View {
+                CardRow(label: L10n.defaultBranch, first: true) {
                     BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
                                  defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
                     Spacer(minLength: 0)
                 }
-                CardRow(label: L10n.worktreeFolder, labelWidth: Theme.projectCardLabelWidth) {
+                CardRow(label: L10n.worktreeFolder) {
                     pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root)
                         .onChange(of: worktreeRoot) { rootError = nil }
                     if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
                 }
                 .help(L10n.worktreeRootHint(rootShown))
-                CardRow(label: L10n.worktreeCopy, labelWidth: Theme.projectCardLabelWidth) {
+                CardRow(label: L10n.worktreeCopy) {
                     // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
                     TextField("", text: $copyText)
                         .modifier(CardField(mono: true))
@@ -160,7 +154,7 @@ struct ProjectSettingsSheet: View {
                         .onSubmit(save)
                 }
                 .help(L10n.worktreeCopyHelp)
-                CardRow(label: L10n.setupCommand, labelWidth: Theme.projectCardLabelWidth) {
+                CardRow(label: L10n.setupCommand) {
                     // The lockfile's command is a placeholder only: it runs once typed in and saved (or turned on in the new-task sheet).
                     TextField("", text: $setupCommand)
                         .modifier(CardField(mono: true))
@@ -169,9 +163,6 @@ struct ProjectSettingsSheet: View {
                         .onSubmit(save)
                 }
                 .help(L10n.setupCommandHelp)
-            }
-        }
-        .sheetCard()
     }
 
     /// Under the card, as in the new-task sheet: errors and the «inside the project» hint.

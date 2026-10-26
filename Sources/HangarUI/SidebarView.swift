@@ -534,8 +534,6 @@ struct SidebarView: View {
             if !app.limitRows.isEmpty {
                 if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
             }
-            // ☕ has its own row in both modes: collapsing never adds or removes a row, so the bottom group stays put.
-            KeepAwakeRow(app: app, collapsed: collapsed)
             // «Добавить проект» lives only at ПРОЕКТЫ «+» (redesign v1): Settings has no «⋯».
             HoverRow(action: ctx.openSettings) { _ in
                 GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
@@ -559,75 +557,6 @@ struct SidebarView: View {
     }
 }
 
-
-/// ☕ state → its look: on = accent icon, `textStrong` label, switch on; the dot only while the assertion is held.
-struct KeepAwakeLook: Equatable {
-    let on: Bool
-    let tint: Color
-    let label: Color
-    let dot: Bool
-}
-
-func keepAwakeLook(enabled: Bool, held: Bool) -> KeepAwakeLook {
-    enabled ? KeepAwakeLook(on: true, tint: Theme.ui.accent, label: Theme.ui.textStrong, dot: held)
-        : KeepAwakeLook(on: false, tint: Theme.ui.text3, label: Theme.ui.text3, dot: false)
-}
-
-/// ☕ row above Settings (both modes): a switch on the right (expanded), the icon tint and dot (both modes); click toggles `keep_awake`.
-private struct KeepAwakeRow: View {
-    let app: AppState
-    let collapsed: Bool
-
-    var body: some View {
-        let keep = app.keepAwake
-        let look = keepAwakeLook(enabled: app.config.keepAwake, held: keep.held)
-        HoverRow(action: toggle) { _ in
-            GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
-                IconView(icon: .keepAwake, tint: look.tint)
-                    .overlay(alignment: .topTrailing) {
-                        Circle().fill(Theme.ui.accent)
-                            .overlay(Circle().stroke(Theme.ui.bottomBar, lineWidth: Theme.railDotBorder))
-                            .frame(width: Theme.keepAwakeDot, height: Theme.keepAwakeDot)
-                            .offset(x: Theme.keepAwakeDotOffset, y: -Theme.keepAwakeDotOffset)
-                            .opacity(look.dot ? 1 : 0)
-                    }
-            } expanded: {
-                HStack(spacing: Theme.inlineGap) {
-                    Text(L10n.keepAwakeShort).lineLimit(1).truncationMode(.tail)
-                        .font(.system(size: Theme.fontSize.sidebarFooter))
-                        .foregroundStyle(look.label)
-                    Spacer(minLength: 0)
-                    KeepAwakeSwitch(on: look.on)
-                }
-            } rail: { EmptyView() }
-        }
-        .help(L10n.keepAwakeHelp(enabled: app.config.keepAwake, held: keep.held, working: keep.working))
-        .accessibilityLabel(L10n.keepAwakeTitle)
-        .accessibilityValue(look.on ? L10n.toggleOn : L10n.toggleOff)
-    }
-
-    private func toggle() {
-        let on = !app.config.keepAwake
-        do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
-    }
-}
-
-/// Small macOS-style switch (display only: the whole row is the button): accent fill when on, `text3` outline when off.
-private struct KeepAwakeSwitch: View {
-    let on: Bool
-
-    var body: some View {
-        let knob = Theme.keepAwakeSwitchHeight - 2 * Theme.keepAwakeSwitchInset
-        ZStack(alignment: on ? .trailing : .leading) {
-            Capsule().fill(on ? Theme.ui.accent : .clear)
-            Capsule().stroke(on ? Theme.ui.accent : Theme.ui.text3, lineWidth: 1)
-            Circle().fill(on ? Theme.ui.textStrong : Theme.ui.text3)
-                .frame(width: knob, height: knob)
-                .padding(.horizontal, Theme.keepAwakeSwitchInset)
-        }
-        .frame(width: Theme.keepAwakeSwitchWidth, height: Theme.keepAwakeSwitchHeight)
-    }
-}
 
 /// Dragged row follows the pointer; the drop target gets a 2 pt `accent` line on the insertion edge.
 private struct DragLook: ViewModifier {

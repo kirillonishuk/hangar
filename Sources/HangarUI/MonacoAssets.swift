@@ -24,19 +24,25 @@ func cssHex(_ color: NSColor, alpha: Double? = nil) -> String {
     return "#" + h(c.redComponent) + h(c.greenComponent) + h(c.blueComponent) + (alpha.map { h(CGFloat($0)) } ?? "")
 }
 
-/// Hangar's Monaco theme: the navy chrome with the chosen syntax palette (#84) — VS Code Dark+ (default) or the diff's
-/// muted colors. Rules cover Monarch tokens and tsserver's semantic types (class, function, variable …).
+/// Hangar's Monaco theme: the app theme's editor chrome (themes-v1.html: background, gutter, current line, selection,
+/// indent guides, diff tints) with the chosen syntax palette (#84) — VS Code Dark+ (default, the same in every app theme)
+/// or the diff's muted colors. Rules cover Monarch tokens and tsserver's semantic types (class, function, variable …).
 enum MonacoTheme {
-    static func json(_ palette: HangarConfig.EditorPalette) -> [String: Any] {
-        ["base": "vs-dark", "inherit": true, "rules": rules(palette), "colors": colors]
+    static func json(_ palette: HangarConfig.EditorPalette, theme p: ThemePalette = Theme.palette) -> [String: Any] {
+        ["base": "vs-dark", "inherit": true, "rules": rules(palette, p), "colors": colors(p)]
     }
 
-    /// Both themes for the page; it switches between them when the setting changes.
-    static var all: [String: Any] {
-        Dictionary(uniqueKeysWithValues: HangarConfig.EditorPalette.allCases.map { ($0.rawValue, json($0)) })
+    /// Both syntax palettes in the current app theme; the page redefines them when the app theme changes.
+    static func all(_ p: ThemePalette = Theme.palette) -> [String: Any] {
+        Dictionary(uniqueKeysWithValues: HangarConfig.EditorPalette.allCases.map { ($0.rawValue, json($0, theme: p)) })
     }
 
-    private static func rules(_ palette: HangarConfig.EditorPalette) -> [[String: String]] {
+    /// `#rrggbb`, plus `aa` for `alpha` or a translucent token.
+    private static func h(_ x: Hex, alpha: Double? = nil) -> String {
+        "#" + x.bare + ((alpha ?? (x.alpha < 1 ? x.alpha : nil)).map { String(format: "%02x", Int(($0 * 255).rounded())) } ?? "")
+    }
+
+    private static func rules(_ palette: HangarConfig.EditorPalette, _ p: ThemePalette) -> [[String: String]] {
         let token: [(String, String)]
         switch palette {
         case .darkPlus:
@@ -60,80 +66,79 @@ enum MonacoTheme {
                 ("type.identifier", .type), ("class", .type), ("interface", .type), ("enum", .type), ("namespace", .type),
                 ("typeParameter", .type), ("attribute.name", .type), ("annotation", .type), ("predefined", .type),
             ]
-            token = pairs.map { ($0.0, hex($0.1)) } + [("", String(cssHex(Theme.text).dropFirst()))]
+            token = pairs.map { ($0.0, hex($0.1)) } + [("", p.tx.bare)]
         }
         var rules = token.map { ["token": $0.0, "foreground": $0.1] }
         if palette == .hangar { rules[rules.firstIndex { $0["token"] == "comment" }!]["fontStyle"] = "italic" }
         return rules
     }
 
-    private static var colors: [String: String] {
-        let add = "#98c379", del = "#e06c75"
+    private static func colors(_ p: ThemePalette) -> [String: String] {
         // Bracket pairs as in VS Code: gold, orchid, blue by depth.
         let brackets = ["#FFD700", "#DA70D6", "#179FFF"]
         return [
-            "editor.background": cssHex(Theme.panel), "editor.foreground": cssHex(Theme.text),
-            "editorLineNumber.foreground": cssHex(Theme.text3), "editorLineNumber.activeForeground": cssHex(Theme.text2),
-            "editorCursor.foreground": cssHex(Theme.accent), "editor.selectionBackground": cssHex(Theme.selection),
-            "editor.inactiveSelectionBackground": cssHex(Theme.selection, alpha: 0.6),
-            "editor.lineHighlightBackground": cssHex(Theme.hover), "editor.lineHighlightBorder": cssHex(Theme.hover),
-            "editor.wordHighlightBackground": cssHex(Theme.selection, alpha: 0.7),
-            "editor.findMatchBackground": cssHex(Theme.waiting, alpha: 0.35),
-            "editor.findMatchHighlightBackground": cssHex(Theme.waiting, alpha: 0.18),
-            "editorBracketMatch.background": cssHex(Theme.selection), "editorBracketMatch.border": cssHex(Theme.controlBorderStrong),
-            "editorIndentGuide.background1": cssHex(Theme.line), "editorIndentGuide.activeBackground1": cssHex(Theme.control),
-            "editorWhitespace.foreground": cssHex(Theme.control), "editorGutter.background": cssHex(Theme.panel),
-            "editorWidget.background": cssHex(Theme.sheet), "editorWidget.border": cssHex(Theme.sheetBorder),
-            "editorWidget.foreground": cssHex(Theme.text), "widget.shadow": "#00000066",
-            "input.background": cssHex(Theme.field), "input.border": cssHex(Theme.controlBorderStrong),
-            "input.foreground": cssHex(Theme.text), "input.placeholderForeground": cssHex(Theme.text3),
-            "inputOption.activeBorder": cssHex(Theme.accent), "inputOption.activeBackground": cssHex(Theme.accent, alpha: 0.2),
-            "focusBorder": cssHex(Theme.accent, alpha: 0.6),
-            "editorSuggestWidget.background": cssHex(Theme.sheet), "editorSuggestWidget.border": cssHex(Theme.sheetBorder),
-            "editorSuggestWidget.selectedBackground": cssHex(Theme.selection), "editorSuggestWidget.highlightForeground": cssHex(Theme.accent),
-            "editorHoverWidget.background": cssHex(Theme.sheet), "editorHoverWidget.border": cssHex(Theme.sheetBorder),
-            "list.hoverBackground": cssHex(Theme.sidebarHover), "list.activeSelectionBackground": cssHex(Theme.selection),
-            "list.focusBackground": cssHex(Theme.selection), "list.highlightForeground": cssHex(Theme.accent),
-            "menu.background": cssHex(Theme.sheet), "menu.foreground": cssHex(Theme.text), "menu.border": cssHex(Theme.sheetBorder),
-            "menu.selectionBackground": cssHex(Theme.selection), "menu.selectionForeground": cssHex(Theme.selectionText),
-            "menu.separatorBackground": cssHex(Theme.lineSheet),
-            "scrollbar.shadow": "#00000000", "scrollbarSlider.background": cssHex(Theme.control, alpha: 0.6),
-            "scrollbarSlider.hoverBackground": cssHex(Theme.controlBorderStrong, alpha: 0.8),
-            "scrollbarSlider.activeBackground": cssHex(Theme.controlBorderStrong),
-            "minimap.background": cssHex(Theme.panel), "editorOverviewRuler.border": "#00000000",
-            "editorError.foreground": cssHex(Theme.failed), "editorWarning.foreground": cssHex(Theme.waiting),
-            "editorInfo.foreground": cssHex(Theme.accent),
-            "diffEditor.insertedTextBackground": add + "33", "diffEditor.removedTextBackground": del + "33",
-            "diffEditor.insertedLineBackground": add + "1f", "diffEditor.removedLineBackground": del + "1f",
-            "diffEditorGutter.insertedLineBackground": add + "26", "diffEditorGutter.removedLineBackground": del + "26",
-            "diffEditor.diagonalFill": cssHex(Theme.line), "diffEditor.border": cssHex(Theme.line),
-            "diffEditor.unchangedRegionBackground": cssHex(Theme.bottomBar),
-            "diffEditor.unchangedRegionForeground": cssHex(Theme.text2),
-            "peekView.border": cssHex(Theme.sheetBorder), "peekViewEditor.background": cssHex(Theme.panel),
-            "peekViewResult.background": cssHex(Theme.sheet), "peekViewTitle.background": cssHex(Theme.sheet),
-            "peekViewTitleLabel.foreground": cssHex(Theme.textStrong), "peekViewTitleDescription.foreground": cssHex(Theme.text3),
-            "peekViewResult.fileForeground": cssHex(Theme.text), "peekViewResult.lineForeground": cssHex(Theme.text2),
-            "peekViewResult.selectionBackground": cssHex(Theme.selection), "peekViewResult.selectionForeground": cssHex(Theme.textStrong),
-            "peekViewResult.matchHighlightBackground": cssHex(Theme.waiting, alpha: 0.25),
-            "peekViewEditor.matchHighlightBackground": cssHex(Theme.waiting, alpha: 0.25),
-            "peekViewEditorGutter.background": cssHex(Theme.panel),
-            "editorStickyScroll.background": cssHex(Theme.panel), "editorStickyScrollHover.background": cssHex(Theme.hover),
+            "editor.background": h(p.editorBg), "editor.foreground": h(p.tx),
+            "editorLineNumber.foreground": h(p.edGutter), "editorLineNumber.activeForeground": h(p.edGutterActive),
+            "editorCursor.foreground": h(p.accent), "editor.selectionBackground": h(p.edSel),
+            "editor.inactiveSelectionBackground": h(p.edSel, alpha: 0.6),
+            "editor.lineHighlightBackground": h(p.edLine), "editor.lineHighlightBorder": h(p.edLine),
+            "editor.wordHighlightBackground": h(p.selected, alpha: 0.7),
+            "editor.findMatchBackground": h(p.waiting, alpha: 0.35),
+            "editor.findMatchHighlightBackground": h(p.waiting, alpha: 0.18),
+            "editorBracketMatch.background": h(p.selected), "editorBracketMatch.border": h(p.controlStrong),
+            "editorIndentGuide.background1": h(p.edIndent), "editorIndentGuide.activeBackground1": h(p.controlStrong),
+            "editorWhitespace.foreground": h(p.control), "editorGutter.background": h(p.editorBg),
+            "editorWidget.background": h(p.sheet), "editorWidget.border": h(p.winBorder),
+            "editorWidget.foreground": h(p.tx), "widget.shadow": "#00000066",
+            "input.background": h(p.field), "input.border": h(p.controlStrong),
+            "input.foreground": h(p.tx), "input.placeholderForeground": h(p.tx3),
+            "inputOption.activeBorder": h(p.accent), "inputOption.activeBackground": h(p.accent, alpha: 0.2),
+            "focusBorder": h(p.accent, alpha: 0.6),
+            "editorSuggestWidget.background": h(p.sheet), "editorSuggestWidget.border": h(p.winBorder),
+            "editorSuggestWidget.selectedBackground": h(p.selected), "editorSuggestWidget.highlightForeground": h(p.accent),
+            "editorHoverWidget.background": h(p.sheet), "editorHoverWidget.border": h(p.winBorder),
+            "list.hoverBackground": h(p.sbHover), "list.activeSelectionBackground": h(p.selected),
+            "list.focusBackground": h(p.selected), "list.highlightForeground": h(p.accent),
+            "menu.background": h(p.sheet), "menu.foreground": h(p.tx), "menu.border": h(p.winBorder),
+            "menu.selectionBackground": h(p.selected), "menu.selectionForeground": h(p.strong),
+            "menu.separatorBackground": h(p.lineSheet),
+            "scrollbar.shadow": "#00000000", "scrollbarSlider.background": h(p.control, alpha: 0.6),
+            "scrollbarSlider.hoverBackground": h(p.controlStrong, alpha: 0.8),
+            "scrollbarSlider.activeBackground": h(p.controlStrong),
+            "minimap.background": h(p.editorBg), "editorOverviewRuler.border": "#00000000",
+            "editorError.foreground": h(p.failed), "editorWarning.foreground": h(p.waiting),
+            "editorInfo.foreground": h(p.accent),
+            "diffEditor.insertedTextBackground": h(p.gitA, alpha: 0.2), "diffEditor.removedTextBackground": h(p.gitD, alpha: 0.2),
+            "diffEditor.insertedLineBackground": h(p.diffAdd), "diffEditor.removedLineBackground": h(p.diffDel),
+            "diffEditorGutter.insertedLineBackground": h(p.diffAdd), "diffEditorGutter.removedLineBackground": h(p.diffDel),
+            "diffEditor.diagonalFill": h(p.line), "diffEditor.border": h(p.line),
+            "diffEditor.unchangedRegionBackground": h(p.bottomBar),
+            "diffEditor.unchangedRegionForeground": h(p.tx2),
+            "peekView.border": h(p.winBorder), "peekViewEditor.background": h(p.editorBg),
+            "peekViewResult.background": h(p.sheet), "peekViewTitle.background": h(p.sheet),
+            "peekViewTitleLabel.foreground": h(p.strong), "peekViewTitleDescription.foreground": h(p.tx3),
+            "peekViewResult.fileForeground": h(p.tx), "peekViewResult.lineForeground": h(p.tx2),
+            "peekViewResult.selectionBackground": h(p.selected), "peekViewResult.selectionForeground": h(p.strong),
+            "peekViewResult.matchHighlightBackground": h(p.waiting, alpha: 0.25),
+            "peekViewEditor.matchHighlightBackground": h(p.waiting, alpha: 0.25),
+            "peekViewEditorGutter.background": h(p.editorBg),
+            "editorStickyScroll.background": h(p.editorBg), "editorStickyScrollHover.background": h(p.hover),
             "editorBracketHighlight.foreground1": brackets[0], "editorBracketHighlight.foreground2": brackets[1],
-            "editorBracketHighlight.foreground3": brackets[2], "editorBracketHighlight.unexpectedBracket.foreground": cssHex(Theme.failed),
+            "editorBracketHighlight.foreground3": brackets[2], "editorBracketHighlight.unexpectedBracket.foreground": h(p.failed),
             "editorBracketPairGuide.activeBackground1": brackets[0] + "80", "editorBracketPairGuide.activeBackground2": brackets[1] + "80",
             "editorBracketPairGuide.activeBackground3": brackets[2] + "80",
         ]
     }
 
     /// CSS variables of the page's own chrome (file tabs, bars, the diff header's toggle).
-    static var css: [String: String] {
+    static func css(_ p: ThemePalette = Theme.palette) -> [String: String] {
         let e = Theme.Editor.self
         return [
-            "--bg": cssHex(Theme.panel), "--line": cssHex(Theme.line), "--text": cssHex(Theme.text),
-            "--text-strong": cssHex(Theme.textStrong), "--text2": cssHex(Theme.text2), "--text3": cssHex(Theme.text3),
-            "--accent": cssHex(Theme.accent),
-            "--waiting": cssHex(Theme.waiting), "--button": cssHex(Theme.button), "--button-hover": cssHex(Theme.controlBorderStrong),
-            "--sheet": cssHex(Theme.sheet),
+            "--bg": h(p.editorBg), "--line": h(p.line), "--text": h(p.tx),
+            "--text-strong": h(p.strong), "--text2": h(p.tx2), "--text3": h(p.tx3),
+            "--accent": h(p.accent), "--primary": h(p.primary), "--primary-text": h(p.primaryText),
+            "--waiting": h(p.waiting), "--button": h(p.button), "--button-hover": h(p.controlStrong),
+            "--sheet": h(p.sheet),
             "--button-font": "\(e.buttonFont)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
             "--radius": "\(e.radius)px",
             "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
@@ -141,8 +146,8 @@ enum MonacoTheme {
             "--menu-item-pr": "\(Theme.menuItemPaddingTrailing)px", "--menu-item-r": "\(Theme.menuItemRadius)px",
             "--menu-font": "\(Theme.menuFont)px", "--menu-key-font": "\(Theme.menuShortcutFont)px",
             "--menu-sep-v": "\(Theme.menuSeparatorPaddingV)px", "--menu-sep-h": "\(Theme.menuSeparatorPaddingH)px",
-            "--menu-hover": cssHex(Theme.sidebarHover), "--menu-border": cssHex(Theme.controlBorderStrong),
-            "--line-sheet": cssHex(Theme.lineSheet), "--inactive": "\(Theme.inactiveOpacity)",
+            "--menu-hover": h(p.menuHover), "--menu-hover-text": h(p.menuHoverText), "--menu-border": h(p.controlStrong),
+            "--line-sheet": h(p.lineSheet), "--inactive": "\(Theme.inactiveOpacity)",
         ]
     }
 }

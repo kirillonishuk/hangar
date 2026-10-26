@@ -21,7 +21,7 @@ import WebKit
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.suppressesIncrementalRendering = true  // no half-styled flash while Monaco loads
         let settings: [String: Any] = [
-            "mode": mode.rawValue, "themes": MonacoTheme.all, "appearance": appearance.json, "css": MonacoTheme.css,
+            "mode": mode.rawValue, "appearance": appearance.json,
             "inline": inline, "minimap": minimap, "lang": L10n.resolve(L10n.language).rawValue,
             "fontSize": Theme.Editor.fontSize, "lineHeight": Theme.Editor.lineHeight,
             "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict],

@@ -4,12 +4,9 @@ import SwiftUI
 /// Git tab tokens (redesign-v1.html §4 and the token table §9); Theme.swift holds the rest.
 extension Theme {
     enum GitTab {
-        /// Graph rails by colour index (modulo): the accent and the diff palette, which sit calmly on navy.
-        static let lanes: [Color] = [0x61afef, 0xc678dd, 0x98c379, 0xe5c07b].map(hex)
-        private static func hex(_ v: UInt32) -> Color {
-            Color(.sRGB, red: Double((v >> 16) & 0xff) / 255, green: Double((v >> 8) & 0xff) / 255, blue: Double(v & 0xff) / 255)
-        }
-        static func lane(_ index: Int) -> Color { lanes[((index % lanes.count) + lanes.count) % lanes.count] }
+        /// Graph rails by colour index (modulo): the theme's three lanes, then the git «M» colour.
+        static var lanes: [Color] { let p = Theme.palette; return [p.lane1, p.lane2, p.lane3, p.gitM].map(Theme.ui.of) }
+        static func lane(_ index: Int) -> Color { let lanes = lanes; return lanes[((index % lanes.count) + lanes.count) % lanes.count] }
 
         /// Side padding of the segment, search field, chips and headers (`Metric.inspectorPadding`).
         static let padding: CGFloat = Theme.inspectorSegmentPaddingH

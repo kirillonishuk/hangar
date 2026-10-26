@@ -228,19 +228,25 @@ struct EditorRename: Equatable, Sendable {
     var prefix: String, suffix: String
 }
 
-/// Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills — every editor and diff page.
+/// Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills; and the app theme's editor chrome
+/// (Monaco themes + the page's CSS variables) — every editor and diff page, at load and live.
 struct EditorAppearance: Equatable {
     var palette: HangarConfig.EditorPalette
     var rainbow: Bool
     var todo: Bool
+    var theme: AppTheme
 
     init(_ config: HangarConfig) {
         palette = config.editorPalette
         rainbow = config.editorRainbowIndent
         todo = config.editorTodoHighlight
+        theme = config.theme
     }
 
-    var json: [String: Any] { ["palette": palette.rawValue, "rainbow": rainbow, "todo": todo] }
+    var json: [String: Any] {
+        let p = ThemePalette.of(theme)
+        return ["palette": palette.rawValue, "rainbow": rainbow, "todo": todo, "themes": MonacoTheme.all(p), "css": MonacoTheme.css(p)]
+    }
 }
 
 struct EditorOpen: Equatable {

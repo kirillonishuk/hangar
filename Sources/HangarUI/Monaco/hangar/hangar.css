@@ -23,7 +23,7 @@ body { display: flex; flex-direction: column; }
 button { font: inherit; font-size: var(--button-font); color: var(--text); background: var(--button); border: 0; border-radius: var(--radius);
   padding: 3px 10px; cursor: pointer; }
 button:hover { background: var(--button-hover); }
-button.primary { background: var(--accent); color: var(--bg); }
+button.primary { background: var(--primary); color: var(--primary-text); }
 button.primary:hover { filter: brightness(1.08); }
 #refused { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; color: var(--text2); background: var(--bg);
   font-size: var(--bar-font); padding: 24px; text-align: center; }
@@ -45,7 +45,7 @@ button.primary:hover { filter: brightness(1.08); }
   font: var(--menu-font) -apple-system, system-ui, sans-serif; color: var(--text); }
 .ctx .item { display: flex; align-items: center; gap: 16px; height: var(--menu-item-h); padding: 0 var(--menu-item-pr) 0 var(--menu-item-pl);
   border-radius: var(--menu-item-r); cursor: pointer; white-space: nowrap; }
-.ctx .item:hover, .ctx .item.sel { background: var(--menu-hover); }
+.ctx .item:hover, .ctx .item.sel { background: var(--menu-hover); color: var(--menu-hover-text); }
 .ctx .item.off { opacity: var(--inactive); cursor: default; }
 .ctx .item.off:hover { background: none; }
 .ctx .keys { margin-left: auto; color: var(--text3); font-size: var(--menu-key-font); }

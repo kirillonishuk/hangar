@@ -26,14 +26,31 @@ import Workspace
         #expect(monacoMimeType("a.bin") == "application/octet-stream")
     }
 
-    /// Both palettes keep Hangar's navy chrome; Hangar's syntax is the diff's muted one (#53).
-    @Test func themeUsesHangarTokens() throws {
+    /// Both syntax palettes take the app theme's editor chrome (themes-v1.html); Hangar's syntax is the diff's muted one (#53).
+    @Test(arguments: AppTheme.allCases) func themeUsesHangarTokens(_ app: AppTheme) throws {
+        let p = ThemePalette.of(app)
         for palette in HangarConfig.EditorPalette.allCases {
-            let theme = try #require(MonacoTheme.json(palette)["colors"] as? [String: String])
-            #expect(theme["editor.background"] == "#121826")
-            #expect(theme["editorCursor.foreground"] == "#61afef")
+            let theme = try #require(MonacoTheme.json(palette, theme: p)["colors"] as? [String: String])
+            #expect(theme["editor.background"] == p.editorBg.css)
+            #expect(theme["editorCursor.foreground"] == p.accent.css)
+            #expect(theme["editorLineNumber.foreground"] == p.edGutter.css)
+            #expect(theme["editorLineNumber.activeForeground"] == p.edGutterActive.css)
+            #expect(theme["editor.lineHighlightBackground"] == p.edLine.css)
+            #expect(theme["editor.selectionBackground"] == p.edSel.css)
+            #expect(theme["editorIndentGuide.background1"] == p.edIndent.css)
             #expect(theme["editorBracketHighlight.foreground1"] == "#FFD700")
         }
+        // Translucent diff tints keep their alpha (`#rrggbbaa`).
+        let colors = try #require(MonacoTheme.json(.darkPlus, theme: .of(.darkPlus))["colors"] as? [String: String])
+        #expect(colors["diffEditor.insertedLineBackground"] == "#9bb95533")
+        // The syntax doesn't depend on the app theme.
+        let a = try #require(MonacoTheme.json(.darkPlus, theme: .of(.navy))["rules"] as? [[String: String]])
+        let b = try #require(MonacoTheme.json(.darkPlus, theme: .of(.graphite))["rules"] as? [[String: String]])
+        #expect(a == b)
+        #expect(MonacoTheme.css(.of(.graphite))["--primary-text"] == "#1c1b19")
+    }
+
+    @Test func hangarSyntaxRules() throws {
         let rules = try #require(MonacoTheme.json(.hangar)["rules"] as? [[String: String]])
         #expect(rules.contains { $0["token"] == "keyword" && $0["foreground"] == "b79bd9" })
         #expect(rules.contains { $0["token"] == "comment" && $0["foreground"] == "75819a" })

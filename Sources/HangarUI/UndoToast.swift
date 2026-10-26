@@ -53,7 +53,7 @@ struct UndoToastView: View {
                 Text(L10n.taskArchived).foregroundStyle(Theme.ui.text)
                 Button { undo.undo(restore) } label: {
                     Text(L10n.undoArchive)
-                        .foregroundStyle(hover ? Theme.ui.textStrong : Theme.ui.accent)
+                        .foregroundStyle(hover ? Theme.ui.textStrong : Theme.ui.accentText)
                         .padding(.vertical, Theme.buttonPaddingV)
                         .padding(.horizontal, Theme.toastButtonPaddingH)
                         .background(RoundedRectangle(cornerRadius: Theme.buttonRadius).fill(hover ? Theme.ui.hoverStrong : .clear))

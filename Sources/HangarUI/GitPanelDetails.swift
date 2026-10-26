@@ -152,9 +152,9 @@ private struct GitMetaLine: View {
         } label: {
             HStack(spacing: Theme.railInset) {
                 Text(verbatim: String(commit.hash.prefix(7))).font(.system(size: Theme.GitTab.mono, design: .monospaced))
-                IconView(icon: copied ? .checkServer : .copy, size: Theme.GitTab.chipIcon, tint: Theme.ui.accent)
+                IconView(icon: copied ? .checkServer : .copy, size: Theme.GitTab.chipIcon, tint: Theme.ui.accentText)
             }
-            .foregroundStyle(Theme.ui.accent)
+            .foregroundStyle(Theme.ui.accentText)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

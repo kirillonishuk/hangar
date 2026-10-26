@@ -239,9 +239,16 @@ extension MainWindowController {
             let v = arg.split(separator: " ").compactMap { Double($0) }
             guard let content = window?.contentView, v.count == 2, let hit = content.hitTest(content.convert(NSPoint(x: v[0], y: content.frame.height - v[1]), from: nil)) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
+        case "connectHost": presentConnectHost()
         case "sheet":  // sheet [<project index>]
             presentNewTask(projectId: Int(arg).flatMap { app.state.projects.indices.contains($0) ? app.state.projects[$0].id : nil })
-        case "settings": showSettings(nil)
+        case "settings":  // settings [general|appearance|editor|notifications|integrations|advanced]
+            showSettings(nil)
+            if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
+        case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)
+            if let theme = AppTheme(rawValue: arg) {
+                do { try app.setTheme(theme) } catch { uiLog.error("theme: \(error.localizedDescription, privacy: .public)") }
+            }
         case "keepAwake":  // keepAwake on|off|working <n>: the ☕ row's states (working holds a real assertion until quit)
             let f = arg.split(separator: " ").map(String.init)
             switch f.first ?? "" {

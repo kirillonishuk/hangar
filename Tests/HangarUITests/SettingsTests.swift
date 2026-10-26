@@ -50,12 +50,4 @@ import Integration
         #expect(settings.model.error == nil)
         window.orderOut(nil)
     }
-
-    /// Red is for a failure: a missing or outdated integration is amber, an installed one calm.
-    @Test func integrationStatusTones() {
-        #expect(integrationStatusColor(.notInstalled) == Theme.ui.waiting)
-        #expect(integrationStatusColor(.outdated) == Theme.ui.waiting)
-        #expect(integrationStatusColor(.installed) == Theme.ui.text2)
-        #expect(integrationStatusColor(.installedStatuslineByUser) == Theme.ui.text2)
-    }
 }

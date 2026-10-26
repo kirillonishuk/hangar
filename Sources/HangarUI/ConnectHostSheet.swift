@@ -15,12 +15,8 @@ struct ConnectHostSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.connectHostTitle)
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
-                .foregroundStyle(Theme.ui.sheetText)
-                .padding(.top, Theme.sheetHeaderTop)
-                .padding(.bottom, Theme.sheetHeaderBottom)
-            VStack(spacing: 0) {
+            SheetHeader(title: L10n.connectHostTitle)
+            CardSection {
                 CardRow(label: L10n.hostLabel, first: true) {
                     TextField("", text: $host, prompt: Text(L10n.hostPlaceholder).foregroundStyle(Theme.ui.text3))
                         .modifier(CardField())
@@ -29,26 +25,19 @@ struct ConnectHostSheet: View {
                     if !configHosts.isEmpty { HostMenu(hosts: configHosts) { host = $0 } }
                 }
             }
-            .sheetCard()
             .padding(.top, Theme.sheetNameTop)
             Text(L10n.plainSSHHint)
                 .font(.system(size: Theme.fontSize.tab))
                 .foregroundStyle(Theme.ui.text3)
                 .padding(.top, Theme.sheetMessageTop)
-            footer.padding(.vertical, Theme.sheetFooterPaddingV)
+            footer
         }
-        .padding(.horizontal, Theme.sheetPaddingH)
-        .frame(width: Theme.sheetWidth)
-        .font(.system(size: Theme.fontSize.sheetRow))
-        .lineLimit(1)
-        .background(Theme.ui.sheet)
+        .sheetFrame()
         .onAppear { focused = true }
     }
 
     private var footer: some View {
-        HStack(spacing: Theme.sheetButtonGap) {
-            Text(L10n.escCancel).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
-            Spacer(minLength: 0)
+        SheetFooter {
             Button(L10n.cancel, action: onCancel)
                 .buttonStyle(SheetButton(primary: false))
                 .keyboardShortcut(.cancelAction)

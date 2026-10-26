@@ -6,12 +6,13 @@ import Workspace
 
 /// Background of a clickable AppKit bar (TERMINAL, ↩ relaunch): `lit` while the pointer is over it, 120 ms fade.
 @MainActor final class HoverFill: NSView {
-    private let lit: NSColor
+    /// Read on each hover, so it follows the theme.
+    private let lit: () -> NSColor
     private var inside = false
     /// Off: stays clear (the bar is not clickable right now).
     var enabled = true { didSet { if enabled != oldValue { apply(animated: false) } } }
 
-    init(lit: NSColor) {
+    init(lit: @escaping () -> NSColor) {
         self.lit = lit
         super.init(frame: .zero)
         wantsLayer = true
@@ -26,7 +27,7 @@ import Workspace
 
     private func apply(animated: Bool) {
         guard let layer else { return }
-        let color = (inside && enabled ? lit : .clear).cgColor
+        let color = (inside && enabled ? lit() : .clear).cgColor
         if animated, !Motion.reduced {
             let fade = CABasicAnimation(keyPath: "backgroundColor")
             fade.fromValue = layer.presentation()?.backgroundColor ?? layer.backgroundColor
@@ -40,7 +41,7 @@ import Workspace
 
 /// The drawer's top bar: terminal icon, "TERMINAL", chevron. The whole bar is clickable.
 @MainActor final class DrawerBarView: NSView {
-    private let fill = HoverFill(lit: Theme.hoverStrong)
+    private let fill = HoverFill { Theme.hoverStrong }
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
     private let chevron = NSImageView()
@@ -51,14 +52,19 @@ import Workspace
     init() {
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.bottomBar.cgColor
         icon.image = Icon.shell.image
-        icon.contentTintColor = Theme.text2
         label.font = .systemFont(ofSize: Theme.fontSize.counter, weight: .semibold)
-        label.textColor = Theme.text2
-        chevron.contentTintColor = Theme.text3
         [fill, icon, label, chevron].forEach(addSubview)
         setAccessibilityRole(.button)
+        applyTheme()
+        observeTheme(#selector(applyTheme))
+    }
+
+    @objc private func applyTheme() {
+        layer?.backgroundColor = Theme.bottomBar.cgColor
+        icon.contentTintColor = Theme.text2
+        label.textColor = Theme.text2
+        chevron.contentTintColor = Theme.text3
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -136,9 +142,9 @@ import Workspace
         self.app = app
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = Theme.panel.cgColor
         topLine.wantsLayer = true
-        topLine.layer?.backgroundColor = Theme.line.cgColor
+        applyTheme()
+        observeTheme(#selector(applyTheme))
         [bar, topLine, handle].forEach(addSubview)
         bar.onClick = { [weak self] in self?.onToggle?() }
         handle.currentHeight = { [weak self] in self?.panelHeight ?? 0 }
@@ -147,6 +153,11 @@ import Workspace
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func applyTheme() {
+        layer?.backgroundColor = Theme.panel.cgColor
+        topLine.layer?.backgroundColor = Theme.line.cgColor
+    }
 
     /// Set by the area: toggles the selected task's drawer (focus handling lives there).
     var onToggle: (() -> Void)?

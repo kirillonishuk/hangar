@@ -1,7 +1,5 @@
 name: Set up Hangar build
-description: >
-  Selects the newest Xcode 26 on the runner and restores (or builds) GhosttyKit.xcframework plus Ghostty's
-  resources at the commit pinned in vendor/GHOSTTY_COMMIT, using the official Zig 0.15.2 release.
+description: Selects the newest Xcode 26 on the runner and restores GhosttyKit (built by the ghosttykit job).
 
 runs:
   using: composite
@@ -14,24 +12,5 @@ runs:
         sudo xcode-select -s "$XCODE/Contents/Developer"
         xcodebuild -version
         swift --version
-        echo "XCODE_ID=$(xcodebuild -version | tr '\n' ' ' | tr -cs 'A-Za-z0-9.' '-')" >> "$GITHUB_ENV"
 
-    - name: Restore GhosttyKit
-      id: cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          vendor/GhosttyKit.xcframework
-          vendor/ghostty-src/zig-out/share
-        key: ghosttykit-${{ runner.arch }}-${{ env.XCODE_ID }}-${{ hashFiles('vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh') }}
-
-    - name: Build GhosttyKit (cache miss)
-      if: steps.cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        ZIG_VERSION=0.15.2
-        ZIG_SHA256=3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b
-        curl -fsSL --retry 3 -o "$RUNNER_TEMP/zig.tar.xz" "https://ziglang.org/download/$ZIG_VERSION/zig-aarch64-macos-$ZIG_VERSION.tar.xz"
-        echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c -
-        tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
-        ZIG="$RUNNER_TEMP/zig-aarch64-macos-$ZIG_VERSION/zig" scripts/build-ghosttykit.sh
+    - uses: ./.github/actions/ghosttykit

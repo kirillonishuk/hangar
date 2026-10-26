@@ -1,9 +1,12 @@
 name: Release
 
-# A merged PR into main → next semver (PR label major/minor/patch, else the PR title's conventional-commit type,
-# default patch) → Info.plist bump committed back by the bot → tag vX.Y.Z → .app + DMG → GitHub Release.
+# A merged PR into main → version → Info.plist stamped in the build → tag vX.Y.Z → .app + DMG → GitHub Release.
+# Version: CFBundleShortVersionString in Resources/Info.plist when a PR raised it above the last v* tag (pick a version
+# by editing it); otherwise the last tag bumped by the PR label major/minor/patch, else by the PR title's
+# conventional-commit type (feat!: major, feat: minor), default patch.
+# Tag only, no commit back: main is protected (PR + CI) and the Actions bot cannot bypass a ruleset. No loop either:
+# the tag is pushed with GITHUB_TOKEN, which never triggers workflows.
 # Also: a pushed v* tag releases that tag as-is; workflow_dispatch releases main with a chosen bump.
-# No loop: pushes made with GITHUB_TOKEN never trigger workflows, and the bump commit carries [skip ci].
 
 on:
   pull_request:
@@ -27,9 +30,22 @@ permissions:
   contents: write
 
 jobs:
+  ghosttykit:
+    name: GhosttyKit
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+      - uses: ./.github/actions/ghosttykit
+        with:
+          build: "true"
+
   release:
     name: Build & publish
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    needs: ghosttykit
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -53,8 +69,9 @@ jobs:
             echo "tagged=true" >> "$GITHUB_OUTPUT"
           else
             LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n 1)
-            if [ -z "$LAST" ]; then
-              VERSION="$CURRENT"  # first release ships the version already in Info.plist
+            NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$CURRENT" | sort -V | tail -n 1)
+            if [ -z "$LAST" ] || { [ "$NEWEST" = "$CURRENT" ] && [ "$CURRENT" != "${LAST#v}" ]; }; then
+              VERSION="$CURRENT"  # first release, or Info.plist was raised by hand
             else
               if [ "$EVENT" = workflow_dispatch ]; then BUMP="$BUMP_INPUT"
               elif [[ " $LABELS " == *" major "* ]]; then BUMP=major
@@ -95,22 +112,14 @@ jobs:
           mv build/Hangar.dmg "build/Hangar-${{ steps.version.outputs.version }}.dmg"
           cd build && shasum -a 256 "Hangar-${{ steps.version.outputs.version }}.dmg" > "Hangar-${{ steps.version.outputs.version }}.dmg.sha256"
 
-      - name: Commit version and tag
+      - name: Tag
         if: steps.version.outputs.tagged == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- Resources/Info.plist; then
-            git commit -m "chore(release): v$VERSION [skip ci]" -- Resources/Info.plist
-            # Branch protection may refuse the bot; the tag still marks what was built.
-            if ! git push origin HEAD:main; then
-              echo "::warning::Could not push the version bump to main; tagging the built commit only"
-              git reset -q --soft HEAD~1
-            fi
-          fi
-          git tag -a "v$VERSION" -m "Hangar $VERSION"
+          git tag -a "v$VERSION" -m "Hangar $VERSION" HEAD
           git push origin "v$VERSION"
 
       - name: Publish GitHub Release

@@ -13,8 +13,19 @@ permissions:
   contents: read
 
 jobs:
+  ghosttykit:
+    name: GhosttyKit
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ghosttykit
+        with:
+          build: "true"
+
   build-test:
     name: Build & test
+    needs: ghosttykit
     runs-on: macos-26
     timeout-minutes: 90
     steps:

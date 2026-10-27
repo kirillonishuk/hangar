@@ -155,45 +155,49 @@ public enum Updater {
     public static let script = #"""
     #!/bin/sh
     # Hangar updater (decision #86): args pid source target mount errorfile relaunch [executable]
+    # System tools by absolute path; never the user's PATH. HANGAR_UPDATE_MV / HANGAR_UPDATE_WAIT are test-only.
+    PATH=/usr/bin:/bin:/usr/sbin:/sbin
+    export PATH
+    MV=${HANGAR_UPDATE_MV:-/bin/mv}
     pid=$1 src=$2 dst=$3 mnt=$4 err=$5 relaunch=$6 exe=$7
-    here=$(dirname "$0")
+    here=$(/usr/bin/dirname "$0")
     fail() { printf '%s\n' "$1" > "$err"; }
     # The image is detached and the download dir (DMG, checksum, this script) removed on every path.
     cleanup() {
-      if [ -n "$mnt" ]; then hdiutil detach "$mnt" -quiet >/dev/null 2>&1; fi
-      case "$(basename "$here")" in hangar-update-*) rm -rf "$here" ;; esac
+      if [ -n "$mnt" ]; then /usr/bin/hdiutil detach "$mnt" -quiet >/dev/null 2>&1; fi
+      case "$(/usr/bin/basename "$here")" in hangar-update-*) /bin/rm -rf "$here" ;; esac
     }
     i=0
-    while kill -0 "$pid" 2>/dev/null; do
+    while /bin/kill -0 "$pid" 2>/dev/null; do
       i=$((i + 1))
       if [ "$i" -gt "${HANGAR_UPDATE_WAIT:-600}" ]; then fail "Hangar did not quit"; cleanup; exit 1; fi
-      sleep 0.2
+      /bin/sleep 0.2
     done
-    dir=$(dirname "$dst"); name=$(basename "$dst")
+    dir=$(/usr/bin/dirname "$dst"); name=$(/usr/bin/basename "$dst")
     new="$dir/.$name.hangar-new.$$"; old="$dir/.$name.hangar-old.$$"
     ok=0
-    rm -rf "$new"
-    if ! ditto "$src" "$new" 2>/dev/null; then
+    /bin/rm -rf "$new"
+    if ! /usr/bin/ditto "$src" "$new" 2>/dev/null; then
       fail "cannot copy the new app to $dir"
     elif [ ! -d "$new" ] || [ -L "$new" ]; then
       fail "the new app is not a folder"
     else
-      xattr -dr com.apple.quarantine "$new" 2>/dev/null
-      if ! mv "$dst" "$old" 2>/dev/null; then
+      /usr/bin/xattr -dr com.apple.quarantine "$new" 2>/dev/null
+      if ! "$MV" "$dst" "$old" 2>/dev/null; then
         fail "cannot move $dst"
-      elif ! mv "$new" "$dst" 2>/dev/null; then
-        mv "$old" "$dst"
+      elif ! "$MV" "$new" "$dst" 2>/dev/null; then
+        /bin/mv "$old" "$dst"
         fail "cannot put the new app at $dst"
       else
         ok=1
-        rm -rf "$old"
+        /bin/rm -rf "$old"
       fi
     fi
-    rm -rf "$new"
+    /bin/rm -rf "$new"
     cleanup
     case "$relaunch" in
-      open) open "$dst" ;;
-      exec) nohup "$dst/$exe" >/dev/null 2>&1 & ;;
+      open) /usr/bin/open "$dst" ;;
+      exec) /usr/bin/nohup "$dst/$exe" >/dev/null 2>&1 & ;;
     esac
     [ "$ok" = 1 ]
     """#

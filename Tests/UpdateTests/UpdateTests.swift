@@ -265,12 +265,13 @@ private func releaseJSON(tag: String = "v0.3.0", draft: Bool = false, prerelease
         let target = try fakeApp(in: dir.appendingPathComponent("Apps"), name: "Hangar.app", version: "0.2.0", marker: "old")
         let source = try fakeApp(in: dir.appendingPathComponent("Volume"), name: "Hangar.app", version: "0.3.0", marker: "new")
         let err = dir.appendingPathComponent("update-error.txt")
-        // A `mv` first on PATH that refuses only the new copy's rename.
+        // A test-only `mv` (HANGAR_UPDATE_MV) that refuses only the new copy's rename.
         let bin = dir.appendingPathComponent("bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         try writeScript("#!/bin/sh\ncase \"$1\" in *hangar-new*) exit 1 ;; esac\nexec /bin/mv \"$@\"\n", to: bin.appendingPathComponent("mv").path)
         let status = try await runScript(Updater.scriptArguments(pid: 999_999, source: source, target: target, mount: nil, errorFile: err, relaunch: .none),
-                                         in: dir, env: ["PATH": bin.path + ":/usr/bin:/bin:/usr/sbin:/sbin"])
+                                         in: dir, env: ["HANGAR_UPDATE_MV": bin.appendingPathComponent("mv").path,
+                                                     "PATH": bin.path])  // the script must ignore this PATH
         #expect(status != 0)
         #expect(try marker(target) == "old")
         #expect(try FileManager.default.contentsOfDirectory(atPath: target.deletingLastPathComponent().path) == ["Hangar.app"])

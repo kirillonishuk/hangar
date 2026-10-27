@@ -69,6 +69,18 @@ import AgentStatus
         #expect(over != nil && over?.tool == nil && over?.error == nil && over?.command?.count == 500)
     }
 
+    @Test func hugePayloadsAreBoundedAtTheSource() {
+        let big = String(repeating: "я", count: 100_000)
+        for (kind, json) in [("stop", #"{"last_assistant_message":"\#(big)"}"#),
+                             ("permission-request", #"{"tool_name":"Bash","tool_input":{"command":"\#(big)"}}"#)] {
+            guard let m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: [], payload: Data(json.utf8)) else { Issue.record("nil"); continue }
+            let line = ControlMessage.event(m).encoded()
+            #expect(line.count < ControlServer.maxLine / 4)
+            #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
+            #expect((m.message ?? m.command)?.count == 500)
+        }
+    }
+
     @Test func eventFields() {
         let stdin = Data("""
         {"session_id":"s1","hook_event_name":"Notification","notification_type":"permission_prompt",\

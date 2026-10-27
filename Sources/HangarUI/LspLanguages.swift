@@ -37,6 +37,8 @@ import Foundation
         var caps = LspMap.Capabilities()
         var ready = false
         var crashes = 0
+        /// When the current process finished `initialize`: one that has run a while counts its next crash afresh.
+        var upSince: ContinuousClock.Instant?
         var failed = false
         var grace: Task<Void, Never>?
         init(launch: LspLaunch) { self.launch = launch; server = LspServer(launch: launch) }
@@ -49,6 +51,8 @@ import Foundation
     private var entries: [ServerKey: Entry] = [:]
     private var lookups: [String: Task<LspFound?, Never>] = [:]
     private static let maxPreviews = 30
+    /// A crash this long after a successful `initialize` is a new first crash (restarted again), not a second one.
+    private static let stableAfter = Duration.seconds(60)
 
     /// `find(language, projectRoot)` looks for a server; `path()` is the PATH it runs with (nil: the app's own).
     init(find: @escaping (LspLanguage, String) async -> LspFound?, path: @escaping () async -> String? = { nil },
@@ -103,6 +107,8 @@ import Foundation
             Task { await resolve(path) }
             return
         }
+        // The next file of this language and root looks again (a server installed or removed meanwhile).
+        lookups[sk.language + "\u{0}" + sk.root] = nil
         entries[sk]?.crashes = 0
         relaunch(sk)
     }
@@ -157,7 +163,7 @@ import Foundation
             return LspMap.hover(await ask("textDocument/hover")?.result).map { .hover(markdown: $0) }
         case .completion:
             guard caps.completion else { return nil }
-            let (list, raw) = LspMap.completions(await ask("textDocument/completion")?.result)
+            let (list, raw) = LspMap.completions(await ask("textDocument/completion")?.result, line: r.line, column: r.column)
             doc.completions = raw
             return list.isEmpty ? nil : .completions(list)
         case .details:
@@ -239,12 +245,14 @@ import Foundation
         }
         let locale = L10n.resolve(L10n.language).rawValue
         Task {
-            let reply = await server.request("initialize", LspMap.initialize(root: sk.root, processId: getpid(), locale: locale))
+            let reply = await server.request("initialize", LspMap.initialize(root: sk.root, processId: getpid(), locale: locale),
+                                             timeout: .seconds(30))
             guard let reply, reply.error == nil, entries[sk]?.server === server else {
                 if entries[sk]?.server === server { entry.failed = true; server.stop(); broadcast(entry) }
                 return
             }
             entry.caps = LspMap.Capabilities(reply.result)
+            entry.upSince = .now
             server.notify("initialized", [String: Any]())
             entry.ready = true
             for path in entry.docs {
@@ -304,6 +312,10 @@ import Foundation
 
     private func crashed(_ sk: ServerKey, _ server: LspServer) {
         guard let entry = entries[sk], entry.server === server else { return }
+        // Up and initialized for a while: a fresh first crash. Not at once — a server dying on every `didOpen`
+        // would restart forever.
+        if let up = entry.upSince, up.duration(to: .now) > Self.stableAfter { entry.crashes = 0 }
+        entry.upSince = nil
         entry.crashes += 1
         uiLog.error("lsp exited (\(entry.crashes, privacy: .public)) \(sk.found.executable, privacy: .public)")
         if entry.crashes <= 1 {

@@ -13,6 +13,8 @@ import Workspace
     private var watcher: FileWatcher?
     private var watchedPaths: Set<String> = []
     private var visible = false
+    /// Language requests in flight, by the page's id (a `cancel` from the page stops one).
+    private var requests: [Int: Task<Void, Never>] = [:]
     var onFocus: (() -> Void)?
 
     init(leafId: UUID, app: AppState, host: EditorHost) {
@@ -85,13 +87,15 @@ import Workspace
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
         case .request(let r):
             let io = session.io, limit = EditorLimits.editableBytes, page = host.page, doc = leafId
-            Task {
-                let result = await app.languages.request(r, host: remoteHost) { path in
+            requests[r.id] = Task { [weak self] in
+                let result = await self?.app.languages.request(r, host: self?.remoteHost) { path in
                     guard case .text(let text, _)? = try? await io.read(path, limit) else { return nil }
                     return text
                 }
-                page.send(.resolve(id: r.id, result: result), doc: doc)
+                self?.requests[r.id] = nil
+                if !Task.isCancelled { page.send(.resolve(id: r.id, result: result), doc: doc) }
             }
+        case .cancel(let id): requests.removeValue(forKey: id)?.cancel()
         case .edit(let path, let edits): app.languages.edited(path, edits, host: remoteHost)
         case .restartLanguage(let path): app.languages.restart(path, host: remoteHost)
         case .ready, .openAt, .inline, .log, .clipboard: break  // the host's, the diff's, the page's

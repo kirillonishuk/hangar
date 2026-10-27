@@ -85,6 +85,43 @@ import Testing
         #expect(LspMap.locations(nil, roots: [root]).isEmpty)
     }
 
+    @Test func symlinkOutOfTheProjectIsRefused() throws {
+        let base = (NSTemporaryDirectory() as NSString).resolvingSymlinksInPath + "/hg-lsp-link-" + UUID().uuidString
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: base + "/proj/src", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: base + "/secret", withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: base) }
+        try "k".write(toFile: base + "/secret/id_rsa", atomically: true, encoding: .utf8)
+        try "x".write(toFile: base + "/proj/src/a.py", atomically: true, encoding: .utf8)
+        try fm.createSymbolicLink(atPath: base + "/proj/link", withDestinationPath: base + "/secret")
+        try fm.createSymbolicLink(atPath: base + "/proj/node_modules", withDestinationPath: base + "/secret")
+        #expect(LspMap.allowed(base + "/proj/src/a.py", roots: [base + "/proj"]))
+        #expect(!LspMap.allowed(base + "/proj/link/id_rsa", roots: [base + "/proj"]))
+        // A dependency-looking name that is really a link out is refused too.
+        #expect(!LspMap.allowed(base + "/proj/node_modules/id_rsa", roots: [base + "/proj"]))
+        // Roots are compared resolved: a root given through a symlink still matches.
+        try fm.createSymbolicLink(atPath: base + "/alias", withDestinationPath: base + "/proj")
+        #expect(LspMap.allowed(base + "/proj/src/a.py", roots: [base + "/alias"]))
+    }
+
+    @Test func completionRanges() {
+        func r(_ l: Int, _ c: Int, _ el: Int, _ ec: Int) -> [String: Any] {
+            ["start": ["line": l, "character": c], "end": ["line": el, "character": ec]]
+        }
+        // Asked at line 3, column 7 (1-based) → LSP line 2, character 6.
+        #expect(LspMap.completionRange(["range": r(2, 4, 2, 6), "newText": "x"], line: 3, column: 7)
+            == EditorCompletion.Range(start: 5, end: 7, replaceEnd: 7))
+        #expect(LspMap.completionRange(["insert": r(2, 4, 2, 6), "replace": r(2, 4, 2, 9), "newText": "x"], line: 3, column: 7)
+            == EditorCompletion.Range(start: 5, end: 7, replaceEnd: 10))
+        #expect(LspMap.completionRange(["range": r(1, 0, 2, 6)], line: 3, column: 7) == nil)   // two lines
+        #expect(LspMap.completionRange(["range": r(2, 7, 2, 9)], line: 3, column: 7) == nil)   // after the cursor
+        #expect(LspMap.completionRange(["insert": r(2, 4, 2, 6), "replace": r(2, 3, 2, 9)], line: 3, column: 7) == nil)
+        #expect(LspMap.completionRange(nil, line: 3, column: 7) == nil)
+        let (list, _) = LspMap.completions([["label": "foo", "textEdit": ["range": r(0, 2, 0, 4), "newText": "foo"]],
+                                            ["label": "bar"]], line: 1, column: 5)
+        #expect(list.map(\.range) == [EditorCompletion.Range(start: 3, end: 5, replaceEnd: 5), nil])
+    }
+
     @Test func hoverShapes() {
         #expect(LspMap.hover(["contents": ["kind": "markdown", "value": "**x**"]]) == "**x**")
         #expect(LspMap.hover(["contents": ["kind": "plaintext", "value": "a ``` b"]]) == "```\na `\u{200B}`` b\n```")
@@ -169,6 +206,12 @@ import Testing
             await LspMap.find(lang, projectRoot: "/w/p", path: path, home: home, isExecutable: { present.contains($0) },
                               toolchain: { _ in toolchain })
         }
+        // Toolchain servers are never taken from the project folder; pylsp not from node_modules/.bin.
+        #expect(await find(.go, ["/w/p/.venv/bin/gopls", "/w/p/node_modules/.bin/gopls"]) == nil)
+        #expect(await find(.swift, ["/w/p/node_modules/.bin/sourcekit-lsp"]) == nil)
+        #expect(await find(.python, ["/w/p/node_modules/.bin/pylsp"]) == nil)
+        #expect(await find(.python, ["/w/p/node_modules/.bin/pyright-langserver"])
+            == LspFound(executable: "/w/p/node_modules/.bin/pyright-langserver", args: ["--stdio"]))
         // Project-local beats PATH, even for a later candidate.
         #expect(await find(.python, ["/opt/x/bin/pyright-langserver", "/w/p/.venv/bin/pylsp"])
             == LspFound(executable: "/w/p/.venv/bin/pylsp", args: []))
@@ -197,5 +240,8 @@ import Testing
         #expect(LspMap.uri("/a/b c.py") == "file:///a/b%20c.py")
         #expect(LspMap.isDependency("/v/lib/python3.12/site-packages/x.py"))
         #expect(!LspMap.isDependency("/w/s/pkg/x.go"))
+        #expect(LspMap.isDependency("/h/.cargo/registry/src/x/lib.rs"))
+        #expect(LspMap.isDependency("/h/.cargo/git/checkouts/x/lib.rs"))
+        #expect(!LspMap.isDependency("/h/.cargo/credentials.toml"))
     }
 }

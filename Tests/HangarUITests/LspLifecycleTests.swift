@@ -71,9 +71,14 @@ import Testing
         try writeScript(Self.fake, to: script)
     }
 
-    private func lsp(found: Bool = true, mode: String = "", grace: Duration = .seconds(30)) -> Languages {
+    final class Counter { var n = 0 }
+
+    private func lsp(found: Bool = true, mode: String = "", grace: Duration = .seconds(30), finds: Counter = Counter()) -> Languages {
         let (script, log) = (script, log)
-        let lsp = LspLanguages(find: { _, _ in found ? LspFound(executable: script, args: [log, mode]) : nil }, grace: grace)
+        let lsp = LspLanguages(find: { _, _ in
+            finds.n += 1
+            return found ? LspFound(executable: script, args: [log, mode]) : nil
+        }, grace: grace)
         return Languages(lookup: { _, _, _ in .noTypeScript }, launch: { _, _ in nil }, lsp: lsp)
     }
 
@@ -85,9 +90,9 @@ import Testing
         ((try? String(contentsOfFile: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
     }
 
-    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
+    /// Counts polls, not wall-clock time: a loaded full run stretches the sleeps, not the number of checks.
+    private func waitUntil(polls: Int = 1500, _ cond: () -> Bool) async -> Bool {
+        for _ in 0..<polls {
             if cond() { return true }
             try? await Task.sleep(for: .milliseconds(20))
         }
@@ -184,5 +189,53 @@ import Testing
         langs.restart(file, host: nil)
         #expect(await waitUntil { logLines().filter { $0 == "start" }.count == 3 })
         langs.stopAll()
+    }
+
+    @Test func restartLooksForTheServerAgain() async throws {
+        let finds = Counter()
+        let langs = lsp(finds: finds)
+        let a = dir + "/a.py", b = dir + "/b.py"
+        langs.opened(a, text: "x\n", host: nil, owner: owner(Sink()))
+        #expect(await waitUntil { logLines().contains("textDocument/didOpen \(uri(a))") })
+        #expect(finds.n == 1)
+        langs.restart(a, host: nil)
+        langs.opened(b, text: "y\n", host: nil, owner: owner(Sink()))
+        #expect(await waitUntil { logLines().contains("textDocument/didOpen \(uri(b))") })
+        #expect(finds.n == 2)
+        langs.stopAll()
+    }
+
+    @Test func requestsTimeOutOrCancelWithCancelRequest() async throws {
+        let server = LspServer(launch: LspLaunch(executable: script, args: [log, ""], cwd: dir))
+        try server.start()
+        defer { server.stop() }
+        let reply = await server.request("never/answered", nil, timeout: .milliseconds(200))
+        #expect(reply == nil)
+        #expect(await waitUntil { logLines().filter { $0 == "$/cancelRequest " }.count == 1 })
+        let task = Task { await server.request("never/answered", nil, timeout: .seconds(600)) }
+        #expect(await waitUntil { logLines().filter { $0 == "never/answered " }.count == 2 })
+        task.cancel()
+        #expect(await task.value == nil)
+        #expect(await waitUntil { logLines().filter { $0 == "$/cancelRequest " }.count == 2 })
+    }
+
+    /// Ignores SIGTERM and never reads stdin: `stop()` must not wait behind the blocked write, and SIGKILL ends it.
+    static let stubborn = "#!/bin/sh\ntrap '' TERM\nexec sleep 1000\n"
+
+    @Test func stopKillsAServerThatIgnoresEverything() async throws {
+        let path = dir + "/stubborn"
+        try writeScript(Self.stubborn, to: path)
+        let server = LspServer(launch: LspLaunch(executable: path, args: [], cwd: dir))
+        try server.start()
+        server.notify("big", ["pad": String(repeating: "x", count: 1 << 20)])  // more than the pipe holds: the write blocks
+        let started = ContinuousClock.now
+        server.stop()
+        #expect(started.duration(to: .now) < .seconds(1))
+        #expect(await waitUntil { !server.isRunning })
+        let ts = TsServer(launch: TsLaunch(executable: path, args: [], cwd: dir))
+        try ts.start()
+        ts.notify("big", ["pad": String(repeating: "x", count: 1 << 20)])
+        ts.stop()
+        #expect(await waitUntil { !ts.isRunning })
     }
 }

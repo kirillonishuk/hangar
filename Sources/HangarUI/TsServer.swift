@@ -117,7 +117,8 @@ struct TsLaunch: Equatable, Sendable {
         }
     }
 
-    /// `exit`, then stdin closes (a remote tsserver ends on EOF too); a server still alive 3 s later is terminated.
+    /// `exit`, then stdin closes (a remote tsserver ends on EOF too); a server still alive 3 s later is terminated
+    /// (`stopLater`; never waits behind a write blocked on a server that stopped reading).
     func stop() {
         guard !stopping else { return }
         notify("exit", [:])
@@ -127,10 +128,7 @@ struct TsLaunch: Equatable, Sendable {
         self.input = nil
         failPending()
         guard let p = process, p.isRunning else { return }
-        Task { [weak p] in
-            try? await Task.sleep(for: .seconds(3))
-            if let p, p.isRunning { p.terminate() }
-        }
+        stopLater(p)
     }
 
     private func write(_ data: Data?) {

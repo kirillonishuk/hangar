@@ -52,6 +52,8 @@ enum BridgeMessage: Equatable {
     case conflict(file: String, keepMine: Bool)
     case inline(Bool)
     case request(ProviderRequest)
+    /// Monaco dropped a request (the cursor moved on).
+    case cancel(id: Int)
     /// The context menu's Cut / Copy / Paste.
     case clipboard(ClipboardAction)
     /// A buffer with a language server changed (forwarded to it).
@@ -154,6 +156,7 @@ enum BridgeMessage: Equatable {
             }
             return .edit(file: f, edits)
         case "restartLanguage": return file().map { .restartLanguage(file: $0) }
+        case "cancel": return int("id", 0...Int(Int32.max)).map { .cancel(id: $0) }
         default: return nil
         }
     }
@@ -192,6 +195,11 @@ struct EditorCompletion: Equatable, Sendable {
     var sortText: String? = nil
     /// `insertText` is a snippet (tab stops only, `LspMap.snippet`).
     var snippet = false
+    /// The server's own range on the asked line (columns; insert `start..<end`, replace `start..<replaceEnd`); nil: the
+    /// word at the cursor.
+    var range: Range? = nil
+
+    struct Range: Equatable, Sendable { var start: Int, end: Int, replaceEnd: Int }
 }
 
 /// The status item of the editor's tab bar for a TS/JS file (#82).
@@ -341,7 +349,8 @@ enum EditorCommand: Equatable {
         case .completions(let list):
             return ["kind": "completions", "items": list.map {
                 ["label": $0.label, "detail": $0.detail ?? NSNull(), "insertText": $0.insertText, "kind": $0.kind ?? NSNull(),
-                 "sortText": $0.sortText ?? NSNull(), "snippet": $0.snippet] as [String: Any]
+                 "sortText": $0.sortText ?? NSNull(), "snippet": $0.snippet,
+                 "range": $0.range.map { ["start": $0.start, "end": $0.end, "replaceEnd": $0.replaceEnd] } ?? NSNull()] as [String: Any]
             }]
         case .edits(let list):
             return ["kind": "edits", "items": list.map {

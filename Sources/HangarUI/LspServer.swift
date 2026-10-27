@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 
 /// How to start one language server (#90): a local executable on stdio, with the login shell's PATH (pyright needs
@@ -51,8 +52,9 @@ func lspFrame(_ object: [String: Any]) -> Data? {
     return Data("Content-Length: \(body.count)\r\n\r\n".utf8) + body
 }
 
-/// One language server process: framed JSON-RPC both ways. Requests resolve with their response (nil on exit or
-/// stop); the server's own requests get an answer from `LspMap.reply`; notifications go to `onNotification`.
+/// One language server process: framed JSON-RPC both ways. Requests resolve with their response (nil on exit, stop,
+/// timeout or task cancellation — the last two also send `$/cancelRequest`); the server's own requests get an answer
+/// from `LspMap.reply`; notifications go to `onNotification`.
 /// Writes run on their own queue so a busy server never blocks the UI.
 @MainActor final class LspServer {
     struct Reply: @unchecked Sendable { var result: Any?; var error: String? }
@@ -109,20 +111,38 @@ func lspFrame(_ object: [String: Any]) -> Data? {
         write(lspFrame(m))
     }
 
-    func request(_ method: String, _ params: Any?) async -> Reply? {
-        guard isRunning, !stopping else { return nil }
+    /// `timeout`: a server that never answers doesn't keep the editor (or the status) waiting; one one-shot task each.
+    func request(_ method: String, _ params: Any?, timeout: Duration = .seconds(15)) async -> Reply? {
+        guard isRunning, !stopping, !Task.isCancelled else { return nil }
         nextId += 1
         let id = nextId
         var m: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method]
         if let params { m["params"] = params }
         guard let frame = lspFrame(m) else { return nil }
-        return await withCheckedContinuation { cont in
-            pending[id] = cont
-            write(frame)
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: timeout)
+            if !Task.isCancelled { self?.cancel(id) }
+        }
+        defer { timer.cancel() }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { cont in
+                pending[id] = cont
+                write(frame)
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancel(id) }
         }
     }
 
-    /// `shutdown`, then `exit` and EOF; a server still alive 3 s later is terminated.
+    /// Gives up on a request: it resolves nil and the server is told to drop it.
+    private func cancel(_ id: Int) {
+        guard let cont = pending.removeValue(forKey: id) else { return }
+        notify("$/cancelRequest", ["id": id])
+        cont.resume(returning: nil)
+    }
+
+    /// `shutdown`, then `exit` and EOF; a server still alive 3 s later is terminated (SIGKILL 2 s after that). Never
+    /// waits: a write blocked on a server that stopped reading is freed when the process dies (EPIPE).
     func stop() {
         guard !stopping else { return }
         if isRunning {
@@ -136,10 +156,7 @@ func lspFrame(_ object: [String: Any]) -> Data? {
         self.input = nil
         failPending()
         guard let p = process, p.isRunning else { return }
-        Task { [weak p] in
-            try? await Task.sleep(for: .seconds(3))
-            if let p, p.isRunning { p.terminate() }
-        }
+        stopLater(p)
     }
 
     private func write(_ data: Data?) {
@@ -198,3 +215,15 @@ func lspFrame(_ object: [String: Any]) -> Data? {
         }
     }
 }
+
+/// The process is held strongly until it is gone: SIGTERM after `grace`, SIGKILL 2 s later (`terminateProcess`).
+func stopLater(_ p: Process, grace: Duration = .seconds(3)) {
+    let pid = p.processIdentifier
+    Task.detached { [p = UncheckedProcess(p)] in
+        try? await Task.sleep(for: grace)
+        if p.process.isRunning { terminateProcess(pid, group: false) }
+    }
+}
+
+/// `Process` across the detached task (only `isRunning` is read there).
+private struct UncheckedProcess: @unchecked Sendable { let process: Process; init(_ p: Process) { process = p } }

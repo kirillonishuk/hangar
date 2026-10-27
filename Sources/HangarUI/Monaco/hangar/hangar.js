@@ -491,7 +491,8 @@
     const id = nextId++;
     return new Promise((resolve) => {
       pending.set(id, resolve);
-      token.onCancellationRequested(() => { pending.delete(id); resolve(null); });
+      // A dropped request is dropped in Swift too (the language server gets `$/cancelRequest`).
+      token.onCancellationRequested(() => { if (pending.delete(id)) post({ type: 'cancel', doc: f.doc, id }); resolve(null); });
       post(Object.assign({ type: 'request', doc: f.doc, id, kind, file, line: position.lineNumber, column: position.column, name }, extra));
     });
   }
@@ -609,7 +610,10 @@
         const range = new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn);
         return { suggestions: r.items.map((i) => ({ label: i.label, detail: i.detail || undefined, insertText: i.insertText,
           insertTextRules: i.snippet ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
-          kind: completionKind(i.kind), sortText: i.sortText || undefined, range, hangarAt: { model: m, position: p } })) };
+          kind: completionKind(i.kind), sortText: i.sortText || undefined, hangarAt: { model: m, position: p },
+          // The server's own range (LSP textEdit, validated in Swift: this line, around the cursor), else the word.
+          range: i.range ? { insert: new monaco.Range(p.lineNumber, i.range.start, p.lineNumber, i.range.end),
+            replace: new monaco.Range(p.lineNumber, i.range.start, p.lineNumber, i.range.replaceEnd) } : range })) };
       }),
       // The docs of the selected entry, on demand.
       resolveCompletionItem: (item, t) => {

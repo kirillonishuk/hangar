@@ -6,6 +6,8 @@ struct LspLanguage: Equatable, Sendable {
     struct Server: Equatable, Sendable {
         var name: String
         var args: [String]
+        /// Project folders it is conventionally installed in (a venv, the npm bin); none for toolchain servers.
+        var local: [String] = []
     }
 
     var id: String
@@ -13,9 +15,11 @@ struct LspLanguage: Equatable, Sendable {
     var servers: [Server]
     var markers: [String]
 
+    private static let venv = [".venv/bin", "venv/bin"]
     static let python = LspLanguage(id: "python", name: "Python", servers: [
-        Server(name: "pyright-langserver", args: ["--stdio"]), Server(name: "basedpyright-langserver", args: ["--stdio"]),
-        Server(name: "pylsp", args: []),
+        Server(name: "pyright-langserver", args: ["--stdio"], local: venv + ["node_modules/.bin"]),
+        Server(name: "basedpyright-langserver", args: ["--stdio"], local: venv + ["node_modules/.bin"]),
+        Server(name: "pylsp", args: [], local: venv),
     ], markers: ["pyrightconfig.json", "pyproject.toml", "setup.py", "setup.cfg"])
     static let swift = LspLanguage(id: "swift", name: "Swift", servers: [Server(name: "sourcekit-lsp", args: [])],
                                    markers: ["Package.swift", "compile_commands.json", "buildServer.json"])
@@ -50,16 +54,17 @@ enum LspMap {
 
     // MARK: Finding a server
 
-    /// Project-local first (a venv, node_modules/.bin), then the login shell's PATH, then the usual install places;
+    /// Project-local first (only where the server is conventionally installed: a venv, node_modules/.bin — the same
+    /// trust as tsserver from the project's node_modules), then the login shell's PATH, then the usual install places;
     /// `toolchain(name)` last (sourcekit-lsp through `xcrun`). `/usr/bin` is skipped: its developer-tool shims open the
     /// «install command line tools» dialog on a Mac without them.
     static func find(_ language: LspLanguage, projectRoot: String, path: [String], home: String,
                      isExecutable: @Sendable (String) -> Bool, toolchain: @Sendable (String) async -> String?) async -> LspFound? {
-        let local = [".venv/bin", "venv/bin", "node_modules/.bin"].map { projectRoot + "/" + $0 }
         let known = [home + "/.local/bin", home + "/go/bin", home + "/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
         let searchPath = path.filter { $0.hasPrefix("/") && $0 != "/usr/bin" && $0 != "/usr/bin/" }
-        for dirs in [local, searchPath, known] {
+        for tier in 0..<3 {
             for server in language.servers {
+                let dirs = tier == 0 ? server.local.map { projectRoot + "/" + $0 } : tier == 1 ? searchPath : known
                 for dir in dirs {
                     let candidate = (dir.hasSuffix("/") ? String(dir.dropLast()) : dir) + "/" + server.name
                     if isExecutable(candidate) { return LspFound(executable: candidate, args: server.args) }
@@ -109,15 +114,29 @@ enum LspMap {
     /// Folders of installed packages and toolchains: go-to-definition may land there, read-only.
     static func isDependency(_ path: String) -> Bool {
         let parts = path.split(separator: "/")
-        if parts.contains("node_modules") || parts.contains("site-packages") || parts.contains(".rustup")
-            || parts.contains(".cargo") { return true }
-        return zip(parts, parts.dropFirst()).contains { $0 == "pkg" && $1 == "mod" }
+        if parts.contains("node_modules") || parts.contains("site-packages") || parts.contains(".rustup") { return true }
+        for (a, b) in zip(parts, parts.dropFirst()) {
+            if a == "pkg" && b == "mod" { return true }
+            if a == ".cargo" && (b == "registry" || b == "git") { return true }
+        }
+        return false
     }
 
-    /// Absolute, no `..` / NUL, and inside one of `roots` or a dependency folder.
-    static func allowed(_ path: String, roots: [String]) -> Bool {
+    /// realpath; for a path that doesn't exist (yet), its nearest existing folder's realpath + the rest.
+    static func resolved(_ path: String) -> String {
+        if let p = realpath(path, nil) { defer { free(p) }; return String(cString: p) }
+        let parent = (path as NSString).deletingLastPathComponent
+        guard parent != path, !parent.isEmpty else { return path }
+        return (resolved(parent) as NSString).appendingPathComponent((path as NSString).lastPathComponent)
+    }
+
+    /// Absolute, no `..` / NUL, and — after resolving symlinks (`resolve`, realpath) — inside one of the (resolved)
+    /// `roots` or a dependency folder: a symlink in the project pointing at ~/.ssh is refused.
+    static func allowed(_ path: String, roots: [String], resolve: (String) -> String = resolved) -> Bool {
         guard TsMap.allowed(path, roots: roots + [path]) else { return false }  // the shape checks only
-        return isDependency(path) || TsMap.allowed(path, roots: roots)
+        let real = resolve(path)
+        guard TsMap.allowed(real, roots: [real]) else { return false }
+        return isDependency(real) || TsMap.allowed(real, roots: roots.map(resolve))
     }
 
     // MARK: Positions
@@ -192,8 +211,22 @@ enum LspMap {
 
     static func hover(_ result: Any?) -> String? { markdown((result as? [String: Any])?["contents"]) }
 
+    /// A completion's `textEdit` range (or an InsertReplaceEdit's insert / replace ranges), when Monaco can use it:
+    /// one line, containing the asked position (`line`, `column`, 1-based); otherwise nil (the word range is used).
+    static func completionRange(_ edit: Any?, line: Int, column: Int) -> EditorCompletion.Range? {
+        guard let e = edit as? [String: Any] else { return nil }
+        func usable(_ any: Any?) -> (Int, Int)? {
+            guard let (l, c, el, ec) = range(any), l == line, el == line, c <= column, column <= ec else { return nil }
+            return (c, ec)
+        }
+        if let r = usable(e["range"]) { return EditorCompletion.Range(start: r.0, end: r.1, replaceEnd: r.1) }
+        guard let i = usable(e["insert"]), let r = usable(e["replace"]), r.0 == i.0, r.1 >= i.1 else { return nil }
+        return EditorCompletion.Range(start: i.0, end: i.1, replaceEnd: r.1)
+    }
+
     /// `CompletionItem[] | CompletionList` → entries, and the raw items by label (for `completionItem/resolve`).
-    static func completions(_ result: Any?) -> ([EditorCompletion], [String: [String: Any]]) {
+    /// `line`, `column`: where completion was asked (for the items' own ranges).
+    static func completions(_ result: Any?, line: Int = 0, column: Int = 0) -> ([EditorCompletion], [String: [String: Any]]) {
         let items = ((result as? [String: Any])?["items"] ?? result) as? [Any] ?? []
         var out: [EditorCompletion] = [], raw: [String: [String: Any]] = [:]
         for item in items.prefix(TsMap.maxCompletions) {
@@ -203,8 +236,10 @@ enum LspMap {
             let text = ((i["textEdit"] as? [String: Any])?["newText"] as? String) ?? (i["insertText"] as? String) ?? label
             let insert = text.count <= maxText ? (snippet ? Self.snippet(text) : text) : label
             let detail = (i["detail"] as? String).map { String($0.prefix(256)) }
-            out.append(EditorCompletion(label: label, detail: detail, insertText: insert, kind: kindName(i["kind"]),
-                                        sortText: (i["sortText"] as? String).map { String($0.prefix(64)) }, snippet: snippet && insert != label))
+            var item = EditorCompletion(label: label, detail: detail, insertText: insert, kind: kindName(i["kind"]),
+                                        sortText: (i["sortText"] as? String).map { String($0.prefix(64)) }, snippet: snippet && insert != label)
+            if insert == text { item.range = completionRange(i["textEdit"], line: line, column: column) }
+            out.append(item)
             raw[label] = i
         }
         return (out, raw)
@@ -358,7 +393,7 @@ enum LspMap {
                 "textDocument": [
                     "synchronization": ["dynamicRegistration": false, "didSave": false],
                     "hover": ["contentFormat": ["markdown", "plaintext"]],
-                    "completion": ["completionItem": ["snippetSupport": true, "documentationFormat": ["markdown", "plaintext"]]],
+                    "completion": ["completionItem": ["snippetSupport": true, "insertReplaceSupport": true, "documentationFormat": ["markdown", "plaintext"]]],
                     "definition": ["linkSupport": true],
                     "references": [String: Any](),
                     "rename": ["prepareSupport": true],

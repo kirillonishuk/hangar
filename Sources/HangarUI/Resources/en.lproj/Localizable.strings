@@ -547,3 +547,6 @@
 "searchInFilesOne" = "in %d file";
 "searchInFilesFew" = "in %d files";
 "searchInFilesMany" = "in %d files";
+"searchSkippedOne" = "%d very long line skipped";
+"searchSkippedFew" = "%d very long lines skipped";
+"searchSkippedMany" = "%d very long lines skipped";

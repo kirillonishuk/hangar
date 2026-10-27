@@ -547,3 +547,6 @@
 "searchInFilesOne" = "в %d файле";
 "searchInFilesFew" = "в %d файлах";
 "searchInFilesMany" = "в %d файлах";
+"searchSkippedOne" = "%d очень длинная строка пропущена";
+"searchSkippedFew" = "%d очень длинные строки пропущены";
+"searchSkippedMany" = "%d очень длинных строк пропущено";

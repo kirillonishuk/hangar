@@ -131,6 +131,11 @@ import Workspace
         #expect(model.running == nil && launches == 2)
     }
 
+    @Test func skippedLinesNotice() {
+        #expect(L10n.searchSkipped(1).contains("1") && L10n.searchSkipped(3).contains("3"))
+        #expect(L10n.searchSkipped(1) != L10n.searchNothing)
+    }
+
     /// `!glob` in the include field is an exclude for both engines.
     @Test func bangIncludeMovesToExclude() {
         let model = SearchModel()
@@ -182,6 +187,11 @@ import Workspace
         #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "sh: cd: /srv/gone: No such file or directory\n"),
                               results: none, host: "dev") == .failed("sh: cd: /srv/gone: No such file or directory"))
         #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "warning: x"), results: some, host: nil) == .done)
+        // A harmless git warning with no hits is still «nothing found».
+        #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "warning: unable to access '.gitignore'\n"),
+                              results: none, host: nil) == .done)
+        #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "sh: line 0: cd: /srv/gone: No such file or directory"),
+                              results: none, host: "dev") == .failed("sh: line 0: cd: /srv/gone: No such file or directory"))
     }
 
     /// ⇧⌘F shows the inspector on Search (also for a plain folder) and asks the field for focus.

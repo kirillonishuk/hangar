@@ -174,11 +174,12 @@ import Testing
         #expect(more)
         p.finish()
         #expect(p.results.files.map(\.path) == ["ok"])
+        #expect(p.results.skippedLines == 1)
         // Skipping to the end of output without a newline adds nothing either.
         var q = SearchParser(engine: .gitGrep, query: SearchQuery(text: "x"))
         _ = q.feed(huge)
         q.finish()
-        #expect(q.results.files.isEmpty)
+        #expect(q.results.files.isEmpty && q.results.skippedLines == 1)
     }
 
     /// git grep lines are highlighted again only in a bounded prefix: a match far out keeps git's column, no ranges.

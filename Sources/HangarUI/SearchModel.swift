@@ -198,10 +198,12 @@ enum SearchStatus: Equatable {
 }
 
 /// How a finished process reads: rg and git grep exit 1 for «nothing found»; a process stopped at the cap is done.
-/// Exit 1 with an error on stderr (a remote `cd` into a folder that is gone) is a failure, not «nothing found».
+/// Exit 1 with no hits and the shell's own error (a remote `cd` into a folder that is gone: `sh: …`, `cd: …`) is a
+/// failure, not «nothing found»; any other stderr with exit 1 (a git warning) is still «nothing found».
 func searchOutcome(_ engine: SearchEngine, _ r: RunResult, results: SearchResults, host: String?) -> SearchStatus {
-    let errorText = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-    if r.status == 0 || results.truncated || (r.status == 1 && (errorText.isEmpty || results.lines > 0)) { return .done }
+    let first = r.stderr.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+    let shellError = ["sh:", "cd:", "/bin/sh:"].contains { first.hasPrefix($0) }
+    if r.status == 0 || results.truncated || (r.status == 1 && (!shellError || results.lines > 0)) { return .done }
     if let host, r.status == 255 { return .offline(host) }
     // rg exits 2 on any error, also an unreadable file next to real matches.
     if engine == .ripgrep, r.status == 2, results.lines > 0 { return .done }
@@ -219,9 +221,9 @@ private final class SearchStream: @unchecked Sendable {
     /// More output wanted; the results when this chunk added lines.
     func feed(_ data: Data) -> (Bool, SearchResults?) {
         lock.lock(); defer { lock.unlock() }
-        let before = parser.results.lines, wasTruncated = parser.results.truncated
+        let before = parser.results.lines, wasTruncated = parser.results.truncated, skipped = parser.results.skippedLines
         let more = parser.feed(data)
-        let changed = parser.results.lines != before || parser.results.truncated != wasTruncated
+        let changed = parser.results.lines != before || parser.results.truncated != wasTruncated || parser.results.skippedLines != skipped
         return (more, changed ? parser.results : nil)
     }
 

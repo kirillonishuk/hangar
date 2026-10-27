@@ -132,6 +132,8 @@ public struct SearchResults: Equatable, Sendable {
     public var matches = 0
     /// The total cap was hit: the search stopped, more results are not shown.
     public var truncated = false
+    /// Output lines over `SearchLimits.maxLineBytes` dropped unread (minified files): said, not silently missing.
+    public var skippedLines = 0
 
     public init() {}
 }
@@ -175,7 +177,7 @@ public struct SearchParser {
         }
         if results.truncated { buffer = []; return false }
         buffer.removeFirst(start)
-        if buffer.count > SearchLimits.maxLineBytes { buffer = []; skipping = true }
+        if buffer.count > SearchLimits.maxLineBytes { buffer = []; skipping = true; results.skippedLines += 1 }
         return true
     }
 

@@ -155,6 +155,7 @@ import Workspace
         case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
+        case searchSkippedOne, searchSkippedFew, searchSkippedMany
         case searchMatchOne, searchMatchFew, searchMatchMany, searchInFilesOne, searchInFilesFew, searchInFilesMany
     }
 
@@ -174,6 +175,8 @@ import Workspace
     static func searchTruncated(_ n: Int) -> String { f(.searchTruncated, Int32(clamping: n)) }
     static func searchFileTruncated(_ n: Int) -> String { f(.searchFileTruncated, Int32(clamping: n)) }
     /// «12 совпадений в 3 файлах».
+    /// Lines over 1 MiB the search dropped (minified files).
+    static func searchSkipped(_ n: Int) -> String { count(n, .searchSkippedOne, .searchSkippedFew, .searchSkippedMany) }
     static func searchSummary(matches: Int, files: Int) -> String {
         count(matches, .searchMatchOne, .searchMatchFew, .searchMatchMany) + " " + count(files, .searchInFilesOne, .searchInFilesFew, .searchInFilesMany)
     }

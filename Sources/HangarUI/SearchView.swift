@@ -12,6 +12,7 @@ struct SearchPanel: View {
             fields
             statusLine
             if model.results.truncated { line(L10n.searchTruncated(SearchLimits.total)) }
+            if model.results.skippedLines > 0, model.results.lines > 0 { line(L10n.searchSkipped(model.results.skippedLines)) }
             list
         }
         .onAppear { model.setTarget(app.searchTarget) }
@@ -72,7 +73,7 @@ struct SearchPanel: View {
         case .offline(let host): return L10n.hostOffline(host)
         case .failed(let error): return L10n.searchFailed(error)
         case .running where r.lines == 0: return L10n.searchRunning
-        case .done where r.lines == 0: return L10n.searchNothing
+        case .done where r.lines == 0: return r.skippedLines > 0 ? L10n.searchSkipped(r.skippedLines) : L10n.searchNothing
         case .running, .done: return L10n.searchSummary(matches: r.matches, files: r.files.count)
         }
     }

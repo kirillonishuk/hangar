@@ -209,6 +209,7 @@ import Workspace
         g.app.signal(.bell, leaf: hostLeaf)
         let hostItem = try item(g, hostLeaf)
         #expect(notice(for: hostItem, app: g.app).category == .open)
+        #expect(notice(for: hostItem, app: g.app).subtitle == L10n.hostTerminal("box"))  // as in the sidebar, not «box · box»
         #expect(g.app.notificationAction(leaf: hostLeaf, requestKey: hostItem.attention.requestKey, .reply("ls")) == .reveal)
     }
 

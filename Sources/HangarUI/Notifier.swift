@@ -104,7 +104,8 @@ extension AppState {
     }
     let session = owner?.task.name ?? ""
     var subtitle = app.project(item.projectId).map { "\($0.name) › \(session)" } ?? session
-    if let host = item.host { subtitle += " · \(host)" }
+    // A host terminal is named as in the sidebar («devbox · терминал»), its session name is the host itself.
+    if let host = item.host { subtitle = app.isHostShellTask(item.taskId) ? L10n.hostTerminal(host) : subtitle + " · \(host)" }
     let details = a.reason == .permission ? a.tool.flatMap { t in a.command.map { "\(t): \($0)" } } : nil
     let fallback = owner?.tab.map(app.tabLabel) ?? app.leaf(id: item.leafId).map { app.title(of: $0) } ?? ""
     let body = details ?? a.text.flatMap { $0.isEmpty ? nil : $0 } ?? fallback

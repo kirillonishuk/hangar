@@ -18,10 +18,10 @@ struct ConnectHostSheet: View {
             SheetHeader(title: L10n.connectHostTitle)
             CardSection {
                 CardRow(label: L10n.hostLabel, first: true) {
-                    TextField("", text: $host, prompt: Text(L10n.hostPlaceholder).foregroundStyle(Theme.ui.text3))
-                        .modifier(CardField())
+                    TextField("", text: $host)
                         .focused($focused)
                         .onSubmit(connect)
+                        .inputField(focused: focused, placeholder: host.isEmpty ? L10n.hostPlaceholder : nil)
                     if !configHosts.isEmpty { HostMenu(hosts: configHosts) { host = $0 } }
                 }
             }

@@ -28,18 +28,6 @@ struct CardRow<Value: View>: View {
     }
 }
 
-/// Text field inside a card row: no field chrome (the card is the frame), `sheetRow` size.
-struct CardField: ViewModifier {
-    var mono = false
-
-    func body(content: Content) -> some View {
-        content
-            .textFieldStyle(.plain)
-            .font(.system(size: Theme.fontSize.sheetRow, design: mono ? .monospaced : .default))
-            .foregroundStyle(Theme.ui.sheetText)
-    }
-}
-
 extension View {
     /// The card around `CardRow`s.
     func sheetCard() -> some View {

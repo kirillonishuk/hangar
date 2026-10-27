@@ -18,12 +18,11 @@ struct NewTaskSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.newTask, subtitle: projectName)
 
-            TextField("", text: $model.name, prompt: Text(L10n.taskNamePlaceholder).foregroundStyle(Theme.ui.text3))
-                .font(.system(size: Theme.fontSize.taskName, design: .monospaced))
+            TextField("", text: $model.name)
                 .focused($focus, equals: .name)
-                .disabled(model.creating)
                 .onSubmit { focus = .message }
-                .modifier(SheetField(focused: focus == .name))
+                .inputField(focused: focus == .name, placeholder: model.name.isEmpty ? L10n.taskNamePlaceholder : nil)
+                .disabled(model.creating)
                 .padding(.top, Theme.sheetNameTop)
 
             if model.availability != .notRepository {
@@ -32,17 +31,10 @@ struct NewTaskSheet: View {
             }
 
             TextField("", text: $message, axis: .vertical)
-                .font(.system(size: Theme.fontSize.sheetRow))
                 .lineLimit(2...8)
                 .focused($focus, equals: .message)
-                .frame(minHeight: Theme.messageMinHeight - 2 * Theme.fieldPaddingV, alignment: .topLeading)
-                // A vertical field ignores its prompt's color (it came out as bright as typed text): our own placeholder.
-                .overlay(alignment: .topLeading) {
-                    if message.isEmpty {
-                        Text(L10n.firstMessagePlaceholder(agentName)).foregroundStyle(Theme.ui.text3).allowsHitTesting(false)
-                    }
-                }
-                .modifier(SheetField(focused: focus == .message))
+                .inputField(focused: focus == .message, multiline: true,
+                            placeholder: message.isEmpty ? L10n.firstMessagePlaceholder(agentName) : nil)
                 .padding(.top, Theme.sheetGap)
 
             footer
@@ -75,10 +67,10 @@ struct NewTaskSheet: View {
             CardRow(label: L10n.newBranch) {
                 if model.worktree {
                     TextField("", text: $model.branch)
-                        .modifier(CardField(mono: true))
                         .focused($focus, equals: .branch)
-                        .disabled(model.creating)
                         .onSubmit { focus = .message }
+                        .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
+                        .disabled(model.creating)
                     if model.branchFollowsName, !model.branch.isEmpty {
                         Text(L10n.fromName).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
                     }
@@ -234,25 +226,6 @@ struct NewTaskSheet: View {
         Task {
             if let mode = await model.create(skipFetch: skipFetch) { onCreate(name, message, mode) }
         }
-    }
-}
-
-/// Field: `field` background, `control` border; focused → `accent` border + 3 pt ring (DESIGN.md).
-struct SheetField: ViewModifier {
-    let focused: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .textFieldStyle(.plain)
-            .foregroundStyle(Theme.ui.sheetText)
-            .padding(.vertical, Theme.fieldPaddingV)
-            .padding(.horizontal, Theme.fieldPaddingH)
-            .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius)
-                .stroke(focused ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius + Theme.focusRing / 2)
-                .stroke(Theme.ui.accent.opacity(focused ? Theme.focusRingOpacity : 0), lineWidth: Theme.focusRing)
-                .padding(-Theme.focusRing / 2 - 1))
     }
 }
 

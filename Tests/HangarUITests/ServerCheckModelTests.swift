@@ -209,6 +209,7 @@ import Workspace
         #expect(!m.canAdd)
         await m.connect()
         #expect(m.phase == .failed(L10n.remotePathMissing, mono: false))
+        #expect(m.pathInvalid && !m.hostInvalid)  // the folder's field is marked, not the host's
 
         // Another host: its login is refused (auth) → the readable hint; cancelling lets both hosts go.
         try h.flag("fail", "auth")
@@ -216,6 +217,7 @@ import Workspace
         #expect(released == ["dev"])
         await m.connect()
         #expect(m.phase == .failed(L10n.sshAuthFailed("other"), mono: false))
+        #expect(m.hostInvalid && !m.pathInvalid)
         m.cancel()
         #expect(released == ["dev", "other"])
     }

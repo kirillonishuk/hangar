@@ -7,8 +7,8 @@ extension Theme {
     public static let cardLabelWide: CGFloat = 300
     /// Destructive button: `failed` at this strength under `failedText`.
     public static let destructiveFillOpacity: Double = 0.18
-    /// Card row content height: a segment, a picker or a `SheetButton` fits, so text-only rows are as tall.
-    public static let cardRowMinHeight: CGFloat = 26
+    /// Card row content height = a field's: a segment, a picker, a `SheetButton` or a field fits, so every row is as tall.
+    public static let cardRowMinHeight: CGFloat = Theme.Input.height
     /// Between footer / inline buttons, and between a title and its subtitle.
     public static let sheetButtonGap: CGFloat = 8
     /// Above the messages (errors, hints, warnings) under a card.

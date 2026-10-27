@@ -110,6 +110,7 @@ struct BranchListView: View {
                               onMove: { highlight = movedHighlight(highlight, by: $0, in: ids) },
                               onSubmit: { if let highlight { choose(highlight) } },
                               onCancel: close)
+                .inputField(focused: true)  // the list's keys go through it: always the focused one
                 .padding(.vertical, Theme.dropdownSearchPaddingV)
                 .padding(.horizontal, Theme.dropdownPaddingH)
             if !ids.isEmpty {
@@ -195,7 +196,7 @@ struct BranchListView: View {
 struct PickerSearchField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
-    var font = NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)
+    var font = Theme.Input.nsFont(mono: true)
     let onMove: (Int) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
@@ -206,9 +207,9 @@ struct PickerSearchField: NSViewRepresentable {
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = font
-        field.textColor = Theme.sheetText
+        field.textColor = Theme.sheetText  // = Theme.ui.inputText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
-            .foregroundColor: Theme.text3, .font: font,
+            .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),  // = inputPlaceholder, prose (never mono)
         ])
         field.cell?.usesSingleLineMode = true
         field.delegate = context.coordinator

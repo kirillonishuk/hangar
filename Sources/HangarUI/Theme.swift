@@ -12,7 +12,6 @@ public enum Theme {
         public static let base: CGFloat = 13
         public static let row: CGFloat = 13
         public static let sheetRow: CGFloat = 13.5
-        public static let taskName: CGFloat = 15
         public static let sheetTitle: CGFloat = 14.5
         public static let tabTaskTitle: CGFloat = 13
         public static let tab: CGFloat = 12.5
@@ -94,7 +93,6 @@ public enum Theme {
     public static let tabRadius: CGFloat = 6
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
-    public static let renamePaddingH: CGFloat = 4
     /// Insertion line while dragging rows (`accent`).
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
@@ -154,14 +152,12 @@ public enum Theme {
     public static let sheetFooterPaddingV: CGFloat = 14
     public static let pressedOpacity: Double = 0.8
     public static let fieldRadius: CGFloat = 7
-    public static let fieldPaddingV: CGFloat = 9
     public static let fieldPaddingH: CGFloat = 11
     public static let buttonRadius: CGFloat = 7
     public static let buttonPaddingV: CGFloat = 5
     public static let buttonPaddingH: CGFloat = 14
     public static let focusRing: CGFloat = 3
     public static let focusRingOpacity: Double = 0.18
-    public static let messageMinHeight: CGFloat = 38
     public static let settingsTopOffset: CGFloat = 80
     public static let cardRadius: CGFloat = 8
     public static let cardRowPaddingV: CGFloat = 9

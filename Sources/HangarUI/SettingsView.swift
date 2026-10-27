@@ -141,10 +141,10 @@ struct SettingsView: View {
                 }
             }
             row(L10n.externalEditor) {
-                TextField("", text: $model.externalEditor,
-                          prompt: Text(L10n.externalEditorPlaceholder).foregroundStyle(Theme.ui.text3))
-                    .modifier(CardField(mono: true))
+                TextField("", text: $model.externalEditor)
                     .focused($editingExternal)
+                    .inputField(focused: editingExternal, mono: true,
+                                placeholder: model.externalEditor.isEmpty ? L10n.externalEditorPlaceholder : nil)
                     .onSubmit { model.commitExternalEditor() }
                     .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
             }

@@ -121,12 +121,12 @@ struct ProjectSettingsSheet: View {
     @ViewBuilder private var projectRows: some View {
             CardRow(label: L10n.projectName, first: true) {
                 TextField("", text: $name)
-                    .modifier(CardField())
                     .focused($focus, equals: .name)
                     .onSubmit(save)
+                    .inputField(focused: focus == .name)
             }
             CardRow(label: L10n.projectPath) {
-                pathField($path, placeholder: "", field: .path)
+                pathField($path, placeholder: "", field: .path, invalid: error != nil)
                     .onChange(of: path) { error = nil }
                 if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
             }
@@ -139,7 +139,7 @@ struct ProjectSettingsSheet: View {
                     Spacer(minLength: 0)
                 }
                 CardRow(label: L10n.worktreeFolder) {
-                    pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root)
+                    pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root, invalid: rootError != nil)
                         .onChange(of: worktreeRoot) { rootError = nil }
                     if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
                 }
@@ -147,20 +147,20 @@ struct ProjectSettingsSheet: View {
                 CardRow(label: L10n.worktreeCopy) {
                     // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
                     TextField("", text: $copyText)
-                        .modifier(CardField(mono: true))
                         .modifier(CardPlaceholder(text: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "",
                                                   shown: copyText.isEmpty))
                         .focused($focus, equals: .copy)
                         .onSubmit(save)
+                        .inputField(focused: focus == .copy, mono: true)
                 }
                 .help(L10n.worktreeCopyHelp)
                 CardRow(label: L10n.setupCommand) {
                     // The lockfile's command is a placeholder only: it runs once typed in and saved (or turned on in the new-task sheet).
                     TextField("", text: $setupCommand)
-                        .modifier(CardField(mono: true))
                         .modifier(CardPlaceholder(text: suggestedCommand ?? "", shown: setupCommand.isEmpty))
                         .focused($focus, equals: .setup)
                         .onSubmit(save)
+                        .inputField(focused: focus == .setup, mono: true)
                 }
                 .help(L10n.setupCommandHelp)
     }
@@ -194,22 +194,20 @@ struct ProjectSettingsSheet: View {
 
     /// A path in a card row: unfocused, `~` + cut in the middle so the last components show (full path in the tooltip);
     /// focused, the full text, editable and scrolling. The field stays underneath (only its text is hidden), so nothing moves.
-    private func pathField(_ text: Binding<String>, placeholder: String, field: Field) -> some View {
+    private func pathField(_ text: Binding<String>, placeholder: String, field: Field, invalid: Bool) -> some View {
         let focused = focus == field
         let value = text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let full = value.isEmpty ? placeholder : (remote ? value : (value as NSString).expandingTildeInPath)
         let shown = remote ? full : abbreviatedHomePath(full)
         return TextField("", text: text)
-            .foregroundStyle(focused ? Theme.ui.sheetText : .clear)
-            .modifier(CardField(mono: true))
+            .foregroundStyle(focused ? Theme.ui.inputText : .clear)
             .focused($focus, equals: field)
             .onSubmit(save)
             .overlay(alignment: .leading) {
                 // The same plain field (not a `Text`): identical baseline and inset to the editor, so focus doesn't move the text.
                 GeometryReader { geo in
                     TextField("", text: .constant(middleTruncatedPath(shown, maxLength: Int((geo.size.width - Theme.fieldTextInset) / Self.monoCharWidth))))
-                        .foregroundStyle(value.isEmpty ? Theme.ui.text3 : Theme.ui.sheetText)  // inside CardField's, so it wins
-                        .modifier(CardField(mono: true))
+                        .foregroundStyle(value.isEmpty ? Theme.ui.inputPlaceholder : Theme.ui.inputText)  // inside the field's, so it wins
                         .focusable(false)
                         .frame(maxHeight: .infinity, alignment: .leading)
                 }
@@ -217,6 +215,7 @@ struct ProjectSettingsSheet: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
+            .inputField(focused: focused, mono: true, invalid: invalid)
             .help(full)
     }
 
@@ -228,8 +227,9 @@ struct ProjectSettingsSheet: View {
         func body(content: Content) -> some View {
             content.overlay(alignment: .leading) {
                 Text(verbatim: text).italic()
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                    .foregroundStyle(Theme.ui.text3)
+                    .font(Theme.Input.font(mono: true))
+                    .foregroundStyle(Theme.ui.inputPlaceholder)
+                    .lineLimit(1)
                     .truncationMode(.middle)
                     .opacity(shown ? 1 : 0)
                     .allowsHitTesting(false)
@@ -239,7 +239,7 @@ struct ProjectSettingsSheet: View {
 
     /// One character of the card's monospaced font (the cut is counted in characters).
     private static let monoCharWidth = ("0" as NSString).size(withAttributes:
-        [.font: NSFont.monospacedSystemFont(ofSize: Theme.fontSize.sheetRow, weight: .regular)]).width
+        [.font: Theme.Input.nsFont(mono: true)]).width
 
     /// Default worktree folder for the current project path.
     private var defaultRootPlaceholder: String {

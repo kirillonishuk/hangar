@@ -26,7 +26,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         // verify: проверить, когда codex будет установлен
         guard object["type"] as? String == "agent-turn-complete" else { return nil }
         m.session = validSessionId(object["thread-id"] as? String)
-        m.message = object["last-assistant-message"] as? String
+        m.message = (object["last-assistant-message"] as? String).map { String($0.prefix(500)) }
     } else {
         m.session = validSessionId(object["session_id"] as? String)
         m.notificationType = object["notification_type"] as? String

@@ -81,6 +81,15 @@ import AgentStatus
         }
     }
 
+    @Test func hugeCodexMessageIsBoundedAtTheSource() {
+        let big = String(repeating: "я", count: 100_000)
+        let payload = #"{"type":"agent-turn-complete","thread-id":"t1","last-assistant-message":"\#(big)"}"#
+        guard let m = eventMessage(kind: "codex-notify", tab: tab, leaf: leaf, args: [payload], payload: nil) else { Issue.record("nil"); return }
+        let line = ControlMessage.event(m).encoded()
+        #expect(line.count < ControlServer.maxLine / 4 && m.message?.count == 500)
+        #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
+    }
+
     @Test func eventFields() {
         let stdin = Data("""
         {"session_id":"s1","hook_event_name":"Notification","notification_type":"permission_prompt",\

@@ -6,22 +6,22 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/ghostty-src"
 OUT="$ROOT/vendor/GhosttyKit.xcframework"
 SHA="$(tr -d '[:space:]' < "$ROOT/vendor/GHOSTTY_COMMIT")"
-# Ghostty v1.3.x requires Zig 0.15.x: $ZIG, else the keg-only brew formula (Apple silicon or Intel prefix),
-# else `zig` on PATH.
-if [ -z "${ZIG:-}" ]; then
+# Ghostty v1.3.x requires Zig 0.15.x: $ZIG, else the first 0.15 among the keg-only brew formula (Apple silicon or
+# Intel prefix) and `zig` on PATH.
+zig_ok() { case "$("$1" version 2>/dev/null || true)" in 0.15.*) return 0 ;; *) return 1 ;; esac; }
+if [ -n "${ZIG:-}" ]; then
+  [ -x "$ZIG" ] && zig_ok "$ZIG" || {
+    echo "ZIG=$ZIG is not Zig 0.15.x (found: $("$ZIG" version 2>/dev/null || echo none)); Ghostty at $SHA needs 0.15" >&2; exit 1
+  }
+else
   for z in /opt/homebrew/opt/zig@0.15/bin/zig /usr/local/opt/zig@0.15/bin/zig "$(command -v zig || true)"; do
-    if [ -n "$z" ] && [ -x "$z" ]; then ZIG="$z"; break; fi
+    if [ -n "$z" ] && [ -x "$z" ] && zig_ok "$z"; then ZIG="$z"; break; fi
   done
+  [ -n "${ZIG:-}" ] || {
+    echo "Zig 0.15 not found: brew install zig@0.15, or download it from https://ziglang.org/download/ and set ZIG=/path/to/zig" >&2
+    exit 1
+  }
 fi
-[ -n "${ZIG:-}" ] && [ -x "$ZIG" ] || {
-  echo "Zig 0.15 not found: brew install zig@0.15, or download it from https://ziglang.org/download/ and set ZIG=/path/to/zig" >&2
-  exit 1
-}
-ZIG_VERSION="$("$ZIG" version 2>/dev/null || true)"
-case "$ZIG_VERSION" in
-  0.15.*) ;;
-  *) echo "$ZIG is Zig ${ZIG_VERSION:-of unknown version}; Ghostty at $SHA needs Zig 0.15.x (set ZIG=/path/to/zig-0.15)" >&2; exit 1 ;;
-esac
 # Ghostty's xcframework needs full Xcode (SDK, metal, libtool), not only the Command Line Tools.
 xcode-select -p >/dev/null 2>&1 && xcrun metal --version >/dev/null 2>&1 && xcodebuild -version >/dev/null 2>&1 || {
   echo "Needs Xcode with the Metal toolchain selected (xcode-select -s /Applications/Xcode.app;" \

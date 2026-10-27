@@ -55,6 +55,12 @@ func missingDeveloperTool(_ name: String, path: String?, developerDir: String?,
     return "\(name): needs the Xcode Command Line Tools (xcode-select --install)"
 }
 
+/// Xcode or the Command Line Tools are there, so `/usr/bin/xcrun` and friends won't pop the install dialog.
+public func localDeveloperToolsInstalled() -> Bool {
+    developerToolsInstalled(developerDir: ProcessInfo.processInfo.environment["DEVELOPER_DIR"],
+                            exists: { FileManager.default.fileExists(atPath: $0) })
+}
+
 /// What `xcode-select -p` would find, by file checks only (this runs before every local command).
 func developerToolsInstalled(developerDir: String?, exists: (String) -> Bool) -> Bool {
     if let developerDir, !developerDir.isEmpty { return exists(developerDir) }

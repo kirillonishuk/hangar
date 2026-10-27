@@ -7,7 +7,7 @@ SHARE=vendor/ghostty-src/zig-out/share
 [ -d vendor/GhosttyKit.xcframework ] && [ -d "$SHARE/terminfo" ] && [ -d "$SHARE/ghostty" ] || {
   echo "GhosttyKit or Ghostty's resources are missing: run scripts/build-ghosttykit.sh first" >&2; exit 1
 }
-XCODE_VERSION="$(xcodebuild -version 2>/dev/null | awk 'NR == 1 { print $2 }')"
+XCODE_VERSION="$({ xcodebuild -version 2>/dev/null || true; } | awk 'NR == 1 { print $2 }')"
 case "${XCODE_VERSION%%.*}" in
   2[6-9]|[3-9][0-9]) ;;
   *) echo "warning: Hangar is built with Xcode 26; found ${XCODE_VERSION:-no Xcode} (xcode-select -s /Applications/Xcode.app)" >&2 ;;

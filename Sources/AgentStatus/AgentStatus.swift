@@ -132,7 +132,8 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
     case let .exited(code):
         if code > 0 {
             s.state = .failed
-            attend(.failed)
+            // Only an agent's exit is a failure to report; a shell's `npm test` or Ctrl-C keeps just the dot.
+            if agent != nil { attend(.failed) } else { s.attention = nil }
         } else {
             s.state = .idle
             s.attention = nil

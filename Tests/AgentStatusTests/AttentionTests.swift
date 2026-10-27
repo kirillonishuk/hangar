@@ -41,6 +41,9 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
 
         #expect(run([hook(.prompt), .exited(code: 2)]).attention?.reason == .failed)
         #expect(run([hook(.prompt), .exited(code: 0)]).attention == nil)
+        // A plain shell (no agent) exiting non-zero: the failed dot, no attention.
+        let shell = run([.bell, .exited(code: 1)], agent: nil)
+        #expect(shell.state == .failed && shell.attention == nil)
 
         let bell = run([.bell], agent: .codex)
         #expect(bell.state == .waiting && bell.attention?.reason == .question && bell.attention?.text == nil)

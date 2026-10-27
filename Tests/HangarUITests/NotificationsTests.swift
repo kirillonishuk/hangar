@@ -296,6 +296,28 @@ import Workspace
         #expect(shown.notices.isEmpty)
     }
 
+    /// Only an agent exiting non-zero has failed; a shell's `npm test` or Ctrl-C is not news.
+    @Test func shellExitIsNoFailure() async {
+        let f = make()
+        let shown = Shown()
+        let n = notifier(shown)
+        n.attach(to: f.app, leafVisible: { _ in false }, appActive: { false })
+        var badges: [String] = []
+        f.app.onDockBadge = { badges.append($0) }
+        f.app.signal(.exited(code: 1), leaf: f.drawerLeaf)
+        #expect(f.app.state(ofLeaf: f.drawerLeaf) == .failed)
+        #expect(f.app.attentionItems.isEmpty)
+        #expect(attentionCount(f.app.attentionItems) == 0)
+        #expect(badges.allSatisfy { $0.isEmpty })
+        #expect(shown.added.isEmpty)
+        // The agent's exit still is.
+        let agent = f.tab1.root.leaves[0].id
+        f.app.signal(.exited(code: 1), leaf: agent)
+        await n.lastPost?.value
+        #expect(f.app.attentionItems.map(\.leafId) == [agent])
+        #expect(shown.notices.map(\.id) == [agent.uuidString])
+    }
+
     @Test func leafVisibleRules() {
         let f = make()
         let a = f.tab0.root.leaves[0].id

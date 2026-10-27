@@ -78,6 +78,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
     /// `node` from the login shell, looked up once (#82).
     @ObservationIgnored var localNode: Task<String?, Never>?
+    /// The login shell's PATH, looked up once (language servers, #90).
+    @ObservationIgnored var loginPath: Task<String?, Never>?
     /// Asks before the diff tab drops an edited buffer (set by `TerminalArea` with the diff editor).
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
     /// Diff tabs with an edited, unsaved working file (quitting asks).

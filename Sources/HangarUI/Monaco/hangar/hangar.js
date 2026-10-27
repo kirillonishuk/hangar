@@ -123,8 +123,9 @@
     if (f && f.model && !f.readOnly) postFile(f, { type: 'save', text: f.model.getValue() });
   }
 
-  // TS/JS buffers are mirrored in tsserver (#82): every change goes to Swift as an incremental edit.
-  const tsLike = /\.(m|c)?[jt]sx?$/i;
+  // Buffers with a language server are mirrored there (tsserver #82, LSP #90): every change goes to Swift as an
+  // incremental edit.
+  const tsLike = /\.((m|c)?[jt]sx?|pyi?|swift|go|rs)$/i;
 
   // A tab's file arrives (also for tabs not on screen: their models wait). One file open in two sessions' tabs is
   // two buffers.
@@ -490,7 +491,8 @@
     const id = nextId++;
     return new Promise((resolve) => {
       pending.set(id, resolve);
-      token.onCancellationRequested(() => { pending.delete(id); resolve(null); });
+      // A dropped request is dropped in Swift too (the language server gets `$/cancelRequest`).
+      token.onCancellationRequested(() => { if (pending.delete(id)) post({ type: 'cancel', doc: f.doc, id }); resolve(null); });
       post(Object.assign({ type: 'request', doc: f.doc, id, kind, file, line: position.lineNumber, column: position.column, name }, extra));
     });
   }
@@ -607,7 +609,11 @@
         const w = m.getWordUntilPosition(p);
         const range = new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn);
         return { suggestions: r.items.map((i) => ({ label: i.label, detail: i.detail || undefined, insertText: i.insertText,
-          kind: completionKind(i.kind), sortText: i.sortText || undefined, range, hangarAt: { model: m, position: p } })) };
+          insertTextRules: i.snippet ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
+          kind: completionKind(i.kind), sortText: i.sortText || undefined, hangarAt: { model: m, position: p },
+          // The server's own range (LSP textEdit, validated in Swift: this line, around the cursor), else the word.
+          range: i.range ? { insert: new monaco.Range(p.lineNumber, i.range.start, p.lineNumber, i.range.end),
+            replace: new monaco.Range(p.lineNumber, i.range.start, p.lineNumber, i.range.replaceEnd) } : range })) };
       }),
       // The docs of the selected entry, on demand.
       resolveCompletionItem: (item, t) => {
@@ -619,15 +625,17 @@
         });
       },
     });
-    // Rename and format: tsserver, TS/JS only (other languages have no server, so the menu greys them).
+    // tsserver's semantic classes (2020 legend; UPPER_CASE variables as `constant`, as Dark+ colours them).
     for (const lang of ['typescript', 'javascript']) {
-      // tsserver's semantic classes (2020 legend; UPPER_CASE variables as `constant`, as Dark+ colours them).
       ls.registerDocumentSemanticTokensProvider(lang, {
         getLegend: () => SEMANTIC,
         provideDocumentSemanticTokens: (m, _last, t) => ask('semantic', m, { lineNumber: 1, column: 1 }, t, undefined,
           { length: m.getValueLength() }).then((r) => (r && r.kind === 'semantic' ? encodeSemantic(m, r.data) : null)),
         releaseDocumentSemanticTokens: () => {},
       });
+    }
+    // Rename and format: the languages with a server (tsserver; LSP #90); others have none, so the menu greys them.
+    for (const lang of ['typescript', 'javascript', 'python', 'swift', 'go', 'rust']) {
       ls.registerRenameProvider(lang, {
         resolveRenameLocation: (m, p, t) => ask('rename', m, p, t).then((r) => {
           if (r && r.kind === 'rejected') return { range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column), text: '', rejectReason: r.reason };
@@ -635,7 +643,7 @@
           return w ? { range: new monaco.Range(p.lineNumber, w.startColumn, p.lineNumber, w.endColumn), text: w.word }
             : { range: new monaco.Range(p.lineNumber, p.column, p.lineNumber, p.column), text: '', rejectReason: cfg.menu.renameRefused };
         }),
-        provideRenameEdits: (m, p, newName, t) => ask('rename', m, p, t).then((r) => {
+        provideRenameEdits: (m, p, newName, t) => ask('rename', m, p, t, newName).then((r) => {
           if (!r) return { edits: [] };
           if (r.kind === 'rejected') return { edits: [], rejectReason: r.reason };
           const versionId = m.getVersionId();

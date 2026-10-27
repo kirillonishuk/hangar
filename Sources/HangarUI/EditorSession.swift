@@ -45,8 +45,8 @@ import Foundation
             switch try await io.read(path, limits.refuse) {
             case .text(let text, let stamp):
                 let large = text.utf8.count > limits.editable
-                // Go to definition lands in node_modules: shown, never edited by accident.
-                let dependency = TsMap.isDependency(path)
+                // Go to definition lands in node_modules (or site-packages, the Go / Cargo caches): shown, never edited by accident.
+                let dependency = LspMap.isDependency(path)
                 open.text = text
                 open.readOnly = large || dependency
                 open.notice = large ? L10n.editorLargeReadOnly : dependency ? L10n.editorDependencyReadOnly : nil

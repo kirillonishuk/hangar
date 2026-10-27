@@ -90,6 +90,18 @@ import Testing
     @Test func renameAndFormat() {
         #expect(msg(#"{"type":"request","id":7,"kind":"rename","file":"/r/a.ts","line":2,"column":3}"#)
                 == .request(ProviderRequest(id: 7, kind: .rename, file: "/r/a.ts", line: 2, column: 3)))
+        // The new name rides along for LSP servers (#90); an empty or oversized one is refused.
+        #expect(msg(#"{"type":"request","id":8,"kind":"rename","file":"/r/a.py","line":2,"column":3,"name":"total"}"#)
+                == .request(ProviderRequest(id: 8, kind: .rename, file: "/r/a.py", line: 2, column: 3, name: "total")))
+        #expect(msg(#"{"type":"request","id":8,"kind":"rename","file":"/r/a.py","line":2,"column":3,"name":""}"#) == nil)
+        #expect(msg(#"{"type":"request","id":8,"kind":"rename","file":"/r/a.py","line":2,"column":3,"name":"\#(String(repeating: "x", count: 513))"}"#) == nil)
+        // A request Monaco dropped.
+        #expect(msg(#"{"type":"cancel","id":8}"#) == .cancel(id: 8))
+        #expect(msg(#"{"type":"cancel","id":-1}"#) == nil)
+        #expect(msg(#"{"type":"cancel","id":true}"#) == nil)
+        // Other kinds drop a stray name.
+        #expect(msg(#"{"type":"request","id":9,"kind":"hover","file":"/r/a.py","line":1,"column":1,"name":"x"}"#)
+                == .request(ProviderRequest(id: 9, kind: .hover, file: "/r/a.py", line: 1, column: 1)))
         #expect(msg(#"{"type":"request","id":8,"kind":"format","file":"/r/a.ts","line":1,"column":1,"tabSize":2,"insertSpaces":false}"#)
                 == .request(ProviderRequest(id: 8, kind: .format, file: "/r/a.ts", line: 1, column: 1, tabSize: 2, insertSpaces: false)))
         #expect(msg(#"{"type":"request","id":8,"kind":"format","file":"/r/a.ts","line":1,"column":1,"tabSize":99,"insertSpaces":true}"#) == nil)

@@ -11,8 +11,9 @@ struct EditorLimits: Equatable, Sendable {
 
 // MARK: JS → Swift
 
-/// A language-feature request from Monaco (answered by tsserver, #82). `details`: a completion entry's docs by `name`;
-/// `format`: the position is the document's end (the whole file is formatted).
+/// A language-feature request from Monaco (answered by tsserver, #82, or an LSP server, #90). `details`: a completion
+/// entry's docs by `name`; `rename`: `name` is the new name (nil: where can it rename); `format`: the position is the
+/// document's end (the whole file is formatted).
 struct ProviderRequest: Equatable, Sendable {
     enum Kind: String, Sendable { case definition, references, hover, completion, details, rename, format, semantic }
     var id: Int
@@ -51,9 +52,11 @@ enum BridgeMessage: Equatable {
     case conflict(file: String, keepMine: Bool)
     case inline(Bool)
     case request(ProviderRequest)
+    /// Monaco dropped a request (the cursor moved on).
+    case cancel(id: Int)
     /// The context menu's Cut / Copy / Paste.
     case clipboard(ClipboardAction)
-    /// A TS/JS buffer changed (forwarded to tsserver).
+    /// A buffer with a language server changed (forwarded to it).
     case edit(file: String, [EditorEdit])
     /// The status item's click: restart the file's language server.
     case restartLanguage(file: String)
@@ -128,7 +131,8 @@ enum BridgeMessage: Equatable {
                   let f = file(), let (l, c) = position() else { return nil }
             let name = str("name")
             if kind == .details { guard let name, !name.isEmpty, name.utf8.count <= 512 else { return nil } }
-            var r = ProviderRequest(id: id, kind: kind, file: f, line: l, column: c, name: kind == .details ? name : nil)
+            if kind == .rename, let name { guard !name.isEmpty, name.utf8.count <= 512, !name.contains("\0") else { return nil } }
+            var r = ProviderRequest(id: id, kind: kind, file: f, line: l, column: c, name: kind == .details || kind == .rename ? name : nil)
             if kind == .format {
                 guard let tab = int("tabSize", 1...16), let spaces = bool("insertSpaces") else { return nil }
                 (r.tabSize, r.insertSpaces) = (tab, spaces)
@@ -152,6 +156,7 @@ enum BridgeMessage: Equatable {
             }
             return .edit(file: f, edits)
         case "restartLanguage": return file().map { .restartLanguage(file: $0) }
+        case "cancel": return int("id", 0...Int(Int32.max)).map { .cancel(id: $0) }
         default: return nil
         }
     }
@@ -188,6 +193,13 @@ struct EditorCompletion: Equatable, Sendable {
     /// tsserver's `ScriptElementKind` (`method`, `property` …): the icon in the list.
     var kind: String? = nil
     var sortText: String? = nil
+    /// `insertText` is a snippet (tab stops only, `LspMap.snippet`).
+    var snippet = false
+    /// The server's own range on the asked line (columns; insert `start..<end`, replace `start..<replaceEnd`); nil: the
+    /// word at the cursor.
+    var range: Range? = nil
+
+    struct Range: Equatable, Sendable { var start: Int, end: Int, replaceEnd: Int }
 }
 
 /// The status item of the editor's tab bar for a TS/JS file (#82).
@@ -337,7 +349,8 @@ enum EditorCommand: Equatable {
         case .completions(let list):
             return ["kind": "completions", "items": list.map {
                 ["label": $0.label, "detail": $0.detail ?? NSNull(), "insertText": $0.insertText, "kind": $0.kind ?? NSNull(),
-                 "sortText": $0.sortText ?? NSNull()] as [String: Any]
+                 "sortText": $0.sortText ?? NSNull(), "snippet": $0.snippet,
+                 "range": $0.range.map { ["start": $0.start, "end": $0.end, "replaceEnd": $0.replaceEnd] } ?? NSNull()] as [String: Any]
             }]
         case .edits(let list):
             return ["kind": "edits", "items": list.map {

@@ -130,7 +130,7 @@ import Workspace
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
-        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip
+        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -592,6 +592,11 @@ import Workspace
     static var tsNotConnected: String { s(.tsNotConnected) }
     static func tsTooltip(_ tsserver: String, _ node: String) -> String { f(.tsTooltip, tsserver, node) }
     static var tsUnavailableTip: String { s(.tsUnavailableTip) }
+    static func lspLoading(_ server: String) -> String { f(.lspLoading, server) }
+    static func lspStopped(_ server: String) -> String { f(.lspStopped, server) }
+    static func lspMissing(_ language: String) -> String { f(.lspMissing, language) }
+    static func lspMissingTip(_ servers: String) -> String { f(.lspMissingTip, servers) }
+    static func lspTooltip(_ executable: String) -> String { f(.lspTooltip, executable) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

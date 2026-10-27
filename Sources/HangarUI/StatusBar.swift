@@ -104,12 +104,12 @@ extension AppState {
     }
 }
 
-/// An editor has no terminal process: the active file's language (TS/JS, the ones with a language server), else «Editor».
+/// An editor has no terminal process: the active file's language (the ones with a language server), else «Editor».
 @MainActor func editorStatusLabel(_ leaf: Leaf) -> String {
     switch leaf.openFile.flatMap(TsMap.scriptKind) {
     case "TS", "TSX": "TypeScript"
     case "JS", "JSX": "JavaScript"
-    default: L10n.editor
+    default: leaf.openFile.flatMap(LspLanguage.of)?.name ?? L10n.editor
     }
 }
 

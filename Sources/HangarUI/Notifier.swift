@@ -260,6 +260,14 @@ extension AppState {
             self.post(notice(for: item, app: app))
         }
         app.onLeafSeen = { [weak self] in self?.remove(leaf: $0) }
+        // Only withdraws: a banner the old policy held back is not posted late.
+        app.onBannerPolicy = { [weak self, weak app] in
+            guard let self, let app else { return }
+            for item in app.attentionItems
+            where !shouldBanner(item.attention.reason, app.bannerContext(leafId: item.leafId, reason: item.attention.reason)) {
+                self.remove(leaf: item.leafId)
+            }
+        }
     }
 
     /// Asks for permission on the first need; a refusal silently drops the notification.

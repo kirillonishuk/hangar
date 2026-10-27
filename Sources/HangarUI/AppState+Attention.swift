@@ -39,9 +39,13 @@ extension AppState {
 
     func setProjectNotifications(_ id: UUID, _ value: ProjectNotifications) {
         perform { $0.setProjectNotifications(projectId: id, value) }
+        onBannerPolicy?()
     }
 
-    func setMuted(taskId: UUID, _ muted: Bool) { perform { $0.setMuted(taskId: taskId, muted) } }
+    func setMuted(taskId: UUID, _ muted: Bool) {
+        perform { $0.setMuted(taskId: taskId, muted) }
+        onBannerPolicy?()
+    }
 
     func notifyEnabled(_ reason: AttentionReason) -> Bool {
         switch reason {

@@ -23,6 +23,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         didSet {
             if config.keepAwake != oldValue.keepAwake { updateKeepAwake() }
             if config.dockBadge != oldValue.dockBadge { updateDockBadge() }
+            if config != oldValue { onBannerPolicy?() }
         }
     }
     /// Runtime-only (not persisted): last terminal title per leaf.
@@ -48,6 +49,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
+    /// Mute, project mode or a notification setting changed: delivered banners no longer allowed go.
+    @ObservationIgnored var onBannerPolicy: (() -> Void)?
     /// The badge text last handed to `onDockBadge`.
     @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.

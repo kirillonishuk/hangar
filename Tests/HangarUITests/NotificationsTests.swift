@@ -360,6 +360,36 @@ import Workspace
         #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .allow) == .reveal)
     }
 
+    /// Muting a session or quietening its project takes back banners already delivered that are no longer allowed.
+    @Test func policyChangeWithdrawsBanners() async throws {
+        let f = make()
+        let shown = Shown()
+        let n = notifier(shown)
+        n.attach(to: f.app, leafVisible: { _ in false }, appActive: { false })
+        permission(f)
+        await n.lastPost?.value
+        send(f, f.tab1, .codexNotify, message: "done")
+        await n.lastPost?.value
+        let claude = f.tab0.root.leaves[0].id.uuidString, codex = f.tab1.root.leaves[0].id.uuidString
+        #expect(Set(shown.notices.map(\.id)) == [claude, codex])
+        // «Срочные»: done goes, the permission stays.
+        f.app.setProjectNotifications(f.app.state.projects[0].id, .urgent)
+        #expect(shown.notices.map(\.id) == [claude])
+        // Back to all: nothing is posted late.
+        f.app.setProjectNotifications(f.app.state.projects[0].id, .all)
+        #expect(shown.notices.map(\.id) == [claude])
+        f.app.setMuted(taskId: f.task, true)
+        #expect(shown.notices.isEmpty)
+        #expect(attentionCount(f.app.attentionItems) == 1)  // muted: still in the inbox and the count
+        // The master switch off: likewise.
+        f.app.setMuted(taskId: f.task, false)
+        f.app.signal(.desktopNotification(text: "Run tests?"), leaf: f.tab1.root.leaves[0].id)
+        await n.lastPost?.value
+        #expect(shown.notices.map(\.id) == [codex])
+        try f.app.setConfig("notifications", flag: false) { $0.notifications = false }
+        #expect(shown.notices.isEmpty)
+    }
+
     @Test func leafVisibleRules() {
         let f = make()
         let a = f.tab0.root.leaves[0].id

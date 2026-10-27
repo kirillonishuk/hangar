@@ -241,6 +241,19 @@ extension MainWindowController {
             guard let content = window?.contentView, v.count == 2, let hit = content.hitTest(content.convert(NSPoint(x: v[0], y: content.frame.height - v[1]), from: nil)) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
         case "connectHost": presentConnectHost()
+        case "update":  // update check|show|install|later|dump <file>: the in-app updater (#86) against HANGAR_UPDATE_FEED
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            switch f.first ?? "" {
+            case "check": app.updates.checkNow()
+            case "show": presentUpdate()
+            case "install": app.updates.install()
+            case "later": app.updates.later()
+            case "dump" where f.count > 1:
+                let u = app.updates
+                let text = "phase=\(u.phase) current=\(u.current ?? "nil") offer=\(u.offer?.version ?? "nil") pill=\(u.pill?.version ?? "nil") skipped=\(u.record.skipped ?? "nil") error=\(u.installError ?? "nil")\n"
+                try? text.write(toFile: f[1], atomically: true, encoding: .utf8)
+            default: break
+            }
         case "sheet":  // sheet [<project index>]
             presentNewTask(projectId: Int(arg).flatMap { app.state.projects.indices.contains($0) ? app.state.projects[$0].id : nil })
         case "settings":  // settings [general|appearance|editor|notifications|integrations|advanced]

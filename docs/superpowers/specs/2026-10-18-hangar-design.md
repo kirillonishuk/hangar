@@ -48,6 +48,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `Usage` | Лимиты подписок: приём `rate_limits` от `hangar statusline`, вызов `codex app-server`, свёртка в окна, пороги. | `ControlServer`, `Exec` |
 | `Integration` | Правка файлов агентов (`~/.claude/settings.json`, `~/.codex/config.toml`): показ diff, копия, запись, откат (#43). | — |
 | `History` | Прошлые разговоры агентов папки (jsonl Claude/Codex, только чтение, голова+хвост, кэш по mtime) — локально и через runner хоста (#74). | `Exec`, `AgentStatus` |
+| `Update` | Обновления из GitHub Releases (#86): `releases/latest`, сравнение версий, загрузка DMG и `.sha256`, проверка, `hdiutil attach`, проверка bundle id и версии, скрипт-помощник замены бандла. | `hdiutil`, `ditto` |
 | `Power` | Блокировка сна, пока есть вкладки в `working` (число работающих передаёт UI). | IOKit |
 | `Exec` | «Где выполнять»: локально (`Process`) или на SSH-хосте (через общий мастер-процесс `ssh -M` без `ControlPersist`, #47). Через него ходят `Git`, `Usage`, запуск вкладок. | ssh |
 | `ControlServer` | Unix-сокет, JSON-протокол (запрос/ответ, по строке на сообщение). Обслуживает hooks, CLI и MCP. Этап 3 — типы `event` и `usage`; этап 5 — запросы/ответы (#45). | `Workspace`, `AgentStatus` |
@@ -56,7 +57,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 
 Сборка GhosttyKit: скрипт `scripts/build-ghosttykit.sh` клонирует Ghostty на закреплённом коммите и собирает xcframework через Zig. Обновление Ghostty = смена коммита + правки только в `GhosttyBridge`.
 
-Данные: `~/Library/Application Support/Hangar/state.json` (состояние), сокет `~/Library/Application Support/Hangar/hangar.sock`, конфиг `~/.config/hangar/config.toml`.
+Данные: `~/Library/Application Support/Hangar/state.json` (состояние), `update.json` рядом (последняя проверка обновлений, пропущенная версия, найденный релиз), сокет `~/Library/Application Support/Hangar/hangar.sock`, конфиг `~/.config/hangar/config.toml`.
 
 ## 3. Модель данных
 

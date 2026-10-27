@@ -27,6 +27,8 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorPalette: EditorPalette = .darkPlus
     public var editorRainbowIndent = true
     public var editorTodoHighlight = true
+    /// Look for a new GitHub release on launch / activation, at most once a day (#86).
+    public var checkUpdates = true
 
     /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
     public enum TerminalBackground: String, Sendable { case hangar, ghostty }
@@ -63,7 +65,7 @@ public struct HangarConfig: Equatable, Sendable {
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let rawValue = line[line.index(after: eq)...]
-            let flags = ["notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight"]
+            let flags = ["notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight", "check_updates"]
             if section.isEmpty, flags.contains(key) {
                 let flag = try boolValue(rawValue, line: n + 1)
                 switch key {
@@ -72,6 +74,7 @@ public struct HangarConfig: Equatable, Sendable {
                 case "dock_badge": config.dockBadge = flag
                 case "editor_rainbow_indent": config.editorRainbowIndent = flag
                 case "editor_todo_highlight": config.editorTodoHighlight = flag
+                case "check_updates": config.checkUpdates = flag
                 default: config.keepAwake = flag
                 }
                 continue

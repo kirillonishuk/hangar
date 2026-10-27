@@ -36,7 +36,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     /// The row labels of the page: the label column is measured from them.
     var labelKeys: [L10n.Key] {
         switch self {
-        case .general: [.languageTitle, .defaultAgent, .externalEditor]
+        case .general: [.languageTitle, .defaultAgent, .externalEditor, .checkUpdatesTitle, .versionTitle]
         case .appearance: [.terminalBackground]
         case .editor: [.editorPaletteTitle, .editorRainbowTitle, .editorTodoTitle]
         case .notifications: [.notificationsTitle, .limitNotificationsTitle, .dockBadgeTitle, .keepAwakeShort]
@@ -148,6 +148,45 @@ struct SettingsView: View {
                     .onSubmit { model.commitExternalEditor() }
                     .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
             }
+            row(L10n.checkUpdatesTitle) {
+                CardSwitch(on: app.config.checkUpdates) { on in
+                    save { try app.setConfig("check_updates", flag: on) { $0.checkUpdates = on } }
+                    if on { app.updates.checkIfDue() }
+                }
+                .disabled(app.updates.feed == nil)
+            }
+            row(L10n.versionTitle) { versionValue }
+        }
+    }
+
+    /// The running version, the last check's outcome, «Проверить сейчас» (#86).
+    @ViewBuilder private var versionValue: some View {
+        let updates = app.updates
+        let status = updateStatus(updates)
+        Text(verbatim: updates.current ?? "dev")
+            .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+            .foregroundStyle(Theme.ui.text2)
+            .fixedSize()
+        if let status {
+            Text(verbatim: status.text).foregroundStyle(status.color)
+                .lineLimit(1).truncationMode(.middle)
+                .help(status.text)
+        }
+        Spacer(minLength: Theme.cardRowGap)
+        Button(L10n.checkNow) { updates.checkNow() }
+            .buttonStyle(SheetButton(primary: false))
+            .fixedSize()
+            .disabled(updates.feed == nil || updates.phase == .checking)
+    }
+
+    private func updateStatus(_ updates: UpdateModel) -> (text: String, color: Color)? {
+        guard updates.feed != nil else { return (L10n.updateDevBuild, Theme.ui.text3) }
+        switch updates.phase {
+        case .checking: return (L10n.updateChecking, Theme.ui.text3)
+        case .checkFailed(let why): return (L10n.updateCheckFailed(why), Theme.ui.failedText)
+        default:
+            if let offer = updates.offer { return (L10n.updateAvailable(offer.version), Theme.ui.accentText) }
+            return updates.record.lastCheck != nil ? (L10n.updateUpToDate, Theme.ui.text3) : nil
         }
     }
 

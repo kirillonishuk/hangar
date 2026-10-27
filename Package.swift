@@ -17,6 +17,7 @@ let package = Package(
         .target(name: "Integration", dependencies: ["Exec"]),
         .target(name: "History", dependencies: ["Exec", "AgentStatus"]),
         .target(name: "Power", linkerSettings: [.linkedFramework("IOKit")]),
+        .target(name: "Update"),
         .target(
             name: "GhosttyBridge",
             dependencies: ["GhosttyKit", "Exec"],
@@ -34,7 +35,7 @@ let package = Package(
                 .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
-        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration", "Power", "History"], resources: [.process("Resources"), .copy("FileIcons"), .copy("Monaco")]),
+        .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration", "Power", "History", "Update"], resources: [.process("Resources"), .copy("FileIcons"), .copy("Monaco")]),
         .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer", "Exec"]),
         .testTarget(name: "WorkspaceTests", dependencies: ["Workspace"]),
@@ -47,6 +48,7 @@ let package = Package(
         .testTarget(name: "IntegrationTests", dependencies: ["Integration", "Exec"]),
         .testTarget(name: "PowerTests", dependencies: ["Power"]),
         .testTarget(name: "HistoryTests", dependencies: ["History", "Exec"]),
+        .testTarget(name: "UpdateTests", dependencies: ["Update"]),
         .testTarget(name: "HangarUITests", dependencies: ["HangarUI", "Integration", "Git", "AgentStatus", "ControlServer", "Usage", "Power", "History"]),
     ]
 )

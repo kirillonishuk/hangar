@@ -199,6 +199,12 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"dock_badge = "no""#) }
     }
 
+    @Test func checkUpdatesFlag() throws {
+        #expect(try HangarConfig.parse("").checkUpdates)
+        #expect(try HangarConfig.parse("check_updates = false").checkUpdates == false)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"check_updates = "no""#) }
+    }
+
     /// Settings → Editor: the syntax palette (VS Code Dark+ by default) and the rainbow indents / TODO highlights.
     @Test func editorAppearanceKeys() throws {
         let d = HangarConfig()

@@ -489,3 +489,35 @@
 "tsTooltip" = "%1$@\nnode: %2$@\nНажмите, чтобы перезапустить";
 "tsUnavailableTip" = "Определения, ссылки и ошибки берутся из TypeScript проекта (node_modules/typescript) и node. Нажмите, чтобы проверить снова";
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";
+
+/* In-app updates (#86) */
+"updateAvailable" = "Доступна %@";
+"updateAvailableHelp" = "Новая версия Hangar: что нового и установка";
+"updateSheetTitle" = "Доступна версия %@";
+"updateCurrent" = "сейчас %@";
+"updateNoNotes" = "Описания нет.";
+"updateInstall" = "Обновить";
+"updateRestart" = "Перезапустить";
+"updateLater" = "Позже";
+"updateSkip" = "Пропустить версию";
+"updateDownloading" = "Загрузка… %ld%%";
+"updateDownloadingPlain" = "Загрузка…";
+"updatePreparing" = "Проверка образа…";
+"updateReady" = "Готово: Hangar перезапустится с новой версией";
+"updateQuitHint" = "Hangar закроется и откроется снова, сессии восстановятся";
+"updateManual" = "Нет прав на запись в %@: образ открыт в Finder — перетащите Hangar на место прежнего";
+"updateFailed" = "Не удалось обновить: %@";
+"updateInstallFailed" = "Прошлое обновление не установлено: %@";
+"updateChecksumMismatch" = "контрольная сумма не совпала";
+"updateWrongApp" = "в образе не та сборка Hangar (%@)";
+"updateOpenPage" = "Страница релиза";
+"checkUpdatesTitle" = "Проверять обновления";
+"versionTitle" = "Версия";
+"checkNow" = "Проверить сейчас";
+"updateChecking" = "Проверка…";
+"updateUpToDate" = "Установлена последняя версия";
+"updateCheckFailed" = "Не удалось проверить: %@";
+"updateDevBuild" = "Сборка для разработки: обновления выключены";
+"updateOtherInstance" = "Запущена другая копия Hangar — закройте её и повторите";
+"updateUntrusted" = "адрес не из GitHub (%@)";
+"updateBadSignature" = "подпись приложения в образе не проходит проверку";

@@ -489,3 +489,35 @@
 "tsTooltip" = "%1$@\nnode: %2$@\nClick to restart";
 "tsUnavailableTip" = "Definitions, references and errors come from the project's TypeScript (node_modules/typescript) and node. Click to check again";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";
+
+/* In-app updates (#86) */
+"updateAvailable" = "%@ available";
+"updateAvailableHelp" = "New Hangar version: what’s new and install";
+"updateSheetTitle" = "Hangar %@ is available";
+"updateCurrent" = "you have %@";
+"updateNoNotes" = "No release notes.";
+"updateInstall" = "Update";
+"updateRestart" = "Restart";
+"updateLater" = "Later";
+"updateSkip" = "Skip This Version";
+"updateDownloading" = "Downloading… %ld%%";
+"updateDownloadingPlain" = "Downloading…";
+"updatePreparing" = "Verifying the image…";
+"updateReady" = "Ready: Hangar will restart with the new version";
+"updateQuitHint" = "Hangar quits and reopens; sessions are restored";
+"updateManual" = "Can’t write to %@: the image is open in Finder — drag Hangar over the old one";
+"updateFailed" = "Update failed: %@";
+"updateInstallFailed" = "The last update wasn’t installed: %@";
+"updateChecksumMismatch" = "checksum mismatch";
+"updateWrongApp" = "the image holds another Hangar build (%@)";
+"updateOpenPage" = "Release page";
+"checkUpdatesTitle" = "Check for updates";
+"versionTitle" = "Version";
+"checkNow" = "Check Now";
+"updateChecking" = "Checking…";
+"updateUpToDate" = "You’re up to date";
+"updateCheckFailed" = "Couldn’t check: %@";
+"updateDevBuild" = "Development build: updates off";
+"updateOtherInstance" = "Another copy of Hangar is running — quit it and try again";
+"updateUntrusted" = "not a GitHub address (%@)";
+"updateBadSignature" = "the app in the image fails the signature check";

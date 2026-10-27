@@ -45,6 +45,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
     @ObservationIgnored public lazy var keepAwake = KeepAwake()
+    /// GitHub releases (#86); its record lives next to state.json. Nothing is read until `start()` (main.swift).
+    @ObservationIgnored public lazy var updates: UpdateModel = {
+        let model = UpdateModel(stateDir: URL(fileURLWithPath: (socketPath as NSString).deletingLastPathComponent))
+        model.enabled = { [weak self] in self?.config.checkUpdates ?? false }
+        return model
+    }()
     /// Subscription limits from the statusline / codex; in memory only.
     var usage = UsageBoard()
     /// `message` of the leaf's last hook event (notification body).

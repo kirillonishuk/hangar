@@ -80,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController = wc
         wc.enableNotifications()
         appState = app
+        app.updates.start()  // after the window: an offer found shows its pill
         for url in pendingLinks { wc.openLink(url) }
         pendingLinks = []
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -141,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server?.stop()
         appState?.keepAwake.stop()
         appState?.saveNow()
+        appState?.updates.launchPendingInstall()  // state is saved: the helper swaps the bundle once we exit
         GhosttyApp.removeConfigFiles()
         // ghostty_surface_free waits for the child with no timeout: one that ignores SIGHUP would hang quit. State is saved and the server stopped by now.
         Thread.detachNewThread { sleep(3); _exit(0) }

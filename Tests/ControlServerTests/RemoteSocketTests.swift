@@ -267,7 +267,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
 
     @Test func scriptParsesAsPOSIX() throws {
         let lines = hangarRemoteScript.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 3)
+        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 4)
         let r = try Remote()
         for shell in shells {
             let p = Process()
@@ -277,7 +277,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
             p.waitUntilExit()
             #expect(p.terminationStatus == 0, "\(shell)")
             let v = try r.run(["version"], shell: shell, env: ["PATH": r.path()])
-            #expect(v.code == 0 && v.out == "3\n")
+            #expect(v.code == 0 && v.out == "4\n")
         }
     }
 

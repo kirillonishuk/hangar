@@ -19,6 +19,7 @@ extension AppState {
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
             Task { await self?.sweepTombstones(host: host) }
+            Task { await self?.upgradeClaudeHooks(host: host) }
         }
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in

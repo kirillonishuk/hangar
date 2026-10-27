@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
         if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
+        Task { await app.upgradeClaudeHooksAtLaunch() }  // after the DEBUG overrides: never the real file in a debug run
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)

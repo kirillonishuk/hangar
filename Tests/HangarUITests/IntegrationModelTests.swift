@@ -1,6 +1,7 @@
 import Foundation
 import Integration
 import Testing
+import Workspace
 @testable import HangarUI
 
 private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
@@ -35,6 +36,35 @@ private let withStatus = #"""
     private func backups(_ url: URL) -> [String] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: url.deletingLastPathComponent().path)) ?? []
         return names.filter { $0.hasPrefix(url.lastPathComponent + ".hangar-backup-") }
+    }
+
+    /// Launch (#96): an installed integration missing a current hook gets it; a fresh one is left for the consent sheet.
+    @Test func launchUpgradesInstalledClaudeHooks() async throws {
+        let full = try claudeInstall(withStatus, cli: cli)
+        guard case .object(var root) = try parseJSON(full), let i = root.firstIndex(where: { $0.key == "hooks" }),
+              case .object(let events) = root[i].value else { Issue.record(); return }
+        root[i].value = .object(events.filter { $0.key != "PermissionRequest" })
+        let old = printJSON(.object(root))
+        try write(old, claudeURL)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir.appendingPathComponent("state")),
+                           config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
+        app.claudeSettingsURL = claudeURL
+        app.findAgentDirs = nil
+
+        await app.upgradeClaudeHooks(cli: cli)
+        #expect(try read(claudeURL) == (try claudeUpgrade(old, cli: cli)))
+        #expect(claudeState(try read(claudeURL), cli: cli) == .installed)
+        #expect(backups(claudeURL).count == 1)
+        await app.upgradeClaudeHooks(cli: cli)
+        #expect(backups(claudeURL).count == 1)
+
+        // Not installed: untouched. No bundled CLI (DEBUG `swift run`): nothing at all.
+        try write(withStatus, claudeURL)
+        await app.upgradeClaudeHooks(cli: cli)
+        await app.upgradeClaudeHooks(cli: nil)
+        #expect(try read(claudeURL) == withStatus)
+        #expect(backups(claudeURL).count == 1)
     }
 
     @Test func mcpAddCommandsQuoted() {

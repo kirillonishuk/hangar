@@ -27,7 +27,7 @@ extension AppState {
     }
 
     /// As Settings: the agent dirs from the login shell, unless DEBUG pinned the files (`findAgentDirs` nil).
-    private func doctorAgentPaths() async -> (claude: URL, codex: URL) {
+    func doctorAgentPaths() async -> (claude: URL, codex: URL) {
         guard let find = findAgentDirs else { return (claudeSettingsURL, codexConfigURL) }
         let dirs = await find()
         return integrationPaths(home: FileManager.default.homeDirectoryForCurrentUser, claudeConfigDir: dirs.claude, codexHome: dirs.codex)

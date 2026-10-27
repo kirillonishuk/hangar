@@ -127,6 +127,17 @@ private func removeHangarHooks(_ root: inout [JSONMember], keepHooksKey: Bool = 
     root["hooks"] = events.isEmpty && !keepHooksKey ? nil : .object(events)
 }
 
+private func hookGroup(_ h: (event: String, matcher: String?, kind: String), cli: String) -> JSONValue {
+    var group: [JSONMember] = []
+    if let m = h.matcher { group["matcher"] = .string(m) }
+    group["hooks"] = .array([.object([
+        JSONMember(key: "type", value: .string("command")),
+        JSONMember(key: "command", value: .string(hookCommand(cli, h.kind))),
+        JSONMember(key: "timeout", value: .number("5")),
+    ])])
+    return .object(group)
+}
+
 public func claudeInstall(_ text: String?, cli: String) throws(IntegrationError) -> String {
     var root = try rootObject(text)
     removeHangarHooks(&root, keepHooksKey: true)
@@ -142,14 +153,7 @@ public func claudeInstall(_ text: String?, cli: String) throws(IntegrationError)
             guard case .array(let a) = existing else { throw .notAnObject }
             groups = a
         }
-        var group: [JSONMember] = []
-        if let m = h.matcher { group["matcher"] = .string(m) }
-        group["hooks"] = .array([.object([
-            JSONMember(key: "type", value: .string("command")),
-            JSONMember(key: "command", value: .string(hookCommand(cli, h.kind))),
-            JSONMember(key: "timeout", value: .number("5")),
-        ])])
-        groups.append(.object(group))
+        groups.append(hookGroup(h, cli: cli))
         events[h.event] = .array(groups)
     }
     root["hooks"] = .object(events)
@@ -169,6 +173,73 @@ public func claudeInstall(_ text: String?, cli: String) throws(IntegrationError)
     default: break
     }
     return printJSON(.object(root))
+}
+
+/// Automatic upgrade of an installed integration (#96): adds only Hangar's missing hooks at the end of their events.
+/// The user's handlers and Hangar's current ones keep their place; Hangar's obsolete handlers (e.g. StopFailure
+/// `rate_limit`) are dropped. nil = nothing to do: not installed, already current, or installed for another CLI path
+/// (that needs the consent sheet, which rewrites every Hangar entry).
+public func claudeUpgrade(_ text: String?, cli: String) throws(IntegrationError) -> String? {
+    var root = try rootObject(text)
+    guard case .object(var events)? = root["hooks"] else { return nil }
+    func matcher(_ g: [JSONMember]) -> String { if case .string(let m)? = g["matcher"] { m } else { "" } }
+    let expected = Set(claudeHooks.map { "\($0.event)|\($0.matcher ?? "")|\(hookCommand(cli, $0.kind))" })
+
+    var found: Set<String> = []
+    for event in events {
+        guard case .array(let groups) = event.value else { continue }
+        for case .object(let g) in groups {
+            guard case .array(let handlers)? = g["hooks"] else { continue }
+            for h in handlers {
+                guard let c = command(of: h), isHangarCommand(c) else { continue }
+                guard shellWords(c)?.first == cli else { return nil }
+                found.insert("\(event.key)|\(matcher(g))|\(c)")
+            }
+        }
+    }
+    guard !found.isEmpty else { return nil }
+    let missing = claudeHooks.filter { !found.contains("\($0.event)|\($0.matcher ?? "")|\(hookCommand(cli, $0.kind))") }
+    guard !missing.isEmpty || !found.isSubset(of: expected) else { return nil }
+
+    var emptied: Set<String> = []
+    for ei in events.indices {
+        guard case .array(var groups) = events[ei].value else { continue }
+        var touched = false
+        for gi in groups.indices.reversed() {
+            guard case .object(var g) = groups[gi], case .array(let handlers)? = g["hooks"] else { continue }
+            let kept = handlers.filter { h in
+                guard let c = command(of: h), isHangarCommand(c) else { return true }
+                return expected.contains("\(events[ei].key)|\(matcher(g))|\(c)")
+            }
+            guard kept.count != handlers.count else { continue }
+            touched = true
+            if kept.isEmpty { groups.remove(at: gi) } else { g["hooks"] = .array(kept); groups[gi] = .object(g) }
+        }
+        guard touched else { continue }
+        events[ei].value = .array(groups)
+        if groups.isEmpty { emptied.insert(events[ei].key) }
+    }
+    for h in missing {
+        var groups: [JSONValue] = []
+        if let existing = events[h.event] {
+            guard case .array(let a) = existing else { throw .notAnObject }
+            groups = a
+        }
+        groups.append(hookGroup(h, cli: cli))
+        events[h.event] = .array(groups)
+        emptied.remove(h.event)
+    }
+    events.removeAll { emptied.contains($0.key) }
+    root["hooks"] = .object(events)
+    return printJSON(.object(root))
+}
+
+/// `claudeUpgrade` on a file: backup next to it, atomic write that refuses if the file changed meanwhile.
+/// nil = nothing written. Throws (file untouched) on an unreadable or unparsable file or a failed write.
+public func claudeUpgradeFile(_ url: URL, cli: String, now: Date) throws -> URL? {
+    let original = try readUserFile(url)
+    guard let updated = try claudeUpgrade(original, cli: cli) else { return nil }
+    return try writeUserFile(url, text: updated, expected: original, now: now)
 }
 
 public func claudeUninstall(_ text: String) throws(IntegrationError) -> String {

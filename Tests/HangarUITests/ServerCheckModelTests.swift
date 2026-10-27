@@ -192,6 +192,63 @@ import Workspace
         #expect(type == .typeSymbolicLink)
     }
 
+    /// The pre-#96 hook set for `cli` around a user hook: no PermissionRequest, StopFailure only for `rate_limit`.
+    private func oldInstall(cli: String) throws -> String {
+        let fresh = try claudeInstall(#"{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "say done"}]}]}}"#, cli: cli)
+        guard case .object(var root) = try parseJSON(fresh), let i = root.firstIndex(where: { $0.key == "hooks" }),
+              case .object(let events) = root[i].value else { throw IntegrationError.notAnObject }
+        root[i].value = .object(events.filter { $0.key != "PermissionRequest" })
+        return printJSON(.object(root)).replacingOccurrences(of: "\"StopFailure\": [\n      {\n", with: "\"StopFailure\": [\n      {\n        \"matcher\": \"rate_limit\",\n")
+    }
+
+    private func backups(_ dir: String) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasPrefix("settings.json.hangar-backup-") }
+    }
+
+    @Test func connectUpgradesInstalledClaudeHooks() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let cli = h.home + "/.hangar/bin/hangar-remote", dir = h.home + "/.claude", settings = dir + "/settings.json"
+        let old = try oldInstall(cli: cli)
+        #expect(old.contains("rate_limit"))
+        #expect(claudeState(old, cli: cli) == .outdated)
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try old.write(toFile: settings, atomically: true, encoding: .utf8)
+
+        // Connecting upgrades it in the background: only the missing hooks, after a backup.
+        #expect(await h.remote.connect("dev") == .connected)
+        let expected = try #require(try claudeUpgrade(old, cli: cli))
+        #expect(await waitUntil { (try? String(contentsOfFile: settings, encoding: .utf8)) == expected })
+        #expect(await waitUntil { backups(dir).count == 1 })
+        let backup = try #require(backups(dir).first)
+        #expect(try String(contentsOfFile: dir + "/" + backup, encoding: .utf8) == old)
+        #expect(claudeState(expected, cli: cli) == .installed)
+
+        // Again: nothing to do, nothing written.
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
+        #expect(await m.autoUpgradeClaude() == false)
+        #expect(backups(dir).count == 1)
+        await m.refresh()
+        #expect(m.claude == .installed)
+        // Nothing local was touched.
+        #expect(!FileManager.default.fileExists(atPath: h.root + "/.claude"))
+    }
+
+    @Test func upgradeLeavesUninstalledAndBrokenFilesAlone() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let cli = h.home + "/.hangar/bin/hangar-remote", dir = h.home + "/.claude", settings = dir + "/settings.json"
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
+        #expect(await m.autoUpgradeClaude() == false)  // no file
+        #expect(!FileManager.default.fileExists(atPath: settings))
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        for text in [try claudeUninstall(oldInstall(cli: cli)), String(try oldInstall(cli: cli).dropLast(4))] {
+            try text.write(toFile: settings, atomically: true, encoding: .utf8)
+            #expect(await m.autoUpgradeClaude() == false)
+            #expect(try String(contentsOfFile: settings, encoding: .utf8) == text)
+        }
+        #expect(backups(dir).isEmpty)
+    }
+
     @Test func remoteProjectFindsPath() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try FileManager.default.createDirectory(atPath: h.home + "/proj", withIntermediateDirectories: true)

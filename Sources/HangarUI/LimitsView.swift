@@ -57,9 +57,9 @@ import Workspace
                        sound: "default", urgent: false, requestKey: nil)
 }
 
-/// Gated by `limit_notifications`; the sound is `sound_limit`.
+/// Gated by the master `notifications` switch and `limit_notifications`; the sound is `sound_limit`.
 @MainActor func limitNotices(_ alerts: [UsageAlert], app: AppState) -> [AgentNotice] {
-    guard app.config.limitNotifications else { return [] }
+    guard app.config.notifications, app.config.limitNotifications else { return [] }
     return alerts.map { var n = limitNotice($0); n.sound = noticeSound(app.config.sounds["limit"]); return n }
 }
 

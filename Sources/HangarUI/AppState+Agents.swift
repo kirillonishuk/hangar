@@ -27,7 +27,8 @@ extension AppState {
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
-                alert(usage.markLimitReached(.claude, now: usageClock))
+                // The leaf's own «упёрся в лимит» banner tells this: no second, threshold banner for the same event.
+                _ = usage.markLimitReached(.claude, now: usageClock)
             case .codexNotify: onCodexTurn?()
             default: break
             }

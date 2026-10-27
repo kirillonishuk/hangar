@@ -8,9 +8,10 @@ import Workspace
 @MainActor @Suite struct LimitsTests {
     private let t0 = Date(timeIntervalSince1970: 1_792_499_280)  // Tue 2026-10-20 15:28 MSK
 
-    private func makeApp(limitNotifications: Bool = true) -> AppState {
+    private func makeApp(limitNotifications: Bool = true, notifications: Bool = true) -> AppState {
         var config = HangarConfig()
         config.limitNotifications = limitNotifications
+        config.notifications = notifications
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-limits-\(UUID())")
         let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: config,
                            configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
@@ -110,6 +111,16 @@ import Workspace
         L10n.language = .en
         #expect(limitNotice(UsageAlert(agent: .codex, kind: nil, level: .full, percent: nil)).title == "Codex: limit reached")
         #expect(limitNotice(UsageAlert(agent: .claude, kind: .session, level: .warn, percent: 81)).title == "Claude: almost at the limit (81%)")
+    }
+
+    /// The master switch silences threshold banners too.
+    @Test func masterSwitchGatesLimitNotices() {
+        let app = makeApp(notifications: false)
+        var notices: [AgentNotice] = []
+        app.onUsageAlerts = { notices += limitNotices($0, app: app) }
+        claudeUsage(app, 81)
+        #expect(notices.isEmpty)
+        #expect(app.usage.view(.claude, now: Date())?.windows.first?.usedPercent == 81)
     }
 
     @Test func popoverNeedsData() {

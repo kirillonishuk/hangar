@@ -258,9 +258,16 @@ import Workspace
         #expect(alerts.last?.map(\.level) == [.warn])
         var turns = 0
         app.onCodexTurn = { turns += 1 }
+        let before = alerts.count
         event(app, tab: 0, .stopFailure)
         #expect(app.usage.level(.claude, now: Date()) == .full)
         #expect(turns == 0)
+        // The hook's limit: the leaf's own banner says it, no threshold alert on top.
+        #expect(alerts.count == before)
+        #expect(app.statuses.status(leaf(app, 0).id).attention?.reason == .limit)
+        // Polling thresholds still alert.
+        app.handle(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "seven_day", usedPercent: 85, resetsAt: nil)])))
+        #expect(alerts.count == before + 1)
     }
 
     /// The window status bar counts what the rows show: agents on a full limit are «на лимите», neither working nor errors.

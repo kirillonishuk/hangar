@@ -704,23 +704,23 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// A notification button or click; typing goes into the leaf without bringing the window up.
     func noticeAction(leaf: UUID?, requestKey: UUID?, _ action: NoticeAction) {
-        apply(app.notificationAction(leaf: leaf, requestKey: requestKey, action), leaf: leaf)
+        apply(app.notificationAction(leaf: leaf, requestKey: requestKey, action), leaf: leaf, requestKey: requestKey)
     }
 
     /// An inbox row: the same guarded actions as a banner; the popover stays open only while typing into a terminal.
     func inboxAction(leaf: UUID, requestKey: UUID?, _ action: NoticeAction) {
         let result = app.notificationAction(leaf: leaf, requestKey: requestKey, action)
         if case .send = result {} else { app.setInboxShown(false) }
-        apply(result, leaf: leaf)
+        apply(result, leaf: leaf, requestKey: requestKey)
     }
 
     /// One routing for banners and the inbox: reveal, type without activating, or show the limits.
-    private func apply(_ result: NoticeResult, leaf: UUID?) {
+    private func apply(_ result: NoticeResult, leaf: UUID?, requestKey: UUID?) {
         switch result {
         case .reveal:
             if let leaf { reveal(leafId: leaf) }
         case .send(let text, let keys):
-            if let leaf { app.terminals?.send(leaf, text, keys) }
+            if let leaf { app.sendAnswer(leafId: leaf, requestKey: requestKey, text: text, keys: keys) }
         case .showLimits:
             bringUp()
             if !app.limitsPopoverShown { app.toggleLimitsPopover() }

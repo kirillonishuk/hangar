@@ -1,4 +1,5 @@
 import AgentStatus
+import ControlServer
 import Foundation
 import Workspace
 
@@ -21,6 +22,14 @@ extension AppState {
     func dismissDone(leafId: UUID) {
         guard statuses.status(leafId).attention?.reason == .done else { return }
         _ = statuses.dismissDone(leafId)
+        onAttention?(leafId, nil)
+    }
+
+    /// A banner's or inbox row's answer typed into the leaf: that request is handled, its row and banner go,
+    /// and a second press finds no current request (only opens).
+    func sendAnswer(leafId: UUID, requestKey: UUID?, text: String?, keys: [SendKey]) {
+        terminals?.send(leafId, text, keys)
+        guard let requestKey, statuses.clearAnswered(leafId, requestKey: requestKey) else { return }
         onAttention?(leafId, nil)
     }
 

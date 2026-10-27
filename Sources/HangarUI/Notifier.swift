@@ -76,9 +76,9 @@ extension AppState {
         case .open: return .reveal
         case .limits: return .showLimits
         case .allow:
-            // Never approve blindly: the banner showed the exact command.
-            guard config.allowFromNotification, current(.permission), let a = leaf.flatMap({ statuses.status($0).attention }),
-                  a.tool != nil, a.command != nil else { return .reveal }
+            // Never approve blindly: the banner showed the exact command, and no newer PermissionRequest is pending.
+            guard config.allowFromNotification, current(.permission), let s = leaf.map(statuses.status), let a = s.attention,
+                  a.tool != nil, a.command != nil, s.pendingPermission == nil else { return .reveal }
             return .send(text: nil, keys: permissionApproveKeys)
         case .reply(let raw):
             guard let leaf, acceptsReply(leaf: leaf), current(.question) else { return .reveal }

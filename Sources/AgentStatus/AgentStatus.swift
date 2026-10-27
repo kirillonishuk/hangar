@@ -206,6 +206,13 @@ public struct StatusBoard: Equatable, Sendable {
         return true
     }
 
+    /// «Разрешить» / «Ответить» typed the answer: that request's record goes (the dot stays until the agent moves on).
+    public mutating func clearAnswered(_ leaf: UUID, requestKey: UUID) -> Bool {
+        guard leaves[leaf]?.attention?.requestKey == requestKey else { return false }
+        leaves[leaf]?.attention = nil
+        return true
+    }
+
     public mutating func retain(_ live: Set<UUID>) {
         leaves = leaves.filter { live.contains($0.key) }
     }

@@ -318,6 +318,48 @@ import Workspace
         #expect(shown.notices.map(\.id) == [agent.uuidString])
     }
 
+    /// A typed answer handles the request: the row and banner go, and a second press only opens (nothing typed twice).
+    @Test func answerClearsTheRequest() async throws {
+        let f = make(config { $0.allowFromNotification = true })
+        var typed: [[SendKey]] = []
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .running }, send: { _, _, k in typed.append(k) }, read: { _ in nil })
+        let shown = Shown()
+        let n = notifier(shown)
+        n.attach(to: f.app, leafVisible: { _ in false }, appActive: { false })
+        permission(f)
+        let leaf = f.tab0.root.leaves[0].id
+        await n.lastPost?.value
+        #expect(shown.notices.count == 1)
+        let key = try item(f, leaf).attention.requestKey
+        guard case let .send(text, keys) = f.app.notificationAction(leaf: leaf, requestKey: key, .allow) else {
+            Issue.record("allow not sent"); return
+        }
+        f.app.sendAnswer(leafId: leaf, requestKey: key, text: text, keys: keys)
+        #expect(typed == [[.enter]])
+        #expect(f.app.attentionItems.isEmpty)
+        #expect(attentionCount(f.app.attentionItems) == 0)
+        #expect(shown.notices.isEmpty)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .allow) == .reveal)
+        // Reply (codex question): the same.
+        let codex = f.tab1.root.leaves[0].id
+        f.app.signal(.desktopNotification(text: "Run tests?"), leaf: codex)
+        let qKey = try item(f, codex).attention.requestKey
+        f.app.sendAnswer(leafId: codex, requestKey: qKey, text: "yes", keys: [.enter])
+        #expect(f.app.attentionItems.isEmpty)
+        #expect(f.app.notificationAction(leaf: codex, requestKey: qKey, .reply("yes")) == .reveal)
+    }
+
+    /// A newer PermissionRequest is pending: the shown request is no longer the one Enter would approve.
+    @Test func allowWaitsForPendingRequest() throws {
+        let f = make(config { $0.allowFromNotification = true })
+        permission(f)
+        let leaf = f.tab0.root.leaves[0].id
+        let key = try item(f, leaf).attention.requestKey
+        send(f, f.tab0, .permissionRequest, tool: "Bash", command: "rm -rf build")
+        #expect(try item(f, leaf).attention.requestKey == key)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .allow) == .reveal)
+    }
+
     @Test func leafVisibleRules() {
         let f = make()
         let a = f.tab0.root.leaves[0].id

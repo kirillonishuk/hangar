@@ -84,7 +84,7 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
         let late = run([hook(.notification, "permission_prompt")], from: pending, at: t0.addingTimeInterval(pendingPermissionTTL + 1))
         #expect(late.attention?.reason == .permission && late.attention?.tool == nil && late.attention?.command == nil)
 
-        for signal in [hook(.prompt), hook(.tool), hook(.stop), hook(.stopFailure), hook(.sessionStart), .relaunched] {
+        for signal in [hook(.prompt), hook(.tool), hook(.stop), hook(.stopFailure), hook(.sessionStart), .exited(code: 1), .relaunched] {
             #expect(run([signal], from: pending).pendingPermission == nil, "\(signal)")
         }
     }
@@ -106,6 +106,23 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
 
         _ = board.apply(hook(.notification, nil, HookDetail(text: "Allow rm?")), leaf: leaf, agent: .claude, now: t0.addingTimeInterval(7))
         #expect(board.status(leaf).attention?.requestKey != other.requestKey)
+    }
+
+    @Test func repeatedPromptKeepsPendingDetailsAndKey() throws {
+        var board = StatusBoard()
+        let leaf = UUID()
+        let ask = hook(.notification, "permission_prompt", HookDetail(text: "Allow?"))
+        _ = board.apply(hook(.permissionRequest, nil, HookDetail(tool: "Bash", command: "ls")), leaf: leaf, agent: .claude, now: t0)
+        _ = board.apply(ask, leaf: leaf, agent: .claude, now: t0.addingTimeInterval(1))
+        let first = try #require(board.status(leaf).attention)
+        #expect(first.tool == "Bash" && first.command == "ls")
+
+        #expect(board.apply(ask, leaf: leaf, agent: .claude, now: t0.addingTimeInterval(60)) == nil)
+        #expect(board.status(leaf).attention == first)
+
+        _ = board.apply(hook(.notification, "permission_prompt", HookDetail(text: "Allow rm?")), leaf: leaf, agent: .claude, now: t0.addingTimeInterval(61))
+        let other = try #require(board.status(leaf).attention)
+        #expect(other.requestKey != first.requestKey && other.tool == nil)
     }
 
     @Test func dismissDoneOnlyForDone() {

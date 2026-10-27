@@ -93,7 +93,10 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             if type == "permission_prompt" {
                 s.state = .waiting
                 let p = s.pendingPermission.flatMap { now.timeIntervalSince($0.at) <= pendingPermissionTTL ? $0 : nil }
-                attend(.permission, tool: p?.tool, command: p?.command, text: detail.text)
+                // A repeated prompt comes after the pending details were used: keep them so it stays the same request.
+                let same = p == nil && status.attention?.reason == .permission && status.attention?.text == detail.text
+                attend(.permission, tool: same ? status.attention?.tool : p?.tool,
+                       command: same ? status.attention?.command : p?.command, text: detail.text)
                 s.pendingPermission = nil
             } else if type == nil || type == "elicitation_dialog" {
                 s.state = .waiting
@@ -127,9 +130,13 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             s.attention = nil
         }
     case let .exited(code):
-        s.state = code > 0 ? .failed : .idle
-        s.attention = nil
-        if code > 0 { attend(.failed) }
+        if code > 0 {
+            s.state = .failed
+            attend(.failed)
+        } else {
+            s.state = .idle
+            s.attention = nil
+        }
         s.activeSubagents = 0
         s.pendingPermission = nil
     case .relaunched:

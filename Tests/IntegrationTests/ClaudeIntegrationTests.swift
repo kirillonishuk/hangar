@@ -170,11 +170,21 @@ private func commands(_ text: String) throws -> [String] {
         ],
         "StopFailure": [
           {
-            "matcher": "rate_limit",
             "hooks": [
               {
                 "type": "command",
                 "command": "/A/hangar event stop-failure",
+                "timeout": 5
+              }
+            ]
+          }
+        ],
+        "PermissionRequest": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/A/hangar event permission-request",
                 "timeout": 5
               }
             ]
@@ -200,7 +210,7 @@ private func commands(_ text: String) throws -> [String] {
     #expect(get(root, "model") == .string("opus"))
     #expect(get(root, "permissions") == get(try parseJSON(fHooks), "permissions"))
     let hookKeys = obj(get(root, "hooks")!).map(\.key)
-    #expect(hookKeys == ["Stop", "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "SubagentStop", "StopFailure"])
+    #expect(hookKeys == ["Stop", "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "SubagentStop", "StopFailure", "PermissionRequest"])
     let stop = arr(get(get(root, "hooks"), "Stop"))
     #expect(stop.count == 2)
     #expect(str(get(arr(get(stop[0], "hooks"))[0], "command")) == "say done")
@@ -396,4 +406,9 @@ private func commands(_ text: String) throws -> [String] {
     #expect(isHangarCommand("'/home/u/.hangar/bin/hangar-remote' event stop"))
     #expect(isHangarCommand("hangar-remote statusline --then x"))
     #expect(!isHangarCommand("/x/hangar-remote version"))
+}
+
+@Test func installPlanHasStopFailureForAllErrorsAndPermissionRequest() {
+    #expect(claudeHooks.contains { $0.event == "StopFailure" && $0.matcher == nil && $0.kind == "stop-failure" })
+    #expect(claudeHooks.contains { $0.event == "PermissionRequest" && $0.matcher == nil && $0.kind == "permission-request" })
 }

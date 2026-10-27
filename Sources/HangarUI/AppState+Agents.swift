@@ -26,7 +26,7 @@ extension AppState {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
             switch e.kind {
-            case .stopFailure:
+            case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
                 alert(usage.markLimitReached(.claude, now: usageClock))
             case .codexNotify: onCodexTurn?()

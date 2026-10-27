@@ -290,6 +290,13 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
                         #"{"notification_type":"permission_prompt","message":"\#(String(repeating: "m", count: 900))"}"#)
         guard case let .success(.event(m)) = ok else { Issue.record("\(ok)"); return }
         #expect(m.session == "s-1" && m.notificationType == "permission_prompt" && m.message?.count == 500)
+        let perm = decode(hook(tab, leaf, kind: "permission-request", len: 0),
+                          #"{"tool_name":"\#(String(repeating: "t", count: 65))","tool_input":{"command":"\#(String(repeating: "c", count: 900))"}}"#)
+        guard case let .success(.event(pm)) = perm else { Issue.record("\(perm)"); return }
+        #expect(pm.kind == .permissionRequest && pm.tool == nil && pm.command?.count == 500)
+        let sf = decode(hook(tab, leaf, kind: "stop-failure", len: 0), #"{"error":"server_error"}"#)
+        guard case let .success(.event(sm)) = sf else { Issue.record("\(sf)"); return }
+        #expect(sm.error == "server_error")
         #expect(decode(#"{"v":2,"type":"hook","len":0}"#) == .failure(.badVersion))
         #expect(decode(#"{"v":1,"type":"hook","tab":"x","leaf":"\#(leaf.uuidString)","kind":"stop","len":0}"#) == .failure(.badField))
         #expect(decode(hook(tab, leaf, kind: "boom", len: 0)) == .failure(.badField))

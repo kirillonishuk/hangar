@@ -31,7 +31,10 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         m.session = validSessionId(object["session_id"] as? String)
         m.notificationType = object["notification_type"] as? String
         m.source = object["source"] as? String
-        m.message = object["message"] as? String
+        m.message = (object["message"] as? String) ?? (object["last_assistant_message"] as? String)
+        m.tool = object["tool_name"] as? String
+        m.command = (object["tool_input"] as? [String: Any])?["command"] as? String
+        m.error = object["error"] as? String
     }
     if let i = args.firstIndex(of: "--session"), i < (args.firstIndex(of: "--then") ?? args.endIndex),
        i + 1 < args.count {

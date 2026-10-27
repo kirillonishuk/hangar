@@ -69,7 +69,7 @@ case $cmd in
     done
     # After the loop "$@" is the user's original notify argv (plus codex's JSON), or empty.
     case $kind in
-      session-start|prompt|tool|notification|stop|stop-failure|codex-notify|subagent-start|subagent-stop) ;;
+      session-start|prompt|tool|notification|stop|stop-failure|permission-request|codex-notify|subagent-start|subagent-stop) ;;
       *) kind= ;;
     esac
     if [ -n "$kind" ] && uuid "$HANGAR_TAB_ID" && uuid "$HANGAR_LEAF_ID" && [ -n "$HANGAR_SOCKET" ]; then

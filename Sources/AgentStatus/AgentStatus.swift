@@ -7,6 +7,8 @@ public enum AgentState: String, Sendable, CaseIterable { case working, waiting, 
 public enum HookKind: String, Codable, Sendable, CaseIterable {
     case sessionStart = "session-start", prompt, tool, notification, stop
     case stopFailure = "stop-failure", codexNotify = "codex-notify"
+    /// PermissionRequest: Claude Code is about to ask for a permission (carries the tool and its command).
+    case permissionRequest = "permission-request"
     /// PreToolUse of the Task/Agent tool / SubagentStop.
     case subagentStart = "subagent-start", subagentStop = "subagent-stop"
 }
@@ -74,10 +76,11 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             s.state = .working
             s.activeSubagents = min(s.activeSubagents + 1, 99)
         case .subagentStop: s.activeSubagents = max(s.activeSubagents - 1, 0)
+        case .permissionRequest: s.state = .waiting
         case .notification:
             if type == nil || type == "permission_prompt" || type == "elicitation_dialog" { s.state = .waiting }
         case .stop, .codexNotify: s.state = .done
-        case .stopFailure: s.state = .limit  // the hook is installed with matcher rate_limit only
+        case .stopFailure: s.state = .limit  // shortcut: every StopFailure error is the limit until the attention model reads `error` (Task 3)
         }
     case .bell, .desktopNotification:
         if !s.claudeHooks { s.state = .waiting }

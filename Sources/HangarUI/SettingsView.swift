@@ -285,6 +285,10 @@ struct SettingsView: View {
             if app.notificationAuthorization != nil { permissionRow }
         }
         .task { authorization = await app.notificationAuthorization?() }
+        // The switch is flipped in System Settings: re-read it when the user comes back.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { authorization = await app.notificationAuthorization?() }
+        }
     }
 
     private var notificationReasons: [AttentionReason] { [.permission, .question, .failed, .limit, .done] }

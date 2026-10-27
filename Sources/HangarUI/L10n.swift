@@ -88,7 +88,8 @@ import Workspace
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
-        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
+        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case copyLink, linkNotFound, attentionOnly, nobodyWaiting
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
@@ -359,8 +360,15 @@ import Workspace
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
     static var toggleOff: String { s(.toggleOff) }
-    static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
+    static func agentPermission(_ agent: String) -> String { f(.agentPermission, agent) }
+    static func agentQuestion(_ agent: String) -> String { f(.agentQuestion, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
+    static func agentFailed(_ agent: String) -> String { f(.agentFailed, agent) }
+    static func agentLimit(_ agent: String) -> String { f(.agentLimit, agent) }
+    static var noticeOpen: String { s(.noticeOpen) }
+    static var noticeAllow: String { s(.noticeAllow) }
+    static var noticeReply: String { s(.noticeReply) }
+    static var noticeOpenLimits: String { s(.noticeOpenLimits) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
 
     // Keep awake

@@ -175,8 +175,15 @@
 "limitNotificationsTitle" = "Уведомления о лимитах";
 "toggleOn" = "Вкл";
 "toggleOff" = "Выкл";
-"agentWaiting" = "%@ ждёт ответа";
+"agentPermission" = "%@ просит разрешение";
+"agentQuestion" = "%@ спрашивает";
 "agentDone" = "%@ закончил";
+"agentFailed" = "%@: ошибка";
+"agentLimit" = "%@ упёрся в лимит";
+"noticeOpen" = "Открыть";
+"noticeAllow" = "Разрешить";
+"noticeReply" = "Ответить";
+"noticeOpenLimits" = "Открыть лимиты";
 "agentsWorking" = "Работают агенты: %ld. Выйти?";
 "agentsWorkingInfo" = "Их процессы будут завершены.";
 

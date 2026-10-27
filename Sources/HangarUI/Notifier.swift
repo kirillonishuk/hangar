@@ -1,8 +1,14 @@
 import AgentStatus
 import AppKit
+import ControlServer
 import Foundation
 import UserNotifications
 import Workspace
+
+/// The notification's buttons (`UNNotificationCategory` id = raw value).
+enum NoticeCategory: String, CaseIterable {
+    case permission, permissionAllow = "permission-allow", question, questionReply = "question-reply", open, limit
+}
 
 /// One macOS notification. `id` replaces an earlier one with the same id (a leaf's id, or `limit-<agent>`).
 struct AgentNotice: Equatable {
@@ -11,7 +17,22 @@ struct AgentNotice: Equatable {
     var subtitle: String
     var body: String
     var leaf: UUID?
+    var category: NoticeCategory
+    /// Groups a session's notifications (task id).
+    var thread: String?
+    /// nil — silent; otherwise the configured name (S4: played as the standard sound).
+    var sound: String?
+    var urgent: Bool
+    /// Buttons act only while the leaf's attention still carries this key.
+    var requestKey: UUID?
 }
+
+enum NoticeAction: Equatable, Sendable { case open, allow, reply(String), limits }
+
+enum NoticeResult: Equatable { case reveal, send(text: String?, keys: [SendKey]), showLimits }
+
+/// S2 (#95): the key a person presses on Claude's permission dialog ("Yes" is first).
+let permissionApproveKeys: [SendKey] = [.enter]
 
 extension AppState {
     /// Task owning the leaf and, for a tab leaf, its tab (nil for the TERMINAL panel's leaf). Archived tasks don't count.
@@ -25,19 +46,83 @@ extension AppState {
 }
 
 private let noticeBodyLimit = 160
+private let replyLimit = 2000
 
-/// A transition to waiting/done in a leaf the user can't see; nil = stay quiet.
-@MainActor func notice(for t: Transition, app: AppState, leafVisible: Bool) -> AgentNotice? {
-    guard app.config.notifications, !leafVisible, t.to == .waiting || t.to == .done,
-          let (task, tab) = app.owner(ofLeaf: t.leaf),
-          let leaf = tab?.root.leaf(id: t.leaf) ?? task.drawer.leaf else { return nil }
-    let agent = leaf.kind == .claude || leaf.kind == .codex ? leaf.kind.rawValue : app.title(of: leaf)
-    let project = app.project(task.projectId)?.name ?? ""
-    var body = app.statuses.status(t.leaf).attention?.text.flatMap { $0.isEmpty ? nil : $0 } ?? tab.map(app.tabLabel) ?? app.title(of: leaf)
-    if body.count > noticeBodyLimit { body = String(body.prefix(noticeBodyLimit - 1)) + "…" }
-    return AgentNotice(id: t.leaf.uuidString,
-                       title: t.to == .waiting ? L10n.agentWaiting(agent) : L10n.agentDone(agent),
-                       subtitle: "\(project) › \(task.name)", body: body, leaf: t.leaf)
+private func isControl(_ c: Character) -> Bool { c.unicodeScalars.contains { $0.properties.generalCategory == .control } }
+
+/// Control characters (escapes, newlines) become spaces; long text ends with «…».
+func noticeBody(_ text: String) -> String {
+    let flat = String(text.map { isControl($0) ? " " : $0 })
+    return flat.count > noticeBodyLimit ? String(flat.prefix(noticeBodyLimit - 1)) + "…" : flat
+}
+
+/// `""` — no sound.
+func noticeSound(_ name: String?) -> String? {
+    let name = name ?? "default"
+    return name.isEmpty ? nil : name
+}
+
+extension AppState {
+    /// Reply types into the leaf: only codex (S5: Claude's question is an MCP form, #95); never a host terminal's shell.
+    func acceptsReply(leaf id: UUID) -> Bool { leaf(id: id)?.kind == .codex }
+
+    /// A notification button: typing happens only for the leaf's current request in a running terminal; else Open.
+    func notificationAction(leaf: UUID?, requestKey: UUID?, _ action: NoticeAction) -> NoticeResult {
+        func current(_ reason: AttentionReason) -> Bool {
+            guard let leaf, let requestKey, let a = statuses.status(leaf).attention else { return false }
+            return a.reason == reason && a.requestKey == requestKey && terminals?.state(leaf) == .running
+        }
+        switch action {
+        case .open: return .reveal
+        case .limits: return .showLimits
+        case .allow:
+            guard config.allowFromNotification, current(.permission) else { return .reveal }
+            return .send(text: nil, keys: permissionApproveKeys)
+        case .reply(let raw):
+            guard let leaf, acceptsReply(leaf: leaf), current(.question) else { return .reveal }
+            let text = String(raw.compactMap { $0.isNewline ? " " : isControl($0) ? nil : $0 })
+                .trimmingCharacters(in: .whitespaces).prefix(replyLimit)
+            return text.isEmpty ? .reveal : .send(text: String(text), keys: [.enter])
+        }
+    }
+}
+
+/// The banner for an attention item: title by reason, «project › session · host», body, buttons.
+@MainActor func notice(for item: AttentionItem, app: AppState) -> AgentNotice {
+    let a = item.attention
+    let owner = app.owner(ofLeaf: item.leafId)
+    let kind = app.leaf(id: item.leafId)?.kind
+    let agent = kind == .claude ? "Claude" : kind == .codex ? "Codex" : item.agent
+    let title = switch a.reason {
+    case .permission: L10n.agentPermission(agent)
+    case .question: L10n.agentQuestion(agent)
+    case .done: L10n.agentDone(agent)
+    case .failed: L10n.agentFailed(agent)
+    case .limit: L10n.agentLimit(agent)
+    }
+    let session = owner?.task.name ?? ""
+    var subtitle = app.project(item.projectId).map { "\($0.name) › \(session)" } ?? session
+    if let host = item.host { subtitle += " · \(host)" }
+    let details = a.reason == .permission ? a.tool.flatMap { t in a.command.map { "\(t): \($0)" } } : nil
+    let fallback = owner?.tab.map(app.tabLabel) ?? app.leaf(id: item.leafId).map { app.title(of: $0) } ?? ""
+    let body = details ?? a.text.flatMap { $0.isEmpty ? nil : $0 } ?? fallback
+    let category: NoticeCategory = switch a.reason {
+    case .permission: app.config.allowFromNotification && a.tool != nil && a.command != nil ? .permissionAllow : .permission
+    case .question: app.acceptsReply(leaf: item.leafId) ? .questionReply : .open
+    case .done, .failed: .open
+    case .limit: .limit
+    }
+    return AgentNotice(id: item.leafId.uuidString, title: title, subtitle: subtitle, body: noticeBody(body), leaf: item.leafId,
+                       category: category, thread: item.taskId.uuidString, sound: noticeSound(app.config.sounds[a.reason.rawValue]),
+                       urgent: a.reason == .permission || a.reason == .question, requestKey: a.requestKey)
+}
+
+/// The banner policy plus what is on screen right now.
+@MainActor func bannerAllowed(_ item: AttentionItem, app: AppState, leafVisible: Bool, appActive: Bool) -> Bool {
+    var c = app.bannerContext(leafId: item.leafId, reason: item.attention.reason)
+    c.leafVisible = leafVisible
+    c.appActive = appActive
+    return shouldBanner(item.attention.reason, c)
 }
 
 /// On screen: the app is active with a key window, and the leaf is in the selected task's active tab
@@ -66,9 +151,10 @@ extension AppState {
     }
 }
 
-/// Thin wiring over `UNUserNotificationCenter`; the decisions live in `notice(for:…)`.
+/// Thin wiring over `UNUserNotificationCenter`; the decisions live in `notice(for:…)` and `notificationAction`.
 @MainActor public final class Notifier: NSObject, UNUserNotificationCenterDelegate {
-    var onOpen: ((UUID) -> Void)?
+    /// (leaf, requestKey, action)
+    var onAction: ((UUID?, UUID?, NoticeAction) -> Void)?
     private let center: UNUserNotificationCenter
 
     /// nil outside an .app bundle: `UNUserNotificationCenter.current()` crashes in `swift run` and tests.
@@ -81,26 +167,62 @@ extension AppState {
         self.center = center
         super.init()
         center.delegate = self
+        registerCategories()
+        // Last run's banners point at requests that no longer exist.
+        center.removeAllDeliveredNotifications()
     }
+
+    /// Button titles follow the language: call again after a switch.
+    func registerCategories() {
+        let open = UNNotificationAction(identifier: "open", title: L10n.noticeOpen, options: [.foreground])
+        // Typing into a terminal from the lock screen needs the user's login.
+        let allow = UNNotificationAction(identifier: "allow", title: L10n.noticeAllow, options: [.authenticationRequired])
+        let reply = UNTextInputNotificationAction(identifier: "reply", title: L10n.noticeReply, options: [.authenticationRequired],
+                                                  textInputButtonTitle: L10n.noticeReply, textInputPlaceholder: "")
+        let limits = UNNotificationAction(identifier: "limits", title: L10n.noticeOpenLimits, options: [.foreground])
+        let actions: [NoticeCategory: [UNNotificationAction]] = [
+            .permission: [open], .permissionAllow: [open, allow], .question: [open], .questionReply: [open, reply],
+            .open: [open], .limit: [limits],
+        ]
+        center.setNotificationCategories(Set(NoticeCategory.allCases.map {
+            UNNotificationCategory(identifier: $0.rawValue, actions: actions[$0] ?? [], intentIdentifiers: [])
+        }))
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus { await center.notificationSettings().authorizationStatus }
 
     /// Asks for permission on the first need; a refusal silently drops the notification.
     func post(_ n: AgentNotice) {
         Task { @MainActor in
-            var status = await center.notificationSettings().authorizationStatus
+            var status = await authorizationStatus()
             if status == .notDetermined {
                 _ = try? await center.requestAuthorization(options: [.alert, .sound])
-                status = await center.notificationSettings().authorizationStatus
+                status = await authorizationStatus()
             }
             guard status == .authorized || status == .provisional else { return }
             let content = UNMutableNotificationContent()
             content.title = n.title
             content.subtitle = n.subtitle
             content.body = n.body
-            content.sound = .default
-            if let leaf = n.leaf { content.userInfo = ["leaf": leaf.uuidString] }
+            content.categoryIdentifier = n.category.rawValue
+            content.threadIdentifier = n.thread ?? ""
+            // S4 (#95): system sounds by name are unconfirmed, any chosen sound plays as the standard one.
+            content.sound = n.sound == nil ? nil : .default
+            // S3 (#95): .timeSensitive needs a provisioning profile the ad-hoc bundle can't have.
+            content.interruptionLevel = .active
+            var info: [String: String] = [:]
+            if let leaf = n.leaf { info["leaf"] = leaf.uuidString }
+            if let key = n.requestKey { info["requestKey"] = key.uuidString }
+            content.userInfo = info
             do { try await center.add(UNNotificationRequest(identifier: n.id, content: content, trigger: nil)) }
             catch { uiLog.error("notification failed: \(String(describing: error), privacy: .public)") }
         }
+    }
+
+    /// The leaf's attention is gone or seen: its banner goes from the Notification Center.
+    func remove(leaf: UUID) {
+        center.removeDeliveredNotifications(withIdentifiers: [leaf.uuidString])
+        center.removePendingNotificationRequests(withIdentifiers: [leaf.uuidString])
     }
 
     nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
@@ -110,9 +232,20 @@ extension AppState {
 
     nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                                    withCompletionHandler completionHandler: @escaping () -> Void) {
-        let leaf = (response.notification.request.content.userInfo["leaf"] as? String).flatMap(UUID.init(uuidString:))
+        let content = response.notification.request.content
+        let leaf = (content.userInfo["leaf"] as? String).flatMap(UUID.init(uuidString:))
+        let key = (content.userInfo["requestKey"] as? String).flatMap(UUID.init(uuidString:))
+        let action: NoticeAction? = switch response.actionIdentifier {
+        // A click on a limit banner opens the limits, as its only button does.
+        case UNNotificationDefaultActionIdentifier: content.categoryIdentifier == NoticeCategory.limit.rawValue ? .limits : .open
+        case "open": .open
+        case "allow": .allow
+        case "reply": .reply((response as? UNTextInputNotificationResponse)?.userText ?? "")
+        case "limits": .limits
+        default: nil  // dismissed
+        }
         completionHandler()
-        guard let leaf else { return }
-        Task { @MainActor in self.onOpen?(leaf) }
+        guard let action else { return }
+        Task { @MainActor in self.onAction?(leaf, key, action) }
     }
 }

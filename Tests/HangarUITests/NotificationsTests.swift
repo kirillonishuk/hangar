@@ -9,16 +9,17 @@ import Workspace
     struct Fixture {
         var app: AppState
         var task: UUID
-        var tab0: Tab
-        var tab1: Tab
+        var tab0: Tab  // claude
+        var tab1: Tab  // codex
         var other: UUID  // second task
         var otherTab: Tab
         var drawerLeaf: UUID
     }
 
-    private func make(notifications: Bool = true) -> Fixture {
+    private func make(_ config: HangarConfig = HangarConfig(), host: String? = nil) -> Fixture {
         var s = WorkspaceState()
         let p = s.addProject(name: "shop-api", path: "/tmp")
+        if let host { s.projects[0].location = .ssh(host: host, path: "/srv/shop") }
         let t = s.addTask(projectId: p, name: "fix-auth")
         s.addTab(taskId: t, kind: .claude)
         s.addTab(taskId: t, kind: .codex)
@@ -30,58 +31,195 @@ import Workspace
         s.select(taskId: t)
         let task = s.tasks.first { $0.id == t }!
         s.tasks[s.tasks.firstIndex { $0.id == t }!].activeTabId = task.tabs[0].id
-        var config = HangarConfig()
-        config.notifications = notifications
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-notif-\(UUID())")
         let app = AppState(state: s, store: StateStore(directory: dir), config: config,
                            configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
         app.keepAwake = .inert()
+        app.codexRead = nil
+        app.terminals = TerminalAccess(start: { _ in }, state: { _ in .running }, send: { _, _, _ in }, read: { _ in nil })
         let ot = app.state.tasks.first { $0.id == o }!
         return Fixture(app: app, task: t, tab0: task.tabs[0], tab1: task.tabs[1], other: o, otherTab: ot.tabs[1],
                        drawerLeaf: task.drawer.leaf!.id)
     }
 
-    private func tr(_ leaf: Leaf, _ from: AgentState, _ to: AgentState) -> Transition { Transition(leaf: leaf.id, from: from, to: to) }
-
-    @Test func noticeOnlyForWaitingAndDoneWhenHidden() {
-        let f = make()
-        let leaf = f.tab0.root.leaves[0]
-        #expect(notice(for: tr(leaf, .idle, .working), app: f.app, leafVisible: false) == nil)
-        #expect(notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: false) != nil)
-        #expect(notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: true) == nil)
-        #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false) != nil)
-        #expect(notice(for: tr(leaf, .working, .failed), app: f.app, leafVisible: false) == nil)
-        #expect(notice(for: tr(leaf, .working, .idle), app: f.app, leafVisible: false) == nil)
-        #expect(notice(for: tr(Leaf(kind: .claude, cwd: "/"), .working, .done), app: f.app, leafVisible: false) == nil)
-        let off = make(notifications: false)
-        #expect(notice(for: tr(off.tab0.root.leaves[0], .working, .waiting), app: off.app, leafVisible: false) == nil)
+    private func config(_ edit: (inout HangarConfig) -> Void) -> HangarConfig {
+        var c = HangarConfig()
+        edit(&c)
+        return c
     }
 
-    @Test func noticeText() {
+    private func send(_ f: Fixture, _ tab: Tab, _ kind: HookKind, type: String? = nil, message: String? = nil,
+                      tool: String? = nil, command: String? = nil, error: String? = nil) {
+        f.app.handle(.event(EventMessage(tab: tab.id, leaf: tab.root.leaves[0].id, kind: kind, notificationType: type,
+                                         message: message, tool: tool, command: command, error: error)))
+    }
+
+    private func permission(_ f: Fixture, tool: String? = "Bash", command: String? = "ls") {
+        send(f, f.tab0, .permissionRequest, tool: tool, command: command)
+        send(f, f.tab0, .notification, type: "permission_prompt", message: "Claude needs your permission to use Bash")
+    }
+
+    private func item(_ f: Fixture, _ leaf: UUID) throws -> AttentionItem {
+        try #require(f.app.attentionItems.first { $0.leafId == leaf })
+    }
+
+    @Test func titlesByReason() throws {
         defer { L10n.language = .system }
         let f = make()
-        let leaf = f.tab0.root.leaves[0]
+        permission(f)
+        let leaf = f.tab0.root.leaves[0].id
         L10n.language = .ru
-        func send(_ kind: HookKind, type: String? = nil, message: String? = nil) {
-            f.app.handle(.event(EventMessage(tab: f.tab0.id, leaf: leaf.id, kind: kind, notificationType: type, message: message)))
-        }
-        send(.notification, type: "permission_prompt", message: "Needs permission")
-        let n = notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: false)
-        #expect(n == AgentNotice(id: leaf.id.uuidString, title: "claude ждёт ответа", subtitle: "shop-api › fix-auth",
-                                 body: "Needs permission", leaf: leaf.id))
+        #expect(notice(for: try item(f, leaf), app: f.app).title == "Claude просит разрешение")
         L10n.language = .en
-        #expect(notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: false)?.title == "claude is waiting for you")
-        #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)?.title == "claude finished")
-        // No message: the tab label.
-        send(.stop)
-        #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)?.body == f.app.tabLabel(f.tab0))
-        // Long message is truncated.
-        send(.stop, message: String(repeating: "x", count: 500))
-        #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)!.body.count <= 200)
-        // Shell: the leaf title is the "agent".
-        let shell = f.app.state.tasks.first { $0.id == f.task }!.drawer.leaf!
-        f.app.setTitle("make", leafId: shell.id)
-        #expect(notice(for: tr(shell, .working, .done), app: f.app, leafVisible: false)?.title == "make finished")
+        #expect(notice(for: try item(f, leaf), app: f.app).title == "Claude asks for permission")
+        L10n.language = .ru
+        send(f, f.tab1, .codexNotify, message: "All done")
+        let done = notice(for: try item(f, f.tab1.root.leaves[0].id), app: f.app)
+        #expect(done.title == L10n.agentDone("Codex"))
+        #expect(done.title == "Codex закончил")
+        #expect(done.id == f.tab1.root.leaves[0].id.uuidString)
+        #expect(done.thread == f.task.uuidString)
+        #expect(done.category == .open)
+        send(f, f.tab0, .stopFailure, error: "server_error")
+        #expect(notice(for: try item(f, leaf), app: f.app).title == "Claude: ошибка")
+        #expect(notice(for: try item(f, leaf), app: f.app).category == .open)
+        send(f, f.tab0, .stopFailure, error: "rate_limit")
+        #expect(notice(for: try item(f, leaf), app: f.app).title == "Claude упёрся в лимит")
+        #expect(notice(for: try item(f, leaf), app: f.app).category == .limit)
+        // A question from codex (OSC): Reply; Claude's own question: only Open (S5).
+        f.app.signal(.desktopNotification(text: "Run tests?"), leaf: f.tab1.root.leaves[0].id)
+        let q = notice(for: try item(f, f.tab1.root.leaves[0].id), app: f.app)
+        #expect(q.title == "Codex спрашивает")
+        #expect(q.category == .questionReply)
+        #expect(q.body == "Run tests?")
+        send(f, f.tab0, .notification, type: "elicitation_dialog", message: "Pick one")
+        #expect(notice(for: try item(f, leaf), app: f.app).category == .open)
+    }
+
+    @Test func subtitleHasHostForRemote() throws {
+        let f = make(host: "devbox")
+        permission(f)
+        #expect(notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app).subtitle == "shop-api › fix-auth · devbox")
+        let local = make()
+        permission(local)
+        #expect(notice(for: try item(local, local.tab0.root.leaves[0].id), app: local.app).subtitle == "shop-api › fix-auth")
+    }
+
+    @Test func permissionBodyAndCategory() throws {
+        let f = make()
+        permission(f)
+        let n = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
+        #expect(n.body == "Bash: ls")
+        #expect(n.category == .permission)
+        #expect(n.urgent)
+        let g = make(config { $0.allowFromNotification = true })
+        permission(g)
+        #expect(notice(for: try item(g, g.tab0.root.leaves[0].id), app: g.app).category == .permissionAllow)
+        // No command known: nothing to allow blindly.
+        let h = make(config { $0.allowFromNotification = true })
+        permission(h, command: nil)
+        let n2 = notice(for: try item(h, h.tab0.root.leaves[0].id), app: h.app)
+        #expect(n2.category == .permission)
+        #expect(n2.body == "Claude needs your permission to use Bash")
+    }
+
+    @Test func noticeBodyStripsControls() throws {
+        let f = make()
+        send(f, f.tab0, .stop, message: "a\u{1b}[31mb\nc")
+        let body = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app).body
+        #expect(!body.contains("\u{1b}"))
+        #expect(!body.contains("\n"))
+        #expect(body == "a [31mb c")
+        send(f, f.tab0, .prompt)
+        send(f, f.tab0, .stop, message: String(repeating: "x", count: 300))
+        let long = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app).body
+        #expect(long.count == 160)
+        #expect(long.hasSuffix("…"))
+        // No text: the tab label.
+        send(f, f.tab0, .prompt)
+        send(f, f.tab0, .stop)
+        #expect(notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app).body == f.app.tabLabel(f.tab0))
+    }
+
+    @Test func soundAndUrgency() throws {
+        let f = make()
+        send(f, f.tab0, .stop, message: "ok")
+        let done = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
+        #expect(done.sound == nil)
+        #expect(!done.urgent)
+        permission(f)
+        let p = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
+        #expect(p.urgent)
+        #expect(p.sound == "default")
+        let g = make(config { $0.sounds["permission"] = "" ; $0.sounds["done"] = "Glass" })
+        permission(g)
+        #expect(notice(for: try item(g, g.tab0.root.leaves[0].id), app: g.app).sound == nil)
+        send(g, g.tab0, .stop, message: "ok")
+        #expect(notice(for: try item(g, g.tab0.root.leaves[0].id), app: g.app).sound == "Glass")
+    }
+
+    @Test func staleRequestKeyOnlyOpens() throws {
+        let f = make(config { $0.allowFromNotification = true })
+        permission(f)
+        let leaf = f.tab0.root.leaves[0].id
+        let key = try item(f, leaf).attention.requestKey
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .allow) == .reveal)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: nil, .allow) == .reveal)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .allow) == .send(text: nil, keys: [.enter]))
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .open) == .reveal)
+        #expect(f.app.notificationAction(leaf: nil, requestKey: nil, .limits) == .showLimits)
+        // Leaf not running: nothing typed.
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .exited }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .allow) == .reveal)
+        // Setting off: only Open.
+        let g = make()
+        permission(g)
+        let gLeaf = g.tab0.root.leaves[0].id
+        #expect(g.app.notificationAction(leaf: gLeaf, requestKey: try item(g, gLeaf).attention.requestKey, .allow) == .reveal)
+        // The request moved on: the old key opens.
+        let h = make(config { $0.allowFromNotification = true })
+        permission(h)
+        let hLeaf = h.tab0.root.leaves[0].id
+        let old = try item(h, hLeaf).attention.requestKey
+        send(h, h.tab0, .prompt)
+        permission(h, command: "rm -rf build")
+        #expect(h.app.notificationAction(leaf: hLeaf, requestKey: old, .allow) == .reveal)
+    }
+
+    @Test func replySanitizes() throws {
+        let f = make()
+        let leaf = f.tab1.root.leaves[0].id
+        f.app.signal(.desktopNotification(text: "Run tests?"), leaf: leaf)
+        let key = try item(f, leaf).attention.requestKey
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("да\nну")) == .send(text: "да ну", keys: [.enter]))
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("a\u{1b}[2Jb")) == .send(text: "a[2Jb", keys: [.enter]))
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("  ")) == .reveal)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .reply("yes")) == .reveal)
+        let long = f.app.notificationAction(leaf: leaf, requestKey: key, .reply(String(repeating: "y", count: 3000)))
+        #expect(long == .send(text: String(repeating: "y", count: 2000), keys: [.enter]))
+        // A host terminal's shell: never typed into.
+        let g = make(config { $0.sshTerminalBell = true })
+        let opened = try #require(g.app.openHostShell("box"))
+        let hostLeaf = g.app.state.tasks.first { $0.id == opened.task }!.tabs.first { $0.id == opened.tab }!.root.leaves[0].id
+        g.app.signal(.bell, leaf: hostLeaf)
+        let hostItem = try item(g, hostLeaf)
+        #expect(notice(for: hostItem, app: g.app).category == .open)
+        #expect(g.app.notificationAction(leaf: hostLeaf, requestKey: hostItem.attention.requestKey, .reply("ls")) == .reveal)
+    }
+
+    @Test func bannerAllowedUsesPolicy() throws {
+        let f = make()
+        send(f, f.tab1, .codexNotify, message: "done")
+        let done = try item(f, f.tab1.root.leaves[0].id)
+        #expect(bannerAllowed(done, app: f.app, leafVisible: false, appActive: false))
+        #expect(!bannerAllowed(done, app: f.app, leafVisible: true, appActive: false))
+        f.app.setProjectNotifications(f.app.state.projects[0].id, .urgent)
+        #expect(!bannerAllowed(done, app: f.app, leafVisible: false, appActive: false))
+        let g = make(config { $0.notifyWhenActive = false })
+        permission(g)
+        let p = try item(g, g.tab0.root.leaves[0].id)
+        #expect(bannerAllowed(p, app: g.app, leafVisible: false, appActive: false))
+        #expect(!bannerAllowed(p, app: g.app, leafVisible: false, appActive: true))
     }
 
     @Test func leafVisibleRules() {
@@ -114,23 +252,5 @@ import Workspace
         let before = f.app.state
         f.app.reveal(leafId: leaf)
         #expect(f.app.state == before)
-    }
-
-    @Test func eventMessageReachesNoticeBody() {
-        let f = make()
-        let tab = f.tab1  // not the active tab: hidden
-        let leaf = tab.root.leaves[0]
-        var notices: [AgentNotice] = []
-        f.app.onTransition = { if let n = notice(for: $0, app: f.app, leafVisible: false) { notices.append(n) } }
-        func send(_ kind: HookKind, type: String? = nil, message: String? = nil) {
-            f.app.handle(.event(EventMessage(tab: tab.id, leaf: leaf.id, kind: kind, session: nil, notificationType: type, message: message)))
-        }
-        send(.prompt)
-        send(.notification, type: "permission_prompt", message: "needs permission to run X")
-        #expect(notices.last?.body.contains("needs permission to run X") == true)
-        send(.prompt)
-        send(.stop)
-        #expect(notices.count == 2)
-        #expect(notices.last?.body.contains("needs permission to run X") == false)
     }
 }

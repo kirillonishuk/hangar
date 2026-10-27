@@ -462,6 +462,25 @@ extension MainWindowController {
         // Runs applicationWillTerminate like ⌘Q. From a run-loop block, not this main-queue callback: the quit sheet's
         // nested loop could not drain the main queue (the SIGTERM source) while a main-queue block is on the stack.
         case "quit": RunLoop.main.perform { NSApp.terminate(nil) }
+        // notices <file>: what would be on screen, one per line (no bundle in DEBUG, so no real banners).
+        case "notices":
+            let lines = debugNotices.enumerated().map { i, n in
+                "\(i) id=\(n.id) category=\(n.category.rawValue) thread=\(n.thread ?? "-") sound=\(n.sound ?? "-") urgent=\(n.urgent) key=\(n.requestKey?.uuidString ?? "-") title=\(n.title) subtitle=\(n.subtitle) body=\(n.body)"
+            }
+            try? (lines.joined(separator: "\n") + "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        // noticeAction <n> open|allow|limits|reply <text>: as the n-th notice's button.
+        case "noticeAction":
+            let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
+            guard f.count >= 2, let n = Int(f[0]), debugNotices.indices.contains(n) else { return }
+            let action: NoticeAction? = switch f[1] {
+            case "open": .open
+            case "allow": .allow
+            case "limits": .limits
+            case "reply": .reply(f.count > 2 ? f[2] : "")
+            default: nil
+            }
+            let notice = debugNotices[n]
+            if let action { noticeAction(leaf: notice.leaf, requestKey: notice.requestKey, action) }
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { "\($0.id == t.activeTabId ? "*" : "")\(app.tabLabel($0)) leaves=\($0.root.leaves.map { $0.id.uuidString.prefix(4) }) focus=\($0.focusedLeafId.uuidString.prefix(4))" }) active=\(t.activeTabId == nil ? "-" : "set") drawer=\(t.drawer.visible)/\(Int(t.drawer.height))/\(t.drawer.leaf?.id.uuidString.prefix(4) ?? "-")"

@@ -264,6 +264,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()
+            self?.notifier?.registerCategories()
         }
         installMainMenu()
         installKeyMonitor()
@@ -657,6 +658,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Notifications
 
     private var notifier: Notifier?
+    #if DEBUG
+    /// What would have been posted (no bundle, no notification center): `notices` / `noticeAction` debug commands.
+    var debugNotices: [AgentNotice] = []
+    #endif
 
     /// The app is active and the main window is on screen (a key Settings window or sheet doesn't hide it) (a notification for a hidden leaf is due otherwise).
     private var windowVisible: Bool {
@@ -664,23 +669,62 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
     }
 
-    /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
-    /// No-op outside an .app bundle.
+    /// Banners for attention out of sight, withdrawn when it goes or the leaf is seen; buttons go through
+    /// `notificationAction`. Without a bundle (DEBUG) the banners land in `debugNotices` instead.
     public func enableNotifications() {
         // Dock badge and bounce: no bundle needed, so before the notifier's guard.
         app.onDockBadge = { NSApp.dockTile.badgeLabel = $0 }
         app.requestAttention = { if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) } }
         app.updateDockBadge()
-        guard let notifier = Notifier.makeIfAvailable() else { return }
-        self.notifier = notifier
-        notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }
-        app.onTransition = { [weak self] t in
-            guard let self, let n = notice(for: t, app: self.app, leafVisible: leafVisible(t.leaf, app: self.app, windowVisible: self.windowVisible)) else { return }
-            self.notifier?.post(n)
+        notifier = Notifier.makeIfAvailable()
+        #if !DEBUG
+        guard notifier != nil else { return }
+        #endif
+        notifier?.onAction = { [weak self] leaf, key, action in self?.noticeAction(leaf: leaf, requestKey: key, action) }
+        // onAttention fires only on a change, and the same request keeps its whole Attention: non-nil = a new requestKey.
+        app.onAttention = { [weak self] leaf, attention in
+            guard let self else { return }
+            guard attention != nil, let item = self.app.attentionItems.first(where: { $0.leafId == leaf }),
+                  bannerAllowed(item, app: self.app, leafVisible: leafVisible(leaf, app: self.app, windowVisible: self.windowVisible),
+                                appActive: NSApp.isActive)
+            else { self.withdrawNotice(leaf: leaf); return }  // gone, or a newer request not to be shown: the old banner is stale
+            self.postNotice(notice(for: item, app: self.app))
         }
+        app.onLeafSeen = { [weak self] leaf in self?.withdrawNotice(leaf: leaf) }
         app.onUsageAlerts = { [weak self] alerts in
             guard let self else { return }
-            for n in limitNotices(alerts, app: self.app) { self.notifier?.post(n) }
+            for n in limitNotices(alerts, app: self.app) { self.postNotice(n) }
+        }
+    }
+
+    private func postNotice(_ n: AgentNotice) {
+        notifier?.post(n)
+        #if DEBUG
+        if notifier == nil { debugNotices.removeAll { $0.id == n.id }; debugNotices.append(n) }
+        #endif
+    }
+
+    private func withdrawNotice(leaf: UUID) {
+        notifier?.remove(leaf: leaf)
+        #if DEBUG
+        debugNotices.removeAll { $0.leaf == leaf }
+        #endif
+    }
+
+    /// A notification button or click; typing goes into the leaf without bringing the window up.
+    func noticeAction(leaf: UUID?, requestKey: UUID?, _ action: NoticeAction) {
+        switch app.notificationAction(leaf: leaf, requestKey: requestKey, action) {
+        case .reveal:
+            if let leaf { reveal(leafId: leaf) }
+        case .send(let text, let keys):
+            if let leaf { app.terminals?.send(leaf, text, keys) }
+        case .showLimits:
+            NSApp.activate()
+            if let window {
+                if window.isMiniaturized { window.deminiaturize(nil) }
+                window.makeKeyAndOrderFront(nil)
+            }
+            if !app.limitsPopoverShown { app.toggleLimitsPopover() }
         }
     }
 

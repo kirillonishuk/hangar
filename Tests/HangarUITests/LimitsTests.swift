@@ -101,6 +101,8 @@ import Workspace
                 #expect(notices.first?.id == "limit-claude")
                 #expect(notices.first?.title == "claude: почти лимит (81%)")
                 #expect(notices.first?.leaf == nil)
+                #expect(notices.first?.category == .limit)
+                #expect(notices.first?.sound == "default")
             } else {
                 #expect(notices.isEmpty)
             }

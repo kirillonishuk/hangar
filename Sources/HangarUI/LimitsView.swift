@@ -53,12 +53,14 @@ import Workspace
     if alert.level != .full, let p = alert.percent { title = L10n.limitAlmost(agent, Int(p.rounded())) }
     else { title = L10n.limitReached(agent) }
     let subtitle = alert.kind.map { limitWindowTitle($0, agent: alert.agent) } ?? ""
-    return AgentNotice(id: "limit-\(agent)", title: title, subtitle: subtitle, body: "", leaf: nil)
+    return AgentNotice(id: "limit-\(agent)", title: title, subtitle: subtitle, body: "", leaf: nil, category: .limit, thread: nil,
+                       sound: "default", urgent: false, requestKey: nil)
 }
 
-/// Gated by `limit_notifications`.
+/// Gated by `limit_notifications`; the sound is `sound_limit`.
 @MainActor func limitNotices(_ alerts: [UsageAlert], app: AppState) -> [AgentNotice] {
-    app.config.limitNotifications ? alerts.map(limitNotice) : []
+    guard app.config.limitNotifications else { return [] }
+    return alerts.map { var n = limitNotice($0); n.sound = noticeSound(app.config.sounds["limit"]); return n }
 }
 
 private func agentName(_ agent: UsageAgent) -> String {

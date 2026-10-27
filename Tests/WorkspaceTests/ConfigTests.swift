@@ -214,4 +214,35 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("editor_palette = \"monokai\"") }
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("editor_rainbow_indent = \"yes\"") }
     }
+
+    @Test func defaultsMatchSpec() {
+        let c = HangarConfig()
+        #expect(c.notifyPermission && c.notifyQuestion && c.notifyDone && c.notifyFailed)
+        #expect(c.sounds == ["permission": "default", "question": "default", "done": "", "failed": "default", "limit": "default"])
+        #expect(c.notifyWhenActive)
+        #expect(c.allowFromNotification == false)
+        #expect(c.sshTerminalBell == false)
+    }
+
+    @Test func newConfigKeysParse() throws {
+        let c = try HangarConfig.parse("""
+        notify_permission = false
+        notify_question = false
+        notify_done = false
+        notify_failed = false
+        notify_when_active = false
+        allow_from_notification = true
+        ssh_terminal_bell = true
+        sound_permission = "Glass"
+        sound_question = ""
+        sound_done = "default"
+        sound_failed = "whatever"
+        sound_limit = ""
+        """)
+        #expect(!c.notifyPermission && !c.notifyQuestion && !c.notifyDone && !c.notifyFailed)
+        #expect(!c.notifyWhenActive && c.allowFromNotification && c.sshTerminalBell)
+        #expect(c.sounds == ["permission": "Glass", "question": "", "done": "default", "failed": "whatever", "limit": ""])
+        let d = try HangarConfig.parse("sound_done = \"\"")
+        #expect(d.sounds["done"] == "")
+    }
 }

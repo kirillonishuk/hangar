@@ -585,4 +585,30 @@ import Testing
         s.setWorktreeSetup(id: p, copy: nil, command: nil)
         #expect(s.projects[0].worktreeCopy == nil && s.projects[0].setupCommand == nil)
     }
+
+    @Test func oldStateDecodesWithDefaults() throws {
+        var (s, p) = makeState()
+        _ = s.addTask(projectId: p, name: "a")
+        var obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(s)) as! [String: Any]
+        var projects = obj["projects"] as! [[String: Any]]
+        projects[0].removeValue(forKey: "notifications")
+        var tasks = obj["tasks"] as! [[String: Any]]
+        tasks[0].removeValue(forKey: "muted")
+        obj["projects"] = projects
+        obj["tasks"] = tasks
+        let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONSerialization.data(withJSONObject: obj))
+        #expect(back.projects[0].notifications == .all)
+        #expect(back.tasks[0].muted == false)
+    }
+
+    @Test func notificationFieldsRoundTrip() throws {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "a")
+        s.setProjectNotifications(projectId: p, .urgent)
+        s.setMuted(taskId: t, true)
+        let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
+        #expect(back.projects[0].notifications == .urgent)
+        #expect(back.tasks[0].muted)
+        #expect(back == s)
+    }
 }

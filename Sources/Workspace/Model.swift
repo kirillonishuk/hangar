@@ -5,6 +5,9 @@ public enum Location: Codable, Equatable, Sendable {
     case ssh(host: String, path: String)
 }
 
+/// Which attention reasons of a project raise notifications: everything, only urgent ones, nothing.
+public enum ProjectNotifications: String, Codable, Sendable, CaseIterable { case all, urgent, off }
+
 public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var name: String
@@ -21,6 +24,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var worktreeCopy: [String]?
     /// Run at the new worktree's top in a shell tab after the copy; nil = the package manager's default, "" = none.
     public var setupCommand: String?
+    public var notifications: ProjectNotifications = .all
 
     public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
                 worktreeByDefault: Bool = false, worktreeRoot: String? = nil, worktreeCopy: [String]? = nil,
@@ -37,7 +41,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot, worktreeCopy, setupCommand
+        case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot, worktreeCopy, setupCommand, notifications
     }
 
     /// `collapsed` and the worktree fields were added later; older files decode with the default.
@@ -51,6 +55,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
                   worktreeRoot: try c.decodeIfPresent(String.self, forKey: .worktreeRoot),
                   worktreeCopy: try c.decodeIfPresent([String].self, forKey: .worktreeCopy),
                   setupCommand: try c.decodeIfPresent(String.self, forKey: .setupCommand))
+        notifications = try c.decodeIfPresent(ProjectNotifications.self, forKey: .notifications) ?? .all
     }
 
 
@@ -264,6 +269,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var archivedAt: Date?
     /// Its `+N −M` against the base when the worktree was closed; nil when unknown.
     public var archivedChanges: LineChanges?
+    /// Notifications of this session are muted.
+    public var muted = false
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -288,7 +295,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges
+        case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges, muted
     }
 
     /// `pinned`, `drawer`, `port` and the `archived…` details were added later; older files decode with the default.
@@ -304,6 +311,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
                   port: try c.decodeIfPresent(Int.self, forKey: .port))
         archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
         archivedChanges = try c.decodeIfPresent(LineChanges.self, forKey: .archivedChanges)
+        muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
     }
 }
 
@@ -559,6 +567,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func setPinned(taskId: UUID, _ pinned: Bool) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
         tasks[i].pinned = pinned
+    }
+
+    public mutating func setMuted(taskId: UUID, _ muted: Bool) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        tasks[i].muted = muted
+    }
+
+    public mutating func setProjectNotifications(projectId: UUID, _ value: ProjectNotifications) {
+        guard let i = projects.firstIndex(where: { $0.id == projectId }) else { return }
+        projects[i].notifications = value
     }
 
     public mutating func setProjectCollapsed(id: UUID, _ collapsed: Bool) {

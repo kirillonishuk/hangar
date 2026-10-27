@@ -480,7 +480,7 @@ extension MainWindowController {
                 "\(i) id=\(n.id) category=\(n.category.rawValue) thread=\(n.thread ?? "-") sound=\(n.sound ?? "-") urgent=\(n.urgent) key=\(n.requestKey?.uuidString ?? "-") title=\(n.title) subtitle=\(n.subtitle) body=\(n.body)"
             }
             try? (lines.joined(separator: "\n") + "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        // noticeAction <n> open|allow|limits|reply <text>: as the n-th notice's button.
+        // noticeAction <n> open|allow [<request key>]|limits|reply <text>: as the n-th notice's button (a key: an older banner's).
         case "noticeAction":
             let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard f.count >= 2, let n = Int(f[0]), debugNotices.indices.contains(n) else { return }
@@ -492,7 +492,8 @@ extension MainWindowController {
             default: nil
             }
             let notice = debugNotices[n]
-            if let action { noticeAction(leaf: notice.leaf, requestKey: notice.requestKey, action) }
+            let key = f.count > 2 && f[1] == "allow" ? UUID(uuidString: f[2]) : nil
+            if let action { noticeAction(leaf: notice.leaf, requestKey: key ?? notice.requestKey, action) }
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { "\($0.id == t.activeTabId ? "*" : "")\(app.tabLabel($0)) leaves=\($0.root.leaves.map { $0.id.uuidString.prefix(4) }) focus=\($0.focusedLeafId.uuidString.prefix(4))" }) active=\(t.activeTabId == nil ? "-" : "set") drawer=\(t.drawer.visible)/\(Int(t.drawer.height))/\(t.drawer.leaf?.id.uuidString.prefix(4) ?? "-")"

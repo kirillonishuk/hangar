@@ -19,9 +19,9 @@ final class SocketDir {
 
 @MainActor final class Inbox {
     var messages: [ControlMessage] = []
-    /// Returns as soon as `n` arrive (messages are delivered on the main actor); a small `polls` checks that none do.
-    func wait(count n: Int, polls: Int = 3000) async -> [ControlMessage] {
-        _ = await waitUntil(polls: polls) { messages.count >= n }
+    /// Returns as soon as `n` arrive (messages are delivered on the main actor).
+    func wait(count n: Int) async -> [ControlMessage] {
+        _ = await waitUntil { messages.count >= n }
         return messages
     }
 }
@@ -180,7 +180,8 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         for r in replies {
             #expect(r.hasPrefix(#"{"id":null,"error":{"code":"bad-request","message":""#) && !r.contains(#""ok""#))
         }
-        #expect(await inbox.wait(count: 1, polls: 10).isEmpty)
+        try await Task.sleep(for: .milliseconds(200))  // a wall-clock check that nothing arrives
+        #expect(await inbox.messages.isEmpty)
     }
 
     @Test func splitAndBatchedLines() async throws {
@@ -351,8 +352,9 @@ private func startServer(_ dir: SocketDir, _ inbox: Inbox, idleTimeout: Double? 
         let b = try RawClient(dir.path)
         b.send(line(event(.prompt)))
         // Listener is suspended, no spin: b is not served while a stays open.
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(await inbox.wait(count: 2, polls: 25).count == 1)
+        // Wall clock, not polls: a stalled main actor must not stretch this past the 60 s emfileRetry timer.
+        try await Task.sleep(for: .milliseconds(800))
+        #expect(await inbox.messages.count == 1)
         #expect(failures.withLock { $0 } == 0, "accept was attempted exactly once")
 
         a = nil  // closing a connection resumes the listener

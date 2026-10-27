@@ -99,7 +99,7 @@ import Workspace
             if enabled {
                 #expect(notices.count == 1)
                 #expect(notices.first?.id == "limit-claude")
-                #expect(notices.first?.title == "claude: почти лимит (81%)")
+                #expect(notices.first?.title == "Claude: почти лимит (81%)")
                 #expect(notices.first?.leaf == nil)
                 #expect(notices.first?.category == .limit)
                 #expect(notices.first?.sound == "default")
@@ -108,8 +108,8 @@ import Workspace
             }
         }
         L10n.language = .en
-        #expect(limitNotice(UsageAlert(agent: .codex, kind: nil, level: .full, percent: nil)).title == "codex: limit reached")
-        #expect(limitNotice(UsageAlert(agent: .claude, kind: .session, level: .warn, percent: 81)).title == "claude: almost at the limit (81%)")
+        #expect(limitNotice(UsageAlert(agent: .codex, kind: nil, level: .full, percent: nil)).title == "Codex: limit reached")
+        #expect(limitNotice(UsageAlert(agent: .claude, kind: .session, level: .warn, percent: 81)).title == "Claude: almost at the limit (81%)")
     }
 
     @Test func popoverNeedsData() {

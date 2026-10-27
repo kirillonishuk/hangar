@@ -48,12 +48,12 @@ import Workspace
 
 /// One macOS notification per crossed threshold; `limit-<agent>` replaces the agent's previous one.
 @MainActor func limitNotice(_ alert: UsageAlert) -> AgentNotice {
-    let agent = alert.agent.rawValue
+    let agent = agentName(alert.agent)  // «Claude», as in the attention banners
     let title: String
     if alert.level != .full, let p = alert.percent { title = L10n.limitAlmost(agent, Int(p.rounded())) }
     else { title = L10n.limitReached(agent) }
     let subtitle = alert.kind.map { limitWindowTitle($0, agent: alert.agent) } ?? ""
-    return AgentNotice(id: "limit-\(agent)", title: title, subtitle: subtitle, body: "", leaf: nil, category: .limit, thread: nil,
+    return AgentNotice(id: "limit-\(alert.agent.rawValue)", title: title, subtitle: subtitle, body: "", leaf: nil, category: .limit, thread: nil,
                        sound: "default", urgent: false, requestKey: nil)
 }
 

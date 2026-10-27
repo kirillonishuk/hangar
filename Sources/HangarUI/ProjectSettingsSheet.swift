@@ -114,7 +114,7 @@ struct ProjectSettingsSheet: View {
     private var card: some View {
         VStack(spacing: Theme.sheetGap) {
             CardSection(title: L10n.sectionProjectTitle) { projectRows }
-            if isGit == true { CardSection(title: "Worktree") { worktreeRows } }
+            if isGit == true { CardSection(title: L10n.worktreeLabel) { worktreeRows } }
         }
     }
 

@@ -155,8 +155,10 @@ struct LimitsBlock: View {
                 .lineLimit(1)
                 .frame(width: Theme.Limit.nameWidth, alignment: .leading)
             VStack(spacing: Theme.Limit.barGap) {
-                LimitBar(percent: session?.usedPercent, level: session.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
-                LimitBar(percent: week?.usedPercent, level: week.map { windowLevel($0, in: u) } ?? .ok, height: Theme.Limit.blockBar)
+                // A reached limit with no window data yet (StopFailure only) fills both bars, matching «100%».
+                let reached: Double? = u.windows.isEmpty && u.limitReached ? 100 : nil
+                LimitBar(percent: session?.usedPercent ?? reached, level: session.map { windowLevel($0, in: u) } ?? top, height: Theme.Limit.blockBar)
+                LimitBar(percent: week?.usedPercent ?? reached, level: week.map { windowLevel($0, in: u) } ?? top, height: Theme.Limit.blockBar)
             }
             Text(percentText(limitBlockPercent(u)))
                 .font(.system(size: Theme.Limit.percentFont).monospacedDigit())

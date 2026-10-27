@@ -19,12 +19,20 @@ extension MainWindowController {
         guard let path = ProcessInfo.processInfo.environment["HANGAR_DEBUG_PROJECT"] else { return }
         // Empty path: hooks without a project (empty-state checks).
         if !path.isEmpty, !app.state.projects.contains(where: { $0.path == path }) { app.addProject(path: path) }
+        park(window)
         // HANGAR_DEBUG_CHANNEL scopes the hook, so parallel debug instances don't run each other's commands.
         let channel = ProcessInfo.processInfo.environment["HANGAR_DEBUG_CHANNEL"].map { ".\($0)" } ?? ""
         DistributedNotificationCenter.default().addObserver(forName: .init("dev.hangar.debug" + channel), object: nil, queue: .main) { [weak self] note in
             let command = note.object as? String ?? ""
             MainActor.assumeIsolated { self?.debugCommand(command) }
         }
+    }
+
+    /// HANGAR_DEBUG_BEHIND=1: windows stay behind all others, so verification runs don't cover the owner's screen
+    /// (captures by window id and `snap` still work; occluded terminals pause rendering).
+    private func park(_ w: NSWindow?) {
+        guard ProcessInfo.processInfo.environment["HANGAR_DEBUG_BEHIND"] == "1" else { return }
+        w?.orderBack(nil)
     }
 
     /// NSPopover's window (e.g. the branch picker), if one is shown.
@@ -259,10 +267,13 @@ extension MainWindowController {
         case "settings":  // settings [general|appearance|editor|notifications|integrations|advanced]
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
+            park(settings.window)
         case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)
             if let theme = AppTheme(rawValue: arg) {
                 do { try app.setTheme(theme) } catch { uiLog.error("theme: \(error.localizedDescription, privacy: .public)") }
             }
+        case "termbg":  // termbg hangar|ghostty: as Settings → Оформление → Фон терминала (live)
+            if let bg = HangarConfig.TerminalBackground(rawValue: arg) { try? app.setTerminalBackground(bg) }
         case "keepAwake":  // keepAwake on|off|working <n>: the ☕ row's states (working holds a real assertion until quit)
             let f = arg.split(separator: " ").map(String.init)
             switch f.first ?? "" {
@@ -393,7 +404,7 @@ extension MainWindowController {
             uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) commands=\(self.palette?.model.isCommands ?? false, privacy: .public) loading=\(self.palette?.model.showsLoading ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
         case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)
             let v = arg.split(separator: " ").compactMap { Double($0) }
-            if v.count == 2 { window?.setContentSize(NSSize(width: v[0], height: v[1])); window?.center() }
+            if v.count == 2 { window?.setContentSize(NSSize(width: v[0], height: v[1])); window?.center(); park(window) }
         case "remote":
             // remote sheet | fill <host> <path> | connect | add | server <host> | refresh | spec <file> | install | review claude|codex [remove] | confirm | snap <file> | close | dump
             let f = arg.split(separator: " ").map(String.init)
@@ -434,6 +445,7 @@ extension MainWindowController {
             case "unhide": NSApp.unhideWithoutActivation()
             case "out": window?.orderOut(nil)
             case "front": window?.orderFrontRegardless()
+            case "back": window?.orderBack(nil)
             default: break
             }
             uiLog.info("window \(arg, privacy: .public) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) mini=\(self.window?.isMiniaturized ?? false) active=\(NSApp.isActive)")

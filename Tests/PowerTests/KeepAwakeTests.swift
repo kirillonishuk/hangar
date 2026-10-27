@@ -1,5 +1,6 @@
 import Testing
 @testable import Power
+import TestSupport
 
 /// Records every IOPM call; `create` hands out ids 1, 2, … unless `failCreate`.
 @MainActor final class FakeAssertions {
@@ -161,7 +162,7 @@ import Testing
         _ = KeepAwake.taskSchedule(.milliseconds(1)) { ran += 1 }
         let cancel = KeepAwake.taskSchedule(.seconds(60)) { ran += 100 }
         cancel()
-        for _ in 0..<200 where ran == 0 { try? await Task.sleep(for: .milliseconds(10)) }
+        _ = await waitUntil { ran != 0 }
         try? await Task.sleep(for: .milliseconds(20))
         #expect(ran == 1)
     }

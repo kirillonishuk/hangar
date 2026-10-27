@@ -6,6 +6,7 @@ import os
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 @MainActor @Suite struct InspectorModelTests {
     /// Waits until no load (and no queued rerun) is left.
@@ -148,12 +149,9 @@ import Workspace
                 && model.tree.children(of: "")?.contains { $0.name == "only-a.txt" } != true
                 && model.badges["only-a.txt"] == nil && (model.root == b.repo || model.root == topB)
         }
-        // Polls without spinning the main actor (other suites' main-actor work must keep running); the
-        // suspending clock ignores a system sleep in the middle of the run.
-        let deadline = SuspendingClock.now + .seconds(60)
-        while model.loading != nil, SuspendingClock.now < deadline {
+        _ = await waitUntil {
             #expect(noA())
-            try await Task.sleep(for: .milliseconds(5))
+            return model.loading == nil
         }
         #expect(model.loading == nil)
         #expect(noA())

@@ -4,6 +4,7 @@ import Git
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// The Search tab's model (#91): streaming, one search at a time, debounce, outcomes.
 @MainActor @Suite struct SearchModelTests {
@@ -51,7 +52,7 @@ import Workspace
         model.text = "fo"
         model.text = "foo"
         // A busy main actor (full parallel run) delays the timer: wait for it, generously.
-        for _ in 0..<600 where queries.isEmpty { try await Task.sleep(for: .milliseconds(50)) }
+        _ = await waitUntil { !queries.isEmpty }
         await model.running?.value
         try await Task.sleep(for: .milliseconds(200))
         #expect(queries == ["foo"])
@@ -75,9 +76,9 @@ import Workspace
         model.text = "slow"
         model.setTarget(SearchTarget(root: "/r"))
         var pid: pid_t?
-        for _ in 0..<100 where pid == nil {
-            try await Task.sleep(for: .milliseconds(50))
+        _ = await waitUntil {
             pid = (try? String(contentsOfFile: pidFile, encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            return pid != nil
         }
         let slow = try #require(pid)
         model.text = "fast"
@@ -85,12 +86,7 @@ import Workspace
         await model.running?.value
         #expect(model.status == .done)
         #expect(model.results.files.map(\.path) == ["new.txt"])
-        var gone = false
-        for _ in 0..<60 where !gone {
-            gone = kill(slow, 0) != 0
-            if !gone { try await Task.sleep(for: .milliseconds(50)) }
-        }
-        #expect(gone)
+        #expect(await waitUntil { kill(slow, 0) != 0 })
     }
 
     /// Leaving the tab (or quitting) terminates the running process; shown again, the same root searches afresh.
@@ -110,19 +106,14 @@ import Workspace
         let target = SearchTarget(root: "/r")
         model.setTarget(target)
         var pid: pid_t?
-        for _ in 0..<200 where pid == nil {
-            try await Task.sleep(for: .milliseconds(50))
+        _ = await waitUntil {
             pid = (try? String(contentsOfFile: pidFile, encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            return pid != nil
         }
         let slow = try #require(pid)
         model.cancel()
         #expect(model.status == .idle && model.running == nil)
-        var gone = false
-        for _ in 0..<200 where !gone {
-            gone = kill(slow, 0) != 0
-            if !gone { try await Task.sleep(for: .milliseconds(50)) }
-        }
-        #expect(gone)
+        #expect(await waitUntil { kill(slow, 0) != 0 })
         model.setTarget(target)
         await model.running?.value
         #expect(model.results.files.map(\.path) == ["again.txt"])

@@ -6,6 +6,7 @@ import Git
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// Git, inspector, worktrees and deletion of remote projects (#47), on the RemoteHostsTests harness (fake ssh only).
 /// The project's path `<root>/mac/app` is a real repo on this Mac (a decoy); the fake ssh maps it to the "server"
@@ -17,15 +18,6 @@ import Workspace
     struct Setup {
         let mac: String, server: String
         let project: UUID, task: UUID
-    }
-
-    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if cond() { return true }
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        return cond()
     }
 
     nonisolated private static func git(_ args: [String], in dir: String) throws {

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Exec
+import TestSupport
 
 @Suite struct RunnerTests {
     @Test func runReturnsStatusAndOutput() async throws {
@@ -45,10 +46,9 @@ import Testing
         defer { try? FileManager.default.removeItem(atPath: file) }
         let task = Task { try await Runner.local.run(["sh", "-c", "echo $$ > \"$0\"; " + script, file], NSTemporaryDirectory()) }
         var pgid: pid_t = 0
-        let deadline = SuspendingClock.now + .seconds(30)
-        while pgid == 0, SuspendingClock.now < deadline {
-            try await Task.sleep(nanoseconds: 20_000_000)
+        _ = await waitUntil {
             pgid = pid_t((try? String(contentsOfFile: file, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0
+            return pgid > 0
         }
         try #require(pgid > 0)
         try await Task.sleep(nanoseconds: 200_000_000)  // let the children start
@@ -59,28 +59,21 @@ import Testing
     }
 
     /// kill(-pgid, 0) fails with ESRCH once no member of the group is left.
-    private func groupGone(_ pgid: pid_t, within seconds: Int) async throws -> Bool {
-        let until = SuspendingClock.now + .seconds(seconds)
-        while kill(-pgid, 0) == 0 {
-            if SuspendingClock.now > until { return false }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-        return true
-    }
+    private func groupGone(_ pgid: pid_t) async -> Bool { await waitUntil { kill(-pgid, 0) != 0 } }
 
     /// Like a git fetch whose helper (ssh, remote-ext) holds the pipes: the whole process group dies, cancel is prompt.
     @Test func cancelKillsProcessGroup() async throws {
         // Bounds are "long before the 600 s sleeps": under load the resume waits for a busy cooperative pool.
         let (pgid, seconds) = try await cancelScript("sleep 600 & sleep 600")
         #expect(seconds < .seconds(20))
-        #expect(try await groupGone(pgid, within: 20), "process group \(pgid) still has members")
+        #expect(await groupGone(pgid), "process group \(pgid) still has members")
     }
 
     /// Members ignoring SIGTERM get SIGKILL after 2 s — all of them, not only the leader.
     @Test func cancelEscalatesToKillForTheWholeGroup() async throws {
         let (pgid, seconds) = try await cancelScript("trap '' TERM; sleep 600 & sleep 600")
         #expect(seconds < .seconds(20))
-        #expect(try await groupGone(pgid, within: 20), "process group \(pgid) still has members")
+        #expect(await groupGone(pgid), "process group \(pgid) still has members")
     }
 
     /// A child that left the group still holds the pipes: cancel doesn't wait for their EOF.

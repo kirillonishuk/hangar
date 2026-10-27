@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import HangarUI
+import TestSupport
 
 /// LSP servers end to end (#90): a shell script plays the server — framed JSON-RPC both ways, initialize handshake,
 /// a server → client request, diagnostics, request/response correlation, grace stop, one restart after a crash.
@@ -89,15 +90,6 @@ import Testing
 
     private func logLines() -> [String] {
         ((try? String(contentsOfFile: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
-    }
-
-    /// Counts polls, not wall-clock time: a loaded full run stretches the sleeps, not the number of checks.
-    private func waitUntil(polls: Int = 1500, _ cond: () -> Bool) async -> Bool {
-        for _ in 0..<polls {
-            if cond() { return true }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-        return cond()
     }
 
     private func uri(_ path: String) -> String { LspMap.uri(path) }

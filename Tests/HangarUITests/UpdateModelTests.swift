@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 import Update
+import TestSupport
 
 @MainActor @Suite struct UpdateModelTests {
     private func feedJSON(_ tag: String) -> Data {
@@ -24,7 +25,7 @@ import Update
     }
 
     private func settle(_ model: UpdateModel) async {
-        for _ in 0..<200 where model.phase == .checking { await Task.yield(); try? await Task.sleep(for: .milliseconds(5)) }
+        _ = await waitUntil { model.phase != .checking }
     }
 
     @Test func findsANewerReleaseAndRemembersIt() async throws {
@@ -103,9 +104,7 @@ import Update
         #expect(model.offer == nil)
     }
 
-    private func until(_ cond: () -> Bool) async {
-        for _ in 0..<400 where !cond() { try? await Task.sleep(for: .milliseconds(5)) }
-    }
+    private func until(_ cond: () -> Bool) async { _ = await waitUntil(cond) }
 
     private let fakeStaged = UpdateModel.Staged(app: URL(fileURLWithPath: "/nonexistent/Hangar.app"),
                                                 mount: URL(fileURLWithPath: "/nonexistent/vol"), dir: URL(fileURLWithPath: "/nonexistent/dir"))

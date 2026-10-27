@@ -4,6 +4,7 @@ import Git
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// Real temp repositories (bare origin + clone); no mocked git output.
 @MainActor @Suite struct NewTaskModelTests {
@@ -19,11 +20,7 @@ import Workspace
     private func repo() async throws -> TempRepo { try await TempRepo.offMain() }
     private func emptyRepo() async throws -> TempRepo { try await TempRepo.offMain { try TempRepo(emptyWithBranch: "main") } }
 
-    /// Generous: parallel tests' fixtures run git synchronously on the main actor.
-    private func wait(_ seconds: Int = 20, until condition: () -> Bool) async throws {
-        let clock = SuspendingClock(), deadline = clock.now + .seconds(seconds)
-        while !condition(), clock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
-    }
+    private func wait(until condition: () -> Bool) async throws { try #require(await waitUntil(condition)) }
 
     @Test func branchFollowsNameUntilEdited() async throws {
         let t = try await repo()
@@ -287,13 +284,13 @@ import Workspace
         let m = model(t, worktreeByDefault: true)
         let loading = Task { await m.load() }
         // Long deadlines: under a full parallel run load() and create's first awaits wait for busy git spawns.
-        try await wait(90) { m.fetch == .running }
+        try await wait { m.fetch == .running }
         #expect(m.fetch == .running)
         await m.refresh()  // no-op while running
         #expect(m.fetch == .running)
         m.name = "t"
         let creating = Task { await m.create(skipFetch: false) }
-        try await wait(90) { m.creating }
+        try await wait { m.creating }
         let clock = SuspendingClock(), started = clock.now
         m.cancelFetch()
         #expect(m.fetch == .cancelled)

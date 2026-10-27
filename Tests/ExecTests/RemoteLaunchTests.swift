@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Workspace
 @testable import Exec
+import TestSupport
 
 /// Remote tabs (#47) against a fake ssh that runs the remote command locally; tmux is the real one on an isolated
 /// `TMUX_TMPDIR` whose server is killed at the end. Never a real host.
@@ -86,16 +87,6 @@ import Workspace
             }
             try? FileManager.default.removeItem(atPath: root)
         }
-    }
-
-    /// Test-only wait for an async side effect; SuspendingClock survives Mac sleep.
-    private func waitUntil(_ seconds: Double = 40, _ cond: () async -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if await cond() { return true }
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-        return await cond()
     }
 
     private func command(_ f: Fixture, leaf: UUID, cwd: String? = nil, agent: String, tmux: Bool = true) -> String {

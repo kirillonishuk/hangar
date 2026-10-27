@@ -3,6 +3,7 @@ import Foundation
 import os
 import Testing
 @testable import HangarUI
+import TestSupport
 
 @MainActor @Suite struct FileWatcherTests {
     private let modified = FSEventStreamEventFlags(kFSEventStreamEventFlagItemModified)
@@ -159,8 +160,8 @@ import Testing
                                   classify: { classify($0, root: root, gitDir: nil) })
         try await Task.sleep(for: .milliseconds(500))
         for i in 0..<20 { try "x".write(toFile: "\(root)/f\(i).txt", atomically: false, encoding: .utf8) }
-        // Parallel test load delays FSEvents: wait for the first delivery (up to 10 s), then for stragglers.
-        for _ in 0..<100 where counter.n == 0 { try await Task.sleep(for: .milliseconds(100)) }
+        // Parallel test load delays FSEvents: wait for the first delivery, then for stragglers.
+        _ = await waitUntil { counter.n > 0 }
         try await Task.sleep(for: .milliseconds(1000))
         #expect((1...6).contains(counter.n), "calls: \(counter.n)")
         #expect(counter.last == .all)
@@ -194,12 +195,12 @@ import Testing
         for i in 0..<10 { try "x".write(toFile: "\(top)/apps/api/f\(i).txt", atomically: false, encoding: .utf8) }
         try "x".write(toFile: "\(top)/r.txt", atomically: false, encoding: .utf8)
         try "x".write(toFile: "\(root)/w.txt", atomically: false, encoding: .utf8)
-        for _ in 0..<100 where !seen.withLock({ $0.contains(root + "/w.txt") }) { try await Task.sleep(for: .milliseconds(100)) }
+        _ = await waitUntil { seen.withLock { $0.contains(root + "/w.txt") } }
         try await Task.sleep(for: .milliseconds(500))
         #expect(seen.withLock { $0.filter { $0.contains("/apps/api") || $0.hasSuffix("/r.txt") } }.isEmpty)
         counter.last = []
         try "dist/\nbuild/\n".write(toFile: base + "/.gitignore", atomically: true, encoding: .utf8)
-        for _ in 0..<100 where counter.last != .all { try await Task.sleep(for: .milliseconds(100)) }
+        _ = await waitUntil { counter.last == .all }
         #expect(counter.last == .all)
     }
 
@@ -214,7 +215,7 @@ import Testing
         defer { watcher.stop() }
         try await Task.sleep(for: .milliseconds(500))
         try FileManager.default.moveItem(atPath: base + "/root", toPath: base + "/moved")
-        for _ in 0..<100 where counter.n == 0 { try await Task.sleep(for: .milliseconds(100)) }
+        _ = await waitUntil { counter.n > 0 }
         #expect(counter.last == .all)
     }
 

@@ -659,7 +659,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private var notifier: Notifier?
     #if DEBUG
-    /// What would have been posted (no bundle, no notification center): `notices` / `noticeAction` debug commands.
+    /// What would be on screen without a bundle (a recording center): `notices` / `noticeAction` debug commands.
     var debugNotices: [AgentNotice] = []
     #endif
 
@@ -669,46 +669,31 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
     }
 
-    /// Banners for attention out of sight, withdrawn when it goes or the leaf is seen; buttons go through
-    /// `notificationAction`. Without a bundle (DEBUG) the banners land in `debugNotices` instead.
+    /// Banners for attention out of sight (`Notifier.attach`); buttons go through `notificationAction`.
+    /// Without a bundle: nothing in release, a recording center in DEBUG (`debugNotices`).
     public func enableNotifications() {
         // Dock badge and bounce: no bundle needed, so before the notifier's guard.
         app.onDockBadge = { NSApp.dockTile.badgeLabel = $0 }
         app.requestAttention = { if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) } }
         app.updateDockBadge()
-        notifier = Notifier.makeIfAvailable()
-        #if !DEBUG
-        guard notifier != nil else { return }
-        #endif
-        notifier?.onAction = { [weak self] leaf, key, action in self?.noticeAction(leaf: leaf, requestKey: key, action) }
-        // onAttention fires only on a change, and the same request keeps its whole Attention: non-nil = a new requestKey.
-        app.onAttention = { [weak self] leaf, attention in
+        #if DEBUG
+        notifier = Notifier.makeIfAvailable() ?? Notifier(center: .recorder { [weak self] edit in
             guard let self else { return }
-            guard attention != nil, let item = self.app.attentionItems.first(where: { $0.leafId == leaf }),
-                  bannerAllowed(item, app: self.app, leafVisible: leafVisible(leaf, app: self.app, windowVisible: self.windowVisible),
-                                appActive: NSApp.isActive)
-            else { self.withdrawNotice(leaf: leaf); return }  // gone, or a newer request not to be shown: the old banner is stale
-            self.postNotice(notice(for: item, app: self.app))
-        }
-        app.onLeafSeen = { [weak self] leaf in self?.withdrawNotice(leaf: leaf) }
+            self.debugNotices = edit(self.debugNotices)
+        })
+        #else
+        notifier = Notifier.makeIfAvailable()
+        #endif
+        guard let notifier else { return }
+        notifier.onAction = { [weak self] leaf, key, action in self?.noticeAction(leaf: leaf, requestKey: key, action) }
+        notifier.attach(to: app, leafVisible: { [weak self] leaf in
+            guard let self else { return false }
+            return leafVisible(leaf, app: self.app, windowVisible: self.windowVisible)
+        }, appActive: { NSApp.isActive })
         app.onUsageAlerts = { [weak self] alerts in
             guard let self else { return }
-            for n in limitNotices(alerts, app: self.app) { self.postNotice(n) }
+            for n in limitNotices(alerts, app: self.app) { self.notifier?.post(n) }
         }
-    }
-
-    private func postNotice(_ n: AgentNotice) {
-        notifier?.post(n)
-        #if DEBUG
-        if notifier == nil { debugNotices.removeAll { $0.id == n.id }; debugNotices.append(n) }
-        #endif
-    }
-
-    private func withdrawNotice(leaf: UUID) {
-        notifier?.remove(leaf: leaf)
-        #if DEBUG
-        debugNotices.removeAll { $0.leaf == leaf }
-        #endif
     }
 
     /// A notification button or click; typing goes into the leaf without bringing the window up.

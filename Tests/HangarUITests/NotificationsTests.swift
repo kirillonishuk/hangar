@@ -184,6 +184,11 @@ import Workspace
         send(h, h.tab0, .prompt)
         permission(h, command: "rm -rf build")
         #expect(h.app.notificationAction(leaf: hLeaf, requestKey: old, .allow) == .reveal)
+        // Permission without a known command: nothing approved blindly.
+        let k = make(config { $0.allowFromNotification = true })
+        permission(k, command: nil)
+        let kLeaf = k.tab0.root.leaves[0].id
+        #expect(k.app.notificationAction(leaf: kLeaf, requestKey: try item(k, kLeaf).attention.requestKey, .allow) == .reveal)
     }
 
     @Test func replySanitizes() throws {
@@ -220,6 +225,74 @@ import Workspace
         let p = try item(g, g.tab0.root.leaves[0].id)
         #expect(bannerAllowed(p, app: g.app, leafVisible: false, appActive: false))
         #expect(!bannerAllowed(p, app: g.app, leafVisible: false, appActive: true))
+    }
+
+    /// A recording center: what is on screen, plus every add.
+    final class Shown {
+        var notices: [AgentNotice] = []
+        var added: [AgentNotice] = []
+    }
+
+    private func notifier(_ shown: Shown) -> Notifier {
+        var center = NoticeCenter.recorder { shown.notices = $0(shown.notices) }
+        let add = center.add
+        center.add = { shown.added.append($0); try await add($0) }
+        // Authorization takes a turn, as the real lookup does.
+        center.authorization = { await Task.yield(); return .authorized }
+        return Notifier(center: center)
+    }
+
+    private func sample(_ leaf: UUID, _ title: String) -> AgentNotice {
+        AgentNotice(id: leaf.uuidString, title: title, subtitle: "", body: "", leaf: leaf, category: .open, thread: nil, sound: nil,
+                    urgent: false, requestKey: UUID())
+    }
+
+    @Test func removeBeforePendingPostAddsNothing() async {
+        let shown = Shown()
+        let n = notifier(shown)
+        let leaf = UUID()
+        let post = n.post(sample(leaf, "a"))
+        n.remove(leaf: leaf)
+        await post.value
+        #expect(shown.added.isEmpty)
+        #expect(shown.notices.isEmpty)
+        // Two quick posts for one leaf: only the newest lands.
+        let first = n.post(sample(leaf, "old"))
+        let second = n.post(sample(leaf, "new"))
+        await first.value
+        await second.value
+        #expect(shown.added.map(\.title) == ["new"])
+    }
+
+    @Test func attachPostsAndWithdraws() async throws {
+        let f = make()
+        let shown = Shown()
+        let n = notifier(shown)
+        var visible = false
+        n.attach(to: f.app, leafVisible: { _ in visible }, appActive: { false })
+        let leaf = f.tab1.root.leaves[0].id  // codex
+        // New request out of sight: posted.
+        f.app.signal(.desktopNotification(text: "Run tests?"), leaf: leaf)
+        await n.lastPost?.value
+        #expect(shown.notices.map(\.id) == [leaf.uuidString])
+        #expect(shown.notices.first?.category == .questionReply)
+        // A new request that may not be shown (leaf visible): the stale banner goes too.
+        visible = true
+        send(f, f.tab1, .codexNotify, message: "done")
+        #expect(shown.notices.isEmpty)
+        // Seen (focus): withdrawn.
+        visible = false
+        f.app.signal(.desktopNotification(text: "Again?"), leaf: leaf)
+        await n.lastPost?.value
+        #expect(shown.notices.count == 1)
+        f.app.focused(leafId: leaf)
+        #expect(shown.notices.isEmpty)
+        // Attention gone (done dismissed): withdrawn.
+        send(f, f.tab1, .codexNotify, message: "done again")
+        await n.lastPost?.value
+        #expect(shown.notices.first?.category == .open)
+        f.app.dismissDone(leafId: leaf)
+        #expect(shown.notices.isEmpty)
     }
 
     @Test func leafVisibleRules() {

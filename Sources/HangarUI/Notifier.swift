@@ -76,7 +76,9 @@ extension AppState {
         case .open: return .reveal
         case .limits: return .showLimits
         case .allow:
-            guard config.allowFromNotification, current(.permission) else { return .reveal }
+            // Never approve blindly: the banner showed the exact command.
+            guard config.allowFromNotification, current(.permission), let a = leaf.flatMap({ statuses.status($0).attention }),
+                  a.tool != nil, a.command != nil else { return .reveal }
             return .send(text: nil, keys: permissionApproveKeys)
         case .reply(let raw):
             guard let leaf, acceptsReply(leaf: leaf), current(.question) else { return .reveal }
@@ -151,25 +153,78 @@ extension AppState {
     }
 }
 
-/// Thin wiring over `UNUserNotificationCenter`; the decisions live in `notice(for:…)` and `notificationAction`.
+/// What `Notifier` needs from the notification center: the system one, or a recorder (tests, DEBUG without a bundle).
+@MainActor struct NoticeCenter {
+    var authorization: () async -> UNAuthorizationStatus
+    var requestAuthorization: () async -> Void
+    var add: (AgentNotice) async throws -> Void
+    var remove: (String) -> Void
+    var removeAll: () -> Void
+    var setCategories: (Set<UNNotificationCategory>) -> Void
+
+    static func system(_ center: UNUserNotificationCenter) -> NoticeCenter {
+        NoticeCenter(
+            authorization: { await center.notificationSettings().authorizationStatus },
+            requestAuthorization: { _ = try? await center.requestAuthorization(options: [.alert, .sound]) },
+            add: { n in
+                let content = UNMutableNotificationContent()
+                content.title = n.title
+                content.subtitle = n.subtitle
+                content.body = n.body
+                content.categoryIdentifier = n.category.rawValue
+                content.threadIdentifier = n.thread ?? ""
+                // S4 (#95): system sounds by name are unconfirmed, any chosen sound plays as the standard one.
+                content.sound = n.sound == nil ? nil : .default
+                // S3 (#95): .timeSensitive needs a provisioning profile the ad-hoc bundle can't have.
+                content.interruptionLevel = .active
+                var info: [String: String] = [:]
+                if let leaf = n.leaf { info["leaf"] = leaf.uuidString }
+                if let key = n.requestKey { info["requestKey"] = key.uuidString }
+                content.userInfo = info
+                try await center.add(UNNotificationRequest(identifier: n.id, content: content, trigger: nil))
+            },
+            remove: { id in
+                center.removeDeliveredNotifications(withIdentifiers: [id])
+                center.removePendingNotificationRequests(withIdentifiers: [id])
+            },
+            removeAll: { center.removeAllDeliveredNotifications() },
+            setCategories: { center.setNotificationCategories($0) })
+    }
+
+    /// Keeps what is "on screen" in `shown` (newest last); always authorized.
+    static func recorder(_ shown: @escaping (([AgentNotice]) -> [AgentNotice]) -> Void) -> NoticeCenter {
+        NoticeCenter(authorization: { .authorized }, requestAuthorization: {},
+                     add: { n in shown { $0.filter { $0.id != n.id } + [n] } },
+                     remove: { id in shown { $0.filter { $0.id != id } } },
+                     removeAll: { shown { _ in [] } }, setCategories: { _ in })
+    }
+}
+
+/// Thin wiring over the notification center; the decisions live in `notice(for:…)`, `bannerAllowed` and `notificationAction`.
 @MainActor public final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     /// (leaf, requestKey, action)
     var onAction: ((UUID?, UUID?, NoticeAction) -> Void)?
-    private let center: UNUserNotificationCenter
+    private let center: NoticeCenter
+    /// The post each id may still add; a remove or a newer post replaces it (posts wait for authorization first).
+    private var current: [String: UUID] = [:]
+    /// Tests await it.
+    private(set) var lastPost: Task<Void, Never>?
 
     /// nil outside an .app bundle: `UNUserNotificationCenter.current()` crashes in `swift run` and tests.
     static func makeIfAvailable() -> Notifier? {
         guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else { return nil }
-        return Notifier()
+        let system = UNUserNotificationCenter.current()
+        let notifier = Notifier(center: .system(system))
+        system.delegate = notifier
+        return notifier
     }
 
-    private init(center: UNUserNotificationCenter = .current()) {
+    init(center: NoticeCenter) {
         self.center = center
         super.init()
-        center.delegate = self
         registerCategories()
         // Last run's banners point at requests that no longer exist.
-        center.removeAllDeliveredNotifications()
+        center.removeAll()
     }
 
     /// Button titles follow the language: call again after a switch.
@@ -184,45 +239,50 @@ extension AppState {
             .permission: [open], .permissionAllow: [open, allow], .question: [open], .questionReply: [open, reply],
             .open: [open], .limit: [limits],
         ]
-        center.setNotificationCategories(Set(NoticeCategory.allCases.map {
+        center.setCategories(Set(NoticeCategory.allCases.map {
             UNNotificationCategory(identifier: $0.rawValue, actions: actions[$0] ?? [], intentIdentifiers: [])
         }))
     }
 
-    func authorizationStatus() async -> UNAuthorizationStatus { await center.notificationSettings().authorizationStatus }
+    func authorizationStatus() async -> UNAuthorizationStatus { await center.authorization() }
 
-    /// Asks for permission on the first need; a refusal silently drops the notification.
-    func post(_ n: AgentNotice) {
-        Task { @MainActor in
-            var status = await authorizationStatus()
-            if status == .notDetermined {
-                _ = try? await center.requestAuthorization(options: [.alert, .sound])
-                status = await authorizationStatus()
-            }
-            guard status == .authorized || status == .provisional else { return }
-            let content = UNMutableNotificationContent()
-            content.title = n.title
-            content.subtitle = n.subtitle
-            content.body = n.body
-            content.categoryIdentifier = n.category.rawValue
-            content.threadIdentifier = n.thread ?? ""
-            // S4 (#95): system sounds by name are unconfirmed, any chosen sound plays as the standard one.
-            content.sound = n.sound == nil ? nil : .default
-            // S3 (#95): .timeSensitive needs a provisioning profile the ad-hoc bundle can't have.
-            content.interruptionLevel = .active
-            var info: [String: String] = [:]
-            if let leaf = n.leaf { info["leaf"] = leaf.uuidString }
-            if let key = n.requestKey { info["requestKey"] = key.uuidString }
-            content.userInfo = info
-            do { try await center.add(UNNotificationRequest(identifier: n.id, content: content, trigger: nil)) }
-            catch { uiLog.error("notification failed: \(String(describing: error), privacy: .public)") }
+    /// Banners for attention out of sight; withdrawn when the attention goes, a newer request stays quiet, or the leaf is seen.
+    func attach(to app: AppState, leafVisible: @escaping (UUID) -> Bool, appActive: @escaping () -> Bool) {
+        // onAttention fires only on a change, and the same request keeps its whole Attention: non-nil = a new requestKey.
+        app.onAttention = { [weak self, weak app] leaf, attention in
+            guard let self, let app else { return }
+            guard attention != nil, let item = app.attentionItems.first(where: { $0.leafId == leaf }),
+                  bannerAllowed(item, app: app, leafVisible: leafVisible(leaf), appActive: appActive())
+            else { self.remove(leaf: leaf); return }  // a newer request not to be shown makes the old banner stale too
+            self.post(notice(for: item, app: app))
         }
+        app.onLeafSeen = { [weak self] in self?.remove(leaf: $0) }
     }
 
-    /// The leaf's attention is gone or seen: its banner goes from the Notification Center.
+    /// Asks for permission on the first need; a refusal silently drops the notification.
+    @discardableResult func post(_ n: AgentNotice) -> Task<Void, Never> {
+        let token = UUID()
+        current[n.id] = token
+        let task = Task { @MainActor in
+            var status = await center.authorization()
+            if status == .notDetermined {
+                await center.requestAuthorization()
+                status = await center.authorization()
+            }
+            guard status == .authorized || status == .provisional, current[n.id] == token else { return }
+            do { try await center.add(n) }
+            catch { uiLog.error("notification failed: \(String(describing: error), privacy: .public)") }
+            // Withdrawn while it was being added.
+            if current[n.id] == nil { center.remove(n.id) }
+        }
+        lastPost = task
+        return task
+    }
+
+    /// The leaf's attention is gone or seen: its banner goes from the Notification Center (and a pending post is dropped).
     func remove(leaf: UUID) {
-        center.removeDeliveredNotifications(withIdentifiers: [leaf.uuidString])
-        center.removePendingNotificationRequests(withIdentifiers: [leaf.uuidString])
+        current[leaf.uuidString] = nil
+        center.remove(leaf.uuidString)
     }
 
     nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
@@ -231,7 +291,7 @@ extension AppState {
     }
 
     nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
-                                                   withCompletionHandler completionHandler: @escaping () -> Void) {
+                                                   withCompletionHandler completionHandler: @escaping @Sendable () -> Void) {
         let content = response.notification.request.content
         let leaf = (content.userInfo["leaf"] as? String).flatMap(UUID.init(uuidString:))
         let key = (content.userInfo["requestKey"] as? String).flatMap(UUID.init(uuidString:))
@@ -244,8 +304,11 @@ extension AppState {
         case "limits": .limits
         default: nil  // dismissed
         }
-        completionHandler()
-        guard let action else { return }
-        Task { @MainActor in self.onAction?(leaf, key, action) }
+        guard let action else { return completionHandler() }
+        // The system may suspend us once the handler runs: finish the action (typing included) first.
+        Task { @MainActor in
+            self.onAction?(leaf, key, action)
+            completionHandler()
+        }
     }
 }

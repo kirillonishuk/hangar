@@ -280,5 +280,6 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .copyPath: .copy
     case .settings: .settings
     case .sessions: .history
+    case .findInFiles: .search
     }
 }

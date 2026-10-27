@@ -571,6 +571,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .quickOpen: togglePalette(commands: false)
         case .commandPalette: togglePalette(commands: true)
         case .sessions: app.toggleSessionsView()
+        case .findInFiles: app.showSearch()
         }
     }
 

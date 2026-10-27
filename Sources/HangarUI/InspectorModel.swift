@@ -20,7 +20,7 @@ struct RefreshParts: OptionSet, Sendable {
 /// Files and Changes of the visible task (decision #44). One load per context (task, root, mode) at a time:
 /// a refresh during a load queues exactly one rerun; only a context change cancels; stale results are dropped.
 @MainActor @Observable final class InspectorModel {
-    enum Segment { case files, changes, git }
+    enum Segment { case files, changes, git, search }
     enum ModeChoice { case base, uncommitted }
 
     var segment: Segment = .files
@@ -335,7 +335,7 @@ struct RefreshParts: OptionSet, Sendable {
         remoteNoGit = r.remoteNoGit
         if !r.isGit {
             isGit = false
-            segment = .files
+            if segment != .search { segment = .files }
             if let tree = r.tree { self.tree = tree; treeLoaded = true }
             return
         }

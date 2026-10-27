@@ -4,14 +4,14 @@ public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
-    case attentionFilter, sessions
+    case attentionFilter, sessions, findInFiles
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .inspectorGit, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
-            + [.attentionFilter, .sessions]
+            + [.attentionFilter, .sessions, .findInFiles]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -50,6 +50,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .commandPalette: ([.command, .shift], 35, "P")
         case .attentionFilter: ([.command, .option], 3, "F")
         case .sessions: (.command, 16, "Y")  // as Safari's History; free in Ghostty
+        case .findInFiles: ([.command, .shift], 3, "F")  // as in VS Code
         }
     }
 
@@ -95,5 +96,7 @@ public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Short
     if mods == .command, keyCode == 11 { return .toggleSidebar }
     // ⌃` (physical key left of 1): silent alias of ⌘J, its original key (decision #72); labels show ⌘J only.
     if mods == .control, keyCode == 50 { return .toggleDrawer }
+    // ⌥⌘4: silent alias of ⇧⌘F, the fourth inspector segment after ⌥⌘1…3 (decision #91); labels show ⇧⌘F only.
+    if mods == [.command, .option], keyCode == 21 { return .findInFiles }
     return Shortcut.allCases.first { $0.key.mods == mods && $0.key.code == keyCode }
 }

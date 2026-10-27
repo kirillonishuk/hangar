@@ -138,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         appState?.stopLanguages()  // before the ssh masters: remote tsservers end on stdin EOF
+        appState?.stopSearch()
         appState?.remote.stopAll()
         server?.stop()
         appState?.keepAwake.stop()

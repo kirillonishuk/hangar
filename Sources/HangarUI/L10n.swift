@@ -153,6 +153,32 @@ import Workspace
         case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
         case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
         case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
+        case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchCase, searchRegex, searchWord
+        case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
+        case searchSkippedOne, searchSkippedFew, searchSkippedMany
+        case searchMatchOne, searchMatchFew, searchMatchMany, searchInFilesOne, searchInFilesFew, searchInFilesMany
+    }
+
+    // Search tab (find in files, #91)
+    static var segmentSearch: String { s(.segmentSearch) }
+    static var findInFiles: String { s(.cmdFindInFiles) }
+    static var searchPlaceholder: String { s(.searchPlaceholder) }
+    static var searchInclude: String { s(.searchInclude) }
+    static var searchExclude: String { s(.searchExclude) }
+    static var searchCase: String { s(.searchCase) }
+    static var searchRegex: String { s(.searchRegex) }
+    static var searchWord: String { s(.searchWord) }
+    static var searchClear: String { s(.searchClear) }
+    static var searchRunning: String { s(.searchRunning) }
+    static var searchNothing: String { s(.searchNothing) }
+    static func searchFailed(_ error: String) -> String { f(.searchFailed, error) }
+    static func searchTruncated(_ n: Int) -> String { f(.searchTruncated, Int32(clamping: n)) }
+    static func searchFileTruncated(_ n: Int) -> String { f(.searchFileTruncated, Int32(clamping: n)) }
+    /// «12 совпадений в 3 файлах».
+    /// Lines over 1 MiB the search dropped (minified files).
+    static func searchSkipped(_ n: Int) -> String { count(n, .searchSkippedOne, .searchSkippedFew, .searchSkippedMany) }
+    static func searchSummary(matches: Int, files: Int) -> String {
+        count(matches, .searchMatchOne, .searchMatchFew, .searchMatchMany) + " " + count(files, .searchInFilesOne, .searchInFilesFew, .searchInFilesMany)
     }
 
     // «Сессии» (⌘Y)
@@ -470,7 +496,9 @@ import Workspace
     static var statusPanesHelp: String { s(.statusPanesHelp) }
     // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
     private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
-        let key: Key = switch pluralForm(n) {
+        // Russian has three forms by the last digits; English only «1» vs the rest (21 results, not 21 result).
+        let form = resolve(language) == .ru ? pluralForm(n) : abs(n) == 1 ? .one : .many
+        let key: Key = switch form {
         case .one: one
         case .few: few
         case .many: many
@@ -702,6 +730,7 @@ import Workspace
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: s(.cmdAttentionOnly)
         case .sessions: sessionsTitle
+        case .findInFiles: s(.cmdFindInFiles)
         case .tab(let n): "\(n)"
         case .focusSplit: ""
         }

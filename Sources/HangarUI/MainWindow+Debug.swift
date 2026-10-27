@@ -85,7 +85,7 @@ extension MainWindowController {
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
-            "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions,
+            "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -109,6 +109,15 @@ extension MainWindowController {
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
+        // search <text>: the Search tab's query (#91); searchToggle case|word|regex.
+        case "search": app.search.text = arg
+        case "searchToggle":
+            switch arg {
+            case "case": app.search.caseSensitive.toggle()
+            case "word": app.search.wholeWord.toggle()
+            case "regex": app.search.regex.toggle()
+            default: break
+            }
         // «Сессии»: the search text; the n-th project.
         case "sessionsQuery": column.sessionsModel.query = arg
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }

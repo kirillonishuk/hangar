@@ -3,6 +3,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+SHARE=vendor/ghostty-src/zig-out/share
+[ -d vendor/GhosttyKit.xcframework ] && [ -d "$SHARE/terminfo" ] && [ -d "$SHARE/ghostty" ] || {
+  echo "GhosttyKit or Ghostty's resources are missing: run scripts/build-ghosttykit.sh first" >&2; exit 1
+}
+XCODE_VERSION="$(xcodebuild -version 2>/dev/null | awk 'NR == 1 { print $2 }')"
+case "${XCODE_VERSION%%.*}" in
+  2[6-9]|[3-9][0-9]) ;;
+  *) echo "warning: Hangar is built with Xcode 26; found ${XCODE_VERSION:-no Xcode} (xcode-select -s /Applications/Xcode.app)" >&2 ;;
+esac
+
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
 BIN="$BIN_DIR/HangarApp"
@@ -13,7 +23,6 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Hangar"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
-SHARE=vendor/ghostty-src/zig-out/share
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"

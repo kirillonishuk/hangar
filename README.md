@@ -55,7 +55,7 @@ A native macOS app for running Claude Code and Codex in terminal tabs, one sessi
 
 ## Install
 
-Requires macOS 14 or later on Apple silicon.
+Requires macOS 14 or later on Apple silicon (Intel Macs are not supported: the app is arm64-only).
 
 1. Download `Hangar-x.y.z.dmg` from [Releases](https://github.com/kirillonishuk/hangar/releases/latest) and drag Hangar to Applications.
 2. The app is ad-hoc signed, not notarized. Allow the first launch with right-click → Open, or:
@@ -70,15 +70,17 @@ Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Co
 
 ## Build from source
 
-Requires Xcode 26 and Zig 0.15 (Zig is only needed to build GhosttyKit).
+Requires an Apple silicon Mac, Xcode 26 with the Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`) and Zig 0.15 (`brew install zig@0.15` or [ziglang.org](https://ziglang.org/download/); only needed to build GhosttyKit, which is not in the repository).
 
 ```sh
 git clone https://github.com/kirillonishuk/hangar.git && cd hangar
-scripts/build-ghosttykit.sh   # GhosttyKit at vendor/GHOSTTY_COMMIT; uses /opt/homebrew/opt/zig@0.15 or $ZIG
+scripts/build-ghosttykit.sh   # vendor/GhosttyKit.xcframework at vendor/GHOSTTY_COMMIT; Zig from $ZIG, Homebrew's zig@0.15 or PATH
 swift build && swift test
 scripts/bundle.sh             # build/Hangar.app (release, ad-hoc signed)
 scripts/make-dmg.sh           # build/Hangar.dmg
 ```
+
+If Zig fails to link its build runner against the macOS 26 SDK, build GhosttyKit with Xcode 16 selected (`sudo xcode-select -s /Applications/Xcode_16.app`), as CI does, then switch back for `swift build`.
 
 `swift run HangarApp` starts a debug build. `HANGAR_STATE_DIR` and `HANGAR_CONFIG` point it at separate state.
 
@@ -93,6 +95,8 @@ hangar doctor
 ```
 
 `hangar mcp` runs an MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+
+Settings → Integrations shows these commands with the path of your copy of the app, quoted:
 
 ```sh
 claude mcp add --scope user hangar -- /Applications/Hangar.app/Contents/Helpers/hangar mcp

@@ -4,6 +4,7 @@ import Testing
 import Git
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// Archive removes a worktree task's folder (branch kept, data-loss checks as delete); restore/undo re-creates it.
 @MainActor @Suite struct TaskArchiveTests {
@@ -42,13 +43,6 @@ import Workspace
     private func exists(_ p: String) -> Bool { FileManager.default.fileExists(atPath: p) }
     private func archived(_ app: AppState, _ id: UUID) -> Bool { app.state.tasks.first { $0.id == id }?.archived == true }
 
-    private func waitUntil(_ cond: () -> Bool) async -> Bool {
-        // Generous: under a full parallel run git calls wait for busy spawns.
-        let clock = SuspendingClock(), end = clock.now + .seconds(60)
-        while clock.now < end, !cond() { try? await Task.sleep(for: .milliseconds(50)) }
-        return cond()
-    }
-
     @Test func cleanWorktreeIsRemovedBranchKept() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
@@ -78,17 +72,23 @@ import Workspace
     @Test func restoreDuringTheChangesMeasureKeepsTheFolder() async throws {
         let (t, app, id, _, wt, _, ctx) = try await make()
         defer { t.cleanup() }
-        // git asks the fsmonitor hook before the diff: it marks the moment and holds that call for a while.
-        let marker = t.root + "/measuring", hook = t.root + "/fsmonitor.sh"
+        // git asks the fsmonitor hook before the diff: it marks the moment and holds that call until released (a fixed
+        // hold lost the race when the main actor stalled for longer); bounded at 120 s so a failed test never hangs.
+        let marker = t.root + "/measuring", release = t.root + "/release", hook = t.root + "/fsmonitor.sh"
+        defer { FileManager.default.createFile(atPath: release, contents: nil) }
         try writeScript("""
         #!/bin/sh
-        case "$(ps -o args= -p $PPID)" in *--numstat*) touch "${0%/*}/measuring"; sleep 2 ;; esac
+        case "$(ps -o args= -p $PPID)" in *--numstat*)
+          touch "${0%/*}/measuring"; n=0
+          while [ ! -e "${0%/*}/release" ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n+1)); done ;;
+        esac
         exit 1
         """, to: hook)
         _ = try await t.git("config", "core.fsmonitor", hook, in: wt)
         let archiving = Task { await archiveTask(id, ctx: ctx) }
         #expect(await waitUntil { exists(marker) })
         #expect(await app.restoreFromArchive(id) == .restored)
+        FileManager.default.createFile(atPath: release, contents: nil)
         await archiving.value
         #expect(!archived(app, id))
         #expect(exists(wt))

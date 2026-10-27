@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Exec
+import TestSupport
 
 @Suite struct RunnerCapTests {
     /// A server printing without end must not grow memory without bound: past the cap the child is killed.
@@ -37,17 +38,13 @@ import Testing
         p.standardOutput = FileHandle.nullDevice
         try p.run()
         var pid: pid_t?
-        for _ in 0..<400 where pid == nil {
-            try await Task.sleep(for: .milliseconds(25))
+        _ = await waitUntil {
             pid = (try? String(contentsOfFile: dir + "/pid", encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            return pid != nil
         }
         let child = try #require(pid)
         try stdin.fileHandleForWriting.close()
-        var gone = false
-        for _ in 0..<400 where !gone {
-            gone = kill(child, 0) != 0 && !p.isRunning
-            if !gone { try await Task.sleep(for: .milliseconds(25)) }
-        }
+        let gone = await waitUntil { kill(child, 0) != 0 && !p.isRunning }
         #expect(gone)
         if !gone { kill(child, SIGKILL); p.terminate() }
     }

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import HangarUI
+import TestSupport
 
 /// One tsserver per project, started lazily, stopped after the last file + grace, restarted once on a crash (#82).
 /// A shell script plays tsserver: it logs each command and answers a few.
@@ -64,16 +65,6 @@ import Testing
 
     private func logLines() -> [String] {
         ((try? String(contentsOfFile: log, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
-    }
-
-    /// The budget is main-actor turns (≥ 10 s), not wall time: the servers' work runs on the main actor, which other
-    /// @MainActor suites hold for seconds at a time in a full run; a stalled main actor must not use up the wait.
-    private func waitUntil(polls: Int = 500, _ cond: () -> Bool) async -> Bool {
-        for _ in 0..<polls {
-            if cond() { return true }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-        return cond()
     }
 
     @Test func startsLazilyAnswersAndForwardsEdits() async throws {

@@ -93,6 +93,12 @@ func runStatusline(_ rest: [String]) -> Int32 {
     return p.terminationReason == .exit ? p.terminationStatus : 128 + p.terminationStatus
 }
 
+/// `HANGAR_MIN_TIMEOUT` (seconds) raises every request timeout: a test seam, the tests' fake apps answer on a main actor
+/// that other test suites keep busy for longer than the 10 s default.
+func timeout(_ call: ControlCall) -> Double {
+    max(requestTimeout(call), ProcessInfo.processInfo.environment["HANGAR_MIN_TIMEOUT"].flatMap(Double.init) ?? 0)
+}
+
 /// Exit codes: 0 ok, 1 app error / not running / timeout, 2 usage or missing --yes (the CLI's or the server's `bad-params` /
 /// `confirm-required`).
 func runCommand(_ args: [String]) -> Int32 {
@@ -107,7 +113,7 @@ func runCommand(_ args: [String]) -> Int32 {
                                          : Data("hangar: \(message)\n".utf8))
         return 2
     case let .call(call, json):
-        switch ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call)) {
+        switch ControlClient.request(call, to: defaultSocketPath(), timeout: timeout(call)) {
         case let .failure(e):
             stderr.write(json ? errorJSON(e) + Data("\n".utf8) : Data("hangar: \(e.message)\n".utf8))
             return [.badParams, .confirmRequired].contains(e.code) ? 2 : 1
@@ -128,7 +134,7 @@ func runCommand(_ args: [String]) -> Int32 {
 
 /// The app's part over the socket plus the CLI's own lines (socket, versions); exit 1 when a check fails.
 func collectDoctorReport() -> DoctorReport {
-    let app = ControlClient.request(.doctor, to: defaultSocketPath(), timeout: requestTimeout(.doctor))
+    let app = ControlClient.request(.doctor, to: defaultSocketPath(), timeout: timeout(.doctor))
         .flatMap { data in
             (try? JSONDecoder().decode(DoctorResult.self, from: data)).map { .success($0) }
                 ?? .failure(ControlError(code: .failed, message: "unreadable doctor answer from the app"))
@@ -151,7 +157,7 @@ func runMCP(readOnly: Bool) -> Int32 {
     var session = MCPSession(readOnly: readOnly) { call in
         // `doctor` answers even when the app is down: the report says so.
         if call == .doctor { return .success(doctorJSON(collectDoctorReport())) }
-        return ControlClient.request(call, to: defaultSocketPath(), timeout: requestTimeout(call))
+        return ControlClient.request(call, to: defaultSocketPath(), timeout: timeout(call))
     }
     let out = FileHandle.standardOutput
     // An oversize line keeps only maxMCPLine + 1 bytes, enough for `handle` to answer -32600.

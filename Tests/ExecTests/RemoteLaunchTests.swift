@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Workspace
 @testable import Exec
+import TestSupport
 
 /// Remote tabs (#47) against a fake ssh that runs the remote command locally; tmux is the real one on an isolated
 /// `TMUX_TMPDIR` whose server is killed at the end. Never a real host.
@@ -86,16 +87,6 @@ import Workspace
             }
             try? FileManager.default.removeItem(atPath: root)
         }
-    }
-
-    /// Test-only wait for an async side effect; SuspendingClock survives Mac sleep.
-    private func waitUntil(_ seconds: Double = 40, _ cond: () async -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if await cond() { return true }
-            try? await Task.sleep(nanoseconds: 50_000_000)
-        }
-        return await cond()
     }
 
     private func command(_ f: Fixture, leaf: UUID, cwd: String? = nil, agent: String, tmux: Bool = true) -> String {
@@ -211,7 +202,7 @@ import Workspace
         let leaf = UUID(), name = remoteSessionName(leaf), marker = f.root + "/started"
         let cmd = command(f, leaf: leaf, agent: "echo started >> \(shellQuote(marker)); sleep 30")
         let first = Task { try await f.run(cmd) }
-        #expect(await waitUntil { f.read("started") == "started\n" })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { f.read("started") == "started\n" })
         let pane = try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout
         // The connection drops: the tmux client dies, the session stays.
         let clients = try await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout
@@ -224,7 +215,7 @@ import Workspace
         #expect(try await f.tmux(["has-session", "-t", "=" + name]).status == 0)
 
         let second = Task { try await f.run(cmd) }
-        #expect(await waitUntil { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
         #expect(try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout == pane)
         #expect(f.read("started") == "started\n")
         #expect(try await f.argv(killSessionArgs(leaf)).status == 0)
@@ -234,13 +225,14 @@ import Workspace
 
     @Test(.enabled(if: tmuxPath != nil)) func exitCodesThroughTmux() async throws { try await Fixture.with { f in
         for (agent, code) in [("exit 3", 3), ("exit 0", 0), ("exit 255", 254)] as [(String, Int32)] {
-            #expect(try await f.run(command(f, leaf: UUID(), agent: agent)) == code, "\(agent)")
+            let got = try await f.run(command(f, leaf: UUID(), agent: agent))
+            #expect(got == code, "\(agent): got \(got)")
         }
 
         // Detach: the session goes on, the tab says "not finished".
         let detached = UUID()
         let d = Task { try await f.run(command(f, leaf: detached, agent: "sleep 30")) }
-        #expect(await waitUntil { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { (try? await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout.isEmpty) == false })
         _ = try await f.tmux(["detach-client", "-s", "=" + remoteSessionName(detached)])
         #expect(try await d.value == 255)
         _ = try await f.argv(killSessionArgs(detached))
@@ -249,12 +241,12 @@ import Workspace
         let leaf = UUID(), name = remoteSessionName(leaf), go = f.root + "/go", marker = f.root + "/started5"
         let cmd = command(f, leaf: leaf, agent: "echo started >> \(shellQuote(marker)); while [ ! -f \(shellQuote(go)) ]; do sleep 0.05; done; exit 5")
         let first = Task { try await f.run(cmd) }
-        #expect(await waitUntil { f.read("started5") == "started\n" })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { f.read("started5") == "started\n" })
         let clients = try await f.tmux(["list-clients", "-F", "#{client_pid}"]).stdout
         for pid in clients.split(separator: "\n").compactMap({ pid_t($0) }) { kill(pid, SIGHUP) }
         #expect(try await first.value == 255)
         try "".write(toFile: go, atomically: true, encoding: .utf8)
-        #expect(await waitUntil { (try? await f.tmux(["has-session", "-t", "=" + name]).status) != 0 })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { (try? await f.tmux(["has-session", "-t", "=" + name]).status) != 0 })
         #expect(try await f.run(cmd) == 5)
         #expect(try await f.tmux(["has-session", "-t", "=" + name]).status != 0)
         #expect(f.read("started5") == "started\n")
@@ -288,13 +280,13 @@ import Workspace
         let leaf = UUID(), name = remoteSessionName(leaf)
         let cmd = command(f, leaf: leaf, agent: "sleep 30")
         let first = Task { try await f.run(cmd) }
-        #expect(await waitUntil { await !f.clients().isEmpty })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await !f.clients().isEmpty })
         let pane = try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout
         for pid in await f.clients() { kill(pid, SIGHUP) }
         #expect(try await first.value == 255)
         try "7".write(toFile: f.home + "/.hangar/run/" + name + ".exit", atomically: true, encoding: .utf8)
         let second = Task { try await f.run(cmd) }
-        #expect(await waitUntil { await !f.clients().isEmpty })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await !f.clients().isEmpty })
         #expect(try await f.tmux(["list-panes", "-t", "=" + name, "-F", "#{pane_pid}"]).stdout == pane)
         _ = try await f.argv(killSessionArgs(leaf))
         #expect(try await second.value == 7)
@@ -315,14 +307,14 @@ import Workspace
         let leaf = UUID(), name = remoteSessionName(leaf), go = f.root + "/go"
         let cmd = command(f, leaf: leaf, agent: "while [ ! -f \(shellQuote(go)) ]; do sleep 0.05; done; exit 4")
         let first = Task { try await f.run(cmd) }
-        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await f.clients().count == 1 })
         #expect(launches() == ["attach", "new-session"])
         #expect(try await f.tmux(["show-options", "-t", "=" + name + ":", "status"]).stdout == "status off\n")
 
         // A live session: the next client only attaches (the old one is detached).
         let second = Task { try await f.run(cmd) }
         #expect(try await first.value == 255)
-        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await f.clients().count == 1 })
         #expect(launches() == ["attach", "new-session", "attach"])
         try "".write(toFile: go, atomically: true, encoding: .utf8)
         #expect(try await second.value == 4)
@@ -334,10 +326,10 @@ import Workspace
         let leaf = UUID(), go = f.root + "/go"
         let cmd = command(f, leaf: leaf, agent: "while [ ! -f \(shellQuote(go)) ]; do sleep 0.05; done; exit 6")
         let old = Task { try await f.run(cmd) }
-        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await f.clients().count == 1 })
         let new = Task { try await f.run(cmd) }
         #expect(try await old.value == 255)
-        #expect(await waitUntil { await f.clients().count == 1 })
+        #expect(await waitUntil(polls: 1200, every: .milliseconds(50)) { await f.clients().count == 1 })
         try "".write(toFile: go, atomically: true, encoding: .utf8)
         #expect(try await new.value == 6)
     } }

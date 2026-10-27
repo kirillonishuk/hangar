@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Exec
 @testable import Usage
+import TestSupport
 
 private let now = Date(timeIntervalSince1970: 1_760_000_000)
 // verify: проверить, когда codex будет установлен — фикстура по документированной схеме
@@ -24,15 +25,6 @@ private func script(_ body: String, in dir: URL) throws -> String {
 private func alive(_ pid: String) -> Bool {
     guard let p = Int32(pid) else { return false }
     return kill(p, 0) == 0
-}
-/// Bounded poll (no fixed sleeps): true as soon as `cond` holds, false after `seconds`.
-private func waitUntil(_ seconds: Double = 10, _ cond: () -> Bool) async -> Bool {
-    let end = SuspendingClock.now + .seconds(seconds)
-    while SuspendingClock.now < end {
-        if cond() { return true }
-        try? await Task.sleep(for: .milliseconds(20))
-    }
-    return cond()
 }
 private func pgrepCount(_ marker: String) -> Int {
     let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")

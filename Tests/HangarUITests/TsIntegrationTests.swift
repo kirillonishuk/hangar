@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import HangarUI
+import TestSupport
 
 /// A real tsserver over a two-file import chain. Nothing is installed: it runs only when a typescript package is
 /// already on disk (HANGAR_TEST_TYPESCRIPT=<…/node_modules/typescript>, or a global one) and node is found;
@@ -59,9 +60,7 @@ import Testing
         #expect(md.contains("greet(name: string): string"))
 
         // The type error on line 3 arrives as a marker.
-        let end = Date().addingTimeInterval(30)
-        while Date() < end, !markers.contains(where: { $0.line == 3 && $0.severity == .error }) { try await Task.sleep(for: .milliseconds(100)) }
-        #expect(markers.contains { $0.line == 3 && $0.severity == .error })
+        #expect(await waitUntil { markers.contains { $0.line == 3 && $0.severity == .error } })
 
         // Rename: a local (`n`, line 3) → spans in a.ts; the exported class reaches b.ts → refused, nothing partial.
         let local = await langs.request(ProviderRequest(id: 4, kind: .rename, file: root + "/src/a.ts", line: 3, column: 7), host: nil) { _ in nil }

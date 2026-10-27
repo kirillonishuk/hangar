@@ -5,20 +5,12 @@ import Foundation
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// Remote tabs in the UI layer (#47), on the RemoteHostsTests harness (fake ssh only). Surfaces are never created
 /// for real here: Ghostty is not started in tests, so a launch only builds its spec.
 @MainActor @Suite struct RemoteTabsTests {
     typealias Harness = RemoteHostsTests.Harness
-
-    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if cond() { return true }
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        return cond()
-    }
 
     private func leaf(_ h: Harness, _ id: UUID) -> Leaf {
         h.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).first { $0.id == id }!
@@ -87,7 +79,7 @@ import Workspace
     @Test func reattachNeverResendsPrompt() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         #expect(await h.remote.connect("dev") == .connected)
-        let project = h.app.state.projects.first { $0.name == "dev" }!
+        let project = try #require(h.app.state.projects.first { $0.name == "dev" })
         let created = h.app.createTask(projectId: project.id, name: "t", firstMessage: "fix it", mode: .mainFolder)
         let task = h.app.state.tasks.first { $0.id == created.task }!
         let l = task.tabs[0].root.leaves[0]
@@ -194,12 +186,12 @@ import Workspace
         #expect(h.remote.hosts["other"]?.state == .disconnected)
         #expect(await h.remote.connect("dev") == .connected)
         let dev = h.leaf("dev")
-        let project = h.app.state.projects.first { $0.name == "dev" }!
+        let project = try #require(h.app.state.projects.first { $0.name == "dev" })
         h.app.perform { $0.removeProject(id: project.id) }
         // Sessions first, then the host goes (the kill needs the master).
         #expect(await waitUntil { kills(h, dev.leaf) == 1 && h.remote.hosts["dev"] == nil })
         // An offline host goes at once.
-        let other = h.app.state.projects.first { $0.name == "other" }!
+        let other = try #require(h.app.state.projects.first { $0.name == "other" })
         h.app.perform { $0.removeProject(id: other.id) }
         #expect(h.remote.hosts["other"] == nil)
     }

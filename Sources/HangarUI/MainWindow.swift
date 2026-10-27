@@ -690,6 +690,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         notifier = Notifier.makeIfAvailable()
         #endif
         guard let notifier else { return }
+        if Notifier.hasBundle { app.notificationAuthorization = { await notifier.authorizationStatus() } }
         notifier.onAction = { [weak self] leaf, key, action in self?.noticeAction(leaf: leaf, requestKey: key, action) }
         notifier.attach(to: app, leafVisible: { [weak self] leaf in
             guard let self else { return false }
@@ -1031,7 +1032,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             // The visible task's diff base may be this project's default.
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
-        }, onCancel: close)
+        }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host

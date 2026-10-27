@@ -34,6 +34,32 @@ extension AppState {
 
     func setMuted(taskId: UUID, _ muted: Bool) { perform { $0.setMuted(taskId: taskId, muted) } }
 
+    func notifyEnabled(_ reason: AttentionReason) -> Bool {
+        switch reason {
+        case .permission: config.notifyPermission
+        case .question: config.notifyQuestion
+        case .done: config.notifyDone
+        case .failed: config.notifyFailed
+        case .limit: config.limitNotifications
+        }
+    }
+
+    /// The reason's switch on the notifications page (limit keeps its older key).
+    func setNotify(_ reason: AttentionReason, _ on: Bool) throws {
+        switch reason {
+        case .permission: try setConfig("notify_permission", flag: on) { $0.notifyPermission = on }
+        case .question: try setConfig("notify_question", flag: on) { $0.notifyQuestion = on }
+        case .done: try setConfig("notify_done", flag: on) { $0.notifyDone = on }
+        case .failed: try setConfig("notify_failed", flag: on) { $0.notifyFailed = on }
+        case .limit: try setConfig("limit_notifications", flag: on) { $0.limitNotifications = on }
+        }
+    }
+
+    /// `""` = silent, `"default"` = standard (S4: no named system sounds).
+    func setSound(_ reason: AttentionReason, _ value: String) throws {
+        try setConfig("sound_\(reason.rawValue)", value) { $0.sounds[reason.rawValue] = value }
+    }
+
     /// ⌥⌘A: the next leaf in inbox order after the focused one (the TERMINAL panel's when it has focus, else the active tab's).
     func nextAttentionLeaf(drawerFocused: UUID? = nil) -> UUID? {
         let (urgent, done) = inboxSections(attentionItems)
@@ -64,14 +90,7 @@ extension AppState {
     func bannerContext(leafId: UUID, reason: AttentionReason) -> BannerContext {
         let task = owner(ofLeaf: leafId)?.task
         let mode = task.flatMap { project($0.projectId) }?.notifications ?? .all
-        let reasonEnabled = switch reason {
-        case .permission: config.notifyPermission
-        case .question: config.notifyQuestion
-        case .done: config.notifyDone
-        case .failed: config.notifyFailed
-        case .limit: config.limitNotifications
-        }
-        return BannerContext(enabled: config.notifications, reasonEnabled: reasonEnabled, projectUrgentOnly: mode == .urgent,
+        return BannerContext(enabled: config.notifications, reasonEnabled: notifyEnabled(reason), projectUrgentOnly: mode == .urgent,
                              projectOff: mode == .off, sessionMuted: task?.muted ?? false, notifyWhenActive: config.notifyWhenActive)
     }
 

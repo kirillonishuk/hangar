@@ -11,7 +11,7 @@ enum Icon: CaseIterable {
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
     case search
-    case appearance, bell, plug
+    case appearance, bell, bellSlash, plug
     case lock, question, alert, check
     case claude, codex
 
@@ -93,6 +93,10 @@ enum Icon: CaseIterable {
         case .bell:
             [.line(p(2.75, 11.25), p(4.25, 9.5), p(4.25, 3, r: 3.75), p(11.75, 3, r: 3.75), p(11.75, 9.5), p(13.25, 11.25)), .line(p(2.75, 11.25), p(13.25, 11.25)),
              .line(p(6.5, 13.75), p(9.5, 13.75))]
+        // A muted session: the bell crossed out.
+        case .bellSlash:
+            [.line(p(2.75, 11.25), p(4.25, 9.5), p(4.25, 3, r: 3.75), p(11.75, 3, r: 3.75), p(11.75, 9.5), p(13.25, 11.25)), .line(p(2.75, 11.25), p(13.25, 11.25)),
+             .line(p(6.5, 13.75), p(9.5, 13.75)), .line(p(2.5, 2.5), p(13.5, 13.5))]
         case .plug:
             [.line(p(5.75, 2.25), p(5.75, 5.5)), .line(p(10.25, 2.25), p(10.25, 5.5)), .shape(p(3.75, 5.5), p(12.25, 5.5), p(12.25, 12, r: 3.25), p(3.75, 12, r: 3.25)),
              .line(p(8, 12), p(8, 14.25))]

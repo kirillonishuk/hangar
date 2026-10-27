@@ -43,6 +43,8 @@ struct ProjectSettingsSheet: View {
     let runner: Runner
     let onSave: (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void
     let onCancel: () -> Void
+    /// Applied on «Сохранить», only when changed.
+    var onNotifications: (ProjectNotifications) -> Void = { _ in }
 
     @State private var name: String
     @State private var path: String
@@ -50,6 +52,7 @@ struct ProjectSettingsSheet: View {
     @State private var worktreeRoot: String
     @State private var copyText: String
     @State private var setupCommand: String
+    @State private var notifications: ProjectNotifications
     /// A project without its own list / command shows its package manager's defaults (the list: only what exists in
     /// the main checkout, prefilled; the command: a placeholder, never run unless saved); saved unchanged, they stay nil.
     @State private var defaults: WorktreeDefaults?
@@ -66,7 +69,9 @@ struct ProjectSettingsSheet: View {
 
     init(project: Project, git: Git, runner: Runner,
          onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void,
+         onNotifications: @escaping (ProjectNotifications) -> Void = { _ in },
          onCancel: @escaping () -> Void) {
+        self.onNotifications = onNotifications
         self.project = project
         self.git = git
         self.runner = runner
@@ -78,6 +83,7 @@ struct ProjectSettingsSheet: View {
         _worktreeRoot = State(initialValue: project.worktreeRoot ?? "")
         _copyText = State(initialValue: project.worktreeCopy?.joined(separator: ", ") ?? "")
         _setupCommand = State(initialValue: project.setupCommand ?? "")
+        _notifications = State(initialValue: project.notifications)
     }
 
     private var remote: Bool { project.host != nil }
@@ -129,6 +135,10 @@ struct ProjectSettingsSheet: View {
                 pathField($path, placeholder: "", field: .path, invalid: error != nil)
                     .onChange(of: path) { error = nil }
                 if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
+            }
+            CardRow(label: L10n.projectNotificationsTitle) {
+                Segment(selection: notifications, options: ProjectNotifications.allCases.map { ($0, L10n.notifySegment($0)) }) { notifications = $0 }
+                Spacer(minLength: 0)
             }
     }
 
@@ -275,6 +285,11 @@ struct ProjectSettingsSheet: View {
         return true
     }
 
+    private func commit(_ name: String, _ path: String, _ base: String?, _ root: String?, _ setup: WorktreeSetup) {
+        if notifications != project.notifications { onNotifications(notifications) }
+        onSave(name, path, base, root, setup)
+    }
+
     private func save() {
         guard canSave else { return }
         var root: String?
@@ -294,7 +309,7 @@ struct ProjectSettingsSheet: View {
         let base = isGit == true ? baseBranch : project.lastBaseBranch
         guard remote else {
             guard folderExists(trimmed) else { error = L10n.folderMissing(trimmed); return }
-            onSave(name, trimmed, base, root, setup)
+            commit(name, trimmed, base, root, setup)
             return
         }
         // Nothing is saved unless the host says the folder is there; a host that isn't connected says so.
@@ -306,7 +321,7 @@ struct ProjectSettingsSheet: View {
             } catch {
                 self.error = L10n.folderMissing(trimmed); return
             }
-            onSave(name, trimmed, base, root, setup)
+            commit(name, trimmed, base, root, setup)
         }
     }
 

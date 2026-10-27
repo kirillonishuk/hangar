@@ -497,7 +497,7 @@ struct SidebarView: View {
                         taskActions(task, target: target, shown: showActions)
                             .offset(x: Theme.rowActionsOverhang)
                     }
-                    SessionStatusLine(status: app.sessionStatus(of: task), worktree: worktree)
+                    SessionStatusLine(status: app.sessionStatus(of: task), worktree: worktree, muted: task.muted)
                 }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)

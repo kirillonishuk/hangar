@@ -276,7 +276,7 @@ extension Theme {
         public static let scrollAfter = 7
         public static let listHeight: CGFloat = 440
         public static let emptyHeight: CGFloat = 64
-        /// «Проект › сессия · время» line; the reason dot centres on it.
+        /// «Проект › сессия · время» line; the reason icon centres on it.
         public static let firstLine: CGFloat = 16
 
         public static let reasonIcon: CGFloat = 14

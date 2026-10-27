@@ -281,6 +281,8 @@ struct DiffBadgeView: View {
 struct SessionStatusLine: View {
     let status: SessionStatus
     let worktree: Bool
+    /// Notifications of the session are off: a crossed-out bell after the text.
+    var muted = false
 
     var body: some View {
         HStack(spacing: Theme.rowStatusGap) {
@@ -291,6 +293,7 @@ struct SessionStatusLine: View {
             }
             .lineLimit(1)
             .truncationMode(.tail)
+            if muted { IconView(icon: .bellSlash, size: Theme.rowStatusIcon, tint: Theme.ui.text3).help(L10n.mutedSessionHelp) }
         }
         .font(.system(size: Theme.rowStatusFont))
         .foregroundStyle(Theme.ui.text2)

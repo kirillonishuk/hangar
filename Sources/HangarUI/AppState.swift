@@ -10,6 +10,7 @@ import Observation
 import os
 import Power
 import Usage
+import UserNotifications
 import Workspace
 
 public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
@@ -39,6 +40,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
     /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
     @ObservationIgnored var onDockBadge: ((String) -> Void)?
+    /// macOS's notification permission for the settings page; nil without an app bundle (no row).
+    @ObservationIgnored var notificationAuthorization: (() async -> UNAuthorizationStatus)?
     /// A new permission or question: bounce the Dock once if the app is inactive (set by the window controller).
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.

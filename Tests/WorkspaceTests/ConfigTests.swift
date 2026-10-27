@@ -245,4 +245,16 @@ import Testing
         let d = try HangarConfig.parse("sound_done = \"\"")
         #expect(d.sounds["done"] == "")
     }
+
+    /// The writer's output for the settings page's toggles parses back: a bare false and an empty sound.
+    @Test func writerRoundTripsNotifyAndSound() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-cfg-\(UUID()).toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try HangarConfig.save(key: "notify_done", literal: "false", to: url)
+        try HangarConfig.save(key: "sound_done", value: "", to: url)
+        let c = try HangarConfig.parse(String(contentsOf: url, encoding: .utf8))
+        #expect(!c.notifyDone)
+        #expect(c.sounds["done"] == "")
+        #expect(c.sounds["permission"] == "default")
+    }
 }

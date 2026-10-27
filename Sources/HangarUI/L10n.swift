@@ -90,6 +90,11 @@ import Workspace
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
         case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
+        case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
+        case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
+        case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
+        case urgentNotice, muteSession, unmuteSession, projectNotificationsAll, projectNotificationsUrgent, projectNotificationsOff
+        case projectNotificationsTitle, notifySegmentAll, notifySegmentUrgent, notifySegmentOff, mutedSessionHelp
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
         case copyLink, linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
@@ -365,6 +370,44 @@ import Workspace
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
     static func agentFailed(_ agent: String) -> String { f(.agentFailed, agent) }
     static func agentLimit(_ agent: String) -> String { f(.agentLimit, agent) }
+    static var notifyPermissionTitle: String { s(.notifyPermissionTitle) }
+    static var notifyQuestionTitle: String { s(.notifyQuestionTitle) }
+    static var notifyDoneTitle: String { s(.notifyDoneTitle) }
+    static var notifyFailedTitle: String { s(.notifyFailedTitle) }
+    static var soundTitle: String { s(.soundTitle) }
+    static var soundNone: String { s(.soundNone) }
+    static var soundDefault: String { s(.soundDefault) }
+    static var allowFromNotificationTitle: String { s(.allowFromNotificationTitle) }
+    static var allowFromNotificationHelp: String { s(.allowFromNotificationHelp) }
+    static var notifyWhenActiveTitle: String { s(.notifyWhenActiveTitle) }
+    static var notifyWhenActiveHelp: String { s(.notifyWhenActiveHelp) }
+    static var sshTerminalBellTitle: String { s(.sshTerminalBellTitle) }
+    static var sshTerminalBellHelp: String { s(.sshTerminalBellHelp) }
+    static var notificationPermissionTitle: String { s(.notificationPermissionTitle) }
+    static var notificationsAllowedInSystem: String { s(.notificationsAllowedInSystem) }
+    static var notificationsNotAsked: String { s(.notificationsNotAsked) }
+    static var notificationsDeniedInSystem: String { s(.notificationsDeniedInSystem) }
+    static var openSystemSettings: String { s(.openSystemSettings) }
+    static var urgentNotice: String { s(.urgentNotice) }
+    static var muteSession: String { s(.muteSession) }
+    static var unmuteSession: String { s(.unmuteSession) }
+    static var projectNotificationsTitle: String { s(.projectNotificationsTitle) }
+    static var mutedSessionHelp: String { s(.mutedSessionHelp) }
+    /// The project menu item: the current mode, a click moves to the next.
+    static func projectNotificationsItem(_ mode: ProjectNotifications) -> String {
+        switch mode {
+        case .all: s(.projectNotificationsAll)
+        case .urgent: s(.projectNotificationsUrgent)
+        case .off: s(.projectNotificationsOff)
+        }
+    }
+    static func notifySegment(_ mode: ProjectNotifications) -> String {
+        switch mode {
+        case .all: s(.notifySegmentAll)
+        case .urgent: s(.notifySegmentUrgent)
+        case .off: s(.notifySegmentOff)
+        }
+    }
     static var noticeOpen: String { s(.noticeOpen) }
     static var noticeAllow: String { s(.noticeAllow) }
     static var noticeReply: String { s(.noticeReply) }

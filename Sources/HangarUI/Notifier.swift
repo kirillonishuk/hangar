@@ -211,8 +211,10 @@ extension AppState {
     private(set) var lastPost: Task<Void, Never>?
 
     /// nil outside an .app bundle: `UNUserNotificationCenter.current()` crashes in `swift run` and tests.
+    static var hasBundle: Bool { Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil }
+
     static func makeIfAvailable() -> Notifier? {
-        guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else { return nil }
+        guard hasBundle else { return nil }
         let system = UNUserNotificationCenter.current()
         let notifier = Notifier(center: .system(system))
         system.delegate = notifier

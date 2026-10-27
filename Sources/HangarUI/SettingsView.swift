@@ -1,6 +1,8 @@
 import AppKit
 import Integration
+import AgentStatus
 import SwiftUI
+import UserNotifications
 import Workspace
 
 /// A page of the settings window, in the order of its list.
@@ -39,7 +41,9 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: [.languageTitle, .defaultAgent, .externalEditor, .checkUpdatesTitle, .versionTitle]
         case .appearance: [.terminalBackground]
         case .editor: [.editorPaletteTitle, .editorRainbowTitle, .editorTodoTitle]
-        case .notifications: [.notificationsTitle, .limitNotificationsTitle, .dockBadgeTitle, .keepAwakeShort]
+        case .notifications:
+            [.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .limitNotificationsTitle, .notifyDoneTitle,
+             .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle, .keepAwakeShort, .notificationPermissionTitle]
         case .integrations: [.integrationClaude, .integrationCodex, .integrationMCP]
         case .advanced: [.configFile]
         }
@@ -71,6 +75,7 @@ struct SettingsView: View {
     @Bindable var model: SettingsModel
     private var app: AppState { model.app }
     @FocusState private var editingExternal: Bool
+    @State private var authorization: UNAuthorizationStatus?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -239,23 +244,96 @@ struct SettingsView: View {
                     save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
                 }
             }
-            row(L10n.limitNotificationsTitle) {
-                CardSwitch(on: app.config.limitNotifications) { on in
-                    save { try app.setConfig("limit_notifications", flag: on) { $0.limitNotifications = on } }
+            ForEach(notificationReasons, id: \.self) { reason in
+                row(reasonTitle(reason)) {
+                    CardSwitch(on: app.notifyEnabled(reason)) { on in save { try app.setNotify(reason, on) } }
+                    Spacer(minLength: Theme.cardRowGap)
+                    soundMenu(reason)
                 }
             }
+            // S1 = A: the Allow button exists; off by default, with its risk in the tooltip.
+            row(L10n.allowFromNotificationTitle) {
+                CardSwitch(on: app.config.allowFromNotification) { on in
+                    save { try app.setConfig("allow_from_notification", flag: on) { $0.allowFromNotification = on } }
+                }
+            }
+            .help(L10n.allowFromNotificationHelp)
+            row(L10n.notifyWhenActiveTitle) {
+                CardSwitch(on: app.config.notifyWhenActive) { on in
+                    save { try app.setConfig("notify_when_active", flag: on) { $0.notifyWhenActive = on } }
+                }
+            }
+            .help(L10n.notifyWhenActiveHelp)
             row(L10n.dockBadgeTitle) {
                 CardSwitch(on: app.config.dockBadge) { on in
                     save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
                 }
             }
             .help(L10n.dockBadgeHelp)
+            row(L10n.sshTerminalBellTitle) {
+                CardSwitch(on: app.config.sshTerminalBell) { on in
+                    save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
+                }
+            }
+            .help(L10n.sshTerminalBellHelp)
             row(L10n.keepAwakeShort) {
                 CardSwitch(on: app.config.keepAwake) { on in
                     save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                 }
             }
             .help(L10n.keepAwakeTitle)
+            if app.notificationAuthorization != nil { permissionRow }
+        }
+        .task { authorization = await app.notificationAuthorization?() }
+    }
+
+    private var notificationReasons: [AttentionReason] { [.permission, .question, .failed, .limit, .done] }
+
+    private func reasonTitle(_ reason: AttentionReason) -> String {
+        switch reason {
+        case .permission: L10n.notifyPermissionTitle
+        case .question: L10n.notifyQuestionTitle
+        case .failed: L10n.notifyFailedTitle
+        case .limit: L10n.limitNotificationsTitle
+        case .done: L10n.notifyDoneTitle
+        }
+    }
+
+    /// S4 = no named system sounds: «Без звука» and «Стандартный» only.
+    private func soundMenu(_ reason: AttentionReason) -> some View {
+        let current = app.config.sounds[reason.rawValue] ?? "default"
+        return HStack(spacing: Theme.pickGap) {
+            Text(verbatim: current.isEmpty ? L10n.soundNone : L10n.soundDefault)
+                .foregroundStyle(Theme.ui.text3)
+            PopoverMenuButton(icon: .chevronDown, help: L10n.soundTitle) {
+                [("", L10n.soundNone), ("default", L10n.soundDefault)].map { value, title in
+                    .item(PopoverMenuItem(title: title, icon: (current.isEmpty ? "" : "default") == value ? .check : nil) {
+                        save { try app.setSound(reason, value) }
+                    })
+                }
+            }
+        }
+    }
+
+    /// macOS's own switch for Hangar's banners; «Открыть системные настройки» when it is off. The urgent-level note (S3 = T-no) sits here.
+    private var permissionRow: some View {
+        let state = notificationPermission(authorization)
+        return row(L10n.notificationPermissionTitle) {
+            VStack(alignment: .leading, spacing: Theme.pickGap) {
+                HStack(spacing: Theme.cardRowGap) {
+                    Text(verbatim: state.text).foregroundStyle(state.denied ? Theme.ui.failedText : Theme.ui.text2)
+                    if state.denied, let url = notificationSettingsURL(bundleId: Bundle.main.bundleIdentifier ?? "") {
+                        Button(L10n.openSystemSettings) { NSWorkspace.shared.open(url) }
+                            .buttonStyle(SheetButton(primary: false))
+                            .fixedSize()
+                    }
+                }
+                Text(verbatim: L10n.urgentNotice)
+                    .font(.system(size: Theme.fontSize.tab))
+                    .foregroundStyle(Theme.ui.text3)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -470,7 +548,7 @@ private struct ThemeTile: View {
 }
 
 /// Segmented control in the token colors (`field` track, `control` active segment): only for real choices.
-private struct Segment<Value: Equatable>: View {
+struct Segment<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
     let choose: (Value) -> Void
@@ -502,4 +580,17 @@ private struct Segment<Value: Equatable>: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
         .animation(Motion.ease(Theme.selectionFade), value: options.firstIndex { $0.0 == selection })
     }
+}
+
+/// The macOS permission line: the words, and whether it is off (then the button to System Settings shows).
+@MainActor func notificationPermission(_ status: UNAuthorizationStatus?) -> (text: String, denied: Bool) {
+    switch status {
+    case .denied: (L10n.notificationsDeniedInSystem, true)
+    case .notDetermined, nil: (L10n.notificationsNotAsked, false)
+    default: (L10n.notificationsAllowedInSystem, false)
+    }
+}
+
+func notificationSettingsURL(bundleId: String) -> URL? {
+    URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(bundleId)")
 }

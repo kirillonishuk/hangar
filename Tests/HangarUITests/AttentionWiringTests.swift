@@ -174,6 +174,10 @@ import Workspace
         // A focused leaf without attention: the first one.
         f.app.reveal(leafId: f.leaves[1].id)
         #expect(f.app.nextAttentionLeaf() == order[0])
+        // The TERMINAL panel has focus: its leaf is "current", not the active tab's.
+        f.app.reveal(leafId: order[0])
+        #expect(f.app.nextAttentionLeaf(drawerFocused: order[1]) == order[2])
+        #expect(f.app.nextAttentionLeaf(drawerFocused: UUID()) == order[0])
     }
 
     @Test func focusReportsLeafSeen() {

@@ -19,6 +19,17 @@ func inboxBell(_ items: [AttentionItem]) -> (count: Int, tint: BellTint) {
     return minutes < 60 ? L10n.durationMin(minutes) : L10n.durationHour(minutes / 60)
 }
 
+/// The reason's glyph in an inbox row (permission and question must differ at a glance).
+func inboxIcon(_ reason: AttentionReason) -> Icon {
+    switch reason {
+    case .permission: .lock
+    case .question: .question
+    case .failed: .alert
+    case .limit: .limits
+    case .done: .check
+    }
+}
+
 /// A row's action: the leaf, the request it was shown for, what was pressed.
 typealias InboxAction = (UUID, UUID?, NoticeAction) -> Void
 
@@ -42,7 +53,7 @@ struct InboxBell: View {
             .frame(height: Theme.titleButtonSize)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-        .help(L10n.help(L10n.inbox, .nextAttention))
+        .help(L10n.inbox)
         .accessibilityLabel(bell.count > 0 ? "\(L10n.inbox), \(bell.count)" : L10n.inbox)
         .popover(isPresented: Binding(get: { app.inboxShown }, set: { app.setInboxShown($0) }), arrowEdge: .bottom) {
             InboxPopover(app: app, act: act)
@@ -96,7 +107,7 @@ struct InboxPopover: View {
     }
 }
 
-/// Reason dot, «Проект › сессия», time; the text in one line with the banner's buttons. A click opens the leaf.
+/// Reason icon, «Проект › сессия», time; the text in one line with the banner's buttons. A click opens the leaf.
 private struct InboxRow: View {
     let app: AppState
     let item: AttentionItem
@@ -111,7 +122,8 @@ private struct InboxRow: View {
         VStack(alignment: .leading, spacing: Theme.Inbox.lineGap) {
             HoverRow(action: { act(item.leafId, a.requestKey, .open) }) { _ in
                 HStack(alignment: .top, spacing: Theme.Inbox.rowGap) {
-                    StatusDot(state: dotState(a.reason)).frame(height: Theme.Inbox.firstLine)
+                    IconView(icon: inboxIcon(a.reason), size: Theme.Inbox.reasonIcon, tint: Theme.Inbox.reasonTint(a.reason))
+                        .frame(height: Theme.Inbox.firstLine)
                     VStack(alignment: .leading, spacing: Theme.Inbox.lineGap) {
                         HStack(spacing: Theme.Inbox.rowGap) {
                             Text(verbatim: n.subtitle).foregroundStyle(Theme.ui.text2).truncationMode(.middle)
@@ -172,15 +184,6 @@ private struct InboxRow: View {
             if item.attention.reason == .done {
                 InboxButton(title: L10n.inboxDismiss) { app.dismissDone(leafId: item.leafId) }
             }
-        }
-    }
-
-    private func dotState(_ reason: AttentionReason) -> AgentState {
-        switch reason {
-        case .permission, .question: .waiting
-        case .done: .done
-        case .failed: .failed
-        case .limit: .limit
         }
     }
 }

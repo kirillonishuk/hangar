@@ -6,9 +6,9 @@ import Testing
 @MainActor @Suite struct IconsTests {
     private var glyphs: [Icon] { Icon.allCases.filter { $0 != .claude && $0 != .codex } }
 
-    @Test func thirtySevenGlyphsAndTwoBrands() {
-        #expect(glyphs.count == 37)  // + history, search (redesign v1); appearance, bell, plug (settings categories)
-        #expect(Icon.allCases.count == 39)
+    @Test func fortyOneGlyphsAndTwoBrands() {
+        #expect(glyphs.count == 41)  // + history, search (redesign v1); appearance, bell, plug (settings categories); lock, question, alert, check (inbox reasons)
+        #expect(Icon.allCases.count == 43)
     }
 
     @Test func glyphsAreTemplatesOfTheRequestedSize() {

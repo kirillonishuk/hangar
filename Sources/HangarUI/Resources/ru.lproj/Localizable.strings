@@ -561,6 +561,6 @@
 "inboxRecentDone" = "Недавно готово";
 "inboxDismiss" = "Убрать";
 "inboxClear" = "Очистить";
-"cmdNextAttention" = "Следующий ждущий";
+"cmdNextAttention" = "К следующему ждущему";
 "durationUnderMin" = "< 1 мин";
 "durationHour" = "%ld ч";

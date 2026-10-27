@@ -279,6 +279,18 @@ extension Theme {
         /// «Проект › сессия · время» line; the reason dot centres on it.
         public static let firstLine: CGFloat = 16
 
+        public static let reasonIcon: CGFloat = 14
+
+        /// Blocking reasons in accent, errors red, limit in the limit colour, done muted.
+        public static func reasonTint(_ reason: AttentionReason) -> Color {
+            switch reason {
+            case .permission, .question: ui.accentText
+            case .failed: ui.failed
+            case .limit: ui.status(.limit)
+            case .done: ui.text3
+            }
+        }
+
         static func tint(_ tint: BellTint) -> Color {
             switch tint {
             case .accent: ui.accentText

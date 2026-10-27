@@ -28,6 +28,12 @@ import Workspace
         #expect(inboxBell([]) == (count: 0, tint: BellTint.muted))
     }
 
+    @Test func reasonIconsDiffer() {
+        let reasons: [AttentionReason] = [.permission, .question, .failed, .limit, .done]
+        #expect(Set(reasons.map { "\(inboxIcon($0))" }).count == reasons.count)  // permission and question look different
+        #expect(inboxIcon(.limit) == .limits)
+    }
+
     @Test func waitingTimeText() {
         defer { L10n.language = .system }
         let now = Date(timeIntervalSince1970: 100_000)

@@ -561,6 +561,6 @@
 "inboxRecentDone" = "Recently done";
 "inboxDismiss" = "Dismiss";
 "inboxClear" = "Clear";
-"cmdNextAttention" = "Next Waiting";
+"cmdNextAttention" = "Go to Next Waiting";
 "durationUnderMin" = "< 1 min";
 "durationHour" = "%ld h";

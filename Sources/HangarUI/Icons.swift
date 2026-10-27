@@ -12,6 +12,7 @@ enum Icon: CaseIterable {
     case history
     case search
     case appearance, bell, plug
+    case lock, question, alert, check
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -95,6 +96,17 @@ enum Icon: CaseIterable {
         case .plug:
             [.line(p(5.75, 2.25), p(5.75, 5.5)), .line(p(10.25, 2.25), p(10.25, 5.5)), .shape(p(3.75, 5.5), p(12.25, 5.5), p(12.25, 12, r: 3.25), p(3.75, 12, r: 3.25)),
              .line(p(8, 12), p(8, 14.25))]
+        // Inbox reasons: permission (lock), question, error (warning triangle), done (check mark).
+        case .lock:
+            [.rect(3.25, 7.25, 9.5, 6.5, 2), .line(p(5.5, 7.25), p(5.5, 4.75)),
+             .arc(from: p(5.5, 4.75), to: p(10.5, 4.75), r: 2.5, large: false, sweep: true), .line(p(10.5, 4.75), p(10.5, 7.25)),
+             .dot(p(8, 10.5))]
+        case .question:
+            [.circle(p(8, 8), 6.25), .arc(from: p(6.25, 6.25), to: p(9.75, 6.25), r: 1.75, large: false, sweep: true),
+             .curve(p(9.75, 6.25), p(9.75, 7.4), p(8, 7.6), p(8, 8.9)), .dot(p(8, 11.1))]
+        case .alert:
+            [.shape(p(8, 2.25, r: 1.25), p(14.25, 13.25, r: 1.25), p(1.75, 13.25, r: 1.25)), .line(p(8, 6.5), p(8, 9.25)), .dot(p(8, 11.25))]
+        case .check: [.line(p(3, 8.5), p(6.5, 12), p(13, 4.5))]
         case .claude, .codex: []  // brand logos
         }
     }

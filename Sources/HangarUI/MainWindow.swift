@@ -576,8 +576,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .sessions: app.toggleSessionsView()
         case .findInFiles: app.showSearch()
         case .nextAttention:
+            // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
-            else { app.beep() }
         }
     }
 

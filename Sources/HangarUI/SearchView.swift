@@ -15,6 +15,7 @@ struct SearchPanel: View {
             list
         }
         .onAppear { model.setTarget(app.searchTarget) }
+        .onDisappear { model.cancel() }
         .onChange(of: app.searchTarget) { model.setTarget(app.searchTarget) }
     }
 

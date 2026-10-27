@@ -93,6 +93,53 @@ import Workspace
         #expect(gone)
     }
 
+    /// Leaving the tab (or quitting) terminates the running process; shown again, the same root searches afresh.
+    @Test func cancelStopsTheSearchAndShowingAgainReruns() async throws {
+        let dir = NSTemporaryDirectory() + "hangar-search-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let pidFile = dir + "/pid"
+        let model = SearchModel()
+        var launches = 0
+        model.launcher = { _, _, _ in
+            launches += 1
+            if launches > 1 { return self.printing([("again.txt", 1, "slow")]) }
+            return SearchLaunch(executable: "/bin/sh", args: ["-c", #"echo $$ > "$1"; exec sleep 30"#, "sh", pidFile], cwd: "/", engine: .gitGrep)
+        }
+        model.text = "slow"
+        let target = SearchTarget(root: "/r")
+        model.setTarget(target)
+        var pid: pid_t?
+        for _ in 0..<200 where pid == nil {
+            try await Task.sleep(for: .milliseconds(50))
+            pid = (try? String(contentsOfFile: pidFile, encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        }
+        let slow = try #require(pid)
+        model.cancel()
+        #expect(model.status == .idle && model.running == nil)
+        var gone = false
+        for _ in 0..<200 where !gone {
+            gone = kill(slow, 0) != 0
+            if !gone { try await Task.sleep(for: .milliseconds(50)) }
+        }
+        #expect(gone)
+        model.setTarget(target)
+        await model.running?.value
+        #expect(model.results.files.map(\.path) == ["again.txt"])
+        // Finished: showing the same root again doesn't search again.
+        model.setTarget(target)
+        #expect(model.running == nil && launches == 2)
+    }
+
+    /// `!glob` in the include field is an exclude for both engines.
+    @Test func bangIncludeMovesToExclude() {
+        let model = SearchModel()
+        model.include = "*.swift, !Tests/**"
+        model.exclude = "!build, dist"
+        #expect(model.query.include == ["*.swift"])
+        #expect(model.query.exclude == ["build", "dist", "Tests/**"])
+    }
+
     @Test func notConnectedHost() async {
         let model = SearchModel()
         model.launcher = { _, _, _ in nil }
@@ -131,6 +178,10 @@ import Workspace
         #expect(searchOutcome(.gitGrep, RunResult(status: 15, stdout: "", stderr: ""), results: capped, host: nil) == .done)
         #expect(searchOutcome(.gitGrep, RunResult(status: 128, stdout: "", stderr: "fatal: bad"), results: none, host: nil) == .failed("fatal: bad"))
         #expect(searchOutcome(.gitGrep, RunResult(status: 255, stdout: "", stderr: ""), results: none, host: "dev") == .offline("dev"))
+        // A remote `cd` into a folder that is gone: exit 1 too, but with an error — not «nothing found».
+        #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "sh: cd: /srv/gone: No such file or directory\n"),
+                              results: none, host: "dev") == .failed("sh: cd: /srv/gone: No such file or directory"))
+        #expect(searchOutcome(.gitGrep, RunResult(status: 1, stdout: "", stderr: "warning: x"), results: some, host: nil) == .done)
     }
 
     /// ⇧⌘F shows the inspector on Search (also for a plain folder) and asks the field for focus.

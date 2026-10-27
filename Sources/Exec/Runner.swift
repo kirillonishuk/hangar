@@ -33,22 +33,31 @@ public struct Runner: Sendable {
 
 /// Runs argv (no shell) and hands stdout to `onOutput` chunk by chunk as it arrives (the result's stdout stays empty);
 /// `onOutput` returning false terminates the child (its remaining output is drained and dropped). Cancel terminates it too.
-public func streamProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String],
+/// `holdStdin`: stdin is a pipe left open until the child ends (an ssh child's remote side sees EOF when it dies:
+/// `remoteWatchdogArgv`).
+public func streamProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], holdStdin: Bool = false,
                           onOutput: @escaping @Sendable (Data) -> Bool) async throws -> RunResult {
-    try await runProcess(executable, args, cwd: cwd, env: env, onStdout: onOutput)
+    try await runProcess(executable, args, cwd: cwd, env: env, holdStdin: holdStdin, onStdout: onOutput)
+}
+
+/// Wraps a remote argv so it is terminated when the ssh session goes (stdin EOF), not only at its next write: the
+/// command runs in the background, a builtin `read` loop on the session's stdin kills it at EOF. Exit status is the
+/// command's. Use with `streamProcess(holdStdin: true)`.
+public func remoteWatchdogArgv(_ argv: [String]) -> [String] {
+    ["/bin/sh", "-c", #"exec 3<&0 </dev/null; "$@" & p=$!; ( while IFS= read -r _ <&3; do :; done; kill "$p" 2>/dev/null ) >/dev/null 2>&1 & w=$!; exec 3<&-; wait "$p"; s=$?; kill "$w" 2>/dev/null; exit "$s""#, "sh"] + argv
 }
 
 /// Starts `executable` and collects stdout/stderr; `input` (if any) is written to stdin, else stdin is /dev/null.
 /// Cancel terminates the child (and its process group). Past `maxOutput` bytes on stdout or stderr the child is
 /// terminated and the stream is cut there (untrusted servers). `onStdout`: stdout goes there instead (`streamProcess`).
 func runProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], input: Data? = nil,
-                maxOutput: Int = .max, onStdout: (@Sendable (Data) -> Bool)? = nil) async throws -> RunResult {
+                maxOutput: Int = .max, holdStdin: Bool = false, onStdout: (@Sendable (Data) -> Bool)? = nil) async throws -> RunResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = args
     process.currentDirectoryURL = URL(fileURLWithPath: cwd)
     process.environment = env
-    let inPipe = input.map { _ in Pipe() }
+    let inPipe = input != nil || holdStdin ? Pipe() : nil
     process.standardInput = inPipe ?? FileHandle.nullDevice
     let outPipe = Pipe(), errPipe = Pipe()
     process.standardOutput = outPipe
@@ -62,6 +71,7 @@ func runProcess(_ executable: String, _ args: [String], cwd: String, env: [Strin
             let group = DispatchGroup()
             let out = Captured(), err = Captured()
             process.terminationHandler = { p in
+                if holdStdin { try? inPipe?.fileHandleForWriting.close() }
                 group.wait()
                 run.finish(.success(RunResult(status: p.terminationStatus, stdout: out.string, stderr: err.string)))
             }

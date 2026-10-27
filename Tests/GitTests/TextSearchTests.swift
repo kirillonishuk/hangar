@@ -6,7 +6,8 @@ import Testing
 @Suite struct TextSearchArgsTests {
     @Test func ripgrepDefaultsAndToggles() {
         let plain = ripgrepArgs(SearchQuery(text: "foo"))
-        #expect(plain == ["--json", "--no-config", "--hidden", "--ignore-case", "--fixed-strings", "--max-count", "201", "--glob=!.git",
+        #expect(plain == ["--json", "--no-config", "--hidden", "--no-require-git", "--max-columns", "2000", "--max-columns-preview",
+                          "--ignore-case", "--fixed-strings", "--max-count", "201", "--glob=!.git",
                           "-e", "foo", "--", "."])
         let all = ripgrepArgs(SearchQuery(text: "fo+", caseSensitive: true, regex: true, wholeWord: true,
                                           include: ["*.swift", "src/**"], exclude: ["node_modules"]))
@@ -153,6 +154,42 @@ import Testing
         #expect(p.results.truncated && p.results.lines == 3)
         let after = p.feed(Data(lines[0].utf8))
         #expect(!after)
+    }
+
+    /// The total cap is checked before a new file's group exists: no empty trailing group.
+    @Test func totalCapAddsNoEmptyGroup() {
+        var p = SearchParser(engine: .gitGrep, query: SearchQuery(text: "x"), total: 1, perFile: 5)
+        _ = p.feed(Data("a\u{0}1\u{0}1\u{0}x\nb\u{0}1\u{0}1\u{0}x\n".utf8))
+        #expect(p.results.truncated)
+        #expect(p.results.files.map(\.path) == ["a"])
+    }
+
+    /// A line over `maxLineBytes` (a minified file) is skipped unbuffered, also across chunks; the next lines parse.
+    @Test func overlongLinesAreSkipped() {
+        var p = SearchParser(engine: .gitGrep, query: SearchQuery(text: "x"))
+        let huge = Data(("big\u{0}1\u{0}1\u{0}" + String(repeating: "x", count: SearchLimits.maxLineBytes + 10)).utf8)
+        var more = true
+        for start in stride(from: 0, to: huge.count, by: 65_536) { more = p.feed(huge.subdata(in: start..<min(start + 65_536, huge.count))) && more }
+        more = p.feed(Data("tail-of-big\nok\u{0}2\u{0}1\u{0}x\n".utf8)) && more
+        #expect(more)
+        p.finish()
+        #expect(p.results.files.map(\.path) == ["ok"])
+        // Skipping to the end of output without a newline adds nothing either.
+        var q = SearchParser(engine: .gitGrep, query: SearchQuery(text: "x"))
+        _ = q.feed(huge)
+        q.finish()
+        #expect(q.results.files.isEmpty)
+    }
+
+    /// git grep lines are highlighted again only in a bounded prefix: a match far out keeps git's column, no ranges.
+    @Test func gitGrepHighlightIsBounded() {
+        var p = SearchParser(engine: .gitGrep, query: SearchQuery(text: "needle"))
+        let far = String(repeating: "a", count: 5000) + "needle"
+        _ = p.feed(Data("f\u{0}1\u{0}5001\u{0}\(far)\nf\u{0}2\u{0}3\u{0}aaneedle\n".utf8))
+        let hits = p.results.files.first?.hits ?? []
+        #expect(hits.count == 2)
+        #expect(hits[0].column == 5001 && hits[0].ranges.isEmpty)
+        #expect(hits[1].column == 3 && !hits[1].ranges.isEmpty)
     }
 
     @Test func previewKeepsTheMatchInView() {

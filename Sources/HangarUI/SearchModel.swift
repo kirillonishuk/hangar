@@ -18,6 +18,8 @@ struct SearchLaunch: Equatable, Sendable {
     var cwd: String
     var engine: SearchEngine
     var gitColumn = true
+    /// An ssh child: stdin is held open, so the remote side (`remoteWatchdogArgv`) ends with the session.
+    var remote = false
 }
 
 enum SearchStatus: Equatable {
@@ -57,20 +59,40 @@ enum SearchStatus: Equatable {
     @ObservationIgnored private(set) var running: Task<Void, Never>?
     @ObservationIgnored private var debounce: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+    /// A search was stopped by `cancel` before it finished.
+    @ObservationIgnored private var interrupted = false
     /// The login shell's `rg` once looked up (`.some(nil)`: it has none).
     @ObservationIgnored private var loginRipgrep: String??
 
+    /// `!glob` in the include field means exclude (as rg reads it): moved there, so git grep (whose pathspecs have no
+    /// `!`) agrees; a `!` typed in the exclude field is redundant and dropped.
     var query: SearchQuery {
-        SearchQuery(text: text, caseSensitive: caseSensitive, regex: regex, wholeWord: wholeWord,
-                    include: searchGlobs(include), exclude: searchGlobs(exclude))
+        let inc = searchGlobs(include), exc = searchGlobs(exclude)
+        let unbang = { (g: String) in g.hasPrefix("!") ? String(g.dropFirst()) : g }
+        return SearchQuery(text: text, caseSensitive: caseSensitive, regex: regex, wholeWord: wholeWord,
+                           include: inc.filter { !$0.hasPrefix("!") },
+                           exclude: (exc + inc.filter { $0.hasPrefix("!") }).map(unbang).filter { !$0.isEmpty })
     }
 
     /// The Search tab is on screen for this root: a new root is searched right away.
     func setTarget(_ target: SearchTarget?) {
-        guard target != self.target else { return }
+        guard target != self.target || interrupted else { return }
+        if target != self.target { collapsed = [] }
         self.target = target
-        collapsed = []
         run()
+    }
+
+    /// The tab is left, the session changes away or the app quits: the running search stops (its process is
+    /// terminated); shown again, it runs afresh.
+    func cancel() {
+        debounce?.cancel()
+        debounce = nil
+        guard running != nil else { return }
+        running?.cancel()
+        running = nil
+        generation += 1
+        interrupted = true
+        status = .idle
     }
 
     func toggle(_ path: String) {
@@ -94,6 +116,7 @@ enum SearchStatus: Equatable {
         debounce = nil
         running?.cancel()
         running = nil
+        interrupted = false
         generation += 1
         let gen = generation
         results = SearchResults()
@@ -117,7 +140,8 @@ enum SearchStatus: Equatable {
                 env["GIT_TERMINAL_PROMPT"] = "0"
                 let result: RunResult
                 do {
-                    result = try await streamProcess(launch.executable, launch.args, cwd: launch.cwd, env: env) { [weak self] data in
+                    result = try await streamProcess(launch.executable, launch.args, cwd: launch.cwd, env: env,
+                                                     holdStdin: launch.remote) { [weak self] data in
                         let (more, snapshot) = stream.feed(data)
                         if let snapshot { Task { @MainActor in self?.apply(gen, snapshot) } }
                         return more
@@ -132,7 +156,8 @@ enum SearchStatus: Equatable {
                     column = false
                     continue
                 }
-                let final = stream.finish()
+                // Off the main actor: the reader may still hold the parser's lock for a moment.
+                let final = await Task.detached { stream.finish() }.value
                 self.finish(gen, final, searchOutcome(launch.engine, result, results: final, host: target.host))
                 return
             }
@@ -173,8 +198,10 @@ enum SearchStatus: Equatable {
 }
 
 /// How a finished process reads: rg and git grep exit 1 for «nothing found»; a process stopped at the cap is done.
+/// Exit 1 with an error on stderr (a remote `cd` into a folder that is gone) is a failure, not «nothing found».
 func searchOutcome(_ engine: SearchEngine, _ r: RunResult, results: SearchResults, host: String?) -> SearchStatus {
-    if r.status == 0 || r.status == 1 || results.truncated { return .done }
+    let errorText = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+    if r.status == 0 || results.truncated || (r.status == 1 && (errorText.isEmpty || results.lines > 0)) { return .done }
     if let host, r.status == 255 { return .offline(host) }
     // rg exits 2 on any error, also an unreadable file next to real matches.
     if engine == .ripgrep, r.status == 2, results.lines > 0 { return .done }
@@ -212,8 +239,8 @@ extension AppState {
         if let host = target.host {
             guard let t = remote.target(host),
                   let args = sshStreamArgs(host: host, controlPath: t.controlPath, path: remote.hosts[host]?.report?.path, cwd: target.root,
-                                           argv: gitGrepArgs(q, noIndex: !target.remoteGit, column: gitColumn)) else { return nil }
-            return SearchLaunch(executable: t.sshPath, args: args, cwd: "/", engine: .gitGrep, gitColumn: gitColumn)
+                                           argv: remoteWatchdogArgv(gitGrepArgs(q, noIndex: !target.remoteGit, column: gitColumn))) else { return nil }
+            return SearchLaunch(executable: t.sshPath, args: args, cwd: "/", engine: .gitGrep, gitColumn: gitColumn, remote: true)
         }
         if let rg = await search.ripgrep(shell: userShell) {
             return SearchLaunch(executable: rg, args: ripgrepArgs(q), cwd: target.root, engine: .ripgrep)
@@ -228,6 +255,9 @@ extension AppState {
         guard let task = selectedTask, inspector.shownTaskId == task.id, let root = inspector.root else { return nil }
         return SearchTarget(root: root, host: project(task.projectId)?.host, remoteGit: !inspector.remoteNoGit)
     }
+
+    /// App quit: a running search's process is terminated.
+    public func stopSearch() { search.cancel() }
 
     /// ⇧⌘F (and ⌥⌘4): the inspector on Search, its field focused.
     func showSearch() {

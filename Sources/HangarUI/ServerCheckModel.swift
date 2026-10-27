@@ -262,6 +262,28 @@ mv -f "$tmp" "$f"
         return await remote.write(host, script: remoteFileWriteScript, args: args, input: (old ?? Data()) + Data(updated.utf8))
     }
 
+    /// On connect (R7, #96): an installed but older `hangar-remote` is Hangar's own file and is replaced by this one through
+    /// the same checked write (backup, `cmp`, mode kept). Never installed, current or newer → untouched; then the check again.
+    func autoUpgradeRemoteScript() async -> Bool {
+        guard let r = remote.hosts[host]?.report, let v = r.remoteVersion, v < hangarRemoteVersion else { return false }
+        let path = r.home + "/.hangar/bin/hangar-remote"
+        do {
+            guard let original = try await read(path) else { return false }
+            let w = await write(path, original: original, updated: hangarRemoteScript)
+            guard w.status == 0 else {
+                uiLog.error("hangar-remote upgrade on \(self.host, privacy: .public) failed: \(w.status) \(lastLine(w.stderr) ?? "", privacy: .public)")
+                return false
+            }
+            uiLog.info("hangar-remote upgraded on \(self.host, privacy: .public), backup \(lastLine(w.stdout) ?? "", privacy: .public)")
+            await remote.recheck(host)
+            report = remote.hosts[host]?.report ?? report
+            return true
+        } catch {
+            uiLog.error("hangar-remote upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
     /// On connect (#96): an installed Claude integration gets Hangar's missing hooks only, through the same backup and
     /// checked write as «Применить». Not installed, current, unreadable or a failed write → false, file as it was
     /// (the «Сервер» sheet then shows «устарела» as before).

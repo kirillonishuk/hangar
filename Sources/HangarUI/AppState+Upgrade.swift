@@ -18,8 +18,12 @@ extension AppState {
         }
     }
 
-    /// A host connected: the same on the server, through the «Сервер» sheet's read and write.
-    func upgradeClaudeHooks(host: String) async {
-        _ = await ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host)).autoUpgradeClaude()
+    /// A host connected: an older `hangar-remote` first (the hooks call it), then the hooks, through the «Сервер» sheet's
+    /// read and write. Off in DEBUG runs without a fake ssh (main.swift).
+    func upgradeRemote(host: String) async {
+        guard autoUpgradeRemote else { return }
+        let m = ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
+        _ = await m.autoUpgradeRemoteScript()
+        _ = await m.autoUpgradeClaude()
     }
 }

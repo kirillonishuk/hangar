@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
         app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
         if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
+        app.autoUpgradeRemote = env["HANGAR_SSH"] != nil  // a real server's files are never written by a debug run
         if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
         Task { await app.upgradeClaudeHooksAtLaunch() }  // after the DEBUG overrides: never the real file in a debug run

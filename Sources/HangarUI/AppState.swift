@@ -167,6 +167,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
+    /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (#96); DEBUG: only with a fake ssh.
+    @ObservationIgnored public var autoUpgradeRemote = true
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.

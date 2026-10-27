@@ -256,20 +256,64 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     #expect(try FileManager.default.contentsOfDirectory(atPath: d.path) == ["settings.json"])
 }
 
-@Test func upgradeDropsObsoleteHangarEntryEvenWithNothingMissing() throws {
-    // A current install plus a stray Hangar handler in an event Hangar no longer uses, and a user hook there too.
-    guard case .object(var root) = try parseJSON(claudeInstall("{}", cli: "/A/hangar")) else { Issue.record(); return }
-    let i = try #require(root.firstIndex { $0.key == "hooks" })
-    guard case .object(var events) = root[i].value else { Issue.record(); return }
-    let stray: JSONValue = .object([JSONMember(key: "hooks", value: .array([.object([
-        JSONMember(key: "type", value: .string("command")), JSONMember(key: "command", value: .string("/A/hangar event stop")),
-    ])]))])
-    events.append(JSONMember(key: "PreCompact", value: .array([stray])))
+/// `fresh` = a current install for /A/hangar with `edit` applied to its events.
+private func editedInstall(_ edit: (inout [JSONMember]) -> Void) throws -> String {
+    guard case .object(var root) = try parseJSON(claudeInstall("{}", cli: "/A/hangar")),
+          let i = root.firstIndex(where: { $0.key == "hooks" }), case .object(var events) = root[i].value else { throw IntegrationError.notAnObject }
+    edit(&events)
     root[i].value = .object(events)
-    let withStray = printJSON(.object(root))
-    #expect(claudeState(withStray, cli: "/A/hangar") == .outdated)
-    let out = try #require(try claudeUpgrade(withStray, cli: "/A/hangar"))
-    #expect(claudeState(out, cli: "/A/hangar") == .installed)
-    #expect(!out.contains("PreCompact"))  // emptied by the removal: the event goes too
+    return printJSON(.object(root))
+}
+
+private func group(_ matcher: String?, _ commands: [String]) -> JSONValue {
+    var m: [JSONMember] = matcher.map { [JSONMember(key: "matcher", value: .string($0))] } ?? []
+    m.append(JSONMember(key: "hooks", value: .array(commands.map {
+        .object([JSONMember(key: "type", value: .string("command")), JSONMember(key: "command", value: .string($0))])
+    })))
+    return .object(m)
+}
+
+/// The groups of `event` in `text`, as parsed values.
+private func groups(_ text: String, _ event: String) throws -> [JSONValue] { arr(get(get(try parseJSON(text), "hooks"), event)) }
+
+@Test func upgradeKeepsCompoundCommandsAsTheUsers() throws {
+    // Commands that merely start with Hangar's CLI are the user's: never removed, even at a retired matcher.
+    let compound = group(nil, ["/A/hangar event notification && say done"])
+    let copied = group("rate_limit", ["/A/hangar event stop-failure; afplay x.aiff"])
+    let extra = group("rate_limit", ["/A/hangar event stop-failure --verbose"])
+    let old = try editedInstall { events in
+        events.removeAll { $0.key == "PermissionRequest" }
+        let n = events.firstIndex { $0.key == "Notification" }!
+        events[n].value = .array([compound])
+        let f = events.firstIndex { $0.key == "StopFailure" }!
+        events[f].value = .array([copied, extra, group("rate_limit", ["/A/hangar event stop-failure"])])
+    }
+    let out = try #require(try claudeUpgrade(old, cli: "/A/hangar"))
+    // Notification: covered by the compound command, nothing added, the group byte-for-byte the same.
+    #expect(try groups(out, "Notification") == [compound])
+    // StopFailure: only the exact retired entry is gone; the user's two stay first, in order. The new one is NOT added:
+    // the user's commands already cover `stop-failure` in this event.
+    #expect(try groups(out, "StopFailure") == [copied, extra])
+    #expect(try groups(out, "PermissionRequest").count == 1)
     #expect(try claudeUpgrade(out, cli: "/A/hangar") == nil)
+}
+
+@Test func upgradeKeepsUserChangedMatcher() throws {
+    // The user widened Hangar's PreToolUse matcher: kept as is, and no second subagent-start group appears.
+    let widened = group("Task|Agent|Bash", ["/A/hangar event subagent-start"])
+    let old = try editedInstall { events in
+        events.removeAll { $0.key == "PermissionRequest" }
+        let p = events.firstIndex { $0.key == "PreToolUse" }!
+        events[p].value = .array([widened])
+    }
+    let out = try #require(try claudeUpgrade(old, cli: "/A/hangar"))
+    #expect(try groups(out, "PreToolUse") == [widened])
+    #expect(try groups(out, "PermissionRequest").count == 1)
+    #expect(try claudeUpgrade(out, cli: "/A/hangar") == nil)
+}
+
+@Test func upgradeKeepsHangarEntryOutsideTheRetiredSet() throws {
+    // An exact Hangar command in an event Hangar never used is not "previously installed": kept, nothing written.
+    let stray = try editedInstall { events in events.append(JSONMember(key: "PreCompact", value: .array([group(nil, ["/A/hangar event stop"])]))) }
+    #expect(try claudeUpgrade(stray, cli: "/A/hangar") == nil)
 }

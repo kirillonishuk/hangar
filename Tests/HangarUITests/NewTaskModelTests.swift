@@ -20,7 +20,9 @@ import TestSupport
     private func repo() async throws -> TempRepo { try await TempRepo.offMain() }
     private func emptyRepo() async throws -> TempRepo { try await TempRepo.offMain { try TempRepo(emptyWithBranch: "main") } }
 
-    private func wait(until condition: () -> Bool) async throws { try #require(await waitUntil(condition)) }
+    private func wait(polls: Int = 3000, until condition: () -> Bool) async throws {
+        try #require(await waitUntil(polls: polls, condition))
+    }
 
     @Test func branchFollowsNameUntilEdited() async throws {
         let t = try await repo()
@@ -284,13 +286,13 @@ import TestSupport
         let m = model(t, worktreeByDefault: true)
         let loading = Task { await m.load() }
         // Long deadlines: under a full parallel run load() and create's first awaits wait for busy git spawns.
-        try await wait { m.fetch == .running }
+        try await wait(polls: 4500) { m.fetch == .running }
         #expect(m.fetch == .running)
         await m.refresh()  // no-op while running
         #expect(m.fetch == .running)
         m.name = "t"
         let creating = Task { await m.create(skipFetch: false) }
-        try await wait { m.creating }
+        try await wait(polls: 4500) { m.creating }
         let clock = SuspendingClock(), started = clock.now
         m.cancelFetch()
         #expect(m.fetch == .cancelled)

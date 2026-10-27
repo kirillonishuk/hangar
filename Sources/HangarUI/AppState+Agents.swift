@@ -118,7 +118,6 @@ extension AppState {
             if t.to == .working {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }
             }
-            onTransition?(t)
             if t.to == .done {
                 onLeafDone?(t.leaf)
                 refreshBadge(ofLeaf: t.leaf)

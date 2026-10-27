@@ -111,7 +111,6 @@ import Workspace
         let n = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
         #expect(n.body == "Bash: ls")
         #expect(n.category == .permission)
-        #expect(n.urgent)
         let g = make(config { $0.allowFromNotification = true })
         permission(g)
         #expect(notice(for: try item(g, g.tab0.root.leaves[0].id), app: g.app).category == .permissionAllow)
@@ -141,15 +140,13 @@ import Workspace
         #expect(notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app).body == f.app.tabLabel(f.tab0))
     }
 
-    @Test func soundAndUrgency() throws {
+    @Test func soundByReason() throws {
         let f = make()
         send(f, f.tab0, .stop, message: "ok")
         let done = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
         #expect(done.sound == nil)
-        #expect(!done.urgent)
         permission(f)
         let p = notice(for: try item(f, f.tab0.root.leaves[0].id), app: f.app)
-        #expect(p.urgent)
         #expect(p.sound == "default")
         let g = make(config { $0.sounds["permission"] = "" ; $0.sounds["done"] = "Glass" })
         permission(g)
@@ -245,7 +242,7 @@ import Workspace
 
     private func sample(_ leaf: UUID, _ title: String) -> AgentNotice {
         AgentNotice(id: leaf.uuidString, title: title, subtitle: "", body: "", leaf: leaf, category: .open, thread: nil, sound: nil,
-                    urgent: false, requestKey: UUID())
+                    requestKey: UUID())
     }
 
     @Test func removeBeforePendingPostAddsNothing() async {

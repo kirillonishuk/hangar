@@ -54,7 +54,7 @@ import Workspace
     else { title = L10n.limitReached(agent) }
     let subtitle = alert.kind.map { limitWindowTitle($0, agent: alert.agent) } ?? ""
     return AgentNotice(id: "limit-\(alert.agent.rawValue)", title: title, subtitle: subtitle, body: "", leaf: nil, category: .limit, thread: nil,
-                       sound: "default", urgent: false, requestKey: nil)
+                       sound: "default", requestKey: nil)
 }
 
 /// Gated by the master `notifications` switch and `limit_notifications`; the sound is `sound_limit`.

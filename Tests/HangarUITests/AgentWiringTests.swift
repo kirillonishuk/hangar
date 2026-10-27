@@ -37,8 +37,6 @@ import Workspace
 
     @Test func eventUpdatesLeafAndTaskState() {
         let app = makeApp([.claude])
-        var transitions: [Transition] = []
-        app.onTransition = { transitions.append($0) }
         event(app, tab: 0, .prompt)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .working)
         #expect(app.state(of: app.state.tasks[0]) == .working)
@@ -46,8 +44,7 @@ import Workspace
         #expect(app.workingLeafCount == 1)
         event(app, tab: 0, .notification, type: "permission_prompt", message: "Needs permission")
         #expect(app.state(of: app.state.tasks[0]) == .waiting)
-        #expect(transitions.last?.leaf == leaf(app, 0).id)
-        #expect(transitions.last.map { [$0.from, $0.to] } == [.working, .waiting])
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .waiting)
         #expect(app.statuses.status(leaf(app, 0).id).attention?.text == "Needs permission")
     }
 
@@ -65,8 +62,6 @@ import Workspace
 
     @Test func unknownTabOrLeafIgnored() {
         let app = makeApp([.claude, .claude])
-        var called = false
-        app.onTransition = { _ in called = true }
         let before = app.state
         let tab0 = app.state.tasks[0].tabs[0]
         app.handle(.event(EventMessage(tab: UUID(), leaf: UUID(), kind: .prompt, session: "a")))
@@ -79,7 +74,6 @@ import Workspace
         let archived = app.state
         app.handle(.event(EventMessage(tab: tab0.id, leaf: tab0.root.leaves[0].id, kind: .prompt, session: "a")))
         #expect(app.statuses.leaves.isEmpty)
-        #expect(!called)
         #expect(app.state == archived)
         var expected = before
         expected.archiveTask(id: before.tasks[0].id, at: archived.tasks[0].archivedAt ?? Date())  // same archive time
@@ -105,11 +99,8 @@ import Workspace
     @Test func nestedClaudeEventsIgnored() {
         let app = makeApp([.claude])
         let id = leaf(app, 0).id
-        var transitions: [Transition] = []
-        app.onTransition = { transitions.append($0) }
         event(app, tab: 0, .sessionStart, session: "main", source: "startup")
         event(app, tab: 0, .prompt, session: "main")
-        let before = transitions.count
         event(app, tab: 0, .sessionStart, session: "nested", source: "startup")
         event(app, tab: 0, .notification, session: "nested", type: "permission_prompt", message: "nested asks")
         event(app, tab: 0, .stop, session: "nested")
@@ -117,7 +108,6 @@ import Workspace
         #expect(leaf(app, 0).agentSessionId == "main")
         #expect(app.statuses.status(id).sessionId == "main")
         #expect(app.statuses.status(id).attention == nil)
-        #expect(transitions.count == before)
         event(app, tab: 0, .stop, session: "main")
         #expect(app.state(ofLeaf: id) == .done)
     }

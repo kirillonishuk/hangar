@@ -180,7 +180,7 @@ private struct InboxRow: View {
             InboxButton(title: L10n.noticeReply, tint: replying ? Theme.ui.accentText : Theme.ui.text2) { replying.toggle() }
         case .limit:
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
-        case .permission, .question, .open:
+        case .permission, .open:
             if item.attention.reason == .done {
                 InboxButton(title: L10n.inboxDismiss) { app.dismissDone(leafId: item.leafId) }
             }

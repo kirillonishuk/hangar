@@ -7,7 +7,7 @@ import Workspace
 
 /// The notification's buttons (`UNNotificationCategory` id = raw value).
 enum NoticeCategory: String, CaseIterable {
-    case permission, permissionAllow = "permission-allow", question, questionReply = "question-reply", open, limit
+    case permission, permissionAllow = "permission-allow", questionReply = "question-reply", open, limit
 }
 
 /// One macOS notification. `id` replaces an earlier one with the same id (a leaf's id, or `limit-<agent>`).
@@ -22,7 +22,6 @@ struct AgentNotice: Equatable {
     var thread: String?
     /// nil — silent; otherwise the configured name (S4: played as the standard sound).
     var sound: String?
-    var urgent: Bool
     /// Buttons act only while the leaf's attention still carries this key.
     var requestKey: UUID?
 }
@@ -117,7 +116,7 @@ extension AppState {
     }
     return AgentNotice(id: item.leafId.uuidString, title: title, subtitle: subtitle, body: noticeBody(body), leaf: item.leafId,
                        category: category, thread: item.taskId.uuidString, sound: noticeSound(app.config.sounds[a.reason.rawValue]),
-                       urgent: a.reason == .permission || a.reason == .question, requestKey: a.requestKey)
+                       requestKey: a.requestKey)
 }
 
 /// The banner policy plus what is on screen right now.
@@ -239,7 +238,7 @@ extension AppState {
                                                   textInputButtonTitle: L10n.noticeReply, textInputPlaceholder: "")
         let limits = UNNotificationAction(identifier: "limits", title: L10n.noticeOpenLimits, options: [.foreground])
         let actions: [NoticeCategory: [UNNotificationAction]] = [
-            .permission: [open], .permissionAllow: [open, allow], .question: [open], .questionReply: [open, reply],
+            .permission: [open], .permissionAllow: [open, allow], .questionReply: [open, reply],
             .open: [open], .limit: [limits],
         ]
         center.setCategories(Set(NoticeCategory.allCases.map {

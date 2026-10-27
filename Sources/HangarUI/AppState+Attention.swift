@@ -20,8 +20,7 @@ extension AppState {
 
     /// «Убрать»: only a done record goes; the tab keeps its done dot.
     func dismissDone(leafId: UUID) {
-        guard statuses.status(leafId).attention?.reason == .done else { return }
-        _ = statuses.dismissDone(leafId)
+        guard statuses.dismissDone(leafId) else { return }
         onAttention?(leafId, nil)
     }
 

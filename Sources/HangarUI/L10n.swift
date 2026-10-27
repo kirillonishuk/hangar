@@ -141,7 +141,7 @@ import Workspace
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
-        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
+        case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
         case updateAvailable, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
@@ -541,9 +541,10 @@ import Workspace
     /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
     static func fileCount(_ n: Int) -> String { count(n, .fileCountOne, .fileCountFew, .fileCountMany) }
     static var statusShowChanges: String { s(.statusShowChanges) }
-    // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
+    // Window status bar: «1 работает», «3 ждут внимания», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
     static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
-    static func waitingCount(_ n: Int) -> String { count(n, .waitingOne, .waitingFew, .waitingMany) }
+    /// The bell's number (permission + question + failed), so a failure «ждёт внимания» too.
+    static func inboxCount(_ n: Int) -> String { count(n, .attentionOne, .attentionFew, .attentionMany) }
     static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
     static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
     static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }

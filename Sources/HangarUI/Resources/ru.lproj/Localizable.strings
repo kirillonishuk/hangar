@@ -391,9 +391,9 @@
 "workingOne" = "%d работает";
 "workingFew" = "%d работают";
 "workingMany" = "%d работают";
-"waitingOne" = "%d ждёт";
-"waitingFew" = "%d ждут";
-"waitingMany" = "%d ждут";
+"attentionOne" = "%d ждёт внимания";
+"attentionFew" = "%d ждут внимания";
+"attentionMany" = "%d ждут внимания";
 "failedOne" = "%d ошибка";
 "failedFew" = "%d ошибки";
 "failedMany" = "%d ошибок";

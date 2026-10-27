@@ -390,6 +390,18 @@ import Workspace
         #expect(shown.notices.isEmpty)
     }
 
+    /// The status bar's «ждут внимания» opens the inbox as the bell does, so it shows the bell's number.
+    @Test func statusBarCounterIsTheBells() {
+        let f = make()
+        permission(f)
+        f.app.signal(.exited(code: 1), leaf: f.tab1.root.leaves[0].id)  // codex failed
+        send(f, f.otherTab, .stop, message: "ok")  // done: not counted
+        #expect(attentionCount(f.app.attentionItems) == 2)
+        #expect(f.app.statusBar.inbox == 2)
+        f.app.perform { $0.select(taskId: f.other) }
+        #expect(f.app.statusBar.inbox == 2)
+    }
+
     @Test func leafVisibleRules() {
         let f = make()
         let a = f.tab0.root.leaves[0].id

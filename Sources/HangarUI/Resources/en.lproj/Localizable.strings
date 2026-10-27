@@ -391,9 +391,9 @@
 "workingOne" = "%d working";
 "workingFew" = "%d working";
 "workingMany" = "%d working";
-"waitingOne" = "%d waiting";
-"waitingFew" = "%d waiting";
-"waitingMany" = "%d waiting";
+"attentionOne" = "%d needs attention";
+"attentionFew" = "%d need attention";
+"attentionMany" = "%d need attention";
 "failedOne" = "%d error";
 "failedFew" = "%d errors";
 "failedMany" = "%d errors";

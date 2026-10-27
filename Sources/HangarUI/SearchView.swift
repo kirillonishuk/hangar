@@ -101,12 +101,8 @@ private struct SearchQueryField: View {
 
     var body: some View {
         @Bindable var model = model
-        HStack(spacing: Theme.GitTab.searchPaddingH) {
-            IconView(icon: .search, size: Theme.GitTab.searchIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3)
-            TextField("", text: $model.text, prompt: Text(L10n.searchPlaceholder).foregroundStyle(Theme.ui.text3))
-                .textFieldStyle(.plain)
-                .font(.system(size: Theme.fontSize.base))
-                .foregroundStyle(Theme.ui.text)
+        HStack(spacing: Theme.Input.iconGap) {
+            TextField("", text: $model.text)
                 .focused($focused)
                 .onSubmit { model.run() }
                 // Esc clears the query; on an empty field it hands focus back.
@@ -125,15 +121,7 @@ private struct SearchQueryField: View {
                 SearchToggle(label: Text(verbatim: ".*"), help: L10n.searchRegex, on: $model.regex)
             }
         }
-        .padding(.leading, Theme.GitTab.searchPaddingH)
-        .padding(.trailing, Theme.SearchTab.toggleGap * 2)
-        .frame(height: Theme.GitTab.searchHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).stroke(focused ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius + Theme.GitTab.focusRing)
-            .fill(Theme.ui.accent.opacity(focused ? Theme.GitTab.focusRingOpacity : 0))
-            .padding(-Theme.GitTab.focusRing))
-        .animation(Motion.ease(Theme.hoverFade), value: focused)
+        .inputField(focused: focused, icon: .search, placeholder: model.text.isEmpty ? L10n.searchPlaceholder : nil)
         .onAppear { takeFocus() }
         .onChange(of: model.focusRequest) { takeFocus() }
     }
@@ -179,17 +167,10 @@ private struct SearchGlobField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.ui.text3))
-            .textFieldStyle(.plain)
-            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
-            .foregroundStyle(Theme.ui.text)
+        TextField("", text: $text)
             .focused($focused)
             .onExitCommand { focused = false }
-            .padding(.horizontal, Theme.GitTab.searchPaddingH)
-            .frame(height: Theme.SearchTab.globHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).fill(Theme.ui.field))
-            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.searchRadius).stroke(focused ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
-            .animation(Motion.ease(Theme.hoverFade), value: focused)
+            .inputField(focused: focused, mono: true, placeholder: text.isEmpty ? placeholder : nil)
     }
 }
 

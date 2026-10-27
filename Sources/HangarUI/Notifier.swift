@@ -33,7 +33,7 @@ private let noticeBodyLimit = 160
           let leaf = tab?.root.leaf(id: t.leaf) ?? task.drawer.leaf else { return nil }
     let agent = leaf.kind == .claude || leaf.kind == .codex ? leaf.kind.rawValue : app.title(of: leaf)
     let project = app.project(task.projectId)?.name ?? ""
-    var body = app.lastNotificationMessage[t.leaf].flatMap { $0.isEmpty ? nil : $0 } ?? tab.map(app.tabLabel) ?? app.title(of: leaf)
+    var body = app.statuses.status(t.leaf).attention?.text.flatMap { $0.isEmpty ? nil : $0 } ?? tab.map(app.tabLabel) ?? app.title(of: leaf)
     if body.count > noticeBodyLimit { body = String(body.prefix(noticeBodyLimit - 1)) + "…" }
     return AgentNotice(id: t.leaf.uuidString,
                        title: t.to == .waiting ? L10n.agentWaiting(agent) : L10n.agentDone(agent),

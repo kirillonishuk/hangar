@@ -18,9 +18,8 @@ extension AppState {
         case let .event(e):
             guard let leaf = liveLeaf(e.leaf, tab: e.tab),
                   acceptsHook(statuses.status(leaf.id), kind: e.kind, session: e.session, source: e.source, agent: sessionAgent(leaf.kind)) else { return }
-            // Stored before `apply`: onTransition builds the notification body from it, and a stale one must not outlive its event.
-            if lastNotificationMessage[leaf.id] != e.message { lastNotificationMessage[leaf.id] = e.message }
-            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source), leaf: leaf)
+            let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error)
+            apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
@@ -42,11 +41,14 @@ extension AppState {
         }
     }
 
-    /// Terminal-side signals; bell/OSC notifications mean "waiting" only for agent leaves.
+    /// Terminal-side signals; bell/OSC notifications mean "waiting" only for agent leaves,
+    /// and for a host terminal's ssh shell when `ssh_terminal_bell` is on.
     func signal(_ signal: AgentSignal, leaf leafId: UUID) {
         guard let leaf = liveLeaf(leafId, tab: nil) else { return }
         switch signal {
-        case .bell, .desktopNotification: if leaf.kind == .shell || leaf.kind == .editor { return }
+        case .bell, .desktopNotification:
+            let hostBell = leaf.kind == .shell && config.sshTerminalBell && hostShellHost(ofLeaf: leaf.id) != nil
+            if (leaf.kind == .shell || leaf.kind == .editor) && !hostBell { return }
         default: break
         }
         apply(signal, leaf: leaf)
@@ -104,10 +106,14 @@ extension AppState {
     var workingLeafCount: Int { statuses.workingCount }
 
     private func apply(_ signal: AgentSignal, leaf: Leaf) {
-        let agent = sessionAgent(leaf.kind), old = statuses.status(leaf.id)
-        // Mutating `statuses` notifies observers even when nothing changes.
-        guard fold(old, signal, agent: agent) != old else { return }
-        if let t = statuses.apply(signal, leaf: leaf.id, agent: agent) {
+        var board = statuses
+        let t = board.apply(signal, leaf: leaf.id, agent: sessionAgent(leaf.kind), now: clock())
+        // Writing `statuses` notifies observers even when nothing changed.
+        guard board != statuses else { return }
+        let old = statuses.status(leaf.id).attention
+        statuses = board
+        attentionChanged(leaf.id, from: old, to: board.status(leaf.id).attention)
+        if let t {
             if t.to == .working {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }
             }
@@ -116,7 +122,6 @@ extension AppState {
                 onLeafDone?(t.leaf)
                 refreshBadge(ofLeaf: t.leaf)
             }
-            if t.to == .waiting, config.dockBadge { requestAttention?() }
         }
     }
 

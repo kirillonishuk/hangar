@@ -48,7 +48,7 @@ import Workspace
         #expect(app.state(of: app.state.tasks[0]) == .waiting)
         #expect(transitions.last?.leaf == leaf(app, 0).id)
         #expect(transitions.last.map { [$0.from, $0.to] } == [.working, .waiting])
-        #expect(app.lastNotificationMessage[leaf(app, 0).id] == "Needs permission")
+        #expect(app.statuses.status(leaf(app, 0).id).attention?.text == "Needs permission")
     }
 
     @Test func leafDoneFiresOnlyOnTransitionToDone() {
@@ -116,7 +116,7 @@ import Workspace
         #expect(app.state(ofLeaf: id) == .working)
         #expect(leaf(app, 0).agentSessionId == "main")
         #expect(app.statuses.status(id).sessionId == "main")
-        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(app.statuses.status(id).attention == nil)
         #expect(transitions.count == before)
         event(app, tab: 0, .stop, session: "main")
         #expect(app.state(ofLeaf: id) == .done)
@@ -171,7 +171,6 @@ import Workspace
         let flag = Flag()
         withObservationTracking {
             _ = app.statuses
-            _ = app.lastNotificationMessage
             _ = app.usageClock
         } onChange: { flag.fired = true }
         event(app, tab: 0, .prompt, session: "s1")
@@ -193,12 +192,12 @@ import Workspace
         let app = makeApp([.claude])
         let id = leaf(app, 0).id
         event(app, tab: 0, .notification, type: "permission_prompt", message: "m1")
-        #expect(app.lastNotificationMessage[id] == "m1")
+        #expect(app.statuses.status(id).attention?.text == "m1")
         event(app, tab: 0, .prompt)
-        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(app.statuses.status(id).attention == nil)
         event(app, tab: 0, .notification, type: "permission_prompt", message: "m2")
         event(app, tab: 0, .notification, type: "permission_prompt")
-        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(app.statuses.status(id).attention?.text == nil)
     }
 
     @Test func sessionIdNotWrittenToShellLeaf() {
@@ -404,8 +403,9 @@ import Workspace
         #expect(!isSystemShutdown(reason: nil))
     }
 
-    /// Dock badge = tasks waiting for the user, set only when the number changes; attention once per new wait.
-    @Test func dockBadgeCountsWaitingTasks() throws {
+    /// Dock badge = leaves needing the user (permission, question, failed), set only when the number changes;
+    /// attention once per new request.
+    @Test func dockBadgeCountsAttentionLeaves() throws {
         let app = makeApp([.claude, .claude])
         app.perform { s in
             let t = s.addTask(projectId: s.projects[0].id, name: "u")
@@ -422,25 +422,24 @@ import Workspace
         #expect(labels.isEmpty && attention == 0)
         wait(0, 0)
         #expect(labels == ["1"] && attention == 1)
-        wait(0, 1)  // same task: still one waiting task
-        #expect(labels == ["1"] && attention == 2)
+        wait(0, 1)  // same task: each leaf counts
+        #expect(labels == ["1", "2"] && attention == 2)
         wait(1, 0)
-        #expect(labels == ["1", "2"])
+        #expect(labels == ["1", "2", "3"] && attention == 3)
         app.archive(taskId: app.state.tasks[1].id)
-        #expect(labels == ["1", "2", "1"])
+        #expect(labels == ["1", "2", "3", "2"])
         event(app, tab: 0, .prompt)
         event(app, tab: 1, .prompt)
-        #expect(labels == ["1", "2", "1", ""])
-        #expect(app.waitingTaskCount == 0)
+        #expect(labels == ["1", "2", "3", "2", "1", ""])
 
         try app.setConfig("dock_badge", flag: false) { $0.dockBadge = false }
         wait(0, 0)
-        #expect(labels == ["1", "2", "1", ""] && attention == 3)
+        #expect(labels.last == "" && attention == 3)
         try app.setConfig("dock_badge", flag: true) { $0.dockBadge = true }
         #expect(labels.last == "1")
-        #expect(dockBadgeLabel(waiting: 0, enabled: true) == "")
-        #expect(dockBadgeLabel(waiting: 3, enabled: true) == "3")
-        #expect(dockBadgeLabel(waiting: 3, enabled: false) == "")
+        #expect(dockBadgeLabel(count: 0, enabled: true) == "")
+        #expect(dockBadgeLabel(count: 3, enabled: true) == "3")
+        #expect(dockBadgeLabel(count: 3, enabled: false) == "")
     }
 
     @Test func keepAwakeFollowsStatuses() throws {

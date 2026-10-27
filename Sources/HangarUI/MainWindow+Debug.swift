@@ -50,7 +50,7 @@ extension MainWindowController {
         for t in app.state.tasks where !t.archived {
             for l in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
                 let state = app.state(ofLeaf: l.id).rawValue
-                let message = app.lastNotificationMessage[l.id] ?? "-"
+                let message = app.statuses.status(l.id).attention?.text ?? "-"
                 lines.append("agent leaf=\(l.id.uuidString) kind=\(l.kind.rawValue) state=\(state) session=\(l.agentSessionId ?? "-") message=\(message)")
             }
             lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")

@@ -136,7 +136,8 @@ final class FillView: NSView {
     var onFocus: (() -> Void)?
     /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
     var onBell: (() -> Void)?
-    var onNotification: (() -> Void)?
+    /// The OSC text, «title — body» (nil when both are empty).
+    var onNotification: ((String?) -> Void)?
 
     init(leafId: UUID) {
         self.leafId = leafId
@@ -216,7 +217,7 @@ final class FillView: NSView {
         view.onTitleChange = { [weak self] title in self?.onTitle?(title) }
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
-        view.onDesktopNotification = { [weak self] _, _ in self?.onNotification?() }
+        view.onDesktopNotification = { [weak self] title, body in self?.onNotification?(oscNotificationText(title: title, body: body)) }
         view.onPaste = { [weak self, weak view] in
             guard let self, let view, pasteAction(kind: self.kind) == .ctrlV else { return false }
             view.sendKey(.ctrlV)
@@ -675,7 +676,7 @@ final class FillView: NSView {
                 self?.app.signal(.focused, leaf: leaf.id)
             }
             view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
-            view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(), leaf: leaf.id) }
+            view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(text: $0), leaf: leaf.id) }
             view.onRelaunch = { [weak self] keepsStatus in
                 if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
@@ -873,4 +874,10 @@ func splitNeighbour(of id: UUID, in frames: [UUID: CGRect], toward direction: Sp
     for view in leaves where view.host == host {
         if view.isDetached { view.relaunch(focus: false) } else { view.resumeIfWaiting() }
     }
+}
+
+/// OSC 9 has only a body, OSC 777 a title and a body: «title — body», empty parts dropped.
+func oscNotificationText(title: String, body: String) -> String? {
+    let parts = [title, body].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    return parts.isEmpty ? nil : parts.joined(separator: " — ")
 }

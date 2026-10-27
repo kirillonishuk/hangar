@@ -62,7 +62,10 @@ import Workspace
         let f = make()
         let leaf = f.tab0.root.leaves[0]
         L10n.language = .ru
-        f.app.lastNotificationMessage[leaf.id] = "Needs permission"
+        func send(_ kind: HookKind, type: String? = nil, message: String? = nil) {
+            f.app.handle(.event(EventMessage(tab: f.tab0.id, leaf: leaf.id, kind: kind, notificationType: type, message: message)))
+        }
+        send(.notification, type: "permission_prompt", message: "Needs permission")
         let n = notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: false)
         #expect(n == AgentNotice(id: leaf.id.uuidString, title: "claude ждёт ответа", subtitle: "shop-api › fix-auth",
                                  body: "Needs permission", leaf: leaf.id))
@@ -70,10 +73,10 @@ import Workspace
         #expect(notice(for: tr(leaf, .working, .waiting), app: f.app, leafVisible: false)?.title == "claude is waiting for you")
         #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)?.title == "claude finished")
         // No message: the tab label.
-        f.app.lastNotificationMessage[leaf.id] = nil
+        send(.stop)
         #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)?.body == f.app.tabLabel(f.tab0))
         // Long message is truncated.
-        f.app.lastNotificationMessage[leaf.id] = String(repeating: "x", count: 500)
+        send(.stop, message: String(repeating: "x", count: 500))
         #expect(notice(for: tr(leaf, .working, .done), app: f.app, leafVisible: false)!.body.count <= 200)
         // Shell: the leaf title is the "agent".
         let shell = f.app.state.tasks.first { $0.id == f.task }!.drawer.leaf!

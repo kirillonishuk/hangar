@@ -197,6 +197,11 @@ enum SearchStatus: Equatable {
     }
 }
 
+/// A search that fails with `reason` (git is only a CLT stub: running it would pop the install dialog).
+func failingSearchLaunch(_ reason: String) -> SearchLaunch {
+    SearchLaunch(executable: "/bin/sh", args: ["-c", #"printf '%s\n' "$1" >&2; exit 127"#, "sh", reason], cwd: "/", engine: .gitGrep)
+}
+
 /// How a finished process reads: rg and git grep exit 1 for «nothing found»; a process stopped at the cap is done.
 /// Exit 1 with no hits and the shell's own error (a remote `cd` into a folder that is gone: `sh: …`, `cd: …`) is a
 /// failure, not «nothing found»; any other stderr with exit 1 (a git warning) is still «nothing found».
@@ -247,6 +252,7 @@ extension AppState {
         if let rg = await search.ripgrep(shell: userShell) {
             return SearchLaunch(executable: rg, args: ripgrepArgs(q), cwd: target.root, engine: .ripgrep)
         }
+        if let missing = localDeveloperToolMissing("git") { return failingSearchLaunch(missing) }
         let repo = (try? await Git(repo: target.root).isRepository()) == true
         return SearchLaunch(executable: "/usr/bin/env", args: gitGrepArgs(q, noIndex: !repo, column: gitColumn), cwd: target.root,
                             engine: .gitGrep, gitColumn: gitColumn)

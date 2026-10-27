@@ -59,6 +59,10 @@ import Workspace
         #expect(resolveUserShell(passwd: nil, env: "/bin/bash") == "/bin/bash")
         #expect(resolveUserShell(passwd: "", env: nil) == "/bin/zsh")
         #expect(resolveUserShell(passwd: nil, env: "") == "/bin/zsh")
+        // A login shell that is gone falls back to $SHELL, then zsh.
+        let gone = "/opt/homebrew/bin/hangar-no-such-shell"
+        #expect(resolveUserShell(passwd: gone, env: "/bin/bash") == "/bin/bash")
+        #expect(resolveUserShell(passwd: gone, env: gone) == "/bin/zsh")
     }
 
     /// Ghostty injects its zsh integration into the outer `-c` shell only; the tab's interactive zsh gets it too.

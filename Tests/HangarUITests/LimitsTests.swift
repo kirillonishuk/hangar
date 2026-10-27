@@ -89,9 +89,9 @@ import Workspace
 
     @Test func limitAlertsNotifyOnce() {
         defer { L10n.language = .system }
-        L10n.language = .ru
         for enabled in [true, false] {
             let app = makeApp(limitNotifications: enabled)
+            L10n.language = .ru  // after AppState.init, which applies the config's language (system)
             var notices: [AgentNotice] = []
             app.onUsageAlerts = { notices += limitNotices($0, app: app) }
             claudeUsage(app, 81)

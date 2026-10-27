@@ -29,7 +29,9 @@ import Testing
         #expect(shellQuote("=ls") == "'=ls'")
         #expect(shellQuote("a=b") == "a=b")
         for sh in ["/bin/sh", "/bin/zsh", "/bin/bash"] {
-            for v in ["=ls", #"a\'b"#, #"\\"#, #"x\"#, "it's", "$(id)"] {
+            for v in ["=ls", #"a\'b"#, #"\\"#, #"x\"#, "it's", "$(id)",
+                      // Folder and app paths on other Macs: spaces, Cyrillic, CJK, quotes, globs, `!`, `~`, newline.
+                      #"/Users/Иван Петров/My "App" Folder/プロジェクト"#, "/Applications/My Apps/Hangar.app", "a!b *?[x]", "~/x", "l1\nl2"] {
                 let r = try await Runner.local.run([sh, "-c", "printf %s " + shellQuote(v)], "/")
                 #expect(r.stdout == v, "\(sh) \(v)")
             }

@@ -185,6 +185,15 @@ import TestSupport
                               results: none, host: "dev") == .failed("sh: line 0: cd: /srv/gone: No such file or directory"))
     }
 
+    /// No git but its CLT stub: the search fails with the reason, never «nothing found».
+    @Test func missingGitIsAnError() async throws {
+        let reason = "git: needs the Xcode Command Line Tools (xcode-select --install)"
+        let launch = failingSearchLaunch(reason)
+        let r = try await Runner.local.run([launch.executable] + launch.args, launch.cwd)
+        #expect(r.status == 127)
+        #expect(searchOutcome(launch.engine, r, results: SearchResults(), host: nil) == .failed(reason))
+    }
+
     /// ⇧⌘F shows the inspector on Search (also for a plain folder) and asks the field for focus.
     @Test func showSearch() {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hg-search-\(UUID().uuidString)")

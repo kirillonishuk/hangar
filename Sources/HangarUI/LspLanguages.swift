@@ -47,17 +47,26 @@ import Foundation
     private let find: (LspLanguage, String) async -> LspFound?
     private let path: () async -> String?
     private let grace: Duration
+    private let dependencies: (LspLanguage) async -> [String]
+    /// A crash this long after a successful `initialize` is a new first crash (restarted again), not a second one.
+    private let stableAfter: Duration
+    private let isExecutable: (String) -> Bool
+    /// Languages whose extra dependency roots were looked up.
+    private var dependenciesAsked: Set<String> = []
     private var docs: [String: Doc] = [:]
     private var entries: [ServerKey: Entry] = [:]
     private var lookups: [String: Task<LspFound?, Never>] = [:]
     private static let maxPreviews = 30
-    /// A crash this long after a successful `initialize` is a new first crash (restarted again), not a second one.
-    private static let stableAfter = Duration.seconds(60)
 
     /// `find(language, projectRoot)` looks for a server; `path()` is the PATH it runs with (nil: the app's own).
+    /// `dependencies(language, found)`: folders definitions may open read-only beyond the usual ones (GOROOT, the
+    /// Xcode developer folder), registered in `LspMap.dependencyRoots`.
     init(find: @escaping (LspLanguage, String) async -> LspFound?, path: @escaping () async -> String? = { nil },
-         grace: Duration = .seconds(120)) {
-        self.find = find; self.path = path; self.grace = grace
+         dependencies: @escaping (LspLanguage) async -> [String] = { _ in [] },
+         grace: Duration = .seconds(120), stableAfter: Duration = .seconds(60),
+         isExecutable: @escaping (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) {
+        self.find = find; self.path = path; self.dependencies = dependencies; self.grace = grace; self.stableAfter = stableAfter
+        self.isExecutable = isExecutable
     }
 
     var runningCount: Int { entries.values.filter { $0.server.isRunning }.count }
@@ -109,8 +118,24 @@ import Foundation
         }
         // The next file of this language and root looks again (a server installed or removed meanwhile).
         lookups[sk.language + "\u{0}" + sk.root] = nil
+        guard isExecutable(sk.found.executable) else { rediscover(sk); return }
         entries[sk]?.crashes = 0
         relaunch(sk)
+    }
+
+    /// The server's executable is gone (uninstalled, a venv rebuilt): its files look for one again and get a new
+    /// launch (another path, or the «no language server» status); their text comes back from the page.
+    private func rediscover(_ sk: ServerKey) {
+        guard let entry = entries.removeValue(forKey: sk) else { return }
+        entry.grace?.cancel()
+        entry.server.onExit = nil
+        entry.server.stop()
+        for path in entry.docs {
+            guard let doc = docs[path] else { continue }
+            doc.syncing?.cancel()
+            (doc.server, doc.opened, doc.text, doc.edits, doc.syncing) = (nil, false, nil, [], nil)
+            Task { await resolve(path) }
+        }
     }
 
     func stopAll() {
@@ -207,6 +232,10 @@ import Foundation
             setStatus(doc, path, LanguageStatus(text: L10n.lspMissing(doc.language.name),
                                                 tooltip: L10n.lspMissingTip(doc.language.servers.map(\.name).joined(separator: ", ")), level: .off))
             return
+        }
+        if dependenciesAsked.insert(doc.language.id).inserted {
+            let language = doc.language
+            Task { LspMap.dependencyRoots.add(await dependencies(language)) }
         }
         let sk = ServerKey(language: doc.language.id, root: root, found: found)
         if entries[sk] == nil {
@@ -314,7 +343,7 @@ import Foundation
         guard let entry = entries[sk], entry.server === server else { return }
         // Up and initialized for a while: a fresh first crash. Not at once — a server dying on every `didOpen`
         // would restart forever.
-        if let up = entry.upSince, up.duration(to: .now) > Self.stableAfter { entry.crashes = 0 }
+        if let up = entry.upSince, up.duration(to: .now) > stableAfter { entry.crashes = 0 }
         entry.upSince = nil
         entry.crashes += 1
         uiLog.error("lsp exited (\(entry.crashes, privacy: .public)) \(sk.found.executable, privacy: .public)")

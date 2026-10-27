@@ -111,8 +111,27 @@ enum LspMap {
         return p.hasPrefix("/") && !p.contains("\0") ? p : nil
     }
 
+    /// Toolchain folders found at run time (GOROOT, the Xcode developer folder), realpath'd.
+    static let dependencyRoots = DependencyRoots()
+
+    final class DependencyRoots: @unchecked Sendable {
+        private let lock = NSLock()
+        private var roots: [String] = []
+        func add(_ list: [String]) {
+            let real = list.filter { $0.hasPrefix("/") && $0.count > 1 }.map(LspMap.resolved)
+            lock.lock(); defer { lock.unlock() }
+            for r in real where !roots.contains(r) { roots.append(r) }
+        }
+        var all: [String] { lock.lock(); defer { lock.unlock() }; return roots }
+    }
+
     /// Folders of installed packages and toolchains: go-to-definition may land there, read-only.
     static func isDependency(_ path: String) -> Bool {
+        let roots = dependencyRoots.all
+        if !roots.isEmpty {
+            let real = resolved(path)
+            if roots.contains(where: { real == $0 || real.hasPrefix($0 + "/") }) { return true }
+        }
         let parts = path.split(separator: "/")
         if parts.contains("node_modules") || parts.contains("site-packages") || parts.contains(".rustup") { return true }
         for (a, b) in zip(parts, parts.dropFirst()) {

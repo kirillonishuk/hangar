@@ -27,7 +27,9 @@ extension AppState {
                 return await LspMap.find(language, projectRoot: root, path: (path ?? "").split(separator: ":").map(String.init),
                                          home: NSHomeDirectory(), isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
                                          toolchain: xcrunFind)
-            }, path: { [weak self] in await self?.loginShellPath() }))
+            }, path: { [weak self] in await self?.loginShellPath() }, dependencies: { [weak self] language in
+                await toolchainRoots(language, path: await self?.loginShellPath())
+            }))
     }
 
     /// App quit: every tsserver gets `exit` and EOF.
@@ -88,4 +90,18 @@ private func xcrunFind(_ name: String) async -> String? {
     guard let dir = try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"), dir.status == 0,
           let r = try? await Runner.local.run(["/usr/bin/xcrun", "--find", name], "/"), r.status == 0 else { return nil }
     return r.stdout.split(whereSeparator: \.isNewline).first.map(String.init)
+}
+
+/// Sources a definition may land in outside the project: Go's standard library (`go env GOROOT`, with the login
+/// PATH) and the Xcode developer folder (SDKs, toolchains). Empty when there is none.
+private func toolchainRoots(_ language: LspLanguage, path: String?) async -> [String] {
+    let first = { (r: RunResult?) in r.flatMap { $0.status == 0 ? $0.stdout.split(whereSeparator: \.isNewline).first.map(String.init) : nil } }
+    switch language.id {
+    case "go":
+        let env = path.map { ["PATH=" + $0] } ?? []
+        return [first(try? await Runner.local.run(env + ["go", "env", "GOROOT"], "/"))].compactMap { $0 }
+    case "swift":
+        return [first(try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"))].compactMap { $0 }
+    default: return []
+    }
 }

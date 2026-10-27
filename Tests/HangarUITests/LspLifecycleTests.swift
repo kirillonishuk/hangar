@@ -73,12 +73,13 @@ import Testing
 
     final class Counter { var n = 0 }
 
-    private func lsp(found: Bool = true, mode: String = "", grace: Duration = .seconds(30), finds: Counter = Counter()) -> Languages {
+    private func lsp(found: Bool = true, mode: String = "", grace: Duration = .seconds(30), finds: Counter = Counter(),
+                     stableAfter: Duration = .seconds(60), executable: (() -> String)? = nil) -> Languages {
         let (script, log) = (script, log)
         let lsp = LspLanguages(find: { _, _ in
             finds.n += 1
-            return found ? LspFound(executable: script, args: [log, mode]) : nil
-        }, grace: grace)
+            return found ? LspFound(executable: executable?() ?? script, args: [log, mode]) : nil
+        }, grace: grace, stableAfter: stableAfter)
         return Languages(lookup: { _, _, _ in .noTypeScript }, launch: { _, _ in nil }, lsp: lsp)
     }
 
@@ -237,5 +238,37 @@ import Testing
         ts.notify("big", ["pad": String(repeating: "x", count: 1 << 20)])
         ts.stop()
         #expect(await waitUntil { !ts.isRunning })
+    }
+
+    /// A crash after the server has been up `stableAfter` counts as a first crash again: restarted every time.
+    @Test func crashAfterAStableRunIsRestartedAgain() async throws {
+        let langs = lsp(mode: "always", stableAfter: .zero)
+        let sink = Sink()
+        langs.opened(dir + "/crash.py", text: "x\n", host: nil, owner: owner(sink))
+        // With the default (60 s) it stops after 2 starts (`stopsTryingAfterTheSecondCrash`); here it keeps going.
+        #expect(await waitUntil { logLines().filter { $0 == "start" }.count >= 4 })
+        langs.stopAll()
+    }
+
+    /// The executable is gone (uninstalled): the status click looks for a server again and launches the new one.
+    @Test func restartRediscoversAGoneExecutable() async throws {
+        let first = dir + "/old-lsp", second = dir + "/new-lsp"
+        try writeScript(Self.fake, to: first)
+        try writeScript(Self.fake, to: second)
+        final class Path { var value: String; init(_ v: String) { value = v } }
+        let current = Path(first)
+        let finds = Counter()
+        let langs = lsp(finds: finds, executable: { current.value })
+        let sink = Sink()
+        let file = dir + "/a.go"
+        langs.opened(file, text: "package a\n", host: nil, owner: owner(sink, text: "package b\n"))
+        #expect(await waitUntil { logLines().contains("textDocument/didOpen \(uri(file))") && sink.statuses.last??.text == "old-lsp" })
+        try FileManager.default.removeItem(atPath: first)
+        current.value = second
+        langs.restart(file, host: nil)
+        #expect(await waitUntil { logLines().filter { $0 == "textDocument/didOpen \(uri(file))" }.count == 2 })
+        #expect(finds.n == 2)
+        #expect(await waitUntil { sink.statuses.last??.text == "new-lsp" && sink.statuses.last??.level == .ready })
+        langs.stopAll()
     }
 }

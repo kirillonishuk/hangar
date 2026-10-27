@@ -104,6 +104,20 @@ import Testing
         #expect(LspMap.allowed(base + "/proj/src/a.py", roots: [base + "/alias"]))
     }
 
+    /// GOROOT / the Xcode developer folder, registered at run time (realpath'd), are dependency roots: read-only.
+    @Test func toolchainRootsAreDependencies() throws {
+        let base = (NSTemporaryDirectory() as NSString).resolvingSymlinksInPath + "/hg-lsp-goroot-" + UUID().uuidString
+        try FileManager.default.createDirectory(atPath: base + "/go/src/fmt", withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: base) }
+        try FileManager.default.createSymbolicLink(atPath: base + "/goroot", withDestinationPath: base + "/go")
+        #expect(!LspMap.isDependency(base + "/go/src/fmt/print.go"))
+        LspMap.dependencyRoots.add([base + "/goroot", "", "relative"])
+        #expect(LspMap.isDependency(base + "/go/src/fmt/print.go"))
+        #expect(LspMap.isDependency(base + "/goroot/src/fmt/print.go"))
+        #expect(LspMap.allowed(base + "/go/src/fmt/print.go", roots: ["/w/proj"]))
+        #expect(!LspMap.isDependency(base + "/gopher/x.go"))
+    }
+
     @Test func completionRanges() {
         func r(_ l: Int, _ c: Int, _ el: Int, _ ec: Int) -> [String: Any] {
             ["start": ["line": l, "character": c], "end": ["line": el, "character": ec]]

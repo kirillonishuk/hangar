@@ -63,7 +63,9 @@ import Testing
 
     @Test func userThemeAgainstHangarBackground() throws {
         #expect(GhosttyApp.initialized)
+        defer { GhosttyApp.removeConfigFiles() }
         let themed = try userConfig("theme = $THEME\n")
+        defer { try? FileManager.default.removeItem(at: themed.deletingLastPathComponent()) }
         #expect(GhosttyApp.userSets([themed]) == (background: true, palette: true))
         // «как тема»: every theme switch wins over the user's theme.
         #expect(GhosttyApp.resolvedBackground(colors("121826", force: true), userFiles: [themed]) == "121826")
@@ -72,9 +74,20 @@ import Testing
         #expect(GhosttyApp.resolvedBackground(colors("121826", force: false), userFiles: [themed]) == "5a1040")
         // No background of their own: the Hangar theme's, in both modes.
         let plain = try userConfig("font-size = 13\n")
+        defer { try? FileManager.default.removeItem(at: plain.deletingLastPathComponent()) }
         #expect(GhosttyApp.userSets([plain]) == (background: false, palette: false))
         #expect(GhosttyApp.resolvedBackground(colors("1e1e1e", force: false), userFiles: [plain]) == "1e1e1e")
         #expect(GhosttyApp.resolvedBackground(colors("232220", force: false), userFiles: [plain]) == "232220")
-        GhosttyApp.removeConfigFiles()
+    }
+
+    /// `background = …` in the user's own config (no theme) behaves like a theme's.
+    @Test func userBackgroundSetDirectly() throws {
+        #expect(GhosttyApp.initialized)
+        defer { GhosttyApp.removeConfigFiles() }
+        let direct = try userConfig("background = #203040\n")
+        defer { try? FileManager.default.removeItem(at: direct.deletingLastPathComponent()) }
+        #expect(GhosttyApp.userSets([direct]) == (background: true, palette: false))
+        #expect(GhosttyApp.resolvedBackground(colors("121826", force: true), userFiles: [direct]) == "121826")
+        #expect(GhosttyApp.resolvedBackground(colors("121826", force: false), userFiles: [direct]) == "203040")
     }
 }

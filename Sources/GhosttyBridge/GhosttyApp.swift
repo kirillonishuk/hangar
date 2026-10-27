@@ -69,8 +69,18 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         let user = userSets(userFiles)
         let layers = layers(colors, padding: padding, userBackground: user.background, userPalette: user.palette)
         let defaults = layers.defaults.isEmpty ? nil : writeConfig(configFileName("defaults"), layers.defaults)
-        let override = layers.overrides.map { writeConfig(configFileName("overrides"), $0) } ?? nil
-        if override == nil { try? FileManager.default.removeItem(at: tempFile(configFileName("overrides"))) }
+        let overridesFile = tempFile(configFileName("overrides"))
+        var override: URL?
+        if let text = layers.overrides {
+            override = writeConfig(configFileName("overrides"), text)
+            // A failed write keeps the previous overrides (the last theme's background) rather than dropping them.
+            if override == nil, FileManager.default.fileExists(atPath: overridesFile.path) {
+                ghosttyLog.error("terminal background: keeping the previous \(overridesFile.path, privacy: .public)")
+                override = overridesFile
+            }
+        } else {
+            try? FileManager.default.removeItem(at: overridesFile)
+        }
         let cfg = makeConfig(defaults: defaults, override: override, userFiles: userFiles)
         let bg = override != nil ? "Hangar \(colors.background)" : user.background ? "Ghostty config" : "Hangar default \(colors.background)"
         ghosttyLog.info("terminal background: \(bg, privacy: .public); palette: \(user.palette ? "Ghostty config" : "Hangar", privacy: .public)")
@@ -152,7 +162,13 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// A config file of Hangar's own in the temp directory (never the user's Ghostty config); nil if it can't be written.
     private static func writeConfig(_ name: String, _ text: String) -> URL? {
         let file = tempFile(name)
-        return (try? text.write(to: file, atomically: true, encoding: .utf8)) != nil ? file : nil
+        do {
+            try text.write(to: file, atomically: true, encoding: .utf8)
+            return file
+        } catch {
+            ghosttyLog.error("can't write \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// `defaults` load before the user's files (theirs win), `override` after them (it wins over their config and theme).

@@ -225,7 +225,7 @@ import Workspace
         let app = makeApp([.shell, .codex])
         app.signal(.bell, leaf: leaf(app, 0).id)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .idle)
-        app.signal(.desktopNotification, leaf: leaf(app, 0).id)
+        app.signal(.desktopNotification(), leaf: leaf(app, 0).id)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .idle)
         app.signal(.bell, leaf: leaf(app, 1).id)
         #expect(app.state(ofLeaf: leaf(app, 1).id) == .waiting)

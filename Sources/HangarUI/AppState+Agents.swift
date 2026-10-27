@@ -45,7 +45,10 @@ extension AppState {
     /// Terminal-side signals; bell/OSC notifications mean "waiting" only for agent leaves.
     func signal(_ signal: AgentSignal, leaf leafId: UUID) {
         guard let leaf = liveLeaf(leafId, tab: nil) else { return }
-        if signal == .bell || signal == .desktopNotification, leaf.kind == .shell || leaf.kind == .editor { return }
+        switch signal {
+        case .bell, .desktopNotification: if leaf.kind == .shell || leaf.kind == .editor { return }
+        default: break
+        }
         apply(signal, leaf: leaf)
     }
 

@@ -258,7 +258,7 @@ import Workspace
         }
         view.onFocus = { [weak self] in self?.app.signal(.focused, leaf: leaf.id) }
         view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
-        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
+        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(), leaf: leaf.id) }
         view.onRelaunch = { [weak self] keepsStatus in
             if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied

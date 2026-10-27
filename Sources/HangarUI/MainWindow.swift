@@ -722,23 +722,27 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .send(let text, let keys):
             if let leaf { app.terminals?.send(leaf, text, keys) }
         case .showLimits:
-            NSApp.activate()
-            if let window {
-                if window.isMiniaturized { window.deminiaturize(nil) }
-                window.makeKeyAndOrderFront(nil)
-            }
+            bringUp()
             if !app.limitsPopoverShown { app.toggleLimitsPopover() }
         }
     }
 
     public func reveal(leafId: UUID) {
         app.reveal(leafId: leafId)
+        bringUp()
+        column.terminalArea.focus(leafId: leafId)
+    }
+
+    private func bringUp() {
+        #if DEBUG
+        // Verification runs (HANGAR_DEBUG_BEHIND=1) never take the owner's screen or keyboard.
+        if ProcessInfo.processInfo.environment["HANGAR_DEBUG_BEHIND"] == "1" { return }
+        #endif
         NSApp.activate()
         if let window {
             if window.isMiniaturized { window.deminiaturize(nil) }
             window.makeKeyAndOrderFront(nil)
         }
-        column.terminalArea.focus(leafId: leafId)
     }
 
     /// A clicked `hangar://` link (#66, #88): select and bring the window up; a tab link focuses its terminal.

@@ -137,6 +137,7 @@ import Testing
         let list = paletteCommands
         #expect(list.contains(.newTask) && list.contains(.newTab) && list.contains(.splitRight) && list.contains(.settings))
         #expect(list.contains(.toggleInspector) && list.contains(.toggleDrawer) && list.contains(.archiveTask) && list.contains(.attentionFilter))
+        #expect(list.contains(.nextAttention))
         #expect(!list.contains(.quickOpen) && !list.contains(.commandPalette) && !list.contains(.tab(1)))
     }
 

@@ -91,7 +91,7 @@ import Workspace
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
         case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case copyLink, linkNotFound, attentionOnly, nobodyWaiting
+        case copyLink, linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -105,7 +105,7 @@ import Workspace
         case agentsWorking, agentsWorkingInfo
         case keepAwakeTitle
         case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
-        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
+        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour, durationUnderMin, durationHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
@@ -423,6 +423,8 @@ import Workspace
     static func limitWeekModel(_ model: String) -> String { f(.limitWeekModel, model) }
     static func resetIn(_ duration: String, _ time: String) -> String { f(.resetIn, duration, time) }
     static func durationMin(_ m: Int) -> String { f(.durationMin, m) }
+    static var durationUnderMin: String { s(.durationUnderMin) }
+    static func durationHour(_ h: Int) -> String { f(.durationHour, h) }
     static func durationHourMin(_ h: Int, _ m: Int) -> String { f(.durationHourMin, h, m) }
     static func durationDayHour(_ d: Int, _ h: Int) -> String { f(.durationDayHour, d, h) }
     static func limitAlmost(_ agent: String, _ percent: Int) -> String { f(.limitAlmost, agent, Int32(clamping: percent)) }
@@ -442,6 +444,10 @@ import Workspace
     static var linkNotFound: String { s(.linkNotFound) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }
+    static var inbox: String { s(.inbox) }
+    static var inboxRecentDone: String { s(.inboxRecentDone) }
+    static var inboxDismiss: String { s(.inboxDismiss) }
+    static var inboxClear: String { s(.inboxClear) }
     static func openIn(_ arg: String) -> String { f(.openIn, arg) }
     static func openFailed(_ arg: String) -> String { f(.openFailed, arg) }
     static var deletePermanently: String { s(.deletePermanently) }
@@ -737,6 +743,7 @@ import Workspace
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: s(.cmdAttentionOnly)
+        case .nextAttention: s(.cmdNextAttention)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
         case .tab(let n): "\(n)"

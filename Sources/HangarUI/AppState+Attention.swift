@@ -34,11 +34,30 @@ extension AppState {
 
     func setMuted(taskId: UUID, _ muted: Bool) { perform { $0.setMuted(taskId: taskId, muted) } }
 
-    /// ⌥⌘A: the next leaf in inbox order after the selected task's focused leaf.
-    func nextAttentionLeaf() -> UUID? {
+    /// ⌥⌘A: the next leaf in inbox order after the focused one (the TERMINAL panel's when it has focus, else the active tab's).
+    func nextAttentionLeaf(drawerFocused: UUID? = nil) -> UUID? {
         let (urgent, done) = inboxSections(attentionItems)
-        let current = selectedTask.flatMap { t in t.tabs.first { $0.id == t.activeTabId }?.focusedLeafId }
+        let current = drawerFocused ?? selectedTask.flatMap { t in t.tabs.first { $0.id == t.activeTabId }?.focusedLeafId }
         return nextAttention((urgent + done).map(\.leafId), after: current)
+    }
+
+    /// The bell / «ждут» click: opens even when empty («Никто не ждёт» is the answer).
+    func toggleInbox() {
+        if inboxShown { setInboxShown(false); return }
+        inboxClock = clock()
+        inboxShown = true
+    }
+
+    /// Popover binding: a transient close (outside click) is remembered for `inboxClicked`.
+    func setInboxShown(_ shown: Bool) {
+        if inboxShown, !shown { inboxClosedAt = uptime() }
+        inboxShown = shown
+    }
+
+    /// As `limitsClicked`: NSPopover closes on mouse-down, the button fires on mouse-up — that click must not reopen it.
+    func inboxClicked() {
+        if !inboxShown, let closed = inboxClosedAt, uptime() - closed < 0.3 { return }
+        toggleInbox()
     }
 
     /// Banner policy for the leaf without the on-screen conditions (the caller adds those).

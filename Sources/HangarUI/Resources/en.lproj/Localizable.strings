@@ -557,3 +557,10 @@
 "searchSkippedOne" = "%d very long line skipped";
 "searchSkippedFew" = "%d very long lines skipped";
 "searchSkippedMany" = "%d very long lines skipped";
+"inbox" = "Inbox";
+"inboxRecentDone" = "Recently done";
+"inboxDismiss" = "Dismiss";
+"inboxClear" = "Clear";
+"cmdNextAttention" = "Next Waiting";
+"durationUnderMin" = "< 1 min";
+"durationHour" = "%ld h";

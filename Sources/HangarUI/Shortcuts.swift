@@ -4,14 +4,14 @@ public enum Shortcut: Equatable, CaseIterable {
     case newTask, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
-    case attentionFilter, sessions, findInFiles
+    case attentionFilter, sessions, findInFiles, nextAttention
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .inspectorGit, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
-            + [.attentionFilter, .sessions, .findInFiles]
+            + [.attentionFilter, .sessions, .findInFiles, .nextAttention]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -51,6 +51,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .attentionFilter: ([.command, .option], 3, "F")
         case .sessions: (.command, 16, "Y")  // as Safari's History; free in Ghostty
         case .findInFiles: ([.command, .shift], 3, "F")  // as in VS Code
+        case .nextAttention: ([.command, .option], 0, "A")  // the next leaf in the inbox's order
         }
     }
 

@@ -557,3 +557,10 @@
 "searchSkippedOne" = "%d очень длинная строка пропущена";
 "searchSkippedFew" = "%d очень длинные строки пропущены";
 "searchSkippedMany" = "%d очень длинных строк пропущено";
+"inbox" = "Входящие";
+"inboxRecentDone" = "Недавно готово";
+"inboxDismiss" = "Убрать";
+"inboxClear" = "Очистить";
+"cmdNextAttention" = "Следующий ждущий";
+"durationUnderMin" = "< 1 мин";
+"durationHour" = "%ld ч";

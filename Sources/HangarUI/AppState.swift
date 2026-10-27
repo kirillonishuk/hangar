@@ -104,6 +104,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
+    var inboxShown = false
+    /// `now` for «3 мин» in the inbox: taken when it opens, no ticking clock.
+    var inboxClock = Date()
     /// «Сессии» (⌘Y) is shown for this project instead of the session area; nil = hidden (SessionsModel.swift).
     var sessionsProjectId: UUID?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
@@ -117,6 +120,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored lazy var findCodex: () async -> String? = { [userShell] in await resolveCodex(runner: .local, shell: userShell) }
     /// Uptime of the last popover close; a click within 0.3 s is that close's own mouse-up.
     @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
+    @ObservationIgnored var inboxClosedAt: TimeInterval?
     /// The last lookup found no codex: look again on the next popover open.
     @ObservationIgnored var codexNotFound = false
     /// CLI/MCP `tasks create` calls in progress: like the new-task sheet's create, they hold off ⌘Q.

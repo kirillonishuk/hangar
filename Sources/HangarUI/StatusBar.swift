@@ -139,7 +139,7 @@ struct WindowStatusBar: View {
                 }
             }
             if let text = line.waitingText {
-                StatusButton(help: L10n.help(L10n.attentionOnly, .attentionFilter), action: { app.perform { $0.attentionOnly.toggle() } }) {
+                StatusButton(help: L10n.help(L10n.inbox, .nextAttention), action: app.inboxClicked) {
                     Circle().strokeBorder(Theme.ui.waiting, lineWidth: Theme.statusRingWidth)
                         .frame(width: Theme.statusDot, height: Theme.statusDot)
                     Text(verbatim: text)

@@ -57,7 +57,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 40)  // + inspectorGit (C), sessions (D), findInFiles (#91)
+        #expect(Shortcut.allCases.count == 41)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96)
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -149,5 +149,16 @@ import Testing
         #expect(monogram("fix-auth-flow") == "FA")
         #expect(monogram("  add   metrics ") == "AM")
         #expect(monogram("API") == "A")
+    }
+
+    @Test func nextAttentionKey() {
+        #expect(shortcut(keyCode: 0, modifiers: [.command, .option]) == .nextAttention)  // A by keyCode: Ф in the ru layout
+        #expect(shortcut(keyCode: 0, modifiers: .command) == nil)  // ⌘A stays select-all
+        #expect(Shortcut.nextAttention.label == "⌥⌘A")
+    }
+
+    @Test func noTwoShortcutsShareAKey() {
+        let keys = Shortcut.allCases.map { "\($0.key.mods.rawValue)-\($0.key.code)" }
+        #expect(Set(keys).count == keys.count)
     }
 }

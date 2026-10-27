@@ -86,6 +86,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
+            "nextAttention": .nextAttention,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -288,6 +289,17 @@ extension MainWindowController {
             switch f.first ?? "" {
             case "on", "off": try? app.setConfig("keep_awake", flag: f[0] == "on") { $0.keepAwake = f[0] == "on" }
             case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
+            default: break
+            }
+        case "inbox":  // inbox open|close|snap <png>: the «Входящие» popover
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            switch f.first ?? "" {
+            case "open": if !app.inboxShown { app.toggleInbox() }
+            case "close": app.setInboxShown(false)
+            case "snap" where f.count > 1:
+                guard let view = popoverWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: f[1]))
             default: break
             }
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩

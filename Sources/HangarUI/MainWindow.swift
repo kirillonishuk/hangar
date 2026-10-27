@@ -89,7 +89,7 @@ final class WindowRootController: NSViewController {
         self.split = split
         let metrics = TitleBarMetrics()
         self.metrics = metrics
-        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, toggleSidebar: {}))
+        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, inboxAction: { _, _, _ in }, toggleSidebar: {}))
         statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
@@ -225,7 +225,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
-        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics) { [weak self] in self?.toggleSidebar() }
+        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
+                                                inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
+                                                toggleSidebar: { [weak self] in self?.toggleSidebar() })
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in
@@ -477,7 +479,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
@@ -573,6 +575,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .commandPalette: togglePalette(commands: true)
         case .sessions: app.toggleSessionsView()
         case .findInFiles: app.showSearch()
+        case .nextAttention:
+            if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
+            else { app.beep() }
         }
     }
 
@@ -698,7 +703,19 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     /// A notification button or click; typing goes into the leaf without bringing the window up.
     func noticeAction(leaf: UUID?, requestKey: UUID?, _ action: NoticeAction) {
-        switch app.notificationAction(leaf: leaf, requestKey: requestKey, action) {
+        apply(app.notificationAction(leaf: leaf, requestKey: requestKey, action), leaf: leaf)
+    }
+
+    /// An inbox row: the same guarded actions as a banner; the popover stays open only while typing into a terminal.
+    func inboxAction(leaf: UUID, requestKey: UUID?, _ action: NoticeAction) {
+        let result = app.notificationAction(leaf: leaf, requestKey: requestKey, action)
+        if case .send = result {} else { app.setInboxShown(false) }
+        apply(result, leaf: leaf)
+    }
+
+    /// One routing for banners and the inbox: reveal, type without activating, or show the limits.
+    private func apply(_ result: NoticeResult, leaf: UUID?) {
+        switch result {
         case .reveal:
             if let leaf { reveal(leafId: leaf) }
         case .send(let text, let keys):

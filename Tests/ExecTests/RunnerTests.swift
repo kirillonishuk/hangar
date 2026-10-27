@@ -114,3 +114,28 @@ import Testing
         #expect(r.status == 127)
     }
 }
+
+@Suite struct DeveloperToolStubTests {
+    private let stubOnly: (String) -> Bool = { $0 == "/usr/bin/git" || $0 == "/usr/bin/python3" || $0 == "/opt/homebrew/bin/git" }
+
+    @Test func stubWithoutDeveloperDirIsMissing() {
+        let none: (String) -> Bool = { _ in false }
+        let msg = missingDeveloperTool("git", path: "/usr/bin:/bin", developerDir: nil, exists: none, isExecutable: stubOnly)
+        #expect(msg?.contains("xcode-select --install") == true)
+        #expect(missingDeveloperTool("python3", path: nil, developerDir: nil, exists: none, isExecutable: stubOnly) != nil)
+    }
+
+    @Test func realToolsAreNotBlocked() {
+        let none: (String) -> Bool = { _ in false }
+        // Homebrew's git earlier in PATH, a non-stub command, a tool not found at all (env reports 127 itself).
+        #expect(missingDeveloperTool("git", path: "/opt/homebrew/bin:/usr/bin", developerDir: nil, exists: none, isExecutable: stubOnly) == nil)
+        #expect(missingDeveloperTool("rg", path: "/usr/bin", developerDir: nil, exists: none, isExecutable: { _ in true }) == nil)
+        #expect(missingDeveloperTool("git", path: "/bin", developerDir: nil, exists: none, isExecutable: stubOnly) == nil)
+        // Command Line Tools or Xcode installed, or DEVELOPER_DIR pointing at one.
+        let clt: (String) -> Bool = { $0 == "/Library/Developer/CommandLineTools/usr/bin" }
+        #expect(missingDeveloperTool("git", path: "/usr/bin", developerDir: nil, exists: clt, isExecutable: stubOnly) == nil)
+        let custom: (String) -> Bool = { $0 == "/Applications/Xcode 26 beta.app/Contents/Developer" }
+        #expect(missingDeveloperTool("git", path: "/usr/bin", developerDir: "/Applications/Xcode 26 beta.app/Contents/Developer",
+                                     exists: custom, isExecutable: stubOnly) == nil)
+    }
+}

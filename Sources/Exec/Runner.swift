@@ -27,8 +27,41 @@ public struct Runner: Sendable {
     public static let local = Runner(isLocal: true) { args, cwd in
         var env = ProcessInfo.processInfo.environment
         env["GIT_TERMINAL_PROMPT"] = "0"
+        if let name = args.first, let missing = localDeveloperToolMissing(name) { return RunResult(status: 127, stdout: "", stderr: missing) }
         return try await runProcess("/usr/bin/env", args, cwd: cwd, env: env)
     }
+}
+
+/// `/usr/bin` stubs of Xcode's tools: without Xcode or the Command Line Tools each run pops the
+/// "install command line developer tools" dialog (git refreshes would pop it again and again).
+let developerToolStubs: Set<String> = ["git", "python3", "pip3", "make", "clang", "clang++", "cc", "c++", "gcc", "g++",
+                                       "swift", "swiftc", "xcrun", "xcodebuild", "lldb", "ld", "svn"]
+
+/// `missingDeveloperTool` for this process's PATH (what `Runner.local` and local `/usr/bin/env` launches see).
+public func localDeveloperToolMissing(_ name: String) -> String? {
+    let env = ProcessInfo.processInfo.environment
+    return missingDeveloperTool(name, path: env["PATH"], developerDir: env["DEVELOPER_DIR"])
+}
+
+/// A message (as from a missing command) when `name` would resolve over `path` to such a stub and no developer
+/// directory exists; nil otherwise (a Homebrew git earlier in PATH, Xcode or the CLT installed).
+func missingDeveloperTool(_ name: String, path: String?, developerDir: String?,
+                          exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+                          isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) -> String? {
+    guard developerToolStubs.contains(name) else { return nil }
+    let dirs = (path ?? "/usr/bin:/bin").split(separator: ":").map(String.init)
+    guard let found = dirs.first(where: { isExecutable($0 + "/" + name) }), found == "/usr/bin" || found == "/usr/bin/" else { return nil }
+    guard !developerToolsInstalled(developerDir: developerDir, exists: exists) else { return nil }
+    return "\(name): needs the Xcode Command Line Tools (xcode-select --install)"
+}
+
+/// What `xcode-select -p` would find, by file checks only (this runs before every local command).
+func developerToolsInstalled(developerDir: String?, exists: (String) -> Bool) -> Bool {
+    if let developerDir, !developerDir.isEmpty { return exists(developerDir) }
+    // `xcode-select -s` stores its choice as this link; without one, Xcode.app and then the CLT are used.
+    let selected = (try? FileManager.default.destinationOfSymbolicLink(atPath: "/var/db/xcode_select_link")).map { [$0] } ?? []
+    return (selected + ["/Applications/Xcode.app/Contents/Developer", "/Library/Developer/CommandLineTools"])
+        .contains { exists($0 + "/usr/bin") }
 }
 
 /// Runs argv (no shell) and hands stdout to `onOutput` chunk by chunk as it arrives (the result's stdout stays empty);

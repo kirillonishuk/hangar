@@ -247,6 +247,10 @@ extension AppState {
         if let rg = await search.ripgrep(shell: userShell) {
             return SearchLaunch(executable: rg, args: ripgrepArgs(q), cwd: target.root, engine: .ripgrep)
         }
+        if let missing = localDeveloperToolMissing("git") {  // fails with the reason instead of popping the CLT dialog
+            return SearchLaunch(executable: "/bin/sh", args: ["-c", #"printf '%s\n' "$1" >&2; exit 127"#, "sh", missing], cwd: "/",
+                                engine: .gitGrep, gitColumn: gitColumn)
+        }
         let repo = (try? await Git(repo: target.root).isRepository()) == true
         return SearchLaunch(executable: "/usr/bin/env", args: gitGrepArgs(q, noIndex: !repo, column: gitColumn), cwd: target.root,
                             engine: .gitGrep, gitColumn: gitColumn)

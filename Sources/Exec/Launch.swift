@@ -35,9 +35,12 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
 }
 
 /// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#71).
-public func resolveUserShell(passwd: String?, env: String?) -> String {
-    if let passwd, !passwd.isEmpty { return passwd }
-    if let env, !env.isEmpty { return env }
+/// A shell that is not there (a Homebrew fish/bash since uninstalled, an Intel prefix after migration) is skipped,
+/// else every tab would fail to start.
+public func resolveUserShell(passwd: String?, env: String?,
+                             isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) -> String {
+    if let passwd, !passwd.isEmpty, isExecutable(passwd) { return passwd }
+    if let env, !env.isEmpty, isExecutable(env) { return env }
     return "/bin/zsh"
 }
 

@@ -212,6 +212,18 @@ func parseCodex(_ s: Sample, fileName: String, mtime: Date?) -> Record? {
     return Record(conversation: c, cwds: [cwd], dirName: nil)
 }
 
+/// Head and tail of a local file (the whole file when it is small); nothing on a read error.
+func sampleFile(_ url: URL, size: Int, head: Int, tail: Int) -> Sample {
+    func read(_ offset: Int, _ count: Int) -> Data {
+        guard let h = try? FileHandle(forReadingFrom: url) else { return Data() }
+        defer { try? h.close() }
+        guard (try? h.seek(toOffset: UInt64(offset))) != nil, let d = try? h.read(upToCount: count) else { return Data() }
+        return d
+    }
+    if size <= head + tail { return Sample(head: read(0, size), tail: Data(), whole: true, size: size) }
+    return Sample(head: read(0, head), tail: read(size - tail, tail), whole: false, size: size)
+}
+
 /// The cwd in a rollout's first bytes (`session_meta` puts it before the long instructions); nil if not there.
 func codexPrefixCwd(_ prefix: Data) -> String? {
     guard let key = prefix.range(of: Data(#""cwd":""#.utf8)) else { return nil }
@@ -266,7 +278,7 @@ public actor ConversationHistory {
     // MARK: Local
 
     /// `claudeDir` / `codexDir`: the agents' config folders (`~/.claude`, `~/.codex` or their env overrides).
-    public func local(folder: String, claudeDir: URL, codexDir: URL, open: Set<String>) -> [Conversation] {
+    public func local(folder: String, claudeDir: URL, codexDir: URL, open: Set<String>) async -> [Conversation] {
         let folder = normalized(folder)
         let folders: Set<String> = [folder, URL(fileURLWithPath: folder).resolvingSymlinksInPath().path]
         let fm = FileManager.default
@@ -275,17 +287,25 @@ public actor ConversationHistory {
         let projects = claudeDir.appendingPathComponent("projects")
         let names = (try? fm.contentsOfDirectory(atPath: projects.path)) ?? []
         // Also folders inside the project (subfolders, Claude's own worktrees): their names start with `<name>-`.
+        var files: [(url: URL, file: String, dir: String)] = []
+        var stale: [ClaudeJob] = []
         for dir in names where folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0), inside: true) }) {
             let d = projects.appendingPathComponent(dir)
             for file in (try? fm.contentsOfDirectory(atPath: d.path)) ?? [] where file.hasSuffix(".jsonl") {
                 let url = d.appendingPathComponent(file)
                 guard let (stamp, mtime, size) = fileStamp(url) else { continue }
-                if cache[url.path]?.stamp != stamp {
-                    filesParsed += 1
-                    cache[url.path] = Entry(stamp: stamp, record: parseClaude(sample(url, size: size), fileName: file, dirName: dir, mtime: mtime))
-                }
-                if let c = cache[url.path]?.record.flatMap({ placed($0, in: folders) }) { out.append(c) }
+                files.append((url, file, dir))
+                if cache[url.path]?.stamp != stamp { stale.append(ClaudeJob(url: url, file: file, dir: dir, stamp: stamp, mtime: mtime, size: size)) }
             }
+        }
+        // Parsing the samples is the cost (JSON of ~190 KB a file): changed files are parsed on all cores.
+        for (job, record, bytes) in await parseAll(stale) {
+            filesParsed += 1
+            bytesRead += bytes
+            cache[job.url.path] = Entry(stamp: job.stamp, record: record)
+        }
+        for f in files {
+            if let c = cache[f.url.path]?.record.flatMap({ placed($0, in: folders) }) { out.append(c) }
         }
 
         let sessions = codexDir.appendingPathComponent("sessions")
@@ -306,6 +326,34 @@ public actor ConversationHistory {
             if let c = e.record.flatMap({ placed($0, in: folders) }) { out.append(c) }
         }
         return sorted(out, open: open)
+    }
+
+    struct ClaudeJob: Sendable {
+        var url: URL, file: String, dir: String, stamp: String, mtime: Date?, size: Int
+    }
+
+    /// Samples and parses the files off the actor, a few at a time per core; results in no particular order.
+    private func parseAll(_ jobs: [ClaudeJob]) async -> [(ClaudeJob, Record?, Int)] {
+        guard !jobs.isEmpty else { return [] }
+        let head = headBytes, tail = tailBytes
+        let width = max(2, ProcessInfo.processInfo.activeProcessorCount)
+        return await withTaskGroup(of: (ClaudeJob, Record?, Int).self) { group in
+            var next = 0, out: [(ClaudeJob, Record?, Int)] = []
+            func add() {
+                let job = jobs[next]
+                next += 1
+                group.addTask {
+                    let s = sampleFile(job.url, size: job.size, head: head, tail: tail)
+                    return (job, parseClaude(s, fileName: job.file, dirName: job.dir, mtime: job.mtime), s.head.count + s.tail.count)
+                }
+            }
+            while next < min(width, jobs.count) { add() }
+            while let r = await group.next() {
+                out.append(r)
+                if next < jobs.count { add() }
+            }
+            return out
+        }
     }
 
     private func fileStamp(_ url: URL) -> (String, Date?, Int)? {

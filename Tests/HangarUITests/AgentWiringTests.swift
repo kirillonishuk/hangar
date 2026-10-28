@@ -281,6 +281,28 @@ import Workspace
         #expect(app.state(ofLeaf: leaf(app, 1).id) == .failed)
     }
 
+    /// «● 1 ошибка»: a shell's exit (ssh 255 on disconnect) is not counted; a click shows the failing agent's session and the inbox.
+    @Test func errorCounterCountsAgentsAndRevealsTheFailure() throws {
+        let app = makeApp([.shell, .claude])
+        app.perform { $0.selectedTaskId = $0.tasks[0].id }
+        app.signal(.exited(code: 255), leaf: leaf(app, 0).id)
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .failed)  // the tab keeps its red dot
+        #expect(app.statusBar.counts.failed == 0)
+        app.signal(.exited(code: 1), leaf: leaf(app, 1).id)
+        #expect(app.statusBar.counts.failed == 1)
+        var other = UUID()
+        app.perform { s in
+            other = s.addTask(projectId: s.tasks[0].projectId, name: "other")
+            s.addTab(taskId: other, kind: .shell)
+            s.select(taskId: other)
+        }
+        #expect(app.statusBar.counts.failed == 1)  // the project's sessions are counted
+        app.revealFailed()
+        let task = try #require(app.selectedTask)
+        #expect(task.id == app.state.tasks[0].id && task.activeTabId == app.state.tasks[0].tabs[1].id)
+        #expect(app.inboxShown)
+    }
+
     /// The limit is over (its reset passed): the leaf that stopped on it is no longer «лимит».
     @Test func passedLimitLeavesTheStoppedLeafIdle() {
         let app = makeApp([.claude])

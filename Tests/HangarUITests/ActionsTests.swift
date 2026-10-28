@@ -54,7 +54,7 @@ import Workspace
         #expect(Action.list(for: .task(a), app: app)
             == [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink, .openInEditor, .archive])
         #expect(Action.list(for: .project(p), app: app)
-            == [.newTask, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink, .openInEditor, .removeProject])
+            == [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink, .openInEditor, .removeProject])
         let tab = UUID()
         #expect(Action.list(for: .tab(task: a, tab: tab), app: app) == [.rename, .copyLink, .splitRight, .splitDown, .closeTab])
         #expect(Action.openInEditor.title(for: .task(a), app: app) == L10n.openIn("Zed"))

@@ -38,23 +38,32 @@ extension MainWindowController {
         return true
     }
 
-    /// The window as `snap` draws it, with the WKWebView's own snapshot painted over its frame (web content is drawn
-    /// out of process, `cacheDisplay` leaves it blank).
+    /// The window as `snap` draws it, with each WKWebView on screen (both editor pages of a split) painted over its
+    /// frame from its own snapshot (web content is drawn out of process, `cacheDisplay` leaves it blank).
     private func snapEditor(to path: String) {
-        guard let page = column.terminalArea.debugMonaco, let content = window?.contentView,
-              let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds) else { return }
+        guard let content = window?.contentView, let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds) else { return }
+        let views = column.terminalArea.debugWebViews
+        guard !views.isEmpty else { return }
         content.cacheDisplay(in: content.bounds, to: rep)
-        let frame = page.webView.convert(page.webView.bounds, to: content)
-        page.webView.takeSnapshot(with: nil) { image, error in
-            MainActor.assumeIsolated {
-                guard let image else { uiLog.error("edsnap: \(String(describing: error), privacy: .public)"); return }
-                NSGraphicsContext.saveGraphicsState()
-                NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-                let y = content.isFlipped ? content.bounds.height - frame.maxY : frame.minY
-                image.draw(in: NSRect(x: frame.minX, y: y, width: frame.width, height: frame.height))
-                NSGraphicsContext.restoreGraphicsState()
-                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
-                uiLog.info("edsnap \(path, privacy: .public)")
+        var left = views.count
+        for view in views {
+            let frame = view.convert(view.bounds, to: content)
+            view.takeSnapshot(with: nil) { image, error in
+                MainActor.assumeIsolated {
+                    if let image {
+                        NSGraphicsContext.saveGraphicsState()
+                        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+                        let y = content.isFlipped ? content.bounds.height - frame.maxY : frame.minY
+                        image.draw(in: NSRect(x: frame.minX, y: y, width: frame.width, height: frame.height))
+                        NSGraphicsContext.restoreGraphicsState()
+                    } else {
+                        uiLog.error("edsnap: \(String(describing: error), privacy: .public)")
+                    }
+                    left -= 1
+                    guard left == 0 else { return }
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+                    uiLog.info("edsnap \(path, privacy: .public)")
+                }
             }
         }
     }

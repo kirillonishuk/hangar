@@ -7,8 +7,8 @@ import Testing
     private var glyphs: [Icon] { Icon.allCases.filter { $0 != .claude && $0 != .codex } }
 
     @Test func fortyOneGlyphsAndTwoBrands() {
-        #expect(glyphs.count == 42)  // bellSlash (muted session); + history, search (redesign v1); appearance, bell, plug (settings categories); lock, question, alert, check (inbox reasons)
-        #expect(Icon.allCases.count == 44)
+        #expect(glyphs.count == 43)  // bellSlash (muted session); + history, search (redesign v1); appearance, bell, plug (settings categories); lock, question, alert, check (inbox reasons); popOut (pane → own tab)
+        #expect(Icon.allCases.count == 45)
     }
 
     @Test func glyphsAreTemplatesOfTheRequestedSize() {
@@ -53,5 +53,11 @@ import Testing
     @Test func imagesAreCachedPerSize() {
         #expect(Icon.add.image(size: 16) === Icon.add.image(size: 16))
         #expect(Icon.add.image(size: 16) !== Icon.add.image(size: 10))
+    }
+
+    /// «⇱» of a pane header: a glyph of its own.
+    @Test func popOutDraws() {
+        #expect(Icon.allCases.contains(.popOut))
+        #expect(!Icon.popOut.outline.bounds.isEmpty)
     }
 }

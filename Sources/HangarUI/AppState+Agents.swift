@@ -225,12 +225,15 @@ extension AppState {
         if !alerts.isEmpty { onUsageAlerts?(alerts) }
     }
 
-    /// The leaf of an unarchived task; with `tab`, it must be in that tab (a panel leaf is its own tab).
+    /// The leaf of an unarchived task; with `tab`, it must be in that tab or one it was launched under before a
+    /// merge / move / detach (`formerTabs`) — a panel leaf is its own tab.
     private func liveLeaf(_ id: UUID, tab: UUID?) -> Leaf? {
         for task in state.tasks where !task.archived {
             if let leaf = task.drawer.leaf, leaf.id == id { return tab == nil || tab == id ? leaf : nil }
-            for t in task.tabs where tab == nil || t.id == tab {
-                if let leaf = t.root.leaf(id: id) { return leaf }
+            for t in task.tabs {
+                guard let leaf = t.root.leaf(id: id) else { continue }
+                guard let tab else { return leaf }
+                return tab == t.id || formerTabs[id]?.contains(tab) == true ? leaf : nil
             }
         }
         return nil

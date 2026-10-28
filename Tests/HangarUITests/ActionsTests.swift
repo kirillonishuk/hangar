@@ -1,4 +1,5 @@
 import AppKit
+import ControlServer
 import Foundation
 import Testing
 @testable import HangarUI
@@ -342,5 +343,223 @@ import Workspace
         L10n.language = .ru
         #expect(L10n.pathMustBeAbsolute == "Нужен абсолютный путь")
         #expect(L10n.branchAuto("origin/main") == "по умолчанию (origin/main)")
+    }
+
+    // MARK: Pane (leaf) actions
+
+    /// Session "a" with a split tab: `kind` on the left (focused), a shell on the right.
+    /// A file tab and an editor pane are named by their file: no «Переименовать», no double-click / F2 rename.
+    @Test func fileTabAndEditorPaneAreNotRenamed() throws {
+        let (app, _, a, _) = try makeApp()
+        defer { cleanup() }
+        var file: (tab: UUID, leaf: UUID)?, shell = UUID()
+        app.perform { s in
+            file = s.openFileTab(taskId: a, path: "/repo/a.ts", line: nil, column: nil, preview: false)
+            shell = s.addTab(taskId: a, kind: .shell)
+        }
+        let f = try #require(file)
+        let fileTab = ActionTarget.tab(task: a, tab: f.tab)
+        #expect(!Action.list(for: fileTab, app: app).contains(.rename))
+        #expect(!Action.rename.isEnabled(for: fileTab, app: app))
+        Action.rename.perform(fileTab, ActionContext(app: app))
+        #expect(app.renaming == nil)
+        #expect(Action.list(for: .tab(task: a, tab: shell), app: app).first == .rename)
+        // Split: the editor pane keeps its file name, the shell pane can be renamed.
+        var other = UUID()
+        app.perform { s in other = s.split(taskId: a, tabId: f.tab, leafId: f.leaf, axis: .horizontal, kind: .shell) }
+        #expect(!Action.list(for: .leaf(task: a, tab: f.tab, leaf: f.leaf), app: app).contains(.rename))
+        #expect(!Action.rename.isEnabled(for: .leaf(task: a, tab: f.tab, leaf: f.leaf), app: app))
+        #expect(Action.rename.isEnabled(for: .leaf(task: a, tab: f.tab, leaf: other), app: app))
+        #expect(Action.rename.isEnabled(for: .tab(task: a, tab: f.tab), app: app))  // a split tab has its own name
+    }
+
+    private func splitApp(_ kind: LeafKind = .shell) throws -> (AppState, task: UUID, tab: UUID, left: UUID, right: UUID) {
+        let (app, _, a, _) = try makeApp()
+        var tab = UUID(), left = UUID(), right = UUID()
+        app.perform { s in
+            tab = s.addTab(taskId: a, kind: kind)
+            left = s.tasks.first { $0.id == a }!.tabs.first { $0.id == tab }!.root.leaves[0].id
+            right = s.split(taskId: a, tabId: tab, leafId: left, axis: .horizontal, kind: .shell)
+            s.setFocusedLeaf(taskId: a, tabId: tab, leafId: left)
+        }
+        return (app, a, tab, left, right)
+    }
+
+    private func tab(_ app: AppState, _ task: UUID, _ tab: UUID) -> Workspace.Tab? {
+        app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }
+    }
+
+    @Test func leafActionsListAndEnablement() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        #expect(Action.list(for: target, app: app) == [.splitRight, .splitDown, .detachPane, .rename, .closePane])
+        #expect(Action.detachPane.isEnabled(for: target, app: app))
+        app.closeLeaf(right)
+        #expect(!Action.detachPane.isEnabled(for: target, app: app))  // an unsplit tab is already its own tab
+        // ⌘D from a pane's menu splits that pane.
+        Action.splitDown.perform(target, ActionContext(app: app))
+        #expect(tab(app, a, t)?.root.leaves.count == 2)
+    }
+
+    @Test func closePaneWithWorkingAgentAsks() throws {
+        let (app, a, t, left, right) = try splitApp(.claude)
+        defer { cleanup() }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        #expect(app.state(ofLeaf: left) == .working)
+        var asked: [(String, String, String)] = []
+        var pending: (() -> Void)?
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, i, b, then in asked.append((m, i, b)); pending = then }
+        Action.closePane.perform(.leaf(task: a, tab: t, leaf: left), ctx)
+        #expect(asked.count == 1)
+        #expect(asked.first?.0 == L10n.paneAgentWorking && asked.first?.1 == L10n.paneAgentWorkingInfo && asked.first?.2 == L10n.closePane)
+        #expect(tab(app, a, t)?.root.leaf(id: left) != nil)  // nothing until confirmed
+        let confirm = try #require(pending)
+        confirm()
+        #expect(tab(app, a, t)?.root.leaf(id: left) == nil)
+        #expect(tab(app, a, t)?.root.leaves.map(\.id) == [right])
+    }
+
+    @Test func closePaneIdleClosesAtOnce() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        var asked = 0
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { _, _, _, _ in asked += 1 }
+        Action.closePane.perform(.leaf(task: a, tab: t, leaf: right), ctx)
+        #expect(asked == 0)
+        #expect(tab(app, a, t)?.root.leaves.map(\.id) == [left])
+    }
+
+    /// Ruling R1: closing a whole tab with a working agent asks too.
+    @Test func closeTabWithWorkingAgentAsks() throws {
+        let (app, a, t, left, _) = try splitApp(.claude)
+        defer { cleanup() }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        var pending: (() -> Void)?
+        var title: String?
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, _, _, then in title = m; pending = then }
+        Action.closeTab.perform(.tab(task: a, tab: t), ctx)
+        #expect(title == L10n.paneAgentWorking)
+        #expect(tab(app, a, t) != nil)
+        let confirm = try #require(pending)
+        confirm()
+        #expect(tab(app, a, t) == nil)
+    }
+
+    @Test func closeKeyRouteTable() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        let split = try #require(tab(app, a, t))
+        #expect(closeKeyRoute(split, focused: right) == .pane(right))
+        #expect(closeKeyRoute(split, focused: nil) == .pane(left))
+        app.closeLeaf(right)
+        let single = try #require(tab(app, a, t))
+        #expect(closeKeyRoute(single, focused: left) == .tab)
+        #expect(closeKeyRoute(single, focused: nil) == .tab)
+        // ⌘W with the TERMINAL drawer focused still collapses it (routed before `closeKeyRoute`).
+        #expect(drawerRoute(.closeTab, drawerFocused: true, diffActive: false) == .collapseDrawer)
+    }
+
+    @Test func renameLeafViaCommit() throws {
+        let (app, a, t, left, _) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        Action.rename.perform(target, ActionContext(app: app))
+        #expect(app.renaming == target)
+        #expect(app.name(of: target) == app.paneTitle(try #require(app.leaf(id: left))))
+        app.commitRename(target, "api")
+        #expect(app.renaming == nil)
+        #expect(app.leaf(id: left)?.customTitle == "api")
+        #expect(app.name(of: target) == "api")
+        app.commitRename(target, "")
+        #expect(app.leaf(id: left)?.customTitle == nil)
+        // F2 then a click elsewhere commits the unchanged automatic name: it must keep following the terminal.
+        app.commitRename(target, app.title(of: try #require(app.leaf(id: left))))
+        #expect(app.leaf(id: left)?.customTitle == nil)
+    }
+
+    @Test func f2RenamesClickedPane() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        app.chromeClicked(target)
+        #expect(f2Route(.terminal, lastInteraction: app.lastInteraction, selectedTask: a) == .rename(target))
+        app.closeLeaf(left)  // a clicked pane that is gone no longer takes F2
+        #expect(app.lastInteraction == .typing)
+        _ = right
+    }
+
+    /// Diff tab / «Сессии» cover the panes (ruling R3): no pane action applies to an unseen pane.
+    @Test func leafActionsOffWhileSessionsShown() throws {
+        let (app, a, t, left, _) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        app.select(taskId: a)
+        app.showSessionsView(projectId: try #require(app.state.projects.first?.id))
+        for action in Action.list(for: target, app: app) { #expect(!action.isEnabled(for: target, app: app), "\(action)") }
+    }
+
+    @Test func leafActionsOffWhileDiffShown() throws {
+        let (app, a, t, left, _) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        app.select(taskId: a)
+        app.openDiff(path: "a.txt")
+        for action in Action.list(for: target, app: app) { #expect(!action.isEnabled(for: target, app: app), "\(action)") }
+        app.deactivateDiff()
+        #expect(Action.closePane.isEnabled(for: target, app: app))
+    }
+
+    /// Ruling R5: an agent blocked on a permission/question is mid-task too.
+    @Test func closePaneWithWaitingAgentAsks() throws {
+        let (app, a, t, left, _) = try splitApp(.claude)
+        defer { cleanup() }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .notification, notificationType: "permission_prompt", message: "Needs permission")))
+        #expect(app.state(ofLeaf: left) == .waiting)
+        var title: String?
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, _, _, _ in title = m }
+        Action.closePane.perform(.leaf(task: a, tab: t, leaf: left), ctx)
+        #expect(title == L10n.paneAgentWorking)
+        #expect(tab(app, a, t)?.root.leaf(id: left) != nil)
+    }
+
+    /// Unsaved files and a working agent in one tab: one question, the unsaved one (it loses data).
+    @Test func closeTabUnsavedWinsOverWorkingAgent() throws {
+        let (app, a, t, left, _) = try splitApp(.claude)
+        defer { cleanup() }
+        var editor = UUID()
+        app.perform { s in
+            editor = s.split(taskId: a, tabId: t, leafId: left, axis: .horizontal, kind: nil)
+            _ = s.chooseKind(leafId: editor, kind: .editor, file: "/repo/a.ts")
+        }
+        app.editorUnsaved = { $0 == editor ? ["/repo/a.ts"] : [] }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        #expect(app.state(ofLeaf: left) == .working)
+        var asked: [String] = []
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, _, _, _ in asked.append(m) }
+        Action.closeTab.perform(.tab(task: a, tab: t), ctx)
+        #expect(asked == [L10n.editorUnsavedTitle("a.ts")])
+        #expect(tab(app, a, t) != nil)
+    }
+
+    /// ⌘W closes the focused pane of a split tab: only that pane advertises it, not the tab (menu, × tooltip).
+    @Test func closeHintFollowsWhatCmdWCloses() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        #expect(Action.closeTab.shortcut(for: .tab(task: a, tab: t), app: app) == nil)
+        #expect(Action.closePane.shortcut(for: .leaf(task: a, tab: t, leaf: left), app: app) == .closeTab)
+        #expect(Action.closePane.shortcut(for: .leaf(task: a, tab: t, leaf: right), app: app) == nil)
+        #expect(Action.splitRight.shortcut(for: .tab(task: a, tab: t), app: app) == .splitRight)
+        app.closeLeaf(right)
+        #expect(Action.closeTab.shortcut(for: .tab(task: a, tab: t), app: app) == .closeTab)
+        let entries = actionMenu(for: .tab(task: a, tab: t), ctx: ActionContext(app: app))
+        let close = entries.compactMap { if case .item(let i) = $0, i.title == L10n.closeTab { i } else { nil } }.first
+        #expect(close?.shortcut == Shortcut.closeTab.label)
     }
 }

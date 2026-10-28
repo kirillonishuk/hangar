@@ -10,8 +10,10 @@ import WebKit
     /// The message and its file tab (`doc`, the shared editor page's tabs, #83; nil for the page or the diff).
     var onMessage: ((BridgeMessage, UUID?) -> Void)?
     private var ready = false
+    /// `text(of:)` calls in flight: a torn-down page answers them with nil, so a waiting pane move never hangs.
+    private var textWaiters: [UUID: CheckedContinuation<String?, Never>] = [:]
     var isReady: Bool { ready }
-    private var pending: [(EditorCommand, UUID?)] = []
+    private(set) var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
 
     init(mode: Mode, inline: Bool, minimap: Bool, appearance: EditorAppearance) {
@@ -57,6 +59,10 @@ import WebKit
         webView.navigationDelegate = nil
         webView.removeFromSuperview()
         onMessage = nil
+        ready = false
+        let waiters = textWaiters.values
+        textWaiters = [:]
+        for w in waiters { w.resume(returning: nil) }
     }
 
     func send(_ command: EditorCommand, doc: UUID? = nil) {
@@ -69,7 +75,14 @@ import WebKit
     /// The buffer of an open file (to save it before closing): by its tab (`doc`) in the editor, by path in the diff.
     func text(of key: String) async -> String? {
         guard ready else { return nil }
-        return try? await webView.callAsyncJavaScript("return hangar.text(p)", arguments: ["p": key], contentWorld: .page) as? String
+        let id = UUID()
+        return await withCheckedContinuation { c in
+            textWaiters[id] = c
+            webView.callAsyncJavaScript("return hangar.text(p)", arguments: ["p": key], in: nil, in: .page) { [weak self] result in
+                guard let c = self?.textWaiters.removeValue(forKey: id) else { return }  // torn down: already answered
+                c.resume(returning: (try? result.get()) as? String)
+            }
+        }
     }
 
     #if DEBUG

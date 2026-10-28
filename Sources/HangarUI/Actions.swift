@@ -8,6 +8,8 @@ import Workspace
 /// What an action applies to.
 enum ActionTarget: Equatable {
     case task(UUID), project(UUID), tab(task: UUID, tab: UUID)
+    /// One pane of a split tab (its header).
+    case leaf(task: UUID, tab: UUID, leaf: UUID)
 }
 
 /// Window-level services actions need (sheets, alerts, panels live in MainWindowController); tests inject fakes.
@@ -43,6 +45,8 @@ enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
     case toggleMute, projectNotifications
+    // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
+    case detachPane, closePane
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
     @MainActor static func list(for target: ActionTarget, app: AppState) -> [Action] {
@@ -58,12 +62,14 @@ enum Action: CaseIterable {
         case .project:
             return reconnect + [.newTask, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
-            return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
+            return (app.renameable(target) ? [.rename] : []) + [.copyLink, .splitRight, .splitDown, .closeTab]
+        case .leaf:
+            return [.splitRight, .splitDown, .detachPane] + (app.renameable(target) ? [.rename] : []) + [.closePane]
         }
     }
 
     /// A divider goes before these (unless first in the menu).
-    var startsGroup: Bool { [.revealInFinder, .archive, .deletePermanently, .removeProject, .splitRight, .closeTab].contains(self) }
+    var startsGroup: Bool { [.revealInFinder, .archive, .deletePermanently, .removeProject, .splitRight, .closeTab, .detachPane, .closePane].contains(self) }
 
     var shortcut: Shortcut? {
         switch self {
@@ -71,12 +77,25 @@ enum Action: CaseIterable {
         case .archive: .archiveTask
         case .splitRight: .splitRight
         case .splitDown: .splitDown
-        case .closeTab: .closeTab
+        case .closeTab, .closePane: .closeTab
         case .toggleDrawer: .toggleDrawer
         case .revealInFinder: .revealInFinder
         case .copyPath: .copyPath
         default: nil
         }
+    }
+
+    /// The key as shown for `target`: ⌘W closes a split tab's focused pane, so neither the tab nor another pane shows it.
+    @MainActor func shortcut(for target: ActionTarget, app: AppState) -> Shortcut? {
+        let tab: (UUID, UUID) -> Workspace.Tab? = { task, id in app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == id } }
+        switch (self, target) {
+        case (.closeTab, .tab(let task, let id)):
+            if case .split = tab(task, id)?.root { return nil }
+        case (.closePane, .leaf(let task, let id, let leaf)):
+            if tab(task, id)?.focusedLeafId != leaf { return nil }
+        default: break
+        }
+        return shortcut
     }
 
     var icon: Icon {
@@ -94,7 +113,8 @@ enum Action: CaseIterable {
         case .removeProject: .remove
         case .splitRight: .splitRight
         case .splitDown: .splitDown
-        case .closeTab: .close
+        case .closeTab, .closePane: .close
+        case .detachPane: .popOut
         case .toggleDrawer: .shell
         case .reconnect: .reconnect
         case .toggleMute: .bellSlash
@@ -121,6 +141,8 @@ enum Action: CaseIterable {
         case .splitRight: L10n.splitRight
         case .splitDown: L10n.splitDown
         case .closeTab: L10n.closeTab
+        case .closePane: L10n.closePane
+        case .detachPane: L10n.detachPane
         case .toggleDrawer: L10n.drawerToggle
         case .reconnect: L10n.reconnect
         case .toggleMute:
@@ -132,9 +154,17 @@ enum Action: CaseIterable {
     @MainActor func isEnabled(for target: ActionTarget, app: AppState) -> Bool {
         // Keyboard actions on a host's terminal: only its TERMINAL drawer (another ssh shell); ⇧⌘W, F2 and the rest do nothing.
         if case .task(let id) = target, app.isHostShellTask(id) { return self == .toggleDrawer }
+        if case .leaf(let task, let tab, let leaf) = target {
+            // The diff tab or «Сессии» covers the panes (ruling R3): nothing acts on one unseen.
+            guard let loc = app.location(ofLeaf: leaf), loc.task == task, loc.tab == tab, !app.sessionsViewVisible,
+                  app.activeDiff == nil || app.selectedTask?.id != task else { return false }
+            if self == .detachPane { return app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }?.root.leaves.count ?? 0 > 1 }
+            if self == .rename { return app.renameable(target) }
+            return true
+        }
         return switch self {
         // Sidebar rows can't host a text field in rail mode.
-        case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
+        case .rename: if case .tab = target { app.renameable(target) } else { !app.state.sidebarCollapsed }
         case .newTask: app.isAvailable(target)
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
@@ -203,17 +233,37 @@ enum Action: CaseIterable {
             guard let leaf = app.state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab })?.focusedLeafId
             else { return }
             app.split(leafId: leaf, axis: self == .splitRight ? .horizontal : .vertical)
+        case (.splitRight, .leaf(_, _, let leaf)), (.splitDown, .leaf(_, _, let leaf)):
+            app.split(leafId: leaf, axis: self == .splitRight ? .horizontal : .vertical)
+        case (.detachPane, .leaf(_, _, let leaf)): app.detachLeaf(leaf, toIndex: nil)
         case (.closeTab, .tab(let task, let tab)):
-            let unsaved = app.unsavedEditorFiles(tab: tab)
-            guard !unsaved.isEmpty else { app.perform { $0.closeTab(taskId: task, tabId: tab) }; return }
-            let names = unsaved.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
-            ctx.confirm(L10n.editorUnsavedTitle(names), L10n.editorUnsavedInfo, L10n.editorDontSave) {
+            let leaves = app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }?.root.leaves ?? []
+            askBeforeClosing(leaves, ctx, agentInfo: L10n.tabAgentWorkingInfo, button: L10n.closeTab) {
                 app.perform { $0.closeTab(taskId: task, tabId: tab) }
             }
+        case (.closePane, .leaf(_, _, let id)):
+            guard let leaf = app.leaf(id: id) else { return }
+            askBeforeClosing([leaf], ctx, agentInfo: L10n.paneAgentWorkingInfo, button: L10n.closePane) { app.closeLeaf(id) }
         case (.reconnect, _): if let host = app.project(of: target)?.host { app.reconnect(host: host) }
         case (.toggleDrawer, .task(let id)):
             if let toggle = ctx.toggleDrawer { toggle(id) } else { app.perform { $0.toggleDrawer(taskId: id) } }
         default: assertionFailure("\(self) does not apply to \(target)")
+        }
+    }
+
+    /// Closing these panes loses unsaved editor files or stops an agent mid-task: one question first (unsaved wins, it
+    /// loses data); otherwise `close` at once.
+    @MainActor private func askBeforeClosing(_ leaves: [Leaf], _ ctx: ActionContext, agentInfo: String, button: String,
+                                             close: @escaping () -> Void) {
+        let app = ctx.app
+        let unsaved = leaves.filter { $0.kind == .editor }.flatMap { app.editorUnsaved?($0.id) ?? [] }
+        if !unsaved.isEmpty {
+            let names = unsaved.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+            ctx.confirm(L10n.editorUnsavedTitle(names), L10n.editorUnsavedInfo, L10n.editorDontSave, close)
+        } else if leaves.contains(where: { [.working, .waiting].contains(app.state(ofLeaf: $0.id)) }) {  // waiting: mid-task (R5)
+            ctx.confirm(L10n.paneAgentWorking, agentInfo, button, close)
+        } else {
+            close()
         }
     }
 }
@@ -281,6 +331,15 @@ extension Shortcut {
         default: nil
         }
     }
+}
+
+enum CloseRoute: Equatable { case tab, pane(UUID) }
+
+/// ⌘W in the tab area (after `drawerRoute`): a split tab loses its focused pane (`focused`: the pane holding the keyboard,
+/// when it is in this tab), an unsplit one closes.
+func closeKeyRoute(_ tab: Workspace.Tab, focused: UUID?) -> CloseRoute {
+    guard case .split = tab.root else { return .tab }
+    return .pane(focused.flatMap { tab.root.leaf(id: $0)?.id } ?? tab.focusedLeafId)
 }
 
 enum DrawerRoute: Equatable { case perform, collapseDrawer, closeSessions, ignore }

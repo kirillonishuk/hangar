@@ -122,7 +122,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
-        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
+        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
@@ -707,6 +707,10 @@ import Workspace
     static var diffNotChanged: String { s(.diffNotChanged) }
     static var diffNotAFile: String { s(.diffNotAFile) }
     static var diffTabHelp: String { s(.diffTabHelp) }
+    static var diffNoChanges: String { s(.diffNoChanges) }
+    static func diffChangeCounter(_ index: Int, _ count: Int) -> String { f(.diffChangeCounter, index, count) }
+    static var diffPrevChange: String { s(.diffPrevChange) }
+    static var diffNextChange: String { s(.diffNextChange) }
 
     // SSH hosts, remote project and server sheets
     static var integrationNotInstalled: String { s(.integrationNotInstalled) }

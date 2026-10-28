@@ -31,7 +31,7 @@ extension MainWindowController {
         case "edsnap": snapEditor(to: arg)
         case "edstate":
             // edstate <file>: each editor leaf's files (active *, dirty, conflict) and the diff mode.
-            let lines = column.terminalArea.debugEditors() + ["diffInline=\(app.state.diffInline) minimap=\(app.state.editorMinimap) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
+            let lines = column.terminalArea.debugEditors() + ["diffChanges=\(column.terminalArea.debugDiffEditor.map { "\($0.changes.index)/\($0.changes.count.map(String.init) ?? "?")" } ?? "-") diffInline=\(app.state.diffInline) minimap=\(app.state.editorMinimap) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
         default: return false
         }

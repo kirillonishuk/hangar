@@ -51,6 +51,8 @@ enum BridgeMessage: Equatable {
     /// The conflict bar's choice.
     case conflict(file: String, keepMine: Bool)
     case inline(Bool)
+    /// The diff's change under the cursor (1-based, 0 before the first) and how many there are (0: the diff is empty).
+    case changes(index: Int, count: Int)
     case request(ProviderRequest)
     /// Monaco dropped a request (the cursor moved on).
     case cancel(id: Int)
@@ -67,6 +69,7 @@ enum BridgeMessage: Equatable {
     private static let maxPath = 4096
     private static let maxPosition = 10_000_000
     private static let maxEdits = 10_000
+    private static let maxChanges = 1_000_000
 
     static func decode(_ body: Any) -> BridgeMessage? { envelope(body)?.message }
 
@@ -126,6 +129,9 @@ enum BridgeMessage: Equatable {
             return .conflict(file: f, keepMine: k)
         case "clipboard": return str("action").flatMap(ClipboardAction.init(rawValue:)).map { .clipboard($0) }
         case "inline": return bool("on").map { .inline($0) }
+        case "changes":
+            guard let count = int("count", 0...maxChanges), let index = int("index", 0...count) else { return nil }
+            return .changes(index: index, count: count)
         case "request":
             guard let id = int("id", 0...Int(Int32.max)), let kind = str("kind").flatMap(ProviderRequest.Kind.init(rawValue:)),
                   let f = file(), let (l, c) = position() else { return nil }
@@ -299,6 +305,8 @@ enum EditorCommand: Equatable {
     case diff(EditorDiff)
     case options(inline: Bool, minimap: Bool)
     case focus
+    /// The diff: the next / previous change (wraps).
+    case goChange(next: Bool)
     case appearance(EditorAppearance)
 
     /// With the file tab it is for (the shared editor page, #83).
@@ -333,6 +341,7 @@ enum EditorCommand: Equatable {
                     "line": n(d.line)]
         case .options(let inline, let minimap): return ["type": "options", "inline": inline, "minimap": minimap]
         case .focus: return ["type": "focus"]
+        case .goChange(let next): return ["type": "goChange", "next": next]
         case .appearance(let a): return a.json.merging(["type": "appearance"]) { $1 }
         }
     }

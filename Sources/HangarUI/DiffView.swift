@@ -221,6 +221,17 @@ struct DiffView: View {
                     MonacoDiffView(editor: editor)
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
+                        .overlay {
+                            // Computed and nothing differs (e.g. a mode-only change): say so, not a blank top.
+                            if editor.changes.isEmpty {
+                                Text(verbatim: L10n.diffNoChanges)
+                                    .font(.system(size: Theme.Diff.font, design: .monospaced))
+                                    .foregroundStyle(Theme.ui.text3)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(Theme.ui.panel)
+                                    .allowsHitTesting(false)
+                            }
+                        }
                 } else {
                     Spacer(minLength: 0)
                 }
@@ -257,6 +268,7 @@ struct DiffView: View {
             }
             Spacer(minLength: 0)
             if content.isText {
+                changeNav
                 HStack(spacing: Theme.Diff.headerGap) {
                     modeButton(L10n.diffSideBySide, inline: false)
                     modeButton(L10n.diffInline, inline: true)
@@ -270,6 +282,31 @@ struct DiffView: View {
         .frame(height: Theme.Editor.headerHeight)
         .background(Theme.ui.bg)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+    }
+
+    /// «2 из 5» with ↑ ↓ (F7 / ⇧F7); the counter's slot is always there, so nothing shifts while the diff computes.
+    private var changeNav: some View {
+        let counter = editor.changes
+        return HStack(spacing: Theme.Diff.headerGap / 2) {
+            Text(verbatim: counter.text ?? "").foregroundStyle(Theme.ui.text2).monospacedDigit()
+                .frame(minWidth: Theme.Diff.counterWidth, alignment: .trailing)
+            navButton(.chevronUp, help: L10n.diffPrevChange + " — " + DiffChangeKey.prev, next: false)
+            navButton(.chevronDown, help: L10n.diffNextChange + " — " + DiffChangeKey.next, next: true)
+        }
+        .padding(.trailing, Theme.Diff.headerGap)
+    }
+
+    private func navButton(_ icon: Icon, help: String, next: Bool) -> some View {
+        let enabled = editor.changes.canStep
+        return Button { editor.goChange(next: next) } label: {
+            IconView(icon: icon, size: Theme.smallIconSize, tint: Theme.ui.text2)
+                .frame(width: Theme.Diff.navButtonWidth, height: Theme.Diff.navButtonHeight)
+                .overlay(RoundedRectangle(cornerRadius: Theme.Diff.navButtonRadius).strokeBorder(Theme.ui.line, lineWidth: 1))
+        }
+        .buttonStyle(HoverButtonStyle(radius: Theme.Diff.navButtonRadius))
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+        .help(help)
     }
 
     /// Side by side / inline; the choice persists (`WorkspaceState.diffInline`).

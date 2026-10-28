@@ -5,7 +5,7 @@ import Workspace
 /// The diff tab's Monaco diff editor (#80): base on the left (read-only), the working file on the right — editable and
 /// saved like the editor's files for the session's changes, read-only for a commit's file. Lives while the task has a
 /// diff tab (`TerminalArea`).
-@MainActor final class DiffEditorController {
+@MainActor @Observable final class DiffEditorController {
     let page: MonacoPage
     /// The web view's holder inside SwiftUI (the page stays the same while files change).
     let container = NSView()
@@ -15,6 +15,8 @@ import Workspace
     private var editablePath: String?
     private var shown: EditorDiff?
     private var shownKey: String?
+    /// Which change the cursor is at, and how many; unknown until the page has computed the diff.
+    private(set) var changes = ChangeCounter()
 
     init(app: AppState) {
         self.app = app
@@ -28,6 +30,9 @@ import Workspace
     func tearDown() { page.tearDown() }
 
     var hasUnsaved: Bool { editablePath.map { session?.isDirty($0) == true } ?? false }
+
+    /// The next / previous change (F7 / ⇧F7, the header's arrows).
+    func goChange(next: Bool) { page.send(.goChange(next: next)) }
 
     func setInline(_ inline: Bool) { page.send(.options(inline: inline, minimap: false)) }
 
@@ -68,13 +73,15 @@ import Workspace
         shownKey = key
         guard diff != shown else { return }  // e.g. the refresh after our own save
         shown = diff
+        changes = ChangeCounter()
         page.send(.diff(diff))
     }
 
     private func handle(_ m: BridgeMessage) {
         switch m {
-        case .ready: if let shown { page.send(.diff(shown)) }  // a reloaded page (the first load is queued)
+        case .ready: if let shown { changes = ChangeCounter(); page.send(.diff(shown)) }  // a reloaded page (the first load is queued)
         case .changed, .save, .conflict: Task { await session?.handle(m) }
+        case .changes(let index, let count): changes = ChangeCounter(index: index, count: count)
         case .focus: if let session, !session.io.isLocal { Task { await session.checkDisk() } }
         case .openAt(let line, let column): app.openActiveDiffInEditor(line: line, column: column)
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
@@ -117,4 +124,15 @@ import Workspace
             }
         }
     }
+}
+
+/// The header's «2 из 5»: nil count until the page has computed the diff (nothing is claimed before that).
+@MainActor struct ChangeCounter: Equatable {
+    var index = 0
+    var count: Int?
+
+    var isEmpty: Bool { count == 0 }
+    var canStep: Bool { (count ?? 0) > 0 }
+    /// nil while unknown or empty.
+    var text: String? { count.flatMap { $0 > 0 ? L10n.diffChangeCounter(index, $0) : nil } }
 }

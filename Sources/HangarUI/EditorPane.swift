@@ -156,7 +156,7 @@ import Workspace
         case .cancel(let id): requests.removeValue(forKey: id)?.cancel()
         case .edit(let path, let edits): app.languages.edited(path, edits, host: remoteHost)
         case .restartLanguage(let path): app.languages.restart(path, host: remoteHost)
-        case .ready, .openAt, .inline, .log, .clipboard: break  // the host's, the diff's, the page's
+        case .ready, .openAt, .inline, .changes, .log, .clipboard: break  // the host's, the diff's, the page's
         }
     }
 

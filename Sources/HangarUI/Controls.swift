@@ -2,7 +2,7 @@ import SwiftUI
 
 // One control language (controls-v2.html, B′ «Мягкие заливки», decision #104): a filled `primary` button for the one
 // main action of a row or toast; `button` fill for the rest; modes are Git-filter chips; header actions stay unfilled
-// until hovered; links are `accentText`; hints are `text3` and never clickable. Keys go only into tooltips.
+// until hovered; links stay `accentText`; hints are `text3` and never clickable. Keys go only into tooltips.
 
 /// Row / toast action, 22 high: `primary` for the row's one main action, otherwise `button` → `moreBg` under the
 /// pointer; pressed darker, disabled .38, hand only while enabled. `destructive` (a trash icon): `failedText` when hovered.
@@ -81,15 +81,12 @@ struct ActionLabel: View {
 /// Section-header action («Очистить», «Обновить», status-bar counters): no fill at rest, `hoverStrong` under the
 /// pointer, text `text2` → `textStrong`.
 struct HeaderActionStyle: ButtonStyle {
-    var tint: Color?
-
     func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, tint: tint, pressed: configuration.isPressed)
+        Body(label: configuration.label, pressed: configuration.isPressed)
     }
 
     private struct Body<Label: View>: View {
         let label: Label
-        let tint: Color?
         let pressed: Bool
         @Environment(\.isEnabled) private var enabled
         @State private var hover = false
@@ -97,7 +94,7 @@ struct HeaderActionStyle: ButtonStyle {
         var body: some View {
             let lit = hover && enabled
             label
-                .foregroundStyle(tint ?? (lit ? Theme.ui.textStrong : Theme.ui.text2))
+                .foregroundStyle(lit ? Theme.ui.textStrong : Theme.ui.text2)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Control.headerPaddingH)
                 .frame(height: Theme.Control.height)
@@ -148,23 +145,4 @@ struct ModeChip: View {
     private var lit: Bool { hover && enabled && !on }
     private var tint: Color { on ? Theme.ui.accentText : lit ? Theme.ui.text : Theme.ui.text2 }
     private var fill: Color { on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : lit ? Theme.ui.hover : .clear }
-}
-
-/// A link (opens something elsewhere): `accentText`, underlined under the pointer.
-struct LinkStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { Body(label: configuration.label) }
-
-    private struct Body<Label: View>: View {
-        let label: Label
-        @State private var hover = false
-
-        var body: some View {
-            label
-                .foregroundStyle(Theme.ui.accentText)
-                .underline(hover)
-                .contentShape(Rectangle())
-                .pointingHand()
-                .onHover { hover = $0 }
-        }
-    }
 }

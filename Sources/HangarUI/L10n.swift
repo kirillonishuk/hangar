@@ -136,7 +136,7 @@ import Workspace
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
-        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip
+        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -689,6 +689,27 @@ import Workspace
     static func lspMissing(_ language: String) -> String { f(.lspMissing, language) }
     static func lspMissingTip(_ servers: String) -> String { f(.lspMissingTip, servers) }
     static func lspTooltip(_ executable: String) -> String { f(.lspTooltip, executable) }
+    static var lspSection: String { s(.lspSection) }
+    static func lspInstalledFrom(_ a: String) -> String { f(.lspInstalledFrom, a) }
+    static var lspNotInstalled: String { s(.lspNotInstalled) }
+    static var lspFromProject: String { s(.lspFromProject) }
+    static var lspSourceProject: String { s(.lspSourceProject) }
+    static var lspTsDetail: String { s(.lspTsDetail) }
+    static var lspNeedsXcode: String { s(.lspNeedsXcode) }
+    static var lspXcodeTip: String { s(.lspXcodeTip) }
+    static var lspNeedsNode: String { s(.lspNeedsNode) }
+    static var lspNeedsGo: String { s(.lspNeedsGo) }
+    static var lspDownload: String { s(.lspDownload) }
+    static func lspDownloadTip(_ a: String, _ b: String) -> String { f(.lspDownloadTip, a, b) }
+    static var lspRemove: String { s(.lspRemove) }
+    static var lspRetry: String { s(.lspRetry) }
+    static func lspDownloading(_ n: Int) -> String { f(.lspDownloading, Int32(clamping: n)) }
+    static var lspInstalling: String { s(.lspInstalling) }
+    static func lspToolFailed(_ n: Int) -> String { f(.lspToolFailed, Int32(clamping: n)) }
+    static var lspNoAsset: String { s(.lspNoAsset) }
+    static func lspDownloadFailed(_ a: String) -> String { f(.lspDownloadFailed, a) }
+    static var lspNotOwned: String { s(.lspNotOwned) }
+    static var lspNoExecutable: String { s(.lspNoExecutable) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

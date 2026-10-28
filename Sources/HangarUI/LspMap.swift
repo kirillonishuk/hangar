@@ -8,6 +8,8 @@ struct LspLanguage: Equatable, Sendable {
         var args: [String]
         /// Project folders it is conventionally installed in (a venv, the npm bin); none for toolchain servers.
         var local: [String] = []
+        /// Where Settings installs it, relative to Hangar's language-server folder (#100); nil: not downloadable.
+        var hangar: String?
     }
 
     var id: String
@@ -17,14 +19,15 @@ struct LspLanguage: Equatable, Sendable {
 
     private static let venv = [".venv/bin", "venv/bin"]
     static let python = LspLanguage(id: "python", name: "Python", servers: [
-        Server(name: "pyright-langserver", args: ["--stdio"], local: venv + ["node_modules/.bin"]),
+        Server(name: "pyright-langserver", args: ["--stdio"], local: venv + ["node_modules/.bin"],
+               hangar: LspPackage.pyright.relativeExecutable),
         Server(name: "basedpyright-langserver", args: ["--stdio"], local: venv + ["node_modules/.bin"]),
         Server(name: "pylsp", args: [], local: venv),
     ], markers: ["pyrightconfig.json", "pyproject.toml", "setup.py", "setup.cfg"])
     static let swift = LspLanguage(id: "swift", name: "Swift", servers: [Server(name: "sourcekit-lsp", args: [])],
                                    markers: ["Package.swift", "compile_commands.json", "buildServer.json"])
-    static let go = LspLanguage(id: "go", name: "Go", servers: [Server(name: "gopls", args: [])], markers: ["go.work", "go.mod"])
-    static let rust = LspLanguage(id: "rust", name: "Rust", servers: [Server(name: "rust-analyzer", args: [])],
+    static let go = LspLanguage(id: "go", name: "Go", servers: [Server(name: "gopls", args: [], hangar: LspPackage.gopls.relativeExecutable)], markers: ["go.work", "go.mod"])
+    static let rust = LspLanguage(id: "rust", name: "Rust", servers: [Server(name: "rust-analyzer", args: [], hangar: LspPackage.rustAnalyzer.relativeExecutable)],
                                   markers: ["Cargo.toml"])
 
     /// nil: no LSP server for this file (TS/JS go to tsserver, #82).
@@ -55,20 +58,23 @@ enum LspMap {
     // MARK: Finding a server
 
     /// Project-local first (only where the server is conventionally installed: a venv, node_modules/.bin — the same
-    /// trust as tsserver from the project's node_modules), then the login shell's PATH, then the usual install places;
+    /// trust as tsserver from the project's node_modules), then the login shell's PATH, then the usual install places,
+    /// then Hangar's own folder (`hangarDir`, Settings → Editor, #100: the user's own install wins);
     /// `toolchain(name)` last (sourcekit-lsp through `xcrun`). `/usr/bin` is skipped: its developer-tool shims open the
     /// «install command line tools» dialog on a Mac without them.
-    static func find(_ language: LspLanguage, projectRoot: String, path: [String], home: String,
+    static func find(_ language: LspLanguage, projectRoot: String, path: [String], home: String, hangarDir: String? = nil,
                      isExecutable: @Sendable (String) -> Bool, toolchain: @Sendable (String) async -> String?) async -> LspFound? {
-        let known = [home + "/.local/bin", home + "/go/bin", home + "/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
         let searchPath = path.filter { $0.hasPrefix("/") && $0 != "/usr/bin" && $0 != "/usr/bin/" }
-        for tier in 0..<3 {
+        for tier in 0..<4 {
             for server in language.servers {
-                let dirs = tier == 0 ? server.local.map { projectRoot + "/" + $0 } : tier == 1 ? searchPath : known
-                for dir in dirs {
-                    let candidate = (dir.hasSuffix("/") ? String(dir.dropLast()) : dir) + "/" + server.name
-                    if isExecutable(candidate) { return LspFound(executable: candidate, args: server.args) }
+                let candidates: [String]
+                switch tier {
+                case 0: candidates = server.local.map { projectRoot + "/" + $0 + "/" + server.name }
+                case 1: candidates = searchPath.map { (($0.hasSuffix("/") ? String($0.dropLast()) : $0) + "/" + server.name) }
+                case 2: candidates = knownDirs(home: home).map { $0 + "/" + server.name }
+                default: candidates = [hangarDir.flatMap { dir in server.hangar.map { dir + "/" + $0 } }].compactMap { $0 }
                 }
+                for candidate in candidates where isExecutable(candidate) { return LspFound(executable: candidate, args: server.args) }
             }
         }
         for server in language.servers {
@@ -77,6 +83,11 @@ enum LspMap {
             }
         }
         return nil
+    }
+
+    /// The usual install places of language servers and their tools, after the login PATH.
+    static func knownDirs(home: String) -> [String] {
+        [home + "/.local/bin", home + "/go/bin", home + "/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
     }
 
     /// The nearest folder with one of the language's markers, from the file's folder up to the session root (a Go or

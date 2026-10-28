@@ -23,9 +23,9 @@ extension AppState {
                 return TsLaunch(executable: target.sshPath, args: args, cwd: "/")
             },
             lsp: LspLanguages(find: { [weak self] language, root in
-                let path = await self?.loginShellPath()
+                let path = await self?.loginShellPath(), dir = await self?.lspDir
                 return await LspMap.find(language, projectRoot: root, path: (path ?? "").split(separator: ":").map(String.init),
-                                         home: NSHomeDirectory(), isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
+                                         home: NSHomeDirectory(), hangarDir: dir, isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
                                          toolchain: xcrunFind)
             }, path: { [weak self] in await self?.loginShellPath() }, dependencies: { [weak self] language in
                 await toolchainRoots(language, path: await self?.loginShellPath())
@@ -35,8 +35,20 @@ extension AppState {
     /// App quit: every tsserver gets `exit` and EOF.
     public func stopLanguages() { languages.stopAll() }
 
+    /// The visible session's folder on this Mac (project-local language servers); nil for none or a remote one.
+    var localSessionRoot: String? {
+        guard let task = selectedTask, let project = project(task.projectId), project.host == nil else { return nil }
+        switch task.mode {
+        case .worktree(let path, _, _): return path
+        case .mainFolder: return project.path
+        }
+    }
+
+    /// Where Settings installs language servers (#100).
+    var lspDir: String { LspInstaller.directory(stateDir: (socketPath as NSString).deletingLastPathComponent) }
+
     /// The login shell's PATH (nil: it didn't answer in 15 s; looked up again next time).
-    private func loginShellPath() async -> String? {
+    func loginShellPath() async -> String? {
         if let loginPath { return await loginPath.value }
         let shell = posixShell(userShell)
         let task = Task<String?, Never> {
@@ -86,7 +98,7 @@ extension AppState {
 
 /// A developer tool from the active Xcode / Command Line Tools (sourcekit-lsp); nil without them — `xcode-select -p`
 /// goes first, so a Mac without them never gets the install dialog.
-private func xcrunFind(_ name: String) async -> String? {
+func xcrunFind(_ name: String) async -> String? {
     guard localDeveloperToolsInstalled(), let dir = try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"), dir.status == 0,
           let r = try? await Runner.local.run(["/usr/bin/xcrun", "--find", name], "/"), r.status == 0 else { return nil }
     return r.stdout.split(whereSeparator: \.isNewline).first.map(String.init)

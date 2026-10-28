@@ -239,23 +239,117 @@ struct SettingsView: View {
 
     // Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills.
     private var editor: some View {
-        CardSection {
-            row(L10n.editorPaletteTitle, first: true) {
-                Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
-                    save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
+        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
+            CardSection {
+                row(L10n.editorPaletteTitle, first: true) {
+                    Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
+                        save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
+                    }
+                }
+                row(L10n.editorRainbowTitle) {
+                    CardSwitch(on: app.config.editorRainbowIndent) { on in
+                        save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
+                    }
+                }
+                row(L10n.editorTodoTitle) {
+                    CardSwitch(on: app.config.editorTodoHighlight) { on in
+                        save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
+                    }
                 }
             }
-            row(L10n.editorRainbowTitle) {
-                CardSwitch(on: app.config.editorRainbowIndent) { on in
-                    save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
-                }
-            }
-            row(L10n.editorTodoTitle) {
-                CardSwitch(on: app.config.editorTodoHighlight) { on in
-                    save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
-                }
+            languageServers
+        }
+    }
+
+    // Settings → Editor → language servers (#100): status per language, download / remove Hangar's own copies.
+    private var languageServers: some View {
+        CardSection(title: L10n.lspSection) {
+            ForEach(Array(LspServersModel.rows.enumerated()), id: \.element.id) { i, r in
+                row(r.name, first: i == 0) { lspValue(r) }
             }
         }
+        .task { await model.lsp.refresh() }
+    }
+
+    @ViewBuilder private func lspValue(_ row: LspServersModel.Row) -> some View {
+        let lsp = model.lsp
+        let package: LspPackage? = if case .package(let p) = row.kind { p } else { nil }
+        let job = package.flatMap { lsp.jobs[$0] }
+        switch (row.kind, lsp.status(row)) {
+        case (.project, _):
+            Pill(text: L10n.lspFromProject, color: Theme.ui.text2)
+            lspDetail(L10n.lspTsDetail, mono: false)
+            Spacer(minLength: Theme.cardRowGap)
+        case (_, .checking):
+            Pill(text: L10n.pillChecking, color: Theme.ui.text3)
+            Spacer(minLength: Theme.cardRowGap)
+        case (_, .installed(let source, let executable)):
+            Pill(text: L10n.lspInstalledFrom(lspSource(source)), color: Theme.ui.done).help(executable)
+            lspDetail(tildePath(executable))
+            Spacer(minLength: Theme.cardRowGap)
+            if let package, lsp.owned.contains(package), job == nil {
+                Button(L10n.lspRemove) { lsp.remove(package) }
+                    .buttonStyle(SheetButton(primary: false))
+                    .fixedSize()
+            }
+        case (_, .missing):
+            if let package {
+                lspMissing(package, job)
+            } else {
+                Pill(text: L10n.lspNeedsXcode, color: Theme.ui.waiting)
+                lspDetail(L10n.lspXcodeTip, mono: false)
+                Spacer(minLength: Theme.cardRowGap)
+            }
+        }
+    }
+
+    /// A missing downloadable server: its download's progress or error (in place of the pill, so it has room), else
+    /// «Не установлен» and «Скачать» (or what it needs first).
+    @ViewBuilder private func lspMissing(_ package: LspPackage, _ job: LspServersModel.Job?) -> some View {
+        let lsp = model.lsp
+        switch job {
+        case .running(let fraction)?:
+            lspDetail(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
+            Spacer(minLength: Theme.cardRowGap)
+            Button(L10n.cancel) { lsp.cancel(package) }
+                .buttonStyle(SheetButton(primary: false))
+                .fixedSize()
+        case .failed(let why)?:
+            lspDetail(why, color: Theme.ui.failedText, mono: false)
+            Spacer(minLength: Theme.cardRowGap)
+            Button(L10n.lspRetry) { lsp.install(package) }
+                .buttonStyle(SheetButton(primary: false))
+                .fixedSize()
+        case nil:
+            Pill(text: L10n.lspNotInstalled, color: Theme.ui.waiting)
+            Spacer(minLength: Theme.cardRowGap)
+            if package.tool != nil, lsp.tools[package] == nil {
+                Text(verbatim: package == .pyright ? L10n.lspNeedsNode : L10n.lspNeedsGo)
+                    .foregroundStyle(Theme.ui.text3)
+            } else {
+                Button(L10n.lspDownload) { lsp.install(package) }
+                    .buttonStyle(SheetButton(primary: false))
+                    .fixedSize()
+                    .help(L10n.lspDownloadTip(package.rawValue, tildePath(lsp.env.dir)))
+            }
+        }
+    }
+
+    private func lspSource(_ source: LspServersModel.Source) -> String {
+        switch source {
+        case .project: L10n.lspSourceProject
+        case .path: "PATH"
+        case .hangar(let version): version.isEmpty ? "Hangar" : "Hangar " + version
+        case .toolchain: "Xcode"
+        }
+    }
+
+    private func lspDetail(_ text: String, color: Color = Theme.ui.text3, mono: Bool = true) -> some View {
+        Text(verbatim: text)
+            .font(.system(size: mono ? Theme.fontSize.counter : Theme.fontSize.tab, design: mono ? .monospaced : .default))
+            .foregroundStyle(color)
+            .lineLimit(1).truncationMode(mono ? .middle : .tail)
+            .help(text)
     }
 
     private var notifications: some View {

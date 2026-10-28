@@ -138,6 +138,14 @@ import Foundation
         }
     }
 
+    /// Settings installed or removed a server (#100): every lookup is forgotten, files without a server look again
+    /// (the new one starts without reopening them), and servers whose executable is gone are replaced.
+    func serversChanged() {
+        lookups = [:]
+        for (path, doc) in docs where doc.server == nil { Task { await resolve(path) } }
+        for (sk, _) in entries where !isExecutable(sk.found.executable) { rediscover(sk) }
+    }
+
     func stopAll() {
         for entry in entries.values {
             entry.grace?.cancel()

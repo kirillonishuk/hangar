@@ -1,6 +1,7 @@
 import AppKit
 import Integration
 import SwiftUI
+import Update
 import Workspace
 
 /// ⌘, / gear in the sidebar: System Settings style — categories on the left, the page's cards on the right.
@@ -72,6 +73,7 @@ import Workspace
     /// The draft whose save failed on close (the user has seen the error).
     private var refusedDraft: String?
     let integration: IntegrationModel
+    let lsp: LspServersModel
     /// Shown in the consent sheet; nothing is written until it is confirmed.
     var pendingPlan: IntegrationPlan?
 
@@ -79,6 +81,17 @@ import Workspace
         self.app = app
         integration = IntegrationModel(claudeSettings: app.claudeSettingsURL, codexConfig: app.codexConfigURL,
                                        cli: hangarCLIPath(bundle: .main), findCodex: app.findCodex, findDirs: app.findAgentDirs)
+        var env = LspServersModel.Env(dir: app.lspDir, path: { [weak app] in await app?.loginShellPath() },
+                                      projectRoot: { [weak app] in app?.localSessionRoot }, toolchain: xcrunFind,
+                                      changed: { [weak app] in app?.languages.lspServersChanged() })
+        #if DEBUG
+        // A test feed (file:// fine) for the rust-analyzer download in verification runs.
+        if let feed = ProcessInfo.processInfo.environment["HANGAR_LSP_FEED"].flatMap(URL.init(string:)) {
+            env.feed = feed
+            env.trusted = { $0.isFileURL || ReleaseFeed.isTrusted($0) }
+        }
+        #endif
+        lsp = LspServersModel(env: env)
     }
 
     func review(_ target: IntegrationTarget, install: Bool) {

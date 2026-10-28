@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Update
 
-/// A language server Settings → Editor can download into Hangar's own folder (#100). Each lives in `<dir>/<rawValue>/`
+/// A language server Settings → Editor can download into Hangar's own folder (#102). Each lives in `<dir>/<rawValue>/`
 /// with a marker file: only such folders are Hangar's and may be removed.
 enum LspPackage: String, CaseIterable, Sendable {
     case pyright, gopls, rustAnalyzer = "rust-analyzer"
@@ -34,13 +34,20 @@ enum LspInstallError: Error, Equatable {
     /// Not a folder Hangar installed (no marker, a symlink, outside the folder).
     case notOwned
     case missingExecutable
+    /// The download or the unpacked server is bigger than allowed, or not the announced size.
+    case tooLarge
+    /// The unpacked file is not a Mac executable (Mach-O).
+    case notExecutable
 }
 
-/// Downloads, finds and removes the servers of `LspPackage` (#100). Nothing outside the given folder is written
-/// (the tools' own caches aside: npm's `~/.npm`, Go's module and build caches); no shell, no sudo.
+/// Downloads, finds and removes the servers of `LspPackage` (#102). Nothing outside the given folder is written: npm's
+/// and Go's caches go to a temporary folder next to the staging one; no shell, no sudo.
 enum LspInstaller {
     static let marker = ".hangar-lsp.json"
     static let rustFeed = URL(string: "https://api.github.com/repos/rust-lang/rust-analyzer/releases/latest")!
+    /// The rust-analyzer download (~20 MB today) and the unpacked server (~50 MB): far above, a stop for anything odd.
+    static let maxDownload = 100 << 20
+    static let maxBinary = 300 << 20
 
     struct Marker: Codable, Equatable { var version: String }
 
@@ -72,19 +79,35 @@ enum LspInstaller {
         var env: [String: String]
     }
 
-    /// The install run for a tool-built package, as an argv (no shell: paths stay one argument each).
-    static func command(_ package: LspPackage, staging: String, tool: String, path: String?,
+    /// The app's environment the tools may see: home, temp, locale and proxies — nothing else (no DYLD_*, no tokens).
+    static func baseEnvironment(_ env: [String: String]) -> [String: String] {
+        let keep: Set<String> = ["HOME", "PATH", "TMPDIR", "LANG", "USER", "LOGNAME", "http_proxy", "https_proxy", "no_proxy",
+                                 "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY"]
+        return env.filter { keep.contains($0.key) || $0.key.hasPrefix("LC_") }
+    }
+
+    /// The install run for a tool-built package, as an argv (no shell: paths stay one argument each). `cache`: a
+    /// temporary folder for npm's / Go's caches (removed afterwards), so the user's own caches are not written.
+    static func command(_ package: LspPackage, staging: String, cache: String, tool: String, path: String?,
                         environment: [String: String] = ProcessInfo.processInfo.environment) -> Command? {
-        guard tool.hasPrefix("/"), staging.hasPrefix("/") else { return nil }
-        var env = environment
+        guard tool.hasPrefix("/"), staging.hasPrefix("/"), cache.hasPrefix("/") else { return nil }
+        var env = baseEnvironment(environment)
         // npm's and go's own child tools (node) are found next to them when the login PATH is unknown.
         env["PATH"] = path ?? ((tool as NSString).deletingLastPathComponent + ":" + (environment["PATH"] ?? "/usr/bin:/bin"))
         switch package {
         case .pyright:
             env["npm_config_update_notifier"] = "false"
-            return Command(executable: tool, args: ["install", "--prefix", staging, "--no-audit", "--no-fund", "pyright"], env: env)
+            env["npm_config_cache"] = cache + "/npm"
+            env["npm_config_userconfig"] = "/dev/null"
+            return Command(executable: tool, args: ["install", "--prefix", staging, "--ignore-scripts", "--no-package-lock",
+                                                    "--no-audit", "--no-fund", "pyright"], env: env)
         case .gopls:
             env["GOBIN"] = staging
+            env["GOTOOLCHAIN"] = "local"
+            // -modcacherw: the module cache can be deleted afterwards (Go makes it read-only).
+            env["GOFLAGS"] = "-mod=mod -modcacherw"
+            env["GOMODCACHE"] = cache + "/mod"
+            env["GOCACHE"] = cache + "/build"
             return Command(executable: tool, args: ["install", "golang.org/x/tools/gopls@latest"], env: env)
         case .rustAnalyzer: return nil
         }
@@ -99,17 +122,45 @@ enum LspInstaller {
         #endif
     }
 
-    /// The release tag and the asset's URL from a GitHub `releases/latest` answer; the URL must be `trusted`.
-    static func parseRelease(_ data: Data, asset: String, trusted: (URL) -> Bool) -> (tag: String, url: URL)? {
+    /// The release tag, the asset's URL and its size from a GitHub `releases/latest` answer; the URL must be
+    /// `trusted`, the size known and at most `maxSize`.
+    static func parseRelease(_ data: Data, asset: String, maxSize: Int = maxDownload,
+                             trusted: (URL) -> Bool) -> (tag: String, url: URL, size: Int)? {
         struct Release: Decodable {
-            struct Asset: Decodable { var name: String; var browser_download_url: String }
+            struct Asset: Decodable { var name: String; var browser_download_url: String; var size: Int }
             var tag_name: String
             var assets: [Asset]
         }
         guard let release = try? JSONDecoder().decode(Release.self, from: data), isVersion(release.tag_name),
               let a = release.assets.first(where: { $0.name == asset }), let url = URL(string: a.browser_download_url),
-              trusted(url) else { return nil }
-        return (release.tag_name, url)
+              trusted(url), a.size > 0, a.size <= maxSize else { return nil }
+        return (release.tag_name, url, a.size)
+    }
+
+    /// A Mach-O executable (thin 64-bit or universal): what an unpacked rust-analyzer must be.
+    static func isMachO(_ path: String) -> Bool {
+        guard let h = FileHandle(forReadingAtPath: path) else { return false }
+        defer { try? h.close() }
+        let magic = [UInt8](h.readData(ofLength: 4))
+        return magic == [0xcf, 0xfa, 0xed, 0xfe] || magic == [0xca, 0xfe, 0xba, 0xbe]
+    }
+
+    /// `gunzip -c gz > out`, stopped past `max` bytes (a gzip bomb) → `.tooLarge`.
+    static func gunzip(_ gz: String, to out: String, max: Int) async throws {
+        guard FileManager.default.createFile(atPath: out, contents: nil), let h = FileHandle(forWritingAtPath: out) else {
+            throw LspInstallError.missingExecutable
+        }
+        defer { try? h.close() }
+        final class Count: @unchecked Sendable { var n = 0; var over = false }
+        let count = Count()
+        let r = try await streamProcess("/usr/bin/gunzip", ["-c", "--", gz], cwd: "/", env: [:]) { chunk in
+            count.n += chunk.count
+            guard count.n <= max else { count.over = true; return false }
+            h.write(chunk)
+            return true
+        }
+        if count.over { throw LspInstallError.tooLarge }
+        guard r.status == 0 else { throw LspInstallError.tool(r.status, tail(r)) }
     }
 
     /// `go version -m` output: the gopls module's version (`\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:…`).
@@ -126,36 +177,53 @@ enum LspInstaller {
         !s.isEmpty && s.count <= 40 && s.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || ".-_+".contains($0)) }
     }
 
-    /// Installs `package` into `<dir>/<name>`: built in a hidden staging folder, moved in place only when complete
-    /// (a cancel or failure leaves nothing). `tool`: the user's npm / go; `path`: the PATH it runs with.
-    /// Returns the installed version.
+    /// Installs `package` into `<dir>/<name>`: built in a hidden staging folder, swapped in only when complete
+    /// (a cancel or failure leaves the previous install as it was). `tool`: the user's npm / go; `path`: the PATH it
+    /// runs with. Returns the installed version.
     static func install(_ package: LspPackage, dir: String, tool: String?, path: String?, feed: URL = rustFeed,
                         trusted: @escaping @Sendable (URL) -> Bool = ReleaseFeed.isTrusted,
+                        maxDownload: Int = maxDownload, maxBinary: Int = maxBinary,
                         progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> String {
         let fm = FileManager.default
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        let staging = dir + "/." + package.rawValue + "-" + UUID().uuidString
+        let id = UUID().uuidString
+        let staging = dir + "/." + package.rawValue + "-" + id, cache = dir + "/." + package.rawValue + "-cache-" + id
         try fm.createDirectory(atPath: staging, withIntermediateDirectories: false)
-        defer { try? fm.removeItem(atPath: staging) }
+        defer {
+            try? fm.removeItem(atPath: staging)
+            try? fm.removeItem(atPath: cache)
+        }
         let executable = staging + "/" + package.relativeExecutable.split(separator: "/").dropFirst().joined(separator: "/")
         let version: String
         switch package {
         case .rustAnalyzer:
             let data: Data
             do { data = try await Updater.fetch(feed, userAgent: "Hangar", trusted: trusted) } catch { throw LspInstallError.download(describe(error)) }
-            guard let (tag, url) = parseRelease(data, asset: rustAsset, trusted: trusted) else { throw LspInstallError.noAsset }
-            let gz = executable + ".gz"
-            do { try await Updater.download(url, to: URL(fileURLWithPath: gz), trusted: trusted, progress: progress) } catch {
+            guard let (tag, url, size) = parseRelease(data, asset: rustAsset, maxSize: maxDownload, trusted: trusted) else {
+                throw LspInstallError.noAsset
+            }
+            let gz = staging + "/download.gz"
+            do {
+                try await Updater.download(url, to: URL(fileURLWithPath: gz), trusted: trusted, maxBytes: Int64(maxDownload), progress: progress)
+            } catch UpdateError.tooLarge {
+                throw LspInstallError.tooLarge
+            } catch {
                 throw LspInstallError.download(describe(error))
             }
+            // GitHub publishes no checksum for these assets: the announced size is what can be checked.
+            guard (try? fm.attributesOfItem(atPath: gz)[.size] as? NSNumber)?.intValue == size else { throw LspInstallError.tooLarge }
             try Task.checkCancellation()
-            let r = try await runCaptured("/usr/bin/gunzip", ["-f", "--", gz], cwd: staging, env: [:])
-            guard r.status == 0 else { throw LspInstallError.tool(r.status, tail(r)) }
+            try await gunzip(gz, to: executable, max: maxBinary)
+            try fm.removeItem(atPath: gz)
+            guard isMachO(executable) else { throw LspInstallError.notExecutable }
             try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable)
             removexattr(executable, "com.apple.quarantine", 0)
             version = tag
         case .pyright, .gopls:
-            guard let tool, let c = command(package, staging: staging, tool: tool, path: path) else { throw LspInstallError.tool(127, "") }
+            guard let tool, let c = command(package, staging: staging, cache: cache, tool: tool, path: path) else {
+                throw LspInstallError.tool(127, "")
+            }
+            try fm.createDirectory(atPath: cache, withIntermediateDirectories: false)
             let r = try await runCaptured(c.executable, c.args, cwd: staging, env: c.env)
             try Task.checkCancellation()
             guard r.status == 0 else { throw LspInstallError.tool(r.status, tail(r)) }
@@ -171,18 +239,43 @@ enum LspInstaller {
         guard fm.isExecutableFile(atPath: executable) else { throw LspInstallError.missingExecutable }
         try JSONEncoder().encode(Marker(version: version)).write(to: URL(fileURLWithPath: staging + "/" + marker))
         try Task.checkCancellation()
-        let target = dir + "/" + package.rawValue
-        if fm.fileExists(atPath: target) || (try? fm.destinationOfSymbolicLink(atPath: target)) != nil { try remove(package, dir: dir) }
-        try fm.moveItem(atPath: staging, toPath: target)
+        try replace(package, dir: dir, with: staging)
         return version
+    }
+
+    /// Puts `staging` at `<dir>/<name>`. A previous install (Hangar's only) is moved aside first and deleted only once
+    /// the new one is in place; if that move fails, it is put back.
+    static func replace(_ package: LspPackage, dir: String, with staging: String,
+                        move: (String, String) throws -> Void = { try FileManager.default.moveItem(atPath: $0, toPath: $1) }) throws {
+        let fm = FileManager.default
+        let target = dir + "/" + package.rawValue
+        guard fm.fileExists(atPath: target) || (try? fm.destinationOfSymbolicLink(atPath: target)) != nil else {
+            try move(staging, target)
+            return
+        }
+        guard owned(package, dir: dir) else { throw LspInstallError.notOwned }
+        let old = dir + "/." + package.rawValue + "-old-" + UUID().uuidString
+        try move(target, old)
+        do {
+            try move(staging, target)
+        } catch {
+            try? move(old, target)
+            throw error
+        }
+        try? fm.removeItem(atPath: old)
     }
 
     /// Removes `<dir>/<name>` only if Hangar installed it: a real folder (not a symlink) right inside `dir`, with the marker.
     static func remove(_ package: LspPackage, dir: String) throws {
+        guard owned(package, dir: dir) else { throw LspInstallError.notOwned }
+        try FileManager.default.removeItem(atPath: dir + "/" + package.rawValue)
+    }
+
+    /// A real folder (not a symlink) right inside `dir`, with Hangar's marker.
+    private static func owned(_ package: LspPackage, dir: String) -> Bool {
         let target = dir + "/" + package.rawValue
-        guard isRealFolder(target), FileManager.default.fileExists(atPath: target + "/" + marker),
-              LspMap.resolved(target) == LspMap.resolved(dir) + "/" + package.rawValue else { throw LspInstallError.notOwned }
-        try FileManager.default.removeItem(atPath: target)
+        return isRealFolder(target) && FileManager.default.fileExists(atPath: target + "/" + marker)
+            && LspMap.resolved(target) == LspMap.resolved(dir) + "/" + package.rawValue
     }
 
     private static func isRealFolder(_ path: String) -> Bool {

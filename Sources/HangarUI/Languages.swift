@@ -126,7 +126,7 @@ import Foundation
         relaunch(sk)
     }
 
-    /// Settings installed or removed a language server (#100).
+    /// Settings installed or removed a language server (#102).
     func lspServersChanged() { lsp?.serversChanged() }
 
     /// App quit.

@@ -261,7 +261,7 @@ struct SettingsView: View {
         }
     }
 
-    // Settings → Editor → language servers (#100): status per language, download / remove Hangar's own copies.
+    // Settings → Editor → language servers (#102): status per language, download / remove Hangar's own copies.
     private var languageServers: some View {
         CardSection(title: L10n.lspSection) {
             ForEach(Array(LspServersModel.rows.enumerated()), id: \.element.id) { i, r in

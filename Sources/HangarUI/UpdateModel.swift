@@ -289,6 +289,7 @@ import Update
         case .helper(let text)?: text
         case .untrusted(let url)?: L10n.updateUntrusted(url)
         case .signature?: L10n.updateBadSignature
+        case .tooLarge?: L10n.downloadTooLarge
         case nil: error.localizedDescription
         }
     }

@@ -1,7 +1,7 @@
 import Foundation
 import Update
 
-/// Settings → Editor → «Языковые серверы» (#100): where each language's server comes from, and downloads of the
+/// Settings → Editor → «Языковые серверы» (#102): where each language's server comes from, and downloads of the
 /// missing ones into Hangar's folder. Computed when the page opens and after an install — no background checks.
 @MainActor @Observable final class LspServersModel {
     enum Kind: Equatable {
@@ -153,6 +153,8 @@ import Update
         case LspInstallError.download(let text): L10n.lspDownloadFailed(text)
         case LspInstallError.notOwned: L10n.lspNotOwned
         case LspInstallError.missingExecutable: L10n.lspNoExecutable
+        case LspInstallError.tooLarge: L10n.downloadTooLarge
+        case LspInstallError.notExecutable: L10n.lspNotExecutable
         default: error.localizedDescription
         }
     }

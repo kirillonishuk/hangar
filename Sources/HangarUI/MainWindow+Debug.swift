@@ -299,7 +299,7 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
-        case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (#100)
+        case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (#102)
             let a = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard let package = a.first.flatMap(LspPackage.init(rawValue:)) else { return }
             let lsp = settings.model.lsp

@@ -4,7 +4,7 @@ import Testing
 import TestSupport
 import Update
 
-/// Language servers downloaded from Settings (#100): where they are found, the install commands, the rust-analyzer
+/// Language servers downloaded from Settings (#102): where they are found, the install commands, the rust-analyzer
 /// download from a local feed, removal of Hangar's own folders only, and the editors looking again afterwards.
 @MainActor @Suite(.serialized) struct LspInstallTests {
     static let fakeNpm = #"""
@@ -13,6 +13,8 @@ import Update
     for a in "$@"; do printf '%s\n' "$a"; done > "$d/npm.args"
     [ -e "$d/slow" ] && sleep 30
     [ -e "$d/fail" ] && { echo "npm ERR! boom" >&2; exit 1; }
+    env | sort > "$d/npm.env"
+    mkdir -p "$npm_config_cache/_cacache" && : > "$npm_config_cache/_cacache/x"
     prefix=$3
     mkdir -p "$prefix/node_modules/pyright" "$prefix/node_modules/.bin"
     printf '{"version":"1.1.400"}' > "$prefix/node_modules/pyright/package.json"
@@ -25,6 +27,8 @@ import Update
     #!/bin/sh
     if [ "$1" = version ]; then printf '%s: go1.23\n\tpath\tgolang.org/x/tools/gopls\n\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:abc=\n' "$3"; exit 0; fi
     printf '%s\n' "$@" "GOBIN=$GOBIN" > "$(dirname "$0")/go.args"
+    env | sort > "$(dirname "$0")/go.env"
+    mkdir -p "$GOMODCACHE/golang.org" "$GOCACHE" && : > "$GOMODCACHE/golang.org/x" && : > "$GOCACHE/y"
     printf '#!/bin/sh\n' > "$GOBIN/gopls"
     chmod +x "$GOBIN/gopls"
     """#
@@ -52,17 +56,21 @@ import Update
     }
 
     /// A releases/latest answer and its gzipped asset, as a file:// feed.
-    private func feed(tag: String = "2026-10-20", asset: String = LspInstaller.rustAsset, url: String? = nil) throws -> URL {
-        let src = root + "/feed"
+    static let machO = Data([0xcf, 0xfa, 0xed, 0xfe]) + Data("RA-BINARY\n".utf8)
+
+    private func feed(tag: String = "2026-10-20", asset: String = LspInstaller.rustAsset, url: String? = nil,
+                      content: Data = machO, size: Int? = nil) throws -> URL {
+        let src = root + "/feed-" + UUID().uuidString
         try FileManager.default.createDirectory(atPath: src, withIntermediateDirectories: true)
-        try Data("RA-BINARY\n".utf8).write(to: URL(fileURLWithPath: src + "/ra"))
+        try content.write(to: URL(fileURLWithPath: src + "/ra"))
         let gz = Process()
         gz.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
         gz.arguments = ["-f", src + "/ra"]
         try gz.run()
         gz.waitUntilExit()
         let assetURL = url ?? URL(fileURLWithPath: src + "/ra.gz").absoluteString
-        let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(asset)","browser_download_url":"\#(assetURL)"}]}"#
+        let gzSize = (try FileManager.default.attributesOfItem(atPath: src + "/ra.gz")[.size] as? NSNumber)?.intValue ?? 0
+        let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(asset)","browser_download_url":"\#(assetURL)","size":\#(size ?? gzSize)}]}"#
         try Data(json.utf8).write(to: URL(fileURLWithPath: src + "/latest.json"))
         return URL(fileURLWithPath: src + "/latest.json")
     }
@@ -124,15 +132,22 @@ import Update
     // MARK: Commands
 
     @Test func installCommandsAreArgvWithoutInjection() {
-        let staging = "/S/a b/$(rm -rf ~); `x` 'q'"
-        let npm = LspInstaller.command(.pyright, staging: staging, tool: "/opt/bin/npm", path: "/opt/bin:/usr/bin", environment: ["HOME": "/h"])
-        #expect(npm == .init(executable: "/opt/bin/npm", args: ["install", "--prefix", staging, "--no-audit", "--no-fund", "pyright"],
-                             env: ["HOME": "/h", "PATH": "/opt/bin:/usr/bin", "npm_config_update_notifier": "false"]))
-        let go = LspInstaller.command(.gopls, staging: staging, tool: "/opt/go/bin/go", path: nil, environment: ["PATH": "/bin"])
+        let staging = "/S/a b/$(rm -rf ~); `x` 'q'", cache = "/S/a b/.cache"
+        let app = ["HOME": "/h", "PATH": "/bin", "TMPDIR": "/t", "LANG": "ru_RU.UTF-8", "LC_ALL": "C", "https_proxy": "http://p:1",
+                   "DYLD_INSERT_LIBRARIES": "/evil.dylib", "GITHUB_TOKEN": "secret", "NODE_OPTIONS": "--require /x", "GOFLAGS": "-x"]
+        let npm = LspInstaller.command(.pyright, staging: staging, cache: cache, tool: "/opt/bin/npm", path: "/opt/bin:/usr/bin", environment: app)
+        #expect(npm == .init(executable: "/opt/bin/npm",
+                             args: ["install", "--prefix", staging, "--ignore-scripts", "--no-package-lock", "--no-audit", "--no-fund", "pyright"],
+                             env: ["HOME": "/h", "PATH": "/opt/bin:/usr/bin", "TMPDIR": "/t", "LANG": "ru_RU.UTF-8", "LC_ALL": "C",
+                                   "https_proxy": "http://p:1", "npm_config_update_notifier": "false", "npm_config_cache": cache + "/npm",
+                                   "npm_config_userconfig": "/dev/null"]))
+        let go = LspInstaller.command(.gopls, staging: staging, cache: cache, tool: "/opt/go/bin/go", path: nil, environment: app)
         #expect(go == .init(executable: "/opt/go/bin/go", args: ["install", "golang.org/x/tools/gopls@latest"],
-                            env: ["PATH": "/opt/go/bin:/bin", "GOBIN": staging]))
-        #expect(LspInstaller.command(.gopls, staging: staging, tool: "go", path: nil) == nil)
-        #expect(LspInstaller.command(.rustAnalyzer, staging: staging, tool: "/x", path: nil) == nil)
+                            env: ["HOME": "/h", "PATH": "/opt/go/bin:/bin", "TMPDIR": "/t", "LANG": "ru_RU.UTF-8", "LC_ALL": "C",
+                                  "https_proxy": "http://p:1", "GOBIN": staging, "GOTOOLCHAIN": "local", "GOFLAGS": "-mod=mod -modcacherw",
+                                  "GOMODCACHE": cache + "/mod", "GOCACHE": cache + "/build"]))
+        #expect(LspInstaller.command(.gopls, staging: staging, cache: cache, tool: "go", path: nil) == nil)
+        #expect(LspInstaller.command(.rustAnalyzer, staging: staging, cache: cache, tool: "/x", path: nil) == nil)
         #expect(LspInstaller.goplsVersion("x: go1\n\tpath\tgolang.org/x/tools/gopls\n\tmod\tgolang.org/x/tools/gopls\tv0.16.2\th1:a\n") == "v0.16.2")
         #expect(LspInstaller.goplsVersion("\tmod\tgolang.org/x/tools/gopls\tv1;$(x)\n") == nil)
         #expect(LspInstaller.tool("npm", path: ["/usr/bin", "rel", "/a"], home: "/h", isExecutable: { $0 == "/usr/bin/npm" || $0 == "/a/npm" }) == "/a/npm")
@@ -145,12 +160,17 @@ import Update
         #expect(FileManager.default.isExecutableFile(atPath: dir + "/" + LspPackage.pyright.relativeExecutable))
         #expect(LspInstaller.installed(.pyright, in: dir)?.version == "1.1.400")
         let npmArgs = try String(contentsOfFile: bin + "/npm.args", encoding: .utf8).split(separator: "\n")
-        #expect(npmArgs.count == 6 && npmArgs[2].hasPrefix(dir + "/.pyright-"))
+        #expect(npmArgs.count == 8 && npmArgs[2].hasPrefix(dir + "/.pyright-") && npmArgs.contains("--ignore-scripts"))
 
         #expect(try await LspInstaller.install(.gopls, dir: dir, tool: bin + "/go", path: bin + ":/bin:/usr/bin") == "v0.16.2")
         #expect(LspInstaller.installed(.gopls, in: dir)?.version == "v0.16.2")
         #expect(try String(contentsOfFile: bin + "/go.args", encoding: .utf8).contains("GOBIN=" + dir + "/.gopls-"))
+        let goEnv = try String(contentsOfFile: bin + "/go.env", encoding: .utf8)
+        #expect(goEnv.contains("GOMODCACHE=" + dir + "/.gopls-cache-") && goEnv.contains("GOTOOLCHAIN=local"))
+        #expect(try String(contentsOfFile: bin + "/npm.env", encoding: .utf8).contains("npm_config_cache=" + dir + "/.pyright-cache-"))
+        // The caches are gone, not moved into the install.
         #expect(leftovers().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: dir + "/pyright/_cacache") && !FileManager.default.fileExists(atPath: dir + "/gopls/mod"))
 
         // A failing tool: its output is the error, nothing is left behind, the old install stays.
         FileManager.default.createFile(atPath: bin + "/fail", contents: nil)
@@ -168,17 +188,17 @@ import Update
         let version = try await LspInstaller.install(.rustAnalyzer, dir: dir, tool: nil, path: nil, feed: feed, trusted: { $0.isFileURL })
         #expect(version == "2026-10-20")
         let exe = dir + "/" + LspPackage.rustAnalyzer.relativeExecutable
-        #expect(FileManager.default.contents(atPath: exe) == Data("RA-BINARY\n".utf8))  // gunzipped
+        #expect(FileManager.default.contents(atPath: exe) == Self.machO)  // gunzipped
         #expect(FileManager.default.isExecutableFile(atPath: exe))
-        #expect(!FileManager.default.fileExists(atPath: exe + ".gz"))
+        #expect(!FileManager.default.fileExists(atPath: dir + "/rust-analyzer/download.gz"))
         #expect(LspInstaller.installed(.rustAnalyzer, in: dir)?.version == "2026-10-20")
         #expect(leftovers().isEmpty)
     }
 
     @Test func rustAnalyzerOnlyFromTrustedHosts() async throws {
         let asset = LspInstaller.rustAsset
-        func parse(_ url: String, tag: String = "2026-10-20") -> URL? {
-            let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(asset)","browser_download_url":"\#(url)"}]}"#
+        func parse(_ url: String, tag: String = "2026-10-20", size: Int = 1000) -> URL? {
+            let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(asset)","browser_download_url":"\#(url)","size":\#(size)}]}"#
             return LspInstaller.parseRelease(Data(json.utf8), asset: asset, trusted: ReleaseFeed.isTrusted)?.url
         }
         let good = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-20/" + asset
@@ -188,6 +208,8 @@ import Update
         #expect(parse("http://github.com/" + asset) == nil)
         #expect(parse("file:///tmp/" + asset) == nil)
         #expect(parse(good, tag: "v1 $(rm)") == nil)
+        #expect(parse(good, size: 0) == nil)
+        #expect(parse(good, size: LspInstaller.maxDownload + 1) == nil)
         #expect(LspInstaller.parseRelease(Data(#"{"tag_name":"x","assets":[]}"#.utf8), asset: asset, trusted: { _ in true }) == nil)
         #expect(asset.hasSuffix("-apple-darwin.gz"))
 
@@ -203,6 +225,54 @@ import Update
         }
         #expect(LspInstaller.installed(.rustAnalyzer, in: dir) == nil)
         #expect(leftovers().isEmpty)
+    }
+
+    @Test func rustAnalyzerSizeAndContentChecks() async throws {
+        func install(_ feed: URL, maxBinary: Int = LspInstaller.maxBinary) async throws {
+            _ = try await LspInstaller.install(.rustAnalyzer, dir: dir, tool: nil, path: nil, feed: feed, trusted: { $0.isFileURL },
+                                               maxBinary: maxBinary)
+        }
+        // The announced size above the cap: refused before downloading.
+        await #expect(throws: LspInstallError.noAsset) { try await install(try feed(size: LspInstaller.maxDownload + 1)) }
+        // Not the announced size.
+        await #expect(throws: LspInstallError.tooLarge) { try await install(try feed(size: 3)) }
+        // A gzip bomb: unpacking stops at the cap.
+        await #expect(throws: LspInstallError.tooLarge) {
+            try await install(try feed(content: Self.machO + Data(count: 2 << 20)), maxBinary: 1 << 20)
+        }
+        // Not a Mach-O executable.
+        await #expect(throws: LspInstallError.notExecutable) { try await install(try feed(content: Data("#!/bin/sh\n".utf8))) }
+        #expect(LspInstaller.installed(.rustAnalyzer, in: dir) == nil)
+        #expect(leftovers().isEmpty)
+    }
+
+    @Test func reinstallSwapsAndKeepsTheOldOnFailure() async throws {
+        _ = try await LspInstaller.install(.rustAnalyzer, dir: dir, tool: nil, path: nil, feed: try feed(tag: "2026-10-20"), trusted: { $0.isFileURL })
+        _ = try await LspInstaller.install(.rustAnalyzer, dir: dir, tool: nil, path: nil, feed: try feed(tag: "2026-10-27"), trusted: { $0.isFileURL })
+        #expect(LspInstaller.installed(.rustAnalyzer, in: dir)?.version == "2026-10-27")
+        #expect(leftovers().isEmpty)
+
+        // Moving the new one in fails: the old one is back in place.
+        let staging = dir + "/.rust-analyzer-new"
+        try FileManager.default.createDirectory(atPath: staging, withIntermediateDirectories: false)
+        final class Calls { var n = 0 }
+        let calls = Calls()
+        #expect(throws: CocoaError.self) {
+            try LspInstaller.replace(.rustAnalyzer, dir: dir, with: staging) { from, to in
+                calls.n += 1
+                if calls.n == 2 { throw CocoaError(.fileWriteUnknown) }
+                try FileManager.default.moveItem(atPath: from, toPath: to)
+            }
+        }
+        #expect(LspInstaller.installed(.rustAnalyzer, in: dir)?.version == "2026-10-27")
+        try FileManager.default.removeItem(atPath: staging)
+        #expect(leftovers().isEmpty)
+
+        // Not Hangar's folder at the target: not replaced.
+        try FileManager.default.removeItem(atPath: dir + "/rust-analyzer/" + LspInstaller.marker)
+        try FileManager.default.createDirectory(atPath: staging, withIntermediateDirectories: false)
+        #expect(throws: LspInstallError.notOwned) { try LspInstaller.replace(.rustAnalyzer, dir: dir, with: staging) }
+        #expect(FileManager.default.fileExists(atPath: dir + "/rust-analyzer/rust-analyzer"))
     }
 
     // MARK: Removal

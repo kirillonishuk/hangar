@@ -136,7 +136,7 @@ import Workspace
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
-        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable
+        case editorRenameOtherFiles, editorRenameRefused, editorPaletteTitle, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable, lspNotExecutable, downloadTooLarge
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
@@ -710,6 +710,8 @@ import Workspace
     static func lspDownloadFailed(_ a: String) -> String { f(.lspDownloadFailed, a) }
     static var lspNotOwned: String { s(.lspNotOwned) }
     static var lspNoExecutable: String { s(.lspNoExecutable) }
+    static var lspNotExecutable: String { s(.lspNotExecutable) }
+    static var downloadTooLarge: String { s(.downloadTooLarge) }
     static func diffTooLarge(_ n: Int) -> String { f(.diffTooLarge, Int32(clamping: n)) }
     static func diffModeChange(_ old: String, _ new: String) -> String { f(.diffModeChange, old, new) }
     static func diffRenamedFrom(_ path: String) -> String { f(.diffRenamedFrom, path) }

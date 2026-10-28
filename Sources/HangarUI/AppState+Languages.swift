@@ -44,7 +44,7 @@ extension AppState {
         }
     }
 
-    /// Where Settings installs language servers (#100).
+    /// Where Settings installs language servers (#102).
     var lspDir: String { LspInstaller.directory(stateDir: (socketPath as NSString).deletingLastPathComponent) }
 
     /// The login shell's PATH (nil: it didn't answer in 15 s; looked up again next time).

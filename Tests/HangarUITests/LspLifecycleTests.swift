@@ -264,7 +264,7 @@ import TestSupport
         langs.stopAll()
     }
 
-    /// Settings installed a server (#100): an open file with «no language server» gets it without reopening.
+    /// Settings installed a server (#102): an open file with «no language server» gets it without reopening.
     @Test func serversChangedStartsANewlyInstalledServer() async throws {
         final class Flag { var on = false }
         let installed = Flag()

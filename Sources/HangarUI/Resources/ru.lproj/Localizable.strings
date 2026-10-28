@@ -534,14 +534,14 @@
 "lspMissingTip" = "Определения, ссылки и ошибки даёт языковой сервер (%@), если он установлен: в проекте (.venv, node_modules/.bin), в PATH логин-шелла, в Xcode или скачан в Настройки → Редактор. Нажмите, чтобы проверить снова";
 "lspTooltip" = "%@\nНажмите, чтобы перезапустить";
 
-/* Language servers in Settings (#100) */
+/* Language servers in Settings (#102) */
 "lspSection" = "Языковые серверы";
-"lspInstalledFrom" = "Установлен · %@";
-"lspNotInstalled" = "Не установлен";
-"lspFromProject" = "Из проекта";
+"lspInstalledFrom" = "установлен · %@";
+"lspNotInstalled" = "не установлен";
+"lspFromProject" = "из проекта";
 "lspSourceProject" = "проект";
 "lspTsDetail" = "tsserver из node_modules проекта";
-"lspNeedsXcode" = "Нужен Xcode";
+"lspNeedsXcode" = "нужен Xcode";
 "lspXcodeTip" = "sourcekit-lsp входит в Xcode и Command Line Tools";
 "lspNeedsNode" = "Нужен Node.js";
 "lspNeedsGo" = "Нужен Go";
@@ -556,6 +556,8 @@
 "lspDownloadFailed" = "Не скачалось: %@";
 "lspNotOwned" = "Эту папку создал не Hangar — не трогаю";
 "lspNoExecutable" = "После установки сервера нет";
+"lspNotExecutable" = "Скачанный файл — не программа для Mac";
+"downloadTooLarge" = "Файл больше ожидаемого — не установлен";
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";
 
 /* In-app updates (#86) */

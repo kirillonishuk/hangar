@@ -474,7 +474,8 @@ struct SidebarView: View {
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd,
                         forceHover: forcedHover(target)) { hover in
             let showActions = hover && app.renaming != target
-            GutterRow(collapsed: collapsed, height: Theme.sessionRowHeight, trailing: Theme.sessionRowTrailing, railReplacesMarker: true,
+            GutterRow(collapsed: collapsed, height: Theme.sessionRowHeight, indent: Theme.sessionIndent, trailing: Theme.sessionRowTrailing,
+                      railReplacesMarker: true,
                       markerDY: Theme.sessionRowPaddingV + Theme.sessionNameLine / 2 - Theme.sessionRowHeight / 2) {
                 StatusDot(state: dot)
             } expanded: {

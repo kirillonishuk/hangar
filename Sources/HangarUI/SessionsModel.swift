@@ -49,6 +49,14 @@ extension AppState {
     }
 }
 
+/// `cwd` lies in a project nested deeper inside `project` on the same machine: the conversation is listed there only.
+func inDeeperProject(_ cwd: String, of project: Project, among projects: [Project]) -> Bool {
+    projects.contains { p in
+        p.id != project.id && p.host == project.host && p.path.count > project.path.count
+            && (cwd == p.path || cwd.hasPrefix(p.path.hasSuffix("/") ? p.path : p.path + "/"))
+    }
+}
+
 // MARK: Rows
 
 struct ClosedSessionRow: Identifiable, Equatable {
@@ -192,8 +200,10 @@ enum SessionsAction: Equatable {
         var out: [(conversation: Conversation, folder: String)] = []
         var seen = Set<String>()
         do {
-            for folder in app.sessionFolders(pid) {
-                for c in try await app.conversations(folder: folder, project: project) where seen.insert(c.agent.rawValue + c.id).inserted {
+            // A scan also lists folders inside its folder: the deepest folder goes first, so a worktree inside the project keeps its session.
+            for folder in app.sessionFolders(pid).sorted(by: { $0.count > $1.count }) {
+                for c in try await app.conversations(folder: folder, project: project)
+                where !inDeeperProject(c.cwd, of: project, among: app.state.projects) && seen.insert(c.agent.rawValue + c.id).inserted {
                     out.append((c, folder))
                 }
             }

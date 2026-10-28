@@ -60,14 +60,14 @@ import Workspace
         app.languages.closedAll(owner: leafId)  // a reloaded page lost its models
         let moved = carried
         carried = nil
-        // A save that finished during the move: its stamp and clean flag win over the state read before it.
+        // A save that finished during the move gives its stamp; the buffer stays unsaved (`File.carried`).
         // shortcut: a save still writing when the move ends keeps the old stamp (a false conflict bar on the next save); rare.
         let latest = moved.flatMap { session.files[$0.path] }
         session = makeSession(io: session.io, limits: session.limits)
         guard let leaf = app.editorLeaf(leafId), let path = leaf.openFile else { return }
         let cursor = leaf.editorFileList.first { $0.path == path }
         if let moved, moved.path == path {
-            session.adopt(path: path, text: moved.text, file: latest ?? moved.file, line: cursor?.line, column: cursor?.column)
+            session.adopt(path: path, text: moved.text, file: .carried(moved.file, latest: latest), line: cursor?.line, column: cursor?.column)
             restartWatcher()
             return
         }

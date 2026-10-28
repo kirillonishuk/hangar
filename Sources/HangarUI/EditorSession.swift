@@ -10,6 +10,14 @@ import Foundation
         /// Not loaded (too large, binary, missing): the tab shows only its notice.
         var refused = false
         var conflict = false
+
+        /// A buffer carried to the other page: the latest stamp / conflict (a save may have finished meanwhile), but
+        /// still unsaved — text typed on the old page during the move is not what that save wrote.
+        static func carried(_ moved: File, latest: File?) -> File {
+            guard var file = latest else { return moved }
+            file.dirty = moved.dirty
+            return file
+        }
     }
 
     let io: EditorIO
@@ -78,6 +86,7 @@ import Foundation
         files[path] = file
         send(.open(EditorOpen(path: path, text: text, readOnly: file.readOnly, notice: nil, line: line ?? 1, column: column ?? 1,
                               dirty: file.dirty)))
+        onDirty?(path, file.dirty)
         if file.conflict { send(.conflict(path: path, shown: true)) }
         if text.utf8.count <= limits.editable { onOpened?(path, text) }
     }

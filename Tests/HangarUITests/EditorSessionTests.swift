@@ -112,14 +112,28 @@ import Testing
         let path = try write("moved.txt", "disk\n")
         let stamp = try #require(try await EditorIO.local.stat(path))
         let (s, sink) = session()
+        var dirtied: [Bool] = []
+        s.onDirty = { _, d in dirtied.append(d) }
         s.adopt(path: path, text: "edited", file: EditorSession.File(stamp: stamp, dirty: true), line: 3, column: 2)
         #expect(s.isDirty(path))
+        #expect(dirtied == [true])  // the tab's dot / close prompt see the adopted buffer as unsaved
         let o = try #require(opened(sink).first)
         #expect(o.text == "edited" && o.dirty && !o.readOnly)
         #expect(o.line == 3 && o.column == 2)
         // It saves like any open file.
         await s.handle(.save(file: path, text: "edited"))
         #expect(read(path) == "edited" && !s.isDirty(path))
+    }
+
+    /// A save that finished while the pane moved gives its stamp, but the carried buffer stays unsaved: text typed on
+    /// the old page during the move must never be adopted as clean.
+    @Test func carriedFileKeepsDirtyTakesLatestStamp() {
+        let old = FileStamp(size: 1, mtime: 1), saved = FileStamp(size: 2, mtime: 2)
+        let moved = EditorSession.File(stamp: old, dirty: true)
+        let latest = EditorSession.File(stamp: saved, dirty: false, conflict: true)
+        let file = EditorSession.File.carried(moved, latest: latest)
+        #expect(file.dirty && file.stamp == saved && file.conflict)
+        #expect(EditorSession.File.carried(moved, latest: nil).stamp == old)
     }
 
     /// The same file open in two panes (two sessions): the second save of a stale buffer asks, it doesn't overwrite.

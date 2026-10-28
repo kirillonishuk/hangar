@@ -198,17 +198,13 @@ struct TabBarView: View {
         let tabWidths = Array(l.widths.prefix(task.tabs.count))
         let from = drag.flatMap { d in task.tabs.firstIndex { $0.id == d.tab } }
         let shifts = from.flatMap { f in slot.map { TabStrip.shifts(widths: tabWidths, from: f, to: $0.index) } }
-        #if DEBUG
-        let _ = app.debugTabDrag = { id, dx, p in
-            if let p { dragged(id, dx: dx, at: p, l: l, minX: minX) } else { endDrag(task, tab: id, widths: l.widths) }
-        }
-        #endif
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
                         onDrag: { dx, p in dragged(tab.id, dx: dx, at: p, l: l, minX: minX) },
-                        onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) })
+                        onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) },
+                        onDragCancel: { cancelDrag(tab.id) })
                     // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
                     .offset(x: shifts?[i] ?? 0)
                     .animation(Motion.ease(Theme.selectionFade), value: slot?.index)
@@ -221,6 +217,16 @@ struct TabBarView: View {
             if let diff, let w = l.widths.last { DiffTabItem(app: app, tab: diff, width: w) }
         }
         .fixedSize(horizontal: true, vertical: false)
+        #if DEBUG
+        .onAppear {
+            // Reads the current task and layout on each call: the hook outlives this body.
+            app.debugTabDrag = { id, dx, p in
+                guard let t = app.selectedTask else { return }
+                let l = layout(t, width: room)
+                if let p { dragged(id, dx: dx, at: p, l: l, minX: minX) } else { endDrag(t, tab: id, widths: l.widths) }
+            }
+        }
+        #endif
         .background(alignment: .leading) {
             // The opened slot: an accent outline where the tab will land.
             if let from, let slot {
@@ -275,6 +281,14 @@ struct TabBarView: View {
         let others = task.tabs.map(\.id).filter { $0 != drag.tab }
         guard to != from, let last = others.last else { return nil }
         return to < others.count ? (to, others[to], .leading) : (to, last, .trailing)
+    }
+
+    /// The gesture went away without an end (deactivation, a sheet…): nothing moves, the pane drop is called off.
+    private func cancelDrag(_ tab: UUID) {
+        guard drag?.tab == tab else { return }
+        app.paneDragCancelled?()
+        drag = nil
+        paneMode = false
     }
 
     private func endDrag(_ task: HangarTask, tab: UUID, widths: [CGFloat]) {
@@ -448,8 +462,12 @@ struct TabItem: View {
     /// Live drag: translation and pointer (window points from the top-left); then the end.
     var onDrag: (CGFloat, CGPoint) -> Void = { _, _ in }
     var onDragEnd: () -> Void = {}
+    /// The gesture went away without `onEnded` (SwiftUI drops it on deactivation, a sheet, window close).
+    var onDragCancel: () -> Void = {}
     @State private var hover = false
     @State private var dragging = false
+    /// True while the gesture lives; its reset without `onEnded` is a cancel.
+    @GestureState private var pressed = false
 
     private var app: AppState { ctx.app }
     private var target: ActionTarget { .tab(task: taskId, tab: tab.id) }
@@ -499,6 +517,7 @@ struct TabItem: View {
         }
         // Global space: the dragged tab is offset while dragging, local translations would feed back.
         .simultaneousGesture(DragGesture(minimumDistance: Theme.dragThreshold, coordinateSpace: .global)
+            .updating($pressed) { _, pressed, _ in pressed = true }
             .onChanged { value in
                 guard app.renaming != target else { return }
                 dragging = true
@@ -509,6 +528,15 @@ struct TabItem: View {
                 dragging = false
                 onDragEnd()
             })
+        .onChange(of: pressed) { _, live in
+            // Next turn: a normal end has run `onEnded` by then (whatever order SwiftUI resets the state in).
+            guard !live else { return }
+            DispatchQueue.main.async {
+                guard dragging else { return }
+                dragging = false
+                onDragCancel()
+            }
+        }
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .help(L10n.help(app.tabHelpTitle(tab, taskId: taskId), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))

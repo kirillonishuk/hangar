@@ -82,6 +82,9 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     private var dropping = false
     /// Swallows cursor updates of the views under the pointer while the cursor is locked.
     private var cursorMonitor: Any?
+    /// App deactivation / the window resigning key or closing while locked: SwiftUI then drops the gesture's `onEnded`.
+    private var lifecycle: [NSObjectProtocol] = []
+    var cursorLocked: Bool { cursorMonitor != nil }
 
     init(app: AppState, area: TerminalArea, tabBar: NSView) {
         self.app = app
@@ -89,15 +92,16 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         self.tabBar = tabBar
         app.paneDragMoved = { [weak self] s, p in self?.update(s, at: p) ?? false }
         app.paneDragEnded = { [weak self] s in self?.end(s) ?? false }
+        app.paneDragCancelled = { [weak self] in self?.abort() }
     }
 
     /// True: drop mode (pointer below the tab bar), the tab strip leaves the tab in place.
     func update(_ source: PaneDragSource, at p: CGPoint) -> Bool {
+        if cancelled { return true }
         if !active {
             active = true
             lockCursor()
         }
-        if cancelled { return true }
         NSCursor.closedHand.set()
         guard case .tab = source, let bar = windowRect(tabBar), p.y >= bar.maxY, let task = app.selectedTask else {
             dropping = false
@@ -127,12 +131,13 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     /// Esc: no drop; the gesture's later events do nothing. False when no drag is running (Esc goes on as usual).
     @discardableResult func cancel() -> Bool {
         guard active, !cancelled else { return false }
+        reset()
         cancelled = true
-        show(nil)
-        ghost.isHidden = true
-        unlockCursor()
         return true
     }
+
+    /// The gesture went away without an end (or the app/window lost focus): everything back, nothing dropped.
+    func abort() { reset() }
 
     private func reset() {
         active = false
@@ -170,12 +175,24 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
             MainActor.assumeIsolated { NSCursor.closedHand.set() }
             return nil
         }
+        let center = NotificationCenter.default
+        let window = area.window
+        let names: [(Notification.Name, AnyObject?)] = [(NSApplication.didResignActiveNotification, NSApp),
+                                                        (NSWindow.didResignKeyNotification, window), (NSWindow.willCloseNotification, window)]
+        lifecycle = names.compactMap { name, object in
+            guard let object else { return nil }
+            return center.addObserver(forName: name, object: object, queue: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.abort() }
+            }
+        }
     }
 
     private func unlockCursor() {
         guard let monitor = cursorMonitor else { return }
         NSEvent.removeMonitor(monitor)
         cursorMonitor = nil
+        lifecycle.forEach(NotificationCenter.default.removeObserver)
+        lifecycle = []
         guard let window = area.window else { return }
         window.enableCursorRects()
         NSCursor.arrow.set()
@@ -212,7 +229,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     @objc private func applyTheme() {
         zone.layer?.backgroundColor = Theme.accent.withAlphaComponent(Theme.paneDropFillOpacity).cgColor
         zone.layer?.borderColor = Theme.accent.cgColor
-        dim.layer?.backgroundColor = Theme.bg.withAlphaComponent(Theme.paneDropDimOpacity).cgColor
+        dim.layer?.backgroundColor = Theme.paneDropScrim.cgColor
         label.textColor = Theme.textStrong
     }
 
@@ -264,6 +281,17 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         icon.contentTintColor = Theme.text2
     }
 
+    /// Below-right of the pointer; flipped to its other side near the right/bottom edge, then kept inside `bounds`.
+    static func placement(_ size: NSSize, pointer p: NSPoint, in bounds: NSRect) -> NSRect {
+        let off = Theme.paneDragGhostOffset
+        var x = p.x + off, y = p.y - off - size.height
+        if x + size.width > bounds.maxX { x = p.x - off - size.width }
+        if y < bounds.minY { y = p.y + off }
+        x = min(max(x, bounds.minX), bounds.maxX - size.width)
+        y = min(max(y, bounds.minY), bounds.maxY - size.height)
+        return NSRect(origin: NSPoint(x: x, y: y), size: size)
+    }
+
     /// `p`: the pointer in the window's content view (bottom-left origin); the chip sits below-right of it.
     func show(_ kind: Icon, _ title: String, at p: NSPoint, allowed: Bool) {
         icon.image = kind.image
@@ -271,10 +299,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         label.sizeToFit()
         let pad = Theme.paneDragGhostPaddingH, s = Theme.iconSize, h = Theme.paneDragGhostHeight
         let w = min(Theme.paneDragGhostMaxWidth, pad + s + Theme.iconGap + label.frame.width + pad)
+        frame = Self.placement(NSSize(width: w, height: h), pointer: p, in: superview?.bounds ?? .infinite)
         icon.frame = NSRect(x: pad, y: (h - s) / 2, width: s, height: s)
         label.frame = NSRect(x: pad + s + Theme.iconGap, y: (h - label.frame.height) / 2,
                              width: w - pad * 2 - s - Theme.iconGap, height: label.frame.height)
-        frame = NSRect(x: p.x + Theme.paneDragGhostOffset, y: p.y - Theme.paneDragGhostOffset - h, width: w, height: h)
         alphaValue = allowed ? Theme.paneDragGhostOpacity : Theme.paneDragGhostBlockedOpacity
         isHidden = false
     }

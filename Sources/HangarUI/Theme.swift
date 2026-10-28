@@ -93,7 +93,7 @@ public enum Theme {
     public static let tabRadius: CGFloat = 6
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
-    /// Insertion line while dragging rows (`accent`).
+    /// Insertion line while dragging sidebar rows (`accent`); the tab bar opens a slot instead (`tabDropSlot*`).
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
     public static let dragThreshold: CGFloat = 4
@@ -102,8 +102,8 @@ public enum Theme {
     /// The highlighted half a dropped pane will take: `accent` fill at this opacity, `accent` outline.
     public static let paneDropFillOpacity: CGFloat = 0.18
     public static let paneDropLineWidth: CGFloat = 2
-    /// The rest of the target pane: `bg` at this opacity.
-    public static let paneDropDimOpacity: CGFloat = 0.4
+    /// The rest of the target pane: black at this opacity (`paneDropScrim`; a theme's `bg` is as dark as its terminal).
+    public static let paneDropDimOpacity: CGFloat = 0.45
     /// The chip following the pointer (icon + name): faded where nothing can be dropped.
     public static let paneDragGhostOpacity: CGFloat = 0.95
     public static let paneDragGhostBlockedOpacity: CGFloat = 0.45

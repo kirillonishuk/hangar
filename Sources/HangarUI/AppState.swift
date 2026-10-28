@@ -87,6 +87,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// A tab drag moved / ended (set by the window's `PaneDragController`): true while it is the pane drop's.
     @ObservationIgnored var paneDragMoved: ((PaneDragSource, CGPoint) -> Bool)?
     @ObservationIgnored var paneDragEnded: ((PaneDragSource) -> Bool)?
+    /// The drag gesture went away without ending (SwiftUI drops `onEnded` on deactivation, a sheet, …).
+    @ObservationIgnored var paneDragCancelled: (() -> Void)?
     /// TS/JS language features of the editors (tsserver, #82).
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
     /// `node` from the login shell, looked up once (#82).

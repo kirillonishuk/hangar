@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import HangarUI
@@ -103,5 +104,74 @@ import Testing
         #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Справа", "Слева", "Сверху", "Снизу"])
         L10n.language = .en
         #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Right", "Left", "Top", "Bottom"])
+    }
+
+    // MARK: Controller lifecycle
+
+    /// A window with a tab bar strip on top and the terminal area below; two chooser tabs (no processes).
+    private func makeController() -> (PaneDragController, AppState, NSWindow, b: UUID, dir: URL) {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let t = s.addTask(projectId: p, name: "t")
+        s.addTab(taskId: t, kind: .choose)
+        let b = s.addTab(taskId: t, kind: .choose)
+        s.selectedTaskId = t
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pane-drag-\(UUID().uuidString)")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
+                           configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
+        app.keepAwake = .inert()
+        let window = NSWindow(contentRect: NSRect(x: -3000, y: 0, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let bar = NSView(frame: NSRect(x: 0, y: 560, width: 800, height: 40))
+        let area = TerminalArea(app: app)
+        area.frame = NSRect(x: 0, y: 0, width: 800, height: 560)
+        window.contentView!.addSubview(bar)
+        window.contentView!.addSubview(area)
+        return (PaneDragController(app: app, area: area, tabBar: bar), app, window, b, dir)
+    }
+
+    /// SwiftUI drops `onEnded` when the app deactivates / the window resigns key mid-drag: the controller cleans up itself.
+    @Test func resignMidDragCleansUp() throws {
+        for name in [NSApplication.didResignActiveNotification, NSWindow.didResignKeyNotification, NSWindow.willCloseNotification] {
+            let (c, app, window, b, dir) = makeController()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 300)))
+            #expect(c.active && c.cursorLocked)
+            NotificationCenter.default.post(name: name, object: name == NSApplication.didResignActiveNotification ? NSApp : window)
+            #expect(!c.active && !c.cursorLocked, "\(name.rawValue)")
+            #expect(app.paneDropTarget == nil)
+            // Another window's resign does nothing to a later drag.
+            #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 300)))
+            NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: NSWindow())
+            #expect(c.active && c.cursorLocked)
+            #expect(c.end(.tab(b)))
+            #expect(!c.active && !c.cursorLocked)
+        }
+    }
+
+    /// Esc unlocks at once; the gesture's later moves do nothing and its end is swallowed.
+    @Test func escCancelsTheRestOfTheDrag() throws {
+        let (c, _, _, b, dir) = makeController()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 300)))
+        #expect(c.cancel())
+        #expect(!c.cursorLocked)
+        #expect(!c.cancel())  // a second Esc goes on as usual
+        #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 20)))  // even back over the tab bar: no reorder
+        #expect(!c.cursorLocked)
+        #expect(c.end(.tab(b)))
+        #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 300)) && c.cursorLocked)  // the next drag works
+        c.abort()
+        #expect(!c.active && !c.cursorLocked)
+    }
+
+    /// The chip stays inside the window near its right and bottom edges.
+    @Test func chipStaysInside() {
+        let bounds = NSRect(x: 0, y: 0, width: 800, height: 600), size = NSSize(width: 120, height: 28)
+        let off = Theme.paneDragGhostOffset
+        #expect(PaneDragGhost.placement(size, pointer: NSPoint(x: 100, y: 300), in: bounds) == NSRect(x: 100 + off, y: 300 - off - 28, width: 120, height: 28))
+        let corner = PaneDragGhost.placement(size, pointer: NSPoint(x: 795, y: 5), in: bounds)
+        #expect(bounds.contains(corner))
+        #expect(corner.maxX <= 795 && corner.minY >= 5)  // flipped to the pointer's other side, not under it
     }
 }

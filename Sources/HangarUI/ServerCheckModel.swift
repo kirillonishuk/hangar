@@ -305,6 +305,34 @@ mv -f "$tmp" "$f"
             return false
         }
     }
+
+    /// Hangar's line in the host's projects (#103) through the same `cat` and checked write as «Применить»; the CLI is the
+    /// one the server's Claude settings use for their status line (none → only Hangar's overrides are taken back).
+    func syncProjectStatuslines(_ dirs: [StatuslineDir], hangar: Bool) async -> [StatuslineNote] {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let path = integrationPath(.claude) else { return [] }
+        let cli = (try? await read(path)).flatMap(hangarStatuslineCLI)
+        var notes: [StatuslineNote] = []
+        for dir in dirs {
+            let note = await syncStatuslineDir(
+                dir, host: host, cli: cli, hangar: hangar,
+                read: { try await self.read($0) },
+                write: { path, original, updated in
+                    let r = await self.write(path, original: original, updated: updated)
+                    guard r.status == 0 else {
+                        throw RemoteFileError(message: r.status == 3 ? L10n.fileChanged : lastLine(r.stderr) ?? L10n.exitStatus(r.status))
+                    }
+                    uiLog.info("statusline override \(self.host, privacy: .public):\(path, privacy: .public), backup \(lastLine(r.stdout) ?? "-", privacy: .public)")
+                },
+                ignored: { dir in
+                    guard let r = try? await self.remote.runner(self.host).run(["git", "-C", dir, "check-ignore", "-q", ".claude/settings.local.json"], dir),
+                          r.status == 0 || r.status == 1 else { return nil }
+                    return r.status == 0
+                })
+            if let note { notes.append(note) }
+        }
+        return notes
+    }
 }
 
 /// Last non-empty line (server output can carry rc-file noise before the real message).

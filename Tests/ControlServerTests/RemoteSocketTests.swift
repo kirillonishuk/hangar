@@ -47,10 +47,11 @@ private final class Remote {
         ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": leaf.uuidString, "HANGAR_SOCKET": dir.path, "PATH": path(client)]
     }
 
-    func start(onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in .ok(id, [String: String]()) })
-        throws -> ControlServer {
+    func start(onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in .ok(id, [String: String]()) },
+               statusline: (@Sendable (Data) -> String?)? = nil) throws -> ControlServer {
         let inbox = inbox
-        let server = ControlServer(path: dir.path, remote: true, handler: { inbox.messages.append($0) }, onRequest: onRequest)
+        let server = ControlServer(path: dir.path, remote: true, handler: { inbox.messages.append($0) }, onRequest: onRequest,
+                                   statusline: statusline)
         try server.start()
         return server
     }
@@ -240,6 +241,58 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         }
     }
 
+    /// #103: the Mac renders Hangar's line and the script prints it instead of the user's command, with every client.
+    @Test func statuslineRenderedOnMac() async throws {
+        let r = try Remote()
+        let server = try r.start(statusline: { payload in
+            String(decoding: payload, as: UTF8.self).contains("five_hour") ? "Opus 5.5 │ 5h 42%" : ""
+        })
+        defer { server.stop() }
+        let input = #"{"rate_limits":{"five_hour":{"used_percentage":42.5,"resets_at":1760000000}}}"#
+        var n = 0
+        for shell in shells {
+            for c in clients {
+                let run = try r.run(["statusline", "--then", "echo own"], shell: shell, env: r.leafEnv(c.name), stdin: input)
+                #expect(run.code == 0 && run.out == "Opus 5.5 │ 5h 42%\n", "\(shell) \(c.name): \(run.out) \(run.err)")
+                n += 1
+                _ = await r.inbox.wait(count: n)
+            }
+            // Before the first reply there are no rate limits: no usage, but the line still comes (here empty → nothing).
+            let early = try r.run(["statusline", "--then", "echo own"], shell: shell, env: r.leafEnv(), stdin: #"{"model":{"id":"x"}}"#)
+            #expect(early.code == 0 && early.out.isEmpty, "\(shell): \(early.out)")
+        }
+        await settle()
+        #expect(await r.inbox.messages.count == n)
+    }
+
+    /// «Ваша» (the renderer says nil), no socket, or a Mac that does not answer in time: the user's own command runs.
+    @Test func statuslineFallsBackToOwn() async throws {
+        let r = try Remote()
+        let server = try r.start(statusline: { _ in nil })
+        let input = #"{"rate_limits":{"five_hour":{"used_percentage":42.5,"resets_at":1760000000}}}"#
+        for shell in shells {
+            let run = try r.run(["statusline", "--then", "echo own"], shell: shell, env: r.leafEnv(), stdin: input)
+            #expect(run.code == 0 && run.out == "own\n", "\(shell): \(run.out)")
+        }
+        server.stop()
+        // A socket that accepts but never answers.
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        _ = withUnsafeMutableBytes(of: &addr.sun_path) { strlcpy($0.baseAddress!.assumingMemoryBound(to: CChar.self), r.dir.path, $0.count) }
+        let bound = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }
+        try #require(bound == 0 && listen(fd, 8) == 0)
+        for c in clients {
+            let run = try r.run(["statusline", "--then", "echo own"], env: r.leafEnv(c.name), stdin: input)
+            #expect(run.code == 0 && run.out == "own\n" && run.seconds < 3, "\(c.name): \(run.out) \(run.seconds)")
+        }
+        var env = r.leafEnv()
+        env["HANGAR_SOCKET"] = r.dir.dir + "/missing.sock"
+        let missing = try r.run(["statusline", "--then", "echo own"], env: env, stdin: input)
+        #expect(missing.out == "own\n")
+    }
+
     @Test func codexNotifyArgPayload() async throws {
         let r = try Remote()
         let server = try r.start()
@@ -266,7 +319,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
 
     @Test func scriptParsesAsPOSIX() throws {
         let lines = hangarRemoteScript.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 4)
+        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 5)
         let r = try Remote()
         for shell in shells {
             let p = Process()
@@ -276,7 +329,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
             p.waitUntilExit()
             #expect(p.terminationStatus == 0, "\(shell)")
             let v = try r.run(["version"], shell: shell, env: ["PATH": r.path()])
-            #expect(v.code == 0 && v.out == "4\n")
+            #expect(v.code == 0 && v.out == "5\n")
         }
     }
 
@@ -312,7 +365,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
     }
 
     @Test func socatHasTotalIdleTimeout() {
-        #expect(hangarRemoteScript.contains("socat -T2 - "))
+        #expect(hangarRemoteScript.contains(#"socat -T"$t" - "#) && hangarRemoteScript.contains("t=${2:-2}"))
     }
 }
 

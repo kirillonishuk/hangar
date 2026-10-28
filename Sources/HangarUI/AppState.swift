@@ -209,6 +209,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// «Продолжить» of an empty session or a chooser: the folder's latest conversations from the last scan (in memory only).
     var recentByFolder: [String: [Conversation]] = [:]
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
+    /// Projects whose own status line Hangar overrides (#103), with problems; Settings lists them.
+    var statuslineNotes: [StatuslineNote] = []
+    /// Off in tests: syncing reads the agent's settings and writes into project folders (the launcher turns it on).
+    @ObservationIgnored public var statuslineSync = false
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
     /// `CLAUDE_CONFIG_DIR` / `CODEX_HOME` from the login shell (they move the files above); nil keeps the URLs as set.
@@ -459,6 +463,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @discardableResult func addProject(path: String) -> UUID {
         var id = UUID()
         perform { id = $0.addProject(name: (path as NSString).lastPathComponent, path: path) }
+        Task { await syncProjectStatuslines(host: nil) }
         return id
     }
 
@@ -492,6 +497,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             }
         }
         if let setupTab { terminals?.start(setupTab) }
+        if mode != .mainFolder { Task { await syncProjectStatuslines(host: state.projects.first { $0.id == projectId }?.host) } }
         return created
     }
 
@@ -716,6 +722,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         try HangarConfig.save(key: key, value: value, to: configURL)
         apply(&config)
         uiLog.info("config \(key, privacy: .public) = \(value, privacy: .public)")
+    }
+
+    /// A key written as a bare TOML literal (an array of strings).
+    func setConfig(_ key: String, literal: String, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.save(key: key, literal: literal, to: configURL)
+        apply(&config)
+        uiLog.info("config \(key, privacy: .public) = \(literal, privacy: .public)")
     }
 
     /// Bare `true` / `false` key (notifications).

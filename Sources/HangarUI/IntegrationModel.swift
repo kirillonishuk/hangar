@@ -65,6 +65,10 @@ struct IntegrationPlan: Equatable {
     var pathsReady: Bool
     /// After a write: where the backup went.
     var message: String?
+    /// The user's own status line command (kept in `--then`): what «Ваша» runs; nil = none.
+    var userStatusline: String?
+    /// Claude's user settings run Hangar's status line command (else Hangar's line cannot show).
+    var statuslineIsHangar = false
 
     init(claudeSettings: URL, codexConfig: URL, cli: String?, findCodex: @escaping () async -> String?,
          findDirs: (() async -> (claude: String?, codex: String?))? = nil,
@@ -93,7 +97,10 @@ struct IntegrationPlan: Equatable {
 
     private func readStates() {
         let cli = cli ?? ""
-        claude = claudeState((try? readUserFile(claudeSettings)) ?? nil, cli: cli)
+        let claudeText = (try? readUserFile(claudeSettings)) ?? nil
+        claude = claudeState(claudeText, cli: cli)
+        userStatusline = userStatuslineCommand(claudeText)
+        statuslineIsHangar = hangarStatuslineCLI(claudeText) != nil
         switch codexFound {
         case true?: codex = .found(codexState((try? readUserFile(codexConfig)) ?? nil, cli: cli))
         case false?: codex = .notFound

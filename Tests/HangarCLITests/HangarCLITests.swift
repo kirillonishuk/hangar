@@ -16,6 +16,8 @@ private final class TempDir {
     init() {
         path = "/tmp/hg-" + String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
         mkdir(path, 0o700)
+        // The user's own line (the chained command) unless a test asks for Hangar's; never the real config file.
+        try? #"statusline = "user""#.write(toFile: path + "/config.toml", atomically: true, encoding: .utf8)
     }
     deinit { try? FileManager.default.removeItem(atPath: path) }
 }
@@ -106,7 +108,8 @@ private let statusFixture = Data("""
 @Suite struct HangarCLITests {
     let tab = UUID(), leaf = UUID()
     fileprivate func env(_ dir: TempDir) -> [String: String] {
-        ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": leaf.uuidString, "HANGAR_SOCKET": dir.socket]
+        ["HANGAR_TAB_ID": tab.uuidString, "HANGAR_LEAF_ID": leaf.uuidString, "HANGAR_SOCKET": dir.socket,
+         "HANGAR_CONFIG": dir.path + "/config.toml"]
     }
 
     @MainActor fileprivate func server(_ dir: TempDir, _ inbox: Inbox) throws -> ControlServer {
@@ -204,6 +207,36 @@ private let statusFixture = Data("""
         var e = env(dir); e["HANGAR_SOCKET"] = dir.path + "/missing.sock"
         let r2 = try await runOffMain(["statusline", "--then", "echo hi"], env: e, stdin: statusFixture)
         #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
+    }
+
+    /// #103: Hangar's line from the CLI itself (config read on each run), usage still forwarded, the chained command not run.
+    @Test @MainActor func statuslineRendersHangarLine() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        let config = dir.path + "/config.toml"
+        func visible(_ d: Data) -> String {
+            String(decoding: d, as: UTF8.self).replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+        }
+        try "statusline = \"hangar\"\nlanguage = \"en\"\n".write(toFile: config, atomically: true, encoding: .utf8)
+        let reset = Int(Date().timeIntervalSince1970) + 107 * 60 + 30
+        let payload = Data(#"{"model":{"id":"claude-opus-4-7[1m]","display_name":"Opus 4.7 (1M context)"},"context_window":{"used_percentage":12,"context_window_size":1000000},"rate_limits":{"five_hour":{"used_percentage":96,"resets_at":\#(reset)},"seven_day":{"used_percentage":18,"resets_at":\#(reset + 86_400)}},"cost":{"total_cost_usd":0.04}}"#.utf8)
+        let r = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
+        #expect(r.status == 0)
+        #expect(visible(r.out) == "Opus 4.7 1M │ ctx ━─────── 12% │ 5h ━━━━━━━━ 96% 1h48m │ wk 18%\n")
+        #expect(String(decoding: r.out, as: UTF8.self).contains("\u{1B}[31m96%"))
+        #expect(await inbox.wait(count: 1).count == 1)
+
+        // Before the first reply: no rate limits → only what is known; Russian labels follow the config.
+        try "statusline = \"hangar\"\nlanguage = \"ru\"\n".write(toFile: config, atomically: true, encoding: .utf8)
+        let early = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir),
+                                         stdin: Data(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":3}}"#.utf8))
+        #expect(visible(early.out) == "Sonnet 4.6 │ контекст ━─────── 3%\n")
+
+        // An unreadable config is the defaults (Hangar's line); no data at all prints nothing.
+        try "statusline = 5".write(toFile: config, atomically: true, encoding: .utf8)
+        let empty = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: Data("{}".utf8))
+        #expect(empty.status == 0 && empty.out.isEmpty)
     }
 
     @MainActor fileprivate func fakeApp(_ dir: TempDir, _ calls: CallLog, reply: @escaping @MainActor (Int, ControlCall) -> ControlResponse) throws -> ControlServer {

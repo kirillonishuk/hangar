@@ -24,6 +24,24 @@ import Testing
         #expect(c.agentCommands[.codex] == "codex")
     }
 
+    /// #103: the status line choice and its segments; unknown segment names are skipped, the order is the renderer's.
+    @Test func statuslineKeys() throws {
+        #expect(HangarConfig().statusline == .hangar && HangarConfig().statuslineSegments == StatuslineSegment.defaults)
+        let c = try HangarConfig.parse("""
+        statusline = "user"
+        statusline_segments = ["week", "5h", "future", "branch"]  # comment
+        """)
+        #expect(c.statusline == .user)
+        #expect(c.statuslineSegments == [.fiveHour, .week, .branch])
+        #expect(try HangarConfig.parse("statusline_segments = []").statuslineSegments.isEmpty)
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"statusline = "mine""#) }
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"statusline_segments = "model""#) }
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"statusline_segments = ["model" "week"]"#) }
+        // The writer's array literal reads back.
+        let text = HangarConfig.updating("", key: "statusline_segments", literal: #"["model", "context"]"#)
+        #expect(try HangarConfig.parse(text).statuslineSegments == [.model, .context])
+    }
+
     /// The Helix-era `editor` key (#81) is ignored, so an old config still loads.
     @Test func legacyEditorKeyIgnored() throws {
         #expect(try HangarConfig.parse(#"editor = "hx""#) == HangarConfig())

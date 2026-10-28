@@ -21,6 +21,7 @@ extension AppState {
             Task { await self?.sweepTombstones(host: host) }
             Task { await self?.upgradeRemote(host: host) }
         }
+        hosts.statusline = statuslineRenderer(configURL: configURL)
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in
             guard let self else { return }
@@ -176,6 +177,7 @@ extension AppState {
     @discardableResult func addRemoteProject(host: String, path: String) -> UUID {
         var id = UUID()
         perform { id = $0.addRemoteProject(name: (path as NSString).lastPathComponent, host: host, path: path) }
+        Task { await syncProjectStatuslines(host: host) }
         return id
     }
 

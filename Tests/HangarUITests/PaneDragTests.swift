@@ -77,11 +77,67 @@ import Testing
                             paneFrames: [leaf: rect], tabBar: nil, tabFrames: [:]) == nil)
     }
 
-    /// Task 7 adds pane-header drags; until then a leaf source has no target.
-    @Test func leafSourceHasNoTargetYet() {
-        let (s, t, a, _, al) = two()
-        #expect(resolveDrop(.leaf(al), at: CGPoint(x: 390, y: 100), state: s, taskId: t, activeTab: a,
-                            paneFrames: [al: rect], tabBar: nil, tabFrames: [:]) == nil)
+    /// Tab A = split(a, b) (a left, b right), active; tab B (shell) next to it.
+    private func splitTwo() -> (s: WorkspaceState, t: UUID, A: UUID, B: UUID, a: UUID, b: UUID) {
+        var (s, t, A, B, a) = two()
+        let b = s.split(taskId: t, tabId: A, leafId: a, axis: .horizontal, kind: .shell)
+        s.tasks[0].activeTabId = A
+        return (s, t, A, B, a, b)
+    }
+
+    private let left = CGRect(x: 0, y: 40, width: 200, height: 200), right = CGRect(x: 202, y: 40, width: 200, height: 200)
+    private let bar = CGRect(x: 0, y: 0, width: 800, height: 40)
+
+    @Test func insertionIndexBetweenTabs() {
+        let frames = [CGRect(x: 0, y: 0, width: 100, height: 30), CGRect(x: 102, y: 0, width: 100, height: 30),
+                      CGRect(x: 204, y: 0, width: 100, height: 30)]
+        #expect(insertionIndex(x: 10, frames: frames) == 0)
+        #expect(insertionIndex(x: 150, frames: frames) == 1)
+        #expect(insertionIndex(x: 400, frames: frames) == 3)
+        #expect(insertionIndex(x: 10, frames: []) == 0)
+    }
+
+    @Test func leafDropOnSiblingEdge() {
+        let (s, t, A, _, a, b) = splitTwo()
+        let frames = [a: left, b: right]
+        #expect(resolveDrop(.leaf(b), at: CGPoint(x: 10, y: 140), state: s, taskId: t, activeTab: A,
+                            paneFrames: frames, tabBar: bar, tabFrames: [:]) == .edge(tab: A, leaf: a, .left))
+        #expect(resolveDrop(.leaf(a), at: CGPoint(x: 300, y: 235), state: s, taskId: t, activeTab: A,
+                            paneFrames: frames, tabBar: bar, tabFrames: [:]) == .edge(tab: A, leaf: b, .bottom))
+        // The sibling's middle: nothing.
+        #expect(resolveDrop(.leaf(b), at: CGPoint(x: 100, y: 140), state: s, taskId: t, activeTab: A,
+                            paneFrames: frames, tabBar: bar, tabFrames: [:]) == nil)
+    }
+
+    @Test func leafDropOnItselfIsNil() {
+        let (s, t, A, _, a, b) = splitTwo()
+        for p in [CGPoint(x: 300, y: 140), CGPoint(x: 210, y: 140), CGPoint(x: 395, y: 140), CGPoint(x: 300, y: 45), CGPoint(x: 300, y: 235)] {
+            #expect(resolveDrop(.leaf(b), at: p, state: s, taskId: t, activeTab: A, paneFrames: [a: left, b: right],
+                                tabBar: bar, tabFrames: [:]) == nil)
+        }
+    }
+
+    @Test func leafDropOnTabBar() {
+        let (s, t, A, B, a, b) = splitTwo()
+        let tabFrames = [A: CGRect(x: 0, y: 5, width: 100, height: 35), B: CGRect(x: 102, y: 5, width: 100, height: 35)]
+        func drop(_ x: CGFloat) -> PaneDropTarget? {
+            resolveDrop(.leaf(b), at: CGPoint(x: x, y: 20), state: s, taskId: t, activeTab: A, paneFrames: [a: left, b: right],
+                        tabBar: bar, tabFrames: tabFrames)
+        }
+        #expect(drop(10) == .tabBar(index: 0))
+        #expect(drop(150) == .tabBar(index: 1))
+        #expect(drop(600) == .tabBar(index: 2))
+        // A pane of an unsplit tab has no header to drag: it can't be detached.
+        let (s2, t2, A2, _, a2) = two()
+        #expect(resolveDrop(.leaf(a2), at: CGPoint(x: 10, y: 20), state: s2, taskId: t2, activeTab: A2, paneFrames: [:],
+                            tabBar: bar, tabFrames: tabFrames) == nil)
+    }
+
+    /// The diff tab / «Сессии» cover the panes (empty `paneFrames`, ruling R3): no edge for a pane either.
+    @Test func leafNoPaneTargetsWhileDiffShown() {
+        let (s, t, A, _, _, b) = splitTwo()
+        #expect(resolveDrop(.leaf(b), at: CGPoint(x: 10, y: 140), state: s, taskId: t, activeTab: A, paneFrames: [:],
+                            tabBar: bar, tabFrames: [:]) == nil)
     }
 
     /// The chip under the pointer names what is dragged.
@@ -163,6 +219,38 @@ import Testing
         #expect(c.update(.tab(b), at: CGPoint(x: 400, y: 300)) && c.cursorLocked)  // the next drag works
         c.abort()
         #expect(!c.active && !c.cursorLocked)
+    }
+
+    /// A pane header dragged into the tab bar: the slot index from the tab frames; the drop detaches it there.
+    @Test func leafDragIntoTabBarDetaches() throws {
+        let (c, app, _, b, dir) = makeController()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let t = app.state.tasks[0].id, first = app.state.tasks[0].tabs[0]
+        app.perform { $0.split(taskId: t, tabId: first.id, leafId: first.root.leaves[0].id, axis: .horizontal, kind: .shell) }
+        app.perform { $0.tasks[0].activeTabId = first.id }
+        let moved = try #require(app.state.tasks[0].tabs[0].root.leaves.last?.id)
+        app.tabFrames = [first.id: CGRect(x: 0, y: 5, width: 100, height: 35), b: CGRect(x: 102, y: 5, width: 100, height: 35)]
+        #expect(c.update(.leaf(moved), at: CGPoint(x: 300, y: 20)))  // the bar is 0…40 from the top
+        #expect(app.paneDropTarget == .tabBar(index: 2) && c.cursorLocked)
+        #expect(c.end(.leaf(moved)))
+        #expect(!c.active && !c.cursorLocked && app.paneDropTarget == nil)
+        let tabs = app.state.tasks[0].tabs
+        #expect(tabs.count == 3 && tabs[2].root == .leaf(try #require(tabs[2].root.leaf(id: moved))))
+        #expect(app.state.tasks[0].tabs[0].root.leaves.count == 1)
+    }
+
+    /// Esc during a header drag: nothing moves.
+    @Test func leafDragEscDropsNothing() throws {
+        let (c, app, _, _, dir) = makeController()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let t = app.state.tasks[0].id, first = app.state.tasks[0].tabs[0]
+        app.perform { $0.split(taskId: t, tabId: first.id, leafId: first.root.leaves[0].id, axis: .horizontal, kind: .shell) }
+        let moved = try #require(app.state.tasks[0].tabs[0].root.leaves.last?.id)
+        let before = app.state.tasks[0].tabs
+        #expect(c.update(.leaf(moved), at: CGPoint(x: 300, y: 20)))
+        #expect(c.cancel())
+        #expect(c.end(.leaf(moved)))
+        #expect(app.state.tasks[0].tabs == before)
     }
 
     /// The chip stays inside the window near its right and bottom edges.

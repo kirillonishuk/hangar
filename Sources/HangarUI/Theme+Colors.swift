@@ -83,6 +83,8 @@ extension Theme {
     public static var text3: NSColor { ns(palette.tx3) }
     public static var selection: NSColor { ns(palette.selected) }
     public static var accent: NSColor { ns(palette.accent) }
+    /// Dims what a drop won't take, the same in every theme (dark terminals need a real darkening).
+    public static var paneDropScrim: NSColor { NSColor.black.withAlphaComponent(paneDropDimOpacity) }
     /// Accent as text (links, hashes, chips): lighter than `accent` for AA.
     public static var accentText: NSColor { ns(palette.accentText) }
     public static var primary: NSColor { ns(palette.primary) }

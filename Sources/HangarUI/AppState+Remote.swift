@@ -51,7 +51,7 @@ extension AppState {
     func project(of target: ActionTarget) -> Project? {
         switch target {
         case .project(let id): project(id)
-        case .task(let id), .tab(let id, _): state.tasks.first { $0.id == id }.flatMap { project($0.projectId) }
+        case .task(let id), .tab(let id, _), .leaf(let id, _, _): state.tasks.first { $0.id == id }.flatMap { project($0.projectId) }
         }
     }
 

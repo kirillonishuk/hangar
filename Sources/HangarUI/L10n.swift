@@ -84,7 +84,7 @@ import Workspace
         case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
-        case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
+        case dropRight, dropLeft, dropUp, dropDown, paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
@@ -354,6 +354,18 @@ import Workspace
     static var languageRu: String { s(.languageRu) }
     static var languageEn: String { s(.languageEn) }
     static var defaultAgent: String { s(.defaultAgent) }
+    static var paneNew: String { s(.paneNew) }
+    static var paneEditorCap: String { s(.paneEditorCap) }
+    static var continueTitle: String { s(.continueTitle) }
+    static var closePane: String { s(.closePane) }
+    static var detachPane: String { s(.detachPane) }
+    static var dropRight: String { s(.dropRight) }
+    static var dropLeft: String { s(.dropLeft) }
+    static var dropUp: String { s(.dropUp) }
+    static var dropDown: String { s(.dropDown) }
+    static var paneAgentWorking: String { s(.paneAgentWorking) }
+    static var paneAgentWorkingInfo: String { s(.paneAgentWorkingInfo) }
+    static var tabAgentWorkingInfo: String { s(.tabAgentWorkingInfo) }
     static var editor: String { s(.editor) }
     static var externalEditor: String { s(.externalEditor) }
     static var externalEditorPlaceholder: String { s(.externalEditorPlaceholder) }

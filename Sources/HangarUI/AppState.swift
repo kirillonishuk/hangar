@@ -13,6 +13,23 @@ import Usage
 import UserNotifications
 import Workspace
 
+/// An OSC title without the agent's leading status glyph (Claude's «✳ JS-14684», braille spinners «⠋ …», «✻ ✶ ✢ ·»):
+/// the tab and pane header already show the agent's icon and status dot.
+func terminalTitle(_ raw: String) -> String {
+    func glyph(_ u: Unicode.Scalar) -> Bool {
+        switch u.value {
+        case 0x2800...0x28FF,  // braille spinners
+             0x2700...0x27BF,  // dingbats: ✳ ✻ ✶ ✢ ✽ …
+             0x2600...0x26FF,  // misc symbols
+             0x25A0...0x25FF,  // geometric shapes: ◐ ● …
+             0x2022, 0x00B7, 0x2219, 0x22C5, 0x002A:  // • · ∙ ⋅ *
+            true
+        default: u.properties.isWhitespace || u.value == 0xFE0F
+        }
+    }
+    return String(String.UnicodeScalarView(raw.unicodeScalars.drop(while: glyph))).trimmingCharacters(in: .whitespaces)
+}
+
 public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
@@ -76,10 +93,23 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var editorLanguage: [UUID: LanguageStatus] = [:]
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
+    @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
     /// Settings → Editor changed: every editor and diff page restyles (set by `TerminalArea`).
     @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
+    /// Where the tab/pane being dragged would drop (zone shown), else nil.
+    var paneDropTarget: PaneDropTarget?
+    /// A tab drag moved / ended (set by the window's `PaneDragController`): true while it is the pane drop's.
+    @ObservationIgnored var paneDragMoved: ((PaneDragSource, CGPoint) -> Bool)?
+    @ObservationIgnored var paneDragEnded: ((PaneDragSource) -> Bool)?
+    /// The drag gesture went away without ending (SwiftUI drops `onEnded` on deactivation, a sheet, …).
+    @ObservationIgnored var paneDragCancelled: (() -> Void)?
+    /// The selected session's tabs in window points from the top-left (set by the tab bar): a pane's slot when dropped there.
+    @ObservationIgnored var tabFrames: [UUID: CGRect] = [:]
+    /// A pane is dragged over the tab bar at this window x (set by the tab bar): it scrolls near its edges.
+    @ObservationIgnored var tabBarAutoScroll: ((CGFloat) -> Void)?
     /// TS/JS language features of the editors (tsserver, #82).
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
     /// `node` from the login shell, looked up once (#82).
@@ -97,6 +127,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
+    /// Debug hook: a tab drag fed to the tab strip as its gesture would (tab, x translation, pointer; nil pointer = end).
+    /// An inactive window drops synthetic clicks, so `mouse` can't start one.
+    @ObservationIgnored var debugTabDrag: ((UUID, CGFloat, CGPoint?) -> Void)?
     #endif
     /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
     let gitPanel = GitPanelModel()
@@ -142,6 +175,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .task(let id): state.tasks.contains { $0.id == id }
         case .project(let id): project(id) != nil
         case .tab(let task, let tab): state.tasks.first { $0.id == task }?.tabs.contains { $0.id == tab } == true
+        case .leaf(_, _, let leaf): location(ofLeaf: leaf) != nil
         }
         return exists ? interaction : .typing
     }
@@ -160,6 +194,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
+    /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
+    @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
     /// The remote tmux kills the last `perform` started.
@@ -171,6 +207,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let configURL: URL
     /// Past conversations («Сессии»), cached per file across scans.
     @ObservationIgnored let history = ConversationHistory()
+    /// «Продолжить» of an empty session or a chooser: the folder's latest conversations from the last scan (in memory only).
+    var recentByFolder: [String: [Conversation]] = [:]
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
@@ -252,6 +290,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
             statuses.retain(live)
@@ -309,6 +348,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .claude, .codex: kind.rawValue
         case .editor: L10n.editor
         case .shell: (userShell as NSString).lastPathComponent
+        case .choose: L10n.paneNew
         }
     }
 
@@ -318,7 +358,23 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
     }
 
-    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
+    /// A pane's header: its own name, else its terminal / file title.
+    func paneTitle(_ leaf: Leaf) -> String { leaf.customTitle ?? title(of: leaf) }
+
+    /// A file tab and an editor pane are named by their file: neither can be renamed (double click, menu, F2).
+    func renameable(_ target: ActionTarget) -> Bool {
+        switch target {
+        case .task, .project: return true
+        case .tab(let task, let tab):
+            guard let tab = state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab }) else { return true }
+            if case .leaf(let leaf) = tab.root, leaf.kind == .editor { return false }
+            return true
+        case .leaf(_, _, let leaf):
+            return state.tasks.lazy.flatMap(\.tabs).compactMap { $0.root.leaf(id: leaf) }.first?.kind != .editor
+        }
+    }
+
+    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(paneTitle).joined(separator: " │ ")) }
 
     /// Tooltip title: an unsplit, unrenamed editor tab shows its active file's path from the session folder; others their label.
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
@@ -342,7 +398,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             guard let task = state.tasks.first(where: { $0.id == id }) else { return nil }
             if case .worktree(let path, _, _) = task.mode { return path }
             return project(task.projectId)?.path
-        case .tab: return nil
+        case .tab, .leaf: return nil
         }
     }
 
@@ -353,6 +409,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .task(let id): return state.tasks.first { $0.id == id }?.name ?? ""
         case .tab(let task, let tab):
             return state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }.map(tabLabel) ?? ""
+        case .leaf(_, _, let leaf): return self.leaf(id: leaf).map(paneTitle) ?? ""
         }
     }
 
@@ -460,11 +517,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Ends inline editing; blank text keeps the old name (the model rejects it).
     func commitRename(_ target: ActionTarget, _ text: String) {
         if renaming == target { renaming = nil }
+        var autoName: String?
+        if case .leaf(_, _, let id) = target { autoName = leaf(id: id).map(title(of:)) }
         perform { s in
             switch target {
             case .task(let id): s.renameTask(id: id, name: text)
             case .project(let id): s.renameProject(id: id, name: text)
             case .tab(let task, let tab): s.renameTab(taskId: task, tabId: tab, title: text)
+            // Blank or the automatic name itself (a field left unchanged): the name keeps following the terminal / file.
+            case .leaf(_, _, let leaf): s.renameLeaf(leafId: leaf, title: text == autoName ? nil : text)
             }
         }
     }
@@ -576,13 +637,72 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         perform { $0.closeLeaf(taskId: loc.task, tabId: loc.tab, leafId: leafId) }
     }
 
-    /// Splits `leafId` (the focused leaf) with a new shell in the task's cwd.
-    func split(leafId: UUID, axis: Workspace.Axis) {
-        guard let loc = location(ofLeaf: leafId) else { return }
-        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: .shell) }
+    /// The whole `source` tab joins `target` next to its leaf `leafId`; its panes keep running.
+    func mergeTab(_ source: UUID, into target: UUID, at leafId: UUID, edge: SplitEdge) {
+        guard let task = location(ofTab: source),
+              let moved = state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == source })?.root.leaves
+        else { return }
+        perform { if $0.mergeTab(taskId: task, source: source, into: target, at: leafId, edge: edge) { remember(moved.map(\.id), ranIn: source) } }
     }
 
-    func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }
+    /// The pane joins `target` next to `anchor` (same session); it keeps running.
+    func moveLeaf(_ leafId: UUID, to target: UUID, at anchor: UUID, edge: SplitEdge) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        perform { if $0.moveLeaf(taskId: loc.task, leafId: leafId, to: target, at: anchor, edge: edge) { remember([leafId], ranIn: loc.tab) } }
+    }
+
+    /// The pane becomes a tab of its own (after its tab, or at `toIndex`); it keeps running.
+    func detachLeaf(_ leafId: UUID, toIndex: Int?) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        perform { if $0.detachLeaf(taskId: loc.task, leafId: leafId, toIndex: toIndex) != nil { remember([leafId], ranIn: loc.tab) } }
+    }
+
+    /// A moved leaf's process keeps the `HANGAR_TAB_ID` it was launched with: its hooks from that tab stay accepted.
+    private func remember(_ leaves: [UUID], ranIn tab: UUID) {
+        for id in leaves { formerTabs[id, default: []].insert(tab) }
+    }
+
+    /// Splits `leafId` (the focused leaf) with a chooser pane (a host's terminal: a shell).
+    func split(leafId: UUID, axis: Workspace.Axis) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: nil) }
+    }
+
+    /// A chooser's button or ↩: the pane starts `kind`. The editor needs a file: it goes through `chooseEditor`.
+    func chooseKind(_ leafId: UUID, _ kind: LeafKind) {
+        guard kind != .editor else { return }
+        perform { $0.chooseKind(leafId: leafId, kind: kind) }
+    }
+
+    /// The chooser's ⌘P pick: a file already open in the session is focused there (the chooser stays), else the pane edits it.
+    func chooseEditor(_ leafId: UUID, path: String) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        if state.fileTab(taskId: loc.task, path: path) != nil { return openInEditor(path: path, line: nil) }
+        var ok = false
+        perform { ok = $0.chooseKind(leafId: leafId, kind: .editor, file: path) }
+        if !ok { beep() }  // the tab got its second editor meanwhile
+    }
+
+    /// «Продолжить» in a chooser: the pane resumes that conversation in its folder.
+    func chooseConversation(_ leafId: UUID, _ c: Conversation) {
+        guard let id = validSessionId(c.id) else { return }
+        perform { s in
+            if s.chooseKind(leafId: leafId, kind: c.agent == .claude ? .claude : .codex, resume: (cwd: c.cwd, sessionId: id)) {
+                restoredLeaves[leafId] = true  // before this perform's sync starts it
+            }
+        }
+    }
+
+    /// ↩ relaunched a leaf: the new process carries its tab of now, so the tabs it ran under before are no longer trusted.
+    func relaunched(leafId: UUID) {
+        formerTabs[leafId] = nil
+        signal(.relaunched, leaf: leafId)
+    }
+
+    func setTitle(_ title: String, leafId: UUID) {
+        let clean = terminalTitle(title)
+        leafTitles[leafId] = clean.isEmpty ? nil : clean
+    }
 
     /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).
     func focused(leafId: UUID) {
@@ -677,7 +797,7 @@ func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
         let host = host(task.projectId)
         for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
             switch leaf.kind {
-            case .shell, .editor: result.insert(leaf.id)
+            case .shell, .editor, .choose: result.insert(leaf.id)
             case .claude, .codex:
                 var cwd = leaf.cwd
                 while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }

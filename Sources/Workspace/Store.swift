@@ -46,7 +46,7 @@ public final class StateStore {
                 return lockDown("cannot read state.json: \(error)")
             }
             if let state = try? JSONDecoder().decode(WorkspaceState.self, from: data) {
-                return .loaded(state)
+                return .loaded(state.prunedChoosers())
             }
         }
         // rename(2) moves the item itself (a symlink stays a link) and atomically replaces an older .bak.
@@ -89,7 +89,7 @@ public final class StateStore {
             Self.log.error("save skipped: state store is read-only")
             return
         }
-        let data = try encode(state)
+        let data = try encode(state.prunedChoosers())
         ensurePrivateDirectory(directory, tightenExisting: directory.standardizedFileURL.path == defaultStateDirectoryPath())
         try data.write(to: fileURL, options: .atomic)
         writeHook?(data)

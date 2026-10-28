@@ -130,7 +130,8 @@
   // A tab's file arrives (also for tabs not on screen: their models wait). One file open in two sessions' tabs is
   // two buffers.
   function open(c) {
-    if (files.has(c.doc)) return;
+    // The doc already here (a pane moved back with its buffer, a load racing a move): the new text replaces it.
+    if (files.has(c.doc)) { const shown = active === c.doc; close(c.doc); if (shown) active = c.doc; }
     const f = { doc: c.doc, path: c.path, readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false,
       refused: c.text == null, view: null, model: null, at: { line: c.line, column: c.column } };
     if (c.text != null) {
@@ -139,7 +140,9 @@
       const plain = monaco.Uri.file(c.path);
       f.model = monaco.editor.createModel(c.text, undefined,
         monaco.editor.getModel(plain) ? monaco.Uri.from({ scheme: 'file', authority: c.doc.toLowerCase(), path: c.path }) : plain);
-      f.saved = f.model.getAlternativeVersionId();
+      // A moved unsaved buffer (c.dirty) matches no saved version until it is saved.
+      f.saved = c.dirty ? -1 : f.model.getAlternativeVersionId();
+      f.dirty = !!c.dirty;
       const mirror = tsLike.test(c.path);
       f.model.onDidChangeContent((e) => {
         if (mirror) postFile(f, { type: 'edit', changes: e.changes.map((ch) => ({ line: ch.range.startLineNumber,

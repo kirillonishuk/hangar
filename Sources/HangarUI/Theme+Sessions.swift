@@ -59,3 +59,11 @@ extension Theme {
     /// `line2` of the token table (= `control`).
     public static var historyBadgeBorder: Color { ui.control }
 }
+
+/// «Продолжить» of an empty session and a chooser pane: up to 5 rows of 32, 440 wide; the last scan keeps the 50 newest.
+extension Theme {
+    public static let continueRows = 5
+    public static let continueKept = 50
+    public static let continueRowHeight: CGFloat = 32
+    public static let continueWidth: CGFloat = 440
+}

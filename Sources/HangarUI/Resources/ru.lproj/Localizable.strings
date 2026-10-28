@@ -63,6 +63,9 @@
 "languageEn" = "English";
 "defaultAgent" = "Агент по умолчанию";
 "editor" = "Редактор";
+"paneNew" = "Новая панель";
+"paneEditorCap" = "Не больше двух редакторов во вкладке";
+"continueTitle" = "Продолжить";
 "externalEditor" = "Внешний редактор";
 "externalEditorPlaceholder" = "пусто — выключен";
 "terminalBackground" = "Фон терминала";
@@ -611,3 +614,12 @@
 "cmdNextAttention" = "К следующему ждущему";
 "durationUnderMin" = "< 1 мин";
 "durationHour" = "%ld ч";
+"closePane" = "Закрыть панель";
+"detachPane" = "В отдельную вкладку";
+"dropRight" = "Справа";
+"dropLeft" = "Слева";
+"dropUp" = "Сверху";
+"dropDown" = "Снизу";
+"paneAgentWorking" = "Агент ещё работает";
+"paneAgentWorkingInfo" = "Закрыть панель и остановить его?";
+"tabAgentWorkingInfo" = "Закрыть вкладку и остановить его?";

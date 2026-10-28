@@ -74,6 +74,35 @@ extension MainWindowController {
         }
     }
 
+    /// Indices are in the selected session: `merge <srcTab#> <dstTab#> <leaf#> <edge>`, `moveLeaf <leaf#> <dstTab#> <anchor#> <edge>`
+    /// (a leaf of the active tab), `detach <leaf#> [<index>]` (a leaf of the active tab).
+    private func debugMove(_ command: String, _ f: [String]) {
+        guard let task = app.selectedTask else { return }
+        let n = f.map { Int($0) }
+        func tab(_ i: Int?) -> Workspace.Tab? { i.flatMap { task.tabs.indices.contains($0) ? task.tabs[$0] : nil } }
+        func leaf(_ t: Workspace.Tab?, _ i: Int?) -> UUID? { t.flatMap { t in i.flatMap { t.root.leaves.indices.contains($0) ? t.root.leaves[$0].id : nil } } }
+        let active = task.tabs.first { $0.id == task.activeTabId }
+        let edge = f.count == 4 ? SplitEdge(rawValue: f[3]) : nil
+        switch command {
+        case "merge":
+            guard let edge, let src = tab(n[0]), let dst = tab(n[1]), let at = leaf(dst, n[2]) else { return }
+            app.mergeTab(src.id, into: dst.id, at: at, edge: edge)
+        case "moveLeaf":
+            guard let edge, let id = leaf(active, n[0]), let dst = tab(n[1]), let anchor = leaf(dst, n[2]) else { return }
+            app.moveLeaf(id, to: dst.id, at: anchor, edge: edge)
+        default:
+            guard let id = leaf(active, n.first ?? nil) else { return }
+            app.detachLeaf(id, toIndex: n.count > 1 ? n[1] : nil)
+        }
+    }
+
+    /// Pane `n` of the active tab (`hover|menu|clicked|action … leaf <n>`).
+    private func debugLeafTarget(_ n: Int) -> ActionTarget? {
+        guard let task = app.selectedTask, let tab = task.tabs.first(where: { $0.id == task.activeTabId }),
+              tab.root.leaves.indices.contains(n) else { return nil }
+        return .leaf(task: task.id, tab: tab.id, leaf: tab.root.leaves[n].id)
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -102,7 +131,20 @@ extension MainWindowController {
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
-        case "tab": LeafKind(rawValue: arg).map(app.addTab)
+        case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
+        // choose <kind>: the focused chooser pane's button; continue <n>: row n of «Продолжить» (chooser or empty session).
+        case "choose":
+            guard let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil, let kind = LeafKind(rawValue: arg) else { return }
+            if kind == .editor { app.onChooseEditor?(leaf.leafId) } else { app.chooseKind(leaf.leafId, kind) }
+        case "chooseFile":  // chooseFile <absolute path>: the chooser's ⌘P pick (an inactive app's palette loses key at once)
+            guard let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil else { return }
+            app.chooseEditor(leaf.leafId, path: arg)
+        case "continue":
+            guard let task = app.selectedTask, let n = Int(arg) else { return }
+            let rows = app.recent(for: task.id)
+            guard rows.indices.contains(n) else { return }
+            if let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil { app.chooseConversation(leaf.leafId, rows[n]) }
+            else if app.showsNoTabs { app.openConversation(rows[n]) }
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
         case "select": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.select(taskId: app.orderedTasks[n].id) }
@@ -137,6 +179,7 @@ extension MainWindowController {
             let target: ActionTarget? = switch f.first {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
             case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            case "leaf": debugLeafTarget(n)
             default: nil
             }
             if parts[0] == "hover" {
@@ -194,6 +237,7 @@ extension MainWindowController {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
             case "archived": app.archivedTasks.indices.contains(n) ? .task(app.archivedTasks[n].id) : nil
             case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            case "leaf": debugLeafTarget(n)
             default: app.selectedTask.flatMap { t in t.tabs.indices.contains(n) ? .tab(task: t.id, tab: t.tabs[n].id) : nil }
             }
             if let target { action.perform(target, ctx) }
@@ -244,29 +288,40 @@ extension MainWindowController {
             if let root = window?.attachedSheet?.contentView, let b = find(root) { b.performClick(nil) }
             uiLog.info("alert text: \((self.window?.attachedSheet?.contentView).map(Self.texts) ?? [], privacy: .public)")
         case "focus": if let n = Int(arg) { column.terminalArea.debugFocus(n) }
+        // commitRename <text>: ↩ in the open inline rename field (an inactive window's field never takes the typing).
+        // The field goes first (it saves its own unchanged text on disappear), then the typed name lands.
+        case "commitRename":
+            guard let target = app.renaming else { return }
+            app.cancelRename()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.app.commitRename(target, arg) }
         case "clicked":
             // clicked project|task <n>: what a sidebar row click does (F2 target; the terminal keeps the keyboard)
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 2, let n = Int(f[1]) else { return }
             if f[0] == "project", app.state.projects.indices.contains(n) { app.chromeClicked(.project(app.state.projects[n].id)) }
             if f[0] == "task", app.orderedTasks.indices.contains(n) { app.chromeClicked(.task(app.orderedTasks[n].id)) }
+            if f[0] == "leaf", let target = debugLeafTarget(n) { app.chromeClicked(target) }
         case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
         case "typeText": ((popoverWindow ?? window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
         case "mouse":
-            // mouse <x> <y> [<x2> <y2>] — window points from the top-left; one point = (double) click, two = drag.
+            // mouse <x> <y> [<x2> <y2> [hold]] — window points from the top-left; one point = (double) click, two = drag;
+            // "hold" keeps the button down at the end (then `key esc` / `mouseUp <x> <y>`).
             // "mouse popover …" → the open popover; otherwise the attached sheet, else the main window.
             let v = arg.split(separator: " ").compactMap { Double($0) }
+            let hold = arg.hasSuffix(" hold")
             guard let window = arg.hasPrefix("popover") ? popoverWindow : (window?.attachedSheet ?? window), v.count >= 2 else { return }
             let h = window.contentView?.frame.height ?? 0
             var events: [(NSEvent.EventType, Double, Double, Int)] = []
             if v.count >= 4 {
                 events.append((.leftMouseDown, v[0], v[1], 1))
                 for i in 1...10 { events.append((.leftMouseDragged, v[0] + (v[2] - v[0]) * Double(i) / 10, v[1] + (v[3] - v[1]) * Double(i) / 10, 1)) }
-                events.append((.leftMouseUp, v[2], v[3], 1))
+                if !hold { events.append((.leftMouseUp, v[2], v[3], 1)) }
+            } else if arg.hasPrefix("up ") {
+                events.append((.leftMouseUp, v[0], v[1], 1))
             } else {
                 for c in 1...(v.count == 3 ? Int(v[2]) : 1) { events += [(.leftMouseDown, v[0], v[1], c), (.leftMouseUp, v[0], v[1], c)] }
             }
-            events.append((.mouseMoved, events.last!.1 + 1, events.last!.2 + 1, 0))  // real pointers keep sending moves
+            if !hold { events.append((.mouseMoved, events.last!.1 + 1, events.last!.2 + 1, 0)) }  // real pointers keep sending moves
             // Spaced out: SwiftUI drops gesture phases delivered within one run-loop turn.
             for (i, ev) in events.enumerated() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03 * Double(i)) {
@@ -277,6 +332,35 @@ extension MainWindowController {
                     }
                 }
             }
+        case "tdrag":
+            // tdrag <tab index> <dx> <x> <y> | tdrag <tab index> end: through the tab strip (gap, pane drop mode, controller).
+            let f = arg.split(separator: " ").map(String.init)
+            guard let n = Int(f.first ?? ""), let tabs = app.selectedTask?.tabs, tabs.indices.contains(n) else { return }
+            let v = f.dropFirst().compactMap { Double($0) }
+            if f.last == "end" { app.debugTabDrag?(tabs[n].id, 0, nil) } else if v.count == 3 {
+                app.debugTabDrag?(tabs[n].id, v[0], CGPoint(x: v[1], y: v[2]))
+            }
+            try? "closedHand=\(NSCursor.current == NSCursor.closedHand) dragActive=\(paneDrag?.active == true)\n"
+                .write(toFile: NSTemporaryDirectory() + "hangar-tdrag.txt", atomically: true, encoding: .utf8)
+        case "pdrag", "pdragEnd", "hdrag", "hdragEnd":
+            // pdrag <tab index> <x> <y> [<x> <y> …] [end]: tab n dragged through those window points (from the top-left)
+            // as the tab strip reports it to `PaneDragController` (an inactive window drops synthetic clicks); pdragEnd <n>: release.
+            // hdrag / hdragEnd <pane index>: the same for the header of the active tab's pane n.
+            let f = arg.split(separator: " ").map(String.init)
+            let header = parts.first?.hasPrefix("h") == true
+            guard let n = Int(f.first ?? ""), let task = app.selectedTask else { return }
+            let ids = header ? task.tabs.first { $0.id == task.activeTabId }?.root.leaves.map(\.id) ?? [] : task.tabs.map(\.id)
+            guard ids.indices.contains(n) else { return }
+            let source = header ? PaneDragSource.leaf(ids[n]) : .tab(ids[n])
+            let v = f.dropFirst().compactMap { Double($0) }
+            var moves: [String] = []
+            for i in stride(from: 0, to: v.count - 1, by: 2) {
+                moves.append("\(app.paneDragMoved?(source, CGPoint(x: v[i], y: v[i + 1])) ?? false)")
+            }
+            let ended = parts.first?.hasSuffix("End") == true || f.last == "end" ? "\(app.paneDragEnded?(source) ?? false)" : "-"
+            let frames = task.tabs.compactMap { app.tabFrames[$0.id].map { "\(Int($0.minX))-\(Int($0.maxX))" } }
+            try? "moved=\(moves) ended=\(ended) target=\(String(describing: app.paneDropTarget)) tabs=\(frames)\n"
+                .write(toFile: NSTemporaryDirectory() + "hangar-pdrag.txt", atomically: true, encoding: .utf8)
         case "hit":
             // hit <x> <y>: the view under a window point (from the top-left) and its frame in window coordinates.
             let v = arg.split(separator: " ").compactMap { Double($0) }
@@ -441,7 +525,7 @@ extension MainWindowController {
             case "type": palette?.model.setQuery(rest)
             case "up": palette?.model.move(-1)
             case "down": palette?.model.move(1)
-            case "enter": if let item = palette?.model.highlighted { closePalette(); choosePalette(item) }
+            case "enter": if let item = palette?.model.highlighted { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
             case "snap":
                 guard let view = palette?.panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
@@ -498,6 +582,8 @@ extension MainWindowController {
             }
             uiLog.info("window \(arg, privacy: .public) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) mini=\(self.window?.isMiniaturized ?? false) active=\(NSApp.isActive)")
         case "check": try? column.terminalArea.debugCheck().write(toFile: arg, atomically: true, encoding: .utf8)  // check <file>
+        case "surfaces": try? column.terminalArea.debugSurfaces().write(toFile: arg, atomically: true, encoding: .utf8)  // surfaces <file>
+        case "merge", "moveLeaf", "detach": debugMove(parts[0], arg.split(separator: " ").map(String.init))
         // Runs applicationWillTerminate like ⌘Q. From a run-loop block, not this main-queue callback: the quit sheet's
         // nested loop could not drain the main queue (the SIGTERM source) while a main-queue block is on the stack.
         case "quit": RunLoop.main.perform { NSApp.terminate(nil) }

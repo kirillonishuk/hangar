@@ -9,7 +9,7 @@ enum LinkTarget: Equatable {
     init?(_ target: ActionTarget) {
         switch target {
         case .task(let id): self = .task(id)
-        case .tab(let task, let tab): self = .tab(task: task, tab: tab)
+        case .tab(let task, let tab), .leaf(let task, let tab, _): self = .tab(task: task, tab: tab)
         case .project(let id): self = .project(id)
         }
     }

@@ -110,14 +110,53 @@ import Testing
         #expect(tabIndex(number: 9, count: 0) == nil)
     }
 
-    /// File tabs (#83) keep their whole name, as in VS Code: never narrower than their natural width (up to the max);
-    /// a crowded strip scrolls instead of truncating "main.ts" to "main…".
+    /// File tabs (#83) keep their whole name, as in VS Code: as wide as the name, past the agent tabs' max, up to
+    /// `fileTabMaxWidth`; a crowded strip scrolls instead of truncating "useCheckoutButton.ts" to "useCheckoutButton.…".
+    /// Agent / shell tabs stop at `tabMaxWidth`.
     @Test func fileTabsKeepTheirNames() {
-        let natural: [CGFloat] = [150, 126, 140, 400]
-        let l = TabStrip.layout(natural: natural, whole: [false, true, true, true], width: 500)
+        let natural: [CGFloat] = [260, 126, 300, 900]
+        let whole = [false, true, true, true]
+        let l = TabStrip.layout(natural: natural, whole: whole, width: 500)
         #expect(l.overflow)
-        #expect(l.widths == [Theme.tabMinWidth, 126, 140, Theme.tabMaxWidth])
-        let roomy = TabStrip.layout(natural: natural, whole: [false, true, true, true], width: 2000)
-        #expect(roomy.widths == [150, 126, 140, Theme.tabMaxWidth] && !roomy.overflow)
+        #expect(l.widths == [Theme.tabMinWidth, 126, 300, Theme.fileTabMaxWidth])
+        let roomy = TabStrip.layout(natural: natural, whole: whole, width: 3000)
+        #expect(roomy.widths == [Theme.tabMaxWidth, 126, 300, Theme.fileTabMaxWidth] && !roomy.overflow)
+    }
+
+    /// OSC titles lose the agent's leading status glyph (the tab already shows the agent icon and dot).
+    @Test func terminalTitleDropsStatusGlyphs() {
+        #expect(terminalTitle("✳ JS-14684") == "JS-14684")
+        #expect(terminalTitle("⠋ Working on it") == "Working on it")
+        #expect(terminalTitle("✻  claude") == "claude")
+        #expect(terminalTitle("· JS-1 · fix") == "JS-1 · fix")
+        #expect(terminalTitle("✶✢ x") == "x")
+        #expect(terminalTitle("~/dev/app") == "~/dev/app")
+        #expect(terminalTitle("vim a.ts") == "vim a.ts")
+        #expect(terminalTitle("✳ ") == "")
+    }
+
+    /// Reorder: a neighbour gives way when the dragged tab's leading / trailing edge passes its middle; the last slot
+    /// (after the last tab, index == the others' count) is reachable without the dragged tab's centre passing it.
+    @Test func reorderReachesTheLastSlot() {
+        let w: [CGFloat] = [110, 165, 181]
+        let lastMid = 110 + gap + 165 + gap + 181 / 2
+        #expect(TabStrip.reorderIndex(widths: w, from: 0, dx: 0) == 0)
+        #expect(TabStrip.reorderIndex(widths: w, from: 0, dx: lastMid - 110 + 1) == 2)  // trailing edge past the last's middle
+        #expect(TabStrip.reorderIndex(widths: w, from: 0, dx: lastMid - 110 - 1) == 1)
+        #expect(TabStrip.reorderIndex(widths: w, from: 1, dx: 181 / 2 + gap + 1) == 2)  // the next-to-last to the end
+        #expect(TabStrip.reorderIndex(widths: w, from: 2, dx: -(110 + gap + 165 + gap - 110 / 2) - 1) == 0)  // leading edge past the first's middle
+        #expect(TabStrip.reorderIndex(widths: w, from: 2, dx: -10) == 2)
+    }
+
+    /// Reorder: the tabs between the dragged one and its slot part by its width, opening the gap where it lands.
+    @Test func neighboursPartToOpenTheSlot() {
+        let w: [CGFloat] = [100, 120, 80, 90]
+        // Tab 0 dragged to slot 2 (after tabs 1 and 2): they move left by its width.
+        #expect(TabStrip.shifts(widths: w, from: 0, to: 2) == [0, -(100 + gap), -(100 + gap), 0])
+        #expect(TabStrip.slotX(widths: w, from: 0, to: 2) == 120 + 80 + 2 * gap)
+        // Tab 3 dragged to slot 1: tabs 1 and 2 move right.
+        #expect(TabStrip.shifts(widths: w, from: 3, to: 1) == [0, 90 + gap, 90 + gap, 0])
+        #expect(TabStrip.slotX(widths: w, from: 3, to: 1) == 100 + gap)
+        #expect(TabStrip.shifts(widths: w, from: 1, to: 1) == [0, 0, 0, 0])
     }
 }

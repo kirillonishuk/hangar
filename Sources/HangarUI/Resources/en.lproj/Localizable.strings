@@ -63,6 +63,9 @@
 "languageEn" = "English";
 "defaultAgent" = "Default agent";
 "editor" = "Editor";
+"paneNew" = "New pane";
+"paneEditorCap" = "At most two editors per tab";
+"continueTitle" = "Continue";
 "externalEditor" = "External editor";
 "externalEditorPlaceholder" = "empty — off";
 "terminalBackground" = "Terminal background";
@@ -611,3 +614,12 @@
 "cmdNextAttention" = "Go to Next Waiting";
 "durationUnderMin" = "< 1 min";
 "durationHour" = "%ld h";
+"closePane" = "Close Pane";
+"detachPane" = "Move to New Tab";
+"dropRight" = "Right";
+"dropLeft" = "Left";
+"dropUp" = "Top";
+"dropDown" = "Bottom";
+"paneAgentWorking" = "The agent is still working";
+"paneAgentWorkingInfo" = "Close the pane and stop it?";
+"tabAgentWorkingInfo" = "Close the tab and stop it?";

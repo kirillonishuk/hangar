@@ -532,6 +532,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.inserting(
             .leaf(newLeaf), at: leafId, edge: axis == .horizontal ? (first ? .left : .right) : (first ? .top : .bottom))
         tasks[i].tabs[t].focusedLeafId = newLeaf.id
+        tasks[i].tabs[t].preview = false  // a Files click replaces a preview tab's whole root: it must not take the new pane
         return newLeaf.id
     }
 
@@ -547,6 +548,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                     guard let file, fileTab(taskId: tasks[i].id, path: file) == nil,
                           tasks[i].tabs[t].editorCount < Tab.maxEditorPanes else { return false }
                 }
+                tasks[i].tabs[t].preview = false  // never a preview: its next Files click would replace the started pane
                 tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
                     guard leaf.id == leafId else { return leaf }
                     var leaf = leaf

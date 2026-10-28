@@ -33,6 +33,24 @@ import Testing
         }
     }
 
+    /// A split preview tab stops being a preview: the next Files click opens a new preview tab instead of replacing
+    /// the split's root (and killing the agent started in the new pane).
+    @Test func splittingPreviewTabPinsIt() throws {
+        var (s, t, _, _) = state()
+        let p0 = s.openFileTab(taskId: t, path: "/repo/a.ts", line: nil, column: nil, preview: true)
+        let p = try #require(p0)
+        let c = s.split(taskId: t, tabId: p.tab, leafId: p.leaf, axis: .horizontal, kind: nil)
+        let chosen = s.chooseKind(leafId: c, kind: .claude)
+        #expect(chosen)
+        let q0 = s.openFileTab(taskId: t, path: "/repo/b.ts", line: nil, column: nil, preview: true)
+        let q = try #require(q0)
+        #expect(q.tab != p.tab)
+        let split = try #require(s.tasks[0].tabs.first { $0.id == p.tab })
+        #expect(split.preview == false)
+        #expect(split.root.leaves.map(\.id) == [p.leaf, c])
+        #expect(s.tasks[0].tabs.first { $0.id == q.tab }?.preview == true)
+    }
+
     @Test func splitWithoutKindMakesChooser() throws {
         var (s, t, tab, leaf) = state()
         let c = s.split(taskId: t, tabId: tab, leafId: leaf, axis: .horizontal, kind: nil)

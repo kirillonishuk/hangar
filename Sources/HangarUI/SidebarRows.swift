@@ -156,15 +156,18 @@ struct ShortcutHint: View {
     }
 }
 
-/// "+ Новая сессия" fill (`hoverStrong`). With `width` the fill follows the visible sidebar width (content is laid
-/// out wider and clipped in rail mode), `inset` from the sidebar's edge; without it the fill hugs the label (empty-state button).
+/// Empty-state buttons: `hoverStrong` fill hugging the label. `outlined` («+ Новая сессия» in the sidebar): a
+/// `controlBorderStrong` frame, filled only on hover, so it never looks like the selected «Сессии» row below it.
+/// With `width` the box follows the visible sidebar width (content is laid out wider and clipped in rail mode),
+/// `inset` from the sidebar's edge.
 struct FilledRowStyle: ButtonStyle {
     var width: CGFloat?
     var inset = Theme.railInset
     var radius = Theme.railItemRadius
+    var outlined = false
 
     func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, pressed: configuration.isPressed, width: width, inset: inset, radius: radius)
+        Body(label: configuration.label, pressed: configuration.isPressed, width: width, inset: inset, radius: radius, outlined: outlined)
     }
 
     private struct Body<Label: View>: View {
@@ -173,18 +176,25 @@ struct FilledRowStyle: ButtonStyle {
         let width: CGFloat?
         let inset: CGFloat
         let radius: CGFloat
+        let outlined: Bool
         @State private var hover = false
 
         var body: some View {
             label
                 .background(alignment: .leading) {
-                    let fill = RoundedRectangle(cornerRadius: radius)
-                        .fill(Theme.ui.hoverStrong)
-                        .brightness(pressed ? -0.03 : hover ? 0.04 : 0)
+                    let shape = RoundedRectangle(cornerRadius: radius)
+                    let box = Group {
+                        if outlined {
+                            shape.fill(hover || pressed ? Theme.ui.sidebarHover : .clear)
+                                .overlay(shape.strokeBorder(Theme.ui.controlBorderStrong, lineWidth: 1))
+                        } else {
+                            shape.fill(Theme.ui.hoverStrong).brightness(pressed ? -0.03 : hover ? 0.04 : 0)
+                        }
+                    }
                     if let width {
-                        fill.frame(width: max(0, width)).padding(.leading, inset)
+                        box.frame(width: max(0, width)).padding(.leading, inset)
                     } else {
-                        fill
+                        box
                     }
                 }
                 .contentShape(Rectangle())

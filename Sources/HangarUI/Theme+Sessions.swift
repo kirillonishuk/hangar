@@ -29,6 +29,8 @@ extension Theme {
     public static let historyActionRadius: CGFloat = 6
     public static let historyActionIcon: CGFloat = 12
     public static let historyActionGap: CGFloat = 6
+    /// A row's project (· host) label: `text3` footer, at most this wide, cut in the middle.
+    public static let historyOriginMaxWidth: CGFloat = 180
 
     /// Search field width (its look is `Theme.Input`).
     public static let historySearchWidth: CGFloat = 260

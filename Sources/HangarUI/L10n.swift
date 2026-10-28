@@ -141,7 +141,7 @@ import Workspace
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
-        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
+        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp, statusFailedHelp
         case updateAvailable, updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
         case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
@@ -158,6 +158,7 @@ import Workspace
         case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
         case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
         case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
+        case sessionsLoadFailed, sessionsLoadFailedLocal, sessionsAllProjects, sessionsHostScope, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
@@ -213,6 +214,19 @@ import Workspace
     static var sessionsNoConversations: String { s(.sessionsNoConversations) }
     static var sessionsLoading: String { s(.sessionsLoading) }
     static func sessionsOffline(_ host: String) -> String { f(.sessionsOffline, host) }
+    /// «Не удалось загрузить с devbox: …»; nil host — this Mac.
+    static func sessionsLoadFailed(_ host: String?, _ message: String) -> String {
+        host.map { f(.sessionsLoadFailed, $0, message) } ?? f(.sessionsLoadFailedLocal, message)
+    }
+    static var sessionsTimedOut: String { s(.sessionsTimedOut) }
+    static var sessionsAllProjects: String { s(.sessionsAllProjects) }
+    static var sessionsContinue: String { s(.sessionsContinue) }
+    /// «Все проекты на devbox».
+    static func sessionsHostScope(_ host: String) -> String { f(.sessionsHostScope, host) }
+    static var projectSessions: String { s(.projectSessions) }
+    static var sessionsUnknownError: String { s(.sessionsUnknownError) }
+    static var allArchived: String { s(.allArchived) }
+    static var allArchivedOpen: String { s(.allArchivedOpen) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
     static var sessionsProjectHelp: String { s(.sessionsProjectHelp) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
@@ -592,6 +606,7 @@ import Workspace
     static var thisMac: String { s(.thisMac) }
     static var statusMachineHelp: String { s(.statusMachineHelp) }
     static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
+    static var statusFailedHelp: String { s(.statusFailedHelp) }
     static var statusPanesHelp: String { s(.statusPanesHelp) }
     // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
     private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {

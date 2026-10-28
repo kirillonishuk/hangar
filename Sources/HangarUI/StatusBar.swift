@@ -4,15 +4,18 @@ import SwiftUI
 import Workspace
 
 /// Agents of a project by displayed state; working agents' running subagents are counted apart (only the tooltip shows them).
-/// Agents on a reached limit are `limited`: neither working nor errors.
+/// Agents on a reached limit are `limited`: neither working nor errors. `waiting` is only agents asking something
+/// (permission, question): a failure is an error, never «ждёт».
 struct StatusCounts: Equatable {
     var working = 0
+    var waiting = 0
     var failed = 0
     var subagents = 0
     var limited = 0
 
-    init(working: Int = 0, failed: Int = 0, subagents: Int = 0, limited: Int = 0) {
+    init(working: Int = 0, waiting: Int = 0, failed: Int = 0, subagents: Int = 0, limited: Int = 0) {
         self.working = working
+        self.waiting = waiting
         self.failed = failed
         self.subagents = subagents
         self.limited = limited
@@ -26,67 +29,67 @@ struct StatusCounts: Equatable {
                 subagents += s.subagents
             case .failed: failed += 1
             case .limit: limited += 1
-            case .waiting, .done, .idle: break
+            case .waiting: waiting += 1
+            case .done, .idle: break
             }
         }
     }
 }
 
-/// Text of the window status bar (redesign v1 §7). Left: machine · project · non-zero counts of the project;
-/// right: the active tab's pane count · the focused pane's process.
+/// Text of the window status bar (redesign v1 §7). Left: machine · non-zero counts of the selected project (the
+/// project itself is in the title). Right: the pane count of a split tab, an editor's language — never what the tab
+/// or a pane header already says (no duplicated information, decision #104).
 struct StatusBarLine: Equatable {
     /// nil — this Mac.
     var host: String?
-    var project: String?
     var counts = StatusCounts()
-    /// The bell's number (all projects): this counter opens the same inbox, so they agree.
-    var inbox = 0
+    /// Only for a tab of 2+ panes.
     var panes: Int?
-    var process: String?
-    /// The focused pane is a file tab's editor (#83): its tsserver status and the minimap switch show.
+    /// The focused pane is a file tab's editor (#83): its language server status and the minimap switch show.
     var editor: UUID?
+    /// The editor's language when no language server reports on it.
+    var language: String?
     /// Agent leaves counted as errors, in sidebar order: the counter's click shows the first (`revealFailed`).
     var failedLeaves: [UUID] = []
 
     var remote: Bool { host != nil }
-    @MainActor var left: [String] { [host ?? L10n.thisMac] + [project].compactMap { $0 } }
+    @MainActor var left: [String] { [host ?? L10n.thisMac] }
     @MainActor var workingText: String? { counts.working > 0 ? L10n.workingCount(counts.working) : nil }
     /// «Следующая работающая сессия · 3 субагента» — subagents only when there are any.
     @MainActor var workingHelp: String {
         [L10n.statusNextWorkingHelp, counts.subagents > 0 ? L10n.subagentCount(counts.subagents) : nil]
             .compactMap { $0 }.joined(separator: " · ")
     }
-    @MainActor var inboxText: String? { inbox > 0 ? L10n.inboxCount(inbox) : nil }
+    @MainActor var waitingText: String? { counts.waiting > 0 ? L10n.inboxCount(counts.waiting) : nil }
     @MainActor var failedText: String? { counts.failed > 0 ? L10n.failedCount(counts.failed) : nil }
     @MainActor var limitedText: String? { counts.limited > 0 ? L10n.limitedCount(counts.limited) : nil }
-    @MainActor var right: String? {
-        guard let panes else { return nil }
-        return [L10n.paneCount(panes), process].compactMap { $0 }.joined(separator: " · ")
-    }
+    @MainActor var right: String? { panes.map(L10n.paneCount) }
 }
 
 private func leaves(of task: HangarTask) -> [Leaf] {
     task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
 }
 
-/// The line for the selected session: `summary` gives a leaf's agent state and subagents, `process` its name.
+/// The line for the selected session: `summary` gives a leaf's agent state and subagents, `language` an editor
+/// leaf's language name.
 func statusBarLine(_ s: WorkspaceState, summary: (Leaf) -> (state: AgentState, subagents: Int),
-                   process: (Leaf) -> String) -> StatusBarLine {
+                   language: (Leaf) -> String?) -> StatusBarLine {
     guard let id = s.selectedTaskId, let task = s.tasks.first(where: { $0.id == id && !$0.archived }) else { return StatusBarLine() }
     let project = s.projects.first { $0.id == task.projectId }
     let siblings = s.tasks.filter { $0.projectId == task.projectId && !$0.archived }
     let tab = task.tabs.first { $0.id == task.activeTabId }
     let focused = tab.flatMap { $0.root.leaf(id: $0.focusedLeafId) }
+    let panes = tab?.root.leaves.count ?? 0
+    let editor = focused?.kind == .editor ? focused : nil
     // A shell's non-zero exit (`npm test`, Ctrl-C, ssh 255 when a host terminal drops) keeps just its tab's dot.
     let summaries = siblings.flatMap(leaves).map { leaf in
         var s = summary(leaf)
         if s.state == .failed, leaf.kind != .claude, leaf.kind != .codex { s.state = .idle }
         return (leaf: leaf.id, summary: s)
     }
-    return StatusBarLine(host: project?.host ?? s.hostShell(ofTask: id)?.host, project: project?.name,
+    return StatusBarLine(host: project?.host ?? s.hostShell(ofTask: id)?.host,
                          counts: StatusCounts(summaries.map(\.summary)),
-                         panes: tab?.root.leaves.count, process: focused.map(process),
-                         editor: focused?.kind == .editor ? focused?.id : nil,
+                         panes: panes > 1 ? panes : nil, editor: editor?.id, language: editor.flatMap(language),
                          failedLeaves: summaries.filter { $0.summary.state == .failed }.map(\.leaf))
 }
 
@@ -100,8 +103,9 @@ extension AppState {
     var statusBar: StatusBarLine {
         // The rows' state (a reached limit included), so the bar and the sidebar agree.
         var line = statusBarLine(state, summary: { (displayState(ofLeaf: $0.id, kind: $0.kind), statusSummary(ofLeaf: $0.id).subagents) },
-                                 process: { $0.kind == .editor ? editorStatusLabel($0) : defaultTitle($0.kind) })
-        line.inbox = attentionCount(attentionItems)
+                                 language: editorStatusLabel)
+        // Sessions (⌘Y) and the diff tab cover the tabs: their pane count and editor mean nothing there.
+        if sessionsViewVisible || activeDiff != nil { line.panes = nil; line.editor = nil; line.language = nil }
         return line
     }
 
@@ -121,12 +125,12 @@ extension AppState {
     }
 }
 
-/// An editor has no terminal process: the active file's language (the ones with a language server), else «Editor».
-@MainActor func editorStatusLabel(_ leaf: Leaf) -> String {
+/// The active file's language (the ones with a language server), else nothing: «Редактор» would repeat the tab.
+@MainActor func editorStatusLabel(_ leaf: Leaf) -> String? {
     switch leaf.openFile.flatMap(TsMap.scriptKind) {
     case "TS", "TSX": "TypeScript"
     case "JS", "JSX": "JavaScript"
-    default: leaf.openFile.flatMap(LspLanguage.of)?.name ?? L10n.editor
+    default: leaf.openFile.flatMap(LspLanguage.of)?.name
     }
 }
 
@@ -137,28 +141,24 @@ struct WindowStatusBar: View {
 
     var body: some View {
         let line = app.statusBar
+        // One rule: items are apart by the gap, no «·»; hints are `text3`, clickable counters `text2` with a hover fill.
         HStack(spacing: Theme.statusBarGap) {
             HStack(spacing: Theme.inlineGap) {
                 if line.remote { IconView(icon: .sshHost, size: Theme.titleBranchIcon) }
                 Text(verbatim: line.host ?? L10n.thisMac).truncationMode(.middle)
             }
+            .foregroundStyle(Theme.ui.text3)
             .modifier(StatusItem())
             .help(L10n.statusMachineHelp)
-            if let project = line.project {
-                separator
-                Text(verbatim: project).truncationMode(.middle).modifier(StatusItem())
-            }
-            if line.workingText != nil || line.inboxText != nil || line.limitedText != nil || line.failedText != nil { separator }
             if let text = line.workingText {
                 StatusButton(help: line.workingHelp, action: app.selectNextWorking) {
                     StatusDot(state: .working)
                     Text(verbatim: text)
                 }
             }
-            if let text = line.inboxText {
+            if let text = line.waitingText {
                 StatusButton(help: L10n.inbox, action: app.inboxClicked) {
-                    Circle().strokeBorder(Theme.ui.waiting, lineWidth: Theme.statusRingWidth)
-                        .frame(width: Theme.statusDot, height: Theme.statusDot)
+                    StatusDot(state: .waiting)
                     Text(verbatim: text)
                 }
             }
@@ -170,11 +170,10 @@ struct WindowStatusBar: View {
                 .modifier(StatusItem())
             }
             if let text = line.failedText {
-                StatusButton(help: L10n.statusFailedHelp, action: app.revealFailed) {
+                StatusButton(help: L10n.statusFailedHelp, tint: Theme.ui.failed, action: app.revealFailed) {
                     StatusDot(state: .failed)
                     Text(verbatim: text)
                 }
-                .foregroundStyle(Theme.ui.failed)
             }
             Spacer(minLength: 0)
             // «Доступна 0.3.0» (#86): right edge, only while there is an offer; opens the update sheet.
@@ -195,24 +194,24 @@ struct WindowStatusBar: View {
                     .help(L10n.keepAwakeHelp(enabled: true, held: true, working: keep.working))
                     .accessibilityLabel(L10n.keepAwakeTitle)
             }
-            if let panes = line.panes {
-                Text(verbatim: L10n.paneCount(panes)).modifier(StatusItem()).help(L10n.statusPanesHelp)
-                if let process = line.process {
-                    separator
-                    Text(verbatim: process).font(.system(size: Theme.fontSize.footer, design: .monospaced)).modifier(StatusItem())
+            if let panes = line.right {
+                Text(verbatim: panes).foregroundStyle(Theme.ui.text3).modifier(StatusItem()).help(L10n.statusPanesHelp)
+            }
+            if let editor = line.editor {
+                // VS Code's status bar: the language server's state (a click restarts it; the reason is in the
+                // tooltip), else just the language; then the minimap switch, lit while on.
+                if let lang = app.editorLanguage[editor] {
+                    StatusButton(help: lang.tooltip, action: { app.restartLanguage(leafId: editor) }) {
+                        Circle().fill(lang.level == .ready ? Theme.ui.done : lang.level == .busy ? Theme.ui.waiting : Theme.ui.text3)
+                            .frame(width: Theme.statusDot, height: Theme.statusDot)
+                        Text(verbatim: lang.text)
+                    }
+                } else if let language = line.language {
+                    Text(verbatim: language).foregroundStyle(Theme.ui.text3).modifier(StatusItem())
                 }
-                if let editor = line.editor {
-                    // VS Code's status bar: the language server's state (a click restarts it) and the minimap.
-                    if let lang = app.editorLanguage[editor] {
-                        StatusButton(help: lang.tooltip, action: { app.restartLanguage(leafId: editor) }) {
-                            Circle().fill(lang.level == .ready ? Theme.ui.done : lang.level == .busy ? Theme.ui.waiting : Theme.ui.text3)
-                                .frame(width: Theme.statusDot, height: Theme.statusDot)
-                            Text(verbatim: lang.text)
-                        }
-                    }
-                    StatusButton(help: L10n.editorMinimap, action: { app.perform { $0.editorMinimap.toggle() } }) {
-                        Text(verbatim: L10n.editorMinimap).foregroundStyle(app.state.editorMinimap ? Theme.ui.accentText : Theme.ui.text2)
-                    }
+                let minimap = app.state.editorMinimap
+                StatusButton(help: L10n.editorMinimap, on: minimap, action: { app.perform { $0.editorMinimap.toggle() } }) {
+                    Text(verbatim: L10n.editorMinimap)
                 }
             }
         }
@@ -225,7 +224,6 @@ struct WindowStatusBar: View {
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    private var separator: some View { Text(verbatim: "·").foregroundStyle(Theme.ui.text3) }
 }
 
 /// Item box: 20 high, padding 4 (clickable ones get the `hover` fill in it, radius 4).
@@ -235,17 +233,26 @@ private struct StatusItem: ViewModifier {
     }
 }
 
+/// A clickable status item; `on` (a switch that is on) is drawn as a lit mode chip: `accent` 14 % and `accentText`.
 private struct StatusButton<Label: View>: View {
     let help: String
+    var on = false
+    /// Text colour at rest (the error counter is `failed`); default `text2`.
+    var tint: Color?
     let action: () -> Void
     @ViewBuilder let label: Label
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Theme.inlineGap) { label }.modifier(StatusItem())
+            HStack(spacing: Theme.inlineGap) { label }
+                .foregroundStyle(on ? Theme.ui.accentText : tint ?? Theme.ui.text2)
+                .modifier(StatusItem())
+                .background(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : .clear,
+                            in: RoundedRectangle(cornerRadius: Theme.statusItemRadius))
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.statusItemRadius))
         .help(help)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 

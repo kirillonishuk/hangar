@@ -45,6 +45,31 @@ import Workspace
         pane.tearDown()
     }
 
+    /// A dirty buffer that can't be read off its page (not ready, torn down) stays there: the move is called off instead
+    /// of closing it and reloading the file from disk without the unsaved text.
+    @Test func unreadableDirtyBufferStaysOnItsPage() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hg-editor-pages-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("a.ts").path
+        try "disk".write(toFile: file, atomically: false, encoding: .utf8)
+        var s = WorkspaceState()
+        let t = s.addTask(projectId: s.addProject(name: "app", path: dir.path), name: "a")
+        let tab = s.addTab(taskId: t, kind: .editor, openFile: file)
+        let leafId = try #require(s.tasks[0].tabs.first { $0.id == tab }?.root.leaves.first?.id)
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        let host = EditorHost(minimap: false, appearance: EditorAppearance(app.config))
+        defer { host.tearDown() }
+        let pane = EditorPane(leafId: leafId, app: app, host: host)
+        defer { pane.tearDown() }
+        pane.session.adopt(path: file, text: "unsaved", file: EditorSession.File(dirty: true), line: nil, column: nil)
+        #expect(host.page(0).isReady == false)  // a fresh page: its buffer can't be read yet
+
+        await pane.rehome(to: 1)
+        #expect(pane.page == 0 && host.pages[0] != nil)
+        #expect(pane.session.files[file]?.dirty == true)
+    }
+
     /// The page already holds the doc (a pane moved back, a load racing the move): the adopted buffer replaces it.
     @Test func adoptOntoPageHoldingDocShowsAdoptedText() async throws {
         let page = MonacoPage(mode: .editor, inline: false, minimap: false, appearance: EditorAppearance(HangarConfig()))

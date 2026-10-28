@@ -89,7 +89,15 @@ import Workspace
         page = target
         host.beginMove(self, from: from)
         let path = app.editorLeaf(leafId)?.openFile
-        if let path, let file = session.files[path], file.dirty, let text = await old.text(of: leafId.uuidString) {
+        if let path, let file = session.files[path], file.dirty {
+            guard let text = await old.text(of: leafId.uuidString) else {
+                // The unsaved buffer couldn't be read: it stays on its page rather than reloading from disk without it.
+                page = from
+                host.endMove(self)
+                moving = false
+                wanted = nil
+                return
+            }
             carried = (path, text, file)
         }
         old.send(.close(path: ""), doc: leafId)

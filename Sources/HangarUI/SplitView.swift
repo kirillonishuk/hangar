@@ -3,7 +3,9 @@ import AppKit
 import ControlServer
 import Exec
 import GhosttyBridge
-import WebKit
+#if DEBUG
+import WebKit  // debugWebViews only
+#endif
 import Workspace
 
 /// NSSplitView with the theme divider and a hook when the user finishes dragging a divider.

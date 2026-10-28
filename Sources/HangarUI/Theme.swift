@@ -151,7 +151,6 @@ public enum Theme {
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4
     public static let closeOpacity: Double = 0.4
-    public static let paneHeaderPaddingV: CGFloat = 5
     public static let paneHeaderPaddingH: CGFloat = 12
     /// A split pane's header strip: constant, so the terminal never jumps when its buttons show.
     public static let paneHeaderHeight: CGFloat = 24

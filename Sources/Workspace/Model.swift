@@ -579,17 +579,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func closeLeaf(taskId: UUID, tabId: UUID, leafId: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        guard tasks[i].tabs[t].root.leaf(id: leafId) != nil else { return }
+        if !dropLeaf(taskIndex: i, tabIndex: t, leafId: leafId) { closeTab(taskId: taskId, tabId: tabId) }
+    }
+
+    /// Removes the leaf from the tab and repairs focus (the neighbour at the same position). False, untouched, when it was the last leaf.
+    private mutating func dropLeaf(taskIndex i: Int, tabIndex t: Int, leafId: UUID) -> Bool {
         let tab = tasks[i].tabs[t]
-        guard let leafIndex = tab.root.leaves.firstIndex(where: { $0.id == leafId }) else { return }
-        guard let newRoot = tab.root.removing(leafId: leafId) else {
-            closeTab(taskId: taskId, tabId: tabId)
-            return
-        }
-        tasks[i].tabs[t].root = newRoot
+        guard let leafIndex = tab.root.leaves.firstIndex(where: { $0.id == leafId }),
+              let rest = tab.root.removing(leafId: leafId) else { return false }
+        tasks[i].tabs[t].root = rest
         if tab.focusedLeafId == leafId {
-            let remaining = newRoot.leaves
+            let remaining = rest.leaves
             tasks[i].tabs[t].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
         }
+        return true
     }
 
     // MARK: Merge, move, detach (splits)
@@ -639,18 +643,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard canMoveLeaf(taskId: taskId, leafId: leafId, to: target, anchor: anchor),
               let i = tasks.firstIndex(where: { $0.id == taskId }),
               let s = tasks[i].tabs.firstIndex(where: { $0.root.leaf(id: leafId) != nil }),
-              let leaf = tasks[i].tabs[s].root.leaf(id: leafId) else { return false }
-        let leafIndex = tasks[i].tabs[s].root.leaves.firstIndex { $0.id == leafId } ?? 0
-        if let rest = tasks[i].tabs[s].root.removing(leafId: leafId) {
-            tasks[i].tabs[s].root = rest
-            if tasks[i].tabs[s].focusedLeafId == leafId {
-                let remaining = rest.leaves
-                tasks[i].tabs[s].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
-            }
-        } else {
-            tasks[i].tabs.remove(at: s)
-        }
-        guard let t = tasks[i].tabs.firstIndex(where: { $0.id == target }) else { return false }
+              let leaf = tasks[i].tabs[s].root.leaf(id: leafId),
+              tasks[i].tabs.contains(where: { $0.id == target }) else { return false }
+        // Everything is validated: from here on nothing can fail, so no partial mutation.
+        if !dropLeaf(taskIndex: i, tabIndex: s, leafId: leafId) { tasks[i].tabs.remove(at: s) }
+        let t = tasks[i].tabs.firstIndex { $0.id == target }!
         tasks[i].tabs[t].root = tasks[i].tabs[t].root.inserting(.leaf(leaf), at: anchor, edge: edge)
         tasks[i].tabs[t].focusedLeafId = leafId
         tasks[i].tabs[t].preview = false
@@ -665,13 +662,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
               let s = tasks[i].tabs.firstIndex(where: { $0.root.leaf(id: leafId) != nil }),
               case .split = tasks[i].tabs[s].root,
               let leaf = tasks[i].tabs[s].root.leaf(id: leafId),
-              let rest = tasks[i].tabs[s].root.removing(leafId: leafId) else { return nil }
-        let leafIndex = tasks[i].tabs[s].root.leaves.firstIndex { $0.id == leafId } ?? 0
-        tasks[i].tabs[s].root = rest
-        if tasks[i].tabs[s].focusedLeafId == leafId {
-            let remaining = rest.leaves
-            tasks[i].tabs[s].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
-        }
+              dropLeaf(taskIndex: i, tabIndex: s, leafId: leafId) else { return nil }
         let tab = Tab(title: leaf.kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id, customTitle: leaf.customTitle)
         tasks[i].tabs.insert(tab, at: min(max(toIndex ?? s + 1, 0), tasks[i].tabs.count))
         tasks[i].activeTabId = tab.id

@@ -270,4 +270,47 @@ import Testing
         let n2 = s2.detachLeaf(taskId: t2, leafId: b2, toIndex: 0)
         #expect(s2.tasks[0].tabs.first?.id == n2)
     }
+
+    @Test func detachLeafClampsIndex() {
+        for (idx, expected) in [(-5, 0), (99, 3)] {
+            var (s, t, a, al) = state()
+            _ = s.addTab(taskId: t, kind: .codex)
+            _ = s.addTab(taskId: t, kind: .shell)
+            let b = s.split(taskId: t, tabId: a, leafId: al, axis: .horizontal, kind: .shell)
+            let n = s.detachLeaf(taskId: t, leafId: b, toIndex: idx)
+            #expect(s.tasks[0].tabs.firstIndex { $0.id == n } == expected)
+        }
+    }
+
+    @Test func mergeAtForeignLeafIsRejected() {
+        var (s, t, a, b, _, bl) = two()
+        let before = s
+        let ok = s.mergeTab(taskId: t, source: b, into: a, at: bl, edge: .left)
+        #expect(!ok && s == before)
+        let ok2 = s.mergeTab(taskId: t, source: b, into: a, at: UUID(), edge: .left)
+        #expect(!ok2 && s == before)
+    }
+
+    @Test func mergeSplitSourceKeepsLeafNames() {
+        var (s, t, a, b, al, bl) = two()
+        let b2 = s.split(taskId: t, tabId: b, leafId: bl, axis: .horizontal, kind: .codex)
+        s.tasks[0].tabs[1].customTitle = "srv"
+        let ok = s.mergeTab(taskId: t, source: b, into: a, at: al, edge: .right)
+        #expect(ok)
+        let root = s.tasks[0].tabs[0].root
+        #expect(root.leaf(id: bl)?.customTitle == nil && root.leaf(id: b2)?.customTitle == nil)
+        #expect(Set(root.leaves.map(\.id)) == [al, bl, b2])
+    }
+
+    @Test func rejectedMoveByEditorCapLeavesStateUnchanged() {
+        var (s, t, a, al) = state()
+        let c1 = s.split(taskId: t, tabId: a, leafId: al, axis: .horizontal, kind: nil)
+        let c2 = s.split(taskId: t, tabId: a, leafId: al, axis: .horizontal, kind: nil)
+        _ = s.chooseKind(leafId: c1, kind: .editor, file: "/repo/x.ts")
+        _ = s.chooseKind(leafId: c2, kind: .editor, file: "/repo/y.ts")
+        let f = s.openFileTab(taskId: t, path: "/repo/z.ts", line: nil, column: nil, preview: false)!
+        let before = s
+        let ok = s.moveLeaf(taskId: t, leafId: f.leaf, to: a, at: al, edge: .right)
+        #expect(!ok && s == before)
+    }
 }

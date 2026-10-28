@@ -934,7 +934,7 @@ final class FillView: NSView {
                 lines.append("\(tabOK ? "ok" : "PROBLEM") tab=\(tab.id.uuidString.prefix(8)) task=\(task.name) content=\(content.frame.size) tab=\(tabView.frame) root=\(tabView.subviews.map(\.frame))")
                 for leaf in tab.root.leaves {
                     guard let view = leafViews[leaf.id] else { lines.append("PROBLEM leaf=\(leaf.id.uuidString.prefix(8)) noView"); continue }
-                    let content = view.chooser != nil || (view.surface?.isAlive == true && view.surface?.superview === view)
+                    let content = view.chooser != nil || view.editor != nil || (view.surface?.isAlive == true && view.surface?.superview === view)
                     let ok = content && view.isDescendant(of: tabView) && view.window != nil && view.frame.width > 0 && view.frame.height > 0
                     lines.append("\(ok ? "ok" : "PROBLEM") leaf=\(leaf.id.uuidString.prefix(8)) task=\(task.name) alive=\(view.surface?.isAlive == true) inTab=\(view.isDescendant(of: tabView)) frame=\(Int(view.frame.width))x\(Int(view.frame.height)) exit=\(view.exitCode.map(String.init) ?? "-")")
                 }

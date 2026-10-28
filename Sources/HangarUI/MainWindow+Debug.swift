@@ -125,6 +125,19 @@ extension MainWindowController {
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
+        // choose <kind>: the focused chooser pane's button; continue <n>: row n of «Продолжить» (chooser or empty session).
+        case "choose":
+            guard let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil, let kind = LeafKind(rawValue: arg) else { return }
+            if kind == .editor { app.onChooseEditor?(leaf.leafId) } else { app.chooseKind(leaf.leafId, kind) }
+        case "chooseFile":  // chooseFile <absolute path>: the chooser's ⌘P pick (an inactive app's palette loses key at once)
+            guard let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil else { return }
+            app.chooseEditor(leaf.leafId, path: arg)
+        case "continue":
+            guard let task = app.selectedTask, let n = Int(arg) else { return }
+            let rows = app.recent(for: task.id)
+            guard rows.indices.contains(n) else { return }
+            if let leaf = column.terminalArea.focusedLeaf, leaf.chooser != nil { app.chooseConversation(leaf.leafId, rows[n]) }
+            else if app.showsNoTabs { app.openConversation(rows[n]) }
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
         case "select": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.select(taskId: app.orderedTasks[n].id) }
@@ -455,7 +468,7 @@ extension MainWindowController {
             case "type": palette?.model.setQuery(rest)
             case "up": palette?.model.move(-1)
             case "down": palette?.model.move(1)
-            case "enter": if let item = palette?.model.highlighted { closePalette(); choosePalette(item) }
+            case "enter": if let item = palette?.model.highlighted { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
             case "snap":
                 guard let view = palette?.panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)

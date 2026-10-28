@@ -170,6 +170,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var paletteRoot: String?
     /// The chooser pane whose «Редактор» opened the palette: a picked file opens in that pane.
     private var palettePickFor: UUID?
+    #if DEBUG
+    var debugPalettePickFor: UUID? { palettePickFor }
+    #endif
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)

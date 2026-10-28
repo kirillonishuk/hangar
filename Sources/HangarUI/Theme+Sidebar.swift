@@ -13,6 +13,9 @@ extension Theme {
     public static let sessionRowPaddingV: CGFloat = 4
     /// A project's session rows are nested: dot and name move right until the dot's left edge meets the project name (x 34).
     public static let sessionIndent: CGFloat = gutterTextX - gutterMarkerX + statusDot / 2
+    /// «Все сессии в архиве» hint under a project: three 20-high lines (note, «Открыть сессии ⌘Y», «+ Новая сессия») + 4 below.
+    public static let archivedHintLine: CGFloat = 20
+    public static let archivedHintHeight: CGFloat = 3 * archivedHintLine + 4
     /// Status line: 12 `text2`; the worktree ⎇ before it 12 `text3`, 4 from the text.
     public static let rowStatusFont: CGFloat = 12
     public static let rowStatusIcon: CGFloat = 12

@@ -411,6 +411,7 @@
 "paneMany" = "%d панелей";
 "statusMachineHelp" = "Машина, на которой идёт сессия";
 "statusNextWorkingHelp" = "Следующая работающая сессия";
+"statusFailedHelp" = "Показать сессию с ошибкой";
 "statusPanesHelp" = "Панели во вкладке";
 "agentCountOne" = "%d агент";
 "agentCountFew" = "%d агента";
@@ -490,6 +491,16 @@
 "sessionsConvFew" = "%d разговора";
 "sessionsConvMany" = "%d разговоров";
 "sessionsNoMatch" = "Ничего не найдено";
+"sessionsLoadFailed" = "Не удалось загрузить с %@: %@";
+"sessionsLoadFailedLocal" = "Не удалось загрузить разговоры: %@";
+"sessionsTimedOut" = "нет ответа";
+"sessionsContinue" = "Продолжить";
+"sessionsAllProjects" = "Все проекты";
+"sessionsHostScope" = "Проекты на %@";
+"projectSessions" = "Сессии проекта";
+"sessionsUnknownError" = "неизвестная ошибка";
+"allArchived" = "Все сессии в архиве";
+"allArchivedOpen" = "Открыть сессии";
 "integrationNeedsRemote" = "Сначала установите hangar-remote по плану установки";
 "folderEmpty" = "Папка пуста";
 "noGitFiles" = "Нет файлов в git";

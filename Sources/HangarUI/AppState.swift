@@ -144,8 +144,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var inboxShown = false
     /// `now` for «3 мин» in the inbox: taken when it opens, no ticking clock.
     var inboxClock = Date()
-    /// «Сессии» (⌘Y) is shown for this project instead of the session area; nil = hidden (SessionsModel.swift).
-    var sessionsProjectId: UUID?
+    /// «Сессии» (⌘Y) is shown instead of the session area, for `sessionsScope` (SessionsModel.swift).
+    var sessionsViewVisible = false
+    var sessionsScope: SessionsScope = .all
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()
@@ -300,7 +301,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
         }
         // Another session getting selected (palette, a new or restored one) leaves «Сессии».
-        if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsProjectId = nil }
+        if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }
         store.scheduleSave(state)
         didChange?()
     }
@@ -333,6 +334,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func groupTasks(_ projectId: UUID) -> [HangarTask] { state.tasks(in: projectId).filter { !$0.pinned } }
 
     var archivedTasks: [HangarTask] { state.tasks.filter(\.archived) }
+
+    /// Every session of the project is closed: its expanded block says so instead of showing nothing.
+    func allSessionsArchived(_ projectId: UUID) -> Bool {
+        state.tasks(in: projectId).isEmpty && state.tasks.contains { $0.projectId == projectId && $0.archived }
+    }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.
     var orderedTasks: [HangarTask] { pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
@@ -504,7 +510,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     /// Also the already selected one: a click on it leaves «Сессии».
     func select(taskId: UUID) {
-        sessionsProjectId = nil
+        sessionsViewVisible = false
         perform { $0.select(taskId: taskId) }
     }
 

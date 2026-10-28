@@ -86,17 +86,17 @@ struct SidebarView: View {
     private func newTaskButton(visibleWidth: CGFloat, inset: CGFloat) -> some View {
         Button { ctx.newTask(nil) } label: {
             GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
-                IconView(icon: .add, active: true)
+                IconView(icon: .add, tint: Theme.ui.accentText)
             } expanded: {
                 HStack(spacing: 0) {
-                    Text(L10n.newTask).foregroundStyle(Theme.ui.textStrong)
+                    Text(L10n.newTask).foregroundStyle(Theme.ui.accentText)
                     Spacer(minLength: 0)
                     ShortcutHint(text: Shortcut.newTask.label)
                 }
             } rail: { EmptyView() }
             .contentShape(Rectangle())
         }
-        .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * inset, inset: inset, radius: Theme.rowRadius))
+        .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * inset, inset: inset, radius: Theme.rowRadius, outlined: true))
         .padding(.top, Theme.newTaskTop)
         .padding(.bottom, Theme.newTaskBottom)
         .help(L10n.help(L10n.newTaskHelp, .newTask))
@@ -292,6 +292,7 @@ struct SidebarView: View {
                         taskRow(task)
                             .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
                     }
+                    if showsArchivedHint(project) { archivedHint(project) }
                 }
             }
             .modifier(DragLook(dy: dragOffset(.project(project.id)), line: dropLine(at: project.id)))
@@ -314,6 +315,7 @@ struct SidebarView: View {
         case .project:
             let heights = app.state.projects.map { p in
                 Theme.railRowHeight + Theme.sessionRowHeight * CGFloat(p.collapsed ? 0 : app.groupTasks(p.id).count)
+                    + (!p.collapsed && showsArchivedHint(p) ? Theme.archivedHintHeight : 0)
             }
             return (app.state.projects.map(\.id), heights)
         case .tab, .leaf: return nil
@@ -451,6 +453,40 @@ struct SidebarView: View {
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
+    }
+
+    private func showsArchivedHint(_ project: Project) -> Bool {
+        !collapsed && !app.state.attentionOnly && app.allSessionsArchived(project.id)
+    }
+
+    /// Under an expanded project whose sessions are all closed: «Все сессии в архиве», «Открыть сессии ⌘Y» (scoped to
+    /// the project), «+ Новая сессия» — one line each (the sidebar is narrow), at the sessions' indent, constant height.
+    private func archivedHint(_ project: Project) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.allArchived).foregroundStyle(Theme.ui.text3).lineLimit(1)
+                .padding(.leading, Theme.rowStatusGap)  // in line with the buttons' titles
+                .frame(height: Theme.archivedHintLine)
+            hintButton(L10n.allArchivedOpen, shortcut: Shortcut.sessions.label) { app.showSessionsView(projectId: project.id) }
+                .frame(height: Theme.archivedHintLine)
+            hintButton("+ " + L10n.newTask, shortcut: nil) { ctx.newTask(project.id) }
+                .frame(height: Theme.archivedHintLine)
+                .disabled(!app.isAvailable(project))
+        }
+        .font(.system(size: Theme.rowStatusFont))
+        .padding(.leading, Theme.gutterTextX + Theme.sessionIndent - Theme.rowStatusGap)
+        .padding(.trailing, Theme.sessionRowTrailing)
+        .frame(maxWidth: .infinity, minHeight: Theme.archivedHintHeight, maxHeight: Theme.archivedHintHeight, alignment: .leading)
+    }
+
+    private func hintButton(_ title: String, shortcut: String?, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: Theme.rowStatusGap) {
+                Text(title).foregroundStyle(Theme.ui.text2).lineLimit(1)
+                if let shortcut { Text(verbatim: shortcut).foregroundStyle(Theme.ui.text3).monospacedDigit() }
+            }
+            .padding(.horizontal, Theme.rowStatusGap)
+        }
+        .buttonStyle(HoverButtonStyle(radius: Theme.rowActionRadius))
     }
 
     // MARK: Sessions

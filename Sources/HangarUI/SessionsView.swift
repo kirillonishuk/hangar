@@ -40,7 +40,7 @@ struct SessionsView: View {
             }
         }
         .background(Theme.ui.bg)
-        .task(id: app.sessionsProjectId) { await model.reload() }
+        .task(id: app.sessionsScope) { await model.reload() }
         .onAppear { searchFocused = true }
     }
 
@@ -66,17 +66,25 @@ struct SessionsView: View {
         .frame(height: Theme.historyHeaderHeight)
     }
 
+    /// The scope chip: «Все проекты ▾» (default), a project or a host; its menu switches, «×» goes back to all.
     @ViewBuilder private var projectPicker: some View {
-        let projects = app.state.projects
-        let label = Text(model.projectId.flatMap(app.project)?.name ?? "").font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text2)
-        if projects.count < 2 {
-            label.help(L10n.sessionsProjectHelp)  // nothing to switch to: plain text, not a dimmed disabled menu
-        } else {
+        let hosts = app.sessionsHosts
+        HStack(spacing: Theme.historyActionGap) {
             Menu {
-                ForEach(projects) { p in
-                    Button(p.name) { app.showSessionsView(projectId: p.id) }
+                Button(L10n.sessionsAllProjects) { app.showSessionsView(scope: .all) }
+                Divider()
+                ForEach(app.state.projects) { p in
+                    Button(sessionsOrigin(p)) { app.showSessionsView(scope: .project(p.id)) }
                 }
-            } label: { label }
+                if !hosts.isEmpty {
+                    Divider()
+                    ForEach(hosts, id: \.self) { h in
+                        Button(L10n.sessionsHostScope(h)) { app.showSessionsView(scope: .host(h)) }
+                    }
+                }
+            } label: {
+                Text(scopeTitle).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text2)
+            }
             .menuStyle(.button)
             .buttonStyle(.plain)  // borderless adds its own side padding: the label sits flush like plain text
             .menuIndicator(.hidden)
@@ -89,6 +97,22 @@ struct SessionsView: View {
                     .offset(x: Theme.historyActionIcon + Theme.historyActionGap / 2).allowsHitTesting(false)
             }
             .padding(.trailing, Theme.historyActionIcon)
+            if model.scope != .all {
+                Button { app.showSessionsView(scope: .all) } label: {
+                    IconView(icon: .close, size: Theme.historyActionIcon, tint: Theme.ui.text3)
+                        .frame(width: Theme.historyActionHeight, height: Theme.historyActionHeight)
+                }
+                .buttonStyle(HoverButtonStyle(radius: Theme.historyActionRadius))
+                .help(L10n.sessionsAllProjects)
+            }
+        }
+    }
+
+    private var scopeTitle: String {
+        switch model.scope {
+        case .all: L10n.sessionsAllProjects
+        case .project(let id): app.project(id).map(sessionsOrigin) ?? L10n.sessionsAllProjects
+        case .host(let h): L10n.sessionsHostScope(h)
         }
     }
 
@@ -154,19 +178,32 @@ struct SessionsView: View {
 
     @ViewBuilder private var conversations: some View {
         let days = model.days
-        if days.isEmpty {
-            group(L10n.sessionsConversations)
-            switch model.load {
-            case .idle, .loading: note(L10n.sessionsLoading, spinner: true)
-            case .offline(let host): note(L10n.sessionsOffline(host))
-            case .loaded: note(L10n.sessionsNoConversations)
-            }
-        } else {
-            ForEach(days) { day in
-                group(dayTitle(day.day))
-                ForEach(day.rows) { conversationRow($0) }
-            }
+        if days.isEmpty { group(L10n.sessionsConversations) }
+        // Offline or failed sources say so above the rows; the sources still being read, below them (nothing above moves).
+        ForEach(model.offlineHosts, id: \.self) { note(L10n.sessionsOffline($0)) }
+        ForEach(model.failures, id: \.self) { failureNote($0) }
+        ForEach(days) { day in
+            group(dayTitle(day.day))
+            ForEach(day.rows) { conversationRow($0) }
         }
+        if model.load != .loaded {
+            note(L10n.sessionsLoading, spinner: true)
+        } else if days.isEmpty, model.offlineHosts.isEmpty, model.failures.isEmpty {
+            note(L10n.sessionsNoConversations)
+        }
+    }
+
+    /// «Не удалось загрузить с devbox: …  Повторить»: the other sources' rows stay.
+    private func failureNote(_ f: SessionsFailure) -> some View {
+        HStack(spacing: Theme.historyRowGap) {
+            Text(L10n.sessionsLoadFailed(f.host, f.message))
+                .font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
+                .lineLimit(1).truncationMode(.tail)
+            actionButton(icon: nil, title: L10n.retry, help: nil) { Task { await model.reload() } }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.historyPaddingH)
+        .frame(height: Theme.historyRowHeight)
     }
 
     // MARK: Rows
@@ -176,6 +213,7 @@ struct SessionsView: View {
         return row(key: key, action: { run(model.closedAction(r.id)) }) {
             IconView(icon: .archive, tint: Theme.ui.text2)
             Text(r.name).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
+            originLabel(r.origin)
             if let branch = r.branch { branchLabel(branch, mono: true) }
             if let c = r.changes, c.added + c.deleted > 0 { badge(c) }
             layout(r.tabLeaves)
@@ -193,15 +231,18 @@ struct SessionsView: View {
         return row(key: r.id, action: { run(action) }) {
             IconView(icon: c.agent == .claude ? .claude : .codex)
             Text(c.title ?? L10n.sessionsUntitled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
+            originLabel(r.origin)
             place(r)
             meta((c.messageCountIsEstimate ? "~" : "") + L10n.sessionsMessages(c.messageCount), width: Theme.historyCountWidth,
                  hidden: hovered == r.id)
             meta(time(c.lastActivity), width: Theme.historyTimeWidth, hidden: hovered == r.id)
         } actions: {
+            // «Перейти» to the leaf running it; «Продолжить» resumes this very conversation.
             switch action {
             case .focus: actionButton(icon: nil, title: L10n.sessionsGo, help: nil) { run(action) }
+            // A closed Hangar session holding it is restored, with that wording.
             case .restore: actionButton(icon: .restore, title: L10n.restore, help: nil) { run(action) }
-            case .open, .openInNewSession: actionButton(icon: .openExternal, title: L10n.sessionsOpen, help: nil) { run(action) }
+            case .open, .openInNewSession: actionButton(icon: .openExternal, title: L10n.sessionsContinue, help: nil) { run(action) }
             }
         }
     }
@@ -258,6 +299,16 @@ struct SessionsView: View {
             .fixedSize()
             .frame(minWidth: width, alignment: .trailing)  // «yesterday 18:20» may be wider than the column
             .opacity(hidden ? 0 : 1)
+    }
+
+    /// Where the row is from: «shop», «api · devbox» (`text3`, quiet; cut in the middle when long).
+    private func originLabel(_ origin: String) -> some View {
+        Text(origin)
+            .font(.system(size: Theme.fontSize.footer))
+            .foregroundStyle(Theme.ui.text3)
+            .lineLimit(1).truncationMode(.middle)
+            .frame(maxWidth: Theme.historyOriginMaxWidth, alignment: .trailing)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func branchLabel(_ branch: String, mono: Bool) -> some View {

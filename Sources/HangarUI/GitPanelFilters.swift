@@ -12,7 +12,8 @@ struct GitFilterChips: View {
 
     var body: some View {
         HStack(spacing: Theme.GitTab.chipGap) {
-            chip(.branch, title: branchTitle, on: true, clear: nil)
+            // The current branch is the panel's header: only another scope lights the chip up.
+            chip(.branch, title: branchTitle, on: model.query.scope != .head) { model.query.scope = .head }
             chip(.author, title: model.query.author?.name ?? L10n.gitAuthor, on: model.query.author != nil) { model.query.author = nil }
             chip(.date, title: model.query.date.map(L10n.gitDateRange) ?? L10n.gitDate, on: model.query.date != nil) { model.query.date = nil }
             let path = GitQuery.normalizedPath(model.query.path)
@@ -26,18 +27,19 @@ struct GitFilterChips: View {
     private var branchTitle: String {
         switch model.query.scope {
         case .all: L10n.gitAllBranches
-        case .head: model.branches?.head.branch ?? "HEAD"
+        case .head: L10n.gitBranch
         case .ref(let r): r
         }
     }
 
     private func chip(_ which: Chip, title: String, on: Bool, clear: (() -> Void)?) -> some View {
         let binding = Binding(get: { open == which }, set: { if !$0 { open = nil } })
-        // The Branch chip keeps one width while the row has room (setting another filter used to resize it) and
-        // shrinks only when it doesn't; the others are short words or one value.
+        // A set Branch chip keeps one width while the row has room (setting another filter used to resize it) and
+        // shrinks only when it doesn't; unset it is the short word «Ветка», like the others.
+        let flexible = which == .branch && on
         return GitChip(title: title, on: on, open: open == which, clear: on ? clear : nil) { open = which }
-            .fixedSize(horizontal: which != .branch, vertical: false)
-            .frame(minWidth: 0, maxWidth: which == .branch ? Theme.GitTab.branchChipWidth : nil)
+            .fixedSize(horizontal: !flexible, vertical: false)
+            .frame(minWidth: 0, maxWidth: flexible ? Theme.GitTab.branchChipWidth : nil)
             .help(title)
             .popover(isPresented: binding, arrowEdge: .bottom) {
                 Group {

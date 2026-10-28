@@ -270,9 +270,10 @@
 "fileCountMany" = "%d файлов";
 "statusShowChanges" = "Показать изменения";
 "segmentChanges" = "Changes %d";
+"segmentChangesTitle" = "Changes";
 "changesHintBase" = "База: %@";
 "changesHintToBase" = "⌥B — сравнить с %@";
-"changesHintUncommitted" = "Только незакоммиченное";
+"changesHintUncommitted" = "Незакоммиченное";
 "changesHintToUncommitted" = "⌥B — незакоммиченное";
 "baseMissing" = "Базовая ветка %@ не найдена — показано незакоммиченное";
 "noChanges" = "Нет изменений";
@@ -422,6 +423,7 @@
 "sessionsViewHelp" = "История сессий";
 "segmentGit" = "Git";
 "showGit" = "Показать Git";
+"gitBranch" = "Ветка";
 "gitBranches" = "Ветки";
 "gitLocal" = "Local";
 "gitRemote" = "Remote";
@@ -570,6 +572,8 @@
 "searchPlaceholder" = "Поиск";
 "searchInclude" = "Включить: *.swift, src/**";
 "searchExclude" = "Исключить: node_modules, *.min.js";
+"searchFilters" = "Файлы для включения и исключения";
+"searchFiltersOn" = "Файлы для включения и исключения (заданы)";
 "searchCase" = "Учитывать регистр";
 "searchRegex" = "Регулярное выражение";
 "searchWord" = "Слово целиком";

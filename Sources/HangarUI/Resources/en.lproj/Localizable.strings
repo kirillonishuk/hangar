@@ -270,9 +270,10 @@
 "fileCountMany" = "%d files";
 "statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
+"segmentChangesTitle" = "Changes";
 "changesHintBase" = "Base: %@";
 "changesHintToBase" = "⌥B — compare with %@";
-"changesHintUncommitted" = "Uncommitted only";
+"changesHintUncommitted" = "Uncommitted";
 "changesHintToUncommitted" = "⌥B — uncommitted only";
 "baseMissing" = "Base branch %@ not found — showing uncommitted";
 "noChanges" = "No changes";
@@ -422,6 +423,7 @@
 "sessionsViewHelp" = "Session history";
 "segmentGit" = "Git";
 "showGit" = "Show Git";
+"gitBranch" = "Branch";
 "gitBranches" = "Branches";
 "gitLocal" = "Local";
 "gitRemote" = "Remote";
@@ -570,6 +572,8 @@
 "searchPlaceholder" = "Search";
 "searchInclude" = "Include: *.swift, src/**";
 "searchExclude" = "Exclude: node_modules, *.min.js";
+"searchFilters" = "Files to include and exclude";
+"searchFiltersOn" = "Files to include and exclude (set)";
 "searchCase" = "Match case";
 "searchRegex" = "Regular expression";
 "searchWord" = "Whole word";

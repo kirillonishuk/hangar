@@ -38,12 +38,18 @@ struct InspectorView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    /// Equal parts, so a changing count never moves the other labels; a plain folder has only Files and Search.
+    /// Equal parts (Changes at least its label and badge), so a changing count never moves the labels; a plain folder
+    /// has only Files and Search.
     private var segment: some View {
         HStack(spacing: 0) {
             segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
             if model.isGit {
-                segmentItem(L10n.segmentChanges(model.changes?.files.count ?? 0), .changes, help: L10n.help(L10n.statusShowChanges, .inspectorChanges))
+                let count = model.changes?.files.count ?? 0
+                SegmentItem(title: L10n.segmentChangesTitle, badge: segmentBadge(count), reserveBadge: true, on: model.segment == .changes) {
+                    model.segment = .changes
+                }
+                .help(L10n.help(L10n.statusShowChanges, .inspectorChanges))
+                .accessibilityLabel(L10n.segmentChanges(count))
                 segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
             }
             segmentItem(L10n.segmentSearch, .search, help: L10n.help(L10n.findInFiles, .findInFiles))
@@ -60,27 +66,71 @@ struct InspectorView: View {
     }
 }
 
+/// The Changes count as a segment badge: none at 0, «99+» past 99.
+func segmentBadge(_ count: Int) -> String? {
+    count <= 0 ? nil : count > 99 ? "99+" : String(count)
+}
+
 /// One part of the Files / Changes / Git / Search segment; an inactive one lights up on hover.
 private struct SegmentItem: View {
     let title: String
+    var badge: String? = nil
+    /// Keeps the badge's room even without one, so a count appearing or growing never resizes the parts.
+    var reserveBadge = false
     let on: Bool
     let action: () -> Void
     @State private var hover = false
 
     var body: some View {
         let lit = hover && !on
-        Text(title)
-            .font(.system(size: Theme.fontSize.segment))
+        HStack(spacing: Theme.segmentBadgeGap) {
+            Text(title)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if let badge { SegmentBadge(text: badge, on: on) }
+        }
+        .font(.system(size: Theme.fontSize.segment))
+        .foregroundStyle(on ? Theme.ui.textStrong : lit ? Theme.ui.text : Theme.ui.text2)
+        .padding(.vertical, Theme.segmentItemPaddingV)
+        .padding(.horizontal, Theme.segmentBadgeGap)
+        .frame(minWidth: reserveBadge ? Self.reserved(title) : 0, maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.control : lit ? Theme.ui.hover : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+        .pointingHand(!on)
+        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// Label + gap + a two-digit badge + side paddings («99+» may grow it a little).
+    private static func reserved(_ title: String) -> CGFloat {
+        let label = ceil((title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: Theme.fontSize.segment)]).width)
+        return label + Theme.segmentBadgeGap * 3 + SegmentBadge.width("00")
+    }
+}
+
+/// The count after a segment label: a small muted pill, digits in fixed width.
+private struct SegmentBadge: View {
+    let text: String
+    let on: Bool
+
+    var body: some View {
+        Text(verbatim: text)
+            .font(.system(size: Theme.fontSize.small, weight: .medium).monospacedDigit())
+            .foregroundStyle(on ? Theme.ui.text : Theme.ui.text2)
             .lineLimit(1)
-            .foregroundStyle(on ? Theme.ui.textStrong : lit ? Theme.ui.text : Theme.ui.text2)
-            .padding(.vertical, Theme.segmentItemPaddingV)
-            .frame(maxWidth: .infinity)
-            .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.control : lit ? Theme.ui.hover : .clear))
-            .contentShape(Rectangle())
-            .onTapGesture(perform: action)
-            .pointingHand(!on)
-            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-            .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+            .fixedSize()
+            .frame(minWidth: Self.width("0") - Theme.segmentBadgePaddingH * 2)
+            .padding(.horizontal, Theme.segmentBadgePaddingH)
+            .frame(height: Theme.segmentBadgeHeight)
+            .background(Capsule().fill(Theme.ui.text3.opacity(on ? Theme.segmentBadgeOnOpacity : Theme.segmentBadgeOpacity)))
+    }
+
+    /// Width of a badge with `digits` (at least round: as tall as wide).
+    static func width(_ digits: String) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: Theme.fontSize.small, weight: .medium)
+        let text = ceil((digits as NSString).size(withAttributes: [.font: font]).width)
+        return max(text + Theme.segmentBadgePaddingH * 2, Theme.segmentBadgeHeight)
     }
 }
 
@@ -233,6 +283,7 @@ private struct ChangesList: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            modeLine
             if model.offline, let host = remoteHost(app) {
                 notice(L10n.hostOffline(host))
             } else if let error = model.error {
@@ -246,11 +297,11 @@ private struct ChangesList: View {
                 LazyVStack(spacing: 0) {
                     if let changes = model.changes {
                         if changes.files.isEmpty { notice(L10n.noChanges) }
+                        let columns = ChangeColumns(changes.files)
                         ForEach(changes.files) { file in
-                            ChangeRow(file: file, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
+                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
                                 .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
-                        hint(changes)
                     }
                 }
                 .padding(.vertical, Theme.fileRowPaddingV)
@@ -258,42 +309,47 @@ private struct ChangesList: View {
         }
     }
 
-    /// Two lines: what is compared, and what ⌥B (or a click here) switches to. A missing base offers nothing.
-    @ViewBuilder private func hint(_ changes: ChangeSet) -> some View {
-        let lines: (Text, String?) = {
+    /// The list's header: what is compared · what ⌥B (or a click here) switches to; a missing base offers nothing.
+    /// Always there (empty while loading), so the rows never move.
+    private var modeLine: some View {
+        let parts: (Text, String?)? = model.changes.map { changes in
             if case .base(let b) = changes.mode {
                 return (monoBranch(L10n.changesHintBase(b), b), L10n.changesHintToUncommitted)
             }
             if changes.baseMissing { return (Text(L10n.changesHintUncommitted), nil) }
             return (Text(L10n.changesHintUncommitted), model.baseName.map(L10n.changesHintToBase))
-        }()
-        ChangesHint(first: lines.0, second: lines.1) { model.toggleMode() }
+        }
+        return ChangesModeLine(first: parts?.0, second: parts?.1) { model.toggleMode() }
     }
 }
 
-/// What is compared and what ⌥B switches to: one line each (truncated, never wrapped); clickable when it offers a switch.
-private struct ChangesHint: View {
-    let first: Text
+/// «Незакоммиченное · ⌥B — сравнить с origin/main» in one `text3` line of the Search status line's height; the
+/// switch part truncates first. Clickable when it offers a switch.
+private struct ChangesModeLine: View {
+    let first: Text?
     let second: String?
     let toggle: () -> Void
     @State private var hover = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.changesHintLineGap) {
-            first
-            if let second { Text(second) }
+        HStack(spacing: Theme.changesModeGap) {
+            if let first { first.layoutPriority(1) }
+            if let second {
+                Text(verbatim: "·")
+                Text(second).truncationMode(.middle)
+            }
+            Spacer(minLength: 0)
         }
         .lineLimit(1)
-        .truncationMode(.middle)
         .font(.system(size: Theme.fontSize.counter))
         .foregroundStyle(hover && second != nil ? Theme.ui.text2 : Theme.ui.text3)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.rowPaddingH)
-        .padding(.top, Theme.changesHintTop)
+        .frame(height: Theme.GitTab.sectionHeight)
         .contentShape(Rectangle())
         .onTapGesture { if second != nil { toggle() } }
         .pointingHand(second != nil)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .help(second ?? "")
     }
 }
 
@@ -304,8 +360,27 @@ private func monoBranch(_ sentence: String, _ branch: String) -> Text {
     return Text(sentence[..<r.lowerBound]) + mono + Text(sentence[r.upperBound...])
 }
 
+/// Widths of the `+N` / `−M` columns of one Changes list: the longest numbers of the list, so stats line up.
+struct ChangeColumns: Equatable {
+    var added: CGFloat
+    var deleted: CGFloat
+
+    init(_ files: [ChangedFile]) {
+        added = Self.width(files.compactMap(\.added).max())
+        deleted = Self.width(files.compactMap(\.deleted).max())
+    }
+
+    /// A sign and the digits of `n` in the stats' monospaced font; nothing to show → 0.
+    static func width(_ n: Int?) -> CGFloat {
+        guard let n else { return 0 }
+        let font = NSFont.monospacedSystemFont(ofSize: Theme.fontSize.counter, weight: .regular)
+        return ceil(("+\(n)" as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
 private struct ChangeRow: View {
     let file: ChangedFile
+    let columns: ChangeColumns
     let selected: Bool
     let action: () -> Void
 
@@ -315,24 +390,30 @@ private struct ChangeRow: View {
         HoverRow(selected: selected, action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
                 FileIconView(name: name)
-                Text(name)
-                    .font(.system(size: Theme.fontSize.row))
-                    .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                if !dir.isEmpty {
-                    Text(dir)
-                        .font(.system(size: Theme.fontSize.counter))
-                        .foregroundStyle(Theme.ui.text3)
+                NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
+                    Text(name)
+                        .font(.system(size: Theme.fontSize.row))
+                        .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
                         .lineLimit(1)
-                        .truncationMode(.head)
+                        .truncationMode(.middle)
+                    if !dir.isEmpty {
+                        Text(dir)
+                            .font(.system(size: Theme.fontSize.counter))
+                            .foregroundStyle(Theme.ui.text3)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            .clipped()
+                    }
                 }
-                Spacer(minLength: 0)
-                if let added = file.added, let deleted = file.deleted {
-                    Text(verbatim: "+\(added)").foregroundStyle(Theme.Diff.badgeA)
-                    Text(verbatim: "−\(deleted)").foregroundStyle(Theme.Diff.badgeD)
-                }
+                Text(verbatim: file.added.map { "+\($0)" } ?? "")
+                    .foregroundStyle(Theme.Diff.badgeA)
+                    .frame(width: columns.added, alignment: .trailing)
+                Text(verbatim: file.deleted.map { "−\($0)" } ?? "")
+                    .foregroundStyle(Theme.Diff.badgeD)
+                    .frame(width: columns.deleted, alignment: .trailing)
                 changeBadge(file.change)
+                    .frame(width: Theme.GitTab.badgeWidth, alignment: .center)
             }
             .font(.system(size: Theme.fontSize.counter, design: .monospaced))
             .padding(.horizontal, Theme.rowPaddingH)
@@ -340,4 +421,34 @@ private struct ChangeRow: View {
         }
         .help(file.origPath.map { "\($0) → \(file.path)" } ?? file.path)
     }
+}
+
+/// A file name, then its folder in the room left after it — dropped (laid out at zero width) when less than
+/// `minFolder` remains, so a tight row shows the whole name rather than a sliver of path.
+struct NameFolderLayout: Layout {
+    var gap: CGFloat
+    var minFolder: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        let height = ideal.map(\.height).max() ?? 0
+        let natural = ideal.map(\.width).reduce(0, +) + gap * CGFloat(max(ideal.count - 1, 0))
+        return CGSize(width: proposal.width ?? natural, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let name = subviews.first else { return }
+        let nameWidth = min(name.sizeThatFits(.unspecified).width, bounds.width)
+        name.place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: nameWidth, height: bounds.height))
+        guard subviews.count > 1 else { return }
+        let room = folderRoom(width: bounds.width, name: nameWidth, gap: gap, minFolder: minFolder)
+        subviews[1].place(at: CGPoint(x: bounds.minX + nameWidth + gap, y: bounds.midY), anchor: .leading,
+                          proposal: ProposedViewSize(width: room, height: bounds.height))
+    }
+}
+
+/// What the folder gets after the name: the rest of the row, or 0 when that is under `minFolder`.
+func folderRoom(width: CGFloat, name: CGFloat, gap: CGFloat, minFolder: CGFloat) -> CGFloat {
+    let room = width - name - gap
+    return room >= minFolder ? room : 0
 }

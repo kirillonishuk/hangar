@@ -5,6 +5,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// RemoteHosts against the fake ssh only (never a real host); `schedule` stores bodies, the test runs them.
 @MainActor @Suite struct RemoteHostsTests {
@@ -176,16 +177,6 @@ import Workspace
                                                  "HANGAR_SOCKET": home + "/.hangar/hangar.sock", "PATH": "/usr/bin:/bin"],
                                            stdin: stdin)
         }
-    }
-
-    /// Test-only wait for an async side effect (the code under test never polls); SuspendingClock survives Mac sleep.
-    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if cond() { return true }
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        return cond()
     }
 
     @Test func connectSequence() async throws {

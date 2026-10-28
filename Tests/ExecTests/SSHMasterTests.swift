@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import Exec
+import TestSupport
 
 @Suite struct SSHMasterTests {
     private struct Fake {
@@ -50,16 +51,6 @@ import Testing
         try? FileManager.default.removeItem(atPath: root)
     }
 
-    /// Test-only wait for an async side effect (the code under test never polls).
-    private func waitUntil(_ seconds: Double, _ cond: () async -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if await cond() { return true }
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        return await cond()
-    }
-
     private final class Counter: @unchecked Sendable {
         private let lock = NSLock()
         private var items: [SSHFailure] = []
@@ -105,7 +96,7 @@ import Testing
         let clock = SuspendingClock(), start = clock.now
         #expect(await m.connect(timeout: 0.5) == .failure(.unreachable("timed out")))
         #expect(clock.now - start < .seconds(20))
-        #expect(await waitUntil(20) { await f.liveFakes() == 0 })
+        #expect(await waitUntil { await f.liveFakes() == 0 })
     }
 
     @Test func deathFiresOnExitOnce() async throws {
@@ -116,7 +107,7 @@ import Testing
         #expect(await m.connect(timeout: 5) == .success(f.home))
         let pid = try #require(f.masterPid())
         kill(pid, SIGKILL)
-        #expect(await waitUntil(2) { lost.count == 1 })
+        #expect(await waitUntil { lost.count == 1 })
         try await Task.sleep(nanoseconds: 300_000_000)
         #expect(lost.count == 1)
 
@@ -125,8 +116,8 @@ import Testing
         m2.onExit = { lost2.add($0) }
         #expect(await m2.connect(timeout: 5) == .success(f.home))
         m2.exit()
-        #expect(await waitUntil(2) { FakeSSH.calls(f.log).contains { zip($0, $0.dropFirst()).contains { $0 == ("-O", "exit") } } })
-        #expect(await waitUntil(3) { await f.liveFakes() == 0 })
+        #expect(await waitUntil { FakeSSH.calls(f.log).contains { zip($0, $0.dropFirst()).contains { $0 == ("-O", "exit") } } })
+        #expect(await waitUntil { await f.liveFakes() == 0 })
         try await Task.sleep(nanoseconds: 300_000_000)
         #expect(lost2.count == 0)
     }
@@ -179,7 +170,7 @@ import Testing
         m.exit()
         guard case .failure = await again.value else { Issue.record("reconnect after exit() succeeded"); return }
         let pids = ((try? String(contentsOfFile: root + "/pids", encoding: .utf8)) ?? "").split(separator: "\n").compactMap { pid_t($0) }
-        #expect(await waitUntil(20) { pids.allSatisfy { kill($0, 0) != 0 } })
+        #expect(await waitUntil { pids.allSatisfy { kill($0, 0) != 0 } })
     }
 
     @Test func readyLineValidated() {
@@ -221,7 +212,7 @@ import Testing
         let lost = Counter()
         m.onExit = { lost.add($0) }
         #expect(await m.connect(timeout: 5) == .success("/h"))
-        #expect(await waitUntil(3) { lost.count == 1 })
+        #expect(await waitUntil { lost.count == 1 })
         #expect(lost.first == .unreachable("client_loop: send disconnect: Broken pipe"))
     }
 

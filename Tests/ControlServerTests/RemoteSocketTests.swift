@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import AgentStatus
 @testable import ControlServer
+import TestSupport
 
 /// `/bin/sh` always; `/bin/dash` too when the system has it (macOS does).
 private let shells = ["/bin/sh", "/bin/dash"].filter { FileManager.default.isExecutableFile(atPath: $0) }
@@ -254,12 +255,10 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
             let got = await r.inbox.wait(count: n)
             guard got.count == n, case let .event(m) = got[n - 1] else { Issue.record("\(shell): no event"); return }
             #expect(m.kind == .codexNotify && m.session == "t1")
-            let deadline = Date().addingTimeInterval(5)
             var text = ""
-            while Date() < deadline {
+            _ = await waitUntil {
                 text = (try? String(contentsOfFile: rec, encoding: .utf8)) ?? ""
-                if text.hasSuffix("}\n") { break }
-                try? await Task.sleep(for: .milliseconds(20))
+                return text.hasSuffix("}\n")
             }
             #expect(text == "hi\n" + json + "\n")
         }

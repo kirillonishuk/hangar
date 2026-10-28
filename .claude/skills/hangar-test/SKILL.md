@@ -15,7 +15,9 @@ description: Building, testing and live UI verification for Hangar — swift bui
 ## Writing tests that don't flake
 - Executable scripts (fake `ssh`, fake agents, hooks): create with `writeScript(_:to:)` (`Tests/*/FakeSSH.swift`), never `write` + `chmod`. Each new executable gets an XProtect scan on first exec; fresh per-test scripts queue for minutes in a full run. Never write to a linked script in place.
 - Git fixtures: `TempRepo` (`Tests/GitTests`, `Tests/HangarUITests`) — temp dir with a space and Cyrillic in the path; keep that.
-- Never block the main actor: `@MainActor` UI suites keep it busy. Blocking waits (`waitUntilExit`, synchronous socket requests, git processes) run on a dedicated `Thread` or `Task.detached`, as in `runOffMain` (`Tests/HangarCLITests`) and `ControlServerTests`. Timeouts are generous (`mainBound = 30`), measured inside the off-main work.
+- Never block the main actor: `@MainActor` UI suites keep it busy. Blocking waits (`waitUntilExit`, synchronous socket requests, git processes) run on a dedicated thread via `onThread` (`Tests/Support/Waits.swift`, target `TestSupport`), not the cooperative pool or `Task.detached`. Their timeouts are `offMainBound` (60 s), measured inside the off-main work, and a timeout fails with a message (e.g. `RawClient.read`).
+- Waiting for a condition: `waitUntil { … }` from `TestSupport`, never a private wall-clock loop. It counts polls (≥ 60 s by default), so a main actor stalled for seconds by other suites can't use up the budget. After a wait use `try #require`, never `!`; cleanup in `defer`. Product timeouts that a stalled test main actor would trip get a test seam (`ControlServer.idleTimeout`, `HANGAR_MIN_TIMEOUT` for the CLI).
+- Reproduce a load flake by blocking the main actor (a throwaway `@MainActor` test that `usleep`s 12 s in a loop, run alongside the suite), not by starting more `swift test` runs.
 - Tests never touch real user files: temp dirs only, explicit URLs for Claude/Codex settings, fixture ssh config.
 
 ## Live UI check (DEBUG build only)

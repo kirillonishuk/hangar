@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import AgentStatus
 import ControlServer
+import TestSupport
 
 private final class BundleToken {}
 
@@ -21,10 +22,9 @@ private final class TempDir {
 
 @MainActor private final class Inbox {
     var messages: [ControlMessage] = []
-    /// Returns as soon as `n` arrive; the generous default only matters under a loaded parallel test run.
-    func wait(count n: Int, seconds: Double = 30) async -> [ControlMessage] {
-        let deadline = SuspendingClock.now + .seconds(seconds)
-        while messages.count < n && SuspendingClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+    /// Returns as soon as `n` arrive (messages are delivered on the main actor).
+    func wait(count n: Int) async -> [ControlMessage] {
+        _ = await waitUntil { messages.count >= n }
         return messages
     }
 }
@@ -37,7 +37,8 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
     let p = Process()
     p.executableURL = binary
     p.arguments = args
-    p.environment = ["PATH": "/usr/bin:/bin"].merging(env) { $1 }
+    // The fake apps answer on the main actor, which other suites hold for longer than the CLI's 10 s default.
+    p.environment = ["PATH": "/usr/bin:/bin", "HANGAR_MIN_TIMEOUT": "\(offMainBound)"].merging(env) { $1 }
     let out = Pipe(), err = Pipe(), inp = Pipe()
     p.standardOutput = out
     p.standardError = err
@@ -74,14 +75,12 @@ private func run(_ args: [String], env: [String: String], stdin: Data?) throws -
                   seconds: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18)
 }
 
-/// The fake apps of all tests here answer on the main actor (the CLI gives up after 10 s), so the blocking
+/// The fake apps of all tests here answer on the main actor (the CLI gives up after `offMainBound`), so the blocking
 /// `waitUntilExit` must never run there — not even in tests that need no answer. Nor on the cooperative pool (one
 /// thread per core): a few CLIs waiting for a busy main actor would stall every async test in the run. Nor on GCD's
 /// global queue: its thread limit fills with other suites' blocking waits and a queued CLI run starts seconds late.
 private func runOffMain(_ args: [String], env: [String: String], stdin: Data?) async throws -> Result {
-    try await withCheckedThrowingContinuation { c in
-        Thread { c.resume(with: Swift.Result { try run(args, env: env, stdin: stdin) }) }.start()
-    }
+    try await onThread { Swift.Result { try run(args, env: env, stdin: stdin) } }.get()
 }
 
 private func runOffMain(_ args: [String], socket: String) async throws -> Result {

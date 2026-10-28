@@ -87,7 +87,7 @@ extension AppState {
 /// A developer tool from the active Xcode / Command Line Tools (sourcekit-lsp); nil without them — `xcode-select -p`
 /// goes first, so a Mac without them never gets the install dialog.
 private func xcrunFind(_ name: String) async -> String? {
-    guard let dir = try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"), dir.status == 0,
+    guard localDeveloperToolsInstalled(), let dir = try? await Runner.local.run(["/usr/bin/xcode-select", "-p"], "/"), dir.status == 0,
           let r = try? await Runner.local.run(["/usr/bin/xcrun", "--find", name], "/"), r.status == 0 else { return nil }
     return r.stdout.split(whereSeparator: \.isNewline).first.map(String.init)
 }

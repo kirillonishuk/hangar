@@ -5,6 +5,7 @@ import Integration
 import Testing
 @testable import HangarUI
 import Workspace
+import TestSupport
 
 /// The «Сервер» and «Удалённый проект» sheets' models on the RemoteHostsTests harness (fake ssh only, never a real host).
 /// No install command is ever executed here: the terminal spec is only inspected.
@@ -369,14 +370,5 @@ import Workspace
         h.active = true
         h.remote.appBecameActive()
         #expect(h.remote.hosts["dev"]?.retryPaused == false)
-    }
-
-    private func waitUntil(_ seconds: Double = 30, _ cond: () -> Bool) async -> Bool {
-        let clock = SuspendingClock(), end = clock.now + .seconds(seconds)
-        while clock.now < end {
-            if cond() { return true }
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
-        return cond()
     }
 }

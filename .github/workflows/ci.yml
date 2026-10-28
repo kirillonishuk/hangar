@@ -56,7 +56,7 @@ jobs:
       - name: Build
         run: swift build
 
-      # Some UI-string tests expect the Russian system language the project is developed under.
+      # The project's source language; tests pin L10n themselves and also pass under en, de and ja.
       - name: System language ru
         run: defaults write -g AppleLanguages -array ru en
 

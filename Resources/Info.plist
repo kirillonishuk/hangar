@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key><string>app.hangar.Hangar</string>
-    <key>CFBundleDevelopmentRegion</key><string>ru</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>ru</string><string>en</string></array>
     <key>CFBundleName</key><string>Hangar</string>
     <key>CFBundleDisplayName</key><string>Hangar</string>

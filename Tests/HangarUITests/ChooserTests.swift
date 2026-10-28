@@ -40,6 +40,19 @@ import Workspace
 
     // MARK: Choices
 
+    /// A short pane (live: a chooser under two editors) shows fewer «Продолжить» rows, a tiny one none, so the list never
+    /// reaches over the pane header; a narrow one narrows the list.
+    @Test func continueListFitsThePane() {
+        #expect(continueFit(CGSize(width: 1000, height: 800)) == (Theme.continueRows, Theme.continueWidth))
+        let short = continueFit(CGSize(width: 580, height: 260))
+        #expect(short.rows > 0 && short.rows < Theme.continueRows)
+        let top = 260 / 2 - Theme.continueRowHeight / 2 - Theme.sheetGap - CGFloat(short.rows + 1) * Theme.continueRowHeight
+        #expect(top >= 0)
+        #expect(continueFit(CGSize(width: 580, height: 100)).rows == 0)
+        #expect(continueFit(CGSize(width: 300, height: 800)).width == 300 - 2 * Theme.sheetGap)
+        #expect(continueFit(CGSize(width: 1000, height: 800), extra: 1).rows <= Theme.continueRows)
+    }
+
     @Test func choices() {
         #expect(chooserChoices() == [.claude, .codex, .shell, .editor])
         let e1 = Leaf(kind: .editor, cwd: "/")

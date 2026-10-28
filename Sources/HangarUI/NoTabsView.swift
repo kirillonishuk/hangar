@@ -21,6 +21,10 @@ struct NoTabsView: View {
     }
 
     var body: some View {
+        GeometryReader { geo in content(continueFit(geo.size, extra: 1)) }.clipped()
+    }
+
+    @ViewBuilder private func content(_ fit: (rows: Int, width: CGFloat)) -> some View {
         let task = app.selectedTask
         KindChoiceButtons(kinds: noTabsChoices(hostShell: task.map { app.isHostShellTask($0.id) } ?? false),
                           shellHint: Shortcut.newTab.label) { app.addTab($0) }
@@ -28,7 +32,7 @@ struct NoTabsView: View {
                 Text(L10n.emptyNoTabs).foregroundStyle(Theme.ui.text3)
                 // Inserted each time the session turns empty: the list rescans then (the tab just closed is in it).
                 if let task, app.showsNoTabs {
-                    ContinueList(app: app, taskId: task.id) { app.openConversation($0) }
+                    ContinueList(app: app, taskId: task.id, fit: fit) { app.openConversation($0) }
                 }
             }
             .font(.system(size: Theme.fontSize.sidebarRow))
@@ -45,6 +49,14 @@ struct KindChoiceButtons: View {
     let action: (LeafKind) -> Void
 
     var body: some View {
+        // A narrow pane gets icon-only buttons (names in tooltips), never labels wrapped letter by letter.
+        ViewThatFits(in: .horizontal) {
+            row(labels: true)
+            row(labels: false)
+        }
+    }
+
+    private func row(labels: Bool) -> some View {
         HStack(spacing: Theme.sheetGap) {
             ForEach(kinds, id: \.self) { kind in
                 let off = disabled.contains(kind)
@@ -52,8 +64,10 @@ struct KindChoiceButtons: View {
                 Button { if off { NSSound.beep() } else { action(kind) } } label: {
                     HStack(spacing: Theme.iconGap) {
                         Image(nsImage: Icon.of(kind).image)
-                        Text(title(kind)).foregroundStyle(Theme.ui.textStrong)
-                        if kind == .shell { ShortcutHint(text: shellHint) }
+                        if labels {
+                            Text(title(kind)).foregroundStyle(Theme.ui.textStrong).lineLimit(1)
+                            if kind == .shell { ShortcutHint(text: shellHint) }
+                        }
                     }
                     .padding(.vertical, Theme.tabPaddingV)
                     .padding(.horizontal, Theme.buttonPaddingH)
@@ -61,7 +75,7 @@ struct KindChoiceButtons: View {
                 .buttonStyle(FilledRowStyle())
                 .focusable(false)  // a click must not leave the keyboard in the button: ↩ / Esc belong to the pane
                 .opacity(off ? Theme.inactiveOpacity : 1)
-                .help(off && kind == .editor ? L10n.paneEditorCap : "")
+                .help(off && kind == .editor ? L10n.paneEditorCap : labels ? "" : title(kind))
                 // VoiceOver: a dimmed (not enabled) button with the reason, as `.disabled` would read.
                 .accessibilityRepresentation {
                     Button(title(kind)) { action(kind) }.disabled(off)

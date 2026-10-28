@@ -48,10 +48,20 @@ extension AppState {
     }
 }
 
+/// «Продолжить» rows that fit above buttons centred in an area `size` (`extra`: lines stacked above the list), at most
+/// `Theme.continueRows`, and the list's width: in a short or narrow pane it must not cover the pane header or overflow.
+func continueFit(_ size: CGSize, extra: Int = 0) -> (rows: Int, width: CGFloat) {
+    let row = Theme.continueRowHeight
+    let above = size.height / 2 - row / 2 - Theme.sheetGap  // the buttons are about one row tall, centred
+    let rows = Int((above / row).rounded(.down)) - 1 - extra  // the «Продолжить» title takes a row
+    return (min(max(rows, 0), Theme.continueRows), max(0, min(Theme.continueWidth, size.width - 2 * Theme.sheetGap)))
+}
+
 /// «Продолжить» header and its rows; empty (no space taken) without conversations. A click resumes the conversation.
 struct ContinueList: View {
     let app: AppState
     let taskId: UUID
+    var fit: (rows: Int, width: CGFloat) = (Theme.continueRows, Theme.continueWidth)
     let resume: (Conversation) -> Void
     @State private var hovered: String?
 
@@ -62,7 +72,7 @@ struct ContinueList: View {
     }
 
     var body: some View {
-        let rows = app.recent(for: taskId)
+        let rows = Array(app.recent(for: taskId).prefix(fit.rows))
         VStack(alignment: .leading, spacing: 0) {
             if !rows.isEmpty {
                 Text(L10n.continueTitle)
@@ -73,7 +83,7 @@ struct ContinueList: View {
                 ForEach(rows) { row($0) }
             }
         }
-        .frame(width: Theme.continueWidth)
+        .frame(width: fit.width)
         .task(id: Load(task: taskId, online: app.recentHostOnline(taskId))) { await app.loadRecent(taskId: taskId) }
     }
 

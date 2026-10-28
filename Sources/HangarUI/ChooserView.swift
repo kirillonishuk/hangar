@@ -21,6 +21,10 @@ struct ChooserView: View {
     }
 
     var body: some View {
+        GeometryReader { geo in content(continueFit(geo.size)) }.clipped()
+    }
+
+    @ViewBuilder private func content(_ fit: (rows: Int, width: CGFloat)) -> some View {
         let loc = app.location(ofLeaf: leafId)
         let tab = loc.flatMap { l in app.state.tasks.first { $0.id == l.task }?.tabs.first { $0.id == l.tab } }
         // Every click hands the keyboard back to the pane first, so ↩ / Esc still reach it if the pane stays a chooser.
@@ -30,7 +34,7 @@ struct ChooserView: View {
         }
         .aboveCentered {
             if let task = loc?.task {
-                ContinueList(app: app, taskId: task) { c in
+                ContinueList(app: app, taskId: task, fit: fit) { c in
                     focus()
                     app.chooseConversation(leafId, c)
                 }

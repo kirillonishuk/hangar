@@ -118,11 +118,14 @@ private func releaseJSON(tag: String = "v0.3.0", draft: Bool = false, prerelease
 }
 
 @Suite struct UpdateRecordTests {
-    @Test func dueEvery24Hours() {
+    /// Hourly (#86, amended): a release published after a check shows within the hour, not a day later.
+    @Test func dueEveryHour() {
         let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(UpdateRecord.interval == 3600)
         #expect(UpdateRecord().checkDue(now: now))
-        #expect(!UpdateRecord(lastCheck: now.addingTimeInterval(-3600)).checkDue(now: now))
-        #expect(UpdateRecord(lastCheck: now.addingTimeInterval(-UpdateRecord.interval)).checkDue(now: now))
+        #expect(!UpdateRecord(lastCheck: now.addingTimeInterval(-3599)).checkDue(now: now))
+        #expect(UpdateRecord(lastCheck: now.addingTimeInterval(-3600)).checkDue(now: now))
+        #expect(UpdateRecord(lastCheck: now.addingTimeInterval(-90 * 60)).checkDue(now: now))
         #expect(UpdateRecord(lastCheck: now.addingTimeInterval(3600)).checkDue(now: now))  // clock moved back
     }
 

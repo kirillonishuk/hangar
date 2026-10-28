@@ -41,7 +41,7 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorPalette: EditorPalette = .darkPlus
     public var editorRainbowIndent = true
     public var editorTodoHighlight = true
-    /// Look for a new GitHub release on launch / activation, at most once a day (#86).
+    /// Look for a new GitHub release on launch and on activation, at most hourly (#86).
     public var checkUpdates = true
 
     /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.

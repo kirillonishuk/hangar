@@ -237,10 +237,12 @@ struct SessionsView: View {
                  hidden: hovered == r.id)
             meta(time(c.lastActivity), width: Theme.historyTimeWidth, hidden: hovered == r.id)
         } actions: {
-            // «Перейти» to the tab running it; anything else resumes this very conversation («Продолжить»).
+            // «Перейти» to the leaf running it; «Продолжить» resumes this very conversation.
             switch action {
             case .focus: actionButton(icon: nil, title: L10n.sessionsGo, help: nil) { run(action) }
-            case .restore, .open, .openInNewSession: actionButton(icon: .openExternal, title: L10n.sessionsContinue, help: nil) { run(action) }
+            // A closed Hangar session holding it is restored, with that wording.
+            case .restore: actionButton(icon: .restore, title: L10n.restore, help: nil) { run(action) }
+            case .open, .openInNewSession: actionButton(icon: .openExternal, title: L10n.sessionsContinue, help: nil) { run(action) }
             }
         }
     }

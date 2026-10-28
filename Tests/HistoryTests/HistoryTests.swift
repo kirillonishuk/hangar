@@ -225,6 +225,22 @@ private func writeRenamedFixtures(_ f: Fixture) {
         #expect(read <= 1100 * (ConversationHistory.defaultHeadBytes + ConversationHistory.defaultTailBytes))
     }
 
+    /// A cancelled scan (timeout, newer scan) stops between files and returns what it has placed: nothing here.
+    @Test func cancelledLocalScanStops() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        let history = ConversationHistory()
+        let scan = Task { () -> [Conversation] in
+            while !Task.isCancelled { await Task.yield() }
+            return await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        }
+        scan.cancel()
+        #expect(await scan.value.isEmpty)
+        #expect(await history.filesParsed == 0)
+        #expect(await !history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: []).isEmpty)
+    }
+
     @Test func cachesByModificationTime() async throws {
         let f = Fixture()
         defer { f.remove() }

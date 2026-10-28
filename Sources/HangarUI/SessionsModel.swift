@@ -59,19 +59,25 @@ extension AppState {
         return out
     }
 
-    /// Session id → the live tab that runs it (agent leaves of open sessions).
-    var openConversationTabs: [String: (task: UUID, tab: UUID)] {
-        var out: [String: (task: UUID, tab: UUID)] = [:]
+    /// `conversationKey` → the live agent leaf holding that conversation (tabs and TERMINAL panels of open sessions,
+    /// any project): «Перейти» goes there instead of resuming it a second time.
+    var openConversationLeaves: [String: (task: UUID, leaf: UUID)] {
+        var out: [String: (task: UUID, leaf: UUID)] = [:]
         for t in state.tasks where !t.archived {
-            for tab in t.tabs {
-                for leaf in tab.root.leaves where leaf.kind == .claude || leaf.kind == .codex {
-                    if let id = validSessionId(leaf.agentSessionId), out[id] == nil { out[id] = (t.id, tab.id) }
-                }
+            let host = project(t.projectId)?.host
+            for leaf in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
+                guard let agent: HistoryAgent = leaf.kind == .claude ? .claude : leaf.kind == .codex ? .codex : nil,
+                      let id = validSessionId(leaf.agentSessionId) else { continue }
+                let key = conversationKey(host: host, agent: agent, id: id)
+                if out[key] == nil { out[key] = (t.id, leaf.id) }
             }
         }
         return out
     }
 }
+
+/// A conversation is the same one only on the same machine and agent.
+func conversationKey(host: String?, agent: HistoryAgent, id: String) -> String { (host ?? "") + "\0" + agent.rawValue + "\0" + id }
 
 /// `cwd` lies in a project nested deeper inside `project` on the same machine: the conversation is listed there only.
 /// One line of a scan error for the inline note: ssh's stderr, a host that is not connected, or the timeout.
@@ -127,8 +133,8 @@ func closedSessionRows(_ tasks: [HangarTask], projects: [Project]) -> [ClosedSes
 
 /// The session a conversation belongs to.
 enum ConversationPlace: Equatable {
-    /// Already running in this tab.
-    case open(task: UUID, tab: UUID, name: String)
+    /// Already running in this leaf (a tab's pane or a TERMINAL panel).
+    case open(task: UUID, leaf: UUID, name: String)
     /// Its folder's open session: opens there as a new tab.
     case session(task: UUID, name: String)
     /// Its folder's session is closed: restoring it resumes its agents.
@@ -210,20 +216,25 @@ struct SessionsFailure: Hashable {
 /// The scan did not answer within its source's time.
 struct SessionsTimeout: Error {}
 
-/// `op`, or `SessionsTimeout` after `limit` (the scan is cancelled: a remote one's ssh is killed).
-func withSessionsTimeout<T: Sendable>(_ limit: Duration, _ op: @escaping @Sendable () async throws -> T) async throws -> T {
-    try await withThrowingTaskGroup(of: T?.self) { group in
-        group.addTask { try await op() }
-        group.addTask { try await Task.sleep(for: limit); return nil }
+/// `op`'s result; after `limit` `op` is cancelled (a remote scan's ssh is killed, a local one stops between files) and
+/// whatever it returns then is kept, flagged `timedOut` (nil if it threw). Throws `op`'s own error, or on cancellation.
+func withSessionsTimeout<T: Sendable>(_ limit: Duration, _ op: @escaping @Sendable () async throws -> T) async throws
+    -> (value: T?, timedOut: Bool) {
+    try await withThrowingTaskGroup(of: (value: T?, timedOut: Bool).self) { group in
+        group.addTask { (try await op(), false) }
+        group.addTask { try await Task.sleep(for: limit); return (nil, true) }
         defer { group.cancelAll() }
-        guard let first = try await group.next(), let value = first else { throw SessionsTimeout() }
-        return value
+        guard let first = try await group.next() else { return (nil, true) }
+        guard first.timedOut else { return first }
+        group.cancelAll()
+        let partial = try? await group.next()
+        return (partial?.value, true)
     }
 }
 
 enum SessionsAction: Equatable {
     case restore(UUID)
-    case focus(task: UUID, tab: UUID)
+    case focus(leaf: UUID)
     case open(Conversation, task: UUID)
     case openInNewSession(Conversation, project: UUID)
 }
@@ -243,6 +254,7 @@ enum SessionsAction: Equatable {
     private(set) var found: [Found] = []
     @ObservationIgnored private var foundScope: SessionsScope?
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var running: Task<Void, Never>?
     /// Injectable for tests.
     @ObservationIgnored var now: () -> Date = Date.init
     @ObservationIgnored var calendar = Calendar.current
@@ -268,6 +280,14 @@ enum SessionsAction: Equatable {
     /// note (`failures`, retry), the load always finishes. Rows show as each folder is read on a first load; a rescan
     /// swaps them in at the end, so the list does not shrink and regrow.
     func reload() async {
+        // One scan at a time: a new one (scope change, retry) cancels the previous, whose parsing stops between files.
+        running?.cancel()
+        let task = Task { await load() }
+        running = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+    }
+
+    private func load() async {
         generation += 1
         let gen = generation
         let scope = self.scope
@@ -294,21 +314,28 @@ enum SessionsAction: Equatable {
             source: for project in inSource {
                 // A scan also lists folders inside its folder: the deepest goes first, so a worktree inside the project keeps its session.
                 for folder in app.sessionFolders(project.id).sorted(by: { $0.count > $1.count }) {
-                    let list: [Conversation]
+                    var list: [Conversation] = []
+                    var failed = false
                     do {
-                        list = try await withSessionsTimeout(limit) { try await scan(folder, project) }
-                    } catch {
+                        let r = try await withSessionsTimeout(limit) { try await scan(folder, project) }
                         guard gen == generation, !Task.isCancelled else { return }  // a newer scan or a closed view
-                        failures.append(SessionsFailure(host: host, message: sessionsErrorText(error), timedOut: error is SessionsTimeout))
-                        // A host's other folders would fail or wait the same way; this Mac's are read independently.
-                        if host != nil { break source } else { continue }
+                        list = r.value ?? []  // a local scan cut by its timeout keeps the files it had read
+                        if r.timedOut {
+                            failures.append(SessionsFailure(host: host, message: sessionsErrorText(SessionsTimeout()), timedOut: true))
+                            failed = true
+                        }
+                    } catch {
+                        guard gen == generation, !Task.isCancelled else { return }
+                        failures.append(SessionsFailure(host: host, message: sessionsErrorText(error), timedOut: false))
+                        failed = true
                     }
-                    guard gen == generation else { return }  // a newer scan owns the result
                     for c in list where !inDeeperProject(c.cwd, of: project, among: all)
                         && seen.insert((host ?? "") + "\0" + c.agent.rawValue + c.id).inserted {
                         out.append(Found(conversation: c, folder: folder, project: project.id))
                     }
                     if progressive { found = newestFirst(out) }
+                    // A host's other folders would fail or wait the same way; this Mac's are read independently.
+                    if failed, host != nil { break source }
                 }
             }
         }
@@ -332,7 +359,7 @@ enum SessionsAction: Equatable {
 
     /// Open markers come from the live tabs now, not from the scan: a tab opened or closed since still shows right.
     var conversationRows: [ConversationRow] {
-        let open = app.openConversationTabs
+        let open = app.openConversationLeaves
         let byId = Dictionary(app.state.projects.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let tasks = Dictionary(grouping: app.state.tasks, by: \.projectId).mapValues { $0.sorted { $0.order < $1.order } }
         return found.compactMap { f in
@@ -347,13 +374,12 @@ enum SessionsAction: Equatable {
     var days: [ConversationDay] { conversationDays(conversationRows, now: now(), calendar: calendar) }
 
     private func place(_ c: Conversation, folder: String, project: Project, tasks: [HangarTask],
-                       open: [String: (task: UUID, tab: UUID)]) -> ConversationPlace {
+                       open: [String: (task: UUID, leaf: UUID)]) -> ConversationPlace {
         // Only a leaf holding this very conversation makes it open (or closed): a session of the same folder holds others,
-        // and restoring one of those would bring back its agents, not this conversation.
+        // and restoring one of those would bring back its agents, not this conversation. Open in any project counts.
         let kind: LeafKind = c.agent == .claude ? .claude : .codex
-        if let o = open[c.id], let t = tasks.first(where: { $0.id == o.task }),
-           t.tabs.first(where: { $0.id == o.tab })?.root.leaves.contains(where: { $0.kind == kind && $0.agentSessionId == c.id }) == true {
-            return .open(task: t.id, tab: o.tab, name: t.name)
+        if let o = open[conversationKey(host: project.host, agent: c.agent, id: c.id)] {
+            return .open(task: o.task, leaf: o.leaf, name: app.state.tasks.first { $0.id == o.task }?.name ?? "")
         }
         if let t = tasks.first(where: { t in
             t.archived && t.tabs.flatMap(\.root.leaves).contains { $0.kind == kind && validSessionId($0.agentSessionId) == c.id }
@@ -371,7 +397,7 @@ enum SessionsAction: Equatable {
 
     func action(for row: ConversationRow) -> SessionsAction {
         switch row.place {
-        case .open(let task, let tab, _): .focus(task: task, tab: tab)
+        case .open(_, let leaf, _): .focus(leaf: leaf)
         case .session(let task, _): .open(row.conversation, task: task)
         case .closed(let task, _): .restore(task)
         case .none: .openInNewSession(row.conversation, project: row.project)
@@ -384,14 +410,16 @@ enum SessionsAction: Equatable {
     func perform(_ action: SessionsAction, ctx: ActionContext) async {
         switch action {
         case .restore(let id): await restoreArchivedTask(id, ctx: ctx, reselect: true)
-        case .focus(let task, let tab):
-            app.select(taskId: task)
-            app.activate(tabId: tab)
+        case .focus(let leaf):
+            app.reveal(leafId: leaf)  // its tab, or the TERMINAL panel it is in
+            app.hideSessionsView()
         case .open(let c, let task):
             app.select(taskId: task)
             app.openConversation(c)
         case .openInNewSession(let c, let project):
-            let name = String((c.title ?? L10n.sessionsUntitled).prefix(40))
+            // The id comes from a file: an invalid one opens nothing (not an empty session).
+            guard validSessionId(c.id) != nil else { app.beep(); return }
+            let name = sessionName(c.title)
             app.perform { s in s.select(taskId: s.addTask(projectId: project, name: name)) }
             app.openConversation(c)
         }
@@ -399,6 +427,12 @@ enum SessionsAction: Equatable {
 
     /// «Удалить навсегда»: the sidebar's flow with its confirmations.
     func delete(_ id: UUID, ctx: ActionContext) { Action.deletePermanently.perform(.task(id), ctx) }
+}
+
+/// A new session's name from a conversation title (file content): one safe line, at most 40 characters.
+@MainActor func sessionName(_ title: String?) -> String {
+    let clean = title.flatMap(conversationTitle) ?? L10n.sessionsUntitled
+    return clean.count > 40 ? String(clean.prefix(39)) + "…" : clean
 }
 
 extension ConversationRow {

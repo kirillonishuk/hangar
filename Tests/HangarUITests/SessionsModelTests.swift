@@ -259,8 +259,9 @@ import Workspace
 
         w.app.showSessionsView()
         let a = try #require(w.app.selectedTask)
-        #expect(try row(idA).place == .open(task: a.id, tab: a.activeTabId!, name: a.name))
-        #expect(m.action(for: try row(idA)) == .focus(task: a.id, tab: a.activeTabId!))
+        let aLeaf = try #require(a.tabs.first { $0.id == a.activeTabId }?.focusedLeafId)
+        #expect(try row(idA).place == .open(task: a.id, leaf: aLeaf, name: a.name))
+        #expect(m.action(for: try row(idA)) == .focus(leaf: aLeaf))
         #expect(try row(idB).place == .none)  // not into A's session: one of its own
         await m.perform(m.action(for: try row(idB)), ctx: ActionContext(app: w.app))
         #expect(try firstCommand(idB).contains("--resume \(idB)"))
@@ -295,8 +296,8 @@ import Workspace
         // Back in «Сессии» without a rescan: the marker is merged from the live tabs.
         w.app.showSessionsView()
         let after = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idA })
-        #expect(after.isOpen && after.place == .open(task: w.feature, tab: tab.id, name: "api-cache"))
-        #expect(m.action(for: after) == .focus(task: w.feature, tab: tab.id))
+        #expect(after.isOpen && after.place == .open(task: w.feature, leaf: tab.focusedLeafId, name: "api-cache"))
+        #expect(m.action(for: after) == .focus(leaf: tab.focusedLeafId))
         // Closing that tab drops the marker even though the scan said open.
         w.app.perform { $0.closeTab(taskId: w.feature, tabId: tab.id) }
         await m.reload()
@@ -307,7 +308,9 @@ import Workspace
     @Test func focusSelectsTheTab() async throws {
         let (w, m) = try await loaded()
         let first = try #require(w.app.state.tasks.first { $0.id == w.main }?.tabs.first)
-        await m.perform(.focus(task: w.main, tab: first.id), ctx: ActionContext(app: w.app))
+        w.app.select(taskId: w.feature)
+        w.app.showSessionsView()
+        await m.perform(.focus(leaf: first.focusedLeafId), ctx: ActionContext(app: w.app))
         #expect(w.app.selectedTask?.id == w.main && w.app.selectedTask?.activeTabId == first.id)
         #expect(!w.app.sessionsViewVisible)
     }
@@ -458,14 +461,14 @@ import Workspace
 
     /// A source that never answers is cut at its timeout; rows already found show while it is pending.
     @Test func hangingSourceTimesOutAndEarlierRowsShowMeanwhile() async throws {
-        let (w, m) = try await loaded()
-        w.app.hideSessionsView()
-        w.app.showSessionsView()
+        let (w, _) = try await loaded()
         let fresh = SessionsModel(app: w.app)
         fresh.localTimeout = .seconds(600)
+        // The root folder answers only when cancelled, with what it had read (as a local scan cut by its timeout does).
         fresh.scan = { folder, project in
-            if folder == "/work/shop" { try await Task.sleep(for: .seconds(3600)) }
-            return try await w.app.conversations(folder: folder, project: project)
+            let list = try await w.app.conversations(folder: folder, project: project)
+            if folder == "/work/shop" { try? await Task.sleep(for: .seconds(3600)) }
+            return list
         }
         let run = Task { await fresh.reload() }
         #expect(await waitUntil { fresh.conversationCount == 2 })  // both worktrees' conversations, before the root answers
@@ -474,8 +477,73 @@ import Workspace
         _ = await run.value
         fresh.localTimeout = .milliseconds(200)
         await fresh.reload()
-        #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationCount == 2)
-        _ = m
+        // Cut by the timeout: said so, and the root's rows read so far are kept.
+        #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationCount == 4)
+    }
+
+    /// A new scan (scope change, retry) cancels the one still running: it stops, the newer result stands.
+    @Test func newReloadCancelsTheRunningOne() async throws {
+        let (w, _) = try await loaded()
+        let m = SessionsModel(app: w.app)
+        final class Flag: @unchecked Sendable { var hang = true; var stopped = false }
+        let flag = Flag()
+        m.scan = { folder, project in
+            if flag.hang {
+                do { try await Task.sleep(for: .seconds(3600)) } catch { flag.stopped = true; throw error }
+            }
+            return try await w.app.conversations(folder: folder, project: project)
+        }
+        let first = Task { await m.reload() }
+        #expect(await waitUntil { m.load == .loading })
+        flag.hang = false
+        await m.reload()
+        await first.value
+        #expect(flag.stopped && m.load == .loaded && m.failures.isEmpty && m.conversationCount == 4)
+    }
+
+    /// «Открыт» is any live agent leaf with that id — a TERMINAL panel too, in another project too; never a leaf on
+    /// another machine with the same id.
+    @Test func openAnywhereIsFocusedNotResumedAgain() async throws {
+        let (w, m) = try await loaded()
+        var other = UUID(), remote = UUID()
+        w.app.perform { s in
+            let p = s.addProject(name: "elsewhere", path: "/work/elsewhere")
+            other = s.addTask(projectId: p, name: "other")
+            s.toggleDrawer(taskId: other)
+            let r = s.addRemoteProject(name: "srv", host: "devbox", path: "/work/shop")
+            remote = s.addTask(projectId: r, name: "remote")
+            s.addTab(taskId: remote, kind: .claude)
+        }
+        let remoteLeaf = try #require(w.app.state.tasks.first { $0.id == remote }?.tabs.last?.focusedLeafId)
+        w.app.perform { $0.setAgentSessionId(leafId: remoteLeaf, self.idC) }
+        func row(_ id: String) -> ConversationRow? { m.conversationRows.first { $0.conversation.id == id && $0.origin == "shop" } }
+        #expect(row(idC)?.isOpen == false)  // the same id on devbox is another conversation
+        // A claude in another project's TERMINAL panel (state.json allows it) holds it: «Перейти» goes there.
+        let held = Leaf(kind: .claude, cwd: "/work/shop", agentSessionId: idC)
+        w.app.perform { s in
+            let i = s.tasks.firstIndex { $0.id == other }!
+            s.tasks[i].drawer.leaf = held
+        }
+        #expect(row(idC)?.place == .open(task: other, leaf: held.id, name: "other"))
+        let r = try #require(row(idC))
+        #expect(m.action(for: r) == .focus(leaf: held.id))
+        await m.perform(m.action(for: r), ctx: ActionContext(app: w.app))
+        #expect(w.app.selectedTask?.id == other && !w.app.sessionsViewVisible)
+        #expect(w.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).filter { $0.agentSessionId == idC }.count == 1)  // no second resume
+    }
+
+    /// A conversation id from a file that is not a valid session id opens nothing — no empty session either;
+    /// its title becomes a safe one-line session name.
+    @Test func invalidIdOpensNoSessionAndTitlesAreSanitized() async throws {
+        let (w, m) = try await loaded()
+        let before = w.app.state.tasks.count
+        let bad = Conversation(id: "--evil", agent: .claude, cwd: "/work/shop", started: nil, lastActivity: Date(), messageCount: 1,
+                               messageCountIsEstimate: false, gitBranch: nil, title: "x", isOpen: false)
+        await m.perform(.openInNewSession(bad, project: w.project), ctx: ActionContext(app: w.app))
+        #expect(w.app.state.tasks.count == before)
+        let name = sessionName("\nfix\u{202E} the\u{1B}[31m bug " + String(repeating: "x", count: 80))
+        #expect(!name.contains("\n") && !name.unicodeScalars.contains { $0.value == 0x202E || $0.value == 0x1B })
+        #expect(name.count <= 40 && name.hasPrefix("fix the"))
     }
 
     /// The sidebar's «Все сессии в архиве» hint: only when the project has closed sessions and no open one.

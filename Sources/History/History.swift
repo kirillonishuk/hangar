@@ -278,6 +278,7 @@ public actor ConversationHistory {
     // MARK: Local
 
     /// `claudeDir` / `codexDir`: the agents' config folders (`~/.claude`, `~/.codex` or their env overrides).
+    /// Cancelled (a timeout, a newer scan): stops between files and returns what it has placed so far.
     public func local(folder: String, claudeDir: URL, codexDir: URL, open: Set<String>) async -> [Conversation] {
         let folder = normalized(folder)
         let folders: Set<String> = [folder, URL(fileURLWithPath: folder).resolvingSymlinksInPath().path]
@@ -289,7 +290,7 @@ public actor ConversationHistory {
         // Also folders inside the project (subfolders, Claude's own worktrees): their names start with `<name>-`.
         var files: [(url: URL, file: String, dir: String)] = []
         var stale: [ClaudeJob] = []
-        for dir in names where folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0), inside: true) }) {
+        for dir in names where !Task.isCancelled && folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0), inside: true) }) {
             let d = projects.appendingPathComponent(dir)
             for file in (try? fm.contentsOfDirectory(atPath: d.path)) ?? [] where file.hasSuffix(".jsonl") {
                 let url = d.appendingPathComponent(file)
@@ -302,6 +303,8 @@ public actor ConversationHistory {
         for (job, record, bytes) in await parseAll(stale) {
             filesParsed += 1
             bytesRead += bytes
+            // An overlapping scan may have stored a newer version meanwhile: only the file's current state is cached.
+            guard fileStamp(job.url)?.0 == job.stamp else { continue }
             cache[job.url.path] = Entry(stamp: job.stamp, record: record)
         }
         for f in files {
@@ -310,7 +313,7 @@ public actor ConversationHistory {
 
         let sessions = codexDir.appendingPathComponent("sessions")
         let walker = fm.enumerator(at: sessions, includingPropertiesForKeys: nil)
-        while let url = walker?.nextObject() as? URL {
+        while !Task.isCancelled, let url = walker?.nextObject() as? URL {
             let file = url.lastPathComponent
             guard file.hasPrefix("rollout-"), file.hasSuffix(".jsonl") else { continue }
             guard let (stamp, mtime, size) = fileStamp(url) else { continue }
@@ -343,14 +346,15 @@ public actor ConversationHistory {
                 let job = jobs[next]
                 next += 1
                 group.addTask {
+                    guard !Task.isCancelled else { return (job, nil, -1) }
                     let s = sampleFile(job.url, size: job.size, head: head, tail: tail)
                     return (job, parseClaude(s, fileName: job.file, dirName: job.dir, mtime: job.mtime), s.head.count + s.tail.count)
                 }
             }
             while next < min(width, jobs.count) { add() }
             while let r = await group.next() {
-                out.append(r)
-                if next < jobs.count { add() }
+                if r.2 >= 0 { out.append(r) }  // -1: skipped after cancellation, not parsed
+                if next < jobs.count, !Task.isCancelled { add() }
             }
             return out
         }

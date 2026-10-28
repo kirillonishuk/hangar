@@ -104,7 +104,7 @@ import Workspace
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
-        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
+        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
@@ -303,7 +303,6 @@ import Workspace
     static var fromBranch: String { s(.fromBranch) }
     static var newBranch: String { s(.newBranch) }
     static var fromName: String { s(.fromName) }
-    static func currentBranch(_ name: String) -> String { f(.currentBranch, name) }
     static var refreshHelp: String { s(.refreshHelp) }
     static var searchBranches: String { s(.searchBranches) }
     static var branchesRemote: String { s(.branchesRemote) }

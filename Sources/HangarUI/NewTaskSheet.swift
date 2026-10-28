@@ -205,7 +205,7 @@ struct NewTaskSheet: View {
 
     private var footerHint: String {
         if let entry = model.progress { return L10n.copyingEntry(entry) }
-        if !model.worktree, let branch = model.currentBranch { return L10n.currentBranch(branch) }
+        // Not «текущая ветка: main»: the «От ветки» row above already names it.
         return L10n.escCancel
     }
 

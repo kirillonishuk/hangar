@@ -130,8 +130,6 @@ public enum Theme {
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
     public static let hoverFade: Double = 0.12
-    /// Project settings: characters of the worktree folder inside its one-line hint.
-    public static let hintPathLength = 40
     public static let selectionFade: Double = 0.15
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6

@@ -144,7 +144,6 @@
 "fromBranch" = "От ветки";
 "newBranch" = "Новая ветка";
 "fromName" = "из названия";
-"currentBranch" = "текущая ветка: %@";
 "refreshHelp" = "Обновить ветки (git fetch)";
 "searchBranches" = "поиск ветки";
 "branchesRemote" = "remote";

@@ -144,7 +144,6 @@
 "fromBranch" = "From branch";
 "newBranch" = "New branch";
 "fromName" = "from the name";
-"currentBranch" = "current branch: %@";
 "refreshHelp" = "Refresh branches (git fetch)";
 "searchBranches" = "search branches";
 "branchesRemote" = "remote";

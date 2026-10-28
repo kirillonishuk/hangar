@@ -77,6 +77,7 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
     /// The pane is on screen: page `i`'s web view moves into it and shows its model (view state kept per model).
     func show(_ pane: EditorPane, page i: Int) {
         let view = page(i).webView
+        for (j, other) in pages.enumerated() where j != i && other?.webView.superview === pane { other?.webView.removeFromSuperview() }
         if view.superview !== pane {
             view.frame = pane.bounds
             view.autoresizingMask = [.width, .height]

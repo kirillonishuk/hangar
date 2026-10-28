@@ -11,7 +11,7 @@ import WebKit
     var onMessage: ((BridgeMessage, UUID?) -> Void)?
     private var ready = false
     var isReady: Bool { ready }
-    private var pending: [(EditorCommand, UUID?)] = []
+    private(set) var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
 
     init(mode: Mode, inline: Bool, minimap: Bool, appearance: EditorAppearance) {

@@ -760,7 +760,11 @@ final class FillView: NSView {
         case .editor:
             let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap, appearance: EditorAppearance(app.config))
             editorHost = host
-            let pane = EditorPane(leafId: leaf.id, app: app, host: host)
+            // Beside an editor already in this tab: the free page, so it never loads on the taken one first.
+            let tab = app.state.tasks.lazy.flatMap(\.tabs).first { $0.id == tabId }
+            let taken = Set((tab?.root.leaves ?? []).compactMap { self.leafViews[$0.id]?.editor?.page })
+            let page = (0..<Tab.maxEditorPanes).first { !taken.contains($0) } ?? 0
+            let pane = EditorPane(leafId: leaf.id, app: app, host: host, page: page)
             view.attachEditor(pane)
             uiLog.info("editor created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) tab=\(tabId.uuidString.prefix(8), privacy: .public)")
             return
@@ -930,9 +934,7 @@ final class FillView: NSView {
     var debugWebViews: [WKWebView] {
         if app.activeDiff != nil { return debugMonaco.map { [$0.webView] } ?? [] }
         guard let tab = activeTab else { return [] }
-        return tab.root.leaves.compactMap { leafViews[$0.id]?.editor }.compactMap { pane in
-            pane.subviews.compactMap { $0 as? WKWebView }.first
-        }
+        return tab.root.leaves.compactMap { leafViews[$0.id]?.editor }.map { $0.host.page($0.page).webView }
     }
 
     var debugDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }

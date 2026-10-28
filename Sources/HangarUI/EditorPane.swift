@@ -8,10 +8,12 @@ import Workspace
     let leafId: UUID
     let host: EditorHost
     /// The host's page holding this pane's model; two panes on screen at once are on different pages.
-    private(set) var page = 0
+    private(set) var page: Int
     /// A move between pages in flight, and where the latest sync wants the pane.
     private var moving = false
     private var wanted: Int?
+    /// Bumped with each new session: output of a replaced one (a load still reading, a save finishing) is dropped.
+    private var generation = 0
     private let app: AppState
     private(set) var session: EditorSession
     private let remoteHost: String?
@@ -22,10 +24,12 @@ import Workspace
     private var requests: [Int: Task<Void, Never>] = [:]
     var onFocus: (() -> Void)?
 
-    init(leafId: UUID, app: AppState, host: EditorHost) {
+    /// `page`: where its model goes first (a free one when it opens beside another editor).
+    init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
         self.leafId = leafId
         self.app = app
         self.host = host
+        self.page = page
         remoteHost = app.remoteLeafHost(leafId)
         session = EditorSession(io: app.editorIO(host: remoteHost)) { _ in }
         super.init(frame: .zero)
@@ -52,14 +56,18 @@ import Workspace
     /// The page (re)loaded or this tab is new: its file from the leaf, at its cursor; a buffer carried over from the
     /// other page (`rehome`) opens as it was.
     func load() {
+        guard !moving else { return }  // the new page got ready mid-move: the move loads it, with the carried buffer
         app.languages.closedAll(owner: leafId)  // a reloaded page lost its models
-        session = makeSession(io: session.io, limits: session.limits)
         let moved = carried
         carried = nil
+        // A save that finished during the move: its stamp and clean flag win over the state read before it.
+        // shortcut: a save still writing when the move ends keeps the old stamp (a false conflict bar on the next save); rare.
+        let latest = moved.flatMap { session.files[$0.path] }
+        session = makeSession(io: session.io, limits: session.limits)
         guard let leaf = app.editorLeaf(leafId), let path = leaf.openFile else { return }
         let cursor = leaf.editorFileList.first { $0.path == path }
         if let moved, moved.path == path {
-            session.adopt(path: path, text: moved.text, file: moved.file, line: cursor?.line, column: cursor?.column)
+            session.adopt(path: path, text: moved.text, file: latest ?? moved.file, line: cursor?.line, column: cursor?.column)
             restartWatcher()
             return
         }
@@ -150,15 +158,18 @@ import Workspace
         app.languages.restart(path, host: remoteHost)
     }
 
-    /// A session sending to this tab's model; opened TS/JS files go to tsserver, whose status goes to the status bar.
+    /// A session sending to this tab's model on its page now; opened TS/JS files go to tsserver, whose status goes to
+    /// the status bar. Once replaced (a new load, a move to the other page) it says nothing more.
     private func makeSession(io: EditorIO, limits: EditorLimits) -> EditorSession {
-        let page = host.page(page), doc = leafId
-        let session = EditorSession(io: io, limits: limits) { page.send($0, doc: doc) }
-        session.onDirty = { [weak self] _, dirty in self?.app.editorDirtyChanged(leafId: doc, dirty: dirty) }
+        generation += 1
+        let index = page, gen = generation, page = host.page(page), doc = leafId
+        let current = { [weak self] in self?.page == index && self?.generation == gen }
+        let session = EditorSession(io: io, limits: limits) { if current() { page.send($0, doc: doc) } }
+        session.onDirty = { [weak self] _, dirty in if current() { self?.app.editorDirtyChanged(leafId: doc, dirty: dirty) } }
         session.onOpened = { [weak self] path, text in
-            guard let self else { return }
+            guard let self, current() else { return }
             let owner = Languages.Owner(id: doc, root: app.editorLeaf(doc)?.cwd ?? "/", send: { [weak self] cmd in
-                if case .language(_, let status) = cmd { self?.app.editorLanguage[doc] = status } else { page.send(cmd, doc: doc) }
+                if case .language(_, let status) = cmd { self?.app.editorLanguage[doc] = status } else if current() { page.send(cmd, doc: doc) }
             }, text: { _ in await page.text(of: doc.uuidString) })
             app.languages.opened(path, text: text, host: remoteHost, owner: owner)
         }

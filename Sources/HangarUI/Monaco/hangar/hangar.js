@@ -130,7 +130,8 @@
   // A tab's file arrives (also for tabs not on screen: their models wait). One file open in two sessions' tabs is
   // two buffers.
   function open(c) {
-    if (files.has(c.doc)) return;
+    // The doc already here (a pane moved back with its buffer, a load racing a move): the new text replaces it.
+    if (files.has(c.doc)) { const shown = active === c.doc; close(c.doc); if (shown) active = c.doc; }
     const f = { doc: c.doc, path: c.path, readOnly: c.readOnly, notice: c.notice, conflict: false, dirty: false,
       refused: c.text == null, view: null, model: null, at: { line: c.line, column: c.column } };
     if (c.text != null) {

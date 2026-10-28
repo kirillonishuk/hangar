@@ -102,6 +102,18 @@ public enum Theme {
     /// The highlighted half a dropped pane will take: `accent` fill at this opacity, `accent` outline.
     public static let paneDropFillOpacity: CGFloat = 0.18
     public static let paneDropLineWidth: CGFloat = 2
+    /// The rest of the target pane: `bg` at this opacity.
+    public static let paneDropDimOpacity: CGFloat = 0.4
+    /// The chip following the pointer (icon + name): faded where nothing can be dropped.
+    public static let paneDragGhostOpacity: CGFloat = 0.95
+    public static let paneDragGhostBlockedOpacity: CGFloat = 0.45
+    public static let paneDragGhostHeight: CGFloat = 28
+    public static let paneDragGhostPaddingH: CGFloat = 10
+    public static let paneDragGhostMaxWidth: CGFloat = 260
+    /// From the pointer to the chip's top-left corner.
+    public static let paneDragGhostOffset: CGFloat = 12
+    public static let paneDragGhostShadowRadius: CGFloat = 10
+    public static let paneDragGhostShadowOpacity: CGFloat = 0.5
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32

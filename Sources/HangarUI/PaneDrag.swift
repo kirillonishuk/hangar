@@ -55,18 +55,33 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     return CGPoint(x: event.locationInWindow.x, y: height - event.locationInWindow.y)
 }
 
-/// Runs a drag that may end on a pane: tracks the target, shows the zone, performs or cancels the drop.
-/// Driven only by the gesture's events and Esc: no timers.
+/// The chip that follows the pointer: the dragged tab's icon and name.
+@MainActor func paneDragChip(_ source: PaneDragSource, app: AppState) -> (icon: Icon, title: String)? {
+    switch source {
+    case .tab(let id):
+        guard let tab = app.state.tasks.lazy.flatMap(\.tabs).first(where: { $0.id == id }) else { return nil }
+        return (tab.root.leaves.first.map { Icon.of($0.kind) } ?? .shell, app.tabLabel(tab))
+    case .leaf(let id):
+        guard let leaf = app.leaf(id: id) else { return nil }
+        return (Icon.of(leaf.kind), app.paneTitle(leaf))
+    }
+}
+
+/// Runs a drag that may end on a pane: tracks the target, shows the zone and the chip, locks the cursor (closed hand),
+/// performs or cancels the drop. Driven only by the gesture's events and Esc: no timers.
 @MainActor final class PaneDragController {
     private let app: AppState
     private let area: TerminalArea
     private let tabBar: NSView
+    private let ghost = PaneDragGhost()
     /// A drag is under way (between the first `update` and `end`).
     private(set) var active = false
     /// Esc pressed: the rest of this drag does nothing.
     private var cancelled = false
     /// The last `update` was in drop mode (below the tab bar).
     private var dropping = false
+    /// Swallows cursor updates of the views under the pointer while the cursor is locked.
+    private var cursorMonitor: Any?
 
     init(app: AppState, area: TerminalArea, tabBar: NSView) {
         self.app = app
@@ -78,16 +93,23 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
 
     /// True: drop mode (pointer below the tab bar), the tab strip leaves the tab in place.
     func update(_ source: PaneDragSource, at p: CGPoint) -> Bool {
-        active = true
+        if !active {
+            active = true
+            lockCursor()
+        }
         if cancelled { return true }
+        NSCursor.closedHand.set()
         guard case .tab = source, let bar = windowRect(tabBar), p.y >= bar.maxY, let task = app.selectedTask else {
             dropping = false
             show(nil)
+            ghost.isHidden = true  // over the tab bar the tab itself follows the pointer
             return false
         }
         dropping = true
-        show(resolveDrop(source, at: p, state: app.state, taskId: task.id, activeTab: task.activeTabId,
-                         paneFrames: area.paneFrames(), tabBar: bar, tabFrames: [:]))
+        let target = resolveDrop(source, at: p, state: app.state, taskId: task.id, activeTab: task.activeTabId,
+                                 paneFrames: area.paneFrames(), tabBar: bar, tabFrames: [:])
+        show(target)
+        showGhost(source, at: p, allowed: target != nil)
         return true
     }
 
@@ -107,6 +129,8 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         guard active, !cancelled else { return false }
         cancelled = true
         show(nil)
+        ghost.isHidden = true
+        unlockCursor()
         return true
     }
 
@@ -115,6 +139,8 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         cancelled = false
         dropping = false
         show(nil)
+        ghost.isHidden = true
+        unlockCursor()
     }
 
     private func show(_ target: PaneDropTarget?) {
@@ -125,20 +151,102 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         }
         area.showDropZone(rect, edge: edge)
     }
+
+    private func showGhost(_ source: PaneDragSource, at p: CGPoint, allowed: Bool) {
+        guard let content = area.window?.contentView, let chip = paneDragChip(source, app: app) else { return }
+        if ghost.superview !== content || content.subviews.last !== ghost {
+            content.addSubview(ghost, positioned: .above, relativeTo: nil)  // above everything, also later additions
+        }
+        ghost.show(chip.icon, chip.title, at: NSPoint(x: p.x, y: content.frame.height - p.y), allowed: allowed)
+    }
+
+    /// Closed hand for the whole drag: cursor rects (split dividers) off, cursor updates (terminal I-beam, links,
+    /// pointing hands) swallowed; restored on drop/cancel.
+    private func lockCursor() {
+        guard cursorMonitor == nil else { return }
+        area.window?.disableCursorRects()
+        NSCursor.closedHand.set()
+        cursorMonitor = NSEvent.addLocalMonitorForEvents(matching: .cursorUpdate) { _ in
+            MainActor.assumeIsolated { NSCursor.closedHand.set() }
+            return nil
+        }
+    }
+
+    private func unlockCursor() {
+        guard let monitor = cursorMonitor else { return }
+        NSEvent.removeMonitor(monitor)
+        cursorMonitor = nil
+        guard let window = area.window else { return }
+        window.enableCursorRects()
+        NSCursor.arrow.set()
+        window.resetCursorRects()  // the view under the pointer sets its own again
+    }
 }
 
-/// The half of a pane a dropped pane will take: `accent` tint and outline with «Вправо/Влево/Вверх/Вниз».
-/// Never takes the mouse (the drag runs over it).
+/// Over the target pane: the half the dropped pane will take in `accent` (tint, outline, «Справа/Слева/Сверху/Снизу»),
+/// the rest of the pane dimmed. Never takes the mouse (the drag runs over it).
 @MainActor final class PaneDropOverlay: NSView {
+    private let zone = NSView()
+    private let dim = NSView()
     private let label = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        wantsLayer = true
         isHidden = true
-        layer?.borderWidth = Theme.paneDropLineWidth
-        label.font = .systemFont(ofSize: Theme.fontSize.base, weight: .semibold)
+        for v in [dim, zone] {
+            v.wantsLayer = true
+            addSubview(v)
+        }
+        zone.layer?.borderWidth = Theme.paneDropLineWidth
+        label.font = .systemFont(ofSize: Theme.fontSize.sheetTitle, weight: .semibold)
         label.alignment = .center
+        zone.addSubview(label)
+        observeTheme(#selector(applyTheme))
+        applyTheme()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    @objc private func applyTheme() {
+        zone.layer?.backgroundColor = Theme.accent.withAlphaComponent(Theme.paneDropFillOpacity).cgColor
+        zone.layer?.borderColor = Theme.accent.cgColor
+        dim.layer?.backgroundColor = Theme.bg.withAlphaComponent(Theme.paneDropDimOpacity).cgColor
+        label.textColor = Theme.textStrong
+    }
+
+    /// `pane` in the superview's coordinates.
+    func show(over pane: NSRect, edge: SplitEdge) {
+        frame = pane
+        let (half, rest) = bounds.divided(atDistance: edge.axis == .horizontal ? bounds.width / 2 : bounds.height / 2,
+                                          from: [.left: .minXEdge, .right: .maxXEdge, .bottom: .minYEdge, .top: .maxYEdge][edge]!)
+        zone.frame = half
+        dim.frame = rest
+        label.stringValue = paneDropLabel(edge)
+        label.sizeToFit()
+        label.frame.origin = NSPoint(x: (half.width - label.frame.width) / 2, y: (half.height - label.frame.height) / 2)
+        isHidden = false
+    }
+}
+
+/// The chip under the pointer while a tab is dragged over the panes: icon + name; faded where it can't drop.
+@MainActor final class PaneDragGhost: NSView {
+    private let icon = NSImageView()
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        isHidden = true
+        wantsLayer = true
+        layer?.cornerRadius = Theme.tabRadius
+        layer?.borderWidth = 1
+        layer?.shadowRadius = Theme.paneDragGhostShadowRadius
+        layer?.shadowOpacity = Float(Theme.paneDragGhostShadowOpacity)
+        layer?.shadowOffset = CGSize(width: 0, height: -Theme.paneDragGhostShadowRadius / 3)
+        label.font = .systemFont(ofSize: Theme.fontSize.tab)
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(icon)
         addSubview(label)
         observeTheme(#selector(applyTheme))
         applyTheme()
@@ -149,24 +257,25 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.accent.withAlphaComponent(Theme.paneDropFillOpacity).cgColor
-        layer?.borderColor = Theme.accent.cgColor
+        layer?.backgroundColor = Theme.activeSegment.cgColor
+        layer?.borderColor = Theme.sheetBorder.cgColor
+        layer?.shadowColor = Theme.bg.cgColor
         label.textColor = Theme.textStrong
+        icon.contentTintColor = Theme.text2
     }
 
-    /// `pane` in the superview's coordinates.
-    func show(over pane: NSRect, edge: SplitEdge) {
-        var r = pane
-        switch edge {  // superview coordinates: y grows upwards
-        case .left: r.size.width /= 2
-        case .right: r.size.width /= 2; r.origin.x += r.width
-        case .bottom: r.size.height /= 2
-        case .top: r.size.height /= 2; r.origin.y += r.height
-        }
-        frame = r
-        label.stringValue = paneDropLabel(edge)
+    /// `p`: the pointer in the window's content view (bottom-left origin); the chip sits below-right of it.
+    func show(_ kind: Icon, _ title: String, at p: NSPoint, allowed: Bool) {
+        icon.image = kind.image
+        label.stringValue = title
         label.sizeToFit()
-        label.frame.origin = NSPoint(x: (r.width - label.frame.width) / 2, y: (r.height - label.frame.height) / 2)
+        let pad = Theme.paneDragGhostPaddingH, s = Theme.iconSize, h = Theme.paneDragGhostHeight
+        let w = min(Theme.paneDragGhostMaxWidth, pad + s + Theme.iconGap + label.frame.width + pad)
+        icon.frame = NSRect(x: pad, y: (h - s) / 2, width: s, height: s)
+        label.frame = NSRect(x: pad + s + Theme.iconGap, y: (h - label.frame.height) / 2,
+                             width: w - pad * 2 - s - Theme.iconGap, height: label.frame.height)
+        frame = NSRect(x: p.x + Theme.paneDragGhostOffset, y: p.y - Theme.paneDragGhostOffset - h, width: w, height: h)
+        alphaValue = allowed ? Theme.paneDragGhostOpacity : Theme.paneDragGhostBlockedOpacity
         isHidden = false
     }
 }

@@ -471,7 +471,7 @@ struct TabItem: View {
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .help(L10n.help(app.tabHelpTitle(tab, taskId: taskId), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
-        .pointingHand(app.renaming != target)
+        .pointingHand(app.renaming != target && !dragging)  // a drag keeps its closed hand (PaneDragController)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
     }

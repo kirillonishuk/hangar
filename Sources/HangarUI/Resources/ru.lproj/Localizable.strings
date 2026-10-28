@@ -600,10 +600,10 @@
 "durationHour" = "%ld ч";
 "closePane" = "Закрыть панель";
 "detachPane" = "В отдельную вкладку";
-"dropRight" = "Вправо";
-"dropLeft" = "Влево";
-"dropUp" = "Вверх";
-"dropDown" = "Вниз";
+"dropRight" = "Справа";
+"dropLeft" = "Слева";
+"dropUp" = "Сверху";
+"dropDown" = "Снизу";
 "paneAgentWorking" = "Агент ещё работает";
 "paneAgentWorkingInfo" = "Закрыть панель и остановить его?";
 "tabAgentWorkingInfo" = "Закрыть вкладку и остановить его?";

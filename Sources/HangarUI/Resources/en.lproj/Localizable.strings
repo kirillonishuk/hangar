@@ -602,8 +602,8 @@
 "detachPane" = "Move to New Tab";
 "dropRight" = "Right";
 "dropLeft" = "Left";
-"dropUp" = "Up";
-"dropDown" = "Down";
+"dropUp" = "Top";
+"dropDown" = "Bottom";
 "paneAgentWorking" = "The agent is still working";
 "paneAgentWorkingInfo" = "Close the pane and stop it?";
 "tabAgentWorkingInfo" = "Close the tab and stop it?";

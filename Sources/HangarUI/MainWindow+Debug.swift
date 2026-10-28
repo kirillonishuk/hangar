@@ -327,6 +327,20 @@ extension MainWindowController {
                     }
                 }
             }
+        case "pdrag", "pdragEnd":
+            // pdrag <tab index> <x> <y> [<x> <y> …] [end]: tab n dragged through those window points (from the top-left)
+            // as the tab strip reports it to `PaneDragController` (an inactive window drops synthetic clicks); pdragEnd <n>: release.
+            let f = arg.split(separator: " ").map(String.init)
+            guard let n = Int(f.first ?? ""), let tabs = app.selectedTask?.tabs, tabs.indices.contains(n) else { return }
+            let source = PaneDragSource.tab(tabs[n].id)
+            let v = f.dropFirst().compactMap { Double($0) }
+            var moves: [String] = []
+            for i in stride(from: 0, to: v.count - 1, by: 2) {
+                moves.append("\(app.paneDragMoved?(source, CGPoint(x: v[i], y: v[i + 1])) ?? false)")
+            }
+            let ended = parts.first == "pdragEnd" || f.last == "end" ? "\(app.paneDragEnded?(source) ?? false)" : "-"
+            try? "moved=\(moves) ended=\(ended) target=\(String(describing: app.paneDropTarget))\n"
+                .write(toFile: NSTemporaryDirectory() + "hangar-pdrag.txt", atomically: true, encoding: .utf8)
         case "hit":
             // hit <x> <y>: the view under a window point (from the top-left) and its frame in window coordinates.
             let v = arg.split(separator: " ").compactMap { Double($0) }

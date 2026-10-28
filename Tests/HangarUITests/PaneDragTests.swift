@@ -83,12 +83,25 @@ import Testing
                             paneFrames: [al: rect], tabBar: nil, tabFrames: [:]) == nil)
     }
 
+    /// The chip under the pointer names what is dragged.
+    @Test func chipShowsDraggedTab() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pane-drag-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (s, _, a, b, _) = two()
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
+        let tabB = try #require(app.state.tasks[0].tabs.first { $0.id == b })
+        let chip = try #require(paneDragChip(.tab(b), app: app))
+        #expect(chip.icon == .shell && chip.title == app.tabLabel(tabB))
+        #expect(paneDragChip(.tab(UUID()), app: app) == nil)
+        _ = a
+    }
+
     @Test func dropLabels() {
         let saved = L10n.language
         defer { L10n.language = saved }
         L10n.language = .ru
-        #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Вправо", "Влево", "Вверх", "Вниз"])
+        #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Справа", "Слева", "Сверху", "Снизу"])
         L10n.language = .en
-        #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Right", "Left", "Up", "Down"])
+        #expect([SplitEdge.right, .left, .top, .bottom].map(paneDropLabel) == ["Right", "Left", "Top", "Bottom"])
     }
 }

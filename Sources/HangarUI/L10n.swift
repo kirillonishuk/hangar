@@ -142,6 +142,7 @@ import Workspace
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
+        case notifySectionEvents, notifySectionSystem
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp, statusFailedHelp
         case updateAvailable, updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
@@ -577,6 +578,8 @@ import Workspace
     static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
     static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
     static var thisMac: String { s(.thisMac) }
+    static var notifySectionEvents: String { s(.notifySectionEvents) }
+    static var notifySectionSystem: String { s(.notifySectionSystem) }
     static var statusMachineHelp: String { s(.statusMachineHelp) }
     static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
     static var statusFailedHelp: String { s(.statusFailedHelp) }

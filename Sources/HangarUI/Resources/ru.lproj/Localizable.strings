@@ -408,6 +408,8 @@
 "paneOne" = "%d панель";
 "paneFew" = "%d панели";
 "paneMany" = "%d панелей";
+"notifySectionEvents" = "События";
+"notifySectionSystem" = "Dock и система";
 "statusMachineHelp" = "Машина, на которой идёт сессия";
 "statusNextWorkingHelp" = "Следующая работающая сессия";
 "statusFailedHelp" = "Показать сессию с ошибкой";

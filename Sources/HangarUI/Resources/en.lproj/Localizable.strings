@@ -408,6 +408,8 @@
 "paneOne" = "%d pane";
 "paneFew" = "%d panes";
 "paneMany" = "%d panes";
+"notifySectionEvents" = "Events";
+"notifySectionSystem" = "Dock and system";
 "statusMachineHelp" = "Machine the session runs on";
 "statusNextWorkingHelp" = "Next working session";
 "statusFailedHelp" = "Show the failed session";

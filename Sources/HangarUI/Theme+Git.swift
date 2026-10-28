@@ -27,7 +27,6 @@ extension Theme {
 
         /// Log: row height, graph column, lane spacing and the first lane's x, dot radius and its `bg` ring, merge ring.
         static let logRow: CGFloat = 28
-        static let graphColumn: CGFloat = 36
         static let laneStep: CGFloat = 12
         static let laneX0: CGFloat = 10
         static let dot: CGFloat = 4
@@ -36,8 +35,16 @@ extension Theme {
         static let rail: CGFloat = 1.5
         /// Wider histories are clipped to this many lanes (the column stays readable at 300 pt).
         static let maxLanes = 8
-        /// Ref chips shown in a row; the rest are in the tooltip.
+        /// Ref chips shown in a row, then «+k»; all refs are in the tooltip.
         static let maxRefs = 2
+        /// A log row's chips: widest, narrowest when the row is tight, gap; the subject always keeps `subjectMin`.
+        static let refMaxWidth: CGFloat = 104
+        static let refMinWidth: CGFloat = 44
+        static let refGap: CGFloat = 4
+        static let subjectMin: CGFloat = 72
+        /// The `⇅` of a branch whose remote twin is at the same commit.
+        static let refMarkGap: CGFloat = 3
+        static let refMarkOpacity = 0.7
 
         /// Ref pill: height, side padding, radius; own branch `accent` 14 %, remote `text2` 14 %, others their lane 16 %.
         static let refHeight: CGFloat = 18
@@ -105,6 +112,8 @@ extension Theme {
         static let toggleRadius: CGFloat = 4
         static let toggleFont: CGFloat = 11.5
         static let toggleGap: CGFloat = 2
+        /// The accent dot on «…» while an include / exclude glob is set.
+        static let filterDot: CGFloat = 6
         static let gap: CGFloat = 6
         /// A file group's header and its lines' indent (under the file name, past the chevron and icon).
         static let fileRow: CGFloat = 24

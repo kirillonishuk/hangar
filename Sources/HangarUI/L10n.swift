@@ -118,10 +118,10 @@ import Workspace
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
-        case segmentFiles, segmentChanges, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case segmentFiles, segmentChanges, segmentChangesTitle, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
-        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask
+        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -150,7 +150,7 @@ import Workspace
         case updateOtherInstance, updateUntrusted, updateBadSignature
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
-        case segmentGit, showGit, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
+        case segmentGit, showGit, gitBranch, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
         case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
         case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
@@ -159,7 +159,7 @@ import Workspace
         case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
         case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
         case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
-        case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchCase, searchRegex, searchWord
+        case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
         case searchMatchOne, searchMatchFew, searchMatchMany, searchInFilesOne, searchInFilesFew, searchInFilesMany
@@ -171,6 +171,8 @@ import Workspace
     static var searchPlaceholder: String { s(.searchPlaceholder) }
     static var searchInclude: String { s(.searchInclude) }
     static var searchExclude: String { s(.searchExclude) }
+    static var searchFilters: String { s(.searchFilters) }
+    static var searchFiltersOn: String { s(.searchFiltersOn) }
     static var searchCase: String { s(.searchCase) }
     static var searchRegex: String { s(.searchRegex) }
     static var searchWord: String { s(.searchWord) }
@@ -599,6 +601,7 @@ import Workspace
     static var restoreWithoutWorktree: String { s(.restoreWithoutWorktree) }
     static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
+    static var segmentChangesTitle: String { s(.segmentChangesTitle) }
     static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
     static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
     static var changesHintUncommitted: String { s(.changesHintUncommitted) }
@@ -610,10 +613,12 @@ import Workspace
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
     static var inspectorNoTask: String { s(.inspectorNoTask) }
+    static var inspectorHostShell: String { s(.inspectorHostShell) }
 
     // Git tab (redesign v1 §4)
     static var segmentGit: String { s(.segmentGit) }
     static var showGit: String { s(.showGit) }
+    static var gitBranch: String { s(.gitBranch) }
     static var gitBranches: String { s(.gitBranches) }
     static var gitLocal: String { s(.gitLocal) }
     static var gitRemote: String { s(.gitRemote) }

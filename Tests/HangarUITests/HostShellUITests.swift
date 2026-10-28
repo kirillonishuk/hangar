@@ -30,6 +30,24 @@ import Workspace
         #expect(!Action.archive.isEnabled(for: .task(o.task), app: h.app))
     }
 
+    /// The inspector has no project for a host's terminal: a notice, never the previous session's files or changes.
+    @Test func inspectorShowsNoProjectForHostShell() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        var local: UUID?
+        h.app.perform { s in
+            let p = s.addProject(name: "local", path: NSTemporaryDirectory())
+            local = s.addTask(projectId: p, name: "t")
+        }
+        let project = try #require(local)
+        h.app.select(taskId: project)
+        #expect(h.app.inspectorNotice == nil)
+        let o = try #require(h.app.openHostShell("box"))
+        #expect(h.app.state.selectedTaskId == o.task)
+        #expect(h.app.inspectorNotice == L10n.inspectorHostShell)
+        h.app.select(taskId: project)
+        #expect(h.app.inspectorNotice == nil)
+    }
+
     @Test func invalidHostRefused() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         for bad in ["-oProxyCommand=touch x", "", "a b"] { #expect(h.app.openHostShell(bad) == nil) }

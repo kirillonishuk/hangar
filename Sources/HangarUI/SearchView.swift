@@ -23,8 +23,10 @@ struct SearchPanel: View {
     private var fields: some View {
         VStack(spacing: Theme.SearchTab.gap) {
             SearchQueryField(model: model)
-            SearchGlobField(placeholder: L10n.searchInclude, text: Bindable(model).include)
-            SearchGlobField(placeholder: L10n.searchExclude, text: Bindable(model).exclude)
+            if model.filtersShown {
+                SearchGlobField(placeholder: L10n.searchInclude, text: Bindable(model).include)
+                SearchGlobField(placeholder: L10n.searchExclude, text: Bindable(model).exclude)
+            }
         }
         .padding(.horizontal, Theme.GitTab.padding)
         .padding(.top, Theme.GitTab.padding)
@@ -119,6 +121,7 @@ private struct SearchQueryField: View {
                 SearchToggle(label: Text(verbatim: "Aa"), help: L10n.searchCase, on: $model.caseSensitive)
                 SearchToggle(label: Text(verbatim: "ab").underline(), help: L10n.searchWord, on: $model.wholeWord)
                 SearchToggle(label: Text(verbatim: ".*"), help: L10n.searchRegex, on: $model.regex)
+                SearchFiltersToggle(on: $model.filtersShown, active: model.filtersActive)
             }
         }
         .inputField(focused: focused, icon: .search, placeholder: model.text.isEmpty ? L10n.searchPlaceholder : nil)
@@ -161,6 +164,36 @@ private struct SearchToggle: View {
     }
 }
 
+/// «…» opens the include / exclude fields (as VS Code's); a dot while either holds a glob.
+private struct SearchFiltersToggle: View {
+    @Binding var on: Bool
+    let active: Bool
+    @State private var hover = false
+
+    var body: some View {
+        Button { on.toggle() } label: {
+            IconView(icon: .more, size: Theme.iconSize, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text3)
+                .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
+                .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
+                    .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
+                .overlay(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
+                    .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
+                .overlay(alignment: .topTrailing) {
+                    Circle().fill(Theme.ui.accent)
+                        .frame(width: Theme.SearchTab.filterDot, height: Theme.SearchTab.filterDot)
+                        .opacity(active ? 1 : 0)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .help(active ? L10n.searchFiltersOn : L10n.searchFilters)
+        .accessibilityLabel(active ? L10n.searchFiltersOn : L10n.searchFilters)
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 private struct SearchGlobField: View {
     let placeholder: String
     @Binding var text: String
@@ -187,19 +220,22 @@ private struct SearchFileHeader: View {
             HStack(spacing: Theme.inlineGap) {
                 IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
                 FileIconView(name: name)
-                Text(name)
-                    .font(.system(size: Theme.fontSize.row))
-                    .foregroundStyle(Theme.ui.textRow)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                if !dir.isEmpty {
-                    Text(dir)
-                        .font(.system(size: Theme.fontSize.counter))
-                        .foregroundStyle(Theme.ui.text3)
+                NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
+                    Text(name)
+                        .font(.system(size: Theme.fontSize.row))
+                        .foregroundStyle(Theme.ui.textRow)
                         .lineLimit(1)
-                        .truncationMode(.head)
+                        .truncationMode(.middle)
+                    if !dir.isEmpty {
+                        Text(dir)
+                            .font(.system(size: Theme.fontSize.counter))
+                            .foregroundStyle(Theme.ui.text3)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            .clipped()
+                    }
                 }
-                Spacer(minLength: Theme.inlineGap)
                 Text(verbatim: file.truncated ? "\(file.hits.count)+" : "\(file.hits.count)")
                     .font(.system(size: Theme.fontSize.counter, design: .monospaced))
                     .foregroundStyle(Theme.ui.text3)

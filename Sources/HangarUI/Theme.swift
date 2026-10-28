@@ -56,9 +56,9 @@ public enum Theme {
     public static let inspectorSegmentRadius: CGFloat = 6
     public static let inspectorSegmentItemRadius: CGFloat = 4
     public static let inspectorSegmentPaddingH: CGFloat = 10
-    /// Changes hint under the list: gap above, line spacing.
-    public static let changesHintTop: CGFloat = 10
-    public static let changesHintLineGap: CGFloat = 2
+    /// Changes: the mode line's «·» gaps. Changes / Search rows show a folder only with at least this much room.
+    public static let changesModeGap: CGFloat = 5
+    public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
     /// Window status bar (redesign v1 §7): height, side padding, gap between parts; clickable items 20 high, radius 4.
@@ -192,6 +192,12 @@ public enum Theme {
     public static let segmentItemRadius: CGFloat = 5
     public static let segmentItemPaddingV: CGFloat = 3
     public static let segmentItemPaddingH: CGFloat = 11
+    /// The Changes count in the inspector segment: a capsule of `text3` (22 %, 30 % on the active part), label gap.
+    public static let segmentBadgeHeight: CGFloat = 16
+    public static let segmentBadgePaddingH: CGFloat = 5
+    public static let segmentBadgeGap: CGFloat = 4
+    public static let segmentBadgeOpacity = 0.22
+    public static let segmentBadgeOnOpacity = 0.30
 
     // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
     /// One label column in every sheet: «Команда после создания» (~165 at `sheetRow`, ru) on one line.

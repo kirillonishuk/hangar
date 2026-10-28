@@ -30,6 +30,13 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
+    /// What the inspector says instead of its data: no session, or a host's terminal (#64), which has no project folder —
+    /// the inspector still holds the previous session's files then, and must not show them.
+    var inspectorNotice: String? {
+        guard let task = selectedTask else { return L10n.inspectorNoTask }
+        return isHostShellTask(task.id) ? L10n.inspectorHostShell : nil
+    }
+
     /// The ssh config's hosts again (launch, app activation): no file watcher, the list is cheap to read.
     func reloadConfigHosts() {
         let hosts = configHosts()

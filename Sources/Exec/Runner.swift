@@ -79,6 +79,13 @@ public func streamProcess(_ executable: String, _ args: [String], cwd: String, e
     try await runProcess(executable, args, cwd: cwd, env: env, holdStdin: holdStdin, onStdout: onOutput)
 }
 
+/// Runs `executable` directly (no shell, no `env` lookup) with exactly `env`; output capped at `maxOutput` bytes per
+/// stream. Cancel terminates the child.
+public func runCaptured(_ executable: String, _ args: [String], cwd: String, env: [String: String],
+                        maxOutput: Int = 16 << 20) async throws -> RunResult {
+    try await runProcess(executable, args, cwd: cwd, env: env, maxOutput: maxOutput)
+}
+
 /// Wraps a remote argv so it is terminated when the ssh session goes (stdin EOF), not only at its next write: the
 /// command runs in the background, a builtin `read` loop on the session's stdin kills it at EOF. Exit status is the
 /// command's. Use with `streamProcess(holdStdin: true)`.

@@ -75,4 +75,14 @@ import Workspace
             #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent(file).path), "\(file)")
         }
     }
+
+    /// JSON is tokenized by the json mode (no Monarch grammar): switching its tokens off left .json files plain white.
+    @Test func jsonKeepsItsTokenizerAndExtraExtensionsAreMapped() throws {
+        let dir = try #require(L10n.resources?.url(forResource: "Monaco", withExtension: nil))
+        let js = try String(contentsOf: dir.appendingPathComponent("hangar/hangar.js"), encoding: .utf8)
+        #expect(js.contains("Object.assign({}, off, { tokens: true })") && js.contains("jsonDefaults.setModeConfiguration(jsonOn)"))
+        for ext in ["'.jsonc'", "'.json5'", "'.toml'", "'.zshrc'", "'.mjs'"] { #expect(js.contains(ext), "\(ext)") }
+        let vs = dir.appendingPathComponent("vs")
+        #expect(FileManager.default.fileExists(atPath: vs.appendingPathComponent("jsonMode-w7Q_ZLTt.js").path))
+    }
 }

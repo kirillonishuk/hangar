@@ -418,6 +418,8 @@ final class FillView: NSView {
     private var appliedDrawerHeight: CGFloat = 0
     /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
     private var emptyState = NSView()
+    /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (#99).
+    private var noTabs = NSView()
     var onAddProject: () -> Void = {}
 
     init(app: AppState) {
@@ -458,6 +460,7 @@ final class FillView: NSView {
             read: { [weak self] in self?.controlLeaf($0)?.surface?.screenText() })
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
         emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
+        noTabs = NoTabsView.hosted(app: app)
         wantsLayer = true
         observeTheme(#selector(applyTheme))
         applyTheme()
@@ -465,6 +468,7 @@ final class FillView: NSView {
         placeholder.alignment = .center
         addSubview(placeholder)
         addSubview(emptyState)
+        addSubview(noTabs)
         // One retry per display wake for surfaces that failed (typically created while the display slept).
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.retryFailedLeaves() }
@@ -506,10 +510,12 @@ final class FillView: NSView {
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 drawer.animator().frame = drawerFrame
                 content.animator().frame = contentFrame
+                noTabs.animator().frame = contentFrame
             }
         } else {
             drawer.frame = drawerFrame
             content.frame = contentFrame
+            noTabs.frame = contentFrame
         }
         appliedDrawerHeight = total
     }
@@ -613,8 +619,9 @@ final class FillView: NSView {
         // A host's terminal (#64) needs no project.
         let nothing = state.projects.isEmpty && state.hostShells.isEmpty
         emptyState.isHidden = !nothing
-        placeholder.isHidden = active != nil || diffShown || nothing
-        placeholder.stringValue = app.selectedTask == nil ? L10n.emptyNoTask : L10n.emptyNoTabs
+        placeholder.isHidden = app.selectedTask != nil || diffShown || nothing
+        placeholder.stringValue = L10n.emptyNoTask
+        noTabs.isHidden = !app.showsNoTabs || diffShown || nothing
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.
         if active?.id != shownTab || active?.focusedLeafId != shownFocus || diffShown != shownDiff {

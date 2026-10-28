@@ -81,7 +81,7 @@ import Workspace
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
-        case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
+        case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
@@ -310,6 +310,7 @@ import Workspace
     static var relaunchHint: String { s(.relaunchHint) }
     static var emptyNoTask: String { s(.emptyNoTask) }
     static var emptyNoTabs: String { s(.emptyNoTabs) }
+    static var terminalTab: String { s(.terminalTab) }
     public static func stateCorrupt(_ path: String) -> String { f(.stateCorrupt, path) }
     public static func stateUnreadable(_ path: String) -> String { f(.stateUnreadable, path) }
 

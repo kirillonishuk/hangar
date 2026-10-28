@@ -17,6 +17,8 @@ public enum UpdateError: Error, Equatable, Sendable {
     case untrusted(String)
     /// `codesign --verify --deep --strict` refused the new app.
     case signature(String)
+    /// The download is bigger than allowed (by its Content-Length or the bytes received).
+    case tooLarge
 }
 
 /// Follows a redirect only to a trusted URL (`ReleaseFeed.isTrusted` in release builds).
@@ -61,11 +63,11 @@ public enum Updater {
     }
 
     /// Downloads `url` to `dest` (replaced), reporting 0…1 (or nothing when the size is unknown); the URL and every
-    /// redirect must be `trusted`.
+    /// redirect must be `trusted`. More than `maxBytes` (announced or received) → `.tooLarge`.
     public static func download(_ url: URL, to dest: URL, trusted: @escaping @Sendable (URL) -> Bool = ReleaseFeed.isTrusted,
-                                progress: @escaping @Sendable (Double) -> Void) async throws {
+                                maxBytes: Int64 = .max, progress: @escaping @Sendable (Double) -> Void) async throws {
         guard trusted(url) else { throw UpdateError.untrusted(url.absoluteString) }
-        try await Download(dest: dest, trusted: trusted, progress: progress).run(url)
+        try await Download(dest: dest, trusted: trusted, maxBytes: maxBytes, progress: progress).run(url)
     }
 
     /// The hash of a `shasum -a 256` line (`<hex>  Hangar-X.Y.Z.dmg`), lower-cased; nil if it isn't one.
@@ -259,12 +261,14 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
     private let dest: URL
     private let guardian: RedirectGuard
     private let progress: @Sendable (Double) -> Void
+    private let maxBytes: Int64
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Void, Error>?
     private var failure: Error?
 
-    init(dest: URL, trusted: @escaping @Sendable (URL) -> Bool, progress: @escaping @Sendable (Double) -> Void) {
+    init(dest: URL, trusted: @escaping @Sendable (URL) -> Bool, maxBytes: Int64, progress: @escaping @Sendable (Double) -> Void) {
         self.dest = dest
+        self.maxBytes = maxBytes
         guardian = RedirectGuard(trusted: trusted)
         self.progress = progress
     }
@@ -288,6 +292,11 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
                     totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        if totalBytesWritten > maxBytes || totalBytesExpectedToWrite > maxBytes {
+            lock.withLock { failure = UpdateError.tooLarge }
+            downloadTask.cancel()
+            return
+        }
         if totalBytesExpectedToWrite > 0 { progress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) }
     }
 
@@ -295,6 +304,11 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
         // The temp file is deleted when this returns: move it now.
         if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             lock.withLock { failure = UpdateError.http(http.statusCode) }
+            return
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
+        if size > maxBytes {
+            lock.withLock { failure = UpdateError.tooLarge }
             return
         }
         do {
@@ -311,6 +325,7 @@ private final class Download: NSObject, URLSessionDownloadDelegate, @unchecked S
             return (continuation, failure)
         }
         if let bad = guardian.refusedURL { c?.resume(throwing: UpdateError.untrusted(bad.absoluteString)) }
+        else if let stored, error != nil { c?.resume(throwing: stored) }  // cancelled by us (too large)
         else if let error { c?.resume(throwing: UpdateError.network(error.localizedDescription)) }
         else if let stored { c?.resume(throwing: stored) }
         else { c?.resume() }

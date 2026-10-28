@@ -51,6 +51,6 @@ let package = Package(
         .testTarget(name: "PowerTests", dependencies: ["TestSupport", "Power"]),
         .testTarget(name: "HistoryTests", dependencies: ["History", "Exec"]),
         .testTarget(name: "UpdateTests", dependencies: ["Update"]),
-        .testTarget(name: "HangarUITests", dependencies: ["TestSupport", "HangarUI", "Integration", "Git", "AgentStatus", "ControlServer", "Usage", "Power", "History"]),
+        .testTarget(name: "HangarUITests", dependencies: ["TestSupport", "HangarUI", "Integration", "Git", "AgentStatus", "ControlServer", "Usage", "Power", "History", "Update"]),
     ]
 )

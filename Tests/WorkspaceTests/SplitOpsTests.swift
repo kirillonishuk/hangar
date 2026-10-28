@@ -21,6 +21,28 @@ import Testing
         #expect(try JSONDecoder().decode(Leaf.self, from: Data(old.utf8)).customTitle == nil)
     }
 
+    /// A file tab / editor pane renamed in an older version shows its file name again; other names stay.
+    @Test func editorNamesFromAnOldVersionAreDroppedOnLoad() throws {
+        let (initial, t, tab, leaf) = state()
+        var s = initial
+        let file = s.addTab(taskId: t, kind: .editor, openFile: "/repo/a.ts")
+        let split = s.addTab(taskId: t, kind: .shell)
+        let editorInSplit = s.addTab(taskId: t, kind: .editor, openFile: "/repo/b.ts")
+        let editorLeaf = s.tasks[0].tabs.first { $0.id == editorInSplit }!.root.leaves[0].id
+        let shellLeaf = s.tasks[0].tabs.first { $0.id == split }!.root.leaves[0].id
+        let merged = s.mergeTab(taskId: t, source: editorInSplit, into: split, at: shellLeaf, edge: .right)
+        #expect(merged)
+        for name in [(tab, "agent"), (file, "old file"), (split, "pair")] { s.renameTab(taskId: t, tabId: name.0, title: name.1) }
+        for name in [(leaf, "claude pane"), (s.tasks[0].tabs.first { $0.id == file }!.root.leaves[0].id, "old pane"),
+                     (editorLeaf, "old split pane"), (shellLeaf, "shell pane")] { s.renameLeaf(leafId: name.0, title: name.1) }
+        let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).tasks[0].tabs
+        let title = { (id: UUID) in back.first { $0.id == id }!.customTitle }
+        let leafTitle = { (id: UUID) in back.lazy.compactMap { $0.root.leaf(id: id) }.first!.customTitle }
+        #expect(title(file) == nil && title(tab) == "agent" && title(split) == "pair")
+        #expect(leafTitle(back.first { $0.id == file }!.root.leaves[0].id) == nil && leafTitle(editorLeaf) == nil)
+        #expect(leafTitle(leaf) == "claude pane" && leafTitle(shellLeaf) == "shell pane")
+    }
+
     @Test func insertingAtEachEdge() {
         let a = Leaf(kind: .claude, cwd: "/"), b = Leaf(kind: .shell, cwd: "/")
         let cases: [(SplitEdge, Axis, Bool)] = [(.left, .horizontal, true), (.right, .horizontal, false),

@@ -139,7 +139,9 @@
       const plain = monaco.Uri.file(c.path);
       f.model = monaco.editor.createModel(c.text, undefined,
         monaco.editor.getModel(plain) ? monaco.Uri.from({ scheme: 'file', authority: c.doc.toLowerCase(), path: c.path }) : plain);
-      f.saved = f.model.getAlternativeVersionId();
+      // A moved unsaved buffer (c.dirty) matches no saved version until it is saved.
+      f.saved = c.dirty ? -1 : f.model.getAlternativeVersionId();
+      f.dirty = !!c.dirty;
       const mirror = tsLike.test(c.path);
       f.model.onDidChangeContent((e) => {
         if (mirror) postFile(f, { type: 'edit', changes: e.changes.map((ch) => ({ line: ch.range.startLineNumber,

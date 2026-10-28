@@ -73,6 +73,15 @@ import Foundation
         return (text, large)
     }
 
+    /// An editor pane moved to the other Monaco page with this buffer (maybe unsaved): it opens there as it was.
+    func adopt(path: String, text: String, file: File, line: Int?, column: Int?) {
+        files[path] = file
+        send(.open(EditorOpen(path: path, text: text, readOnly: file.readOnly, notice: nil, line: line ?? 1, column: column ?? 1,
+                              dirty: file.dirty)))
+        if file.conflict { send(.conflict(path: path, shown: true)) }
+        if text.utf8.count <= limits.editable { onOpened?(path, text) }
+    }
+
     func close(path: String) {
         files[path] = nil
     }

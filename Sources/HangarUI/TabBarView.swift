@@ -108,6 +108,8 @@ struct TabBarView: View {
     @State private var paneMode = false
     /// Room for tabs and controls, kept for scroll-into-view outside of layout.
     @State private var room: CGFloat = 0
+    /// The strip's left edge in global points, for hooks that outlive a body (read when they run).
+    @State private var stripMinX: CGFloat = 0
     @State private var shownTask: UUID?
 
     private struct ActiveKey: Equatable {
@@ -131,6 +133,7 @@ struct TabBarView: View {
                 room = w
                 reveal(animated: false)
             }
+            .onChange(of: geo.frame(in: .global).minX + Theme.tabTitleLeading, initial: true) { stripMinX = $1 }
         }
         .frame(height: Theme.tabBarHeight)
         .background(WindowDragArea())
@@ -233,7 +236,7 @@ struct TabBarView: View {
             // A pane header over the bar: near an edge each move scrolls it a step, as a dragged tab does.
             app.tabBarAutoScroll = { x in
                 guard let t = app.selectedTask else { return }
-                autoScroll(x: x, l: layout(t, width: room), minX: minX)
+                autoScroll(x: x, l: layout(t, width: room), minX: stripMinX)
             }
         }
         #if DEBUG
@@ -242,7 +245,7 @@ struct TabBarView: View {
             app.debugTabDrag = { id, dx, p in
                 guard let t = app.selectedTask else { return }
                 let l = layout(t, width: room)
-                if let p { dragged(id, dx: dx, at: p, l: l, minX: minX) } else { endDrag(t, tab: id, widths: l.widths) }
+                if let p { dragged(id, dx: dx, at: p, l: l, minX: stripMinX) } else { endDrag(t, tab: id, widths: l.widths) }
             }
         }
         #endif

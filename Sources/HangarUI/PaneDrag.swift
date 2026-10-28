@@ -38,7 +38,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
             // Only a pane of a split tab has a header; detaching needs one.
             guard let tabs = state.tasks.first(where: { $0.id == taskId })?.tabs,
                   let own = tabs.first(where: { $0.root.leaf(id: id) != nil }), case .split = own.root else { return nil }
-            return .tabBar(index: insertionIndex(x: p.x, frames: tabs.compactMap { tabFrames[$0.id] }))
+            // A tab not laid out yet has no frame: no slot rather than a wrong one.
+            let frames = tabs.compactMap { tabFrames[$0.id] }
+            guard frames.count == tabs.count else { return nil }
+            return .tabBar(index: insertionIndex(x: p.x, frames: frames))
         }
         guard let active = activeTab, let (leaf, rect) = paneFrames.first(where: { $0.value.contains(p) }),
               state.canMoveLeaf(taskId: taskId, leafId: id, to: active, anchor: leaf),

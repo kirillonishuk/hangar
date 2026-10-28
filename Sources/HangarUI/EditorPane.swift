@@ -1,12 +1,17 @@
 import AppKit
 import Workspace
 
-/// A file tab (#83): one file of the shared Monaco page (`EditorHost`), shown in this view while its tab is on screen.
+/// A file tab (#83): one file of a Monaco page of `EditorHost` (`page`), shown in this view while its tab is on screen.
 /// The file and its cursor live in the leaf (`Leaf.editorFiles`), so the tab restores; the buffer lives in the page.
 /// Exists only while its leaf does; hidden → no watcher.
 @MainActor final class EditorPane: NSView {
     let leafId: UUID
     let host: EditorHost
+    /// The host's page holding this pane's model; two panes on screen at once are on different pages.
+    private(set) var page = 0
+    /// A move between pages in flight, and where the latest sync wants the pane.
+    private var moving = false
+    private var wanted: Int?
     private let app: AppState
     private(set) var session: EditorSession
     private let remoteHost: String?
@@ -30,7 +35,7 @@ import Workspace
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    var webView: NSView { host.page.webView }
+    var webView: NSView { host.page(page).webView }
 
     /// The tab is closed: its model, language document and watcher go.
     func tearDown() {
@@ -44,31 +49,68 @@ import Workspace
 
     var unsaved: [String] { session.files.filter { $0.value.dirty }.map(\.key).sorted() }
 
-    /// The page (re)loaded or this tab is new: its file from the leaf, at its cursor.
+    /// The page (re)loaded or this tab is new: its file from the leaf, at its cursor; a buffer carried over from the
+    /// other page (`rehome`) opens as it was.
     func load() {
         app.languages.closedAll(owner: leafId)  // a reloaded page lost its models
         session = makeSession(io: session.io, limits: session.limits)
+        let moved = carried
+        carried = nil
         guard let leaf = app.editorLeaf(leafId), let path = leaf.openFile else { return }
         let cursor = leaf.editorFileList.first { $0.path == path }
+        if let moved, moved.path == path {
+            session.adopt(path: path, text: moved.text, file: moved.file, line: cursor?.line, column: cursor?.column)
+            restartWatcher()
+            return
+        }
         Task {
             await session.open(path: path, line: cursor?.line, column: cursor?.column)
             restartWatcher()
         }
     }
 
+    /// An unsaved buffer on its way to the new page, until that page is ready.
+    private var carried: (path: String, text: String, file: EditorSession.File)?
+
+    /// Moves the model to page `target`: an unsaved buffer goes along (text, dirty, conflict), a clean one reloads there.
+    func rehome(to target: Int) async {
+        guard !moving else { wanted = target; return }
+        guard target != page else { return }
+        moving = true
+        let from = page, old = host.page(from)
+        page = target
+        host.beginMove(self, from: from)
+        let path = app.editorLeaf(leafId)?.openFile
+        if let path, let file = session.files[path], file.dirty, let text = await old.text(of: leafId.uuidString) {
+            carried = (path, text, file)
+        }
+        old.send(.close(path: ""), doc: leafId)
+        requests.values.forEach { $0.cancel() }
+        requests = [:]
+        host.endMove(self)
+        moving = false
+        guard host.holds(self) else { carried = nil; return }  // closed while its buffer was read
+        if host.page(page).isReady { load() } else { app.languages.closedAll(owner: leafId) }  // else its `.ready` loads
+        if let next = wanted {
+            wanted = nil
+            await rehome(to: next)
+        }
+    }
+
     /// Opened again (Files, ⌘P, a definition): the cursor moves there.
     func open(path: String, line: Int?, column: Int?) {
-        guard host.page.isReady, session.files[path] != nil else { return }
+        guard host.page(page).isReady, session.files[path] != nil else { return }
         Task { await session.open(path: path, line: line, column: column) }
     }
 
     func focusEditor() {
         window?.makeFirstResponder(webView)
-        host.page.send(.focus, doc: leafId)
+        host.page(page).send(.focus, doc: leafId)
     }
 
-    func setVisible(_ shown: Bool) {
-        if shown { host.show(self) }
+    /// `page`: where the pane shows when on screen (the sync's assignment; its model follows by `rehome`).
+    func setVisible(_ shown: Bool, page shownPage: Int? = nil) {
+        if shown { host.show(self, page: shownPage ?? page) }
         guard shown != visible else { return }
         visible = shown
         if shown { Task { await session.checkDisk() } }
@@ -86,7 +128,7 @@ import Workspace
             app.perform { $0.setEditorCursor(leafId: leafId, path: path, line: line, column: column) }
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
         case .request(let r):
-            let io = session.io, limit = EditorLimits.editableBytes, page = host.page, doc = leafId
+            let io = session.io, limit = EditorLimits.editableBytes, page = host.page(page), doc = leafId
             requests[r.id] = Task { [weak self] in
                 let result = await self?.app.languages.request(r, host: self?.remoteHost) { path in
                     guard case .text(let text, _)? = try? await io.read(path, limit) else { return nil }
@@ -110,7 +152,7 @@ import Workspace
 
     /// A session sending to this tab's model; opened TS/JS files go to tsserver, whose status goes to the status bar.
     private func makeSession(io: EditorIO, limits: EditorLimits) -> EditorSession {
-        let page = host.page, doc = leafId
+        let page = host.page(page), doc = leafId
         let session = EditorSession(io: io, limits: limits) { page.send($0, doc: doc) }
         session.onDirty = { [weak self] _, dirty in self?.app.editorDirtyChanged(leafId: doc, dirty: dirty) }
         session.onOpened = { [weak self] path, text in

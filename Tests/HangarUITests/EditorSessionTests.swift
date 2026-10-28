@@ -107,6 +107,37 @@ import Testing
         #expect(sink.sent.filter { if case .reload = $0 { true } else { false } }.count == 1)
     }
 
+    /// An editor pane moving to the other Monaco page (splits) takes its unsaved buffer along: still dirty there.
+    @Test func adoptKeepsDirtyBuffer() async throws {
+        let path = try write("moved.txt", "disk\n")
+        let stamp = try #require(try await EditorIO.local.stat(path))
+        let (s, sink) = session()
+        s.adopt(path: path, text: "edited", file: EditorSession.File(stamp: stamp, dirty: true), line: 3, column: 2)
+        #expect(s.isDirty(path))
+        let o = try #require(opened(sink).first)
+        #expect(o.text == "edited" && o.dirty && !o.readOnly)
+        #expect(o.line == 3 && o.column == 2)
+        // It saves like any open file.
+        await s.handle(.save(file: path, text: "edited"))
+        #expect(read(path) == "edited" && !s.isDirty(path))
+    }
+
+    /// The same file open in two panes (two sessions): the second save of a stale buffer asks, it doesn't overwrite.
+    @Test func secondSessionSaveOfSameFileConflicts() async throws {
+        let path = try write("both.txt", "start\n")
+        let (a, _) = session()
+        let (b, sinkB) = session()
+        await a.open(path: path, line: nil, column: nil)
+        await b.open(path: path, line: nil, column: nil)
+        await a.handle(.changed(file: path, dirty: true))
+        await b.handle(.changed(file: path, dirty: true))
+        await a.handle(.save(file: path, text: "a"))
+        await b.handle(.save(file: path, text: "b"))
+        #expect(sinkB.sent.last == .conflict(path: path, shown: true))
+        #expect(b.files[path]?.conflict == true)
+        #expect(read(path) == "a")
+    }
+
     @Test func dirtyBufferGetsConflictBar() async throws {
         let path = try write("a.txt", "one\n")
         let (s, sink) = session()

@@ -33,6 +33,18 @@ import Workspace
         #expect(app.tabHelpTitle(tab(ids.plain), taskId: ids.t) == L10n.editor)
     }
 
+    /// Each visible editor pane of the tab gets its own Monaco page (≤ 2): its current one if free, else a free one.
+    @Test func assignPagesKeepsAndSplits() {
+        let a = UUID(), b = UUID()
+        #expect(assignPages(visible: [(a, 0), (b, 0)], count: 2) == [a: 0, b: 1])
+        #expect(assignPages(visible: [(a, 1), (b, nil)], count: 2) == [a: 1, b: 0])
+        #expect(assignPages(visible: [(a, nil)], count: 2) == [a: 0])
+        #expect(assignPages(visible: [(a, 1), (b, 1)], count: 2) == [a: 1, b: 0])
+        // Over the cap (a model can't hold more): the rest keep what they have.
+        let c = UUID()
+        #expect(assignPages(visible: [(a, 0), (b, 1), (c, 0)], count: 2) == [a: 0, b: 1])
+    }
+
     /// Every open makes or focuses the file's own tab; a one-click open (Files) previews in one reused tab, and an
     /// edit pins it. An existing tab's page is told to move the cursor (a new tab loads from the model).
     @Test func openInEditorOpensFileTabs() {

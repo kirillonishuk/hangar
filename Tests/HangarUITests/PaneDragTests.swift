@@ -127,6 +127,9 @@ import Testing
         #expect(drop(10) == .tabBar(index: 0))
         #expect(drop(150) == .tabBar(index: 1))
         #expect(drop(600) == .tabBar(index: 2))
+        // A tab without a reported frame (not laid out yet): no slot rather than a wrong one.
+        #expect(resolveDrop(.leaf(b), at: CGPoint(x: 150, y: 20), state: s, taskId: t, activeTab: A, paneFrames: [a: left, b: right],
+                            tabBar: bar, tabFrames: [A: tabFrames[A]!]) == nil)
         // A pane of an unsplit tab has no header to drag: it can't be detached.
         let (s2, t2, A2, _, a2) = two()
         #expect(resolveDrop(.leaf(a2), at: CGPoint(x: 10, y: 20), state: s2, taskId: t2, activeTab: A2, paneFrames: [:],

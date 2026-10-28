@@ -63,6 +63,7 @@
 "languageEn" = "English";
 "defaultAgent" = "Агент по умолчанию";
 "editor" = "Редактор";
+"paneNew" = "Новая панель";
 "externalEditor" = "Внешний редактор";
 "externalEditorPlaceholder" = "пусто — выключен";
 "terminalBackground" = "Фон терминала";

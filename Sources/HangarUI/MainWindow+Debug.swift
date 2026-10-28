@@ -102,7 +102,7 @@ extension MainWindowController {
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
-        case "tab": LeafKind(rawValue: arg).map(app.addTab)
+        case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
         case "select": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.select(taskId: app.orderedTasks[n].id) }

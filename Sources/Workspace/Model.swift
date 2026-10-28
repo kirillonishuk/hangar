@@ -79,7 +79,17 @@ public enum TaskMode: Codable, Equatable, Sendable {
 
 public enum Axis: String, Codable, Equatable, Sendable { case horizontal, vertical }
 
-public enum LeafKind: String, Codable, Equatable, Sendable { case claude, codex, editor, shell }
+/// `choose` is a pane that runs nothing yet: the user picks its kind. It is never saved (`prunedChoosers`).
+public enum LeafKind: String, Codable, Equatable, Sendable { case claude, codex, editor, shell, choose }
+
+/// The side of a pane a dragged/new pane is inserted at.
+public enum SplitEdge: String, Codable, Equatable, Sendable {
+    case left, right, top, bottom
+
+    public var axis: Axis { self == .left || self == .right ? .horizontal : .vertical }
+    /// The new pane goes first (left/top).
+    public var isFirst: Bool { self == .left || self == .top }
+}
 
 public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
@@ -90,6 +100,8 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var openFile: String?
     /// Files open in an editor tab (Monaco, #80), in tab order; `openFile` is the active one.
     public var editorFiles: [EditorFile]?
+    /// Set by the user (rename); wins over the automatic pane name.
+    public var customTitle: String?
 
     /// `openLine`: the new editor's cursor line in `openFile`.
     public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
@@ -102,7 +114,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         if kind == .editor, let openFile { editorFiles = [EditorFile(path: openFile, line: openLine ?? 1, column: 1)] }
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine }
+    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine, customTitle }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -113,6 +125,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
                   openFile: try c.decodeIfPresent(String.self, forKey: .openFile),
                   openLine: try c.decodeIfPresent(Int.self, forKey: .openLine))
         if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }
+        customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -123,6 +136,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         try c.encodeIfPresent(agentSessionId, forKey: .agentSessionId)
         try c.encodeIfPresent(openFile, forKey: .openFile)
         try c.encodeIfPresent(editorFiles, forKey: .editorFiles)
+        try c.encodeIfPresent(customTitle, forKey: .customTitle)
     }
 }
 
@@ -147,16 +161,15 @@ public indirect enum SplitNode: Codable, Equatable, Sendable {
         }
     }
 
-    /// Replaces the leaf with `leafId` by `.split(first: oldLeaf, second: newLeaf)`.
-    func splitting(leafId: UUID, axis: Axis, newLeaf: Leaf) -> SplitNode {
+    /// The leaf `anchor` becomes a split of itself and `node`, `node` on the `edge` side.
+    func inserting(_ node: SplitNode, at anchor: UUID, edge: SplitEdge) -> SplitNode {
         switch self {
         case .leaf(let leaf):
-            guard leaf.id == leafId else { return self }
-            return .split(axis: axis, ratio: 0.5, first: self, second: .leaf(newLeaf))
+            guard leaf.id == anchor else { return self }
+            return .split(axis: edge.axis, ratio: 0.5, first: edge.isFirst ? node : self, second: edge.isFirst ? self : node)
         case .split(let a, let ratio, let first, let second):
-            return .split(axis: a, ratio: ratio,
-                          first: first.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf),
-                          second: second.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf))
+            return .split(axis: a, ratio: ratio, first: first.inserting(node, at: anchor, edge: edge),
+                          second: second.inserting(node, at: anchor, edge: edge))
         }
     }
 
@@ -225,6 +238,10 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
     }
 
     public func label(auto: String) -> String { customTitle ?? auto }
+
+    public var editorCount: Int { root.leaves.filter { $0.kind == .editor }.count }
+    /// Editor panes one tab can hold.
+    public static let maxEditorPanes = 2
 }
 
 /// Bottom terminal of a task: one shell leaf, created on first show and kept while hidden.
@@ -502,18 +519,59 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     }
 
     /// Splits the leaf, focuses the new leaf and returns its id (a fresh id if the target is not found).
+    /// `kind == nil` makes a chooser; a host's terminal always gets a shell; `first` puts the new leaf first.
     @discardableResult
-    public mutating func split(taskId: UUID, tabId: UUID, leafId: UUID, axis: Axis, kind: LeafKind) -> UUID {
+    public mutating func split(taskId: UUID, tabId: UUID, leafId: UUID, axis: Axis, kind: LeafKind?, first: Bool = false) -> UUID {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }),
               tasks[i].tabs[t].root.leaf(id: leafId) != nil else {
             assertionFailure("split: unknown task, tab or leaf")
             return UUID()
         }
-        let newLeaf = Leaf(kind: isHostShellTask(tasks[i]) ? .shell : kind, cwd: cwd(for: tasks[i]))
-        tasks[i].tabs[t].root = tasks[i].tabs[t].root.splitting(leafId: leafId, axis: axis, newLeaf: newLeaf)
+        let newLeaf = Leaf(kind: isHostShellTask(tasks[i]) ? .shell : kind ?? .choose, cwd: cwd(for: tasks[i]))
+        tasks[i].tabs[t].root = tasks[i].tabs[t].root.inserting(
+            .leaf(newLeaf), at: leafId, edge: axis == .horizontal ? (first ? .left : .right) : (first ? .top : .bottom))
         tasks[i].tabs[t].focusedLeafId = newLeaf.id
         return newLeaf.id
+    }
+
+    /// A chooser leaf becomes `kind`, keeping its id. An editor needs a `file` not yet open in the session and a free editor slot.
+    @discardableResult
+    public mutating func chooseKind(leafId: UUID, kind: LeafKind, file: String? = nil) -> Bool {
+        guard kind != .choose else { return false }
+        for i in tasks.indices {
+            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId)?.kind == .choose {
+                if kind == .editor {
+                    guard let file, fileTab(taskId: tasks[i].id, path: file) == nil,
+                          tasks[i].tabs[t].editorCount < Tab.maxEditorPanes else { return false }
+                }
+                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
+                    guard leaf.id == leafId else { return leaf }
+                    var leaf = leaf
+                    leaf.kind = kind
+                    if kind == .editor, let file {
+                        leaf.openFile = file
+                        leaf.editorFiles = [EditorFile(path: file, line: 1, column: 1)]
+                    }
+                    return leaf
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Removes chooser leaves like `closeLeaf` (a tab of only choosers goes); used so no chooser is ever saved or restored.
+    public func prunedChoosers() -> WorkspaceState {
+        var s = self
+        for i in s.tasks.indices {
+            for tab in s.tasks[i].tabs {
+                for leaf in tab.root.leaves where leaf.kind == .choose {
+                    s.closeLeaf(taskId: s.tasks[i].id, tabId: tab.id, leafId: leaf.id)
+                }
+            }
+        }
+        return s
     }
 
     /// Closing the last leaf closes the tab.
@@ -626,6 +684,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard !title.isEmpty, let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
         tasks[i].tabs[t].customTitle = title
+    }
+
+    /// Trimmed; blank or nil goes back to the automatic name.
+    public mutating func renameLeaf(leafId: UUID, title: String?) {
+        let title = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        for i in tasks.indices {
+            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId) != nil {
+                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
+                    var leaf = leaf
+                    if leaf.id == leafId { leaf.customTitle = title?.isEmpty == false ? title : nil }
+                    return leaf
+                }
+                return
+            }
+        }
     }
 
     /// Only archived tasks can be deleted; removes it from the state (files on disk stay).

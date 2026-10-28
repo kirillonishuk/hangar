@@ -63,6 +63,7 @@
 "languageEn" = "English";
 "defaultAgent" = "Default agent";
 "editor" = "Editor";
+"paneNew" = "New pane";
 "externalEditor" = "External editor";
 "externalEditorPlaceholder" = "empty — off";
 "terminalBackground" = "Terminal background";

@@ -138,6 +138,7 @@ enum Icon: CaseIterable {
         case .codex: .codex
         case .editor: .editor
         case .shell: .shell
+        case .choose: .add
         }
     }
 

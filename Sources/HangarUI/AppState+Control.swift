@@ -305,6 +305,7 @@ extension AppState {
         case .codex: .codex
         case .editor: .editor
         case .shell: .shell
+        case .choose: .shell // shortcut: CLI has no chooser kind; add one when CLI gets splits (spec §8)
         }
     }
 

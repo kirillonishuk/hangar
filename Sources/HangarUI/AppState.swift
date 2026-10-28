@@ -303,6 +303,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .claude, .codex: kind.rawValue
         case .editor: L10n.editor
         case .shell: (userShell as NSString).lastPathComponent
+        case .choose: L10n.paneNew
         }
     }
 
@@ -570,7 +571,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Splits `leafId` (the focused leaf) with a new shell in the task's cwd.
     func split(leafId: UUID, axis: Workspace.Axis) {
         guard let loc = location(ofLeaf: leafId) else { return }
-        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: .shell) }
+        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: .shell) } // chooser arrives in Task 4
     }
 
     func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }
@@ -668,7 +669,7 @@ func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
         let host = host(task.projectId)
         for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
             switch leaf.kind {
-            case .shell, .editor: result.insert(leaf.id)
+            case .shell, .editor, .choose: result.insert(leaf.id)
             case .claude, .codex:
                 var cwd = leaf.cwd
                 while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }

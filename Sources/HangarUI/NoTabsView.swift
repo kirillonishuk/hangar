@@ -46,7 +46,7 @@ struct NoTabsView: View {
         switch kind {
         case .claude: "Claude"
         case .codex: "Codex"
-        case .shell, .editor: L10n.terminalTab
+        case .shell, .editor, .choose: L10n.terminalTab
         }
     }
 }

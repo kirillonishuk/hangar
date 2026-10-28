@@ -89,7 +89,7 @@ final class WindowRootController: NSViewController {
         self.split = split
         let metrics = TitleBarMetrics()
         self.metrics = metrics
-        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, toggleSidebar: {}))
+        titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, inboxAction: { _, _, _ in }, toggleSidebar: {}))
         statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
@@ -225,7 +225,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
-        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics) { [weak self] in self?.toggleSidebar() }
+        root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
+                                                inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
+                                                toggleSidebar: { [weak self] in self?.toggleSidebar() })
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         column.archiveUndo.onUndo = { [weak self] id in
@@ -264,6 +266,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()
+            self?.notifier?.registerCategories()
         }
         installMainMenu()
         installKeyMonitor()
@@ -476,7 +479,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
@@ -572,6 +575,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .commandPalette: togglePalette(commands: true)
         case .sessions: app.toggleSessionsView()
         case .findInFiles: app.showSearch()
+        case .nextAttention:
+            // Nothing waiting: nothing happens (R13).
+            if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
         }
     }
 
@@ -657,6 +663,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Notifications
 
     private var notifier: Notifier?
+    #if DEBUG
+    /// What would be on screen without a bundle (a recording center): `notices` / `noticeAction` debug commands.
+    var debugNotices: [AgentNotice] = []
+    #endif
 
     /// The app is active and the main window is on screen (a key Settings window or sheet doesn't hide it) (a notification for a hidden leaf is due otherwise).
     private var windowVisible: Bool {
@@ -664,34 +674,75 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
     }
 
-    /// Posts macOS notifications for agents that wait or finish out of sight; a click reveals the leaf.
-    /// No-op outside an .app bundle.
+    /// Banners for attention out of sight (`Notifier.attach`); buttons go through `notificationAction`.
+    /// Without a bundle: nothing in release, a recording center in DEBUG (`debugNotices`).
     public func enableNotifications() {
         // Dock badge and bounce: no bundle needed, so before the notifier's guard.
         app.onDockBadge = { NSApp.dockTile.badgeLabel = $0 }
         app.requestAttention = { if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) } }
         app.updateDockBadge()
-        guard let notifier = Notifier.makeIfAvailable() else { return }
-        self.notifier = notifier
-        notifier.onOpen = { [weak self] in self?.reveal(leafId: $0) }
-        app.onTransition = { [weak self] t in
-            guard let self, let n = notice(for: t, app: self.app, leafVisible: leafVisible(t.leaf, app: self.app, windowVisible: self.windowVisible)) else { return }
-            self.notifier?.post(n)
-        }
+        #if DEBUG
+        notifier = Notifier.makeIfAvailable() ?? Notifier(center: .recorder { [weak self] edit in
+            guard let self else { return }
+            self.debugNotices = edit(self.debugNotices)
+        })
+        #else
+        notifier = Notifier.makeIfAvailable()
+        #endif
+        guard let notifier else { return }
+        if Notifier.hasBundle { app.notificationAuthorization = { await notifier.authorizationStatus() } }
+        notifier.onAction = { [weak self] leaf, key, action in self?.noticeAction(leaf: leaf, requestKey: key, action) }
+        notifier.attach(to: app, leafVisible: { [weak self] leaf in
+            guard let self else { return false }
+            return leafVisible(leaf, app: self.app, windowVisible: self.windowVisible)
+        }, appActive: { NSApp.isActive })
         app.onUsageAlerts = { [weak self] alerts in
             guard let self else { return }
             for n in limitNotices(alerts, app: self.app) { self.notifier?.post(n) }
         }
     }
 
+    /// A notification button or click; typing goes into the leaf without bringing the window up.
+    func noticeAction(leaf: UUID?, requestKey: UUID?, _ action: NoticeAction) {
+        apply(app.notificationAction(leaf: leaf, requestKey: requestKey, action), leaf: leaf, requestKey: requestKey)
+    }
+
+    /// An inbox row: the same guarded actions as a banner; the popover stays open only while typing into a terminal.
+    func inboxAction(leaf: UUID, requestKey: UUID?, _ action: NoticeAction) {
+        let result = app.notificationAction(leaf: leaf, requestKey: requestKey, action)
+        if case .send = result {} else { app.setInboxShown(false) }
+        apply(result, leaf: leaf, requestKey: requestKey)
+    }
+
+    /// One routing for banners and the inbox: reveal, type without activating, or show the limits.
+    private func apply(_ result: NoticeResult, leaf: UUID?, requestKey: UUID?) {
+        switch result {
+        case .reveal:
+            if let leaf { reveal(leafId: leaf) }
+        case .send(let text, let keys):
+            if let leaf { app.sendAnswer(leafId: leaf, requestKey: requestKey, text: text, keys: keys) }
+        case .showLimits:
+            bringUp()
+            if !app.limitsPopoverShown { app.toggleLimitsPopover() }
+        }
+    }
+
     public func reveal(leafId: UUID) {
         app.reveal(leafId: leafId)
+        bringUp()
+        column.terminalArea.focus(leafId: leafId)
+    }
+
+    private func bringUp() {
+        #if DEBUG
+        // Verification runs (HANGAR_DEBUG_BEHIND=1) never take the owner's screen or keyboard.
+        if ProcessInfo.processInfo.environment["HANGAR_DEBUG_BEHIND"] == "1" { return }
+        #endif
         NSApp.activate()
         if let window {
             if window.isMiniaturized { window.deminiaturize(nil) }
             window.makeKeyAndOrderFront(nil)
         }
-        column.terminalArea.focus(leafId: leafId)
     }
 
     /// A clicked `hangar://` link (#66, #88): select and bring the window up; a tab link focuses its terminal.
@@ -985,7 +1036,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             // The visible task's diff base may be this project's default.
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
-        }, onCancel: close)
+        }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host

@@ -26,12 +26,18 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         // verify: проверить, когда codex будет установлен
         guard object["type"] as? String == "agent-turn-complete" else { return nil }
         m.session = validSessionId(object["thread-id"] as? String)
-        m.message = object["last-assistant-message"] as? String
+        m.message = (object["last-assistant-message"] as? String).map { String($0.prefix(500)) }
     } else {
         m.session = validSessionId(object["session_id"] as? String)
         m.notificationType = object["notification_type"] as? String
         m.source = object["source"] as? String
-        m.message = object["message"] as? String
+        // Bounded here, before encoding: a long answer or command must not push the line past ControlServer.maxLine.
+        m.message = ((object["message"] as? String) ?? (object["last_assistant_message"] as? String)).map { String($0.prefix(500)) }
+        if kind == .permissionRequest {
+            m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
+            m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
+        }
+        if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
     if let i = args.firstIndex(of: "--session"), i < (args.firstIndex(of: "--then") ?? args.endIndex),
        i + 1 < args.count {

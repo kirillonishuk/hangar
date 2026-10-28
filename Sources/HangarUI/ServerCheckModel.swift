@@ -239,14 +239,9 @@ mv -f "$tmp" "$f"
 
     /// Writes the confirmed plan on the server; refuses (`fileChanged`) if the file is not what the plan was made from.
     func applyIntegration(_ p: IntegrationPlan) async -> Bool {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyyMMdd-HHmmss"
-        let old = p.original.map { Data($0.utf8) }
         // The path exactly as read (`URL.path` would normalize it).
         let path = p.displayPath.map { String($0.dropFirst(host.count + 1)) } ?? p.url.path
-        let args = [path, old.map { String($0.count) } ?? "-", f.string(from: now())]
-        let r = await remote.write(host, script: remoteFileWriteScript, args: args, input: (old ?? Data()) + Data(p.updated.utf8))
+        let r = await write(path, original: p.original, updated: p.updated)
         guard r.status == 0 else {
             integrationError = r.status == 3 ? L10n.fileChanged : L10n.integrationWriteFailed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))
             return false
@@ -255,6 +250,60 @@ mv -f "$tmp" "$f"
         message = lastLine(r.stdout).map { L10n.backupCreated(host + ":" + $0) }
         await readIntegrations()
         return true
+    }
+
+    /// `remoteFileWriteScript`: backup next to the file, refuses (exit 3) if it is not `original` any more.
+    private func write(_ path: String, original: String?, updated: String) async -> RunResult {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        let old = original.map { Data($0.utf8) }
+        let args = [path, old.map { String($0.count) } ?? "-", f.string(from: now())]
+        return await remote.write(host, script: remoteFileWriteScript, args: args, input: (old ?? Data()) + Data(updated.utf8))
+    }
+
+    /// On connect (R7, #96): an installed but older `hangar-remote` is Hangar's own file and is replaced by this one through
+    /// the same checked write (backup, `cmp`, mode kept). Never installed, current or newer → untouched; then the check again.
+    func autoUpgradeRemoteScript() async -> Bool {
+        guard let r = remote.hosts[host]?.report, let v = r.remoteVersion, v < hangarRemoteVersion else { return false }
+        let path = r.home + "/.hangar/bin/hangar-remote"
+        do {
+            guard let original = try await read(path) else { return false }
+            let w = await write(path, original: original, updated: hangarRemoteScript)
+            guard w.status == 0 else {
+                uiLog.error("hangar-remote upgrade on \(self.host, privacy: .public) failed: \(w.status) \(lastLine(w.stderr) ?? "", privacy: .public)")
+                return false
+            }
+            uiLog.info("hangar-remote upgraded on \(self.host, privacy: .public), backup \(lastLine(w.stdout) ?? "", privacy: .public)")
+            await remote.recheck(host)
+            report = remote.hosts[host]?.report ?? report
+            return true
+        } catch {
+            uiLog.error("hangar-remote upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    /// On connect (#96): an installed Claude integration gets Hangar's missing hooks only, through the same backup and
+    /// checked write as «Применить». Not installed, current, unreadable or a failed write → false, file as it was
+    /// (the «Сервер» sheet then shows «устарела» as before).
+    func autoUpgradeClaude() async -> Bool {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let cli, let path = integrationPath(.claude) else { return false }
+        do {
+            let original = try await read(path)
+            guard let updated = try claudeUpgrade(original, cli: cli) else { return false }
+            let r = await write(path, original: original, updated: updated)
+            guard r.status == 0 else {
+                uiLog.error("claude hooks upgrade on \(self.host, privacy: .public) failed: \(r.status) \(lastLine(r.stderr) ?? "", privacy: .public)")
+                return false
+            }
+            uiLog.info("claude hooks upgraded on \(self.host, privacy: .public), backup \(lastLine(r.stdout) ?? "", privacy: .public)")
+            return true
+        } catch {
+            uiLog.error("claude hooks upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
+            return false
+        }
     }
 }
 

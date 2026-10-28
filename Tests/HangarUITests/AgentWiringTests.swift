@@ -37,8 +37,6 @@ import Workspace
 
     @Test func eventUpdatesLeafAndTaskState() {
         let app = makeApp([.claude])
-        var transitions: [Transition] = []
-        app.onTransition = { transitions.append($0) }
         event(app, tab: 0, .prompt)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .working)
         #expect(app.state(of: app.state.tasks[0]) == .working)
@@ -46,9 +44,8 @@ import Workspace
         #expect(app.workingLeafCount == 1)
         event(app, tab: 0, .notification, type: "permission_prompt", message: "Needs permission")
         #expect(app.state(of: app.state.tasks[0]) == .waiting)
-        #expect(transitions.last?.leaf == leaf(app, 0).id)
-        #expect(transitions.last.map { [$0.from, $0.to] } == [.working, .waiting])
-        #expect(app.lastNotificationMessage[leaf(app, 0).id] == "Needs permission")
+        #expect(app.state(ofLeaf: leaf(app, 0).id) == .waiting)
+        #expect(app.statuses.status(leaf(app, 0).id).attention?.text == "Needs permission")
     }
 
     @Test func leafDoneFiresOnlyOnTransitionToDone() {
@@ -65,8 +62,6 @@ import Workspace
 
     @Test func unknownTabOrLeafIgnored() {
         let app = makeApp([.claude, .claude])
-        var called = false
-        app.onTransition = { _ in called = true }
         let before = app.state
         let tab0 = app.state.tasks[0].tabs[0]
         app.handle(.event(EventMessage(tab: UUID(), leaf: UUID(), kind: .prompt, session: "a")))
@@ -79,7 +74,6 @@ import Workspace
         let archived = app.state
         app.handle(.event(EventMessage(tab: tab0.id, leaf: tab0.root.leaves[0].id, kind: .prompt, session: "a")))
         #expect(app.statuses.leaves.isEmpty)
-        #expect(!called)
         #expect(app.state == archived)
         var expected = before
         expected.archiveTask(id: before.tasks[0].id, at: archived.tasks[0].archivedAt ?? Date())  // same archive time
@@ -105,19 +99,15 @@ import Workspace
     @Test func nestedClaudeEventsIgnored() {
         let app = makeApp([.claude])
         let id = leaf(app, 0).id
-        var transitions: [Transition] = []
-        app.onTransition = { transitions.append($0) }
         event(app, tab: 0, .sessionStart, session: "main", source: "startup")
         event(app, tab: 0, .prompt, session: "main")
-        let before = transitions.count
         event(app, tab: 0, .sessionStart, session: "nested", source: "startup")
         event(app, tab: 0, .notification, session: "nested", type: "permission_prompt", message: "nested asks")
         event(app, tab: 0, .stop, session: "nested")
         #expect(app.state(ofLeaf: id) == .working)
         #expect(leaf(app, 0).agentSessionId == "main")
         #expect(app.statuses.status(id).sessionId == "main")
-        #expect(app.lastNotificationMessage[id] == nil)
-        #expect(transitions.count == before)
+        #expect(app.statuses.status(id).attention == nil)
         event(app, tab: 0, .stop, session: "main")
         #expect(app.state(ofLeaf: id) == .done)
     }
@@ -171,7 +161,6 @@ import Workspace
         let flag = Flag()
         withObservationTracking {
             _ = app.statuses
-            _ = app.lastNotificationMessage
             _ = app.usageClock
         } onChange: { flag.fired = true }
         event(app, tab: 0, .prompt, session: "s1")
@@ -193,12 +182,12 @@ import Workspace
         let app = makeApp([.claude])
         let id = leaf(app, 0).id
         event(app, tab: 0, .notification, type: "permission_prompt", message: "m1")
-        #expect(app.lastNotificationMessage[id] == "m1")
+        #expect(app.statuses.status(id).attention?.text == "m1")
         event(app, tab: 0, .prompt)
-        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(app.statuses.status(id).attention == nil)
         event(app, tab: 0, .notification, type: "permission_prompt", message: "m2")
         event(app, tab: 0, .notification, type: "permission_prompt")
-        #expect(app.lastNotificationMessage[id] == nil)
+        #expect(app.statuses.status(id).attention?.text == nil)
     }
 
     @Test func sessionIdNotWrittenToShellLeaf() {
@@ -225,7 +214,7 @@ import Workspace
         let app = makeApp([.shell, .codex])
         app.signal(.bell, leaf: leaf(app, 0).id)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .idle)
-        app.signal(.desktopNotification, leaf: leaf(app, 0).id)
+        app.signal(.desktopNotification(), leaf: leaf(app, 0).id)
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .idle)
         app.signal(.bell, leaf: leaf(app, 1).id)
         #expect(app.state(ofLeaf: leaf(app, 1).id) == .waiting)
@@ -259,9 +248,16 @@ import Workspace
         #expect(alerts.last?.map(\.level) == [.warn])
         var turns = 0
         app.onCodexTurn = { turns += 1 }
+        let before = alerts.count
         event(app, tab: 0, .stopFailure)
         #expect(app.usage.level(.claude, now: Date()) == .full)
         #expect(turns == 0)
+        // The hook's limit: the leaf's own banner says it, no threshold alert on top.
+        #expect(alerts.count == before)
+        #expect(app.statuses.status(leaf(app, 0).id).attention?.reason == .limit)
+        // Polling thresholds still alert.
+        app.handle(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "seven_day", usedPercent: 85, resetsAt: nil)])))
+        #expect(alerts.count == before + 1)
     }
 
     /// The window status bar counts what the rows show: agents on a full limit are «на лимите», neither working nor errors.
@@ -404,8 +400,9 @@ import Workspace
         #expect(!isSystemShutdown(reason: nil))
     }
 
-    /// Dock badge = tasks waiting for the user, set only when the number changes; attention once per new wait.
-    @Test func dockBadgeCountsWaitingTasks() throws {
+    /// Dock badge = leaves needing the user (permission, question, failed), set only when the number changes;
+    /// attention once per new request.
+    @Test func dockBadgeCountsAttentionLeaves() throws {
         let app = makeApp([.claude, .claude])
         app.perform { s in
             let t = s.addTask(projectId: s.projects[0].id, name: "u")
@@ -422,25 +419,24 @@ import Workspace
         #expect(labels.isEmpty && attention == 0)
         wait(0, 0)
         #expect(labels == ["1"] && attention == 1)
-        wait(0, 1)  // same task: still one waiting task
-        #expect(labels == ["1"] && attention == 2)
+        wait(0, 1)  // same task: each leaf counts
+        #expect(labels == ["1", "2"] && attention == 2)
         wait(1, 0)
-        #expect(labels == ["1", "2"])
+        #expect(labels == ["1", "2", "3"] && attention == 3)
         app.archive(taskId: app.state.tasks[1].id)
-        #expect(labels == ["1", "2", "1"])
+        #expect(labels == ["1", "2", "3", "2"])
         event(app, tab: 0, .prompt)
         event(app, tab: 1, .prompt)
-        #expect(labels == ["1", "2", "1", ""])
-        #expect(app.waitingTaskCount == 0)
+        #expect(labels == ["1", "2", "3", "2", "1", ""])
 
         try app.setConfig("dock_badge", flag: false) { $0.dockBadge = false }
         wait(0, 0)
-        #expect(labels == ["1", "2", "1", ""] && attention == 3)
+        #expect(labels.last == "" && attention == 3)
         try app.setConfig("dock_badge", flag: true) { $0.dockBadge = true }
         #expect(labels.last == "1")
-        #expect(dockBadgeLabel(waiting: 0, enabled: true) == "")
-        #expect(dockBadgeLabel(waiting: 3, enabled: true) == "3")
-        #expect(dockBadgeLabel(waiting: 3, enabled: false) == "")
+        #expect(dockBadgeLabel(count: 0, enabled: true) == "")
+        #expect(dockBadgeLabel(count: 3, enabled: true) == "3")
+        #expect(dockBadgeLabel(count: 3, enabled: false) == "")
     }
 
     @Test func keepAwakeFollowsStatuses() throws {

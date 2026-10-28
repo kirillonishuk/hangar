@@ -276,6 +276,7 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .inspectorGit: .branch
     case .toggleDrawer: .shell
     case .limits: .limits
+    case .nextAttention: .bell
     case .revealInFinder: .finder
     case .copyPath: .copy
     case .settings: .settings

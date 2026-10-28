@@ -29,9 +29,9 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
             (status(.working), .hook(.stopFailure, session: nil, notificationType: nil), .limit),  // hooked with matcher rate_limit only
             (status(.working), .hook(.codexNotify, session: nil, notificationType: nil), .done),
             (status(.idle), .bell, .waiting),
-            (status(.idle), .desktopNotification, .waiting),
+            (status(.idle), .desktopNotification(), .waiting),
             (status(.idle, hooks: true), .bell, .idle),
-            (status(.done, hooks: true), .desktopNotification, .done),
+            (status(.done, hooks: true), .desktopNotification(), .done),
             (status(.waiting), .focused, .idle),
             (status(.waiting, hooks: true), .focused, .waiting),
             (status(.working), .focused, .working),

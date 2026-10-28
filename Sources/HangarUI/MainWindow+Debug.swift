@@ -50,7 +50,7 @@ extension MainWindowController {
         for t in app.state.tasks where !t.archived {
             for l in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
                 let state = app.state(ofLeaf: l.id).rawValue
-                let message = app.lastNotificationMessage[l.id] ?? "-"
+                let message = app.statuses.status(l.id).attention?.text ?? "-"
                 lines.append("agent leaf=\(l.id.uuidString) kind=\(l.kind.rawValue) state=\(state) session=\(l.agentSessionId ?? "-") message=\(message)")
             }
             lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")
@@ -86,6 +86,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
+            "nextAttention": .nextAttention,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -290,6 +291,17 @@ extension MainWindowController {
             case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
             default: break
             }
+        case "inbox":  // inbox open|close|snap <png>: the «Входящие» popover
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            switch f.first ?? "" {
+            case "open": if !app.inboxShown { app.toggleInbox() }
+            case "close": app.setInboxShown(false)
+            case "snap" where f.count > 1:
+                guard let view = popoverWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: f[1]))
+            default: break
+            }
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
         case "integration":
@@ -462,6 +474,26 @@ extension MainWindowController {
         // Runs applicationWillTerminate like ⌘Q. From a run-loop block, not this main-queue callback: the quit sheet's
         // nested loop could not drain the main queue (the SIGTERM source) while a main-queue block is on the stack.
         case "quit": RunLoop.main.perform { NSApp.terminate(nil) }
+        // notices <file>: what would be on screen, one per line (no bundle in DEBUG, so no real banners).
+        case "notices":
+            let lines = debugNotices.enumerated().map { i, n in
+                "\(i) id=\(n.id) category=\(n.category.rawValue) thread=\(n.thread ?? "-") sound=\(n.sound ?? "-") key=\(n.requestKey?.uuidString ?? "-") title=\(n.title) subtitle=\(n.subtitle) body=\(n.body)"
+            }
+            try? (lines.joined(separator: "\n") + "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        // noticeAction <n> open|allow [<request key>]|limits|reply <text>: as the n-th notice's button (a key: an older banner's).
+        case "noticeAction":
+            let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
+            guard f.count >= 2, let n = Int(f[0]), debugNotices.indices.contains(n) else { return }
+            let action: NoticeAction? = switch f[1] {
+            case "open": .open
+            case "allow": .allow
+            case "limits": .limits
+            case "reply": .reply(f.count > 2 ? f[2] : "")
+            default: nil
+            }
+            let notice = debugNotices[n]
+            let key = f.count > 2 && f[1] == "allow" ? UUID(uuidString: f[2]) : nil
+            if let action { noticeAction(leaf: notice.leaf, requestKey: key ?? notice.requestKey, action) }
         case "dump":
             let tasks = app.state.tasks.map { t in
                 "\(t.name) archived=\(t.archived) pinned=\(t.pinned) order=\(t.order) tabs=\(t.tabs.map { "\($0.id == t.activeTabId ? "*" : "")\(app.tabLabel($0)) leaves=\($0.root.leaves.map { $0.id.uuidString.prefix(4) }) focus=\($0.focusedLeafId.uuidString.prefix(4))" }) active=\(t.activeTabId == nil ? "-" : "set") drawer=\(t.drawer.visible)/\(Int(t.drawer.height))/\(t.drawer.leaf?.id.uuidString.prefix(4) ?? "-")"

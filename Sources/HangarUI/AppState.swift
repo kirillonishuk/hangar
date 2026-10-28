@@ -10,6 +10,7 @@ import Observation
 import os
 import Power
 import Usage
+import UserNotifications
 import Workspace
 
 public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
@@ -22,6 +23,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         didSet {
             if config.keepAwake != oldValue.keepAwake { updateKeepAwake() }
             if config.dockBadge != oldValue.dockBadge { updateDockBadge() }
+            if config != oldValue { onBannerPolicy?() }
         }
     }
     /// Runtime-only (not persisted): last terminal title per leaf.
@@ -39,8 +41,16 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
     /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
     @ObservationIgnored var onDockBadge: ((String) -> Void)?
-    /// A leaf started waiting: bounce the Dock once if the app is inactive (set by the window controller).
+    /// macOS's notification permission for the settings page; nil without an app bundle (no row).
+    @ObservationIgnored var notificationAuthorization: (() async -> UNAuthorizationStatus)?
+    /// A new permission or question: bounce the Dock once if the app is inactive (set by the window controller).
     @ObservationIgnored var requestAttention: (() -> Void)?
+    /// A leaf's attention changed or went (nil): notifications follow it.
+    @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
+    /// A leaf got focus: its delivered banner is no longer needed.
+    @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
+    /// Mute, project mode or a notification setting changed: delivered banners no longer allowed go.
+    @ObservationIgnored var onBannerPolicy: (() -> Void)?
     /// The badge text last handed to `onDockBadge`.
     @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
@@ -53,10 +63,6 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }()
     /// Subscription limits from the statusline / codex; in memory only.
     var usage = UsageBoard()
-    /// `message` of the leaf's last hook event (notification body).
-    var lastNotificationMessage: [UUID: String] = [:]
-    /// A leaf's agent state changed (notifications, Task 9).
-    @ObservationIgnored var onTransition: ((Transition) -> Void)?
     /// A leaf's agent turned `done` (the inspector refreshes the visible task's changes).
     @ObservationIgnored var onLeafDone: ((UUID) -> Void)?
     /// Limit thresholds crossed (Task 11).
@@ -102,6 +108,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
+    var inboxShown = false
+    /// `now` for «3 мин» in the inbox: taken when it opens, no ticking clock.
+    var inboxClock = Date()
     /// «Сессии» (⌘Y) is shown for this project instead of the session area; nil = hidden (SessionsModel.swift).
     var sessionsProjectId: UUID?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
@@ -115,6 +124,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored lazy var findCodex: () async -> String? = { [userShell] in await resolveCodex(runner: .local, shell: userShell) }
     /// Uptime of the last popover close; a click within 0.3 s is that close's own mouse-up.
     @ObservationIgnored var limitsPopoverClosedAt: TimeInterval?
+    @ObservationIgnored var inboxClosedAt: TimeInterval?
     /// The last lookup found no codex: look again on the next popover open.
     @ObservationIgnored var codexNotFound = false
     /// CLI/MCP `tasks create` calls in progress: like the new-task sheet's create, they hold off ⌘Q.
@@ -167,6 +177,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
+    /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (#96); DEBUG: only with a fake ssh.
+    @ObservationIgnored public var autoUpgradeRemote = true
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
@@ -235,13 +247,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let hostsBefore = Set(state.projects.compactMap(\.host))
         let selectedBefore = state.selectedTaskId
         mutate(&state)
-        // Archived or closed leaves drop their status (and their message) here.
+        // Archived or closed leaves drop their status (and their attention) here.
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
-        if statuses.leaves.keys.contains(where: { !live.contains($0) }) { statuses.retain(live) }
-        if lastNotificationMessage.keys.contains(where: { !live.contains($0) }) {
-            lastNotificationMessage = lastNotificationMessage.filter { live.contains($0.key) }
+        let dropped = statuses.leaves.filter { !live.contains($0.key) }
+        if !dropped.isEmpty {
+            statuses.retain(live)
+            for (id, s) in dropped where s.attention != nil { onAttention?(id, nil) }
         }
         // Archived or deleted tasks drop their diff tab.
         if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
@@ -564,6 +577,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).
     func focused(leafId: UUID) {
+        onLeafSeen?(leafId)
         guard let loc = location(ofLeaf: leafId),
               state.tasks.first(where: { $0.id == loc.task })?.tabs.first(where: { $0.id == loc.tab })?.focusedLeafId != leafId
         else { return }
@@ -590,13 +604,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
-    /// Unarchived tasks whose combined state is waiting (archived leaves already dropped their status).
-    var waitingTaskCount: Int { state.tasks.filter { !$0.archived && state(of: $0) == .waiting }.count }
-
     /// Called on status and setting changes only (no timer); hands the label over only when it changes.
     func updateDockBadge() {
         guard let onDockBadge else { return }
-        let label = dockBadgeLabel(waiting: waitingTaskCount, enabled: config.dockBadge)
+        let label = dockBadgeLabel(count: attentionCount(attentionItems), enabled: config.dockBadge)
         guard label != dockBadge else { return }
         dockBadge = label
         onDockBadge(label)
@@ -629,7 +640,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 }
 
 /// `NSDockTile.badgeLabel`: the count, or "" (no badge) at 0 or when turned off.
-func dockBadgeLabel(waiting: Int, enabled: Bool) -> String { enabled && waiting > 0 ? String(waiting) : "" }
+func dockBadgeLabel(count: Int, enabled: Bool) -> String { enabled && count > 0 ? String(count) : "" }
 
 /// Text of the alert shown at launch for a problem with state.json; nil when there is nothing to tell.
 @MainActor public func loadAlert(for result: LoadResult) -> String? {

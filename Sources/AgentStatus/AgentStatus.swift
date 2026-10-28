@@ -7,15 +7,18 @@ public enum AgentState: String, Sendable, CaseIterable { case working, waiting, 
 public enum HookKind: String, Codable, Sendable, CaseIterable {
     case sessionStart = "session-start", prompt, tool, notification, stop
     case stopFailure = "stop-failure", codexNotify = "codex-notify"
+    /// PermissionRequest: Claude Code is about to ask for a permission (carries the tool and its command).
+    case permissionRequest = "permission-request"
     /// PreToolUse of the Task/Agent tool / SubagentStop.
     case subagentStart = "subagent-start", subagentStop = "subagent-stop"
 }
 
 public enum AgentSignal: Equatable, Sendable {
     /// `source`: SessionStart's `source` (startup / resume / clear / compact).
-    case hook(HookKind, session: String?, notificationType: String?, source: String? = nil)
+    case hook(HookKind, session: String?, notificationType: String?, source: String? = nil, detail: HookDetail = .init())
     case bell
-    case desktopNotification
+    /// OSC 9/777 from the terminal; `text` is its body.
+    case desktopNotification(text: String? = nil)
     case exited(code: Int32)
     case relaunched
     case focused
@@ -27,6 +30,9 @@ public struct LeafStatus: Equatable, Sendable {
     public var sessionId: String?
     /// Subagents (Task/Agent tool) running now; never below 0, reset whenever the turn starts or ends.
     public var activeSubagents = 0
+    /// Why the leaf needs the user now; nil — it doesn't.
+    public var attention: Attention?
+    public var pendingPermission: PendingPermission?
     public init() {}
 }
 
@@ -58,39 +64,89 @@ public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, 
 }
 
 /// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
-public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgent?) -> LeafStatus {
+/// Attention gets `placeholderRequestKey`; `StatusBoard.apply` assigns the real key.
+public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgent?, now: Date = Date()) -> LeafStatus {
     var s = status
+    func attend(_ reason: AttentionReason, tool: String? = nil, command: String? = nil, text: String? = nil) {
+        s.attention = Attention(reason: reason, tool: tool, command: command, text: text, since: now, requestKey: placeholderRequestKey)
+    }
     switch signal {
-    case let .hook(kind, session, type, source):
+    case let .hook(kind, session, type, source, detail):
         guard acceptsHook(status, kind: kind, session: session, source: source, agent: agent) else { return status }
         if kind != .codexNotify { s.claudeHooks = true }
         if ownsSessionId(kind, agent: agent), let id = validSessionId(session) { s.sessionId = id }
         // A missed SubagentStop must not leave a count for good: every turn boundary starts from zero.
         if [.sessionStart, .prompt, .stop, .stopFailure].contains(kind) { s.activeSubagents = 0 }
+        if [.sessionStart, .prompt, .tool, .stop, .stopFailure].contains(kind) { s.pendingPermission = nil }
         switch kind {
-        case .sessionStart: break
-        case .prompt, .tool: s.state = .working
+        case .sessionStart: s.attention = nil
+        case .prompt, .tool:
+            s.state = .working
+            s.attention = nil
         case .subagentStart:
             s.state = .working
+            s.attention = nil
             s.activeSubagents = min(s.activeSubagents + 1, 99)
         case .subagentStop: s.activeSubagents = max(s.activeSubagents - 1, 0)
+        case .permissionRequest: s.pendingPermission = PendingPermission(tool: detail.tool, command: detail.command, at: now)
         case .notification:
-            if type == nil || type == "permission_prompt" || type == "elicitation_dialog" { s.state = .waiting }
-        case .stop, .codexNotify: s.state = .done
-        case .stopFailure: s.state = .limit  // the hook is installed with matcher rate_limit only
+            if type == "permission_prompt" {
+                s.state = .waiting
+                let p = s.pendingPermission.flatMap { now.timeIntervalSince($0.at) <= pendingPermissionTTL ? $0 : nil }
+                // A repeated prompt comes after the pending details were used: keep them so it stays the same request.
+                let same = p == nil && status.attention?.reason == .permission && status.attention?.text == detail.text
+                attend(.permission, tool: same ? status.attention?.tool : p?.tool,
+                       command: same ? status.attention?.command : p?.command, text: detail.text)
+                s.pendingPermission = nil
+            } else if type == nil || type == "elicitation_dialog" {
+                s.state = .waiting
+                attend(.question, text: detail.text)
+            }
+        case .stop, .codexNotify:
+            s.state = .done
+            attend(.done, text: detail.text)
+        case .stopFailure:
+            if detail.error == nil || detail.error == "rate_limit" {
+                s.state = .limit
+                attend(.limit, text: detail.text)
+            } else {
+                s.state = .failed
+                attend(.failed, text: detail.text ?? detail.error)
+            }
         }
-    case .bell, .desktopNotification:
-        if !s.claudeHooks { s.state = .waiting }
+    case .bell:
+        if !s.claudeHooks {
+            s.state = .waiting
+            attend(.question)
+        }
+    case let .desktopNotification(text):
+        if !s.claudeHooks {
+            s.state = .waiting
+            attend(.question, text: text)
+        }
     case .focused:
-        if s.state == .waiting && !s.claudeHooks { s.state = .idle }
+        if s.state == .waiting && !s.claudeHooks {
+            s.state = .idle
+            s.attention = nil
+        }
     case let .exited(code):
-        s.state = code > 0 ? .failed : .idle
+        if code > 0 {
+            s.state = .failed
+            // Only an agent's exit is a failure to report; a shell's `npm test` or Ctrl-C keeps just the dot.
+            if agent != nil { attend(.failed) } else { s.attention = nil }
+        } else {
+            s.state = .idle
+            s.attention = nil
+        }
         s.activeSubagents = 0
+        s.pendingPermission = nil
     case .relaunched:
         s.state = .idle
         s.claudeHooks = false
         s.sessionId = nil
         s.activeSubagents = 0
+        s.attention = nil
+        s.pendingPermission = nil
     }
     return s
 }
@@ -126,11 +182,35 @@ public struct StatusBoard: Equatable, Sendable {
     }
 
     /// nil — the state did not change (session id / flags may still have).
-    public mutating func apply(_ signal: AgentSignal, leaf: UUID, agent: SessionAgent?) -> Transition? {
+    /// A repeated request keeps its `since` and `requestKey`; a new one gets a fresh key.
+    public mutating func apply(_ signal: AgentSignal, leaf: UUID, agent: SessionAgent?, now: Date = Date()) -> Transition? {
         let old = status(leaf)
-        let new = fold(old, signal, agent: agent)
+        var new = fold(old, signal, agent: agent, now: now)
+        if var a = new.attention, a != old.attention {
+            if let o = old.attention, a.sameRequest(o) {
+                a.since = o.since
+                a.requestKey = o.requestKey
+            } else {
+                a.requestKey = UUID()
+            }
+            new.attention = a
+        }
         if new != old { leaves[leaf] = new }
         return old.state == new.state ? nil : Transition(leaf: leaf, from: old.state, to: new.state)
+    }
+
+    /// «Убрать» in the inbox: drops a done record only; the tab keeps its done dot.
+    public mutating func dismissDone(_ leaf: UUID) -> Bool {
+        guard leaves[leaf]?.attention?.reason == .done else { return false }
+        leaves[leaf]?.attention = nil
+        return true
+    }
+
+    /// «Разрешить» / «Ответить» typed the answer: that request's record goes (the dot stays until the agent moves on).
+    public mutating func clearAnswered(_ leaf: UUID, requestKey: UUID) -> Bool {
+        guard leaves[leaf]?.attention?.requestKey == requestKey else { return false }
+        leaves[leaf]?.attention = nil
+        return true
     }
 
     public mutating func retain(_ live: Set<UUID>) {

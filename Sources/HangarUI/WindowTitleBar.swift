@@ -43,11 +43,12 @@ func titlebarOffset(lightsCenterY: CGFloat?, barHeight: CGFloat) -> CGFloat {
 }
 
 /// One titlebar across the window (redesign v1 §1, §6): traffic lights, the sidebar toggle at x 84 (it stays put when
-/// the sidebar collapses), the title in the middle, the right sidebar toggle. Empty space drags the window;
-/// double-click follows the system zoom/minimize setting.
+/// the sidebar collapses), the title in the middle, the «Входящие» bell and the right sidebar toggle. Empty space drags
+/// the window; double-click follows the system zoom/minimize setting.
 struct WindowTitleBar: View {
     let app: AppState
     let metrics: TitleBarMetrics
+    let inboxAction: InboxAction
     let toggleSidebar: () -> Void
 
     var body: some View {
@@ -59,6 +60,8 @@ struct WindowTitleBar: View {
                 .offset(y: metrics.offsetY)
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
+                InboxBell(app: app, act: inboxAction)
+                    .offset(y: metrics.offsetY)
                 button(.sidebarRight, active: app.state.inspectorVisible) { app.perform { $0.inspectorVisible.toggle() } }
                     .help(L10n.help(L10n.inspectorHelp, .toggleInspector))
                     .padding(.trailing, Theme.titlebarTrailing)

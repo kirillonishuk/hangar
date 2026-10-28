@@ -88,9 +88,15 @@ import Workspace
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
-        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentWaiting, agentDone
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
+        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
+        case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
+        case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
+        case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
+        case urgentNotice, muteSession, unmuteSession, projectNotificationsAll, projectNotificationsUrgent, projectNotificationsOff
+        case projectNotificationsTitle, notifySegmentAll, notifySegmentUrgent, notifySegmentOff, mutedSessionHelp
         case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case copyLink, linkNotFound, attentionOnly, nobodyWaiting
+        case copyLink, linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -104,7 +110,7 @@ import Workspace
         case agentsWorking, agentsWorkingInfo
         case keepAwakeTitle
         case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
-        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour
+        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour, durationUnderMin, durationHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
@@ -135,7 +141,7 @@ import Workspace
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
-        case thisMac, workingOne, workingFew, workingMany, waitingOne, waitingFew, waitingMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
+        case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
         case updateAvailable, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
@@ -359,8 +365,53 @@ import Workspace
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
     static var toggleOff: String { s(.toggleOff) }
-    static func agentWaiting(_ agent: String) -> String { f(.agentWaiting, agent) }
+    static func agentPermission(_ agent: String) -> String { f(.agentPermission, agent) }
+    static func agentQuestion(_ agent: String) -> String { f(.agentQuestion, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
+    static func agentFailed(_ agent: String) -> String { f(.agentFailed, agent) }
+    static func agentLimit(_ agent: String) -> String { f(.agentLimit, agent) }
+    static var notifyPermissionTitle: String { s(.notifyPermissionTitle) }
+    static var notifyQuestionTitle: String { s(.notifyQuestionTitle) }
+    static var notifyDoneTitle: String { s(.notifyDoneTitle) }
+    static var notifyFailedTitle: String { s(.notifyFailedTitle) }
+    static var soundTitle: String { s(.soundTitle) }
+    static var soundNone: String { s(.soundNone) }
+    static var soundDefault: String { s(.soundDefault) }
+    static var allowFromNotificationTitle: String { s(.allowFromNotificationTitle) }
+    static var allowFromNotificationHelp: String { s(.allowFromNotificationHelp) }
+    static var notifyWhenActiveTitle: String { s(.notifyWhenActiveTitle) }
+    static var notifyWhenActiveHelp: String { s(.notifyWhenActiveHelp) }
+    static var sshTerminalBellTitle: String { s(.sshTerminalBellTitle) }
+    static var sshTerminalBellHelp: String { s(.sshTerminalBellHelp) }
+    static var notificationPermissionTitle: String { s(.notificationPermissionTitle) }
+    static var notificationsAllowedInSystem: String { s(.notificationsAllowedInSystem) }
+    static var notificationsNotAsked: String { s(.notificationsNotAsked) }
+    static var notificationsDeniedInSystem: String { s(.notificationsDeniedInSystem) }
+    static var openSystemSettings: String { s(.openSystemSettings) }
+    static var urgentNotice: String { s(.urgentNotice) }
+    static var muteSession: String { s(.muteSession) }
+    static var unmuteSession: String { s(.unmuteSession) }
+    static var projectNotificationsTitle: String { s(.projectNotificationsTitle) }
+    static var mutedSessionHelp: String { s(.mutedSessionHelp) }
+    /// The project menu item: the current mode, a click moves to the next.
+    static func projectNotificationsItem(_ mode: ProjectNotifications) -> String {
+        switch mode {
+        case .all: s(.projectNotificationsAll)
+        case .urgent: s(.projectNotificationsUrgent)
+        case .off: s(.projectNotificationsOff)
+        }
+    }
+    static func notifySegment(_ mode: ProjectNotifications) -> String {
+        switch mode {
+        case .all: s(.notifySegmentAll)
+        case .urgent: s(.notifySegmentUrgent)
+        case .off: s(.notifySegmentOff)
+        }
+    }
+    static var noticeOpen: String { s(.noticeOpen) }
+    static var noticeAllow: String { s(.noticeAllow) }
+    static var noticeReply: String { s(.noticeReply) }
+    static var noticeOpenLimits: String { s(.noticeOpenLimits) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
 
     // Keep awake
@@ -415,6 +466,8 @@ import Workspace
     static func limitWeekModel(_ model: String) -> String { f(.limitWeekModel, model) }
     static func resetIn(_ duration: String, _ time: String) -> String { f(.resetIn, duration, time) }
     static func durationMin(_ m: Int) -> String { f(.durationMin, m) }
+    static var durationUnderMin: String { s(.durationUnderMin) }
+    static func durationHour(_ h: Int) -> String { f(.durationHour, h) }
     static func durationHourMin(_ h: Int, _ m: Int) -> String { f(.durationHourMin, h, m) }
     static func durationDayHour(_ d: Int, _ h: Int) -> String { f(.durationDayHour, d, h) }
     static func limitAlmost(_ agent: String, _ percent: Int) -> String { f(.limitAlmost, agent, Int32(clamping: percent)) }
@@ -434,6 +487,10 @@ import Workspace
     static var linkNotFound: String { s(.linkNotFound) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }
+    static var inbox: String { s(.inbox) }
+    static var inboxRecentDone: String { s(.inboxRecentDone) }
+    static var inboxDismiss: String { s(.inboxDismiss) }
+    static var inboxClear: String { s(.inboxClear) }
     static func openIn(_ arg: String) -> String { f(.openIn, arg) }
     static func openFailed(_ arg: String) -> String { f(.openFailed, arg) }
     static var deletePermanently: String { s(.deletePermanently) }
@@ -484,9 +541,10 @@ import Workspace
     /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
     static func fileCount(_ n: Int) -> String { count(n, .fileCountOne, .fileCountFew, .fileCountMany) }
     static var statusShowChanges: String { s(.statusShowChanges) }
-    // Window status bar: «1 работает», «3 ждут», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
+    // Window status bar: «1 работает», «3 ждут внимания», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
     static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
-    static func waitingCount(_ n: Int) -> String { count(n, .waitingOne, .waitingFew, .waitingMany) }
+    /// The bell's number (permission + question + failed), so a failure «ждёт внимания» too.
+    static func inboxCount(_ n: Int) -> String { count(n, .attentionOne, .attentionFew, .attentionMany) }
     static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
     static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
     static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
@@ -729,6 +787,7 @@ import Workspace
         case .quickOpen: s(.cmdQuickOpen)
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: s(.cmdAttentionOnly)
+        case .nextAttention: s(.cmdNextAttention)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
         case .tab(let n): "\(n)"

@@ -256,9 +256,12 @@ import Workspace
             self.app.perform { $0.closeDrawerLeaf(taskId: taskId) }
             if hadFocus { self.onReturnFocus?() }  // the shell is gone: focus goes back to the tab
         }
-        view.onFocus = { [weak self] in self?.app.signal(.focused, leaf: leaf.id) }
+        view.onFocus = { [weak self] in
+            self?.app.focused(leafId: leaf.id)  // withdraws the leaf's banner; the drawer has no tab focus to move
+            self?.app.signal(.focused, leaf: leaf.id)
+        }
         view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
-        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification, leaf: leaf.id) }
+        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(text: $0), leaf: leaf.id) }
         view.onRelaunch = { [weak self] keepsStatus in
             if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
             self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied

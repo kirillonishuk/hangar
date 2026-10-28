@@ -255,6 +255,50 @@ extension Theme {
         public static let badgePaddingH: CGFloat = 7
         public static let badgePaddingV: CGFloat = 1
     }
+
+    /// «Входящие»: the titlebar bell and its popover (look of the limits popover).
+    public enum Inbox {
+        /// Reserved for up to «99+» right of the bell, so the bell never moves.
+        public static let countWidth: CGFloat = 22
+        public static let bellGap: CGFloat = 2
+        public static let bellPaddingH: CGFloat = 6
+        public static let popoverWidth: CGFloat = 400
+        public static let popoverPaddingV: CGFloat = 8
+        public static let popoverPaddingH: CGFloat = 8
+        public static let rowPaddingV: CGFloat = 6
+        public static let rowPaddingH: CGFloat = 8
+        public static let rowGap: CGFloat = 8
+        public static let lineGap: CGFloat = 3
+        public static let buttonPaddingH: CGFloat = 6
+        public static let buttonHeight: CGFloat = 20
+        public static let sectionPaddingTop: CGFloat = 8
+        /// More rows than this scroll inside `listHeight`.
+        public static let scrollAfter = 7
+        public static let listHeight: CGFloat = 440
+        public static let emptyHeight: CGFloat = 64
+        /// «Проект › сессия · время» line; the reason icon centres on it.
+        public static let firstLine: CGFloat = 16
+
+        public static let reasonIcon: CGFloat = 14
+
+        /// Blocking reasons in accent, errors red, limit in the limit colour, done muted.
+        public static func reasonTint(_ reason: AttentionReason) -> Color {
+            switch reason {
+            case .permission, .question: ui.accentText
+            case .failed: ui.failed
+            case .limit: ui.status(.limit)
+            case .done: ui.text3
+            }
+        }
+
+        static func tint(_ tint: BellTint) -> Color {
+            switch tint {
+            case .accent: ui.accentText
+            case .failed: ui.failed
+            case .muted: ui.text2
+            }
+        }
+    }
 }
 
 extension Theme {

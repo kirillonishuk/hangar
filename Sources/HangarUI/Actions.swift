@@ -42,6 +42,7 @@ enum ActionTarget: Equatable {
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
+    case toggleMute, projectNotifications
 
     /// Menu order per target; "Open in …" only when `external_editor` is set.
     @MainActor static func list(for target: ActionTarget, app: AppState) -> [Action] {
@@ -53,9 +54,9 @@ enum Action: CaseIterable {
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + [.rename, .togglePin, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
+            return reconnect + [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
-            return reconnect + [.newTask, .rename, .projectSettings, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
+            return reconnect + [.newTask, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
             return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
         }
@@ -96,6 +97,8 @@ enum Action: CaseIterable {
         case .closeTab: .close
         case .toggleDrawer: .shell
         case .reconnect: .reconnect
+        case .toggleMute: .bellSlash
+        case .projectNotifications: .bell
         }
     }
 
@@ -120,6 +123,9 @@ enum Action: CaseIterable {
         case .closeTab: L10n.closeTab
         case .toggleDrawer: L10n.drawerToggle
         case .reconnect: L10n.reconnect
+        case .toggleMute:
+            if case .task(let id) = target, app.state.tasks.first(where: { $0.id == id })?.muted == true { L10n.unmuteSession } else { L10n.muteSession }
+        case .projectNotifications: L10n.projectNotificationsItem(app.project(of: target)?.notifications ?? .all)
         }
     }
 
@@ -150,6 +156,10 @@ enum Action: CaseIterable {
         case (.togglePin, .task(let id)):
             if let task = app.state.tasks.first(where: { $0.id == id }) { app.setPinned(id, !task.pinned) }
         case (.projectSettings, .project(let id)): ctx.projectSettings(id)
+        case (.toggleMute, .task(let id)):
+            if let task = app.state.tasks.first(where: { $0.id == id }) { app.setMuted(taskId: id, !task.muted) }
+        case (.projectNotifications, .project(let id)):
+            if let project = app.project(id) { app.setProjectNotifications(id, project.notifications.next) }
         case (.revealInFinder, _):
             if let path = app.path(of: target) { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
         case (.copyPath, _):
@@ -315,4 +325,15 @@ func f2Route(_ kind: FirstResponderKind, lastInteraction: Interaction, selectedT
     if case .chromeClick(let target) = lastInteraction { return .rename(target) }
     guard kind == .other else { return .passthrough }
     return selectedTask.map { .rename(.task($0)) } ?? .ignore
+}
+
+extension ProjectNotifications {
+    /// The project menu item cycles all → urgent → off (popover menus have no submenus).
+    var next: ProjectNotifications {
+        switch self {
+        case .all: .urgent
+        case .urgent: .off
+        case .off: .all
+        }
+    }
 }

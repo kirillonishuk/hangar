@@ -7,14 +7,12 @@ import Workspace
 /// Agents on a reached limit are `limited`: neither working nor errors.
 struct StatusCounts: Equatable {
     var working = 0
-    var waiting = 0
     var failed = 0
     var subagents = 0
     var limited = 0
 
-    init(working: Int = 0, waiting: Int = 0, failed: Int = 0, subagents: Int = 0, limited: Int = 0) {
+    init(working: Int = 0, failed: Int = 0, subagents: Int = 0, limited: Int = 0) {
         self.working = working
-        self.waiting = waiting
         self.failed = failed
         self.subagents = subagents
         self.limited = limited
@@ -26,10 +24,9 @@ struct StatusCounts: Equatable {
             case .working:
                 working += 1
                 subagents += s.subagents
-            case .waiting: waiting += 1
             case .failed: failed += 1
             case .limit: limited += 1
-            case .done, .idle: break
+            case .waiting, .done, .idle: break
             }
         }
     }
@@ -42,6 +39,8 @@ struct StatusBarLine: Equatable {
     var host: String?
     var project: String?
     var counts = StatusCounts()
+    /// The bell's number (all projects): this counter opens the same inbox, so they agree.
+    var inbox = 0
     var panes: Int?
     var process: String?
     /// The focused pane is a file tab's editor (#83): its tsserver status and the minimap switch show.
@@ -55,7 +54,7 @@ struct StatusBarLine: Equatable {
         [L10n.statusNextWorkingHelp, counts.subagents > 0 ? L10n.subagentCount(counts.subagents) : nil]
             .compactMap { $0 }.joined(separator: " · ")
     }
-    @MainActor var waitingText: String? { counts.waiting > 0 ? L10n.waitingCount(counts.waiting) : nil }
+    @MainActor var inboxText: String? { inbox > 0 ? L10n.inboxCount(inbox) : nil }
     @MainActor var failedText: String? { counts.failed > 0 ? L10n.failedCount(counts.failed) : nil }
     @MainActor var limitedText: String? { counts.limited > 0 ? L10n.limitedCount(counts.limited) : nil }
     @MainActor var right: String? {
@@ -91,8 +90,10 @@ func nextWorking(_ ids: [UUID], working: Set<UUID>, after: UUID?) -> UUID? {
 extension AppState {
     var statusBar: StatusBarLine {
         // The rows' state (a reached limit included), so the bar and the sidebar agree.
-        statusBarLine(state, summary: { (displayState(ofLeaf: $0.id, kind: $0.kind), statusSummary(ofLeaf: $0.id).subagents) },
-                      process: { $0.kind == .editor ? editorStatusLabel($0) : defaultTitle($0.kind) })
+        var line = statusBarLine(state, summary: { (displayState(ofLeaf: $0.id, kind: $0.kind), statusSummary(ofLeaf: $0.id).subagents) },
+                                 process: { $0.kind == .editor ? editorStatusLabel($0) : defaultTitle($0.kind) })
+        line.inbox = attentionCount(attentionItems)
+        return line
     }
 
     /// «N работает»: the project's next session with a working agent.
@@ -131,15 +132,15 @@ struct WindowStatusBar: View {
                 separator
                 Text(verbatim: project).truncationMode(.middle).modifier(StatusItem())
             }
-            if line.workingText != nil || line.waitingText != nil || line.limitedText != nil || line.failedText != nil { separator }
+            if line.workingText != nil || line.inboxText != nil || line.limitedText != nil || line.failedText != nil { separator }
             if let text = line.workingText {
                 StatusButton(help: line.workingHelp, action: app.selectNextWorking) {
                     StatusDot(state: .working)
                     Text(verbatim: text)
                 }
             }
-            if let text = line.waitingText {
-                StatusButton(help: L10n.help(L10n.attentionOnly, .attentionFilter), action: { app.perform { $0.attentionOnly.toggle() } }) {
+            if let text = line.inboxText {
+                StatusButton(help: L10n.inbox, action: app.inboxClicked) {
                     Circle().strokeBorder(Theme.ui.waiting, lineWidth: Theme.statusRingWidth)
                         .frame(width: Theme.statusDot, height: Theme.statusDot)
                     Text(verbatim: text)

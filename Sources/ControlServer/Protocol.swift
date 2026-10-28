@@ -10,9 +10,15 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var message: String?
     /// SessionStart's `source`: startup / resume / clear / compact.
     public var source: String?
+    /// PermissionRequest's `tool_name` (<= 64 characters).
+    public var tool: String?
+    /// The Bash `tool_input.command` of a PermissionRequest (<= 500 characters).
+    public var command: String?
+    /// StopFailure's `error` type, e.g. `rate_limit` (<= 64 characters).
+    public var error: String?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
-                source: String? = nil) {
+                source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
@@ -20,6 +26,9 @@ public struct EventMessage: Codable, Equatable, Sendable {
         self.notificationType = notificationType
         self.message = message
         self.source = source
+        self.tool = tool
+        self.command = command
+        self.error = error
     }
 }
 
@@ -96,6 +105,10 @@ public enum ControlMessage: Equatable, Sendable {
             if let t = m.source, t.count > 64 { return .failure(.badField) }
             m.session = validSessionId(m.session)
             m.message = m.message.map { String($0.prefix(500)) }
+            // Details, not routing: an oversized one is dropped, the event itself still counts.
+            if let t = m.tool, t.count > 64 { m.tool = nil }
+            if let t = m.error, t.count > 64 { m.error = nil }
+            m.command = m.command.map { String($0.prefix(500)) }
             return .success(.event(m))
         case "usage":
             guard var m = try? decoder.decode(UsageMessage.self, from: line),

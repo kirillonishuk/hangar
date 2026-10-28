@@ -32,6 +32,64 @@ import AgentStatus
         #expect(statuslineWindows(data) == [WireWindow(name: "ok", usedPercent: 5, resetsAt: nil)])
     }
 
+    @Test func permissionRequestPayloadCarriesToolAndCommand() {
+        let payload = Data(#"{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"rm -rf node_modules"}}"#.utf8)
+        let m = eventMessage(kind: "permission-request", tab: tab, leaf: leaf, args: [], payload: payload)
+        #expect(m?.kind == .permissionRequest && m?.tool == "Bash" && m?.command == "rm -rf node_modules" && m?.session == "s1")
+        let notBash = Data(#"{"tool_name":"mcp__x__y","tool_input":{"command":42}}"#.utf8)
+        let n = eventMessage(kind: "permission-request", tab: tab, leaf: leaf, args: [], payload: notBash)
+        #expect(n?.tool == "mcp__x__y" && n?.command == nil)
+        let tooled = eventMessage(kind: "tool", tab: tab, leaf: leaf, args: [], payload: Data(#"{"tool_input":"x"}"#.utf8))
+        #expect(tooled?.tool == nil && tooled?.command == nil)
+    }
+
+    @Test func stopTextComesFromLastAssistantMessage() {
+        let stop = eventMessage(kind: "stop", tab: tab, leaf: leaf, args: [], payload: Data(#"{"last_assistant_message":"Готово"}"#.utf8))
+        #expect(stop?.message == "Готово")
+        let both = eventMessage(kind: "notification", tab: tab, leaf: leaf, args: [],
+                                payload: Data(#"{"message":"M","last_assistant_message":"L"}"#.utf8))
+        #expect(both?.message == "M")
+    }
+
+    @Test func stopFailureCarriesErrorType() {
+        let m = eventMessage(kind: "stop-failure", tab: tab, leaf: leaf, args: [],
+                             payload: Data(#"{"error":"overloaded","last_assistant_message":"API Error"}"#.utf8))
+        #expect(m?.kind == .stopFailure && m?.error == "overloaded" && m?.message == "API Error")
+    }
+
+    @Test func hookDetailFieldsAreBounded() {
+        func decoded(_ json: String) -> EventMessage? {
+            guard case let .success(.event(m)) = ControlMessage.decode(Data(json.utf8)) else { return nil }
+            return m
+        }
+        let base = #"{"v":1,"type":"event","tab":"\#(tab.uuidString)","leaf":"\#(leaf.uuidString)","kind":"permission-request""#
+        let long = String(repeating: "x", count: 65), ok = String(repeating: "x", count: 64)
+        #expect(decoded(base + #","tool":"\#(ok)","error":"\#(ok)"}"#)?.tool == ok)
+        let over = decoded(base + #","tool":"\#(long)","error":"\#(long)","command":"\#(String(repeating: "c", count: 900))"}"#)
+        #expect(over != nil && over?.tool == nil && over?.error == nil && over?.command?.count == 500)
+    }
+
+    @Test func hugePayloadsAreBoundedAtTheSource() {
+        let big = String(repeating: "я", count: 100_000)
+        for (kind, json) in [("stop", #"{"last_assistant_message":"\#(big)"}"#),
+                             ("permission-request", #"{"tool_name":"Bash","tool_input":{"command":"\#(big)"}}"#)] {
+            guard let m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: [], payload: Data(json.utf8)) else { Issue.record("nil"); continue }
+            let line = ControlMessage.event(m).encoded()
+            #expect(line.count < ControlServer.maxLine / 4)
+            #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
+            #expect((m.message ?? m.command)?.count == 500)
+        }
+    }
+
+    @Test func hugeCodexMessageIsBoundedAtTheSource() {
+        let big = String(repeating: "я", count: 100_000)
+        let payload = #"{"type":"agent-turn-complete","thread-id":"t1","last-assistant-message":"\#(big)"}"#
+        guard let m = eventMessage(kind: "codex-notify", tab: tab, leaf: leaf, args: [payload], payload: nil) else { Issue.record("nil"); return }
+        let line = ControlMessage.event(m).encoded()
+        #expect(line.count < ControlServer.maxLine / 4 && m.message?.count == 500)
+        #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
+    }
+
     @Test func eventFields() {
         let stdin = Data("""
         {"session_id":"s1","hook_event_name":"Notification","notification_type":"permission_prompt",\

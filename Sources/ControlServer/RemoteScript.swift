@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped whenever the script below changes; the host check compares it with the installed copy's second line.
-public let hangarRemoteVersion = 3
+public let hangarRemoteVersion = 4
 
 /// `~/.hangar/bin/hangar-remote` on an ssh host: the same argv as `hangar event` / `hangar statusline`.
 /// No JSON in sh: a header line plus the raw payload bytes; the Mac parses them (RemoteMessage).
@@ -69,7 +69,7 @@ case $cmd in
     done
     # After the loop "$@" is the user's original notify argv (plus codex's JSON), or empty.
     case $kind in
-      session-start|prompt|tool|notification|stop|stop-failure|codex-notify|subagent-start|subagent-stop) ;;
+      session-start|prompt|tool|notification|stop|stop-failure|permission-request|codex-notify|subagent-start|subagent-stop) ;;
       *) kind= ;;
     esac
     if [ -n "$kind" ] && uuid "$HANGAR_TAB_ID" && uuid "$HANGAR_LEAF_ID" && [ -n "$HANGAR_SOCKET" ]; then

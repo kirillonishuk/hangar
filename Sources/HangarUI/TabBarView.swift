@@ -24,6 +24,18 @@ enum TabStrip {
     }
 
     /// Where the opened slot starts (the strip's own coordinates, before scrolling).
+    /// The index among the other tabs where tab `from`, dragged by `dx`, lands: a neighbour gives way once the dragged
+    /// tab's leading edge (moving left) or trailing edge (moving right) passes its middle, so the last slot (index ==
+    /// the others' count) is reached by dragging onto the last tab, not past its middle by the dragged tab's centre.
+    static func reorderIndex(widths: [CGFloat], from: Int, dx: CGFloat) -> Int {
+        var starts: [CGFloat] = []
+        var x: CGFloat = 0
+        for w in widths { starts.append(x); x += w + Theme.tabGap }
+        let lead = starts[from] + dx
+        let probe = dx >= 0 ? lead + widths[from] : lead
+        return widths.indices.filter { $0 != from && starts[$0] + widths[$0] / 2 < probe }.count
+    }
+
     static func slotX(widths: [CGFloat], from: Int, to: Int) -> CGFloat {
         let others = widths.indices.filter { $0 != from }.prefix(to)
         return others.map { widths[$0] + Theme.tabGap }.reduce(0, +)
@@ -37,12 +49,12 @@ enum TabStrip {
     /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
     /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
     /// first, then scrolls at min.
-    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to the max, #83).
+    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, #83).
     static func layout(natural: [CGFloat], dots: [Bool] = [], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.tabBarButton
         let floors = natural.indices.map { i in
             let least = minWidth(dot: dots.indices.contains(i) && dots[i])
-            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.tabMaxWidth)) : least
+            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.fileTabMaxWidth)) : least
         }
         if content(floors) <= width - control {
             let fit = widths(natural, floors: floors, room: width - control)
@@ -312,7 +324,7 @@ struct TabBarView: View {
     /// Where the dragged tab would land: index among the others, and the tab whose edge shows the insertion line.
     private func dropSlot(_ task: HangarTask, widths: [CGFloat], dx: CGFloat?) -> (index: Int, tab: UUID, edge: HorizontalEdge)? {
         guard let drag, let dx, let from = task.tabs.firstIndex(where: { $0.id == drag.tab }) else { return nil }
-        let to = dropIndex(heights: widths.prefix(task.tabs.count).map { $0 + Theme.tabGap }, from: from, dy: dx)
+        let to = TabStrip.reorderIndex(widths: Array(widths.prefix(task.tabs.count)), from: from, dx: dx)
         let others = task.tabs.map(\.id).filter { $0 != drag.tab }
         guard to != from, let last = others.last else { return nil }
         return to < others.count ? (to, others[to], .leading) : (to, last, .trailing)
@@ -477,11 +489,12 @@ private struct TabBackground: View {
 
     var body: some View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
-        ZStack(alignment: .top) {
-            shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
-            Rectangle().fill(Theme.ui.accent).frame(height: Theme.tabActiveLine).opacity(active ? 1 : 0)
-        }
-        .clipShape(shape)
+        // The line is the accent shape showing above the fill: even along the top and round at the corners, not a clipped bar.
+        shape.fill(Theme.ui.accent.opacity(active ? 1 : 0))
+            .overlay(alignment: .bottom) {
+                shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
+                    .padding(.top, active ? Theme.tabActiveLine : 0)
+            }
     }
 }
 
@@ -527,7 +540,9 @@ struct TabItem: View {
             if app.renaming == target {
                 RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
             } else {
-                Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                // A file name past `fileTabMaxWidth` keeps its extension; an agent's long OSC title ends in «…».
+                Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).truncationMode(fileLeaf == nil ? .tail : .middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             TabCloseButton(active: active, tabHover: hover, dirty: fileLeaf.map { app.editorDirty.contains($0.id) } ?? false,
                            help: L10n.help(L10n.closeTabHelp, Action.closeTab.shortcut(for: target, app: app))) {
@@ -538,14 +553,14 @@ struct TabItem: View {
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width)
+        .frame(width: width, height: Theme.tabHeight)
         .background(TabBackground(active: active, hover: hover))
         .contentShape(Rectangle())
         // One tap handler: a separate count-2 gesture would delay every single click.
         .onTapGesture {
             app.chromeClicked(target)
             app.activate(tabId: tab.id)
-            // A double click keeps a preview tab (as in VS Code); on any other tab it renames.
+            // A double click keeps a preview tab (as in VS Code); on any other tab it renames (not a file tab: `renameable`).
             if (NSApp.currentEvent?.clickCount ?? 1) >= 2 {
                 if tab.preview { app.perform { $0.pinTab(taskId: taskId, tabId: tab.id) } } else { Action.rename.perform(target, ctx) }
             }
@@ -591,14 +606,14 @@ private struct DiffTabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             IconView(icon: .diff, active: tab.active).padding(.trailing, Theme.iconGap)
-            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(tab.active ? Theme.ui.textStrong : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width)
+        .frame(width: width, height: Theme.tabHeight)
         .background(TabBackground(active: tab.active, hover: hover))
         .contentShape(Rectangle())
         .onTapGesture { app.activateDiff() }

@@ -490,6 +490,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if sc == .rename {
                 switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
                 case .passthrough: return false
+                // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
+                case .rename(let target) where !app.renameable(target): return false
                 case .rename(let target): Action.rename.perform(target, ctx)
                 case .ignore: break
                 }

@@ -348,6 +348,31 @@ import Workspace
     // MARK: Pane (leaf) actions
 
     /// Session "a" with a split tab: `kind` on the left (focused), a shell on the right.
+    /// A file tab and an editor pane are named by their file: no «Переименовать», no double-click / F2 rename.
+    @Test func fileTabAndEditorPaneAreNotRenamed() throws {
+        let (app, _, a, _) = try makeApp()
+        defer { cleanup() }
+        var file: (tab: UUID, leaf: UUID)?, shell = UUID()
+        app.perform { s in
+            file = s.openFileTab(taskId: a, path: "/repo/a.ts", line: nil, column: nil, preview: false)
+            shell = s.addTab(taskId: a, kind: .shell)
+        }
+        let f = try #require(file)
+        let fileTab = ActionTarget.tab(task: a, tab: f.tab)
+        #expect(!Action.list(for: fileTab, app: app).contains(.rename))
+        #expect(!Action.rename.isEnabled(for: fileTab, app: app))
+        Action.rename.perform(fileTab, ActionContext(app: app))
+        #expect(app.renaming == nil)
+        #expect(Action.list(for: .tab(task: a, tab: shell), app: app).first == .rename)
+        // Split: the editor pane keeps its file name, the shell pane can be renamed.
+        var other = UUID()
+        app.perform { s in other = s.split(taskId: a, tabId: f.tab, leafId: f.leaf, axis: .horizontal, kind: .shell) }
+        #expect(!Action.list(for: .leaf(task: a, tab: f.tab, leaf: f.leaf), app: app).contains(.rename))
+        #expect(!Action.rename.isEnabled(for: .leaf(task: a, tab: f.tab, leaf: f.leaf), app: app))
+        #expect(Action.rename.isEnabled(for: .leaf(task: a, tab: f.tab, leaf: other), app: app))
+        #expect(Action.rename.isEnabled(for: .tab(task: a, tab: f.tab), app: app))  // a split tab has its own name
+    }
+
     private func splitApp(_ kind: LeafKind = .shell) throws -> (AppState, task: UUID, tab: UUID, left: UUID, right: UUID) {
         let (app, _, a, _) = try makeApp()
         var tab = UUID(), left = UUID(), right = UUID()

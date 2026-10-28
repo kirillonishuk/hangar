@@ -62,9 +62,9 @@ enum Action: CaseIterable {
         case .project:
             return reconnect + [.newTask, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
-            return [.rename, .copyLink, .splitRight, .splitDown, .closeTab]
+            return (app.renameable(target) ? [.rename] : []) + [.copyLink, .splitRight, .splitDown, .closeTab]
         case .leaf:
-            return [.splitRight, .splitDown, .detachPane, .rename, .closePane]
+            return [.splitRight, .splitDown, .detachPane] + (app.renameable(target) ? [.rename] : []) + [.closePane]
         }
     }
 
@@ -159,11 +159,12 @@ enum Action: CaseIterable {
             guard let loc = app.location(ofLeaf: leaf), loc.task == task, loc.tab == tab, !app.sessionsViewVisible,
                   app.activeDiff == nil || app.selectedTask?.id != task else { return false }
             if self == .detachPane { return app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }?.root.leaves.count ?? 0 > 1 }
+            if self == .rename { return app.renameable(target) }
             return true
         }
         return switch self {
         // Sidebar rows can't host a text field in rail mode.
-        case .rename: if case .tab = target { true } else { !app.state.sidebarCollapsed }
+        case .rename: if case .tab = target { app.renameable(target) } else { !app.state.sidebarCollapsed }
         case .newTask: app.isAvailable(target)
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)

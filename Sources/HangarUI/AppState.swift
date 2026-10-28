@@ -13,6 +13,23 @@ import Usage
 import UserNotifications
 import Workspace
 
+/// An OSC title without the agent's leading status glyph (Claude's «✳ JS-14684», braille spinners «⠋ …», «✻ ✶ ✢ ·»):
+/// the tab and pane header already show the agent's icon and status dot.
+func terminalTitle(_ raw: String) -> String {
+    func glyph(_ u: Unicode.Scalar) -> Bool {
+        switch u.value {
+        case 0x2800...0x28FF,  // braille spinners
+             0x2700...0x27BF,  // dingbats: ✳ ✻ ✶ ✢ ✽ …
+             0x2600...0x26FF,  // misc symbols
+             0x25A0...0x25FF,  // geometric shapes: ◐ ● …
+             0x2022, 0x00B7, 0x2219, 0x22C5, 0x002A:  // • · ∙ ⋅ *
+            true
+        default: u.properties.isWhitespace || u.value == 0xFE0F
+        }
+    }
+    return String(String.UnicodeScalarView(raw.unicodeScalars.drop(while: glyph))).trimmingCharacters(in: .whitespaces)
+}
+
 public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
@@ -337,6 +354,19 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     /// A pane's header: its own name, else its terminal / file title.
     func paneTitle(_ leaf: Leaf) -> String { leaf.customTitle ?? title(of: leaf) }
+
+    /// A file tab and an editor pane are named by their file: neither can be renamed (double click, menu, F2).
+    func renameable(_ target: ActionTarget) -> Bool {
+        switch target {
+        case .task, .project: return true
+        case .tab(let task, let tab):
+            guard let tab = state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == tab }) else { return true }
+            if case .leaf(let leaf) = tab.root, leaf.kind == .editor { return false }
+            return true
+        case .leaf(_, _, let leaf):
+            return state.tasks.lazy.flatMap(\.tabs).compactMap { $0.root.leaf(id: leaf) }.first?.kind != .editor
+        }
+    }
 
     func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(paneTitle).joined(separator: " │ ")) }
 
@@ -663,7 +693,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         signal(.relaunched, leaf: leafId)
     }
 
-    func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }
+    func setTitle(_ title: String, leafId: UUID) {
+        let clean = terminalTitle(title)
+        leafTitles[leafId] = clean.isEmpty ? nil : clean
+    }
 
     /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).
     func focused(leafId: UUID) {

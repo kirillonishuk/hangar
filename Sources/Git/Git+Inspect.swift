@@ -125,14 +125,26 @@ extension Git {
         if let given { st = given } else { st = try await status(limit: limit, prefix: location().prefix) }
         // `git rm --cached x`: deleted in the diff and untracked in status — keep the diff's entry.
         let listed = Set(files.map(\.path))
+        var counted = 0
         for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
-            files.append(ChangedFile(path: e.path, change: .untracked))
+            var f = ChangedFile(path: e.path, change: .untracked)
+            // `diff HEAD` has no numstat for untracked files: count their lines, so the row shows «+N» like the others.
+            // shortcut: only the first `untrackedCounts` (one git process each); raise when a batched count exists.
+            if counted < Self.untrackedCounts {
+                counted += 1
+                let run = try? await inspectRun(["diff", "--no-index", "--numstat", "-z", "--", "/dev/null", e.path], ok: [0, 1])
+                if let entry = run.flatMap({ parseNumstat($0.stdout).first }) { f.added = entry.added }
+            }
+            files.append(f)
         }
         let truncated = st.truncated || files.count > limit
         // Status may be capped while `diff HEAD` omits some of its entries (staged, then reverted): fewer files than the limit.
         if files.count > limit { files.removeLast(files.count - limit) }
         return ChangeSet(files: files, from: rev, mode: effective, baseMissing: baseMissing, truncated: truncated)
     }
+
+    /// Untracked files whose lines `changedFiles` counts (one `git diff --no-index` each).
+    static let untrackedCounts = 50
 
     public func diff(file: ChangedFile, from: String, maxLines: Int = 20_000) async throws -> FileDiff {
         let untracked = file.change == .untracked

@@ -54,7 +54,8 @@ import Exec
         for mode in [DiffMode.base("origin/main"), .uncommitted] {
             let cs = try await g.changedFiles(mode)
             let u = try #require(cs.files.first { $0.path == "u.txt" })
-            #expect(u.change == .untracked && u.added == nil && u.deleted == nil)
+            // Counted from the file, as git has no numstat for it: the Changes row shows «+2».
+            #expect(u.change == .untracked && u.added == 2 && u.deleted == nil)
             let d = try await g.diff(file: u, from: cs.from)
             guard case .text(let h, _, _) = d else { Issue.record("not text"); return }
             #expect(h.count == 1 && h[0].header.hasPrefix("@@ -0,0 +1,2 @@"))

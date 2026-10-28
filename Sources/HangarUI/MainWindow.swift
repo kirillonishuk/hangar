@@ -483,8 +483,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             case .enter: if !event.isARepeat { app.openActiveDiffInEditor() }
             case .toggleMode: if !event.isARepeat { app.inspector.toggleMode() }
             case .close: if !event.isARepeat { app.closeDiff() }
-            case .nextChange: column.terminalArea.debugDiffEditor?.goChange(next: true)
-            case .prevChange: column.terminalArea.debugDiffEditor?.goChange(next: false)
+            case .nextChange: column.terminalArea.shownDiffEditor?.goChange(next: true)
+            case .prevChange: column.terminalArea.shownDiffEditor?.goChange(next: false)
             }
             return true
         }

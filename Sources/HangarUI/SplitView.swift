@@ -469,6 +469,8 @@ final class FillView: NSView {
     /// The Monaco pages of the file tabs (#83, ≤ 2 for a split); made with the first file tab, gone with the last.
     private var editorHost: EditorHost?
     /// The selected task's.
+    /// The selected task's diff editor (F7 / ⇧F7).
+    var shownDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
     private var diffHost: DiffHostView? { app.selectedTask.flatMap { diffHosts[$0.id]?.host } }
     private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")

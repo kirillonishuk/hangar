@@ -565,6 +565,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public func prunedChoosers() -> WorkspaceState {
         var s = self
         for i in s.tasks.indices {
+            // `tab` is a copy: closeLeaf mutates s.tasks[i].tabs (even removes tabs) while we iterate.
             for tab in s.tasks[i].tabs {
                 for leaf in tab.root.leaves where leaf.kind == .choose {
                     s.closeLeaf(taskId: s.tasks[i].id, tabId: tab.id, leafId: leaf.id)
@@ -589,6 +590,92 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             let remaining = newRoot.leaves
             tasks[i].tabs[t].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
         }
+    }
+
+    // MARK: Merge, move, detach (splits)
+
+    public func canMergeTab(taskId: UUID, source: UUID, into target: UUID) -> Bool {
+        guard source != target, let task = tasks.first(where: { $0.id == taskId }),
+              let s = task.tabs.first(where: { $0.id == source }),
+              let t = task.tabs.first(where: { $0.id == target }) else { return false }
+        return s.editorCount + t.editorCount <= Tab.maxEditorPanes
+    }
+
+    /// The whole `source` tab joins `target` next to its leaf `leafId`; `source` goes away, `target` loses preview.
+    @discardableResult
+    public mutating func mergeTab(taskId: UUID, source: UUID, into target: UUID, at leafId: UUID, edge: SplitEdge) -> Bool {
+        guard canMergeTab(taskId: taskId, source: source, into: target),
+              let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let s = tasks[i].tabs.firstIndex(where: { $0.id == source }),
+              let t = tasks[i].tabs.firstIndex(where: { $0.id == target }),
+              tasks[i].tabs[t].root.leaf(id: leafId) != nil else { return false }
+        let src = tasks[i].tabs[s]
+        var node = src.root
+        // The tab's name moves onto its only pane.
+        if case .leaf(var leaf) = node, leaf.customTitle == nil, let name = src.customTitle {
+            leaf.customTitle = name
+            node = .leaf(leaf)
+        }
+        tasks[i].tabs[t].root = tasks[i].tabs[t].root.inserting(node, at: leafId, edge: edge)
+        tasks[i].tabs[t].focusedLeafId = src.focusedLeafId
+        tasks[i].tabs[t].preview = false
+        tasks[i].tabs.remove(at: s)
+        tasks[i].activeTabId = target
+        return true
+    }
+
+    public func canMoveLeaf(taskId: UUID, leafId: UUID, to target: UUID, anchor: UUID) -> Bool {
+        guard anchor != leafId, let task = tasks.first(where: { $0.id == taskId }),
+              let src = task.tabs.first(where: { $0.root.leaf(id: leafId) != nil }),
+              let dst = task.tabs.first(where: { $0.id == target }), dst.root.leaf(id: anchor) != nil,
+              let leaf = src.root.leaf(id: leafId) else { return false }
+        if src.id == dst.id || leaf.kind != .editor { return true }
+        return dst.editorCount + 1 <= Tab.maxEditorPanes
+    }
+
+    /// The pane leaves its tab (an emptied tab goes away) and lands next to `anchor` in `target`.
+    @discardableResult
+    public mutating func moveLeaf(taskId: UUID, leafId: UUID, to target: UUID, at anchor: UUID, edge: SplitEdge) -> Bool {
+        guard canMoveLeaf(taskId: taskId, leafId: leafId, to: target, anchor: anchor),
+              let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let s = tasks[i].tabs.firstIndex(where: { $0.root.leaf(id: leafId) != nil }),
+              let leaf = tasks[i].tabs[s].root.leaf(id: leafId) else { return false }
+        let leafIndex = tasks[i].tabs[s].root.leaves.firstIndex { $0.id == leafId } ?? 0
+        if let rest = tasks[i].tabs[s].root.removing(leafId: leafId) {
+            tasks[i].tabs[s].root = rest
+            if tasks[i].tabs[s].focusedLeafId == leafId {
+                let remaining = rest.leaves
+                tasks[i].tabs[s].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
+            }
+        } else {
+            tasks[i].tabs.remove(at: s)
+        }
+        guard let t = tasks[i].tabs.firstIndex(where: { $0.id == target }) else { return false }
+        tasks[i].tabs[t].root = tasks[i].tabs[t].root.inserting(.leaf(leaf), at: anchor, edge: edge)
+        tasks[i].tabs[t].focusedLeafId = leafId
+        tasks[i].tabs[t].preview = false
+        tasks[i].activeTabId = target
+        return true
+    }
+
+    /// A pane of a split tab becomes a tab of its own (named like the pane), right after its tab or at `toIndex`; returns the new tab.
+    @discardableResult
+    public mutating func detachLeaf(taskId: UUID, leafId: UUID, toIndex: Int?) -> UUID? {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }),
+              let s = tasks[i].tabs.firstIndex(where: { $0.root.leaf(id: leafId) != nil }),
+              case .split = tasks[i].tabs[s].root,
+              let leaf = tasks[i].tabs[s].root.leaf(id: leafId),
+              let rest = tasks[i].tabs[s].root.removing(leafId: leafId) else { return nil }
+        let leafIndex = tasks[i].tabs[s].root.leaves.firstIndex { $0.id == leafId } ?? 0
+        tasks[i].tabs[s].root = rest
+        if tasks[i].tabs[s].focusedLeafId == leafId {
+            let remaining = rest.leaves
+            tasks[i].tabs[s].focusedLeafId = remaining[min(leafIndex, remaining.count - 1)].id
+        }
+        let tab = Tab(title: leaf.kind.rawValue, root: .leaf(leaf), focusedLeafId: leaf.id, customTitle: leaf.customTitle)
+        tasks[i].tabs.insert(tab, at: min(max(toIndex ?? s + 1, 0), tasks[i].tabs.count))
+        tasks[i].activeTabId = tab.id
+        return tab.id
     }
 
     /// `path` walks from the root: 0 = first child, 1 = second. Ratio is clamped to 0.05…0.95.

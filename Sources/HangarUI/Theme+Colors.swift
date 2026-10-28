@@ -120,6 +120,10 @@ extension Theme {
     public static var railTileSelected: NSColor { ns(mix(palette.selected, palette.accent, 0.2)) }
     public static var railTileSelectedBorder: NSColor { ns(mix(palette.selected, palette.accent, 0.4)) }
     public static var button: NSColor { ns(palette.button) }
+    /// Selected segment, secondary button under the pointer (controls-v2 B′): one step above `button`.
+    public static var moreBg: NSColor { ns(palette.moreBg) }
+    /// Inactive segment under the pointer: a touch lighter than its `field` track in every theme.
+    public static var segmentHover: NSColor { ns(mix(palette.field, palette.strong, segmentHoverMix)) }
     public static var claudeBrand: NSColor { ns(palette.claude) }
     /// Terminal cursor: the accent, as a Ghostty default (a user-set `cursor-color` wins) — not the system accent.
     public static var terminalCursor: NSColor { ns(palette.accent) }
@@ -188,6 +192,8 @@ extension Theme {
         public static var railTileSelected: Color { Color(nsColor: Theme.railTileSelected) }
         public static var railTileSelectedBorder: Color { Color(nsColor: Theme.railTileSelectedBorder) }
         public static var button: Color { Color(nsColor: Theme.button) }
+        public static var moreBg: Color { Color(nsColor: Theme.moreBg) }
+        public static var segmentHover: Color { Color(nsColor: Theme.segmentHover) }
         public static var controlBorderStrong: Color { Color(nsColor: Theme.controlBorderStrong) }
         static func of(_ hex: Hex) -> Color { Color(nsColor: Theme.ns(hex)) }
     }

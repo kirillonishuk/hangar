@@ -125,7 +125,7 @@ struct SessionsView: View {
                         .font(.system(size: Theme.fontSize.segment))
                         .foregroundStyle(on ? Theme.ui.textStrong : Theme.ui.text2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(on ? Theme.ui.control : .clear, in: RoundedRectangle(cornerRadius: Theme.historySegmentItemRadius))
+                        .background(on ? Theme.ui.moreBg : .clear, in: RoundedRectangle(cornerRadius: Theme.historySegmentItemRadius))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

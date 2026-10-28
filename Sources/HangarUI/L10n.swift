@@ -118,7 +118,7 @@ import Workspace
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
-        case segmentFiles, segmentChanges, segmentChangesTitle, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case segmentFiles, segmentChanges, segmentChangesTitle, changesBaseNone, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
@@ -617,7 +617,7 @@ import Workspace
     static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static var segmentChangesTitle: String { s(.segmentChangesTitle) }
-    static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
+    static var changesBaseNone: String { s(.changesBaseNone) }
     static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
     static var changesHintUncommitted: String { s(.changesHintUncommitted) }
     static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }

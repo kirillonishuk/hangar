@@ -96,7 +96,9 @@ struct InboxPopover: View {
                 HStack {
                     Text(L10n.inboxRecentDone).foregroundStyle(Theme.ui.text3)
                     Spacer(minLength: Theme.Inbox.rowGap)
-                    InboxButton(title: L10n.inboxClear) { app.clearDone() }
+                    Button(L10n.inboxClear) { app.clearDone() }
+                        .buttonStyle(HeaderActionStyle())
+                        .fixedSize()
                 }
                 .font(.system(size: Theme.fontSize.small))
                 .padding(.horizontal, Theme.Inbox.rowPaddingH)
@@ -120,7 +122,7 @@ private struct InboxRow: View {
         let n = notice(for: item, app: app)
         let a = item.attention
         VStack(alignment: .leading, spacing: Theme.Inbox.lineGap) {
-            HoverRow(action: { act(item.leafId, a.requestKey, .open) }) { _ in
+            HoverRow(action: { act(item.leafId, a.requestKey, .open) }) { hover in
                 HStack(alignment: .top, spacing: Theme.Inbox.rowGap) {
                     IconView(icon: inboxIcon(a.reason), size: Theme.Inbox.reasonIcon, tint: Theme.Inbox.reasonTint(a.reason))
                         .frame(height: Theme.Inbox.firstLine)
@@ -140,7 +142,7 @@ private struct InboxRow: View {
                                 .foregroundStyle(Theme.ui.text)
                                 .truncationMode(.tail)
                             Spacer(minLength: Theme.Inbox.rowGap)
-                            buttons(n)
+                            buttons(n, hover: hover)
                         }
                         .frame(height: Theme.Inbox.buttonHeight)
                     }
@@ -171,18 +173,21 @@ private struct InboxRow: View {
         .accessibilityLabel(n.title)
     }
 
-    /// The banner's buttons under the same conditions (`notice(for:)`'s category); done rows get «Убрать».
-    @ViewBuilder private func buttons(_ n: AgentNotice) -> some View {
+    /// The banner's buttons under the same conditions (`notice(for:)`'s category): «Разрешить» is the row's one
+    /// filled `primary` action; done rows get «Убрать» only under the pointer (controls-v2 B′).
+    @ViewBuilder private func buttons(_ n: AgentNotice, hover: Bool) -> some View {
         switch n.category {
         case .permissionAllow:
-            InboxButton(title: L10n.noticeAllow, tint: Theme.ui.accentText) { act(item.leafId, n.requestKey, .allow) }
+            InboxButton(title: L10n.noticeAllow, primary: true) { act(item.leafId, n.requestKey, .allow) }
         case .questionReply:
-            InboxButton(title: L10n.noticeReply, tint: replying ? Theme.ui.accentText : Theme.ui.text2) { replying.toggle() }
+            InboxButton(title: L10n.noticeReply) { replying.toggle() }
         case .limit:
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
         case .permission, .open:
             if item.attention.reason == .done {
                 InboxButton(title: L10n.inboxDismiss) { app.dismissDone(leafId: item.leafId) }
+                    .opacity(hover ? 1 : 0)
+                    .allowsHitTesting(hover)
             }
         }
     }
@@ -190,18 +195,12 @@ private struct InboxRow: View {
 
 private struct InboxButton: View {
     let title: String
-    var tint = Theme.ui.text2
+    var primary = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Text(verbatim: title)
-                .font(.system(size: Theme.fontSize.small))
-                .foregroundStyle(tint)
-                .padding(.horizontal, Theme.Inbox.buttonPaddingH)
-                .frame(height: Theme.Inbox.buttonHeight)
-        }
-        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-        .fixedSize()
+        Button(title, action: action)
+            .buttonStyle(ActionButtonStyle(primary: primary))
+            .fixedSize()
     }
 }

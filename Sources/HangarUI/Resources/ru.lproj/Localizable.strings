@@ -274,10 +274,10 @@
 "statusShowChanges" = "Показать изменения";
 "segmentChanges" = "Changes %d";
 "segmentChangesTitle" = "Changes";
-"changesHintBase" = "База: %@";
-"changesHintToBase" = "⌥B — сравнить с %@";
+"changesBaseNone" = "нет базы";
+"changesHintToBase" = "Сравнить с %@ — ⌥B";
 "changesHintUncommitted" = "Незакоммиченное";
-"changesHintToUncommitted" = "⌥B — незакоммиченное";
+"changesHintToUncommitted" = "Только незакоммиченное — ⌥B";
 "baseMissing" = "Базовая ветка %@ не найдена — показано незакоммиченное";
 "noChanges" = "Нет изменений";
 "statusTruncated" = "Показаны первые %d изменений";

@@ -60,7 +60,7 @@ public struct ThemePalette: Sendable {
         hover: 0x2a2d2e, sbHover: 0x2a2d2e, hoverStrong: 0x37373d, selected: 0x37373d, menuHover: 0x04395e,
         menuHoverText: 0xffffff, moreBg: 0x45494e,
         line: 0x333333, lineSheet: 0x3c3c3c, control: 0x3c3c3c, controlStrong: 0x454545, winBorder: 0x3c3c3c,
-        sheet: 0x252526, field: 0x3c3c3c, button: 0x3a3d41,
+        sheet: 0x252526, field: 0x313131, button: 0x3a3d41,
         tx: 0xcccccc, strong: 0xffffff, tx2: 0xa3a3a3, tx3: 0x6e6e6e,
         accent: 0x007acc, accentText: 0x3794ff, primary: 0x0e639c, primaryText: 0xffffff,
         working: 0x4fc1ff, waiting: 0xe8a33d, done: 0x89d185, failed: 0xf14c4c, failedText: 0xf48771, idle: 0x6e6e6e,

@@ -274,10 +274,10 @@
 "statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
 "segmentChangesTitle" = "Changes";
-"changesHintBase" = "Base: %@";
-"changesHintToBase" = "⌥B — compare with %@";
+"changesBaseNone" = "no base";
+"changesHintToBase" = "Compare with %@ — ⌥B";
 "changesHintUncommitted" = "Uncommitted";
-"changesHintToUncommitted" = "⌥B — uncommitted only";
+"changesHintToUncommitted" = "Uncommitted only — ⌥B";
 "baseMissing" = "Base branch %@ not found — showing uncommitted";
 "noChanges" = "No changes";
 "statusTruncated" = "Showing the first %d changes";

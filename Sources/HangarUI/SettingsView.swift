@@ -666,7 +666,7 @@ private struct ThemeTile: View {
     }
 }
 
-/// Segmented control in the token colors (`field` track, `control` active segment): only for real choices.
+/// Segmented control in the token colors (`field` track with a `control` border, `moreBg` active segment): only for real choices.
 struct Segment<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
@@ -684,7 +684,7 @@ struct Segment<Value: Equatable>: View {
                         .padding(.vertical, Theme.segmentItemPaddingV)
                         .padding(.horizontal, Theme.segmentItemPaddingH)
                         .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                            .fill(on ? Theme.ui.control : hovered == i ? Theme.ui.hover : .clear))
+                            .fill(on ? Theme.ui.moreBg : hovered == i ? Theme.ui.segmentHover : .clear))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

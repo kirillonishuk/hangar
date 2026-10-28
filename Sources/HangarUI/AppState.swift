@@ -505,9 +505,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func openConversation(_ c: Conversation) {
         guard let task = selectedTask, let id = validSessionId(c.id) else { return }
         deactivateDiff()
-        var leafId: UUID?
-        perform { leafId = $0.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) }
-        if let leafId { restoredLeaves[leafId] = true }
+        // Marked inside `perform`: its sync starts the new tab's surface, whose first launch must already resume.
+        perform { s in
+            if let leaf = s.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) {
+                restoredLeaves[leaf] = true
+            }
+        }
     }
 
     func activate(tabId: UUID) {

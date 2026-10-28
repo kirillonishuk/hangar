@@ -10,8 +10,8 @@ struct InspectorView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            if app.selectedTask == nil {
-                notice(L10n.inspectorNoTask)
+            if let text = app.inspectorNotice {
+                notice(text)
                 Spacer(minLength: 0)
             } else if model.segment == .changes && model.isGit {
                 ChangesList(app: app, model: model)
@@ -30,7 +30,7 @@ struct InspectorView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            if app.selectedTask != nil { segment }
+            if app.inspectorNotice == nil { segment }
         }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.tabBarHeight, maxHeight: Theme.tabBarHeight)

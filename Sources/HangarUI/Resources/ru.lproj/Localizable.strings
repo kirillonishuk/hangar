@@ -281,6 +281,7 @@
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "Сессия не выбрана";
+"inspectorHostShell" = "Обычный SSH-терминал — нет папки проекта";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано незакоммиченное";
 "diffBinary" = "Бинарный файл";
 "diffTooLarge" = "Слишком большой diff (%d строк)";

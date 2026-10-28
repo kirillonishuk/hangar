@@ -281,6 +281,7 @@
 "filesTruncated" = "Not all files shown (over %d)";
 "gitFailed" = "git: %@";
 "inspectorNoTask" = "No session selected";
+"inspectorHostShell" = "Plain SSH terminal — no project folder";
 "baseMissingUnknown" = "Base branch not found — showing uncommitted";
 "diffBinary" = "Binary file";
 "diffTooLarge" = "Diff too large (%d lines)";

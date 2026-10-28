@@ -194,7 +194,9 @@ struct ServerCheckView: View {
     private func integrationStatus(_ target: IntegrationTarget, _ r: ServerReport) -> (text: String, color: Color, action: (title: String, install: Bool)?) {
         let state = target == .claude ? model.claude : model.codex
         guard let state else {
-            return target == .codex && r.tools[.codex] == nil ? (L10n.codexNotFound, Theme.ui.text3, nil) : ("—", Theme.ui.text3, nil)
+            // Two returns, not a ternary: Swift 6.4 (Xcode 27.1) crashes type-checking the ternary of tuples with nil.
+            if target == .codex && r.tools[.codex] == nil { return (L10n.codexNotFound, Theme.ui.text3, nil) }
+            return ("—", Theme.ui.text3, nil)
         }
         let pill = integrationPill(state)
         return switch state {

@@ -269,6 +269,9 @@ public actor ConversationHistory {
     /// Files sampled and bytes read so far (tests check the cache and the read budget).
     public private(set) var filesParsed = 0
     public private(set) var bytesRead = 0
+    /// Test seam: runs after a file is parsed, before it is cached (a rewrite in between).
+    private var afterParse: (@Sendable (ClaudeJob) -> Void)?
+    func setAfterParse(_ f: (@Sendable (ClaudeJob) -> Void)?) { afterParse = f }
 
     public init(headBytes: Int = defaultHeadBytes, tailBytes: Int = defaultTailBytes) {
         self.headBytes = headBytes
@@ -301,6 +304,7 @@ public actor ConversationHistory {
         }
         // Parsing the samples is the cost (JSON of ~190 KB a file): changed files are parsed on all cores.
         for (job, record, bytes) in await parseAll(stale) {
+            afterParse?(job)
             filesParsed += 1
             bytesRead += bytes
             // An overlapping scan may have stored a newer version meanwhile: only the file's current state is cached.

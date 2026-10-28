@@ -382,7 +382,8 @@ enum SessionsAction: Equatable {
             return .open(task: o.task, leaf: o.leaf, name: app.state.tasks.first { $0.id == o.task }?.name ?? "")
         }
         if let t = tasks.first(where: { t in
-            t.archived && t.tabs.flatMap(\.root.leaves).contains { $0.kind == kind && validSessionId($0.agentSessionId) == c.id }
+            t.archived && (t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap { $0 })
+                .contains { $0.kind == kind && validSessionId($0.agentSessionId) == c.id }
         }) {
             return .closed(task: t.id, name: t.name)
         }

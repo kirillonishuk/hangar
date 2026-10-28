@@ -241,6 +241,24 @@ private func writeRenamedFixtures(_ f: Fixture) {
         #expect(await !history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: []).isEmpty)
     }
 
+    /// A file rewritten while it was being parsed: that parse is not cached (its stamp is stale), the next scan reads it.
+    @Test func staleParseIsNotCached() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        let history = ConversationHistory()
+        let url = f.claude.appendingPathComponent("projects/-work-proj/\(idA).jsonl")
+        await history.setAfterParse { job in
+            guard job.url == url else { return }
+            try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(120)], ofItemAtPath: url.path)
+        }
+        _ = await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        await history.setAfterParse(nil)
+        let parsed = await history.filesParsed
+        _ = await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        #expect(await history.filesParsed == parsed + 1)  // only the rewritten file, again
+    }
+
     @Test func cachesByModificationTime() async throws {
         let f = Fixture()
         defer { f.remove() }

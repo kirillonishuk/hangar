@@ -271,6 +271,17 @@ import Workspace
         #expect(leaves.filter { $0 == idA }.count == 1 && leaves.filter { $0 == idB }.count == 1)
     }
 
+    /// A closed session whose TERMINAL panel held the conversation restores it too («Восстановить»).
+    @Test func closedSessionPanelOwnsItsConversation() async throws {
+        let (w, m) = try await loaded()
+        w.app.perform { s in
+            let i = s.tasks.firstIndex { $0.id == w.closed }!
+            s.tasks[i].drawer.leaf = Leaf(kind: .claude, cwd: "/work/wt/fix-ci", agentSessionId: self.idB)
+        }
+        let row = try #require(m.conversationRows.first { $0.conversation.id == idB })
+        #expect(row.place == .closed(task: w.closed, name: "fix-ci-cache") && m.action(for: row) == .restore(w.closed))
+    }
+
     /// A closed session is restored for a conversation only when one of its agents holds that conversation.
     @Test func closedSessionOwnsOnlyItsOwnConversations() async throws {
         let (w, m) = try await loaded()

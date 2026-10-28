@@ -6,7 +6,7 @@ import Testing
 @Suite struct TextSearchArgsTests {
     @Test func ripgrepDefaultsAndToggles() {
         let plain = ripgrepArgs(SearchQuery(text: "foo"))
-        #expect(plain == ["--json", "--no-config", "--hidden", "--no-require-git", "--max-columns", "2000", "--max-columns-preview",
+        #expect(plain == ["--json", "--no-config", "--hidden", "--no-require-git", "--sort", "path", "--max-columns", "2000", "--max-columns-preview",
                           "--ignore-case", "--fixed-strings", "--max-count", "201", "--glob=!.git",
                           "-e", "foo", "--", "."])
         let all = ripgrepArgs(SearchQuery(text: "fo+", caseSensitive: true, regex: true, wholeWord: true,
@@ -73,31 +73,27 @@ import Testing
         #expect(more)
         p.finish()
         let r = p.results
-        // Sorted by path, not in rg's (thread) order.
-        #expect(r.files.map(\.path) == ["bin.txt", "src/a b/привет.txt"])
-        let a = r.files[1].hits
+        #expect(r.files.map(\.path) == ["src/a b/привет.txt", "bin.txt"])
+        let a = r.files[0].hits
         // UTF-16 columns: «привет » is 7 units (13 bytes); 😀 is 2 units (4 bytes).
         #expect(a[0] == SearchHit(line: 1, column: 8, preview: "привет foo bar", ranges: [7..<10]))
         #expect(a[1] == SearchHit(line: 7, column: 4, preview: "😀 foo foo", ranges: [3..<6, 7..<10]))
-        #expect(r.files[0].hits == [SearchHit(line: 2, column: 3, preview: "\u{FFFD} foo", ranges: [2..<5])])
+        #expect(r.files[1].hits == [SearchHit(line: 2, column: 3, preview: "\u{FFFD} foo", ranges: [2..<5])])
         #expect(r.lines == 3 && r.matches == 4 && !r.truncated)
     }
 
-    /// rg's threads report files in any order: the groups come out the same for every order.
-    @Test func groupsAreSortedWhateverTheOutputOrder() {
+    /// Groups keep arrival order (rg runs with `--sort path`): a later line of an earlier file joins its group, nothing moves.
+    @Test func groupsKeepArrivalOrder() {
         func match(_ path: String) -> String {
             #"{"type":"match","data":{"path":{"text":"\#(path)"},"lines":{"text":"foo\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"foo"},"start":0,"end":3}]}}"#
         }
-        let paths = ["src/cart.ts", "src/Summary.tsx", "README.md", "src/types.ts"]
-        var orders: Set<[String]> = []
-        for shuffled in [paths, paths.reversed(), [paths[2], paths[0], paths[3], paths[1]]] {
-            var p = SearchParser(engine: .ripgrep, query: SearchQuery(text: "foo"))
-            _ = p.feed(rg(shuffled.map(match) + [match(shuffled[0])]))
-            p.finish()
-            orders.insert(p.results.files.map(\.path))
-            #expect(p.results.files.first { $0.path == shuffled[0] }?.hits.count == 2)
-        }
-        #expect(orders == [["README.md", "src/cart.ts", "src/Summary.tsx", "src/types.ts"]])
+        var p = SearchParser(engine: .ripgrep, query: SearchQuery(text: "foo"))
+        _ = p.feed(rg([match("b.ts"), match("a.ts")]))
+        #expect(p.results.files.map(\.path) == ["b.ts", "a.ts"])
+        _ = p.feed(rg([match("b.ts"), match("c.ts")]))
+        p.finish()
+        #expect(p.results.files.map(\.path) == ["b.ts", "a.ts", "c.ts"])
+        #expect(p.results.files[0].hits.count == 2)
     }
 
     /// Chunks split lines (and multibyte characters) anywhere.

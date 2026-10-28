@@ -57,7 +57,9 @@ public func searchGlobs(_ field: String) -> [String] {
 /// `--no-index --exclude-standard` does), dotfiles searched (not `.git`), very long lines cut to a preview. The query is
 /// the value of `-e` and globs are `--glob=…`, so nothing the user types can become an option.
 public func ripgrepArgs(_ q: SearchQuery, perFile: Int = SearchLimits.perFile) -> [String] {
-    var a = ["--json", "--no-config", "--hidden", "--no-require-git", "--max-columns", String(SearchLimits.maxColumns),
+    // `--sort path`: files come in one order every run (rg's threads otherwise report them as they finish), and the
+    // parser keeps arrival order, so groups neither jump while streaming nor reorder between identical searches.
+    var a = ["--json", "--no-config", "--hidden", "--no-require-git", "--sort", "path", "--max-columns", String(SearchLimits.maxColumns),
              "--max-columns-preview", q.caseSensitive ? "--case-sensitive" : "--ignore-case"]
     if !q.regex { a.append("--fixed-strings") }
     if q.wholeWord { a.append("--word-regexp") }
@@ -245,15 +247,13 @@ public struct SearchParser {
 
     private mutating func add(path: String, line: Int, text: String, ranges: [Range<Int>], column: Int?) {
         guard !results.truncated else { return }
-        // Files stay sorted by path, case-insensitively as in a file tree: rg reports them in thread order, so a
-        // repeated search would reorder the groups.
-        let key = (path.lowercased(), path)
-        let i = results.files.partitioningIndex { ($0.path.lowercased(), $0.path) >= key }
-        let known = i < results.files.count && results.files[i].path == path
-        if known, results.files[i].hits.count >= perFile { results.files[i].truncated = true; return }
+        // Arrival order (rg `--sort path`, git grep's own): a known file is looked up from the end, where its lines land.
+        let known = results.files.lastIndex { $0.path == path }
+        if let known, results.files[known].hits.count >= perFile { results.files[known].truncated = true; return }
         // The total cap first: no empty group for a file whose first line is past it.
         guard results.lines < total else { results.truncated = true; return }
-        if !known { results.files.insert(SearchFile(path: path, hits: []), at: i) }
+        let i: Int
+        if let known { i = known } else { i = results.files.count; results.files.append(SearchFile(path: path, hits: [])) }
         let (preview, shown) = searchPreview(text, ranges)
         let col = ranges.first.map { $0.lowerBound + 1 } ?? column ?? 1
         results.files[i].hits.append(SearchHit(line: line, column: col, preview: preview, ranges: shown))
@@ -328,16 +328,4 @@ func searchPreview(_ text: String, _ ranges: [Range<Int>], max: Int = SearchLimi
         return lo < hi ? (lo + shift)..<(hi + shift) : nil
     }
     return (head + String(decoding: u[start..<end], as: UTF16.self) + tail, shown)
-}
-
-extension Array {
-    /// The first index whose element satisfies `belongs` (false…false, true…true), by bisection.
-    func partitioningIndex(where belongs: (Element) -> Bool) -> Int {
-        var lo = 0, hi = count
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if belongs(self[mid]) { hi = mid } else { lo = mid + 1 }
-        }
-        return lo
-    }
 }

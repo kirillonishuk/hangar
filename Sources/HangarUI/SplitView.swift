@@ -83,6 +83,17 @@ final class RatioSplitView: HangarSplitView {
     }
 }
 
+/// Moves a pane into `parent` (a split, or the tab itself) without it leaving the window. NSSplitView arranges its
+/// panes with Auto Layout (`translatesAutoresizingMaskIntoConstraints = false`); a pane that leaves a split (the other
+/// pane closed) must get autoresizing back, else the next layout pass sizes it 0×0 and the tab looks closed.
+@MainActor func placeLeaf(_ view: NSView, in parent: NSView) {
+    parent.addSubview(view)
+    let inSplit = parent is RatioSplitView
+    if !inSplit { view.translatesAutoresizingMaskIntoConstraints = true }
+    view.frame = parent.bounds
+    view.autoresizingMask = inSplit ? [] : [.width, .height]
+}
+
 /// Keeps every subview at its bounds: autoresizing through interrupted drawer animations (fast task switches)
 /// drifted a tab's split off its tab (a pane squeezed to the bottom, or taller than the area).
 final class FillView: NSView {
@@ -731,9 +742,7 @@ final class FillView: NSView {
         switch node {
         case .leaf(let leaf):
             guard let view = leafViews[leaf.id] else { return nil }
-            parent.addSubview(view)  // moves it without leaving the window
-            view.frame = parent.bounds
-            view.autoresizingMask = parent is RatioSplitView ? [] : [.width, .height]
+            placeLeaf(view, in: parent)
             return view
         case .split(let axis, let ratio, let first, let second):
             let split = RatioSplitView(axis: axis, ratio: ratio)

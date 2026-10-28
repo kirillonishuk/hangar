@@ -272,4 +272,43 @@ import Workspace
         #expect(content.frame.height == 500)
         #expect(split.frame == tab.bounds)
     }
+
+    /// Closing one pane of a split (its shell exited) leaves the other filling the tab. NSSplitView in an Auto Layout
+    /// window lays its panes out with constraints (`translatesAutoresizingMaskIntoConstraints = false`); a pane moved
+    /// back into the tab kept that, so the next layout pass sized it 0×0 (live: claude kept running, the tab looked closed).
+    @Test func paneLeavingSplitFillsTab() {
+        let window = NSWindow(contentRect: NSRect(x: -3000, y: 0, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        let root = NSView()
+        root.wantsLayer = true
+        root.translatesAutoresizingMaskIntoConstraints = false
+        window.contentView!.addSubview(root)
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor),
+            root.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor),
+            root.topAnchor.constraint(equalTo: window.contentView!.topAnchor),
+            root.bottomAnchor.constraint(equalTo: window.contentView!.bottomAnchor),
+        ])
+        window.contentView!.layoutSubtreeIfNeeded()
+        let tab = FillView(frame: root.bounds)
+        tab.autoresizingMask = [.width, .height]
+        root.addSubview(tab)
+        let split = RatioSplitView(axis: .horizontal, ratio: 0.5)
+        split.frame = tab.bounds
+        tab.addSubview(split)
+        let kept = NSView(), closed = NSView()
+        kept.wantsLayer = true
+        placeLeaf(kept, in: split)
+        placeLeaf(closed, in: split)
+        split.adjustSubviews()
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(kept.frame.width == 400)
+        // As `layoutTab` after the other pane closed: the survivor moves into the tab, the empty split goes.
+        closed.removeFromSuperview()
+        placeLeaf(kept, in: tab)
+        split.removeFromSuperview()
+        tab.needsLayout = true
+        window.contentView!.layoutSubtreeIfNeeded()
+        #expect(kept.frame == tab.bounds)
+        #expect(tab.bounds.size == NSSize(width: 800, height: 600))
+    }
 }

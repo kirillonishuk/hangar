@@ -82,3 +82,34 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     let names = try FileManager.default.contentsOfDirectory(atPath: d.path).sorted()
     #expect(names.count == 2 && names[0] == "settings.json" && names[1].hasPrefix("settings.json.hangar-backup-"))
 }
+
+/// #105: project files back up into a folder outside the repo, newest five per file; read-only files are refused.
+@Test func backupsGoToAFolderAndRotate() throws {
+    let d = try tmpDir()
+    defer { try? FileManager.default.removeItem(at: d) }
+    let repo = d.appendingPathComponent("repo/.claude"), backups = d.appendingPathComponent("backups")
+    try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+    let file = repo.appendingPathComponent("settings.local.json")
+    try "0".write(to: file, atomically: true, encoding: .utf8)
+    for i in 1...7 {
+        let b = try #require(try writeUserFile(file, text: "\(i)", expected: "\(i - 1)", now: now.addingTimeInterval(Double(i)), backupDir: backups))
+        #expect(b.deletingLastPathComponent().path == backupFolder(root: backups.path, for: file.path))
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: repo.path) == ["settings.local.json"])
+    let folder = backupFolder(root: backups.path, for: file.path)
+    let kept = try FileManager.default.contentsOfDirectory(atPath: folder).filter { $0.contains(".hangar-backup-") }.sorted()
+    #expect(kept.count == keptBackups)
+    #expect(try String(contentsOfFile: folder + "/" + kept[0], encoding: .utf8) == "2")
+    #expect(try String(contentsOfFile: folder + "/source", encoding: .utf8) == file.path)
+
+    let removed = try removeUserFile(file, expected: "7", now: now.addingTimeInterval(100), backupDir: backups)
+    #expect(!FileManager.default.fileExists(atPath: file.path))
+    #expect(try String(contentsOf: removed, encoding: .utf8) == "7")
+
+    try "x".write(to: file, atomically: true, encoding: .utf8)
+    #expect(throws: IntegrationError.changedOnDisk) { try removeUserFile(file, expected: "y", now: now, backupDir: backups) }
+    try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
+    #expect(throws: IntegrationError.readOnly) { try writeUserFile(file, text: "z", expected: "x", now: now, backupDir: backups) }
+    #expect(throws: IntegrationError.readOnly) { try removeUserFile(file, expected: "x", now: now, backupDir: backups) }
+    #expect(try String(contentsOf: file, encoding: .utf8) == "x")
+}

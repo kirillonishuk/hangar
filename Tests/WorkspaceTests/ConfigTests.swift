@@ -24,7 +24,7 @@ import Testing
         #expect(c.agentCommands[.codex] == "codex")
     }
 
-    /// #103: the status line choice and its segments; unknown segment names are skipped, the order is the renderer's.
+    /// #105: the status line choice and its segments; unknown segment names are skipped, the order is the renderer's.
     @Test func statuslineKeys() throws {
         #expect(HangarConfig().statusline == .hangar && HangarConfig().statuslineSegments == StatuslineSegment.defaults)
         let c = try HangarConfig.parse("""

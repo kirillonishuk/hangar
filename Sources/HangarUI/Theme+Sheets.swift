@@ -42,7 +42,7 @@ extension Theme {
     public static let settingsPagePadding: CGFloat = 24
     public static let settingsPageTitle: CGFloat = 17
     public static let settingsSectionGap: CGFloat = 20
-    /// Settings' status line preview (#103): one terminal row, faint text at half the foreground as Ghostty draws it.
+    /// Settings' status line preview (#105): one terminal row, faint text at half the foreground as Ghostty draws it.
     public static let statuslinePreviewHeight: CGFloat = 30
     public static let statuslinePreviewPaddingH: CGFloat = 10
     public static let statuslineFaint: Double = 0.5

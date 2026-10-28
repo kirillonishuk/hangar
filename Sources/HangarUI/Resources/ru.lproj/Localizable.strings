@@ -659,3 +659,4 @@
 "statuslineOverridden" = "своя строка перекрыта";
 "statuslineNotIgnored" = "settings.local.json не в .gitignore";
 "statuslineFailed" = "не записано: %@";
+"fileReadOnly" = "Файл только для чтения — Hangar его не меняет";

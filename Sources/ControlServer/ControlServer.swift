@@ -20,7 +20,7 @@ public final class ControlServer: @unchecked Sendable {
     private let remote: Bool
     private let handler: @MainActor (ControlMessage) -> Void
     private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
-    /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (#103).
+    /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (#105).
     private let statusline: (@Sendable (Data) -> String?)?
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?

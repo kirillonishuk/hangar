@@ -166,6 +166,7 @@ struct IntegrationPlan: Equatable {
         case .invalidJSON(let line)?: L10n.settingsInvalidJSON(line)
         case .notAnObject?: L10n.settingsUnsupported
         case .changedOnDisk?: L10n.fileChanged
+        case .readOnly?: L10n.fileReadOnly
         case .unsupportedNotify?, .invalidTOML?: L10n.codexConfigUnsupported
         case nil: L10n.integrationWriteFailed(error.localizedDescription)
         }

@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// Settings → Интеграции → «Строка состояния Claude» (#103): which line Claude shows, a live preview from the same
+/// Settings → Интеграции → «Строка состояния Claude» (#105): which line Claude shows, a live preview from the same
 /// renderer as `hangar statusline`, its segments, and the projects whose own line Hangar overrides.
 extension SettingsView {
     var statusline: some View {

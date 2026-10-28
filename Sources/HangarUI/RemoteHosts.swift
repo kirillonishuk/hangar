@@ -85,7 +85,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         init(master: SSHMaster) { self.master = master }
     }
 
-    /// Hangar's status line for a host's `hangar-remote statusline` (#103); set before the first connect.
+    /// Hangar's status line for a host's `hangar-remote statusline` (#105); set before the first connect.
     @ObservationIgnored public var statusline: (@Sendable (Data) -> String?)?
 
     public init(paths: SSHPaths, sshPath: String,

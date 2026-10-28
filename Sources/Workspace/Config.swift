@@ -43,7 +43,7 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorTodoHighlight = true
     /// Look for a new GitHub release on launch and on activation, at most hourly (#86).
     public var checkUpdates = true
-    /// Claude Code's status line (#103): Hangar's own line everywhere, or the user's original command.
+    /// Claude Code's status line (#105): Hangar's own line everywhere, or the user's original command.
     public var statusline: StatuslineMode = .hangar
     /// The segments of Hangar's line; unknown names in the file are skipped.
     public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults

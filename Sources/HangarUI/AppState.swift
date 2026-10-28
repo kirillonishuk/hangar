@@ -209,10 +209,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// «Продолжить» of an empty session or a chooser: the folder's latest conversations from the last scan (in memory only).
     var recentByFolder: [String: [Conversation]] = [:]
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
-    /// Projects whose own status line Hangar overrides (#103), with problems; Settings lists them.
+    /// Projects whose own status line Hangar overrides (#105), with problems; Settings lists them.
     var statuslineNotes: [StatuslineNote] = []
     /// Off in tests: syncing reads the agent's settings and writes into project folders (the launcher turns it on).
     @ObservationIgnored public var statuslineSync = false
+    /// The last queued status line sync: the next one waits for it (`enqueueStatusline`).
+    @ObservationIgnored var statuslineQueue: Task<Void, Never>?
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
     /// `CLAUDE_CONFIG_DIR` / `CODEX_HOME` from the login shell (they move the files above); nil keeps the URLs as set.

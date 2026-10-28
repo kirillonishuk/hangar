@@ -241,7 +241,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         }
     }
 
-    /// #103: the Mac renders Hangar's line and the script prints it instead of the user's command, with every client.
+    /// #105: the Mac renders Hangar's line and the script prints it instead of the user's command, with every client.
     @Test func statuslineRenderedOnMac() async throws {
         let r = try Remote()
         let server = try r.start(statusline: { payload in

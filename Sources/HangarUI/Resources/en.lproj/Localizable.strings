@@ -659,3 +659,4 @@
 "statuslineOverridden" = "own line overridden";
 "statuslineNotIgnored" = "settings.local.json is not git-ignored";
 "statuslineFailed" = "not written: %@";
+"fileReadOnly" = "The file is read-only — Hangar leaves it as it is";

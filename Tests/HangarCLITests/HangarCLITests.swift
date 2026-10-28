@@ -209,7 +209,7 @@ private let statusFixture = Data("""
         #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
     }
 
-    /// #103: Hangar's line from the CLI itself (config read on each run), usage still forwarded, the chained command not run.
+    /// #105: Hangar's line from the CLI itself (config read on each run), usage still forwarded, the chained command not run.
     @Test @MainActor func statuslineRendersHangarLine() async throws {
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)

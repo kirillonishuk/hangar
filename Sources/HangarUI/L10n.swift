@@ -165,7 +165,7 @@ import Workspace
         case statuslineTitle, statuslineShow, statuslineHangar, statuslineUser, statuslineHangarHelp, statuslineUserHelp, statuslineNoOwnHelp
         case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
-        case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed
+        case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
     }
 
     // Search tab (find in files, #91)
@@ -476,6 +476,7 @@ import Workspace
     static var statuslineSegWeek: String { s(.statuslineSegWeek) }
     static var statuslineSegBranch: String { s(.statuslineSegBranch) }
     static var statuslineSegEffort: String { s(.statuslineSegEffort) }
+    static var fileReadOnly: String { s(.fileReadOnly) }
     static var statuslineProjects: String { s(.statuslineProjects) }
     static var statuslineProjectsHelp: String { s(.statuslineProjectsHelp) }
     static var statuslineOverridden: String { s(.statuslineOverridden) }

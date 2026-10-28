@@ -130,6 +130,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         dropping = true
         let target = resolveDrop(source, at: p, state: app.state, taskId: task.id, activeTab: task.activeTabId,
                                  paneFrames: area.paneFrames(), tabBar: bar, tabFrames: app.tabFrames)
+        if case .tabBar = target { app.tabBarAutoScroll?(p.x) }
         show(target)
         showGhost(source, at: p, allowed: target != nil)
         return true

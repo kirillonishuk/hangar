@@ -91,6 +91,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var paneDragCancelled: (() -> Void)?
     /// The selected session's tabs in window points from the top-left (set by the tab bar): a pane's slot when dropped there.
     @ObservationIgnored var tabFrames: [UUID: CGRect] = [:]
+    /// A pane is dragged over the tab bar at this window x (set by the tab bar): it scrolls near its edges.
+    @ObservationIgnored var tabBarAutoScroll: ((CGFloat) -> Void)?
     /// TS/JS language features of the editors (tsserver, #82).
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
     /// `node` from the login shell, looked up once (#82).

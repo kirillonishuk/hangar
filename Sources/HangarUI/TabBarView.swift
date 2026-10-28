@@ -229,6 +229,13 @@ struct TabBarView: View {
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .onAppear {
+            // A pane header over the bar: near an edge each move scrolls it a step, as a dragged tab does.
+            app.tabBarAutoScroll = { x in
+                guard let t = app.selectedTask else { return }
+                autoScroll(x: x, l: layout(t, width: room), minX: minX)
+            }
+        }
         #if DEBUG
         .onAppear {
             // Reads the current task and layout on each call: the hook outlives this body.
@@ -288,8 +295,12 @@ struct TabBarView: View {
         let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         drag = (tab, dx, drag?.from ?? offset)
         paneMode = app.paneDragMoved?(.tab(tab), p) ?? false
-        let x = p.x
-        guard l.overflow, !paneMode else { return }
+        if !paneMode { autoScroll(x: p.x, l: l, minX: minX) }
+    }
+
+    private func autoScroll(x: CGFloat, l: TabStrip.Layout, minX: CGFloat) {
+        guard l.overflow else { return }
+        let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         let step = x < minX + Theme.tabDragScrollEdge ? -Theme.tabDragScrollStep
             : x > minX + l.viewport - Theme.tabDragScrollEdge ? Theme.tabDragScrollStep : 0
         if step != 0 { scroll = TabStrip.clamp(offset + step, viewport: l.viewport, content: l.content) }

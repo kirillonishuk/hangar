@@ -22,12 +22,25 @@ import Workspace
         let area = TerminalArea(app: app)
         area.frame = window.contentView!.bounds
         window.contentView!.addSubview(area)
+        // The app's window lays out with Auto Layout (SwiftUI hosting views): a constrained view turns the engine on here too.
+        let constrained = NSView()
+        constrained.translatesAutoresizingMaskIntoConstraints = false
+        window.contentView!.addSubview(constrained)
+        NSLayoutConstraint.activate([constrained.widthAnchor.constraint(equalToConstant: 1), constrained.heightAnchor.constraint(equalToConstant: 1)])
         let tabs = app.state.tasks[0].tabs
+        window.orderBack(nil)
         for tab in tabs {
             app.activate(tabId: tab.id)
             area.sync()
         }
         return (app, area, window, tabs[0].id, tabs[1].id)
+    }
+
+    /// A real display pass: NSSplitView applies some frames only when the window draws.
+    private func settle(_ window: NSWindow) {
+        window.contentView!.layoutSubtreeIfNeeded()
+        window.display()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
     }
 
     private func leafId(_ app: AppState, tab: UUID) -> UUID {
@@ -66,6 +79,9 @@ import Workspace
         #expect(after.isDescendant(of: try #require(area.tabViews[tab])))
         #expect(after.window === window)
         #expect(after.windowLosses == 0)
+        settle(window)
+        #expect(after.frame == area.tabViews[tab]?.bounds)
+        #expect(area.leafViews[leafA]?.frame == area.tabViews[a]?.bounds)
         #expect(!area.debugCheck().contains("PROBLEM orphan"))
     }
 
@@ -98,6 +114,8 @@ import Workspace
         #expect(area.leafViews[leafA] === view)
         #expect(view.window === window)
         #expect(view.windowLosses == 0)
+        settle(window)
+        #expect(view.frame == area.tabViews[a]?.bounds)
     }
 
     @Test func paneTitlePrefersCustomTitle() throws {

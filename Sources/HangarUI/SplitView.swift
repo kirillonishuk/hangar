@@ -167,6 +167,7 @@ final class FillView: NSView {
         super.viewDidMoveToWindow()
         if window == nil { windowLosses += 1 }
     }
+
     #endif
 
     @objc private func applyTheme() {

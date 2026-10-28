@@ -79,8 +79,8 @@ extension MainWindowController {
     private func debugMove(_ command: String, _ f: [String]) {
         guard let task = app.selectedTask else { return }
         let n = f.map { Int($0) }
-        func tab(_ i: Int?) -> Tab? { i.flatMap { task.tabs.indices.contains($0) ? task.tabs[$0] : nil } }
-        func leaf(_ t: Tab?, _ i: Int?) -> UUID? { t.flatMap { t in i.flatMap { t.root.leaves.indices.contains($0) ? t.root.leaves[$0].id : nil } } }
+        func tab(_ i: Int?) -> Workspace.Tab? { i.flatMap { task.tabs.indices.contains($0) ? task.tabs[$0] : nil } }
+        func leaf(_ t: Workspace.Tab?, _ i: Int?) -> UUID? { t.flatMap { t in i.flatMap { t.root.leaves.indices.contains($0) ? t.root.leaves[$0].id : nil } } }
         let active = task.tabs.first { $0.id == task.activeTabId }
         let edge = f.count == 4 ? SplitEdge(rawValue: f[3]) : nil
         switch command {

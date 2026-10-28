@@ -82,7 +82,8 @@
     if (cfg.mode === 'diff') {
       diff = monaco.editor.createDiffEditor($('host'), Object.assign({}, common, {
         renderSideBySide: !inline, originalEditable: false, readOnly: true, renderOverviewRuler: false,
-        hideUnchangedRegions: { enabled: false }, useInlineViewWhenSpaceIsLimited: false, ignoreTrimWhitespace: false }));
+        hideUnchangedRegions: { enabled: false }, useInlineViewWhenSpaceIsLimited: false, ignoreTrimWhitespace: false,
+        lineDecorationsWidth: 26 }));  // the +/- marker sits centred here, clear of the number and the code
       wireDiff();
       decorations(diff.getOriginalEditor());
       decorations(diff.getModifiedEditor());

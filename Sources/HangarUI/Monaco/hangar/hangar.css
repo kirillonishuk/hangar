@@ -64,3 +64,6 @@ button.primary:hover { filter: brightness(1.08); }
 .monaco-editor .todo-todo { background: #b38a3c; }
 .monaco-editor .todo-hack { background: #8a63b8; }
 .monaco-editor .todo-xxx { background: #c14e4e; }
+
+/* Diff: room around the +/- marker so it reads "3  +  const", not "3+const". */
+.monaco-diff-editor .insert-sign, .monaco-diff-editor .delete-sign { justify-content: center; }

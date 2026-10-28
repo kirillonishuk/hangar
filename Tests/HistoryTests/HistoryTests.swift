@@ -245,4 +245,39 @@ private func writeRenamedFixtures(_ f: Fixture) {
         }
         #expect(try await ConversationHistory().remote(folder: "/work/proj", host: "dev", runner: runner, open: []) == list)
     }
+
+    @Test func titlesDropControlAndBidiCharacters() {
+        #expect(conversationTitle("a\u{1B}[31mred\u{0}\u{9B}x\u{202E}evil\u{2066}y\u{200F}") == "a[31mredxevily")
+        #expect(conversationTitle("tab\tseparated") == "tab separated")
+        let zalgo = conversationTitle(String(repeating: "e" + String(repeating: "\u{301}", count: 20), count: 30))!
+        #expect(zalgo.unicodeScalars.count <= 160 && zalgo.hasSuffix("…"))
+        #expect(conversationTitle("\u{1B}\u{202E}") == nil)
+    }
+
+    @Test func overlappingFoldersReadEachFileOnce() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        writeRenamedFixtures(f)
+        writeCodexFixtures(f)
+        let history = ConversationHistory()
+        _ = await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        let parsed = await history.filesParsed, read = await history.bytesRead
+        let inner = await history.local(folder: "/work/proj/.claude/worktrees/fix", claudeDir: f.claude, codexDir: f.codex, open: [])
+        #expect(inner.map(\.title) == ["In a Claude worktree"])
+        #expect(await history.filesParsed == parsed)
+        #expect(await history.bytesRead == read)  // rollout prefixes are cached too
+    }
+
+    @Test func cwdIsTheOneClaudeNamedTheFolderAfter() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        // Started in a sibling folder, then moved into the project: `--resume` must run where the file is.
+        f.write(".claude/projects/-work-proj-old/\(idA).jsonl", [
+            claudeUser("old place", ts: "2026-10-22T05:00:00.000Z", cwd: "/work/proj-old"),
+            claudeUser("now here", ts: "2026-10-22T05:01:00.000Z", cwd: "/work/proj/sub"),
+        ])
+        let list = await ConversationHistory().local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        #expect(list.map(\.cwd) == ["/work/proj-old"])
+    }
 }

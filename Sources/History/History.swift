@@ -45,12 +45,29 @@ func claudeDirMatches(_ name: String, encoded: String, inside: Bool = false) -> 
         || (encoded.count > claudeNameLimit && name.hasPrefix(encoded.prefix(claudeNameLimit) + "-"))
 }
 
-/// First non-empty line, whitespace collapsed, cut to 80 characters with «…».
+/// Control characters (C0, C1: ESC, NUL…) and bidi overrides/isolates/marks: a title is untrusted file content.
+private func isUnsafe(_ u: Unicode.Scalar) -> Bool {
+    u.properties.generalCategory == .control || (0x202A...0x202E).contains(u.value) || (0x2066...0x2069).contains(u.value)
+        || u.value == 0x200E || u.value == 0x200F || u.value == 0x061C
+}
+
+/// First non-empty line, unsafe characters dropped, whitespace collapsed, cut to 80 characters and 160 scalars
+/// (combining marks pile up inside one character) with «…».
 public func conversationTitle(_ text: String) -> String? {
     guard let line = text.split(whereSeparator: \.isNewline).lazy
+        .map({ String(String.UnicodeScalarView($0.unicodeScalars.filter { $0.properties.isWhitespace || !isUnsafe($0) })) })
         .map({ $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }).first(where: { !$0.isEmpty })
     else { return nil }
-    return line.count > 80 ? String(line.prefix(79)) + "…" : line
+    var out = "", scalars = 0, chars = 0
+    for c in line {
+        let n = c.unicodeScalars.count
+        guard chars < 80, scalars + n <= 160 else { break }
+        out.append(c); chars += 1; scalars += n
+    }
+    guard out.count < line.count else { return line }
+    // Room for «…» within both caps.
+    while out.count > 79 || out.unicodeScalars.count > 159 { out.removeLast() }
+    return out + "…"
 }
 
 /// Head and tail of one file; `whole` when nothing in between was skipped.
@@ -113,11 +130,38 @@ private func within(_ path: String, _ folders: Set<String>) -> Bool {
     folders.contains { path == $0 || path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
 }
 
-/// `<id>.jsonl` in the Claude project folder `dirName`; nil — not a conversation of `folders` or a folder inside them
-/// (sidechain file, other cwd, no messages). The title is Claude's own: `/rename` (`custom-title`), else its generated
-/// `ai-title`, else the first prompt; both records are appended again on later turns, so the latest in the sample wins.
+/// One parsed file, independent of the folder asked about (the cache is per file): the conversation and every cwd it recorded.
+struct Record: Sendable {
+    var conversation: Conversation
+    var cwds: [String]
+    /// Claude: the project folder the file lives in (named after the cwd it was started in); nil for Codex.
+    var dirName: String?
+}
+
+/// The record as a conversation of `folders`, or nil. Codex: its cwd is one of them. Claude: the folder name is lossy
+/// ("/a-b" and "/a/b" share it), so a recorded cwd decides — any of them, since the first line may carry another folder
+/// (a resumed or moved conversation) — and it may be inside them. Its cwd is the one the file's folder is named after,
+/// where `--resume` finds it.
+func placed(_ r: Record, in folders: Set<String>) -> Conversation? {
+    var c = r.conversation
+    guard let dirName = r.dirName else { return folders.contains(c.cwd) ? c : nil }
+    let named: (String) -> Bool = { claudeDirMatches(dirName, encoded: claudeProjectDirName($0)) }
+    if r.cwds.isEmpty {
+        guard let f = folders.sorted().first(where: named) else { return nil }
+        c.cwd = f
+        return c
+    }
+    let inside = r.cwds.filter { within($0, folders) }
+    guard let first = inside.first else { return nil }
+    c.cwd = r.cwds.first(where: named) ?? first
+    return c
+}
+
+/// `<id>.jsonl` in the Claude project folder `dirName`; nil — not a conversation (sidechain file, no messages). The title
+/// is Claude's own: `/rename` (`custom-title`), else its generated `ai-title`, else the first prompt; both records are
+/// appended again on later turns, so the latest in the sample wins.
 // shortcut: a rename seen only in the unread middle of a huge file is missed until Claude appends it again.
-func parseClaude(_ s: Sample, fileName: String, dirName: String, folders: Set<String>, mtime: Date?) -> Conversation? {
+func parseClaude(_ s: Sample, fileName: String, dirName: String, mtime: Date?) -> Record? {
     guard fileName.hasSuffix(".jsonl"), !fileName.hasPrefix("agent-"),
           let id = validSessionId(String(fileName.dropLast(6))) else { return nil }
     var count = 0, started: Date?, last: Date?, cwds: [String] = [], branch: String?
@@ -133,19 +177,16 @@ func parseClaude(_ s: Sample, fileName: String, dirName: String, folders: Set<St
         count += 1
         if prompt == nil, type == "user" { prompt = titleCandidate(promptText(o["message"])) }
     }
-    // The folder name is lossy ("/a-b" and "/a/b" share it), so a recorded cwd decides; any of them, since the first
-    // line may carry another folder (a resumed or moved conversation). Reported: the cwd the file's folder is named after.
-    let inside = cwds.filter { within($0, folders) }
-    let named = (cwds.isEmpty ? folders.sorted() : inside).first { claudeDirMatches(dirName, encoded: claudeProjectDirName($0)) }
-    guard count > 0, let cwd = named ?? inside.first else { return nil }
+    guard count > 0 else { return nil }
     let (n, estimate) = messageCount(count, s)
-    return Conversation(id: id, agent: .claude, cwd: cwd, started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
-                        messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch,
-                        title: customTitle ?? aiTitle ?? prompt, isOpen: false)
+    let c = Conversation(id: id, agent: .claude, cwd: cwds.first ?? "", started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
+                         messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch,
+                         title: customTitle ?? aiTitle ?? prompt, isOpen: false)
+    return Record(conversation: c, cwds: cwds, dirName: dirName)
 }
 
 /// `rollout-<time>-<id>.jsonl`: the id and cwd come from its `session_meta` line.
-func parseCodex(_ s: Sample, fileName: String, folders: Set<String>, mtime: Date?) -> Conversation? {
+func parseCodex(_ s: Sample, fileName: String, mtime: Date?) -> Record? {
     var count = 0, started: Date?, last: Date?, cwd: String?, branch: String?, title: String?, id: String?
     for o in s.lines {
         if let d = date(o["timestamp"]) { started = started ?? d; last = d }
@@ -164,10 +205,25 @@ func parseCodex(_ s: Sample, fileName: String, folders: Set<String>, mtime: Date
         }
     }
     let stem = fileName.hasSuffix(".jsonl") ? String(fileName.dropLast(6)) : fileName
-    guard let id = id ?? validSessionId(String(stem.suffix(36))), count > 0, let cwd, folders.contains(cwd) else { return nil }
+    guard let id = id ?? validSessionId(String(stem.suffix(36))), count > 0, let cwd else { return nil }
     let (n, estimate) = messageCount(count, s)
-    return Conversation(id: id, agent: .codex, cwd: cwd, started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
-                        messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch, title: title, isOpen: false)
+    let c = Conversation(id: id, agent: .codex, cwd: cwd, started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
+                         messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch, title: title, isOpen: false)
+    return Record(conversation: c, cwds: [cwd], dirName: nil)
+}
+
+/// The cwd in a rollout's first bytes (`session_meta` puts it before the long instructions); nil if not there.
+func codexPrefixCwd(_ prefix: Data) -> String? {
+    guard let key = prefix.range(of: Data(#""cwd":""#.utf8)) else { return nil }
+    var i = key.upperBound, escaped = false
+    while i < prefix.endIndex {
+        let b = prefix[i]
+        if escaped { escaped = false } else if b == 0x5C { escaped = true } else if b == 0x22 { break }
+        i += 1
+    }
+    guard i < prefix.endIndex else { return nil }
+    let literal = Data("[".utf8) + prefix[(key.upperBound - 1)...i] + Data("]".utf8)
+    return (try? JSONSerialization.jsonObject(with: literal) as? [String])?.first
 }
 
 /// The bytes a rollout's first line has for `cwd` (Codex writes compact JSON, slashes unescaped).
@@ -187,16 +243,22 @@ private func normalized(_ path: String) -> String {
 }
 
 /// Lists conversations on every call (the view rescans when it opens; no watchers) and re-reads only files whose
-/// mtime/size changed since the last call.
+/// mtime/size changed since the last call. The cache is per file, so overlapping folders (a project and its worktrees,
+/// nested projects) read each file once.
+// shortcut: entries of deleted files stay until relaunch (a few hundred bytes each).
 public actor ConversationHistory {
-    private struct Entry { var stamp: String; var conversation: Conversation? }
+    /// `record`: the parsed file (nil — not a conversation, or a rollout not sampled); `codexCwd`: a rollout's cwd from its prefix.
+    private struct Entry { var stamp: String; var record: Record?; var codexCwd: String? = nil; var sampled = true }
     private var cache: [String: Entry] = [:]
+    public static let defaultHeadBytes = 131_072, defaultTailBytes = 65_536
+    /// Files fetched per remote call: the reply (≤ head + tail each) stays well below the host runner's output cap.
+    public static let remoteBatch = 100
     private let headBytes: Int, tailBytes: Int
     /// Files sampled and bytes read so far (tests check the cache and the read budget).
     public private(set) var filesParsed = 0
     public private(set) var bytesRead = 0
 
-    public init(headBytes: Int = 131_072, tailBytes: Int = 65_536) {
+    public init(headBytes: Int = defaultHeadBytes, tailBytes: Int = defaultTailBytes) {
         self.headBytes = headBytes
         self.tailBytes = tailBytes
     }
@@ -208,7 +270,6 @@ public actor ConversationHistory {
         let folder = normalized(folder)
         let folders: Set<String> = [folder, URL(fileURLWithPath: folder).resolvingSymlinksInPath().path]
         let fm = FileManager.default
-        var seen = Set<String>()
         var out: [Conversation] = []
 
         let projects = claudeDir.appendingPathComponent("projects")
@@ -218,28 +279,32 @@ public actor ConversationHistory {
             let d = projects.appendingPathComponent(dir)
             for file in (try? fm.contentsOfDirectory(atPath: d.path)) ?? [] where file.hasSuffix(".jsonl") {
                 let url = d.appendingPathComponent(file)
-                if let c = cached("local", folder, url, &seen, { s, m in parseClaude(s, fileName: file, dirName: dir, folders: folders, mtime: m) }) {
-                    out.append(c)
+                guard let (stamp, mtime, size) = fileStamp(url) else { continue }
+                if cache[url.path]?.stamp != stamp {
+                    filesParsed += 1
+                    cache[url.path] = Entry(stamp: stamp, record: parseClaude(sample(url, size: size), fileName: file, dirName: dir, mtime: mtime))
                 }
+                if let c = cache[url.path]?.record.flatMap({ placed($0, in: folders) }) { out.append(c) }
             }
         }
 
-        let needles = folders.map { Data(codexNeedle($0).utf8) }
         let sessions = codexDir.appendingPathComponent("sessions")
         let walker = fm.enumerator(at: sessions, includingPropertiesForKeys: nil)
         while let url = walker?.nextObject() as? URL {
             let file = url.lastPathComponent
             guard file.hasPrefix("rollout-"), file.hasSuffix(".jsonl") else { continue }
-            let c = cached("local", folder, url, &seen) { s, m in
-                // The sample was taken only because the prefix check below passed.
-                parseCodex(s, fileName: file, folders: folders, mtime: m)
-            } precheck: {
-                let prefix = read(url, from: 0, count: codexPrefixBytes)
-                return needles.contains { prefix.range(of: $0) != nil }
+            guard let (stamp, mtime, size) = fileStamp(url) else { continue }
+            var e = cache[url.path].flatMap { $0.stamp == stamp ? $0 : nil }
+                ?? Entry(stamp: stamp, record: nil, codexCwd: codexPrefixCwd(read(url, from: 0, count: codexPrefixBytes)), sampled: false)
+            // Only rollouts of this folder are sampled; the prefix cwd stays cached for the others.
+            if !e.sampled, let cwd = e.codexCwd, folders.contains(cwd) {
+                filesParsed += 1
+                e.sampled = true
+                e.record = parseCodex(sample(url, size: size), fileName: file, mtime: mtime)
             }
-            if let c { out.append(c) }
+            cache[url.path] = e
+            if let c = e.record.flatMap({ placed($0, in: folders) }) { out.append(c) }
         }
-        prune("local", folder, keeping: seen)
         return sorted(out, open: open)
     }
 
@@ -248,21 +313,6 @@ public actor ConversationHistory {
               (a[.type] as? FileAttributeType) == .typeRegular else { return nil }
         let m = a[.modificationDate] as? Date, size = (a[.size] as? NSNumber)?.intValue ?? 0
         return ("\(m?.timeIntervalSince1970 ?? 0)-\(size)", m, size)
-    }
-
-    private func cached(_ scope: String, _ folder: String, _ url: URL, _ seen: inout Set<String>,
-                        _ parse: (Sample, Date?) -> Conversation?, precheck: () -> Bool = { true }) -> Conversation? {
-        guard let (stamp, mtime, size) = fileStamp(url) else { return nil }
-        let key = scope + "\0" + folder + "\0" + url.path
-        seen.insert(key)
-        if let e = cache[key], e.stamp == stamp { return e.conversation }
-        var c: Conversation?
-        if precheck() {
-            filesParsed += 1
-            c = parse(sample(url, size: size), mtime)
-        }
-        cache[key] = Entry(stamp: stamp, conversation: c)
-        return c
     }
 
     private func sample(_ url: URL, size: Int) -> Sample {
@@ -277,11 +327,6 @@ public actor ConversationHistory {
         guard (try? h.seek(toOffset: UInt64(offset))) != nil, let d = try? h.read(upToCount: count) else { return Data() }
         bytesRead += d.count
         return d
-    }
-
-    private func prune(_ scope: String, _ folder: String, keeping seen: Set<String>) {
-        let prefix = scope + "\0" + folder + "\0"
-        cache = cache.filter { !$0.key.hasPrefix(prefix) || seen.contains($0.key) }
     }
 
     private func sorted(_ list: [Conversation], open: Set<String>) -> [Conversation] {
@@ -301,21 +346,18 @@ public actor ConversationHistory {
         let long = encoded.count > claudeNameLimit
         let listing = try await run(runner, remoteListScript,
                                     [long ? String(encoded.prefix(claudeNameLimit)) : encoded, long ? "1" : "0", codexNeedle(folder)])
-        let scope = "ssh:" + host
-        var seen = Set<String>()
+        let scope = "ssh:" + host + "\0"
         var files: [(agent: HistoryAgent, path: String, stamp: String)] = []
         for line in listing.split(separator: "\n") {
             let f = line.split(separator: "\t", maxSplits: 2).map(String.init)
             guard f.count == 3, let agent: HistoryAgent = f[0] == "C" ? .claude : f[0] == "X" ? .codex : nil,
                   f[2].hasPrefix("/") else { continue }
             files.append((agent, f[2], f[1].trimmingCharacters(in: .whitespaces)))
-            seen.insert(scope + "\0" + folder + "\0" + f[2])
         }
-        let stale = files.filter { cache[scope + "\0" + folder + "\0" + $0.path]?.stamp != $0.stamp }
-        // Batches keep one reply far below the runner's output cap.
+        let stale = files.filter { cache[scope + $0.path]?.stamp != $0.stamp }
         var start = 0
         while start < stale.count {
-            let batch = Array(stale[start..<min(start + 100, stale.count)])
+            let batch = Array(stale[start..<min(start + Self.remoteBatch, stale.count)])
             start += batch.count
             let out = try await run(runner, remoteFetchScript, [String(headBytes), String(tailBytes)] + batch.map(\.path))
             var samples: [String: Sample] = [:]
@@ -334,13 +376,12 @@ public actor ConversationHistory {
                 filesParsed += 1
                 let name = (f.path as NSString).lastPathComponent
                 let dir = ((f.path as NSString).deletingLastPathComponent as NSString).lastPathComponent
-                let c = f.agent == .claude ? parseClaude(s, fileName: name, dirName: dir, folders: folders, mtime: nil)
-                                           : parseCodex(s, fileName: name, folders: folders, mtime: nil)
-                cache[scope + "\0" + folder + "\0" + f.path] = Entry(stamp: f.stamp, conversation: c)
+                let r = f.agent == .claude ? parseClaude(s, fileName: name, dirName: dir, mtime: nil)
+                                           : parseCodex(s, fileName: name, mtime: nil)
+                cache[scope + f.path] = Entry(stamp: f.stamp, record: r)
             }
         }
-        prune(scope, folder, keeping: seen)
-        let list = files.compactMap { cache[scope + "\0" + folder + "\0" + $0.path]?.conversation }
+        let list = files.compactMap { cache[scope + $0.path]?.record.flatMap { placed($0, in: folders) } }
         return sorted(list, open: open)
     }
 

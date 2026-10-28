@@ -337,6 +337,28 @@ import Workspace
         #expect(m.load == .offline("devbox") && m.days.isEmpty)
     }
 
+    @Test func nestedProjectOwnsItsConversations() async throws {
+        let (w, m) = try await loaded()
+        let inner = "66666666-6666-4666-8666-666666666666"
+        try w.fixture.claudeConversation(id: inner, cwd: "/work/shop/admin", branch: nil, at: "2026-10-25T09:00:00Z", prompt: "админка")
+        await m.reload()
+        #expect(m.conversationRows.contains { $0.conversation.id == inner })  // a subfolder of the project
+
+        var nested = UUID()
+        w.app.perform { nested = $0.addProject(name: "admin", path: "/work/shop/admin") }
+        await m.reload()
+        #expect(!m.conversationRows.contains { $0.conversation.id == inner })  // listed under the deeper project only
+        w.app.showSessionsView(projectId: nested)
+        await m.reload()
+        #expect(m.conversationRows.map(\.conversation.id) == [inner])
+    }
+
+    @Test func remoteHistoryBatchFitsTheHostOutputCap() {
+        // One fetch: a header and at most head + tail bytes per file; half the cap leaves room for escaping and headers.
+        let batch = ConversationHistory.remoteBatch * (ConversationHistory.defaultHeadBytes + ConversationHistory.defaultTailBytes + 4096)
+        #expect(batch < RemoteHosts.maxOutput / 2)
+    }
+
     @Test func foldersAreTheProjectAndItsWorktrees() {
         let w = world()
         #expect(w.app.sessionFolders(w.project) == ["/work/shop", "/work/wt/api-cache", "/work/wt/fix-ci"])

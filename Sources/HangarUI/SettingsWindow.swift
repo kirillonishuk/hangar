@@ -102,7 +102,13 @@ import Workspace
 
     func confirmPlan() {
         guard let plan = pendingPlan else { return }
-        pendingPlan = integration.confirm(plan)
+        guard plan.target == .claude, !plan.install else { pendingPlan = integration.confirm(plan); return }
+        // Uninstall: Hangar's project overrides go first, while their CLI is still known (#105).
+        Task {
+            await app.revertProjectStatuslines(host: nil)
+            guard pendingPlan == plan else { return }
+            pendingPlan = integration.confirm(plan)
+        }
     }
 
     func cancelPlan() {

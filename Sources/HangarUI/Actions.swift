@@ -230,6 +230,7 @@ enum Action: CaseIterable {
         case (.removeProject, .project(let id)):
             guard let project = app.project(id) else { return }
             ctx.confirm(L10n.removeProjectConfirm(project.name), L10n.removeProjectInfo, L10n.remove) {
+                app.revertProjectStatuslines(projectId: id)  // queued before the project's folders are forgotten
                 app.perform { $0.removeProject(id: id) }
             }
         case (.splitRight, .tab(let task, let tab)), (.splitDown, .tab(let task, let tab)):

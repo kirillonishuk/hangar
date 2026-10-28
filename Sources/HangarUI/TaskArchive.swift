@@ -38,6 +38,8 @@ extension AppState {
         let wasSelected = state.selectedTaskId == id
         archive(taskId: id)
         for kill in lastKills { await kill.value }
+        // Hangar's status line override is its own file in the worktree: out first, or it would count as at risk.
+        await revertProjectStatuslines(host: project.host, dirs: [StatuslineDir(path: path, name: task.name)])
         let git = git(for: project), check: WorktreeCheck
         do {
             check = try await checkWorktree(path, git: git, runner: runner(for: project))
@@ -73,6 +75,7 @@ extension AppState {
         for host in pendingKills.keys { pendingKills[host]?.subtract(leaves) }
         restore(taskId: id)
         if wasSelected { select(taskId: id) }
+        syncStatuslines(task: id)
     }
 
     /// A worktree folder that is gone (removed by archive) is added back from its branch first (`reviveWorktree`); tabs reopen on unarchive.
@@ -122,7 +125,10 @@ extension AppState {
 
 /// Menu «Восстановить» and the undo toast. `reselect`: the toast's task was the selected one.
 @MainActor func restoreArchivedTask(_ id: UUID, ctx: ActionContext, reselect: Bool = false, withoutWorktree: Bool = false) async {
-    switch await ctx.app.restoreFromArchive(id, withoutWorktree: withoutWorktree) {
+    let outcome = await ctx.app.restoreFromArchive(id, withoutWorktree: withoutWorktree)
+    if case .restored = outcome { ctx.app.syncStatuslines(task: id) }
+    if case .restoredKeeping = outcome { ctx.app.syncStatuslines(task: id) }
+    switch outcome {
     case .restored: if reselect { ctx.app.select(taskId: id) }
     case .restoredKeeping(let orphan):
         if reselect { ctx.app.select(taskId: id) }

@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.autoUpgradeRemote = env["HANGAR_SSH"] != nil  // a real server's files are never written by a debug run
         if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
+        app.statuslineSync = true
         Task { await app.upgradeClaudeHooksAtLaunch() }  // after the DEBUG overrides: never the real file in a debug run
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)

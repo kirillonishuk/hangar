@@ -36,7 +36,7 @@ let package = Package(
             ]
         ),
         .target(name: "HangarUI", dependencies: ["Workspace", "Exec", "Git", "GhosttyBridge", "AgentStatus", "ControlServer", "Usage", "Integration", "Power", "History", "Update"], resources: [.process("Resources"), .copy("FileIcons"), .copy("Monaco")]),
-        .executableTarget(name: "hangar", dependencies: ["ControlServer"]),
+        .executableTarget(name: "hangar", dependencies: ["ControlServer", "Workspace"]),
         .executableTarget(name: "HangarApp", dependencies: ["HangarUI", "GhosttyBridge", "Workspace", "ControlServer", "Exec"]),
         // Shared test helpers (waits); not shipped.
         .target(name: "TestSupport", path: "Tests/Support"),

@@ -97,7 +97,7 @@ import Testing
             orders.insert(p.results.files.map(\.path))
             #expect(p.results.files.first { $0.path == shuffled[0] }?.hits.count == 2)
         }
-        #expect(orders == [paths.sorted()])
+        #expect(orders == [["README.md", "src/cart.ts", "src/Summary.tsx", "src/types.ts"]])
     }
 
     /// Chunks split lines (and multibyte characters) anywhere.

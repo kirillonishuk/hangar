@@ -245,8 +245,10 @@ public struct SearchParser {
 
     private mutating func add(path: String, line: Int, text: String, ranges: [Range<Int>], column: Int?) {
         guard !results.truncated else { return }
-        // Files stay sorted by path: rg reports them in thread order, so a repeated search would reorder the groups.
-        let i = results.files.partitioningIndex { $0.path >= path }
+        // Files stay sorted by path, case-insensitively as in a file tree: rg reports them in thread order, so a
+        // repeated search would reorder the groups.
+        let key = (path.lowercased(), path)
+        let i = results.files.partitioningIndex { ($0.path.lowercased(), $0.path) >= key }
         let known = i < results.files.count && results.files[i].path == path
         if known, results.files[i].hits.count >= perFile { results.files[i].truncated = true; return }
         // The total cap first: no empty group for a file whose first line is past it.

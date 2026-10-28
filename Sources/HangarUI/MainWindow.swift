@@ -902,6 +902,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, let text else { then(true); return }
         guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
+        // Quit from Settings («Обновить до …» there): the question would hide behind that window.
+        if NSApp.isActive, !window.isKeyWindow { window.makeKeyAndOrderFront(nil) }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = text.message

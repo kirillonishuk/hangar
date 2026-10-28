@@ -534,6 +534,7 @@
 
 /* In-app updates (#86) */
 "updateAvailable" = "%@ available";
+"updateTo" = "Update to %@";
 "updateAvailableHelp" = "New Hangar version: what’s new and install";
 "updateSheetTitle" = "Hangar %@ is available";
 "updateCurrent" = "you have %@";

@@ -116,6 +116,18 @@ import Update
         return offer
     }
 
+    /// Settings → «Версия»: the sheet's «Обновить» without going through the pill (a skipped version too).
+    enum SettingsButton: Equatable { case install(String), busy, restart }
+
+    var settingsButton: SettingsButton? {
+        guard feed != nil else { return nil }
+        switch phase {
+        case .downloading, .preparing: return .busy
+        case .ready: return .restart
+        default: return staged != nil ? .restart : offer.map { .install($0.version) }
+        }
+    }
+
     /// Launch: the remembered state and the last install's error, then a check whatever the last one's time
     /// (a relaunch right after a check, e.g. after an update, still sees a release published since).
     public func start() {
@@ -284,6 +296,7 @@ import Update
 
 extension L10n {
     static func updateAvailable(_ v: String) -> String { f(.updateAvailable, v) }
+    static func updateTo(_ v: String) -> String { f(.updateTo, v) }
     static var updateAvailableHelp: String { s(.updateAvailableHelp) }
     static func updateSheetTitle(_ v: String) -> String { f(.updateSheetTitle, v) }
     static func updateCurrent(_ v: String) -> String { f(.updateCurrent, v) }

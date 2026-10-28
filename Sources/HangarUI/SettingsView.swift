@@ -176,12 +176,27 @@ struct SettingsView: View {
             Text(verbatim: status.text).foregroundStyle(status.color)
                 .lineLimit(1).truncationMode(.middle)
                 .help(status.text)
+                .layoutPriority(1)  // the download progress stays readable next to the buttons
         }
         Spacer(minLength: Theme.cardRowGap)
-        Button(L10n.checkNow) { updates.checkNow() }
-            .buttonStyle(SheetButton(primary: false))
+        // An update found: «Обновить до X» (the sheet's flow: download, check, the usual quit with its confirmation,
+        // relaunch) takes the place of «Проверить сейчас» — both don't fit the row. While it downloads, only the progress.
+        switch updates.settingsButton {
+        case .install(let version): installButton(L10n.updateTo(version), updates)
+        case .restart: installButton(L10n.updateRestart, updates)
+        case .busy: EmptyView()
+        case nil:
+            Button(L10n.checkNow) { updates.checkNow() }
+                .buttonStyle(SheetButton(primary: false))
+                .fixedSize()
+                .disabled(updates.feed == nil || updates.phase == .checking)
+        }
+    }
+
+    private func installButton(_ title: String, _ updates: UpdateModel) -> some View {
+        Button(title) { updates.install() }
+            .buttonStyle(SheetButton(primary: true))
             .fixedSize()
-            .disabled(updates.feed == nil || updates.phase == .checking)
     }
 
     private func updateStatus(_ updates: UpdateModel) -> (text: String, color: Color)? {
@@ -189,8 +204,14 @@ struct SettingsView: View {
         switch updates.phase {
         case .checking: return (L10n.updateChecking, Theme.ui.text3)
         case .checkFailed(let why): return (L10n.updateCheckFailed(why), Theme.ui.failedText)
+        case .downloading(let p): return (p.map { L10n.updateDownloading(Int($0 * 100)) } ?? L10n.updateDownloadingPlain, Theme.ui.text2)
+        case .preparing: return (L10n.updatePreparing, Theme.ui.text2)
+        case .ready: return (L10n.updateReady, Theme.ui.done)
+        case .otherInstance: return (L10n.updateOtherInstance, Theme.ui.waiting)
+        case .manual: return (L10n.updateManual(tildePath(updates.bundle.deletingLastPathComponent().path)), Theme.ui.waiting)
+        case .failed(let why): return (L10n.updateFailed(why), Theme.ui.failedText)
         default:
-            if let offer = updates.offer { return (L10n.updateAvailable(offer.version), Theme.ui.accentText) }
+            if updates.offer != nil { return nil }  // «Обновить до X» says it
             return updates.record.lastCheck != nil ? (L10n.updateUpToDate, Theme.ui.text3) : nil
         }
     }

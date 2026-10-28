@@ -534,6 +534,7 @@
 
 /* In-app updates (#86) */
 "updateAvailable" = "Доступна %@";
+"updateTo" = "Обновить до %@";
 "updateAvailableHelp" = "Новая версия Hangar: что нового и установка";
 "updateSheetTitle" = "Доступна версия %@";
 "updateCurrent" = "сейчас %@";

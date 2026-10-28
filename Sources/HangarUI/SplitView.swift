@@ -3,6 +3,7 @@ import AppKit
 import ControlServer
 import Exec
 import GhosttyBridge
+import WebKit
 import Workspace
 
 /// NSSplitView with the theme divider and a hook when the user finishes dragging a divider.
@@ -923,6 +924,15 @@ final class FillView: NSView {
     var debugMonaco: MonacoPage? {
         if app.activeDiff != nil, let id = app.selectedTask?.id { return diffHosts[id]?.editor.page }
         return shownEditor.map { $0.host.page($0.page) }
+    }
+
+    /// The web views on screen: the diff's, else the active tab's editor pages (two in a split).
+    var debugWebViews: [WKWebView] {
+        if app.activeDiff != nil { return debugMonaco.map { [$0.webView] } ?? [] }
+        guard let tab = activeTab else { return [] }
+        return tab.root.leaves.compactMap { leafViews[$0.id]?.editor }.compactMap { pane in
+            pane.subviews.compactMap { $0 as? WKWebView }.first
+        }
     }
 
     var debugDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }

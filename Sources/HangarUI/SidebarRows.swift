@@ -9,6 +9,8 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     let collapsed: Bool
     var height = Theme.railRowHeight
     var textX = Theme.gutterTextX
+    /// Nested rows (sessions under their project): marker and text shift right; the rail content stays centred.
+    var indent: CGFloat = 0
     var trailing = Theme.rowPaddingH
     /// The rail content replaces the marker (task rows: one dot, on the monogram tile).
     var railReplacesMarker = false
@@ -22,14 +24,14 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
         ZStack(alignment: .leading) {
             marker
                 .frame(width: Theme.iconSize, height: Theme.iconSize)
-                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2, y: markerDY)
+                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2 + indent, y: markerDY)
                 .opacity(railReplacesMarker && collapsed ? 0 : 1)
             // Centred in the rail, like the project tile.
             rail
                 .frame(width: Theme.sidebarRailWidth)
                 .opacity(collapsed ? 1 : 0)
             expanded
-                .padding(.leading, textX)
+                .padding(.leading, textX + indent)
                 .padding(.trailing, trailing)
                 .opacity(collapsed ? 0 : 1)
         }

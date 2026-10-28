@@ -11,6 +11,9 @@ struct PaneHeader: View {
     /// Gives the pane the keyboard (a click on the header).
     let focus: () -> Void
     @State private var hover = false
+    @State private var dragging = false
+    /// True while the drag gesture lives; its reset without `onEnded` is a cancel.
+    @GestureState private var pressed = false
 
     /// For the AppKit leaf view (SwiftUI's `Tab` would clash with `Workspace.Tab` there).
     @MainActor static func hosted(app: AppState, ctx: @escaping () -> ActionContext, leafId: UUID, focus: @escaping () -> Void) -> NSView {
@@ -35,17 +38,22 @@ struct PaneHeader: View {
         #endif
         let shown = (hovered || focused) && !renaming
         return HStack(spacing: 0) {
-            IconView(icon: .of(leaf.kind), size: Theme.paneHeaderIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3).padding(.trailing, Theme.iconGap)
-            // As tabs (`showsDot`): agents always, other panes only while something is going on.
-            if state != .idle || leaf.kind == .claude || leaf.kind == .codex {
-                StatusDot(state: state).padding(.trailing, Theme.iconGap).help(app.statusText(state, leaves: [leaf]))
+            HStack(spacing: 0) {
+                IconView(icon: .of(leaf.kind), size: Theme.paneHeaderIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3).padding(.trailing, Theme.iconGap)
+                // As tabs (`showsDot`): agents always, other panes only while something is going on.
+                if state != .idle || leaf.kind == .claude || leaf.kind == .codex {
+                    StatusDot(state: state).padding(.trailing, Theme.iconGap).help(app.statusText(state, leaves: [leaf]))
+                }
+                if renaming {
+                    RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
+                    Spacer(minLength: Theme.rowEndGap)
+                } else {
+                    Text(verbatim: app.paneTitle(leaf)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            if renaming {
-                RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
-                Spacer(minLength: Theme.rowEndGap)
-            } else {
-                Text(verbatim: app.paneTitle(leaf)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-            }
+            .contentShape(Rectangle())
+            // Only this part drags (never the ⇱/× buttons), and not while renaming (the field keeps its own mouse).
+            .simultaneousGesture(moveGesture, including: renaming ? .subviews : .all)
             HStack(spacing: Theme.paneHeaderButtonGap) {
                 PaneHeaderButton(icon: .popOut, help: L10n.detachPane) { Action.detachPane.perform(target, ctx()) }
                 PaneHeaderButton(icon: .close, help: L10n.help(L10n.closePane, Action.closePane.shortcut(for: target, app: app))) {
@@ -69,8 +77,34 @@ struct PaneHeader: View {
             if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { Action.rename.perform(target, ctx()) }
         }
         .popoverContextMenu { actionMenu(for: target, ctx: ctx()) }
-        .pointingHand(!renaming)
+        .onChange(of: pressed) { _, live in
+            // Next turn: a normal end has run `onEnded` by then (whatever order SwiftUI resets the state in).
+            guard !live else { return }
+            DispatchQueue.main.async {
+                guard dragging else { return }
+                dragging = false
+                app.paneDragCancelled?()
+            }
+        }
+        .pointingHand(!renaming && !dragging)  // a drag keeps its closed hand (PaneDragController)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+    }
+}
+
+extension PaneHeader {
+    /// Past `Theme.dragThreshold` the pane follows the pointer to another pane's edge or into the tab bar (splits spec §2).
+    private var moveGesture: some Gesture {
+        DragGesture(minimumDistance: Theme.dragThreshold, coordinateSpace: .global)
+            .updating($pressed) { _, pressed, _ in pressed = true }
+            .onChanged { value in
+                dragging = true
+                _ = app.paneDragMoved?(.leaf(leafId), windowPoint(NSApp.currentEvent) ?? value.location)
+            }
+            .onEnded { _ in
+                guard dragging else { return }
+                dragging = false
+                _ = app.paneDragEnded?(.leaf(leafId))
+            }
     }
 }
 

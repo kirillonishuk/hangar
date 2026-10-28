@@ -198,6 +198,10 @@ struct TabBarView: View {
         let tabWidths = Array(l.widths.prefix(task.tabs.count))
         let from = drag.flatMap { d in task.tabs.firstIndex { $0.id == d.tab } }
         let shifts = from.flatMap { f in slot.map { TabStrip.shifts(widths: tabWidths, from: f, to: $0.index) } }
+        // A pane header over the bar (`PaneDragController`): the tabs part at its slot as for a reorder.
+        let paneSlot: Int? = if drag == nil, case .tabBar(let i)? = app.paneDropTarget { i } else { nil }
+        let gap = Theme.tabMinWidth + Theme.tabGap
+        let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.tabBarButton - l.viewport))
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
@@ -205,16 +209,24 @@ struct TabBarView: View {
                         onDrag: { dx, p in dragged(tab.id, dx: dx, at: p, l: l, minX: minX) },
                         onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) },
                         onDragCancel: { cancelDrag(tab.id) })
+                    // Global space includes the parting below: a parted tab reports where it shows (the slot holds still).
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.tabFrames[tab.id] = $0 }
+                    .onDisappear { app.tabFrames[tab.id] = nil }
                     // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
-                    .offset(x: shifts?[i] ?? 0)
+                    .offset(x: shifts?[i] ?? paneSlot.map { i >= $0 ? gap : 0 } ?? 0)
                     .animation(Motion.ease(Theme.selectionFade), value: slot?.index)
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
                     .opacity(drag?.tab == tab.id ? Theme.tabDragOpacity : 1)
                     .shadow(color: Theme.ui.bg.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
                             radius: Theme.paneDragGhostShadowRadius)
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
             }
-            if let diff, let w = l.widths.last { DiffTabItem(app: app, tab: diff, width: w) }
+            if let diff, let w = l.widths.last {
+                DiffTabItem(app: app, tab: diff, width: w)
+                    .offset(x: paneSlot == nil ? 0 : gap)
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
+            }
         }
         .fixedSize(horizontal: true, vertical: false)
         #if DEBUG
@@ -230,16 +242,17 @@ struct TabBarView: View {
         .background(alignment: .leading) {
             // The opened slot: an accent outline where the tab will land.
             if let from, let slot {
-                let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
-                shape.fill(Theme.ui.accent.opacity(Theme.tabDropSlotFillOpacity))
-                    .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
-                    .frame(width: tabWidths[from])
+                slotOutline(width: tabWidths[from])
                     .offset(x: TabStrip.slotX(widths: tabWidths, from: from, to: slot.index))
                     .animation(Motion.ease(Theme.selectionFade), value: slot.index)
+            } else if let paneSlot {
+                slotOutline(width: Theme.tabMinWidth)
+                    .offset(x: tabWidths.prefix(paneSlot).reduce(0) { $0 + $1 + Theme.tabGap })
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
             }
         }
         .offset(x: -offset)
-        .frame(width: l.viewport, alignment: .leading)
+        .frame(width: l.viewport + extra, alignment: .leading)
         .clipped()
         .contentShape(Rectangle())
         .overlay(alignment: .leading) { fade(.leading, visible: offset > 0) }
@@ -249,6 +262,14 @@ struct TabBarView: View {
         })
         if l.overflow { overflowMenu(task) }
         addMenu(shellOnly: app.isHostShellTask(task.id))
+    }
+
+    /// Where a dragged tab or pane will land: an `accent` outline.
+    private func slotOutline(width: CGFloat) -> some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+        return shape.fill(Theme.ui.accent.opacity(Theme.tabDropSlotFillOpacity))
+            .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
+            .frame(width: width)
     }
 
     private func fade(_ edge: HorizontalEdge, visible: Bool) -> some View {

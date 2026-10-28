@@ -1,7 +1,7 @@
 import AppKit
 import Workspace
 
-// Dragging a tab (Task 7: a pane header) onto a pane edge (splits spec §2). One gesture mechanism at window level,
+// Dragging a tab onto a pane edge, a pane header onto a pane edge or into the tab bar (splits spec §2). One gesture mechanism at window level,
 // as the tab strip's own (#54): no NSItemProvider. Points are window points from the top-left (debug `mouse`/`hit`).
 
 enum PaneDragSource: Equatable { case tab(UUID), leaf(UUID) }
@@ -17,8 +17,14 @@ func dropEdge(in rect: CGRect, at p: CGPoint) -> SplitEdge? {
     return nearest.1 < Theme.paneDropZone ? nearest.0 : nil
 }
 
+/// The slot a tab dropped at `x` takes: the number of tabs (`frames` in tab order) whose middle is left of `x`.
+func insertionIndex(x: CGFloat, frames: [CGRect]) -> Int {
+    frames.filter { $0.midX < x }.count
+}
+
 /// Where `source` dropped at `p` would go. `paneFrames`: the active tab's panes (empty while the diff tab or «Сессии»
-/// covers them, ruling R3). A tab merges into another tab's pane edge, within the editor cap.
+/// covers them, ruling R3). A tab merges into another tab's pane edge, within the editor cap. A pane moves to another
+/// pane's edge, or over the tab bar (`tabFrames`: the session's tabs) becomes a tab at the slot under the pointer.
 func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState, taskId: UUID, activeTab: UUID?,
                  paneFrames: [UUID: CGRect], tabBar: CGRect?, tabFrames: [UUID: CGRect]) -> PaneDropTarget? {
     switch source {
@@ -27,8 +33,17 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
               let (leaf, rect) = paneFrames.first(where: { $0.value.contains(p) }),
               let edge = dropEdge(in: rect, at: p) else { return nil }
         return .edge(tab: active, leaf: leaf, edge)
-    case .leaf:
-        return nil  // pane headers: Task 7
+    case .leaf(let id):
+        if let bar = tabBar, bar.contains(p) {
+            // Only a pane of a split tab has a header; detaching needs one.
+            guard let tabs = state.tasks.first(where: { $0.id == taskId })?.tabs,
+                  let own = tabs.first(where: { $0.root.leaf(id: id) != nil }), case .split = own.root else { return nil }
+            return .tabBar(index: insertionIndex(x: p.x, frames: tabs.compactMap { tabFrames[$0.id] }))
+        }
+        guard let active = activeTab, let (leaf, rect) = paneFrames.first(where: { $0.value.contains(p) }),
+              state.canMoveLeaf(taskId: taskId, leafId: id, to: active, anchor: leaf),
+              let edge = dropEdge(in: rect, at: p) else { return nil }
+        return .edge(tab: active, leaf: leaf, edge)
     }
 }
 
@@ -95,7 +110,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         app.paneDragCancelled = { [weak self] in self?.abort() }
     }
 
-    /// True: drop mode (pointer below the tab bar), the tab strip leaves the tab in place.
+    /// True: drop mode (a tab below the tab bar; a pane header always), the tab strip leaves the tab in place.
     func update(_ source: PaneDragSource, at p: CGPoint) -> Bool {
         if cancelled { return true }
         if !active {
@@ -103,7 +118,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
             lockCursor()
         }
         NSCursor.closedHand.set()
-        guard case .tab = source, let bar = windowRect(tabBar), p.y >= bar.maxY, let task = app.selectedTask else {
+        let bar = windowRect(tabBar)
+        var overBar = false  // a tab over the tab bar is the strip's own reorder
+        if case .tab = source { overBar = bar.map { p.y < $0.maxY } ?? true }
+        guard !overBar, let task = app.selectedTask else {
             dropping = false
             show(nil)
             ghost.isHidden = true  // over the tab bar the tab itself follows the pointer
@@ -111,19 +129,22 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         }
         dropping = true
         let target = resolveDrop(source, at: p, state: app.state, taskId: task.id, activeTab: task.activeTabId,
-                                 paneFrames: area.paneFrames(), tabBar: bar, tabFrames: [:])
+                                 paneFrames: area.paneFrames(), tabBar: bar, tabFrames: app.tabFrames)
         show(target)
         showGhost(source, at: p, allowed: target != nil)
         return true
     }
 
-    /// True: the controller handled the drop (merged, or cancelled in drop mode / by Esc); false: the tab strip's own.
+    /// True: the controller handled the drop (merged / moved / detached, or cancelled in drop mode / by Esc); false: the tab strip's own.
     func end(_ source: PaneDragSource) -> Bool {
         defer { reset() }
         if cancelled { return true }
         guard dropping else { return false }
-        if case .tab(let tab) = source, case .edge(let target, let leaf, let edge) = app.paneDropTarget {
-            app.mergeTab(tab, into: target, at: leaf, edge: edge)
+        switch (source, app.paneDropTarget) {
+        case (.tab(let tab), .edge(let target, let leaf, let edge)?): app.mergeTab(tab, into: target, at: leaf, edge: edge)
+        case (.leaf(let id), .edge(let target, let anchor, let edge)?): app.moveLeaf(id, to: target, at: anchor, edge: edge)
+        case (.leaf(let id), .tabBar(let index)?): app.detachLeaf(id, toIndex: index)
+        default: break
         }
         return true
     }
@@ -247,7 +268,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     }
 }
 
-/// The chip under the pointer while a tab is dragged over the panes: icon + name; faded where it can't drop.
+/// The chip under the pointer while a tab is dragged over the panes (a pane header: everywhere): icon + name; faded where it can't drop.
 @MainActor final class PaneDragGhost: NSView {
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")

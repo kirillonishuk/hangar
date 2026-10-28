@@ -235,7 +235,8 @@ import Testing
         #expect(c.end(.leaf(moved)))
         #expect(!c.active && !c.cursorLocked && app.paneDropTarget == nil)
         let tabs = app.state.tasks[0].tabs
-        #expect(tabs.count == 3 && tabs[2].root == .leaf(try #require(tabs[2].root.leaf(id: moved))))
+        let detached = try #require(tabs[2].root.leaf(id: moved))
+        #expect(tabs.count == 3 && tabs[2].root == .leaf(detached))
         #expect(app.state.tasks[0].tabs[0].root.leaves.count == 1)
     }
 

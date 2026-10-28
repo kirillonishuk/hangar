@@ -337,19 +337,24 @@ extension MainWindowController {
             }
             try? "closedHand=\(NSCursor.current == NSCursor.closedHand) dragActive=\(paneDrag?.active == true)\n"
                 .write(toFile: NSTemporaryDirectory() + "hangar-tdrag.txt", atomically: true, encoding: .utf8)
-        case "pdrag", "pdragEnd":
+        case "pdrag", "pdragEnd", "hdrag", "hdragEnd":
             // pdrag <tab index> <x> <y> [<x> <y> …] [end]: tab n dragged through those window points (from the top-left)
             // as the tab strip reports it to `PaneDragController` (an inactive window drops synthetic clicks); pdragEnd <n>: release.
+            // hdrag / hdragEnd <pane index>: the same for the header of the active tab's pane n.
             let f = arg.split(separator: " ").map(String.init)
-            guard let n = Int(f.first ?? ""), let tabs = app.selectedTask?.tabs, tabs.indices.contains(n) else { return }
-            let source = PaneDragSource.tab(tabs[n].id)
+            let header = parts.first?.hasPrefix("h") == true
+            guard let n = Int(f.first ?? ""), let task = app.selectedTask else { return }
+            let ids = header ? task.tabs.first { $0.id == task.activeTabId }?.root.leaves.map(\.id) ?? [] : task.tabs.map(\.id)
+            guard ids.indices.contains(n) else { return }
+            let source = header ? PaneDragSource.leaf(ids[n]) : .tab(ids[n])
             let v = f.dropFirst().compactMap { Double($0) }
             var moves: [String] = []
             for i in stride(from: 0, to: v.count - 1, by: 2) {
                 moves.append("\(app.paneDragMoved?(source, CGPoint(x: v[i], y: v[i + 1])) ?? false)")
             }
-            let ended = parts.first == "pdragEnd" || f.last == "end" ? "\(app.paneDragEnded?(source) ?? false)" : "-"
-            try? "moved=\(moves) ended=\(ended) target=\(String(describing: app.paneDropTarget))\n"
+            let ended = parts.first?.hasSuffix("End") == true || f.last == "end" ? "\(app.paneDragEnded?(source) ?? false)" : "-"
+            let frames = task.tabs.compactMap { app.tabFrames[$0.id].map { "\(Int($0.minX))-\(Int($0.maxX))" } }
+            try? "moved=\(moves) ended=\(ended) target=\(String(describing: app.paneDropTarget)) tabs=\(frames)\n"
                 .write(toFile: NSTemporaryDirectory() + "hangar-pdrag.txt", atomically: true, encoding: .utf8)
         case "hit":
             // hit <x> <y>: the view under a window point (from the top-left) and its frame in window coordinates.

@@ -59,8 +59,14 @@ struct KindChoiceButtons: View {
                     .padding(.horizontal, Theme.buttonPaddingH)
                 }
                 .buttonStyle(FilledRowStyle())
+                .focusable(false)  // a click must not leave the keyboard in the button: ↩ / Esc belong to the pane
                 .opacity(off ? Theme.inactiveOpacity : 1)
                 .help(off && kind == .editor ? L10n.paneEditorCap : "")
+                // VoiceOver: a dimmed (not enabled) button with the reason, as `.disabled` would read.
+                .accessibilityRepresentation {
+                    Button(title(kind)) { action(kind) }.disabled(off)
+                }
+                .accessibilityHint(off && kind == .editor ? L10n.paneEditorCap : "")
             }
         }
     }

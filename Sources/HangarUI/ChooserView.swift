@@ -23,11 +23,18 @@ struct ChooserView: View {
     var body: some View {
         let loc = app.location(ofLeaf: leafId)
         let tab = loc.flatMap { l in app.state.tasks.first { $0.id == l.task }?.tabs.first { $0.id == l.tab } }
+        // Every click hands the keyboard back to the pane first, so ↩ / Esc still reach it if the pane stays a chooser.
         KindChoiceButtons(kinds: chooserChoices(), disabled: tab.map(chooserEditorEnabled) == false ? [.editor] : [], shellHint: "↩") { kind in
+            focus()
             if kind == .editor { app.onChooseEditor?(leafId) } else { app.chooseKind(leafId, kind) }
         }
         .aboveCentered {
-            if let task = loc?.task { ContinueList(app: app, taskId: task) { app.chooseConversation(leafId, $0) } }
+            if let task = loc?.task {
+                ContinueList(app: app, taskId: task) { c in
+                    focus()
+                    app.chooseConversation(leafId, c)
+                }
+            }
         }
         .font(.system(size: Theme.fontSize.sidebarRow))
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -29,11 +29,18 @@ extension AppState {
         return recentConversations(recentByFolder[key] ?? [], inner: inner, open: openConversationIds)
     }
 
+    /// The session's machine can be read now: this Mac, or its ssh host while connected (observed: the list loads on connect).
+    func recentHostOnline(_ taskId: UUID) -> Bool {
+        guard let project = recentKey(taskId)?.project, let host = project.host else { return true }
+        return remote.hosts[host]?.state == .connected
+    }
+
     /// Rescans when the view appears (no watchers); the History module re-reads only changed files. A remote project reads
     /// through its connected host (the same path as «Сессии»); while it is not connected the view shows only the buttons.
+    // shortcut: every chooser / empty-session appearance rescans (a directory listing + stat per file, parsed only when changed);
+    // add a freshness window if ⌘D on a huge history ever shows up in a profile.
     func loadRecent(taskId: UUID) async {
-        guard let (key, folder, project) = recentKey(taskId) else { return }
-        if let host = project.host, remote.hosts[host]?.state != .connected { return }
+        guard let (key, folder, project) = recentKey(taskId), recentHostOnline(taskId) else { return }
         guard let list = try? await conversations(folder: folder, project: project) else { return }
         // shortcut: only the newest are kept; a folder whose newest dozens all run in tabs shows fewer — keep more if that happens.
         let kept = Array(list.prefix(Theme.continueKept))
@@ -48,6 +55,12 @@ struct ContinueList: View {
     let resume: (Conversation) -> Void
     @State private var hovered: String?
 
+    /// A host coming online loads the list again.
+    private struct Load: Hashable {
+        let task: UUID
+        let online: Bool
+    }
+
     var body: some View {
         let rows = app.recent(for: taskId)
         VStack(alignment: .leading, spacing: 0) {
@@ -61,7 +74,7 @@ struct ContinueList: View {
             }
         }
         .frame(width: Theme.continueWidth)
-        .task(id: taskId) { await app.loadRecent(taskId: taskId) }
+        .task(id: Load(task: taskId, online: app.recentHostOnline(taskId))) { await app.loadRecent(taskId: taskId) }
     }
 
     private func row(_ c: Conversation) -> some View {

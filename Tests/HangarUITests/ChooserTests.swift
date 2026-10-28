@@ -185,6 +185,12 @@ import Workspace
         view.onChoose = { chosen.append($0) }
         for code: UInt16 in [36, 76] { view.keyDown(with: try key(code, window)) }
         #expect(chosen == [.shell, .shell])  // ↩ and the keypad's Enter: Terminal
+        // After a click the keyboard may sit in the chooser's SwiftUI view: ↩ still reaches the pane.
+        let host = try #require(view.chooser)
+        #expect(window.makeFirstResponder(host) && window.firstResponder !== view)
+        window.firstResponder?.keyDown(with: try key(36, window))
+        #expect(chosen.count == 3)
+        window.makeFirstResponder(view)
         view.keyDown(with: try key(53, window))  // Esc closes the pane
         #expect(app.location(ofLeaf: c) == nil)
         #expect(area.leafViews[c] == nil)

@@ -476,4 +476,65 @@ import Workspace
         app.showSessionsView(projectId: try #require(app.state.projects.first?.id))
         for action in Action.list(for: target, app: app) { #expect(!action.isEnabled(for: target, app: app), "\(action)") }
     }
+
+    @Test func leafActionsOffWhileDiffShown() throws {
+        let (app, a, t, left, _) = try splitApp()
+        defer { cleanup() }
+        let target = ActionTarget.leaf(task: a, tab: t, leaf: left)
+        app.select(taskId: a)
+        app.openDiff(path: "a.txt")
+        for action in Action.list(for: target, app: app) { #expect(!action.isEnabled(for: target, app: app), "\(action)") }
+        app.deactivateDiff()
+        #expect(Action.closePane.isEnabled(for: target, app: app))
+    }
+
+    /// Ruling R5: an agent blocked on a permission/question is mid-task too.
+    @Test func closePaneWithWaitingAgentAsks() throws {
+        let (app, a, t, left, _) = try splitApp(.claude)
+        defer { cleanup() }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .notification, notificationType: "permission_prompt", message: "Needs permission")))
+        #expect(app.state(ofLeaf: left) == .waiting)
+        var title: String?
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, _, _, _ in title = m }
+        Action.closePane.perform(.leaf(task: a, tab: t, leaf: left), ctx)
+        #expect(title == L10n.paneAgentWorking)
+        #expect(tab(app, a, t)?.root.leaf(id: left) != nil)
+    }
+
+    /// Unsaved files and a working agent in one tab: one question, the unsaved one (it loses data).
+    @Test func closeTabUnsavedWinsOverWorkingAgent() throws {
+        let (app, a, t, left, _) = try splitApp(.claude)
+        defer { cleanup() }
+        var editor = UUID()
+        app.perform { s in
+            editor = s.split(taskId: a, tabId: t, leafId: left, axis: .horizontal, kind: nil)
+            _ = s.chooseKind(leafId: editor, kind: .editor, file: "/repo/a.ts")
+        }
+        app.editorUnsaved = { $0 == editor ? ["/repo/a.ts"] : [] }
+        app.handle(.event(EventMessage(tab: t, leaf: left, kind: .prompt)))
+        #expect(app.state(ofLeaf: left) == .working)
+        var asked: [String] = []
+        var ctx = ActionContext(app: app)
+        ctx.confirm = { m, _, _, _ in asked.append(m) }
+        Action.closeTab.perform(.tab(task: a, tab: t), ctx)
+        #expect(asked == [L10n.editorUnsavedTitle("a.ts")])
+        #expect(tab(app, a, t) != nil)
+    }
+
+    /// ⌘W closes the focused pane of a split tab: only that pane advertises it, not the tab (menu, × tooltip).
+    @Test func closeHintFollowsWhatCmdWCloses() throws {
+        let (app, a, t, left, right) = try splitApp()
+        defer { cleanup() }
+        #expect(Action.closeTab.shortcut(for: .tab(task: a, tab: t), app: app) == nil)
+        #expect(Action.closePane.shortcut(for: .leaf(task: a, tab: t, leaf: left), app: app) == .closeTab)
+        #expect(Action.closePane.shortcut(for: .leaf(task: a, tab: t, leaf: right), app: app) == nil)
+        #expect(Action.splitRight.shortcut(for: .tab(task: a, tab: t), app: app) == .splitRight)
+        app.closeLeaf(right)
+        #expect(Action.closeTab.shortcut(for: .tab(task: a, tab: t), app: app) == .closeTab)
+        let entries = actionMenu(for: .tab(task: a, tab: t), ctx: ActionContext(app: app))
+        let close = entries.compactMap { if case .item(let i) = $0, i.title == L10n.closeTab { i } else { nil } }.first
+        #expect(close?.shortcut == Shortcut.closeTab.label)
+    }
 }

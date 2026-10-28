@@ -43,7 +43,8 @@
 "remoteNoGit" = "Remote folder without git — no file tree";
 "sessionDetached" = "Connection lost · ↩ reconnect";
 "emptyNoTask" = "Select a session or create a new one — ⌘N";
-"emptyNoTabs" = "No tabs — ⌘T or + in the tab bar";
+"emptyNoTabs" = "No tabs";
+"terminalTab" = "Terminal";
 "ghosttyFailed" = "Couldn't start the terminal (Ghostty)";
 "retry" = "Retry";
 "quit" = "Quit";
@@ -533,6 +534,7 @@
 
 /* In-app updates (#86) */
 "updateAvailable" = "%@ available";
+"updateTo" = "Update to %@";
 "updateAvailableHelp" = "New Hangar version: what’s new and install";
 "updateSheetTitle" = "Hangar %@ is available";
 "updateCurrent" = "you have %@";

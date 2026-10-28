@@ -35,12 +35,12 @@ import TestSupport
         await settle(model)
         #expect(counter.n == 1)
         #expect(model.pill?.version == "0.3.0")
-        // Another launch within 24 h: no request, the stored offer still shows.
+        // Another launch minutes later checks again; a failed check keeps the stored offer's pill.
         let again = UpdateModel(stateDir: model.stateDir, current: "0.2.0", feed: model.feed, bundle: model.bundle)
-        again.fetch = { _ in counter.n += 1; return Data() }
+        again.fetch = { _ in counter.n += 1; throw UpdateError.http(403) }
         again.start()
-        await settle(again)
-        #expect(counter.n == 1)
+        await until { if case .checkFailed = again.phase { true } else { false } }
+        #expect(counter.n == 2)
         #expect(again.pill?.version == "0.3.0")
         // Running that version now: nothing to offer.
         let updated = UpdateModel(stateDir: model.stateDir, current: "0.3.0", feed: model.feed, bundle: model.bundle)
@@ -48,20 +48,46 @@ import TestSupport
         #expect(updated.offer == nil)
     }
 
-    @Test func checksAgainAfterADay() async throws {
+    /// Activation checks at most hourly; a launch always checks (the owner's 0.4.0 missed 0.4.1 for a day).
+    @Test func activationChecksHourlyLaunchAlways() async throws {
         let (model, counter) = try makeModel()
         defer { try? FileManager.default.removeItem(at: model.stateDir) }
         var now = Date()
         model.now = { now }
         model.checkIfDue()
         await settle(model)
+        now += 59 * 60
         model.checkIfDue()
         await settle(model)
         #expect(counter.n == 1)
+        now += 60
+        model.checkIfDue()
+        await settle(model)
+        #expect(counter.n == 2)
+        let relaunched = UpdateModel(stateDir: model.stateDir, current: "0.2.0", feed: model.feed, bundle: model.bundle)
+        relaunched.now = { now + 60 }
+        relaunched.fetch = model.fetch
+        relaunched.start()
+        await settle(relaunched)
+        #expect(counter.n == 3)
+    }
+
+    /// Up to date, then a release appears: the next due check shows its pill.
+    @Test func aReleaseAfterAnEmptyCheckShowsThePill() async throws {
+        let (model, counter) = try makeModel(tag: "v0.2.0")
+        defer { try? FileManager.default.removeItem(at: model.stateDir) }
+        var now = Date()
+        model.now = { now }
+        model.checkIfDue()
+        await settle(model)
+        #expect(model.phase == .upToDate && model.pill == nil)
+        let newer = feedJSON("v0.3.0")
+        model.fetch = { _ in counter.n += 1; return newer }
         now += UpdateRecord.interval
         model.checkIfDue()
         await settle(model)
         #expect(counter.n == 2)
+        #expect(model.pill?.version == "0.3.0")
     }
 
     @Test func skippedVersionHidesThePillUntilAManualCheck() async throws {
@@ -174,7 +200,7 @@ import TestSupport
         #expect(prepared.n == 0)
     }
 
-    @Test func aFailedCheckWaitsADayToo() async throws {
+    @Test func aFailedCheckWaitsAnHourToo() async throws {
         let (model, counter) = try makeModel()
         defer { try? FileManager.default.removeItem(at: model.stateDir) }
         model.fetch = { _ in counter.n += 1; throw UpdateError.http(403) }
@@ -215,4 +241,42 @@ import TestSupport
 
 @MainActor final class Counter {
     var n = 0
+}
+
+/// Settings → General → «Версия» (#99): install from Settings without the status-bar pill.
+@MainActor @Suite struct UpdateSettingsButtonTests {
+    @Test func buttonFollowsThePhase() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-update-settings-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = UpdateModel(stateDir: dir, current: "0.2.0", feed: URL(string: "file:///feed.json"), bundle: dir.appendingPathComponent("Hangar.app"))
+        let json = Data(#"""
+        {"tag_name":"v0.3.0","assets":[{"name":"Hangar-0.3.0.dmg","browser_download_url":"https://github.com/o/r/releases/download/v1/a.dmg"},
+          {"name":"Hangar-0.3.0.dmg.sha256","browser_download_url":"https://github.com/o/r/releases/download/v1/a.dmg.sha256"}]}
+        """#.utf8)
+        model.fetch = { _ in json }
+        #expect(model.settingsButton == nil)  // nothing found yet
+        model.checkNow()
+        _ = await waitUntil { model.phase != .checking }
+        #expect(model.settingsButton == .install("0.3.0"))
+        model.skip()
+        #expect(model.settingsButton == .install("0.3.0"))  // skipped hides the pill, not the Settings button
+        model.otherInstanceRunning = { false }
+        let gate = Counter()
+        model.prepare = { _, _ in
+            _ = await waitUntil { gate.n > 0 }
+            return .staged(UpdateModel.Staged(app: dir.appendingPathComponent("New.app"), mount: dir.appendingPathComponent("vol"),
+                                              dir: dir.appendingPathComponent("x")))
+        }
+        let quits = Counter()
+        model.quit = { quits.n += 1 }
+        model.install()  // the Settings button: the sheet's flow
+        #expect(model.settingsButton == .busy)
+        gate.n = 1
+        _ = await waitUntil { model.phase == .ready }
+        #expect(quits.n == 1)
+        #expect(model.settingsButton == .restart)  // the quit was cancelled: «Перезапустить»
+        let noFeed = UpdateModel(stateDir: dir, current: "0.2.0", feed: nil, bundle: model.bundle)
+        #expect(noFeed.settingsButton == nil)
+    }
 }

@@ -21,6 +21,18 @@ import Testing
         #expect(shortcut(keyCode: 45, modifiers: [.command, .shift]) == .addProject)
     }
 
+    /// ⌘Q never reaches the menu while a terminal has focus (Ghostty's default super+q binding takes it first):
+    /// the key monitor quits by keyCode, so ⌘Й in the ru layout quits too.
+    @Test func quitKeyByKeyCode() {
+        #expect(isQuitKey(keyCode: 12, modifiers: .command))
+        #expect(isQuitKey(keyCode: 12, modifiers: [.command, .capsLock]))
+        #expect(!isQuitKey(keyCode: 12, modifiers: [.command, .shift]))
+        #expect(!isQuitKey(keyCode: 12, modifiers: [.command, .option]))
+        #expect(!isQuitKey(keyCode: 12, modifiers: []))
+        #expect(!isQuitKey(keyCode: 13, modifiers: .command))
+        #expect(shortcut(keyCode: 12, modifiers: .command) == nil)  // not a palette command: the app menu's key
+    }
+
     @Test func toggleDrawerShortcut() {
         #expect(shortcut(keyCode: 38, modifiers: .command) == .toggleDrawer)  // ⌘J as in VS Code, by keyCode: ⌘О in the ru layout
         #expect(shortcut(keyCode: 38, modifiers: [.command, .shift]) == nil)

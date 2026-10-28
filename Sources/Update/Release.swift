@@ -158,9 +158,10 @@ public struct UpdateRecord: Codable, Equatable, Sendable {
         self.offer = offer
     }
 
-    public static let interval: TimeInterval = 24 * 60 * 60
+    /// Activation checks: hourly is far below GitHub's 60 unauthenticated requests an hour, and a release shows the same hour.
+    public static let interval: TimeInterval = 60 * 60
 
-    /// A check is due when none was made or the last is ≥ 24 h old (or in the future: the clock moved back).
+    /// A check is due when none was made or the last is ≥ 1 h old (or in the future: the clock moved back).
     public func checkDue(now: Date) -> Bool {
         guard let lastCheck else { return true }
         return now.timeIntervalSince(lastCheck) >= Self.interval || lastCheck > now

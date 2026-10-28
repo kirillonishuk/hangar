@@ -43,7 +43,8 @@
 "remoteNoGit" = "Удалённая папка без git — дерево файлов недоступно";
 "sessionDetached" = "Соединение прервано · ↩ переподключиться";
 "emptyNoTask" = "Выберите сессию или создайте новую — ⌘N";
-"emptyNoTabs" = "Нет вкладок — ⌘T или + в полосе вкладок";
+"emptyNoTabs" = "Нет вкладок";
+"terminalTab" = "Терминал";
 "ghosttyFailed" = "Не удалось запустить терминал (Ghostty)";
 "retry" = "Повторить";
 "quit" = "Выйти";
@@ -533,6 +534,7 @@
 
 /* In-app updates (#86) */
 "updateAvailable" = "Доступна %@";
+"updateTo" = "Обновить до %@";
 "updateAvailableHelp" = "Новая версия Hangar: что нового и установка";
 "updateSheetTitle" = "Доступна версия %@";
 "updateCurrent" = "сейчас %@";

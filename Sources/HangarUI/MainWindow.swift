@@ -277,7 +277,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 self?.app.refreshUsageClock()
                 // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
                 self?.app.reloadConfigHosts()
-                self?.app.updates.checkIfDue()  // at most once a day (#86)
+                self?.app.updates.checkIfDue()  // at most hourly (#86)
             }
         }
         app.reloadConfigHosts()
@@ -409,7 +409,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func handleKeyDown(_ event: NSEvent) -> Bool {
+    func handleKeyDown(_ event: NSEvent) -> Bool {
         // ⌘⇧L also closes the limits popover while it has the keyboard.
         if app.limitsPopoverShown, !event.isARepeat, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
             app.toggleLimitsPopover()
@@ -423,6 +423,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return true
         }
         guard let window, event.window === window, window.attachedSheet == nil else { return false }
+        // The usual quit (confirmation when agents work, state saved); the app menu alone misses ⌘Q in a terminal.
+        if isQuitKey(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            NSApp.terminate(nil)
+            return true
+        }
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
         if !consumed, firstResponderKind != .other { app.keyReachedTerminal() }
@@ -897,6 +902,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, let text else { then(true); return }
         guard !quitAlertShown else { then(false); return }
         quitAlertShown = true
+        // Quit from Settings («Обновить до …» there): the question would hide behind that window.
+        if NSApp.isActive, !window.isKeyWindow { window.makeKeyAndOrderFront(nil) }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = text.message

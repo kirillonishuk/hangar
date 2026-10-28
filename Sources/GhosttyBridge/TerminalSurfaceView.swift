@@ -348,6 +348,11 @@ public struct ClipboardPromptText: Sendable {
         return ok
     }
 
+    #if DEBUG
+    /// Verification runs never activate the app, so its window is never key: focus the surface as a key window would.
+    public func debugFocus() { focusDidChange(true) }
+    #endif
+
     func focusDidChange(_ focused: Bool) {
         guard let surface, self.focused != focused else { return }
         self.focused = focused

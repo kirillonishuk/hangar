@@ -81,7 +81,7 @@ import Workspace
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
-        case emptyNoTask, emptyNoTabs, ghosttyFailed, retry, quit, menuHide
+        case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
@@ -143,7 +143,7 @@ import Workspace
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
         case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp
-        case updateAvailable, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
+        case updateAvailable, updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
         case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
         case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
@@ -310,6 +310,7 @@ import Workspace
     static var relaunchHint: String { s(.relaunchHint) }
     static var emptyNoTask: String { s(.emptyNoTask) }
     static var emptyNoTabs: String { s(.emptyNoTabs) }
+    static var terminalTab: String { s(.terminalTab) }
     public static func stateCorrupt(_ path: String) -> String { f(.stateCorrupt, path) }
     public static func stateUnreadable(_ path: String) -> String { f(.stateUnreadable, path) }
 

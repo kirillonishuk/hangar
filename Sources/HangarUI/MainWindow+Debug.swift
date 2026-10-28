@@ -211,6 +211,25 @@ extension MainWindowController {
                     NSApp.postEvent(e, atStart: false)
                 }
             }
+        case "keyEquiv":
+            // keyEquiv <keyCode> [cmd,shift,opt]: AppKit's key-equivalent path with the focused terminal as first responder
+            // (key monitor → window → main menu); posted keys skip it while the app is inactive. Who took it → $TMPDIR/hangar-keyEquiv.txt.
+            let f = arg.split(separator: " ").map(String.init)
+            guard let code = UInt16(f.first ?? ""), let window else { return }
+            var mods: NSEvent.ModifierFlags = []
+            for m in (f.count > 1 ? f[1] : "").split(separator: ",") {
+                mods.insert(["cmd": .command, "shift": .shift, "opt": .option, "ctrl": .control][String(m)] ?? [])
+            }
+            column.terminalArea.debugFocus(0)
+            column.terminalArea.focusedLeaf?.surface?.debugFocus()
+            let chars = [12: "q", 13: "w"][Int(code)] ?? ""
+            guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
+                                           windowNumber: window.windowNumber, context: nil, characters: chars,
+                                           charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) else { return }
+            let state = "key=\(window.isKeyWindow) responder=\(window.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"
+            let by = handleKeyDown(e) ? "monitor" : window.performKeyEquivalent(with: e) ? "window" : "menu"
+            try? "keyEquiv \(code) \(state) taken by \(by)\n".write(toFile: NSTemporaryDirectory() + "hangar-keyEquiv.txt", atomically: true, encoding: .utf8)
+            if by == "menu" { _ = NSApp.mainMenu?.performKeyEquivalent(with: e) }
         case "button":
             // button <title>: clicks it in the attached sheet/alert (posted keys don't reach a sheet window).
             func find(_ v: NSView) -> NSButton? {

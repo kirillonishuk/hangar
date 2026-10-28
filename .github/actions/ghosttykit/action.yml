@@ -40,4 +40,5 @@ runs:
           vendor/GhosttyKit.xcframework
           vendor/ghostty-src/zig-out/share
         retention-days: 1
+        include-hidden-files: true # share/ghostty/shell-integration/zsh/.zshenv is a dotfile
         if-no-files-found: error

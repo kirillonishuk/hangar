@@ -107,11 +107,21 @@ jobs:
       - name: Build Hangar.app
         run: scripts/bundle.sh
 
+      - name: Verify Hangar.app
+        run: scripts/verify-bundle.sh build/Hangar.app "${{ steps.version.outputs.version }}"
+
       - name: Build DMG
         run: |
           scripts/make-dmg.sh
           mv build/Hangar.dmg "build/Hangar-${{ steps.version.outputs.version }}.dmg"
           cd build && shasum -a 256 "Hangar-${{ steps.version.outputs.version }}.dmg" > "Hangar-${{ steps.version.outputs.version }}.dmg.sha256"
+
+      - name: Verify DMG contents
+        run: |
+          MNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "build/Hangar-${{ steps.version.outputs.version }}.dmg"
+          trap 'hdiutil detach "$MNT" -quiet -force' EXIT
+          scripts/verify-bundle.sh "$MNT/Hangar.app" "${{ steps.version.outputs.version }}"
 
       - name: Tag
         if: steps.version.outputs.tagged == 'false'

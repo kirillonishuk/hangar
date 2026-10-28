@@ -67,3 +67,9 @@ jobs:
           swift test --no-parallel && exit 0
           echo "::warning::Test run failed; retrying once"
           swift test --no-parallel
+
+      # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
+      - name: Bundle & verify
+        run: |
+          scripts/bundle.sh
+          scripts/verify-bundle.sh build/Hangar.app

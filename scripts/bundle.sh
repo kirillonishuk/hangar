@@ -25,6 +25,10 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
+# Dotfiles are easy to lose in CI artifacts; without .zshenv ZDOTDIR is never restored and ~/.zshrc is skipped (#98).
+for f in ghostty/shell-integration/zsh/.zshenv; do
+  [ -f "$APP/Contents/Resources/$f" ] || { echo "error: $f is missing from the bundle (hidden files dropped from the Ghostty resources?)" >&2; exit 1; }
+done
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM resources (ru/en strings, FileIcons/); L10n looks in Contents/Resources first.
 cp -R "$BIN_DIR/Hangar_HangarUI.bundle" "$APP/Contents/Resources/Hangar_HangarUI.bundle"

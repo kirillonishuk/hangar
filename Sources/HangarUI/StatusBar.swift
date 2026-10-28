@@ -116,6 +116,16 @@ extension AppState {
         if !inboxShown { toggleInbox() }
     }
 
+    /// «N ждёт внимания»: the project's next agent asking something (after the focused one, wrapping), as
+    /// «N работает» goes to the next working session — the counter is this project's, so is the jump.
+    func revealNextWaiting() {
+        guard let task = selectedTask else { return }
+        let all = state.tasks(in: task.projectId).flatMap(leaves)
+        let waiting = Set(all.filter { displayState(ofLeaf: $0.id, kind: $0.kind) == .waiting }.map(\.id))
+        let focused = task.tabs.first { $0.id == task.activeTabId }?.focusedLeafId
+        if let next = nextWorking(all.map(\.id), working: waiting, after: focused) { reveal(leafId: next) }
+    }
+
     /// «N работает»: the project's next session with a working agent.
     func selectNextWorking() {
         guard let task = selectedTask else { return }
@@ -157,7 +167,7 @@ struct WindowStatusBar: View {
                 }
             }
             if let text = line.waitingText {
-                StatusButton(help: L10n.inbox, action: app.inboxClicked) {
+                StatusButton(help: L10n.statusNextWaitingHelp, action: app.revealNextWaiting) {
                     StatusDot(state: .waiting)
                     Text(verbatim: text)
                 }

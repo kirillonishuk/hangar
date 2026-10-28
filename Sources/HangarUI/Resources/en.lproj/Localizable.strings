@@ -412,6 +412,7 @@
 "notifySectionSystem" = "Dock and system";
 "statusMachineHelp" = "Machine the session runs on";
 "statusNextWorkingHelp" = "Next working session";
+"statusNextWaitingHelp" = "Next agent of the project waiting for you";
 "statusFailedHelp" = "Show the failed session";
 "statusPanesHelp" = "Panes in the tab";
 "agentCountOne" = "%d agent";

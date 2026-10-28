@@ -412,6 +412,7 @@
 "notifySectionSystem" = "Dock и система";
 "statusMachineHelp" = "Машина, на которой идёт сессия";
 "statusNextWorkingHelp" = "Следующая работающая сессия";
+"statusNextWaitingHelp" = "Следующий агент проекта, который ждёт ответа";
 "statusFailedHelp" = "Показать сессию с ошибкой";
 "statusPanesHelp" = "Панели во вкладке";
 "agentCountOne" = "%d агент";

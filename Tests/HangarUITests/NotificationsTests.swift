@@ -397,6 +397,12 @@ import Workspace
         #expect(attentionCount(f.app.attentionItems) == 2)
         #expect(f.app.statusBar.counts.failed == 1)
         #expect(f.app.statusBar.counts.waiting == 1)
+        // Its click goes to that agent (not the all-projects inbox), from anywhere in the project.
+        f.app.perform { $0.select(taskId: f.other) }
+        f.app.revealNextWaiting()
+        #expect(f.app.state.selectedTaskId == f.task)
+        #expect(f.app.selectedTask?.activeTabId == f.tab0.id)
+        #expect(!f.app.inboxShown)
     }
 
     @Test func leafVisibleRules() {

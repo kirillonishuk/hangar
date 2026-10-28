@@ -51,11 +51,13 @@ button.primary:hover { filter: brightness(1.08); }
 .ctx .keys { margin-left: auto; color: var(--text3); font-size: var(--menu-key-font); }
 .ctx .sep { height: 1px; background: var(--line-sheet); margin: var(--menu-sep-v) var(--menu-sep-h); }
 
-/* Rainbow indents (#84): indent-rainbow's faint bands by level. */
-.monaco-editor .ir0 { background: rgba(255, 255, 64, 0.07); }
-.monaco-editor .ir1 { background: rgba(127, 255, 127, 0.07); }
-.monaco-editor .ir2 { background: rgba(255, 127, 255, 0.07); }
-.monaco-editor .ir3 { background: rgba(79, 236, 236, 0.07); }
+/* Rainbow indents (#84): indent-rainbow's "light" look, a tinted 1px guide per level over a barely-there band,
+   so 2-space levels don't read as solid blocks. */
+.monaco-editor .ir { box-shadow: inset 1px 0 0 var(--ir-edge); background: var(--ir-band); }
+.monaco-editor .ir0 { --ir-edge: rgba(255, 255, 64, 0.28); --ir-band: rgba(255, 255, 64, 0.025); }
+.monaco-editor .ir1 { --ir-edge: rgba(127, 255, 127, 0.28); --ir-band: rgba(127, 255, 127, 0.025); }
+.monaco-editor .ir2 { --ir-edge: rgba(255, 127, 255, 0.28); --ir-band: rgba(255, 127, 255, 0.025); }
+.monaco-editor .ir3 { --ir-edge: rgba(79, 236, 236, 0.28); --ir-band: rgba(79, 236, 236, 0.025); }
 /* TODO pills in comments: FIXME pink as in VS Code's TODO Highlight, the others in their own tints. */
 .monaco-editor .todo { color: #ffffff !important; border-radius: 3px; font-weight: 600; }
 .monaco-editor .todo-fixme { background: #d0587e; }

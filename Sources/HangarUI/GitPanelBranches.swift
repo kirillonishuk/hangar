@@ -28,19 +28,21 @@ struct GitBranchesBlock: View {
             Button { model.branchesOpen.toggle() } label: {
                 HStack(spacing: Theme.GitTab.rowGap) {
                     IconView(icon: model.branchesOpen ? .chevronDown : .chevronRight, size: Theme.GitTab.chevron, tint: Theme.ui.text3)
-                    Text(L10n.gitBranches)
-                        .font(.system(size: Theme.fontSize.footer, weight: .semibold))
-                        .foregroundStyle(Theme.ui.text3)
-                    if !model.branchesOpen, let head = model.branches?.head {
-                        GitRefPill(ref: CommitRef(kind: .head, name: "HEAD · " + (head.branch ?? head.hash.map { String($0.prefix(7)) } ?? "—")),
-                                   lane: 0, head: nil)
-                    }
+                    // The checked-out branch (or the detached hash) is the header; the list holds the rest.
+                    IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.text2)
+                    Text(verbatim: headTitle)
+                        .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+                        .foregroundStyle(Theme.ui.text)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .pointingHand()
+            .help(L10n.gitBranches + ": " + headTitle)
+            .accessibilityLabel(L10n.gitBranches + ", " + headTitle)
             if model.branches?.remote.isEmpty == false {
                 GitIconButton(icon: .refresh, help: L10n.gitFetchHelp, enabled: !model.fetching) { model.fetch() }
             }
@@ -48,6 +50,11 @@ struct GitBranchesBlock: View {
         .padding(.leading, Theme.GitTab.padding - Theme.GitTab.rowInset)
         .padding(.trailing, Theme.GitTab.padding - Theme.GitTab.rowInset)
         .frame(height: Theme.GitTab.sectionHeight)
+    }
+
+    private var headTitle: String {
+        guard let head = model.branches?.head else { return "" }
+        return head.branch ?? head.hash.map { String($0.prefix(7)) } ?? "HEAD"
     }
 
     private func selected(_ row: BranchRowItem) -> Bool {

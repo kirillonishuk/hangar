@@ -14,6 +14,8 @@ import Testing
         defer { L10n.language = .system }
         L10n.language = .ru
         #expect(L10n.segmentChanges(3) == "Changes 3")
+        #expect(L10n.segmentChangesTitle == "Changes")
+        #expect(L10n.changesHintUncommitted == "Незакоммиченное")
         #expect(L10n.changesHintBase("main") == "База: main")
         #expect(L10n.changesHintToUncommitted == "⌥B — незакоммиченное")
         #expect(L10n.baseMissing("dev") == "Базовая ветка dev не найдена — показано незакоммиченное")

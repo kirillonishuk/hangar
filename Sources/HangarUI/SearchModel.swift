@@ -45,6 +45,18 @@ enum SearchStatus: Equatable {
     private(set) var target: SearchTarget?
     /// Files folded by a click on their header.
     var collapsed: Set<String> = []
+    /// Sessions (search roots) whose include / exclude fields are open; this run only, never saved.
+    private var filtersOpen: Set<String> = []
+    /// The include / exclude fields are shown for the current root.
+    var filtersShown: Bool {
+        get { target.map { filtersOpen.contains(Self.key($0)) } ?? false }
+        set {
+            guard let target else { return }
+            if newValue { filtersOpen.insert(Self.key(target)) } else { filtersOpen.remove(Self.key(target)) }
+        }
+    }
+    /// Either glob field narrows the search (the toggle shows a dot, even while they are hidden).
+    var filtersActive: Bool { !searchGlobs(include).isEmpty || !searchGlobs(exclude).isEmpty }
     /// ⇧⌘F: the field takes focus (and selects its text).
     var focusRequest = 0
     /// The last request the field has served.
@@ -63,6 +75,8 @@ enum SearchStatus: Equatable {
     @ObservationIgnored private var interrupted = false
     /// The login shell's `rg` once looked up (`.some(nil)`: it has none).
     @ObservationIgnored private var loginRipgrep: String??
+
+    private static func key(_ target: SearchTarget) -> String { (target.host ?? "") + ":" + target.root }
 
     /// `!glob` in the include field means exclude (as rg reads it): moved there, so git grep (whose pathspecs have no
     /// `!`) agrees; a `!` typed in the exclude field is redundant and dropped.

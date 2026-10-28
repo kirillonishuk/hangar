@@ -112,11 +112,13 @@ extension MainWindowController {
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
         // search <text>: the Search tab's query (#91); searchToggle case|word|regex.
         case "search": app.search.text = arg
+        case "searchExclude": app.search.exclude = arg
         case "searchToggle":
             switch arg {
             case "case": app.search.caseSensitive.toggle()
             case "word": app.search.wholeWord.toggle()
             case "regex": app.search.regex.toggle()
+            case "filters": app.search.filtersShown.toggle()  // the «…» include / exclude toggle
             default: break
             }
         // «Сессии»: the search text; the n-th project.
@@ -400,6 +402,9 @@ extension MainWindowController {
                     let runner = app.project(task.projectId).map(app.runner(for:)) ?? .local
                     m.show(taskId: task.id, root: root, git: { Git(repo: $0, runner: runner) }, remote: !runner.isLocal,
                            baseBranch: { await app.baseBranch(of: task) })
+                    // The Git tab too, so an occluded verification window (HANGAR_DEBUG_BEHIND) still loads the log.
+                    app.gitPanel.show(taskId: task.id, root: root, git: { Git(repo: $0, runner: runner) }, remote: !runner.isLocal)
+                    app.gitPanel.setOnScreen(true)
                 }
             default: break
             }

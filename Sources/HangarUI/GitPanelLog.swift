@@ -10,14 +10,12 @@ struct GitLogList: View {
     var body: some View {
         let commits = model.commits
         let graph = model.graph
-        let lanes = min(max(graph.map(\.width).max() ?? 1, 1), Theme.GitTab.maxLanes)
-        let column = max(Theme.GitTab.graphColumn, Theme.GitTab.laneX0 * 2 + CGFloat(lanes - 1) * Theme.GitTab.laneStep)
         let head = model.branches?.head.branch
         let mark = model.query.text.trimmingCharacters(in: .whitespaces)
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(Array(commits.enumerated()), id: \.element.hash) { i, c in
-                    GitLogRow(commit: c, graph: graph.indices.contains(i) ? graph[i] : nil, column: column, head: head,
+                    GitLogRow(commit: c, graph: graph.indices.contains(i) ? graph[i] : nil, head: head,
                               mark: mark, now: model.loadedAt, selected: model.selected == c.hash) {
                         model.select(model.selected == c.hash ? nil : c.hash)
                     }
@@ -32,11 +30,12 @@ struct GitLogList: View {
 }
 
 /// One commit: graph, ref chips, subject, date; hash, author and the full date in the tooltip (mockup).
+/// The graph cell is as wide as this row's lanes, the subject starts right after it; chips never push out the
+/// subject (it keeps `subjectMin`) or the date (its own column, never clipped).
 struct GitLogRow: View, Equatable {
     let commit: Commit
     /// nil: the graph is hidden (narrowing filters), only a dot.
     let graph: GraphRow?
-    let column: CGFloat
     /// The checked-out branch: its chip is `accent`.
     let head: String?
     let mark: String
@@ -45,30 +44,38 @@ struct GitLogRow: View, Equatable {
     let action: () -> Void
 
     nonisolated static func == (a: Self, b: Self) -> Bool {
-        a.commit == b.commit && a.graph == b.graph && a.column == b.column && a.head == b.head && a.mark == b.mark
+        a.commit == b.commit && a.graph == b.graph && a.head == b.head && a.mark == b.mark
             && a.now == b.now && a.selected == b.selected
     }
 
     var body: some View {
-        let refs = commit.refs
+        let chips = refChips(commit.refs, limit: Theme.GitTab.maxRefs)
         GitRow(selected: selected, action: action) {
             HStack(spacing: Theme.GitTab.rowGap) {
                 GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selection : Theme.ui.inspector)
-                    .frame(width: column, height: Theme.GitTab.logRow)
-                ForEach(Array(refs.prefix(Theme.GitTab.maxRefs).enumerated()), id: \.offset) { _, ref in
-                    GitRefPill(ref: ref, lane: graph?.color ?? 0, head: head)
+                    .frame(width: graphWidth(graph), height: Theme.GitTab.logRow)
+                if !chips.shown.isEmpty {
+                    HStack(spacing: Theme.GitTab.refGap) {
+                        ForEach(Array(chips.shown.enumerated()), id: \.offset) { _, chip in
+                            GitRefPill(ref: chip.ref, lane: graph?.color ?? 0, head: head, twin: chip.twin, maxWidth: Theme.GitTab.refMaxWidth)
+                        }
+                        if chips.more > 0 { GitMoreRefs(count: chips.more) }
+                    }
+                    .layoutPriority(1)
                 }
                 subject
                     .font(.system(size: Theme.fontSize.row))
                     .foregroundStyle(selected ? Theme.ui.textStrong : commit.parents.count > 1 ? Theme.ui.text2 : Theme.ui.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: Theme.GitTab.subjectMin, maxWidth: .infinity, alignment: .leading)
                 Text(gitShortDate(commit.date, now: now))
                     .font(.system(size: Theme.GitTab.mono, design: .monospaced))
                     .foregroundStyle(selected ? Theme.ui.text2 : Theme.ui.text3)
                     .lineLimit(1)
                     .fixedSize()
+                    .frame(minWidth: GitRefPill.dateColumn, alignment: .trailing)
+                    .layoutPriority(2)
             }
             .padding(.trailing, Theme.GitTab.chipLeading)
             .frame(height: Theme.GitTab.logRow)
@@ -107,6 +114,9 @@ struct GitRefPill: View {
     let ref: CommitRef
     let lane: Int
     let head: String?
+    /// Its remote twin (`origin/<name>`) points here too: one chip with a `⇅` mark.
+    var twin: String? = nil
+    var maxWidth = Theme.GitTab.chipMaxWidth
 
     var body: some View {
         let tint: Color, opacity: Double
@@ -116,23 +126,80 @@ struct GitRefPill: View {
         case .remote: (tint, opacity) = (Theme.ui.text2, Theme.GitTab.refRemoteOpacity)
         case .branch, .tag: (tint, opacity) = (Theme.GitTab.lane(lane), Theme.GitTab.refOtherOpacity)
         }
-        return Text(verbatim: ref.name)
-            .font(.system(size: Theme.GitTab.mono, design: .monospaced))
-            .foregroundStyle(tint)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.horizontal, Theme.GitTab.refPaddingH)
-            .frame(height: Theme.GitTab.refHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(tint.opacity(opacity)))
-            // Its own width up to the cap (a maxWidth frame alone would grow to the cap).
-            .frame(width: min(Self.width(ref.name), Theme.GitTab.chipMaxWidth), alignment: .leading)
+        return HStack(spacing: Theme.GitTab.refMarkGap) {
+            Text(verbatim: ref.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if twin != nil { Text(verbatim: Self.syncedMark).opacity(Theme.GitTab.refMarkOpacity).fixedSize() }
+        }
+        .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+        .foregroundStyle(tint)
+        .padding(.horizontal, Theme.GitTab.refPaddingH)
+        .frame(height: Theme.GitTab.refHeight)
+        .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(tint.opacity(opacity)))
+        // Its own width up to the cap; in a tight row it gives way down to `refMinWidth` (a maxWidth frame alone
+        // would grow to the cap).
+        .frame(minWidth: min(Self.width(label), Theme.GitTab.refMinWidth), idealWidth: min(Self.width(label), maxWidth),
+               maxWidth: min(Self.width(label), maxWidth), alignment: .leading)
+        .help(twin.map { ref.name + " · " + $0 } ?? ref.name)
     }
+
+    private var label: String { twin != nil ? ref.name + " " + Self.syncedMark : ref.name }
+    static let syncedMark = "⇅"
 
     private static let font = NSFont.monospacedSystemFont(ofSize: Theme.GitTab.mono, weight: .regular)
 
     static func width(_ name: String) -> CGFloat {
         ceil((name as NSString).size(withAttributes: [.font: font]).width) + Theme.GitTab.refPaddingH * 2
     }
+
+    /// The date column: «00:00», «23 окт» and «вчера» end on one line; an older year's date may be wider.
+    @MainActor static var dateColumn: CGFloat {
+        ["000000", L10n.gitYesterday].map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
+    }
+}
+
+/// «+k»: refs past the row's chips (all of them are in the row's tooltip).
+struct GitMoreRefs: View {
+    let count: Int
+
+    var body: some View {
+        Text(verbatim: "+\(count)")
+            .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+            .foregroundStyle(Theme.ui.text2)
+            .padding(.horizontal, Theme.GitTab.refPaddingH)
+            .frame(height: Theme.GitTab.refHeight)
+            .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(Theme.ui.text2.opacity(Theme.GitTab.refRemoteOpacity)))
+            .fixedSize()
+    }
+}
+
+/// A row's graph cell: as wide as the lanes it draws (one lane → 20), clipped to `maxLanes`.
+func graphWidth(_ row: GraphRow?) -> CGFloat {
+    let lanes = min(max(row?.width ?? 1, 1), Theme.GitTab.maxLanes)
+    return Theme.GitTab.laneX0 * 2 + CGFloat(lanes - 1) * Theme.GitTab.laneStep
+}
+
+/// A ref chip of a log row: a local branch absorbs its remote twin pointing at the same commit (`twin`).
+struct RefChip: Equatable {
+    var ref: CommitRef
+    var twin: String? = nil
+}
+
+/// The chips a row shows, in git's order, and how many more there are («+k»): at most `limit` items in all, so
+/// past it the last place is the «+k».
+func refChips(_ refs: [CommitRef], limit: Int) -> (shown: [RefChip], more: Int) {
+    let locals = Set(refs.filter { $0.kind == .branch }.map(\.name))
+    func localTwin(_ r: CommitRef) -> String? {
+        guard r.kind == .remote, let slash = r.name.firstIndex(of: "/") else { return nil }
+        let name = String(r.name[r.name.index(after: slash)...])
+        return locals.contains(name) ? name : nil
+    }
+    var twins: [String: String] = [:]
+    for r in refs { if let name = localTwin(r), twins[name] == nil { twins[name] = r.name } }
+    let chips = refs.filter { localTwin($0) == nil }.map { RefChip(ref: $0, twin: $0.kind == .branch ? twins[$0.name] : nil) }
+    let room = chips.count > limit ? max(limit - 1, 0) : chips.count
+    return (Array(chips.prefix(room)), chips.count - room)
 }
 
 /// The rails and the dot of one row (lanes every 12 from x 10, dot r 4 with a 2 pt ring of the row's background,

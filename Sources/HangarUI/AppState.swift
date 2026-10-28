@@ -373,7 +373,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(paneTitle).joined(separator: " │ ")) }
+    /// The tab's own name, else its focused pane's: a split tab never joins its panes' names — their headers show them.
+    func tabLabel(_ tab: Tab) -> String {
+        tab.label(auto: (tab.root.leaf(id: tab.focusedLeafId) ?? tab.root.leaves.first).map(paneTitle) ?? "")
+    }
 
     /// Tooltip title: an unsplit, unrenamed editor tab shows its active file's path from the session folder; others their label.
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {

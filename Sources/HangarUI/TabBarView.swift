@@ -41,19 +41,14 @@ enum TabStrip {
         return others.map { widths[$0] + Theme.tabGap }.reduce(0, +)
     }
 
-    /// A tab's least width: the status dot gets its own room, so a dotted tab keeps as much title as a plain one.
-    static func minWidth(dot: Bool) -> CGFloat {
-        Theme.tabMinWidth + (dot ? Theme.statusDot + Theme.rowEndGap : 0)
-    }
-
-    /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
-    /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
-    /// first, then scrolls at min.
+    /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow). Tabs get their natural
+    /// width within [min, max]; a crowded bar shrinks the widest first, then scrolls at min. (The status dot is a badge
+    /// on the tab's icon, so it takes no title room.)
     /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, #83).
-    static func layout(natural: [CGFloat], dots: [Bool] = [], whole: [Bool] = [], width: CGFloat) -> Layout {
+    static func layout(natural: [CGFloat], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.tabBarButton
         let floors = natural.indices.map { i in
-            let least = minWidth(dot: dots.indices.contains(i) && dots[i])
+            let least = Theme.tabMinWidth
             return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.fileTabMaxWidth)) : least
         }
         if content(floors) <= width - control {
@@ -157,10 +152,10 @@ struct TabBarView: View {
 
     // MARK: Layout
 
-    /// Natural width of a tab: paddings, dot, icon, title, `×` (the `×` keeps its place while hidden).
-    private static func natural(text: CGFloat, dot: Bool) -> CGFloat {
+    /// Natural width of a tab: paddings, icon (the status dot is its badge), title, `×` (kept in place while hidden).
+    private static func natural(text: CGFloat) -> CGFloat {
         let chrome = 2 * Theme.tabPaddingH + Theme.iconSize + Theme.iconGap + Theme.rowEndGap + Theme.smallIconSize
-        return (chrome + text + (dot ? Theme.statusDot + Theme.rowEndGap : 0)).rounded(.up)
+        return (chrome + text).rounded(.up)
     }
 
     private static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
@@ -170,17 +165,16 @@ struct TabBarView: View {
     }
 
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
-        let dots = task.tabs.map { app.showsDot($0, state: app.displayState(of: $0)) }
-        var natural = zip(task.tabs, dots).map { tab, dot in
+        var natural = task.tabs.map { tab in
             let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab), italic: tab.preview)
-            return Self.natural(text: text, dot: dot)
+            return Self.natural(text: text)
         }
         var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
         if let diff = app.diffTabs[task.id] {
-            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true), dot: false))
+            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true)))
             whole.append(true)
         }
-        return TabStrip.layout(natural: natural, dots: dots, whole: whole, width: width)
+        return TabStrip.layout(natural: natural, whole: whole, width: width)
     }
 
     /// Index of the active tab in the strip (the diff tab is last).
@@ -394,7 +388,7 @@ struct TabBarView: View {
         }
     }
 
-    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell.
+    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell. As tall as a tab and on its baseline.
     private func addMenu(shellOnly: Bool) -> some View {
         MoreButton(icon: .add, radius: Theme.tabRadius, size: Theme.tabBarButton, help: L10n.help(L10n.newTabHelp, .newTab)) {
             if !shellOnly {
@@ -403,7 +397,6 @@ struct TabBarView: View {
             }
             item("Shell", .shell)
         }
-        .padding(.bottom, Theme.railInset)
     }
 
     private func item(_ title: String, _ kind: LeafKind) -> some View {
@@ -528,15 +521,24 @@ struct TabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             let dot = app.displayState(of: tab)
-            if app.showsDot(tab, state: dot) {
-                StatusDot(state: dot).padding(.trailing, Theme.rowEndGap).help(app.statusText(dot, leaves: tab.root.leaves))
+            // A file tab (#83): the file type's icon; a one-click preview reads in italics. The status dot is a badge
+            // on the icon (as on the rail's tiles): one marker per tab, not a dot and a logo side by side.
+            Group {
+                if let file = fileLeaf?.openFile {
+                    FileIconView(name: (file as NSString).lastPathComponent)
+                } else if let kind = (tab.root.leaf(id: tab.focusedLeafId) ?? tab.root.leaves.first)?.kind {
+                    IconView(icon: .of(kind), active: active)
+                }
             }
-            // A file tab (#83): the file type's icon; a one-click preview reads in italics.
-            if let file = fileLeaf?.openFile {
-                FileIconView(name: (file as NSString).lastPathComponent).padding(.trailing, Theme.iconGap)
-            } else if let kind = tab.root.leaves.first?.kind {
-                IconView(icon: .of(kind), active: active).padding(.trailing, Theme.iconGap)
+            .overlay(alignment: .bottomTrailing) {
+                if app.showsDot(tab, state: dot) {
+                    StatusDot(state: dot, size: Theme.railDot, border: active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive,
+                              borderWidth: Theme.railDotBorder)
+                        .offset(x: Theme.tabDotOffset, y: Theme.tabDotOffset)
+                        .help(app.statusText(dot, leaves: tab.root.leaves))
+                }
             }
+            .padding(.trailing, Theme.iconGap)
             if app.renaming == target {
                 RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
             } else {

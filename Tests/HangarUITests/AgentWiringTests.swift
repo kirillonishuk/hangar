@@ -454,4 +454,25 @@ import Workspace
         try app.setConfig("keep_awake", flag: false) { $0.keepAwake = false }
         #expect(log.released == [7] && !app.keepAwake.held)
     }
+
+    /// The agent's hooks keep the `HANGAR_TAB_ID` of its launch: after a merge they still reach its leaf.
+    @Test func hookFromFormerTabIsApplied() {
+        let app = makeApp([.shell, .claude])
+        let tabs = app.state.tasks[0].tabs
+        let a = tabs[0], b = tabs[1], leafB = b.root.leaves[0].id
+        app.mergeTab(b.id, into: a.id, at: a.root.leaves[0].id, edge: .right)
+        #expect(app.location(ofLeaf: leafB)?.tab == a.id)
+        app.handle(.event(EventMessage(tab: b.id, leaf: leafB, kind: .prompt)))
+        #expect(app.state(ofLeaf: leafB) == .working)
+    }
+
+    /// Trust boundary: a tab the leaf never ran under is still rejected.
+    @Test func hookFromUnrelatedTabIsRejected() {
+        let app = makeApp([.shell, .claude, .shell])
+        let tabs = app.state.tasks[0].tabs
+        let a = tabs[0], b = tabs[1], c = tabs[2], leafB = b.root.leaves[0].id
+        app.mergeTab(b.id, into: a.id, at: a.root.leaves[0].id, edge: .right)
+        app.handle(.event(EventMessage(tab: c.id, leaf: leafB, kind: .prompt)))
+        #expect(app.state(ofLeaf: leafB) != .working)
+    }
 }

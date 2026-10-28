@@ -159,6 +159,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
+    /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
+    @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
     @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
     /// The remote tmux kills the last `perform` started.
@@ -251,6 +253,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
             statuses.retain(live)
@@ -313,7 +316,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
     }
 
-    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(title(of:)).joined(separator: " │ ")) }
+    /// A pane's header: its own name, else its terminal / file title.
+    func paneTitle(_ leaf: Leaf) -> String { leaf.customTitle ?? title(of: leaf) }
+
+    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.map(paneTitle).joined(separator: " │ ")) }
 
     /// Tooltip title: an unsplit, unrenamed editor tab shows its active file's path from the session folder; others their label.
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
@@ -566,6 +572,31 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func closeLeaf(_ leafId: UUID) {
         guard let loc = location(ofLeaf: leafId) else { return }
         perform { $0.closeLeaf(taskId: loc.task, tabId: loc.tab, leafId: leafId) }
+    }
+
+    /// The whole `source` tab joins `target` next to its leaf `leafId`; its panes keep running.
+    func mergeTab(_ source: UUID, into target: UUID, at leafId: UUID, edge: SplitEdge) {
+        guard let task = location(ofTab: source),
+              let moved = state.tasks.first(where: { $0.id == task })?.tabs.first(where: { $0.id == source })?.root.leaves
+        else { return }
+        perform { if $0.mergeTab(taskId: task, source: source, into: target, at: leafId, edge: edge) { remember(moved.map(\.id), ranIn: source) } }
+    }
+
+    /// The pane joins `target` next to `anchor` (same session); it keeps running.
+    func moveLeaf(_ leafId: UUID, to target: UUID, at anchor: UUID, edge: SplitEdge) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        perform { if $0.moveLeaf(taskId: loc.task, leafId: leafId, to: target, at: anchor, edge: edge) { remember([leafId], ranIn: loc.tab) } }
+    }
+
+    /// The pane becomes a tab of its own (after its tab, or at `toIndex`); it keeps running.
+    func detachLeaf(_ leafId: UUID, toIndex: Int?) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        perform { if $0.detachLeaf(taskId: loc.task, leafId: leafId, toIndex: toIndex) != nil { remember([leafId], ranIn: loc.tab) } }
+    }
+
+    /// A moved leaf's process keeps the `HANGAR_TAB_ID` it was launched with: its hooks from that tab stay accepted.
+    private func remember(_ leaves: [UUID], ranIn tab: UUID) {
+        for id in leaves { formerTabs[id, default: []].insert(tab) }
     }
 
     /// Splits `leafId` (the focused leaf) with a new shell in the task's cwd.

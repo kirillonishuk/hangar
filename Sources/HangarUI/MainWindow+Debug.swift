@@ -74,6 +74,28 @@ extension MainWindowController {
         }
     }
 
+    /// Indices are in the selected session: `merge <srcTab#> <dstTab#> <leaf#> <edge>`, `moveLeaf <leaf#> <dstTab#> <anchor#> <edge>`
+    /// (a leaf of the active tab), `detach <leaf#> [<index>]` (a leaf of the active tab).
+    private func debugMove(_ command: String, _ f: [String]) {
+        guard let task = app.selectedTask else { return }
+        let n = f.map { Int($0) }
+        func tab(_ i: Int?) -> Tab? { i.flatMap { task.tabs.indices.contains($0) ? task.tabs[$0] : nil } }
+        func leaf(_ t: Tab?, _ i: Int?) -> UUID? { t.flatMap { t in i.flatMap { t.root.leaves.indices.contains($0) ? t.root.leaves[$0].id : nil } } }
+        let active = task.tabs.first { $0.id == task.activeTabId }
+        let edge = f.count == 4 ? SplitEdge(rawValue: f[3]) : nil
+        switch command {
+        case "merge":
+            guard let edge, let src = tab(n[0]), let dst = tab(n[1]), let at = leaf(dst, n[2]) else { return }
+            app.mergeTab(src.id, into: dst.id, at: at, edge: edge)
+        case "moveLeaf":
+            guard let edge, let id = leaf(active, n[0]), let dst = tab(n[1]), let anchor = leaf(dst, n[2]) else { return }
+            app.moveLeaf(id, to: dst.id, at: anchor, edge: edge)
+        default:
+            guard let id = leaf(active, n.first ?? nil) else { return }
+            app.detachLeaf(id, toIndex: n.count > 1 ? n[1] : nil)
+        }
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -490,6 +512,8 @@ extension MainWindowController {
             }
             uiLog.info("window \(arg, privacy: .public) occlusion=\(self.window?.occlusionState.contains(.visible) ?? false) mini=\(self.window?.isMiniaturized ?? false) active=\(NSApp.isActive)")
         case "check": try? column.terminalArea.debugCheck().write(toFile: arg, atomically: true, encoding: .utf8)  // check <file>
+        case "surfaces": try? column.terminalArea.debugSurfaces().write(toFile: arg, atomically: true, encoding: .utf8)  // surfaces <file>
+        case "merge", "moveLeaf", "detach": debugMove(parts[0], arg.split(separator: " ").map(String.init))
         // Runs applicationWillTerminate like ⌘Q. From a run-loop block, not this main-queue callback: the quit sheet's
         // nested loop could not drain the main queue (the SIGTERM source) while a main-queue block is on the stack.
         case "quit": RunLoop.main.perform { NSApp.terminate(nil) }

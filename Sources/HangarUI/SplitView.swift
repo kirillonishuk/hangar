@@ -159,6 +159,16 @@ final class FillView: NSView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
+    #if DEBUG
+    /// Times the view left the window; a live leaf must never (its surface would blank and reset). Closed views are dropped.
+    private(set) var windowLosses = 0
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { windowLosses += 1 }
+    }
+    #endif
+
     @objc private func applyTheme() {
         layer?.backgroundColor = Theme.panel.cgColor
         header.textColor = headerFocused ? Theme.text2 : Theme.text3
@@ -397,9 +407,9 @@ final class FillView: NSView {
 /// switching only toggles visibility, so surfaces never leave the window (decision for pending clipboard prompts).
 @MainActor final class TerminalArea: NSView {
     private let app: AppState
-    private var tabViews: [UUID: NSView] = [:]
+    private(set) var tabViews: [UUID: NSView] = [:]
     private var structure: [UUID: String] = [:]
-    private var leafViews: [UUID: LeafView] = [:]
+    private(set) var leafViews: [UUID: LeafView] = [:]
     private var lastVisible: [UUID: Bool] = [:]
     private var shownTab: UUID?
     private var shownFocus: UUID?
@@ -556,8 +566,10 @@ final class FillView: NSView {
         let liveTabIds = Set(liveTabs.map(\.id))
         let liveLeafIds = Set(liveTabs.flatMap { $0.root.leaves.map(\.id) })
 
-        // Closed tabs/leaves and archived tasks: these are real closes, the surfaces go away.
+        // Closed tabs/leaves and archived tasks: these are real closes, the surfaces go away. A live leaf of a gone tab
+        // (merged, moved, detached) is parked in `content` first, so it never leaves the window.
         for (id, view) in tabViews where !liveTabIds.contains(id) {
+            park(leavesIn: view, live: liveLeafIds)
             view.removeFromSuperview()
             tabViews[id] = nil
             structure[id] = nil
@@ -599,7 +611,7 @@ final class FillView: NSView {
             for leaf in tab.root.leaves {
                 if let view = leafViews[leaf.id], let pane = view.editor {
                     pane.setVisible(!diffShown && tab.id == active?.id)
-                    view.setHeader(app.title(of: leaf))
+                    view.setHeader(app.paneTitle(leaf))
                     view.headerFocused = leaf.id == tab.focusedLeafId
                     continue
                 }
@@ -610,7 +622,7 @@ final class FillView: NSView {
                     surface.setVisible(visible)
                     uiLog.info("setVisible(\(visible)) leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public)")
                 }
-                view.setHeader(app.title(of: leaf))
+                view.setHeader(app.paneTitle(leaf))
                 view.headerFocused = leaf.id == tab.focusedLeafId
                 view.refreshText()
             }
@@ -671,8 +683,9 @@ final class FillView: NSView {
             }
             app.wireHost(view)
             view.onTitle = { [weak self] title in
-                self?.app.setTitle(title, leafId: leaf.id)
-                self?.leafViews[leaf.id]?.setHeader(title)
+                guard let self else { return }
+                self.app.setTitle(title, leafId: leaf.id)
+                if let now = self.app.leaf(id: leaf.id) { self.leafViews[leaf.id]?.setHeader(self.app.paneTitle(now)) }
             }
             view.onExit = { [weak self] code in
                 self?.app.signal(.exited(code: code), leaf: leaf.id)
@@ -689,7 +702,10 @@ final class FillView: NSView {
                 self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
                 self?.sync()
             }
-            view.start(app.launchContext(for: leaf.id)) { [app] in try app.spec(for: leaf, tabId: tab.id, context: $0) }
+            // A relaunch after a merge / move / detach gets the leaf's tab of now as `HANGAR_TAB_ID`.
+            view.start(app.launchContext(for: leaf.id)) { [app, tabId = tab.id] in
+                try app.spec(for: leaf, tabId: app.location(ofLeaf: leaf.id)?.tab ?? tabId, context: $0)
+            }
             uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
         }
         if structure[tab.id] != signature(tab.root) { layoutTab(tab) }
@@ -718,12 +734,25 @@ final class FillView: NSView {
         guard let container = tabViews[tab.id] else { return }
         let old = container.subviews
         let root = build(tab.root, path: [], tabId: tab.id, into: container)
-        // Old split views are empty now (live leaves moved into the new tree, closed ones were removed).
-        for view in old where view.superview === container && view !== root { view.removeFromSuperview() }
+        // Old split views hold no leaf of this tab now; one moved to a tab not laid out yet is parked, closed ones are gone.
+        let live = Set(leafViews.keys)
+        for view in old where view.superview === container && view !== root {
+            park(leavesIn: view, live: live)
+            view.removeFromSuperview()
+        }
         let isSplit: Bool
         if case .split = tab.root { isSplit = true } else { isSplit = false }
         for leaf in tab.root.leaves { leafViews[leaf.id]?.showsHeader = isSplit }
         structure[tab.id] = signature(tab.root)
+    }
+
+    /// Live leaf views inside `view` move into `content`, hidden, until their new tab's `build` takes them.
+    private func park(leavesIn view: NSView, live: Set<UUID>) {
+        func leaves(_ v: NSView) -> [LeafView] { (v as? LeafView).map { [$0] } ?? v.subviews.flatMap(leaves) }
+        for leaf in leaves(view) where live.contains(leaf.leafId) && leafViews[leaf.leafId] === leaf {
+            leaf.isHidden = true
+            content.addSubview(leaf)
+        }
     }
 
     @discardableResult
@@ -732,6 +761,7 @@ final class FillView: NSView {
         case .leaf(let leaf):
             guard let view = leafViews[leaf.id] else { return nil }
             parent.addSubview(view)  // moves it without leaving the window
+            view.isHidden = false  // parked by `park` on its way from another tab
             view.frame = parent.bounds
             view.autoresizingMask = parent is RatioSplitView ? [] : [.width, .height]
             return view
@@ -813,6 +843,13 @@ final class FillView: NSView {
             let web = pane.host.page.webView
             return "editor leaf=\(view.leafId.uuidString.prefix(8)) ready=\(pane.host.page.isReady) files=\(files) pane=\(pane.frame) web=\(web.superview === pane ? "in" : "out") \(web.frame) hidden=\(web.isHiddenOrHasHiddenAncestor)"
         }
+    }
+
+    /// `surfaces <file>`: each leaf's view and surface identity, to prove a merge / move / detach kept them.
+    func debugSurfaces() -> String {
+        leafViews.map { id, view in
+            "leaf=\(id.uuidString.prefix(8)) view=\(ObjectIdentifier(view)) surface=\(view.surface.map { "\(ObjectIdentifier($0))" } ?? "-") windowLosses=\(view.windowLosses)"
+        }.sorted().joined(separator: "\n")
     }
 
     func debugDump() -> String {

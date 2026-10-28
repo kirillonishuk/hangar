@@ -143,6 +143,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .task(let id): state.tasks.contains { $0.id == id }
         case .project(let id): project(id) != nil
         case .tab(let task, let tab): state.tasks.first { $0.id == task }?.tabs.contains { $0.id == tab } == true
+        case .leaf(_, _, let leaf): location(ofLeaf: leaf) != nil
         }
         return exists ? interaction : .typing
     }
@@ -347,7 +348,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             guard let task = state.tasks.first(where: { $0.id == id }) else { return nil }
             if case .worktree(let path, _, _) = task.mode { return path }
             return project(task.projectId)?.path
-        case .tab: return nil
+        case .tab, .leaf: return nil
         }
     }
 
@@ -358,6 +359,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         case .task(let id): return state.tasks.first { $0.id == id }?.name ?? ""
         case .tab(let task, let tab):
             return state.tasks.first { $0.id == task }?.tabs.first { $0.id == tab }.map(tabLabel) ?? ""
+        case .leaf(_, _, let leaf): return self.leaf(id: leaf).map(paneTitle) ?? ""
         }
     }
 
@@ -470,6 +472,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             case .task(let id): s.renameTask(id: id, name: text)
             case .project(let id): s.renameProject(id: id, name: text)
             case .tab(let task, let tab): s.renameTab(taskId: task, tabId: tab, title: text)
+            // Blank: back to the automatic name (terminal / file title).
+            case .leaf(_, _, let leaf): s.renameLeaf(leafId: leaf, title: text)
             }
         }
     }

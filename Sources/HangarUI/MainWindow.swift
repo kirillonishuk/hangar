@@ -230,6 +230,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        column.terminalArea.actionContext = ctx
         root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
                                                 inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
                                                 toggleSidebar: { [weak self] in self?.toggleSidebar() })
@@ -555,6 +556,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func perform(_ sc: Shortcut) {
+        // ⌘W in a split tab closes the focused pane, the last one closes the tab.
+        if sc == .closeTab, let task = app.selectedTask, let tab = column.terminalArea.activeTab,
+           case .pane(let leaf) = closeKeyRoute(tab, focused: column.terminalArea.focusedLeaf?.leafId) {
+            Action.closePane.perform(.leaf(task: task.id, tab: tab.id, leaf: leaf), ctx)
+            return
+        }
         if let action = Action.allCases.first(where: { $0.shortcut == sc }) {
             if let target = keyTarget(for: action) { action.perform(target, ctx) }
             return

@@ -136,6 +136,11 @@ public enum Theme {
     public static let closeOpacity: Double = 0.4
     public static let paneHeaderPaddingV: CGFloat = 5
     public static let paneHeaderPaddingH: CGFloat = 12
+    /// A split pane's header strip: constant, so the terminal never jumps when its buttons show.
+    public static let paneHeaderHeight: CGFloat = 24
+    public static let paneHeaderIcon: CGFloat = 12
+    /// Gap between the header's «⇱» and «×».
+    public static let paneHeaderButtonGap: CGFloat = 2
     public static let inactiveOpacity: Double = 0.38
     public static let disabledButtonOpacity: Double = 0.45
 

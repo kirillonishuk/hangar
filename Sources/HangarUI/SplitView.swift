@@ -104,7 +104,8 @@ final class FillView: NSView {
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
     private var mode: LaunchMode?
-    private let header = NSTextField(labelWithString: "")
+    /// Holds the `PaneHeader` once the leaf is in a split (`installHeader`); always present, content goes below it.
+    private let header = FillView()
     private let headerLine = NSView()
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
@@ -148,11 +149,8 @@ final class FillView: NSView {
         self.leafId = leafId
         super.init(frame: .zero)
         wantsLayer = true
-        for label in [header, bar] {
-            label.font = .systemFont(ofSize: Theme.fontSize.counter)
-            label.lineBreakMode = .byTruncatingTail
-        }
         bar.font = .systemFont(ofSize: Theme.fontSize.counter)
+        bar.lineBreakMode = .byTruncatingTail
         for line in [headerLine, barLine] { line.wantsLayer = true }
         applyTheme()
         observeTheme(#selector(applyTheme))
@@ -177,15 +175,17 @@ final class FillView: NSView {
 
     @objc private func applyTheme() {
         layer?.backgroundColor = Theme.panel.cgColor
-        header.textColor = headerFocused ? Theme.text2 : Theme.text3
         bar.textColor = Theme.text2
         for line in [headerLine, barLine] { line.layer?.backgroundColor = Theme.line.cgColor }
     }
 
-    func setHeader(_ text: String) { header.stringValue = text }
-
-    /// The tab's focused pane: a brighter header, so a split shows where keys go even while the window is inactive.
-    var headerFocused = false { didSet { header.textColor = headerFocused ? Theme.text2 : Theme.text3 } }
+    /// The header's content, made once (the first time the leaf is in a split; it reads its leaf by id).
+    func installHeader(_ make: () -> NSView) {
+        guard header.subviews.isEmpty else { return }
+        let view = make()
+        view.frame = header.bounds
+        header.addSubview(view)
+    }
 
     /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
     override var acceptsFirstResponder: Bool { surface == nil && editor == nil }
@@ -416,11 +416,11 @@ final class FillView: NSView {
 
     override func layout() {
         super.layout()
-        let px = Theme.paneHeaderPaddingH, py = Theme.paneHeaderPaddingV
+        let px = Theme.paneHeaderPaddingH
         var top: CGFloat = 0
         if showsHeader {
-            let h = ceil(header.intrinsicContentSize.height) + 2 * py
-            header.frame = NSRect(x: px, y: py, width: max(0, bounds.width - 2 * px), height: h - 2 * py)
+            let h = Theme.paneHeaderHeight
+            header.frame = NSRect(x: 0, y: 0, width: bounds.width, height: h - 1)
             headerLine.frame = NSRect(x: 0, y: h - 1, width: bounds.width, height: 1)
             top = h
         }
@@ -467,10 +467,13 @@ final class FillView: NSView {
     /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (#99).
     private var noTabs = NSView()
     var onAddProject: () -> Void = {}
+    /// Pane headers' actions (confirmations are the window's); set by the window controller.
+    var actionContext: ActionContext
 
     init(app: AppState) {
         self.app = app
         drawer = TerminalDrawer(app: app)
+        actionContext = ActionContext(app: app)
         super.init(frame: .zero)
         content.autoresizingMask = []
         addSubview(content)
@@ -645,15 +648,9 @@ final class FillView: NSView {
         for (id, view) in tabViews { view.isHidden = diffShown || id != active?.id }
         for tab in liveTabs {
             for leaf in tab.root.leaves {
-                if let view = leafViews[leaf.id], view.chooser != nil {
-                    view.setHeader(app.paneTitle(leaf))
-                    view.headerFocused = leaf.id == tab.focusedLeafId
-                    continue
-                }
+                if let view = leafViews[leaf.id], view.chooser != nil { continue }
                 if let view = leafViews[leaf.id], let pane = view.editor {
                     pane.setVisible(!diffShown && tab.id == active?.id)
-                    view.setHeader(app.paneTitle(leaf))
-                    view.headerFocused = leaf.id == tab.focusedLeafId
                     continue
                 }
                 guard let view = leafViews[leaf.id], let surface = view.surface else { continue }
@@ -663,8 +660,6 @@ final class FillView: NSView {
                     surface.setVisible(visible)
                     uiLog.info("setVisible(\(visible)) leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public)")
                 }
-                view.setHeader(app.paneTitle(leaf))
-                view.headerFocused = leaf.id == tab.focusedLeafId
                 view.refreshText()
             }
         }
@@ -749,7 +744,6 @@ final class FillView: NSView {
         view.onTitle = { [weak self] title in
             guard let self else { return }
             self.app.setTitle(title, leafId: leaf.id)
-            if let now = self.app.leaf(id: leaf.id) { self.leafViews[leaf.id]?.setHeader(self.app.paneTitle(now)) }
         }
         view.onExit = { [weak self] code in
             self?.app.signal(.exited(code: code), leaf: leaf.id)
@@ -804,7 +798,17 @@ final class FillView: NSView {
         }
         let isSplit: Bool
         if case .split = tab.root { isSplit = true } else { isSplit = false }
-        for leaf in tab.root.leaves { leafViews[leaf.id]?.showsHeader = isSplit }
+        for leaf in tab.root.leaves {
+            guard let view = leafViews[leaf.id] else { continue }
+            if isSplit {
+                view.installHeader {
+                    PaneHeader.hosted(app: app, ctx: { [weak self, app] in self?.actionContext ?? ActionContext(app: app) }, leafId: leaf.id) {
+                        [weak self] in self?.focus(leafId: leaf.id)
+                    }
+                }
+            }
+            view.showsHeader = isSplit
+        }
         structure[tab.id] = signature(tab.root)
     }
 

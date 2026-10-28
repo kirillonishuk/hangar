@@ -598,3 +598,8 @@
 "cmdNextAttention" = "К следующему ждущему";
 "durationUnderMin" = "< 1 мин";
 "durationHour" = "%ld ч";
+"closePane" = "Закрыть панель";
+"detachPane" = "В отдельную вкладку";
+"paneAgentWorking" = "Агент ещё работает";
+"paneAgentWorkingInfo" = "Закрыть панель и остановить его?";
+"tabAgentWorkingInfo" = "Закрыть вкладку и остановить его?";

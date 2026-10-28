@@ -84,7 +84,7 @@ import Workspace
         case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
-        case paneNew, paneEditorCap, continueTitle, defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
+        case paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, editor, externalEditor, externalEditorPlaceholder, terminalBackground, backgroundGhostty, backgroundAsTheme
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
@@ -341,6 +341,11 @@ import Workspace
     static var paneNew: String { s(.paneNew) }
     static var paneEditorCap: String { s(.paneEditorCap) }
     static var continueTitle: String { s(.continueTitle) }
+    static var closePane: String { s(.closePane) }
+    static var detachPane: String { s(.detachPane) }
+    static var paneAgentWorking: String { s(.paneAgentWorking) }
+    static var paneAgentWorkingInfo: String { s(.paneAgentWorkingInfo) }
+    static var tabAgentWorkingInfo: String { s(.tabAgentWorkingInfo) }
     static var editor: String { s(.editor) }
     static var externalEditor: String { s(.externalEditor) }
     static var externalEditorPlaceholder: String { s(.externalEditorPlaceholder) }

@@ -52,7 +52,7 @@ func menuStep(_ entries: [PopoverMenuEntry], from: Int?, by step: Int) -> Int? {
 }
 
 /// Actions that remove or close something: red, last.
-private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .removeProject, .closeTab]
+private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .removeProject, .closeTab, .closePane]
 
 /// The «⋯» / right-click menu of a project, session or tab, from `Action` (the same list as the keyboard and the palette).
 /// A session's menu opens with its name (and branch) as the header.

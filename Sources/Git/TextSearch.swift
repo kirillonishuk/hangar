@@ -148,7 +148,6 @@ public struct SearchParser {
     private var buffer: [UInt8] = []
     /// Inside an over-long line: bytes are dropped up to its newline.
     private var skipping = false
-    private var index: [String: Int] = [:]
     /// git grep reports one column; the line's matches are found here again (same toggles).
     private lazy var matcher: NSRegularExpression? = searchRegex(query)
 
@@ -246,17 +245,13 @@ public struct SearchParser {
 
     private mutating func add(path: String, line: Int, text: String, ranges: [Range<Int>], column: Int?) {
         guard !results.truncated else { return }
-        if let known = index[path], results.files[known].hits.count >= perFile { results.files[known].truncated = true; return }
+        // Files stay sorted by path: rg reports them in thread order, so a repeated search would reorder the groups.
+        let i = results.files.partitioningIndex { $0.path >= path }
+        let known = i < results.files.count && results.files[i].path == path
+        if known, results.files[i].hits.count >= perFile { results.files[i].truncated = true; return }
         // The total cap first: no empty group for a file whose first line is past it.
         guard results.lines < total else { results.truncated = true; return }
-        let i: Int
-        if let known = index[path] {
-            i = known
-        } else {
-            i = results.files.count
-            index[path] = i
-            results.files.append(SearchFile(path: path, hits: []))
-        }
+        if !known { results.files.insert(SearchFile(path: path, hits: []), at: i) }
         let (preview, shown) = searchPreview(text, ranges)
         let col = ranges.first.map { $0.lowerBound + 1 } ?? column ?? 1
         results.files[i].hits.append(SearchHit(line: line, column: col, preview: preview, ranges: shown))
@@ -331,4 +326,16 @@ func searchPreview(_ text: String, _ ranges: [Range<Int>], max: Int = SearchLimi
         return lo < hi ? (lo + shift)..<(hi + shift) : nil
     }
     return (head + String(decoding: u[start..<end], as: UTF16.self) + tail, shown)
+}
+
+extension Array {
+    /// The first index whose element satisfies `belongs` (false…false, true…true), by bisection.
+    func partitioningIndex(where belongs: (Element) -> Bool) -> Int {
+        var lo = 0, hi = count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if belongs(self[mid]) { hi = mid } else { lo = mid + 1 }
+        }
+        return lo
+    }
 }

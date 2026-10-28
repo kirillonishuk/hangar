@@ -18,11 +18,10 @@ import Workspace
 func terminalTitle(_ raw: String) -> String {
     func glyph(_ u: Unicode.Scalar) -> Bool {
         switch u.value {
+        // Only the agents' status glyphs: a real title's leading `*`, ★ or ☀ stays.
         case 0x2800...0x28FF,  // braille spinners
-             0x2700...0x27BF,  // dingbats: ✳ ✻ ✶ ✢ ✽ …
-             0x2600...0x26FF,  // misc symbols
-             0x25A0...0x25FF,  // geometric shapes: ◐ ● …
-             0x2022, 0x00B7, 0x2219, 0x22C5, 0x002A:  // • · ∙ ⋅ *
+             0x2733, 0x273B, 0x2736, 0x2722, 0x273D, 0x273A, 0x2739, 0x2737, 0x2738,  // Claude: ✳ ✻ ✶ ✢ ✽ ✺ ✹ ✷ ✸
+             0x2022, 0x00B7, 0x2219, 0x22C5:  // • · ∙ ⋅
             true
         default: u.properties.isWhitespace || u.value == 0xFE0F
         }

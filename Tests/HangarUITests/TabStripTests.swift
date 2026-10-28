@@ -133,6 +133,16 @@ import Testing
         #expect(terminalTitle("~/dev/app") == "~/dev/app")
         #expect(terminalTitle("vim a.ts") == "vim a.ts")
         #expect(terminalTitle("✳ ") == "")
+        #expect(terminalTitle("✽ ✺ ✹ ✷ ✸ • ∙ ⋅ x") == "x")
+        #expect(terminalTitle("✳\u{FE0F} x") == "x")
+    }
+
+    @Test func terminalTitleKeepsARealLeadingSymbol() {
+        #expect(terminalTitle("* scratch") == "* scratch")
+        #expect(terminalTitle("★ favourites") == "★ favourites")
+        #expect(terminalTitle("☀ weather") == "☀ weather")
+        #expect(terminalTitle("✳ ★ x") == "★ x")
+        #expect(terminalTitle("● dot") == "● dot")
     }
 
     /// Reorder: a neighbour gives way when the dragged tab's leading / trailing edge passes its middle; the last slot

@@ -308,6 +308,7 @@ import Workspace
         split.removeFromSuperview()
         tab.needsLayout = true
         window.contentView!.layoutSubtreeIfNeeded()
+        #expect(kept.translatesAutoresizingMaskIntoConstraints)
         #expect(kept.frame == tab.bounds)
         #expect(tab.bounds.size == NSSize(width: 800, height: 600))
     }

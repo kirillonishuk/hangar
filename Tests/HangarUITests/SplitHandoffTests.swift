@@ -130,6 +130,8 @@ import Workspace
         let tab = try #require(app.state.tasks[0].tabs.first)
         let leaf = try #require(tab.root.leaf(id: leafB))
         #expect(app.paneTitle(leaf) == "api")
-        #expect(app.tabLabel(tab).contains("api"))
+        // The tab keeps its first pane's name: renaming (or focusing) the second pane never resizes the tab.
+        #expect(app.tabLabel(tab) == app.paneTitle(try #require(tab.root.leaves.first)))
+        #expect(!app.tabLabel(tab).contains("│"))
     }
 }

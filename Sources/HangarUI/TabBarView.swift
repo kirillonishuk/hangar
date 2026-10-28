@@ -526,7 +526,7 @@ struct TabItem: View {
             Group {
                 if let file = fileLeaf?.openFile {
                     FileIconView(name: (file as NSString).lastPathComponent)
-                } else if let kind = (tab.root.leaf(id: tab.focusedLeafId) ?? tab.root.leaves.first)?.kind {
+                } else if let kind = tab.root.leaves.first?.kind {
                     IconView(icon: .of(kind), active: active)
                 }
             }

@@ -373,10 +373,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
     }
 
-    /// The tab's own name, else its focused pane's: a split tab never joins its panes' names — their headers show them.
-    func tabLabel(_ tab: Tab) -> String {
-        tab.label(auto: (tab.root.leaf(id: tab.focusedLeafId) ?? tab.root.leaves.first).map(paneTitle) ?? "")
-    }
+    /// The tab's own name, else its first pane's: a split tab never joins its panes' names (their headers show them)
+    /// and keeps one label, so moving focus between panes never resizes the tab.
+    func tabLabel(_ tab: Tab) -> String { tab.label(auto: tab.root.leaves.first.map(paneTitle) ?? "") }
 
     /// Tooltip title: an unsplit, unrenamed editor tab shows its active file's path from the session folder; others their label.
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {

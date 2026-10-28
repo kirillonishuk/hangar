@@ -45,6 +45,8 @@ struct StatusBarLine: Equatable {
     var process: String?
     /// The focused pane is a file tab's editor (#83): its tsserver status and the minimap switch show.
     var editor: UUID?
+    /// Agent leaves counted as errors, in sidebar order: the counter's click shows the first (`revealFailed`).
+    var failedLeaves: [UUID] = []
 
     var remote: Bool { host != nil }
     @MainActor var left: [String] { [host ?? L10n.thisMac] + [project].compactMap { $0 } }
@@ -75,10 +77,17 @@ func statusBarLine(_ s: WorkspaceState, summary: (Leaf) -> (state: AgentState, s
     let siblings = s.tasks.filter { $0.projectId == task.projectId && !$0.archived }
     let tab = task.tabs.first { $0.id == task.activeTabId }
     let focused = tab.flatMap { $0.root.leaf(id: $0.focusedLeafId) }
+    // A shell's non-zero exit (`npm test`, Ctrl-C, ssh 255 when a host terminal drops) keeps just its tab's dot.
+    let summaries = siblings.flatMap(leaves).map { leaf in
+        var s = summary(leaf)
+        if s.state == .failed, leaf.kind != .claude, leaf.kind != .codex { s.state = .idle }
+        return (leaf: leaf.id, summary: s)
+    }
     return StatusBarLine(host: project?.host ?? s.hostShell(ofTask: id)?.host, project: project?.name,
-                         counts: StatusCounts(siblings.flatMap(leaves).map(summary)),
+                         counts: StatusCounts(summaries.map(\.summary)),
                          panes: tab?.root.leaves.count, process: focused.map(process),
-                         editor: focused?.kind == .editor ? focused?.id : nil)
+                         editor: focused?.kind == .editor ? focused?.id : nil,
+                         failedLeaves: summaries.filter { $0.summary.state == .failed }.map(\.leaf))
 }
 
 /// The first id after `after` (wrapping) that is in `working`.
@@ -94,6 +103,13 @@ extension AppState {
                                  process: { $0.kind == .editor ? editorStatusLabel($0) : defaultTitle($0.kind) })
         line.inbox = attentionCount(attentionItems)
         return line
+    }
+
+    /// «● N ошибка»: shows the first failed agent's session and tab, and the inbox, which says what failed.
+    func revealFailed() {
+        guard let leaf = statusBar.failedLeaves.first else { return }
+        reveal(leafId: leaf)
+        if !inboxShown { toggleInbox() }
     }
 
     /// «N работает»: the project's next session with a working agent.
@@ -154,12 +170,11 @@ struct WindowStatusBar: View {
                 .modifier(StatusItem())
             }
             if let text = line.failedText {
-                HStack(spacing: Theme.inlineGap) {
+                StatusButton(help: L10n.statusFailedHelp, action: app.revealFailed) {
                     StatusDot(state: .failed)
                     Text(verbatim: text)
                 }
                 .foregroundStyle(Theme.ui.failed)
-                .modifier(StatusItem())
             }
             Spacer(minLength: 0)
             // «Доступна 0.3.0» (#86): right edge, only while there is an offer; opens the update sheet.

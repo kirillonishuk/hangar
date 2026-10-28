@@ -54,6 +54,17 @@ import Workspace
         #expect(leaves() == before + 1)
     }
 
+    /// «Перейти» in «Сессии» and notification clicks reveal a pane: the diff that covers the tabs gives way to it.
+    @Test func revealingAPaneHidesTheDiff() async throws {
+        let (app, repo, t) = try await makeApp()
+        defer { cleanup(repo) }
+        let leaf = app.state.tasks.first { $0.id == t }!.tabs[0].focusedLeafId
+        app.openDiff(path: "a.txt")
+        #expect(app.activeDiff != nil)
+        app.reveal(leafId: leaf)
+        #expect(app.activeDiff == nil && app.selectedTask?.id == t)
+    }
+
     @Test func clickReplacesDiffTab() async throws {
         let (app, repo, t) = try await makeApp()
         defer { cleanup(repo) }

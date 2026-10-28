@@ -434,7 +434,8 @@
       const f = diffPath && files.get(diffPath);
       if (f && f.model) post({ type: 'save', file: diffPath, text: f.model.getValue() });
     });
-    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => post({ type: 'focus' })); wireMenu(e); }
+    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => { lastSide = e; post({ type: 'focus' }); }); wireMenu(e); }
+    orig.onDidChangeCursorPosition(() => report());
     // The first change is shown (centered) once the diff is computed; a computed diff is also what the header's
     // counter («2 из 5») and the empty state wait for. Typing ends the wait, so a later recompute never scrolls.
     mod.onDidChangeModelContent(() => { awaiting = false; });
@@ -448,10 +449,16 @@
       }
       report(true);
     });
-    resetFirst = () => { awaiting = true; lastReport = ''; };
+    resetFirst = () => { awaiting = true; lastReport = ''; lastSide = null; };
   }
   let resetFirst = () => {};
-  let awaiting = true, lastReport = '';
+  let awaiting = true, lastReport = '', lastSide = null;
+
+  /// The cursor's line on the modified side, from whichever side was focused last (the base side is mapped across).
+  function cursorLine() {
+    const mod = diff.getModifiedEditor();
+    return lastSide === diff.getOriginalEditor() ? toModified(lastSide.getPosition().lineNumber) : mod.getPosition().lineNumber;
+  }
 
   /// The modified-side line each change starts at (a pure deletion: the line it follows).
   function changeLines() {
@@ -461,7 +468,7 @@
   /// The change the cursor is in or after (1-based; 0 before the first one) and the count, to Swift when they changed.
   function report(computed) {
     if (!diff.getModel()) return;
-    const lines = changeLines(), line = diff.getModifiedEditor().getPosition().lineNumber;
+    const lines = changeLines(), line = cursorLine();
     if (!lines.length && !computed) return;
     let index = 0;
     for (const l of lines) if (l <= line) index++;
@@ -476,11 +483,12 @@
   function goChange(next) {
     const lines = changeLines();
     if (!lines.length) return;
-    const mod = diff.getModifiedEditor(), at = mod.getPosition().lineNumber;
+    const mod = diff.getModifiedEditor(), at = cursorLine();
     let target;
     if (next) target = lines.find((l) => l > at) ?? lines[0];
     else target = [...lines].reverse().find((l) => l < at) ?? lines[lines.length - 1];
     awaiting = false;
+    lastSide = mod;
     mod.revealLineInCenter(target);
     mod.setPosition({ lineNumber: target, column: 1 });
     mod.focus();

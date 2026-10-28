@@ -165,6 +165,9 @@ extension MainWindowController {
             }
         // «Сессии»: the search text; the n-th project.
         case "sessionsQuery": column.sessionsModel.query = arg
+        case "sessionsClick":  // sessionsClick <n>: as a click on the n-th conversation row of «Сессии»
+            let m = column.sessionsModel
+            if let n = Int(arg), m.conversationRows.indices.contains(n) { Task { await m.perform(m.action(for: m.conversationRows[n]), ctx: ctx) } }
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }

@@ -51,7 +51,7 @@ enum BridgeMessage: Equatable {
     /// The conflict bar's choice.
     case conflict(file: String, keepMine: Bool)
     case inline(Bool)
-    /// The diff's change under the cursor (1-based, 0 before the first) and how many there are (0: the diff is empty).
+    /// The diff's change under the cursor (1-based; a cursor above the first change counts as the first) and how many there are (0: no changes).
     case changes(index: Int, count: Int)
     case request(ProviderRequest)
     /// Monaco dropped a request (the cursor moved on).

@@ -1,6 +1,8 @@
+import Exec
 import Foundation
 import History
 import Testing
+import TestSupport
 @testable import HangarUI
 import Workspace
 
@@ -147,7 +149,7 @@ import Workspace
         s.archiveTask(id: new, at: date("2026-10-20T00:00:00Z"))
         s.archiveTask(id: legacy)
         if let i = s.tasks.firstIndex(where: { $0.id == legacy }) { s.tasks[i].archivedAt = nil }  // closed before this was recorded
-        #expect(closedSessionRows(s.tasks, projectId: p).map(\.name) == ["new", "old", "legacy"])
+        #expect(closedSessionRows(s.tasks, projects: s.projects.filter { $0.id == p }).map(\.name) == ["new", "old", "legacy"])
     }
 
     @Test func archiveTimeIsKeptUntilRestoreAndOldStateDecodes() throws {
@@ -194,10 +196,10 @@ import Workspace
         let (w, m) = try await loaded()
         func row(_ id: String) throws -> ConversationRow { try #require(m.days.flatMap(\.rows).first { $0.conversation.id == id }) }
         #expect(try row(idA).place == .session(task: w.feature, name: "api-cache"))
-        #expect(try row(idB).place == .closed(task: w.closed, name: "fix-ci-cache"))
-        #expect(try row(idC).place == .session(task: w.main, name: "main"))
+        #expect(try row(idB).place == .none)  // the closed session in its folder never held it
+        #expect(try row(idC).place == .none)  // the main folder's session holds other conversations: a session of its own
         #expect(m.action(for: try row(idA)) == .open(try row(idA).conversation, task: w.feature))
-        #expect(m.action(for: try row(idB)) == .restore(w.closed))
+        #expect(m.action(for: try row(idB)) == .openInNewSession(try row(idB).conversation, project: w.project))
         #expect(m.closedAction(w.closed) == .restore(w.closed))
     }
 
@@ -211,6 +213,84 @@ import Workspace
         #expect(task.mode == .mainFolder && task.projectId == w.project && task.name == "объясни структуру store")
         #expect(task.tabs.last?.root.leaves.first?.agentSessionId == idC)
         #expect(!w.app.sessionsViewVisible)
+    }
+
+    /// The launch context each leaf's surface gets when it first appears (as `TerminalArea.sync` asks, inside `perform`).
+    private func recordFirstLaunches(_ app: AppState) -> () -> [UUID: LaunchContext] {
+        final class Box { var contexts: [UUID: LaunchContext] = [:] }
+        let box = Box()
+        app.didChange = {
+            for l in app.state.tasks.filter({ !$0.archived }).flatMap(\.tabs).flatMap(\.root.leaves) where box.contexts[l.id] == nil {
+                box.contexts[l.id] = app.launchContext(for: l.id)
+            }
+        }
+        return { box.contexts }
+    }
+
+    /// The owner's case: every session of the project is closed, and conversations started outside Hangar live in the
+    /// main folder (on a feature branch). A click resumes exactly that conversation, on its first launch; a second
+    /// conversation of the same folder gets its own resumed tab, the first one untouched. No closed session is restored.
+    @Test func externalConversationsResumeThemselvesOnFirstLaunch() async throws {
+        let w = world()
+        w.app.perform { s in
+            s.archiveTask(id: w.main, at: Date())  // a closed session of the main folder, with a fresh claude of its own
+            s.addTab(taskId: w.main, kind: .claude)
+            s.archiveTask(id: w.feature, at: Date())
+        }
+        try w.fixture.claudeConversation(id: idA, cwd: "/work/shop", branch: "fix/JS-14684", at: "2026-10-25T10:00:00Z", prompt: "JS-14684", replies: 5)
+        try w.fixture.claudeConversation(id: idB, cwd: "/work/shop", branch: "feat/JS-14485", at: "2026-10-25T09:00:00Z", prompt: "JS-14485")
+        let launches = recordFirstLaunches(w.app)
+        w.app.showSessionsView()
+        let m = SessionsModel(app: w.app)
+        await m.reload()
+        func row(_ id: String) throws -> ConversationRow { try #require(m.conversationRows.first { $0.conversation.id == id }) }
+        func firstCommand(_ id: String) throws -> String {
+            let (task, tab, leaf) = try #require(w.app.state.tasks.lazy.compactMap { t in
+                t.tabs.lazy.compactMap { tab in tab.root.leaves.first { $0.agentSessionId == id }.map { (t, tab, $0) } }.first
+            }.first)
+            #expect(!task.archived && tab.root.leaves.count == 1)
+            let mode = launchMode(for: leaf, try #require(launches()[leaf.id]))
+            return agentCommand(for: leaf, agent: { $0.rawValue }, shell: "/bin/zsh", restoring: mode.restoring, initialPrompt: mode.initialPrompt)
+        }
+        #expect(try row(idA).place == .none)  // its folder's sessions are closed, but none of them holds it
+        await m.perform(m.action(for: try row(idA)), ctx: ActionContext(app: w.app))
+        #expect(try firstCommand(idA).contains("--resume \(idA)"))
+        #expect(w.app.state.tasks.filter(\.archived).count == 3)  // nothing restored
+
+        w.app.showSessionsView()
+        let a = try #require(w.app.selectedTask)
+        let aLeaf = try #require(a.tabs.first { $0.id == a.activeTabId }?.focusedLeafId)
+        #expect(try row(idA).place == .open(task: a.id, leaf: aLeaf, name: a.name))
+        #expect(m.action(for: try row(idA)) == .focus(leaf: aLeaf))
+        #expect(try row(idB).place == .none)  // not into A's session: one of its own
+        await m.perform(m.action(for: try row(idB)), ctx: ActionContext(app: w.app))
+        #expect(try firstCommand(idB).contains("--resume \(idB)"))
+        #expect(w.app.selectedTask?.id != a.id && w.app.selectedTask?.name == "JS-14485")
+        #expect(w.app.state.tasks.first { $0.id == a.id }?.tabs.count == 1)  // A untouched
+        let leaves = w.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).compactMap(\.agentSessionId)
+        #expect(leaves.filter { $0 == idA }.count == 1 && leaves.filter { $0 == idB }.count == 1)
+    }
+
+    /// A closed session whose TERMINAL panel held the conversation restores it too («Восстановить»).
+    @Test func closedSessionPanelOwnsItsConversation() async throws {
+        let (w, m) = try await loaded()
+        w.app.perform { s in
+            let i = s.tasks.firstIndex { $0.id == w.closed }!
+            s.tasks[i].drawer.leaf = Leaf(kind: .claude, cwd: "/work/wt/fix-ci", agentSessionId: self.idB)
+        }
+        let row = try #require(m.conversationRows.first { $0.conversation.id == idB })
+        #expect(row.place == .closed(task: w.closed, name: "fix-ci-cache") && m.action(for: row) == .restore(w.closed))
+    }
+
+    /// A closed session is restored for a conversation only when one of its agents holds that conversation.
+    @Test func closedSessionOwnsOnlyItsOwnConversations() async throws {
+        let (w, m) = try await loaded()
+        #expect(m.conversationRows.first { $0.conversation.id == idB }?.place == ConversationPlace.none)
+        w.app.perform { s in
+            let leaf = s.tasks.first { $0.id == w.closed }!.tabs[0].root.leaves[0].id
+            s.setAgentSessionId(leafId: leaf, self.idB)
+        }
+        #expect(m.conversationRows.first { $0.conversation.id == idB }?.place == .closed(task: w.closed, name: "fix-ci-cache"))
     }
 
     @Test func openMarkersFollowLiveTabs() async throws {
@@ -227,8 +307,8 @@ import Workspace
         // Back in «Сессии» without a rescan: the marker is merged from the live tabs.
         w.app.showSessionsView()
         let after = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idA })
-        #expect(after.isOpen && after.place == .open(task: w.feature, tab: tab.id, name: "api-cache"))
-        #expect(m.action(for: after) == .focus(task: w.feature, tab: tab.id))
+        #expect(after.isOpen && after.place == .open(task: w.feature, leaf: tab.focusedLeafId, name: "api-cache"))
+        #expect(m.action(for: after) == .focus(leaf: tab.focusedLeafId))
         // Closing that tab drops the marker even though the scan said open.
         w.app.perform { $0.closeTab(taskId: w.feature, tabId: tab.id) }
         await m.reload()
@@ -239,7 +319,9 @@ import Workspace
     @Test func focusSelectsTheTab() async throws {
         let (w, m) = try await loaded()
         let first = try #require(w.app.state.tasks.first { $0.id == w.main }?.tabs.first)
-        await m.perform(.focus(task: w.main, tab: first.id), ctx: ActionContext(app: w.app))
+        w.app.select(taskId: w.feature)
+        w.app.showSessionsView()
+        await m.perform(.focus(leaf: first.focusedLeafId), ctx: ActionContext(app: w.app))
         #expect(w.app.selectedTask?.id == w.main && w.app.selectedTask?.activeTabId == first.id)
         #expect(!w.app.sessionsViewVisible)
     }
@@ -267,7 +349,7 @@ import Workspace
     @Test func showAndEscReturnToTheSession() {
         let w = world()
         w.app.showSessionsView()
-        #expect(w.app.sessionsViewVisible && w.app.sessionsProjectId == w.project)
+        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .all)
         #expect(w.app.selectedTask?.id == w.feature)  // the view only overlays the session area
         w.app.hideSessionsView()
         #expect(!w.app.sessionsViewVisible && w.app.selectedTask?.id == w.feature)
@@ -312,7 +394,7 @@ import Workspace
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
         app.toggleSessionsView()
-        #expect(app.sessionsProjectId == p)
+        #expect(app.sessionsViewVisible && app.sessionsScope == .all && app.state.projects.map(\.id) == [p])
         app.toggleSessionsView()
         #expect(!app.sessionsViewVisible && app.selectedTask == nil)
     }
@@ -334,7 +416,159 @@ import Workspace
         app.showSessionsView()
         let m = SessionsModel(app: app)
         await m.reload()
-        #expect(m.load == .offline("devbox") && m.days.isEmpty)
+        #expect(m.load == .loaded && m.offlineHosts == ["devbox"] && m.days.isEmpty)
+    }
+
+    /// ⌘Y lists every project (a host terminal selected too, #64); a project's menu or link scopes it, «Все» resets.
+    @Test func allProjectsByDefaultAndScopedFromAProject() async throws {
+        let w = world()
+        var other = UUID(), shell = UUID(), otherClosed = UUID()
+        w.app.perform { s in
+            other = s.addProject(name: "blog", path: "/work/blog")
+            otherClosed = s.addTask(projectId: other, name: "draft")
+            s.archiveTask(id: otherClosed, at: Date(timeIntervalSince1970: 1_000))
+            shell = s.openHostShell(host: "devbox").task
+        }
+        try w.fixture.claudeConversation(id: idA, cwd: "/work/wt/api-cache", branch: "api-cache", at: "2026-10-25T10:00:00Z", prompt: "кэш")
+        try w.fixture.claudeConversation(id: idC, cwd: "/work/blog", branch: "main", at: "2026-10-24T10:00:00Z", prompt: "пост")
+        #expect(w.app.selectedTask?.id == shell)
+        w.app.showSessionsView()
+        #expect(w.app.sessionsScope == .all)
+        let m = SessionsModel(app: w.app)
+        await m.reload()
+        #expect(m.load == .loaded && m.closedCount == 2)
+        #expect(m.closedRows.map(\.origin) == ["shop", "blog"])
+        #expect(m.conversationRows.map(\.origin) == ["shop", "blog"])
+        #expect(m.action(for: m.conversationRows[1]) == .openInNewSession(m.conversationRows[1].conversation, project: other))
+
+        w.app.hideSessionsView()
+        Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
+        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .project(other))
+        await m.reload()
+        #expect(m.closedRows.map(\.name) == ["draft"] && m.conversationRows.map(\.conversation.id) == [idC])
+        w.app.showSessionsView(scope: .all)
+        await m.reload()
+        #expect(m.conversationCount == 2)
+        w.app.showSessionsView(projectId: w.app.state.hostShells[0].id)  // a host terminal's pseudo-project is no scope
+        #expect(w.app.sessionsScope == .all)
+    }
+
+    /// One source failing keeps the others' conversations and says why, with a retry; the load always finishes.
+    @Test func failingSourceIsShownInlineAndRetried() async throws {
+        let (w, m) = try await loaded()
+        var broken = true
+        m.scan = { folder, project in
+            if broken && folder == "/work/wt/api-cache" { throw HistoryError.remote("ssh: connect to host devbox port 22: Operation timed out") }
+            return try await w.app.conversations(folder: folder, project: project)
+        }
+        await m.reload()
+        #expect(m.load == .loaded)
+        #expect(m.failures.first?.message == "ssh: connect to host devbox port 22: Operation timed out")
+        #expect(m.conversationRows.map(\.conversation.id).sorted() == [idB, idC, idX].sorted())
+        broken = false
+        await m.reload()
+        #expect(m.load == .loaded && m.failures.isEmpty && m.conversationCount == 4)
+    }
+
+    /// A source that never answers is cut at its timeout; rows already found show while it is pending.
+    @Test func hangingSourceTimesOutAndEarlierRowsShowMeanwhile() async throws {
+        let (w, _) = try await loaded()
+        let fresh = SessionsModel(app: w.app)
+        fresh.localTimeout = .seconds(600)
+        // The root folder answers only when cancelled, with what it had read (as a local scan cut by its timeout does).
+        fresh.scan = { folder, project in
+            let list = try await w.app.conversations(folder: folder, project: project)
+            if folder == "/work/shop" { try? await Task.sleep(for: .seconds(3600)) }
+            return list
+        }
+        let run = Task { await fresh.reload() }
+        #expect(await waitUntil { fresh.conversationCount == 2 })  // both worktrees' conversations, before the root answers
+        #expect(fresh.load == .loading)
+        run.cancel()
+        _ = await run.value
+        fresh.localTimeout = .milliseconds(200)
+        await fresh.reload()
+        // Cut by the timeout: said so, and the root's rows read so far are kept.
+        #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationCount == 4)
+    }
+
+    /// A new scan (scope change, retry) cancels the one still running: it stops, the newer result stands.
+    @Test func newReloadCancelsTheRunningOne() async throws {
+        let (w, _) = try await loaded()
+        let m = SessionsModel(app: w.app)
+        final class Flag: @unchecked Sendable { var hang = true; var stopped = false }
+        let flag = Flag()
+        m.scan = { folder, project in
+            if flag.hang {
+                do { try await Task.sleep(for: .seconds(3600)) } catch { flag.stopped = true; throw error }
+            }
+            return try await w.app.conversations(folder: folder, project: project)
+        }
+        let first = Task { await m.reload() }
+        #expect(await waitUntil { m.load == .loading })
+        flag.hang = false
+        await m.reload()
+        await first.value
+        #expect(flag.stopped && m.load == .loaded && m.failures.isEmpty && m.conversationCount == 4)
+    }
+
+    /// «Открыт» is any live agent leaf with that id — a TERMINAL panel too, in another project too; never a leaf on
+    /// another machine with the same id.
+    @Test func openAnywhereIsFocusedNotResumedAgain() async throws {
+        let (w, m) = try await loaded()
+        var other = UUID(), remote = UUID()
+        w.app.perform { s in
+            let p = s.addProject(name: "elsewhere", path: "/work/elsewhere")
+            other = s.addTask(projectId: p, name: "other")
+            s.toggleDrawer(taskId: other)
+            let r = s.addRemoteProject(name: "srv", host: "devbox", path: "/work/shop")
+            remote = s.addTask(projectId: r, name: "remote")
+            s.addTab(taskId: remote, kind: .claude)
+        }
+        let remoteLeaf = try #require(w.app.state.tasks.first { $0.id == remote }?.tabs.last?.focusedLeafId)
+        w.app.perform { $0.setAgentSessionId(leafId: remoteLeaf, self.idC) }
+        func row(_ id: String) -> ConversationRow? { m.conversationRows.first { $0.conversation.id == id && $0.origin == "shop" } }
+        #expect(row(idC)?.isOpen == false)  // the same id on devbox is another conversation
+        // A claude in another project's TERMINAL panel (state.json allows it) holds it: «Перейти» goes there.
+        let held = Leaf(kind: .claude, cwd: "/work/shop", agentSessionId: idC)
+        w.app.perform { s in
+            let i = s.tasks.firstIndex { $0.id == other }!
+            s.tasks[i].drawer.leaf = held
+        }
+        #expect(row(idC)?.place == .open(task: other, leaf: held.id, name: "other"))
+        let r = try #require(row(idC))
+        #expect(m.action(for: r) == .focus(leaf: held.id))
+        await m.perform(m.action(for: r), ctx: ActionContext(app: w.app))
+        #expect(w.app.selectedTask?.id == other && !w.app.sessionsViewVisible)
+        #expect(w.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).filter { $0.agentSessionId == idC }.count == 1)  // no second resume
+    }
+
+    /// A conversation id from a file that is not a valid session id opens nothing — no empty session either;
+    /// its title becomes a safe one-line session name.
+    @Test func invalidIdOpensNoSessionAndTitlesAreSanitized() async throws {
+        let (w, m) = try await loaded()
+        let before = w.app.state.tasks.count
+        let bad = Conversation(id: "--evil", agent: .claude, cwd: "/work/shop", started: nil, lastActivity: Date(), messageCount: 1,
+                               messageCountIsEstimate: false, gitBranch: nil, title: "x", isOpen: false)
+        await m.perform(.openInNewSession(bad, project: w.project), ctx: ActionContext(app: w.app))
+        #expect(w.app.state.tasks.count == before)
+        let name = sessionName("\nfix\u{202E} the\u{1B}[31m bug " + String(repeating: "x", count: 80))
+        #expect(!name.contains("\n") && !name.unicodeScalars.contains { $0.value == 0x202E || $0.value == 0x1B })
+        #expect(name.count <= 40 && name.hasPrefix("fix the"))
+    }
+
+    /// The sidebar's «Все сессии в архиве» hint: only when the project has closed sessions and no open one.
+    @Test func allSessionsArchivedHint() {
+        let w = world()
+        #expect(!w.app.allSessionsArchived(w.project))
+        w.app.perform { s in
+            s.archiveTask(id: w.main, at: Date())
+            s.archiveTask(id: w.feature, at: Date())
+        }
+        #expect(w.app.allSessionsArchived(w.project))
+        var empty = UUID()
+        w.app.perform { empty = $0.addProject(name: "new", path: "/work/new") }
+        #expect(!w.app.allSessionsArchived(empty))  // never had a session: nothing to point at
     }
 
     @Test func nestedProjectOwnsItsConversations() async throws {
@@ -346,6 +580,10 @@ import Workspace
 
         var nested = UUID()
         w.app.perform { nested = $0.addProject(name: "admin", path: "/work/shop/admin") }
+        await m.reload()
+        // All projects: listed once, under the deeper project.
+        #expect(m.conversationRows.filter { $0.conversation.id == inner }.map(\.origin) == ["admin"])
+        w.app.showSessionsView(projectId: w.project)
         await m.reload()
         #expect(!m.conversationRows.contains { $0.conversation.id == inner })  // listed under the deeper project only
         w.app.showSessionsView(projectId: nested)

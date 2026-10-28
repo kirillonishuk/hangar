@@ -44,7 +44,7 @@ enum ActionTarget: Equatable {
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
-    case toggleMute, projectNotifications
+    case toggleMute, projectNotifications, projectSessions
     // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
     case detachPane, closePane
 
@@ -60,7 +60,7 @@ enum Action: CaseIterable {
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
             return reconnect + [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
-            return reconnect + [.newTask, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
+            return reconnect + [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
             return (app.renameable(target) ? [.rename] : []) + [.copyLink, .splitRight, .splitDown, .closeTab]
         case .leaf:
@@ -119,6 +119,7 @@ enum Action: CaseIterable {
         case .reconnect: .reconnect
         case .toggleMute: .bellSlash
         case .projectNotifications: .bell
+        case .projectSessions: .history
         }
     }
 
@@ -148,6 +149,7 @@ enum Action: CaseIterable {
         case .toggleMute:
             if case .task(let id) = target, app.state.tasks.first(where: { $0.id == id })?.muted == true { L10n.unmuteSession } else { L10n.muteSession }
         case .projectNotifications: L10n.projectNotificationsItem(app.project(of: target)?.notifications ?? .all)
+        case .projectSessions: L10n.projectSessions
         }
     }
 
@@ -182,6 +184,7 @@ enum Action: CaseIterable {
         guard isEnabled(for: target, app: app) else { return }
         switch (self, target) {
         case (.newTask, .project(let id)): ctx.newTask(id)
+        case (.projectSessions, .project(let id)): app.showSessionsView(projectId: id)
         case (.rename, _): app.renaming = target
         case (.togglePin, .task(let id)):
             if let task = app.state.tasks.first(where: { $0.id == id }) { app.setPinned(id, !task.pinned) }

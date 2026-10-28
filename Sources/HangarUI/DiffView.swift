@@ -217,21 +217,19 @@ struct DiffView: View {
                         .padding(.vertical, Theme.Diff.headerPaddingV)
                         .padding(.horizontal, Theme.Diff.headerPaddingH)
                 }
+                // Monaco found nothing and git counts no lines either (not an EOL-only diff): a strip, the editor stays usable.
+                if content.isText, editor.changes.isEmpty, content.added + content.deleted == 0 {
+                    Text(verbatim: L10n.diffNoChanges)
+                        .font(.system(size: Theme.Diff.font, design: .monospaced))
+                        .foregroundStyle(Theme.ui.text3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, Theme.Diff.headerPaddingV)
+                        .padding(.horizontal, Theme.Diff.headerPaddingH)
+                }
                 if content.isText {
                     MonacoDiffView(editor: editor)
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
-                        .overlay {
-                            // Computed and nothing differs (e.g. a mode-only change): say so, not a blank top.
-                            if editor.changes.isEmpty {
-                                Text(verbatim: L10n.diffNoChanges)
-                                    .font(.system(size: Theme.Diff.font, design: .monospaced))
-                                    .foregroundStyle(Theme.ui.text3)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .background(Theme.ui.panel)
-                                    .allowsHitTesting(false)
-                            }
-                        }
                 } else {
                     Spacer(minLength: 0)
                 }
@@ -305,7 +303,7 @@ struct DiffView: View {
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.Diff.navButtonRadius))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.4)
+        .opacity(enabled ? 1 : Theme.Input.disabledOpacity)
         .help(help)
     }
 

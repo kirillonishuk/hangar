@@ -182,6 +182,83 @@ private func writeRenamedFixtures(_ f: Fixture) {
         #expect(await history.bytesRead <= 16_384 + 8_192)
     }
 
+    /// Scan time on a history the size of a heavy user's (1100 files, ~1.5 GB over 20 projects): sampling reads only
+    /// head + tail of each. The middle of every file is a hole, so the fixture costs ~200 MB of disk, not 1.5 GB.
+    /// Opt-in (`HANGAR_SCAN_BENCH=1`): it prints timings and checks the read budget.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["HANGAR_SCAN_BENCH"] != nil))
+    func scanBenchmark() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        let projects = (0..<20).map { "/work/p\($0)" }
+        let filler = String(repeating: "x", count: 900)
+        func line(_ i: Int, cwd: String) -> String {
+            #"{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"\#(filler)"}]},"timestamp":"2026-10-20T10:00:\#(String(format: "%02d", i % 60)).000Z","cwd":"\#(cwd)"}"#
+        }
+        let size = 1_400_000
+        for n in 0..<1100 {
+            let cwd = projects[n % projects.count]
+            let id = String(format: "%08x-0000-4000-8000-%012x", n, n)
+            let dir = f.claude.appendingPathComponent("projects/" + claudeProjectDirName(cwd))
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let head = ([claudeUser("Prompt \(n)", ts: "2026-10-20T10:00:00.000Z", cwd: cwd)] + (0..<150).map { line($0, cwd: cwd) })
+                .joined(separator: "\n") + "\n"
+            let tail = (0..<75).map { line($0, cwd: cwd) }.joined(separator: "\n") + "\n"
+            let url = dir.appendingPathComponent(id + ".jsonl")
+            FileManager.default.createFile(atPath: url.path, contents: Data(head.utf8))
+            let h = try FileHandle(forWritingTo: url)
+            try h.seek(toOffset: UInt64(size - tail.utf8.count))
+            try h.write(contentsOf: Data(tail.utf8))
+            try h.close()
+        }
+        let history = ConversationHistory()
+        let clock = ContinuousClock()
+        var total = 0
+        let cold = await clock.measure {
+            for p in projects { total += await history.local(folder: p, claudeDir: f.claude, codexDir: f.codex, open: []).count }
+        }
+        let warm = await clock.measure {
+            for p in projects { _ = await history.local(folder: p, claudeDir: f.claude, codexDir: f.codex, open: []) }
+        }
+        let read = await history.bytesRead
+        print("scan bench: \(total) conversations, \(1100 * size / 1_000_000) MB on disk (apparent), read \(read / 1_000_000) MB, cold \(cold), warm \(warm)")
+        #expect(total == 1100)
+        #expect(read <= 1100 * (ConversationHistory.defaultHeadBytes + ConversationHistory.defaultTailBytes))
+    }
+
+    /// A cancelled scan (timeout, newer scan) stops between files and returns what it has placed: nothing here.
+    @Test func cancelledLocalScanStops() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        let history = ConversationHistory()
+        let scan = Task { () -> [Conversation] in
+            while !Task.isCancelled { await Task.yield() }
+            return await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        }
+        scan.cancel()
+        #expect(await scan.value.isEmpty)
+        #expect(await history.filesParsed == 0)
+        #expect(await !history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: []).isEmpty)
+    }
+
+    /// A file rewritten while it was being parsed: that parse is not cached (its stamp is stale), the next scan reads it.
+    @Test func staleParseIsNotCached() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        let history = ConversationHistory()
+        let url = f.claude.appendingPathComponent("projects/-work-proj/\(idA).jsonl")
+        await history.setAfterParse { job in
+            guard job.url == url else { return }
+            try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(120)], ofItemAtPath: url.path)
+        }
+        _ = await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        await history.setAfterParse(nil)
+        let parsed = await history.filesParsed
+        _ = await history.local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        #expect(await history.filesParsed == parsed + 1)  // only the rewritten file, again
+    }
+
     @Test func cachesByModificationTime() async throws {
         let f = Fixture()
         defer { f.remove() }

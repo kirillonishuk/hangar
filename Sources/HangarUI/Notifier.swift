@@ -136,10 +136,12 @@ extension AppState {
 }
 
 extension AppState {
-    /// Notification click: show the leaf (select task, activate tab or expand the panel, focus it).
+    /// Notification click, «Перейти» in «Сессии»: show the leaf (select task, activate tab or expand the panel, focus it).
     /// Archived tasks are not restored.
     func reveal(leafId: UUID) {
         guard let (task, tab) = owner(ofLeaf: leafId) else { return }
+        // A shown diff covers the task's tabs: the revealed one must not stay behind it.
+        if tab != nil, diffTabs[task.id]?.active == true { diffTabs[task.id]?.active = false }
         perform { s in
             s.select(taskId: task.id)
             guard let i = s.tasks.firstIndex(where: { $0.id == task.id }) else { return }

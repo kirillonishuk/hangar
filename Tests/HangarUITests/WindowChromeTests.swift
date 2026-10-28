@@ -114,11 +114,29 @@ import Workspace
         #expect(line.left == ["devbox", "api"])
         #expect(line.workingText == "1 работает")
         #expect(line.counts.subagents == 1)
-        #expect(line.failedText == "1 ошибка")
+        #expect(line.failedText == nil)  // the shell's exit keeps just its dot
         #expect(line.right == "2 панели · claude")
         L10n.language = .en
-        #expect(line.failedText == "1 error")
         #expect(line.right == "2 panes · claude")
+    }
+
+    /// A shell's or host terminal's non-zero exit (ssh 255 on disconnect) is not an error here; an agent's failure is.
+    @Test func onlyAgentFailuresAreErrors() {
+        defer { L10n.language = .system }
+        var s = WorkspaceState()
+        s.selectedTaskId = s.openHostShell(host: "devbox").task
+        #expect(statusBarLine(s, summary: { _ in (.failed, 0) }, process: { _ in "ssh" }).counts.failed == 0)
+        var (project, _, t) = state()
+        _ = project.addTab(taskId: t, kind: .shell)
+        let agent = project.addTab(taskId: t, kind: .claude)
+        s = project
+        let claude = s.tasks.first { $0.id == t }!.tabs.first { $0.id == agent }!.focusedLeafId
+        let line = statusBarLine(s, summary: { _ in (.failed, 0) }, process: { $0.kind.rawValue })
+        #expect(line.counts.failed == 1 && line.failedLeaves == [claude])
+        L10n.language = .ru
+        #expect(line.failedText == "1 ошибка")
+        L10n.language = .en
+        #expect(line.failedText == "1 error")
     }
 
     @Test func noSessionLeavesOnlyThisMac() {

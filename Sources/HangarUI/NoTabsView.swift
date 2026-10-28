@@ -40,7 +40,8 @@ struct NoTabsView: View {
     }
 }
 
-/// The new-tab / new-pane buttons (#99 style: `FilledRowStyle`, the «+» menu's logos); Terminal shows its key.
+/// The new-tab / new-pane buttons (choice buttons of controls-v2 B′, the «+» menu's logos); Terminal's key is in its
+/// tooltip only («Терминал — ⌘T»).
 struct KindChoiceButtons: View {
     let kinds: [LeafKind]
     var disabled: Set<LeafKind> = []
@@ -66,16 +67,15 @@ struct KindChoiceButtons: View {
                         Image(nsImage: Icon.of(kind).image)
                         if labels {
                             Text(title(kind)).foregroundStyle(Theme.ui.textStrong).lineLimit(1)
-                            if kind == .shell { ShortcutHint(text: shellHint) }
                         }
                     }
                     .padding(.vertical, Theme.tabPaddingV)
                     .padding(.horizontal, Theme.buttonPaddingH)
                 }
-                .buttonStyle(FilledRowStyle())
+                .buttonStyle(ChoiceButtonStyle())
                 .focusable(false)  // a click must not leave the keyboard in the button: ↩ / Esc belong to the pane
                 .opacity(off ? Theme.inactiveOpacity : 1)
-                .help(off && kind == .editor ? L10n.paneEditorCap : labels ? "" : title(kind))
+                .help(off && kind == .editor ? L10n.paneEditorCap : kind == .shell ? "\(title(kind)) — \(shellHint)" : labels ? "" : title(kind))
                 // VoiceOver: a dimmed (not enabled) button with the reason, as `.disabled` would read.
                 .accessibilityRepresentation {
                     Button(title(kind)) { action(kind) }.disabled(off)

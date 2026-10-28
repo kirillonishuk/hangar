@@ -23,9 +23,9 @@ extension Theme {
     public static let historyTitleSize: CGFloat = 15
     public static let historyCountsGap: CGFloat = 8
 
-    /// Hover action: 24 high, radius 6, `hoverStrong`; the icon-only one (delete) is square.
+    /// Hover actions are `ActionButtonStyle` (Controls.swift); the header's scope reset (square 24, radius 6), the
+    /// project menu's chevron and the actions' gap.
     public static let historyActionHeight: CGFloat = 24
-    public static let historyActionPaddingH: CGFloat = 10
     public static let historyActionRadius: CGFloat = 6
     public static let historyActionIcon: CGFloat = 12
     public static let historyActionGap: CGFloat = 6

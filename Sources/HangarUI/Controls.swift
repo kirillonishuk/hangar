@@ -5,17 +5,19 @@ import SwiftUI
 // until hovered; links are `accentText`; hints are `text3` and never clickable. Keys go only into tooltips.
 
 /// Row / toast action, 22 high: `primary` for the row's one main action, otherwise `button` → `moreBg` under the
-/// pointer; pressed darker, disabled .38, hand only while enabled.
+/// pointer; pressed darker, disabled .38, hand only while enabled. `destructive` (a trash icon): `failedText` when hovered.
 struct ActionButtonStyle: ButtonStyle {
     var primary = false
+    var destructive = false
 
     func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, primary: primary, pressed: configuration.isPressed)
+        Body(label: configuration.label, primary: primary, destructive: destructive, pressed: configuration.isPressed)
     }
 
     private struct Body<Label: View>: View {
         let label: Label
         let primary: Bool
+        let destructive: Bool
         let pressed: Bool
         @Environment(\.isEnabled) private var enabled
         @State private var hover = false
@@ -24,7 +26,7 @@ struct ActionButtonStyle: ButtonStyle {
             let lit = hover && enabled
             label
                 .font(.system(size: Theme.Control.font, weight: .medium))
-                .foregroundStyle(primary ? Theme.ui.primaryText : lit ? Theme.ui.textStrong : Theme.ui.text)
+                .foregroundStyle(primary ? Theme.ui.primaryText : lit && destructive ? Theme.ui.failedText : lit ? Theme.ui.textStrong : Theme.ui.text)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Control.paddingH)
                 .frame(height: Theme.Control.height)
@@ -34,6 +36,30 @@ struct ActionButtonStyle: ButtonStyle {
                 .contentShape(RoundedRectangle(cornerRadius: Theme.Control.radius))
                 .opacity(enabled ? 1 : Theme.inactiveOpacity)
                 .pointingHand(enabled)
+                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        }
+    }
+}
+
+/// A big choice button (Claude / Codex / Терминал in an empty session or a chooser pane): `button` → `moreBg`, radius 7;
+/// the label brings its own padding.
+struct ChoiceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Body(label: configuration.label, pressed: configuration.isPressed)
+    }
+
+    private struct Body<Label: View>: View {
+        let label: Label
+        let pressed: Bool
+        @State private var hover = false
+
+        var body: some View {
+            label
+                .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
+                    .fill(hover || pressed ? Theme.ui.moreBg : Theme.ui.button)
+                    .brightness(pressed ? Theme.Control.pressedBrightness : 0))
+                .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
+                .pointingHand()
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }
     }

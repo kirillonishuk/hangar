@@ -35,13 +35,12 @@ struct GitDetailsView: View {
             if compact {
                 Button { model.select(nil) } label: {
                     HStack(spacing: Theme.GitTab.rowGap) {
-                        IconView(icon: .chevronRight, size: Theme.GitTab.searchIcon, tint: Theme.ui.text2).rotationEffect(.degrees(180))
-                        Text(L10n.gitCommits).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text2)
+                        IconView(icon: .chevronRight, size: Theme.GitTab.searchIcon).rotationEffect(.degrees(180))
+                        Text(L10n.gitCommits).font(.system(size: Theme.fontSize.base))
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .pointingHand()
+                .buttonStyle(HeaderActionStyle())
+                .padding(.leading, -Theme.Control.headerPaddingH)
             } else {
                 Text(L10n.gitCommit)
                     .font(.system(size: Theme.fontSize.footer, weight: .semibold))

@@ -214,13 +214,10 @@ struct LimitsPopover: View {
                     app.refreshUsageClock()
                     Task { await app.refreshCodexUsage(afterTurn: false) }
                 } label: {
-                    HStack(spacing: Theme.railInset) {
-                        IconView(icon: .refresh, size: Theme.smallIconSize, tint: Theme.ui.text3)
-                        Text(L10n.refresh)
-                    }
-                    .padding(.horizontal, Theme.railInset)
+                    // A header action: unfilled until hovered, so it doesn't read as the `text3` hint beside it.
+                    ActionLabel(title: L10n.refresh, icon: .refresh)
                 }
-                .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                .buttonStyle(HeaderActionStyle())
                 .help(L10n.refreshLimitsHelp)
             }
             .font(.system(size: Theme.fontSize.small))

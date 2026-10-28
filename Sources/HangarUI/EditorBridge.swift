@@ -269,6 +269,8 @@ struct EditorOpen: Equatable {
     var notice: String?
     var line: Int
     var column: Int
+    /// An unsaved buffer moved here from the other page (splits): it differs from the disk from the start.
+    var dirty = false
 }
 
 /// The diff tab's two sides (`modified` editable when `path` is set: a working-tree file that saves there).
@@ -310,7 +312,7 @@ enum EditorCommand: Equatable {
         switch self {
         case .open(let o):
             return ["type": "open", "path": o.path, "text": n(o.text), "readOnly": o.readOnly, "notice": n(o.notice),
-                    "line": o.line, "column": o.column]
+                    "line": o.line, "column": o.column, "dirty": o.dirty]
         case .activate(let p, let l, let c): return ["type": "activate", "path": p, "line": n(l), "column": n(c)]
         case .close(let p): return ["type": "close", "path": p]
         case .reload(let p, let t): return ["type": "reload", "path": p, "text": t]

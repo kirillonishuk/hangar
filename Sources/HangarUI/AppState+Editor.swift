@@ -18,9 +18,9 @@ extension AppState {
         return nil
     }
 
-    /// Unsaved editor files of the tab's leaves (all tabs when nil): closing or quitting asks first.
-    func unsavedEditorFiles(tab tabId: UUID? = nil) -> [String] {
-        let leaves = state.tasks.filter { !$0.archived }.flatMap(\.tabs).filter { tabId == nil || $0.id == tabId }.flatMap(\.root.leaves)
+    /// Unsaved editor files of every open session's leaves: quitting asks first.
+    func unsavedEditorFiles() -> [String] {
+        let leaves = state.tasks.filter { !$0.archived }.flatMap(\.tabs).flatMap(\.root.leaves)
         return leaves.filter { $0.kind == .editor }.flatMap { editorUnsaved?($0.id) ?? [] }
     }
 }

@@ -163,11 +163,18 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
     private var sidebarAnimation: Timer?
+    /// A tab dragged onto a pane edge (splits).
+    private(set) var paneDrag: PaneDragController?
     /// The open ⌘P / ⇧⌘P palette; nil when closed.
     var palette: PaletteController?
     private var paletteLoad: Task<Void, Never>?
     /// The inspector root its files were taken from.
     private var paletteRoot: String?
+    /// The chooser pane whose «Редактор» opened the palette: a picked file opens in that pane.
+    private var palettePickFor: UUID?
+    #if DEBUG
+    var debugPalettePickFor: UUID? { palettePickFor }
+    #endif
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)
@@ -225,6 +232,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
+        column.terminalArea.actionContext = ctx
+        paneDrag = PaneDragController(app: app, area: column.terminalArea, tabBar: column.tabBar)
         root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
                                                 inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
                                                 toggleSidebar: { [weak self] in self?.toggleSidebar() })
@@ -243,6 +252,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
+        app.onChooseEditor = { [weak self] leaf in self?.togglePalette(commands: false, pickFor: leaf) }
         app.didChange = { [weak self] in
             guard let self else { return }
             // «Сессии» overlays the selected session: hiding its terminals hands their focus on; it comes back on Esc.
@@ -410,6 +420,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func handleKeyDown(_ event: NSEvent) -> Bool {
+        // Esc mid-drag cancels the drop, before anything else could take it (sheet, palette, «Сессии», terminal).
+        if event.keyCode == 53, paneDrag?.cancel() == true { return true }
         // ⌘⇧L also closes the limits popover while it has the keyboard.
         if app.limitsPopoverShown, !event.isARepeat, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
             app.toggleLimitsPopover()
@@ -478,6 +490,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if sc == .rename {
                 switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
                 case .passthrough: return false
+                // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
+                case .rename(let target) where !app.renameable(target): return false
                 case .rename(let target): Action.rename.perform(target, ctx)
                 case .ignore: break
                 }
@@ -549,6 +563,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func perform(_ sc: Shortcut) {
+        // ⌘W in a split tab closes the focused pane, the last one closes the tab.
+        if sc == .closeTab, let task = app.selectedTask, let tab = column.terminalArea.activeTab,
+           case .pane(let leaf) = closeKeyRoute(tab, focused: column.terminalArea.focusedLeaf?.leafId) {
+            Action.closePane.perform(.leaf(task: task.id, tab: tab.id, leaf: leaf), ctx)
+            return
+        }
         if let action = Action.allCases.first(where: { $0.shortcut == sc }) {
             if let target = keyTarget(for: action) { action.perform(target, ctx) }
             return
@@ -589,8 +609,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Palette
 
     /// ⌘P quick open (tasks, files; a typed `>` → commands), ⇧⌘P commands (the query starts as `>`), as in VS Code.
-    /// The same key again closes it, the other one switches.
-    func togglePalette(commands: Bool) {
+    /// The same key again closes it, the other one switches. `pickFor`: a chooser pane's «Редактор» (its file goes there).
+    func togglePalette(commands: Bool, pickFor leafId: UUID? = nil) {
+        if leafId != nil, palette != nil { closePalette() }
         if let palette {
             if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
             return
@@ -618,9 +639,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
                                  query: commands ? ">" : "", loadFiles: load)
         paletteRoot = root
+        palettePickFor = leafId
         palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            let pickFor = self?.palettePickFor
             self?.closePalette()
-            self?.choosePalette(item)
+            self?.choosePalette(item, pickFor: pickFor)
         }, close: { [weak self] in self?.closePalette() })
     }
 
@@ -636,18 +659,21 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func closePalette() {
         guard let palette else { return }
         self.palette = nil
+        palettePickFor = nil
         paletteLoad?.cancel()
         paletteLoad = nil
         palette.dismiss()
         if NSApp.isActive { window?.makeKey() }  // back to the responder the window had (terminal, field)
     }
 
-    func choosePalette(_ item: PaletteItem) {
+    func choosePalette(_ item: PaletteItem, pickFor leafId: UUID? = nil) {
         switch item.target {
         case .task(let id):
             app.select(taskId: id)
             column.terminalArea.focusActiveLeaf()
-        case .file(let path): if let paletteRoot { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .file(let path):
+            guard let paletteRoot else { return }
+            if let leafId { app.chooseEditor(leafId, path: paletteRoot + "/" + path) } else { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
         case .command(let sc): perform(sc)
         }
     }

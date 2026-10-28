@@ -31,6 +31,34 @@ import Testing
         #expect(loaded == state)
     }
 
+    @Test func savedStateHasNoChooser() throws {
+        let dir = tempDir()
+        var s = sample()
+        let t = s.tasks[0].id
+        let tab = s.addTab(taskId: t, kind: .claude)
+        let a = s.tasks[0].tabs[0].root.leaves[0].id
+        _ = s.split(taskId: t, tabId: tab, leafId: a, axis: .horizontal, kind: nil)
+        try StateStore(directory: dir).saveNow(s)
+        let data = try Data(contentsOf: dir.appendingPathComponent("state.json"))
+        #expect(!String(decoding: data, as: UTF8.self).contains("choose"))
+        guard case .loaded(let loaded) = StateStore(directory: dir).load() else { Issue.record("expected .loaded"); return }
+        #expect(loaded.tasks[0].tabs[0].root.leaves.map(\.id) == [a])
+    }
+
+    @Test func loadPrunesChooserOnlyTab() throws {
+        let dir = tempDir()
+        var s = sample()
+        let t = s.tasks[0].id
+        s.addTab(taskId: t, kind: .claude)
+        try StateStore(directory: dir).saveNow(s)
+        let file = dir.appendingPathComponent("state.json")
+        let json = try String(contentsOf: file, encoding: .utf8).replacingOccurrences(of: "\"kind\" : \"claude\"", with: "\"kind\" : \"choose\"")
+        #expect(json.contains("choose"))
+        try json.write(to: file, atomically: true, encoding: .utf8)
+        guard case .loaded(let loaded) = StateStore(directory: dir).load() else { Issue.record("expected .loaded"); return }
+        #expect(loaded.tasks.count == 1 && loaded.tasks[0].tabs.isEmpty && loaded.tasks[0].activeTabId == nil)
+    }
+
     @Test func saveIsAtomic() throws {
         let dir = tempDir()
         let store = StateStore(directory: dir)

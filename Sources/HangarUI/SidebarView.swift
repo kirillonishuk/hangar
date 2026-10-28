@@ -316,14 +316,14 @@ struct SidebarView: View {
                 Theme.railRowHeight + Theme.sessionRowHeight * CGFloat(p.collapsed ? 0 : app.groupTasks(p.id).count)
             }
             return (app.state.projects.map(\.id), heights)
-        case .tab: return nil
+        case .tab, .leaf: return nil
         }
     }
 
     private func id(_ target: ActionTarget) -> UUID? {
         switch target {
         case .task(let id), .project(let id): id
-        case .tab: nil
+        case .tab, .leaf: nil
         }
     }
 
@@ -357,7 +357,7 @@ struct SidebarView: View {
             switch target {
             case .task: app.moveTask(moved, toGroupIndex: slot.index)
             case .project: app.moveProject(moved, to: slot.index)
-            case .tab: break
+            case .tab, .leaf: break
             }
         })
     }

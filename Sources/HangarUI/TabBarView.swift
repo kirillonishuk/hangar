@@ -13,6 +13,34 @@ enum TabStrip {
         var overflow: Bool
     }
 
+    /// Reorder: the tabs between the dragged one (`from`) and its slot (`to`, among the others) part by its width.
+    static func shifts(widths: [CGFloat], from: Int, to: Int) -> [CGFloat] {
+        let step = widths[from] + Theme.tabGap
+        return widths.indices.map { i in
+            if to > from, i > from, i <= to { return -step }
+            if to < from, i >= to, i < from { return step }
+            return 0
+        }
+    }
+
+    /// Where the opened slot starts (the strip's own coordinates, before scrolling).
+    /// The index among the other tabs where tab `from`, dragged by `dx`, lands: a neighbour gives way once the dragged
+    /// tab's leading edge (moving left) or trailing edge (moving right) passes its middle, so the last slot (index ==
+    /// the others' count) is reached by dragging onto the last tab, not past its middle by the dragged tab's centre.
+    static func reorderIndex(widths: [CGFloat], from: Int, dx: CGFloat) -> Int {
+        var starts: [CGFloat] = []
+        var x: CGFloat = 0
+        for w in widths { starts.append(x); x += w + Theme.tabGap }
+        let lead = starts[from] + dx
+        let probe = dx >= 0 ? lead + widths[from] : lead
+        return widths.indices.filter { $0 != from && starts[$0] + widths[$0] / 2 < probe }.count
+    }
+
+    static func slotX(widths: [CGFloat], from: Int, to: Int) -> CGFloat {
+        let others = widths.indices.filter { $0 != from }.prefix(to)
+        return others.map { widths[$0] + Theme.tabGap }.reduce(0, +)
+    }
+
     /// A tab's least width: the status dot gets its own room, so a dotted tab keeps as much title as a plain one.
     static func minWidth(dot: Bool) -> CGFloat {
         Theme.tabMinWidth + (dot ? Theme.statusDot + Theme.rowEndGap : 0)
@@ -21,12 +49,12 @@ enum TabStrip {
     /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow); `dots[i]`: tab i shows
     /// a status dot (missing = no dot). Tabs get their natural width within [min, max]; a crowded bar shrinks the widest
     /// first, then scrolls at min.
-    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to the max, #83).
+    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, #83).
     static func layout(natural: [CGFloat], dots: [Bool] = [], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.tabBarButton
         let floors = natural.indices.map { i in
             let least = minWidth(dot: dots.indices.contains(i) && dots[i])
-            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.tabMaxWidth)) : least
+            return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.fileTabMaxWidth)) : least
         }
         if content(floors) <= width - control {
             let fit = widths(natural, floors: floors, room: width - control)
@@ -88,8 +116,12 @@ struct TabBarView: View {
     /// Scroll offset of the tabs (clamped on use); the dragged tab with its translation and the offset at drag start.
     @State private var scroll: CGFloat = 0
     @State private var drag: (tab: UUID, dx: CGFloat, from: CGFloat)?
+    /// The dragged tab is below the bar, over the panes (`PaneDragController`): it stays in place, no insertion line.
+    @State private var paneMode = false
     /// Room for tabs and controls, kept for scroll-into-view outside of layout.
     @State private var room: CGFloat = 0
+    /// The strip's left edge in global points, for hooks that outlive a body (read when they run).
+    @State private var stripMinX: CGFloat = 0
     @State private var shownTask: UUID?
 
     private struct ActiveKey: Equatable {
@@ -113,6 +145,7 @@ struct TabBarView: View {
                 room = w
                 reveal(animated: false)
             }
+            .onChange(of: geo.frame(in: .global).minX + Theme.tabTitleLeading, initial: true) { stripMinX = $1 }
         }
         .frame(height: Theme.tabBarHeight)
         .background(WindowDragArea())
@@ -175,26 +208,73 @@ struct TabBarView: View {
         let l = layout(task, width: width)
         let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         let diff = app.diffTabs[task.id]
-        let dragDX = drag.map { $0.dx + offset - $0.from }
+        let dragDX = paneMode ? nil : drag.map { $0.dx + offset - $0.from }
         let slot = dropSlot(task, widths: l.widths, dx: dragDX)
+        let tabWidths = Array(l.widths.prefix(task.tabs.count))
+        let from = drag.flatMap { d in task.tabs.firstIndex { $0.id == d.tab } }
+        let shifts = from.flatMap { f in slot.map { TabStrip.shifts(widths: tabWidths, from: f, to: $0.index) } }
+        // A pane header over the bar (`PaneDragController`): the tabs part at its slot as for a reorder.
+        let paneSlot: Int? = if drag == nil, case .tabBar(let i)? = app.paneDropTarget { i } else { nil }
+        let gap = Theme.tabMinWidth + Theme.tabGap
+        let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.tabBarButton - l.viewport))
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
-                        onDrag: { dx, x in dragged(tab.id, dx: dx, x: x, l: l, minX: minX) },
-                        onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) })
-                    .overlay(alignment: slot?.edge == .leading ? .leading : .trailing) {
-                        if slot?.tab == tab.id { Rectangle().fill(Theme.ui.accent).frame(width: Theme.dropLineWidth) }
-                    }
+                        onDrag: { dx, p in dragged(tab.id, dx: dx, at: p, l: l, minX: minX) },
+                        onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) },
+                        onDragCancel: { cancelDrag(tab.id) })
+                    // Global space includes the parting below: a parted tab reports where it shows (the slot holds still).
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { app.tabFrames[tab.id] = $0 }
+                    .onDisappear { app.tabFrames[tab.id] = nil }
+                    // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
+                    .offset(x: shifts?[i] ?? paneSlot.map { i >= $0 ? gap : 0 } ?? 0)
+                    .animation(Motion.ease(Theme.selectionFade), value: slot?.index)
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
                     .opacity(drag?.tab == tab.id ? Theme.tabDragOpacity : 1)
+                    .shadow(color: Theme.ui.bg.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
+                            radius: Theme.paneDragGhostShadowRadius)
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
             }
-            if let diff, let w = l.widths.last { DiffTabItem(app: app, tab: diff, width: w) }
+            if let diff, let w = l.widths.last {
+                DiffTabItem(app: app, tab: diff, width: w)
+                    .offset(x: paneSlot == nil ? 0 : gap)
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
+            }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .onAppear {
+            // A pane header over the bar: near an edge each move scrolls it a step, as a dragged tab does.
+            app.tabBarAutoScroll = { x in
+                guard let t = app.selectedTask else { return }
+                autoScroll(x: x, l: layout(t, width: room), minX: stripMinX)
+            }
+        }
+        #if DEBUG
+        .onAppear {
+            // Reads the current task and layout on each call: the hook outlives this body.
+            app.debugTabDrag = { id, dx, p in
+                guard let t = app.selectedTask else { return }
+                let l = layout(t, width: room)
+                if let p { dragged(id, dx: dx, at: p, l: l, minX: stripMinX) } else { endDrag(t, tab: id, widths: l.widths) }
+            }
+        }
+        #endif
+        .background(alignment: .leading) {
+            // The opened slot: an accent outline where the tab will land.
+            if let from, let slot {
+                slotOutline(width: tabWidths[from])
+                    .offset(x: TabStrip.slotX(widths: tabWidths, from: from, to: slot.index))
+                    .animation(Motion.ease(Theme.selectionFade), value: slot.index)
+            } else if let paneSlot {
+                slotOutline(width: Theme.tabMinWidth)
+                    .offset(x: tabWidths.prefix(paneSlot).reduce(0) { $0 + $1 + Theme.tabGap })
+                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
+            }
+        }
         .offset(x: -offset)
-        .frame(width: l.viewport, alignment: .leading)
+        .frame(width: l.viewport + extra, alignment: .leading)
         .clipped()
         .contentShape(Rectangle())
         .overlay(alignment: .leading) { fade(.leading, visible: offset > 0) }
@@ -204,6 +284,14 @@ struct TabBarView: View {
         })
         if l.overflow { overflowMenu(task) }
         addMenu(shellOnly: app.isHostShellTask(task.id))
+    }
+
+    /// Where a dragged tab or pane will land: an `accent` outline.
+    private func slotOutline(width: CGFloat) -> some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+        return shape.fill(Theme.ui.accent.opacity(Theme.tabDropSlotFillOpacity))
+            .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
+            .frame(width: width)
     }
 
     private func fade(_ edge: HorizontalEdge, visible: Bool) -> some View {
@@ -218,10 +306,16 @@ struct TabBarView: View {
     // MARK: Drag
 
     /// Live drag: the translation plus what the bar scrolled since; near an edge each move scrolls the bar a step.
-    private func dragged(_ tab: UUID, dx: CGFloat, x: CGFloat, l: TabStrip.Layout, minX: CGFloat) {
+    private func dragged(_ tab: UUID, dx: CGFloat, at p: CGPoint, l: TabStrip.Layout, minX: CGFloat) {
         let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         drag = (tab, dx, drag?.from ?? offset)
+        paneMode = app.paneDragMoved?(.tab(tab), p) ?? false
+        if !paneMode { autoScroll(x: p.x, l: l, minX: minX) }
+    }
+
+    private func autoScroll(x: CGFloat, l: TabStrip.Layout, minX: CGFloat) {
         guard l.overflow else { return }
+        let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         let step = x < minX + Theme.tabDragScrollEdge ? -Theme.tabDragScrollStep
             : x > minX + l.viewport - Theme.tabDragScrollEdge ? Theme.tabDragScrollStep : 0
         if step != 0 { scroll = TabStrip.clamp(offset + step, viewport: l.viewport, content: l.content) }
@@ -230,18 +324,33 @@ struct TabBarView: View {
     /// Where the dragged tab would land: index among the others, and the tab whose edge shows the insertion line.
     private func dropSlot(_ task: HangarTask, widths: [CGFloat], dx: CGFloat?) -> (index: Int, tab: UUID, edge: HorizontalEdge)? {
         guard let drag, let dx, let from = task.tabs.firstIndex(where: { $0.id == drag.tab }) else { return nil }
-        let to = dropIndex(heights: widths.prefix(task.tabs.count).map { $0 + Theme.tabGap }, from: from, dy: dx)
+        let to = TabStrip.reorderIndex(widths: Array(widths.prefix(task.tabs.count)), from: from, dx: dx)
         let others = task.tabs.map(\.id).filter { $0 != drag.tab }
         guard to != from, let last = others.last else { return nil }
         return to < others.count ? (to, others[to], .leading) : (to, last, .trailing)
     }
 
+    /// The gesture went away without an end (deactivation, a sheet…): nothing moves, the pane drop is called off.
+    private func cancelDrag(_ tab: UUID) {
+        guard drag?.tab == tab else { return }
+        app.paneDragCancelled?()
+        drag = nil
+        paneMode = false
+    }
+
     private func endDrag(_ task: HangarTask, tab: UUID, widths: [CGFloat]) {
+        let handled = app.paneDragEnded?(.tab(tab)) ?? false
+        paneMode = false
+        if handled { drag = nil }
         guard let d = drag, d.tab == tab else { return }
         let l = layout(task, width: room)
         let slot = dropSlot(task, widths: widths, dx: d.dx + TabStrip.clamp(scroll, viewport: l.viewport, content: l.content) - d.from)
-        drag = nil
-        if let slot { app.perform { $0.moveTab(taskId: task.id, tabId: tab, to: slot.index) } }
+        var t = Transaction()
+        t.disablesAnimations = true  // the order changes and the gap closes in one step, no slide back
+        withTransaction(t) {
+            drag = nil
+            if let slot { app.perform { $0.moveTab(taskId: task.id, tabId: tab, to: slot.index) } }
+        }
     }
 
     // MARK: Controls
@@ -380,11 +489,12 @@ private struct TabBackground: View {
 
     var body: some View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
-        ZStack(alignment: .top) {
-            shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
-            Rectangle().fill(Theme.ui.accent).frame(height: Theme.tabActiveLine).opacity(active ? 1 : 0)
-        }
-        .clipShape(shape)
+        // The line is the accent shape showing above the fill: even along the top and round at the corners, not a clipped bar.
+        shape.fill(Theme.ui.accent.opacity(active ? 1 : 0))
+            .overlay(alignment: .bottom) {
+                shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
+                    .padding(.top, active ? Theme.tabActiveLine : 0)
+            }
     }
 }
 
@@ -397,11 +507,15 @@ struct TabItem: View {
     let active: Bool
     /// From `TabStrip.layout`; the title truncates inside it.
     var width: CGFloat
-    /// Live drag: translation and pointer x (global space); then the end.
-    var onDrag: (CGFloat, CGFloat) -> Void = { _, _ in }
+    /// Live drag: translation and pointer (window points from the top-left); then the end.
+    var onDrag: (CGFloat, CGPoint) -> Void = { _, _ in }
     var onDragEnd: () -> Void = {}
+    /// The gesture went away without `onEnded` (SwiftUI drops it on deactivation, a sheet, window close).
+    var onDragCancel: () -> Void = {}
     @State private var hover = false
     @State private var dragging = false
+    /// True while the gesture lives; its reset without `onEnded` is a cancel.
+    @GestureState private var pressed = false
 
     private var app: AppState { ctx.app }
     private var target: ActionTarget { .tab(task: taskId, tab: tab.id) }
@@ -426,43 +540,57 @@ struct TabItem: View {
             if app.renaming == target {
                 RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
             } else {
-                Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                // A file name past `fileTabMaxWidth` keeps its extension; an agent's long OSC title ends in «…».
+                Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).truncationMode(fileLeaf == nil ? .tail : .middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             TabCloseButton(active: active, tabHover: hover, dirty: fileLeaf.map { app.editorDirty.contains($0.id) } ?? false,
-                           help: L10n.help(L10n.closeTabHelp, .closeTab)) { Action.closeTab.perform(target, ctx) }
+                           help: L10n.help(L10n.closeTabHelp, Action.closeTab.shortcut(for: target, app: app))) {
+                Action.closeTab.perform(target, ctx)
+            }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width)
+        .frame(width: width, height: Theme.tabHeight)
         .background(TabBackground(active: active, hover: hover))
         .contentShape(Rectangle())
         // One tap handler: a separate count-2 gesture would delay every single click.
         .onTapGesture {
             app.chromeClicked(target)
             app.activate(tabId: tab.id)
-            // A double click keeps a preview tab (as in VS Code); on any other tab it renames.
+            // A double click keeps a preview tab (as in VS Code); on any other tab it renames (not a file tab: `renameable`).
             if (NSApp.currentEvent?.clickCount ?? 1) >= 2 {
                 if tab.preview { app.perform { $0.pinTab(taskId: taskId, tabId: tab.id) } } else { Action.rename.perform(target, ctx) }
             }
         }
         // Global space: the dragged tab is offset while dragging, local translations would feed back.
         .simultaneousGesture(DragGesture(minimumDistance: Theme.dragThreshold, coordinateSpace: .global)
+            .updating($pressed) { _, pressed, _ in pressed = true }
             .onChanged { value in
                 guard app.renaming != target else { return }
                 dragging = true
-                onDrag(value.translation.width, value.location.x)
+                onDrag(value.translation.width, windowPoint(NSApp.currentEvent) ?? value.location)
             }
             .onEnded { _ in
                 guard dragging else { return }
                 dragging = false
                 onDragEnd()
             })
+        .onChange(of: pressed) { _, live in
+            // Next turn: a normal end has run `onEnded` by then (whatever order SwiftUI resets the state in).
+            guard !live else { return }
+            DispatchQueue.main.async {
+                guard dragging else { return }
+                dragging = false
+                onDragCancel()
+            }
+        }
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .help(L10n.help(app.tabHelpTitle(tab, taskId: taskId), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
-        .pointingHand(app.renaming != target)
+        .pointingHand(app.renaming != target && !dragging)  // a drag keeps its closed hand (PaneDragController)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .animation(Motion.ease(Theme.selectionFade), value: active)
     }
@@ -478,14 +606,14 @@ private struct DiffTabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             IconView(icon: .diff, active: tab.active).padding(.trailing, Theme.iconGap)
-            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(tab.active ? Theme.ui.textStrong : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width)
+        .frame(width: width, height: Theme.tabHeight)
         .background(TabBackground(active: tab.active, hover: hover))
         .contentShape(Rectangle())
         .onTapGesture { app.activateDiff() }

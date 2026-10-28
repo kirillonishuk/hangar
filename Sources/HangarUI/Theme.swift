@@ -93,10 +93,27 @@ public enum Theme {
     public static let tabRadius: CGFloat = 6
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
-    /// Insertion line while dragging rows (`accent`).
+    /// Insertion line while dragging sidebar rows (`accent`); the tab bar opens a slot instead (`tabDropSlot*`).
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
     public static let dragThreshold: CGFloat = 4
+    /// Dragging a tab/pane over a pane: each edge's drop zone, as a share of that side (DESIGN «Сплиты»).
+    public static let paneDropZone: CGFloat = 0.25
+    /// The highlighted half a dropped pane will take: `accent` fill at this opacity, `accent` outline.
+    public static let paneDropFillOpacity: CGFloat = 0.18
+    public static let paneDropLineWidth: CGFloat = 2
+    /// The rest of the target pane: black at this opacity (`paneDropScrim`; a theme's `bg` is as dark as its terminal).
+    public static let paneDropDimOpacity: CGFloat = 0.45
+    /// The chip following the pointer (icon + name): faded where nothing can be dropped.
+    public static let paneDragGhostOpacity: CGFloat = 0.95
+    public static let paneDragGhostBlockedOpacity: CGFloat = 0.45
+    public static let paneDragGhostHeight: CGFloat = 28
+    public static let paneDragGhostPaddingH: CGFloat = 10
+    public static let paneDragGhostMaxWidth: CGFloat = 260
+    /// From the pointer to the chip's top-left corner.
+    public static let paneDragGhostOffset: CGFloat = 12
+    public static let paneDragGhostShadowRadius: CGFloat = 10
+    public static let paneDragGhostShadowOpacity: CGFloat = 0.5
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32
@@ -134,8 +151,12 @@ public enum Theme {
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4
     public static let closeOpacity: Double = 0.4
-    public static let paneHeaderPaddingV: CGFloat = 5
     public static let paneHeaderPaddingH: CGFloat = 12
+    /// A split pane's header strip: constant, so the terminal never jumps when its buttons show.
+    public static let paneHeaderHeight: CGFloat = 24
+    public static let paneHeaderIcon: CGFloat = 12
+    /// Gap between the header's «⇱» and «×».
+    public static let paneHeaderButtonGap: CGFloat = 2
     public static let inactiveOpacity: Double = 0.38
     public static let disabledButtonOpacity: Double = 0.45
 

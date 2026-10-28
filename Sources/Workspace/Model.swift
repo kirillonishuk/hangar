@@ -535,10 +535,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return newLeaf.id
     }
 
-    /// A chooser leaf becomes `kind`, keeping its id. An editor needs a `file` not yet open in the session and a free editor slot.
+    /// A chooser leaf becomes `kind`, keeping its id. An editor needs a `file` not yet open in the session and a free editor slot;
+    /// `resume` (an agent only) continues that conversation in its folder.
     @discardableResult
-    public mutating func chooseKind(leafId: UUID, kind: LeafKind, file: String? = nil) -> Bool {
-        guard kind != .choose else { return false }
+    public mutating func chooseKind(leafId: UUID, kind: LeafKind, file: String? = nil,
+                                    resume: (cwd: String, sessionId: String)? = nil) -> Bool {
+        guard kind != .choose, resume == nil || kind == .claude || kind == .codex else { return false }
         for i in tasks.indices {
             for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId)?.kind == .choose {
                 if kind == .editor {
@@ -552,6 +554,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                     if kind == .editor, let file {
                         leaf.openFile = file
                         leaf.editorFiles = [EditorFile(path: file, line: 1, column: 1)]
+                    }
+                    if let resume {
+                        leaf.cwd = resume.cwd
+                        leaf.agentSessionId = resume.sessionId
                     }
                     return leaf
                 }

@@ -76,6 +76,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var editorLanguage: [UUID: LanguageStatus] = [:]
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
+    @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
     /// Settings → Editor changed: every editor and diff page restyles (set by `TerminalArea`).
     @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
@@ -172,6 +174,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored let configURL: URL
     /// Past conversations («Сессии»), cached per file across scans.
     @ObservationIgnored let history = ConversationHistory()
+    /// «Продолжить» of an empty session or a chooser: the folder's latest conversations from the last scan (in memory only).
+    var recentByFolder: [String: [Conversation]] = [:]
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
     @ObservationIgnored public var claudeSettingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     @ObservationIgnored public var codexConfigURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/config.toml")
@@ -512,9 +516,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func openConversation(_ c: Conversation) {
         guard let task = selectedTask, let id = validSessionId(c.id) else { return }
         deactivateDiff()
-        var leafId: UUID?
-        perform { leafId = $0.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) }
-        if let leafId { restoredLeaves[leafId] = true }
+        // Marked inside `perform`: its sync starts the new tab's surface, whose first launch must already resume.
+        perform { s in
+            if let leaf = s.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) {
+                restoredLeaves[leaf] = true
+            }
+        }
     }
 
     func activate(tabId: UUID) {
@@ -599,10 +606,41 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         for id in leaves { formerTabs[id, default: []].insert(tab) }
     }
 
-    /// Splits `leafId` (the focused leaf) with a new shell in the task's cwd.
+    /// Splits `leafId` (the focused leaf) with a chooser pane (a host's terminal: a shell).
     func split(leafId: UUID, axis: Workspace.Axis) {
         guard let loc = location(ofLeaf: leafId) else { return }
-        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: .shell) } // chooser arrives in Task 4
+        perform { $0.split(taskId: loc.task, tabId: loc.tab, leafId: leafId, axis: axis, kind: nil) }
+    }
+
+    /// A chooser's button or ↩: the pane starts `kind`. The editor needs a file: it goes through `chooseEditor`.
+    func chooseKind(_ leafId: UUID, _ kind: LeafKind) {
+        guard kind != .editor else { return }
+        perform { $0.chooseKind(leafId: leafId, kind: kind) }
+    }
+
+    /// The chooser's ⌘P pick: a file already open in the session is focused there (the chooser stays), else the pane edits it.
+    func chooseEditor(_ leafId: UUID, path: String) {
+        guard let loc = location(ofLeaf: leafId) else { return }
+        if state.fileTab(taskId: loc.task, path: path) != nil { return openInEditor(path: path, line: nil) }
+        var ok = false
+        perform { ok = $0.chooseKind(leafId: leafId, kind: .editor, file: path) }
+        if !ok { beep() }  // the tab got its second editor meanwhile
+    }
+
+    /// «Продолжить» in a chooser: the pane resumes that conversation in its folder.
+    func chooseConversation(_ leafId: UUID, _ c: Conversation) {
+        guard let id = validSessionId(c.id) else { return }
+        perform { s in
+            if s.chooseKind(leafId: leafId, kind: c.agent == .claude ? .claude : .codex, resume: (cwd: c.cwd, sessionId: id)) {
+                restoredLeaves[leafId] = true  // before this perform's sync starts it
+            }
+        }
+    }
+
+    /// ↩ relaunched a leaf: the new process carries its tab of now, so the tabs it ran under before are no longer trusted.
+    func relaunched(leafId: UUID) {
+        formerTabs[leafId] = nil
+        signal(.relaunched, leaf: leafId)
     }
 
     func setTitle(_ title: String, leafId: UUID) { leafTitles[leafId] = title }

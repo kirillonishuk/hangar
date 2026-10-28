@@ -168,6 +168,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var paletteLoad: Task<Void, Never>?
     /// The inspector root its files were taken from.
     private var paletteRoot: String?
+    /// The chooser pane whose «Редактор» opened the palette: a picked file opens in that pane.
+    private var palettePickFor: UUID?
     private var didApplyInitialLayout = false
     private let configWarning: String?
     lazy var settings = SettingsWindowController(app: app)
@@ -243,6 +245,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
+        app.onChooseEditor = { [weak self] leaf in self?.togglePalette(commands: false, pickFor: leaf) }
         app.didChange = { [weak self] in
             guard let self else { return }
             // «Сессии» overlays the selected session: hiding its terminals hands their focus on; it comes back on Esc.
@@ -589,8 +592,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Palette
 
     /// ⌘P quick open (tasks, files; a typed `>` → commands), ⇧⌘P commands (the query starts as `>`), as in VS Code.
-    /// The same key again closes it, the other one switches.
-    func togglePalette(commands: Bool) {
+    /// The same key again closes it, the other one switches. `pickFor`: a chooser pane's «Редактор» (its file goes there).
+    func togglePalette(commands: Bool, pickFor leafId: UUID? = nil) {
+        if leafId != nil, palette != nil { closePalette() }
         if let palette {
             if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
             return
@@ -618,9 +622,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
                                  query: commands ? ">" : "", loadFiles: load)
         paletteRoot = root
+        palettePickFor = leafId
         palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            let pickFor = self?.palettePickFor
             self?.closePalette()
-            self?.choosePalette(item)
+            self?.choosePalette(item, pickFor: pickFor)
         }, close: { [weak self] in self?.closePalette() })
     }
 
@@ -636,18 +642,21 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func closePalette() {
         guard let palette else { return }
         self.palette = nil
+        palettePickFor = nil
         paletteLoad?.cancel()
         paletteLoad = nil
         palette.dismiss()
         if NSApp.isActive { window?.makeKey() }  // back to the responder the window had (terminal, field)
     }
 
-    func choosePalette(_ item: PaletteItem) {
+    func choosePalette(_ item: PaletteItem, pickFor leafId: UUID? = nil) {
         switch item.target {
         case .task(let id):
             app.select(taskId: id)
             column.terminalArea.focusActiveLeaf()
-        case .file(let path): if let paletteRoot { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .file(let path):
+            guard let paletteRoot else { return }
+            if let leafId { app.chooseEditor(leafId, path: paletteRoot + "/" + path) } else { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
         case .command(let sc): perform(sc)
         }
     }

@@ -466,6 +466,30 @@ import Workspace
         #expect(app.state(ofLeaf: leafB) == .working)
     }
 
+    /// A process started after the merge (a relaunch) carries the tab the leaf is in now: that stays accepted too.
+    @Test func hookFromCurrentTabIsAppliedAfterMerge() {
+        let app = makeApp([.shell, .claude])
+        let tabs = app.state.tasks[0].tabs
+        let a = tabs[0], b = tabs[1], leafB = b.root.leaves[0].id
+        app.mergeTab(b.id, into: a.id, at: a.root.leaves[0].id, edge: .right)
+        app.handle(.event(EventMessage(tab: a.id, leaf: leafB, kind: .prompt)))
+        #expect(app.state(ofLeaf: leafB) == .working)
+    }
+
+    /// ↩ relaunch: the new process has the leaf's tab of now, so its former tabs are no longer trusted.
+    @Test func relaunchForgetsFormerTabs() {
+        let app = makeApp([.shell, .claude])
+        let tabs = app.state.tasks[0].tabs
+        let a = tabs[0], b = tabs[1], leafB = b.root.leaves[0].id
+        app.mergeTab(b.id, into: a.id, at: a.root.leaves[0].id, edge: .right)
+        app.relaunched(leafId: leafB)
+        #expect(app.formerTabs[leafB] == nil)
+        app.handle(.event(EventMessage(tab: b.id, leaf: leafB, kind: .prompt)))
+        #expect(app.state(ofLeaf: leafB) != .working)
+        app.handle(.event(EventMessage(tab: a.id, leaf: leafB, kind: .prompt)))
+        #expect(app.state(ofLeaf: leafB) == .working)
+    }
+
     /// Trust boundary: a tab the leaf never ran under is still rejected.
     @Test func hookFromUnrelatedTabIsRejected() {
         let app = makeApp([.shell, .claude, .shell])

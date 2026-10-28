@@ -99,8 +99,8 @@ final class FillView: NSView {
     private(set) var surface: TerminalSurfaceView?
     /// An editor leaf holds Monaco instead of a terminal (#80).
     private(set) var editor: EditorPane?
-    /// What takes the keyboard in this leaf.
-    var keyView: NSView? { surface ?? editor?.webView }
+    /// What takes the keyboard in this leaf; a chooser takes it itself.
+    var keyView: NSView? { surface ?? editor?.webView ?? (chooser != nil ? self : nil) }
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
     private var mode: LaunchMode?
@@ -138,6 +138,11 @@ final class FillView: NSView {
     var onBell: (() -> Void)?
     /// The OSC text, «title — body» (nil when both are empty).
     var onNotification: ((String?) -> Void)?
+    /// A chooser leaf holds its `ChooserView` (no process) until a kind is picked.
+    private(set) var chooser: NSView?
+    /// Chooser keys: ↩ picks the terminal, Esc closes the pane.
+    var onChoose: ((LeafKind) -> Void)?
+    var onDismiss: (() -> Void)?
 
     init(leafId: UUID) {
         self.leafId = leafId
@@ -184,6 +189,36 @@ final class FillView: NSView {
 
     /// Without a surface the leaf holds the keyboard itself (⌘W / ↩ route to it), also after a click on it.
     override var acceptsFirstResponder: Bool { surface == nil && editor == nil }
+
+    func attachChooser(_ view: NSView) {
+        chooser = view
+        addSubview(view, positioned: .below, relativeTo: header)
+        needsLayout = true
+    }
+
+    /// A kind was picked: the chooser goes, the content starts in the same view.
+    func removeChooser() {
+        chooser?.removeFromSuperview()
+        chooser = nil
+        onChoose = nil
+        onDismiss = nil
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard chooser != nil, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty else {
+            return super.keyDown(with: event)
+        }
+        switch event.keyCode {
+        case 36, 76: onChoose?(.shell)  // ↩, keypad Enter
+        case 53: onDismiss?()  // Esc
+        default: super.keyDown(with: event)
+        }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        if chooser != nil { onFocus?() }
+        return true
+    }
 
     func attachEditor(_ pane: EditorPane) {
         editor = pane
@@ -399,7 +434,7 @@ final class FillView: NSView {
             let th = ceil(bar.intrinsicContentSize.height)
             bar.frame = NSRect(x: px, y: bottom + (h - th) / 2, width: max(0, bounds.width - 2 * px), height: th)
         }
-        (surface ?? editor)?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
+        (surface ?? editor ?? chooser)?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
         window?.invalidateCursorRects(for: self)
     }
 }
@@ -610,6 +645,11 @@ final class FillView: NSView {
         for (id, view) in tabViews { view.isHidden = diffShown || id != active?.id }
         for tab in liveTabs {
             for leaf in tab.root.leaves {
+                if let view = leafViews[leaf.id], view.chooser != nil {
+                    view.setHeader(app.paneTitle(leaf))
+                    view.headerFocused = leaf.id == tab.focusedLeafId
+                    continue
+                }
                 if let view = leafViews[leaf.id], let pane = view.editor {
                     pane.setVisible(!diffShown && tab.id == active?.id)
                     view.setHeader(app.paneTitle(leaf))
@@ -669,47 +709,68 @@ final class FillView: NSView {
             tabViews[tab.id] = view
         }
         // Lazy: surfaces of a tab start the first time it is shown.
-        for leaf in tab.root.leaves where leafViews[leaf.id] == nil {
-            let view = LeafView(leafId: leaf.id)
-            view.kind = leaf.kind
-            leafViews[leaf.id] = view
-            tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
-            if leaf.kind == .editor {
-                let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap, appearance: EditorAppearance(app.config))
-                editorHost = host
-                let pane = EditorPane(leafId: leaf.id, app: app, host: host)
-                view.attachEditor(pane)
-                uiLog.info("editor created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
+        for leaf in tab.root.leaves {
+            if let view = leafViews[leaf.id] {
+                // A chooser got its kind: the same view starts it and keeps the keyboard if it had it.
+                guard view.chooser != nil, leaf.kind != .choose else { continue }
+                view.removeChooser()
+                startContent(view, leaf: leaf, tabId: tab.id)
+                if tab.focusedLeafId == leaf.id, let key = view.keyView { window?.makeFirstResponder(key) }
                 continue
             }
-            app.wireHost(view)
-            view.onTitle = { [weak self] title in
-                guard let self else { return }
-                self.app.setTitle(title, leafId: leaf.id)
-                if let now = self.app.leaf(id: leaf.id) { self.leafViews[leaf.id]?.setHeader(self.app.paneTitle(now)) }
-            }
-            view.onExit = { [weak self] code in
-                self?.app.signal(.exited(code: code), leaf: leaf.id)
-                self?.leafExited(leaf.id, code: code)
-            }
-            view.onFocus = { [weak self] in
-                self?.app.focused(leafId: leaf.id)
-                self?.app.signal(.focused, leaf: leaf.id)
-            }
-            view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
-            view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(text: $0), leaf: leaf.id) }
-            view.onRelaunch = { [weak self] keepsStatus in
-                if !keepsStatus { self?.app.signal(.relaunched, leaf: leaf.id) }
-                self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
-                self?.sync()
-            }
-            // A relaunch after a merge / move / detach gets the leaf's tab of now as `HANGAR_TAB_ID`.
-            view.start(app.launchContext(for: leaf.id)) { [app, tabId = tab.id] in
-                try app.spec(for: leaf, tabId: app.location(ofLeaf: leaf.id)?.tab ?? tabId, context: $0)
-            }
-            uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tab.id.uuidString.prefix(8), privacy: .public)")
+            let view = LeafView(leafId: leaf.id)
+            leafViews[leaf.id] = view
+            tabViews[tab.id]?.addSubview(view)  // in the window before the surface exists
+            startContent(view, leaf: leaf, tabId: tab.id)
         }
         if structure[tab.id] != signature(tab.root) { layoutTab(tab) }
+    }
+
+    /// What a leaf view holds: a chooser, an editor pane, or a terminal surface started now.
+    func startContent(_ view: LeafView, leaf: Leaf, tabId: UUID) {
+        view.kind = leaf.kind
+        switch leaf.kind {
+        case .choose:
+            view.attachChooser(ChooserView.hosted(app: app, leafId: leaf.id) { [weak view] in view?.window?.makeFirstResponder(view) })
+            view.onChoose = { [weak self] in self?.app.chooseKind(leaf.id, $0) }
+            view.onDismiss = { [weak self] in self?.app.closeLeaf(leaf.id) }
+            view.onFocus = { [weak self] in self?.app.focused(leafId: leaf.id) }
+            return
+        case .editor:
+            let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap, appearance: EditorAppearance(app.config))
+            editorHost = host
+            let pane = EditorPane(leafId: leaf.id, app: app, host: host)
+            view.attachEditor(pane)
+            uiLog.info("editor created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) tab=\(tabId.uuidString.prefix(8), privacy: .public)")
+            return
+        case .claude, .codex, .shell: break
+        }
+        app.wireHost(view)
+        view.onTitle = { [weak self] title in
+            guard let self else { return }
+            self.app.setTitle(title, leafId: leaf.id)
+            if let now = self.app.leaf(id: leaf.id) { self.leafViews[leaf.id]?.setHeader(self.app.paneTitle(now)) }
+        }
+        view.onExit = { [weak self] code in
+            self?.app.signal(.exited(code: code), leaf: leaf.id)
+            self?.leafExited(leaf.id, code: code)
+        }
+        view.onFocus = { [weak self] in
+            self?.app.focused(leafId: leaf.id)
+            self?.app.signal(.focused, leaf: leaf.id)
+        }
+        view.onBell = { [weak self] in self?.app.signal(.bell, leaf: leaf.id) }
+        view.onNotification = { [weak self] in self?.app.signal(.desktopNotification(text: $0), leaf: leaf.id) }
+        view.onRelaunch = { [weak self] keepsStatus in
+            if !keepsStatus { self?.app.relaunched(leafId: leaf.id) }
+            self?.lastVisible[leaf.id] = nil  // the new surface needs its visibility applied
+            self?.sync()
+        }
+        // A relaunch after a merge / move / detach gets the leaf's tab of now as `HANGAR_TAB_ID`.
+        view.start(app.launchContext(for: leaf.id)) { [app] in
+            try app.spec(for: leaf, tabId: app.location(ofLeaf: leaf.id)?.tab ?? tabId, context: $0)
+        }
+        uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tabId.uuidString.prefix(8), privacy: .public)")
     }
 
     /// CLI/MCP (decision #45): starts the tab's surfaces without showing it; visibility and focus stay as they are.
@@ -825,7 +886,7 @@ final class FillView: NSView {
     /// Focuses the n-th leaf of the active tab like a click would (first responder).
     func debugFocus(_ n: Int) {
         guard let tab = activeTab, tab.root.leaves.indices.contains(n) else { return }
-        window?.makeFirstResponder(leafViews[tab.root.leaves[n].id]?.surface)
+        window?.makeFirstResponder(leafViews[tab.root.leaves[n].id]?.keyView)
     }
 
     /// Debug summary of every surface and whether it renders.
@@ -873,8 +934,8 @@ final class FillView: NSView {
                 lines.append("\(tabOK ? "ok" : "PROBLEM") tab=\(tab.id.uuidString.prefix(8)) task=\(task.name) content=\(content.frame.size) tab=\(tabView.frame) root=\(tabView.subviews.map(\.frame))")
                 for leaf in tab.root.leaves {
                     guard let view = leafViews[leaf.id] else { lines.append("PROBLEM leaf=\(leaf.id.uuidString.prefix(8)) noView"); continue }
-                    let ok = view.surface?.isAlive == true && view.isDescendant(of: tabView) && view.window != nil
-                        && view.surface?.superview === view && view.frame.width > 0 && view.frame.height > 0
+                    let content = view.chooser != nil || (view.surface?.isAlive == true && view.surface?.superview === view)
+                    let ok = content && view.isDescendant(of: tabView) && view.window != nil && view.frame.width > 0 && view.frame.height > 0
                     lines.append("\(ok ? "ok" : "PROBLEM") leaf=\(leaf.id.uuidString.prefix(8)) task=\(task.name) alive=\(view.surface?.isAlive == true) inTab=\(view.isDescendant(of: tabView)) frame=\(Int(view.frame.width))x\(Int(view.frame.height)) exit=\(view.exitCode.map(String.init) ?? "-")")
                 }
             }

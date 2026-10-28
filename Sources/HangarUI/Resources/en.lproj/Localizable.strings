@@ -64,6 +64,8 @@
 "defaultAgent" = "Default agent";
 "editor" = "Editor";
 "paneNew" = "New pane";
+"paneEditorCap" = "At most two editors per tab";
+"continueTitle" = "Continue";
 "externalEditor" = "External editor";
 "externalEditorPlaceholder" = "empty — off";
 "terminalBackground" = "Terminal background";

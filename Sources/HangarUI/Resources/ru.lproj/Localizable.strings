@@ -64,6 +64,8 @@
 "defaultAgent" = "Агент по умолчанию";
 "editor" = "Редактор";
 "paneNew" = "Новая панель";
+"paneEditorCap" = "Не больше двух редакторов во вкладке";
+"continueTitle" = "Продолжить";
 "externalEditor" = "Внешний редактор";
 "externalEditorPlaceholder" = "пусто — выключен";
 "terminalBackground" = "Фон терминала";

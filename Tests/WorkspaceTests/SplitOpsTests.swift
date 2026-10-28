@@ -63,6 +63,18 @@ import Testing
         #expect(s == before)
     }
 
+    /// «Продолжить» in a chooser: the pane becomes the agent of that conversation, in its folder, with its id.
+    @Test func chooseKindResumesConversation() throws {
+        var (s, t, tab, leaf) = state()
+        let c = s.split(taskId: t, tabId: tab, leafId: leaf, axis: .horizontal, kind: nil)
+        let refused = s.chooseKind(leafId: c, kind: .shell, resume: (cwd: "/repo/sub", sessionId: "abc"))
+        #expect(!refused)  // only an agent resumes
+        let ok = s.chooseKind(leafId: c, kind: .claude, resume: (cwd: "/repo/sub", sessionId: "abc"))
+        #expect(ok)
+        let l = try #require(s.tasks[0].tabs[0].root.leaf(id: c))
+        #expect(l.kind == .claude && l.cwd == "/repo/sub" && l.agentSessionId == "abc")
+    }
+
     @Test func chooseEditorRefusesDuplicateFileAndCap() throws {
         var (s, t, tab, leaf) = state()
         _ = s.openFileTab(taskId: t, path: "/repo/a.ts", line: nil, column: nil, preview: false)

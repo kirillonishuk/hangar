@@ -13,6 +13,22 @@ enum TabStrip {
         var overflow: Bool
     }
 
+    /// Reorder: the tabs between the dragged one (`from`) and its slot (`to`, among the others) part by its width.
+    static func shifts(widths: [CGFloat], from: Int, to: Int) -> [CGFloat] {
+        let step = widths[from] + Theme.tabGap
+        return widths.indices.map { i in
+            if to > from, i > from, i <= to { return -step }
+            if to < from, i >= to, i < from { return step }
+            return 0
+        }
+    }
+
+    /// Where the opened slot starts (the strip's own coordinates, before scrolling).
+    static func slotX(widths: [CGFloat], from: Int, to: Int) -> CGFloat {
+        let others = widths.indices.filter { $0 != from }.prefix(to)
+        return others.map { widths[$0] + Theme.tabGap }.reduce(0, +)
+    }
+
     /// A tab's least width: the status dot gets its own room, so a dotted tab keeps as much title as a plain one.
     static func minWidth(dot: Bool) -> CGFloat {
         Theme.tabMinWidth + (dot ? Theme.statusDot + Theme.rowEndGap : 0)
@@ -179,22 +195,43 @@ struct TabBarView: View {
         let diff = app.diffTabs[task.id]
         let dragDX = paneMode ? nil : drag.map { $0.dx + offset - $0.from }
         let slot = dropSlot(task, widths: l.widths, dx: dragDX)
+        let tabWidths = Array(l.widths.prefix(task.tabs.count))
+        let from = drag.flatMap { d in task.tabs.firstIndex { $0.id == d.tab } }
+        let shifts = from.flatMap { f in slot.map { TabStrip.shifts(widths: tabWidths, from: f, to: $0.index) } }
+        #if DEBUG
+        let _ = app.debugTabDrag = { id, dx, p in
+            if let p { dragged(id, dx: dx, at: p, l: l, minX: minX) } else { endDrag(task, tab: id, widths: l.widths) }
+        }
+        #endif
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
                         onDrag: { dx, p in dragged(tab.id, dx: dx, at: p, l: l, minX: minX) },
                         onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) })
-                    .overlay(alignment: slot?.edge == .leading ? .leading : .trailing) {
-                        if slot?.tab == tab.id { Rectangle().fill(Theme.ui.accent).frame(width: Theme.dropLineWidth) }
-                    }
+                    // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
+                    .offset(x: shifts?[i] ?? 0)
+                    .animation(Motion.ease(Theme.selectionFade), value: slot?.index)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
                     .opacity(drag?.tab == tab.id ? Theme.tabDragOpacity : 1)
+                    .shadow(color: Theme.ui.bg.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
+                            radius: Theme.paneDragGhostShadowRadius)
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
             }
             if let diff, let w = l.widths.last { DiffTabItem(app: app, tab: diff, width: w) }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .background(alignment: .leading) {
+            // The opened slot: an accent outline where the tab will land.
+            if let from, let slot {
+                let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+                shape.fill(Theme.ui.accent.opacity(Theme.tabDropSlotFillOpacity))
+                    .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
+                    .frame(width: tabWidths[from])
+                    .offset(x: TabStrip.slotX(widths: tabWidths, from: from, to: slot.index))
+                    .animation(Motion.ease(Theme.selectionFade), value: slot.index)
+            }
+        }
         .offset(x: -offset)
         .frame(width: l.viewport, alignment: .leading)
         .clipped()
@@ -247,8 +284,12 @@ struct TabBarView: View {
         guard let d = drag, d.tab == tab else { return }
         let l = layout(task, width: room)
         let slot = dropSlot(task, widths: widths, dx: d.dx + TabStrip.clamp(scroll, viewport: l.viewport, content: l.content) - d.from)
-        drag = nil
-        if let slot { app.perform { $0.moveTab(taskId: task.id, tabId: tab, to: slot.index) } }
+        var t = Transaction()
+        t.disablesAnimations = true  // the order changes and the gap closes in one step, no slide back
+        withTransaction(t) {
+            drag = nil
+            if let slot { app.perform { $0.moveTab(taskId: task.id, tabId: tab, to: slot.index) } }
+        }
     }
 
     // MARK: Controls

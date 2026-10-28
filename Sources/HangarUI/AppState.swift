@@ -104,6 +104,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
+    /// Debug hook: a tab drag fed to the tab strip as its gesture would (tab, x translation, pointer; nil pointer = end).
+    /// An inactive window drops synthetic clicks, so `mouse` can't start one.
+    @ObservationIgnored var debugTabDrag: ((UUID, CGFloat, CGPoint?) -> Void)?
     #endif
     /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
     let gitPanel = GitPanelModel()

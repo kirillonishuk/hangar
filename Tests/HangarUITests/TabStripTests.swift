@@ -120,4 +120,16 @@ import Testing
         let roomy = TabStrip.layout(natural: natural, whole: [false, true, true, true], width: 2000)
         #expect(roomy.widths == [150, 126, 140, Theme.tabMaxWidth] && !roomy.overflow)
     }
+
+    /// Reorder: the tabs between the dragged one and its slot part by its width, opening the gap where it lands.
+    @Test func neighboursPartToOpenTheSlot() {
+        let w: [CGFloat] = [100, 120, 80, 90]
+        // Tab 0 dragged to slot 2 (after tabs 1 and 2): they move left by its width.
+        #expect(TabStrip.shifts(widths: w, from: 0, to: 2) == [0, -(100 + gap), -(100 + gap), 0])
+        #expect(TabStrip.slotX(widths: w, from: 0, to: 2) == 120 + 80 + 2 * gap)
+        // Tab 3 dragged to slot 1: tabs 1 and 2 move right.
+        #expect(TabStrip.shifts(widths: w, from: 3, to: 1) == [0, 90 + gap, 90 + gap, 0])
+        #expect(TabStrip.slotX(widths: w, from: 3, to: 1) == 100 + gap)
+        #expect(TabStrip.shifts(widths: w, from: 1, to: 1) == [0, 0, 0, 0])
+    }
 }

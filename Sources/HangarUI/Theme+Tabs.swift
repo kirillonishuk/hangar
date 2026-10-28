@@ -35,6 +35,9 @@ extension Theme {
     public static let tabDragScrollStep: CGFloat = 12
     /// The tab being dragged is dimmed to this.
     public static let tabDragOpacity: Double = 0.6
+    /// Reorder: the slot the neighbours open for the dragged tab — `accent` outline over an `accent` tint.
+    public static let tabDropSlotLineWidth: CGFloat = 2
+    public static let tabDropSlotFillOpacity: Double = 0.15
     /// Diff lines: hover overlay of `hover` at this strength (over the add/del tint).
     public static let diffHoverOpacity: Double = 0.5
 }

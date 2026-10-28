@@ -327,6 +327,16 @@ extension MainWindowController {
                     }
                 }
             }
+        case "tdrag":
+            // tdrag <tab index> <dx> <x> <y> | tdrag <tab index> end: through the tab strip (gap, pane drop mode, controller).
+            let f = arg.split(separator: " ").map(String.init)
+            guard let n = Int(f.first ?? ""), let tabs = app.selectedTask?.tabs, tabs.indices.contains(n) else { return }
+            let v = f.dropFirst().compactMap { Double($0) }
+            if f.last == "end" { app.debugTabDrag?(tabs[n].id, 0, nil) } else if v.count == 3 {
+                app.debugTabDrag?(tabs[n].id, v[0], CGPoint(x: v[1], y: v[2]))
+            }
+            try? "closedHand=\(NSCursor.current == NSCursor.closedHand) dragActive=\(paneDrag?.active == true)\n"
+                .write(toFile: NSTemporaryDirectory() + "hangar-tdrag.txt", atomically: true, encoding: .utf8)
         case "pdrag", "pdragEnd":
             // pdrag <tab index> <x> <y> [<x> <y> …] [end]: tab n dragged through those window points (from the top-left)
             // as the tab strip reports it to `PaneDragController` (an inactive window drops synthetic clicks); pdragEnd <n>: release.

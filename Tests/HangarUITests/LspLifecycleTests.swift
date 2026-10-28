@@ -263,4 +263,22 @@ import TestSupport
         #expect(await waitUntil { sink.statuses.last??.text == "new-lsp" && sink.statuses.last??.level == .ready })
         langs.stopAll()
     }
+
+    /// Settings installed a server (#102): an open file with «no language server» gets it without reopening.
+    @Test func serversChangedStartsANewlyInstalledServer() async throws {
+        final class Flag { var on = false }
+        let installed = Flag()
+        let (script, log) = (script, log)
+        let lsp = LspLanguages(find: { _, _ in installed.on ? LspFound(executable: script, args: [log, ""]) : nil })
+        let langs = Languages(lookup: { _, _, _ in .noTypeScript }, launch: { _, _ in nil }, lsp: lsp)
+        let sink = Sink()
+        let file = dir + "/main.go"
+        langs.opened(file, text: "package main\n", host: nil, owner: owner(sink))
+        #expect(await waitUntil { sink.statuses.last??.text == L10n.lspMissing("Go") })
+        installed.on = true
+        langs.lspServersChanged()
+        #expect(await waitUntil { logLines().contains("textDocument/didOpen \(uri(file))") })
+        #expect(await waitUntil { sink.statuses.last??.level == .ready })
+        langs.stopAll()
+    }
 }

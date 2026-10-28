@@ -177,6 +177,11 @@ private func releaseJSON(tag: String = "v0.3.0", draft: Bool = false, prerelease
         try Data(repeating: 7, count: 300_000).write(to: src)
         let dest = dir.appendingPathComponent("out.bin")
         try await Updater.download(src, to: dest, trusted: { _ in true }) { _ in }
+        // Bigger than allowed: refused.
+        await #expect(throws: UpdateError.tooLarge) {
+            try await Updater.download(src, to: dir.appendingPathComponent("big.bin"), trusted: { _ in true }, maxBytes: 100_000) { _ in }
+        }
+        try await Updater.download(src, to: dir.appendingPathComponent("fits.bin"), trusted: { _ in true }, maxBytes: 300_000) { _ in }
         #expect(FileManager.default.contentsEqual(atPath: src.path, andPath: dest.path))
         await #expect(throws: UpdateError.self) { try await Updater.download(dir.appendingPathComponent("missing"), to: dest, trusted: { _ in true }) { _ in } }
         // The default allow-list refuses anything but GitHub over https before any request.

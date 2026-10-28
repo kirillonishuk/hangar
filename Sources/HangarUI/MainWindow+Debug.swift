@@ -386,6 +386,16 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
+        case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (#102)
+            let a = arg.split(separator: " ", maxSplits: 2).map(String.init)
+            guard let package = a.first.flatMap(LspPackage.init(rawValue:)) else { return }
+            let lsp = settings.model.lsp
+            switch a.count > 1 ? a[1] : "" {
+            case "running": lsp.jobs[package] = .running(a.count > 2 ? Double(a[2]) : nil)
+            case "failed": lsp.jobs[package] = .failed(a.count > 2 ? a[2] : "")
+            case "install": lsp.install(package)
+            default: lsp.jobs[package] = nil
+            }
         case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)
             if let theme = AppTheme(rawValue: arg) {
                 do { try app.setTheme(theme) } catch { uiLog.error("theme: \(error.localizedDescription, privacy: .public)") }

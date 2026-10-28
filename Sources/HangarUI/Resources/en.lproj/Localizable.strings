@@ -545,8 +545,33 @@
 "lspLoading" = "%@ · starting…";
 "lspStopped" = "%@ stopped";
 "lspMissing" = "%@ — no language server";
-"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH or in Xcode. Click to check again";
+"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Editor. Click to check again";
 "lspTooltip" = "%@\nClick to restart";
+
+/* Language servers in Settings (#102) */
+"lspSection" = "Language servers";
+"lspInstalledFrom" = "installed · %@";
+"lspNotInstalled" = "not installed";
+"lspFromProject" = "from the project";
+"lspSourceProject" = "project";
+"lspTsDetail" = "tsserver from the project's node_modules";
+"lspNeedsXcode" = "needs Xcode";
+"lspXcodeTip" = "sourcekit-lsp comes with Xcode and the Command Line Tools";
+"lspNeedsNode" = "Needs Node.js";
+"lspNeedsGo" = "Needs Go";
+"lspDownload" = "Download";
+"lspDownloadTip" = "Download %@ into %@";
+"lspRemove" = "Remove";
+"lspRetry" = "Retry";
+"lspDownloading" = "Downloading… %d%%";
+"lspInstalling" = "Installing…";
+"lspToolFailed" = "Install failed (exit %d)";
+"lspNoAsset" = "The release has no file for this Mac";
+"lspDownloadFailed" = "Download failed: %@";
+"lspNotOwned" = "Hangar didn't create this folder — left as is";
+"lspNoExecutable" = "No server after the install";
+"lspNotExecutable" = "The downloaded file is not a Mac program";
+"downloadTooLarge" = "The file is larger than expected — not installed";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";
 
 /* In-app updates (#86) */

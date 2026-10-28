@@ -101,3 +101,9 @@ public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Short
     if mods == [.command, .option], keyCode == 21 { return .findInFiles }
     return Shortcut.allCases.first { $0.key.mods == mods && $0.key.code == keyCode }
 }
+
+/// ⌘Q by keyCode (⌘Й in the ru layout). The key monitor quits on it: with a terminal focused, Ghostty's default
+/// `super+q = quit` binding takes the key before the app menu, and Ghostty's app-level quit action does nothing here.
+func isQuitKey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+    keyCode == 12 && modifiers.intersection([.command, .shift, .option, .control]) == .command
+}

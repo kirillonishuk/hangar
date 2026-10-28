@@ -54,10 +54,14 @@
       documentHighlights: false, rename: false, diagnostics: false, documentRangeFormattingEdits: false,
       signatureHelp: false, onTypeFormattingEdits: false, codeActions: false, inlayHints: false, links: false,
       colors: false, foldingRanges: false, selectionRanges: false, tokens: false, documentFormattingEdits: false };
+    // JSON has no Monarch grammar: its tokens (keys, strings, numbers) come from the json mode's own tokenizer, which
+    // runs on the main thread with no worker. Switching `tokens` off with the rest left every .json plain white.
+    const jsonOn = Object.assign({}, off, { tokens: true });
     const ls = monaco.languages, mts = monaco.typescript || ls.typescript;
+    try { ls.json && ls.json.jsonDefaults.setModeConfiguration(jsonOn); } catch (e) { /* not in this build */ }
+    extraExtensions();
     for (const d of [mts && mts.typescriptDefaults, mts && mts.javascriptDefaults,
-      ls.css && ls.css.cssDefaults, ls.css && ls.css.scssDefaults, ls.css && ls.css.lessDefaults, ls.json && ls.json.jsonDefaults,
-      ls.html && ls.html.htmlDefaults]) {
+      ls.css && ls.css.cssDefaults, ls.css && ls.css.scssDefaults, ls.css && ls.css.lessDefaults, ls.html && ls.html.htmlDefaults]) {
       try { d && d.setModeConfiguration(off); } catch (e) { /* not in this build */ }
     }
     defineThemes(look.themes);
@@ -90,6 +94,16 @@
     window.hangar.ready = true;
     post({ type: 'ready' });
     while (queue.length) receive(queue.shift());
+  }
+
+  // Files Monaco's own lists miss: the same grammar under more names (registering an id again adds to it). There is
+  // no TOML grammar; INI's (sections, key = value, # comments) is the closest.
+  const MORE = { json: ['.jsonc', '.json5', '.geojson', '.webmanifest', '.code-workspace', '.mcmeta', '.jsonl'],
+    ini: ['.toml', '.cfg', '.conf', '.env'], shell: ['.zsh', '.ksh', '.zshrc', '.bashrc', '.zprofile', '.bash_profile', '.profile', '.envrc'],
+    yaml: ['.yaml', '.yml'], javascript: ['.mjs', '.cjs'], typescript: ['.mts', '.cts'], xml: ['.plist', '.xib', '.storyboard', '.svg'] };
+  function extraExtensions() {
+    for (const [id, extensions] of Object.entries(MORE)) monaco.languages.register({ id, extensions });
+    monaco.languages.register({ id: 'dockerfile', filenamePatterns: ['Dockerfile.*', '*.Dockerfile'] });
   }
 
   // MARK: Editor

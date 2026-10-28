@@ -163,6 +163,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
     private var sidebarAnimation: Timer?
+    /// A tab dragged onto a pane edge (splits).
+    private(set) var paneDrag: PaneDragController?
     /// The open ⌘P / ⇧⌘P palette; nil when closed.
     var palette: PaletteController?
     private var paletteLoad: Task<Void, Never>?
@@ -231,6 +233,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         sidebarHost.rootView = AnyView(SidebarView(app: app, ctx: ctx))
         column.tabBar.rootView = TabBarView(app: app, ctx: ctx)
         column.terminalArea.actionContext = ctx
+        paneDrag = PaneDragController(app: app, area: column.terminalArea, tabBar: column.tabBar)
         root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
                                                 inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
                                                 toggleSidebar: { [weak self] in self?.toggleSidebar() })
@@ -417,6 +420,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func handleKeyDown(_ event: NSEvent) -> Bool {
+        // Esc mid-drag cancels the drop, before anything else could take it (sheet, palette, «Сессии», terminal).
+        if event.keyCode == 53, paneDrag?.cancel() == true { return true }
         // ⌘⇧L also closes the limits popover while it has the keyboard.
         if app.limitsPopoverShown, !event.isARepeat, shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) == .limits {
             app.toggleLimitsPopover()

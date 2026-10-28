@@ -65,7 +65,7 @@ private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .re
     }
     for (i, action) in actions.enumerated() {
         if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { entries.append(.separator) }
-        entries.append(.item(PopoverMenuItem(title: action.title(for: target, app: app), icon: action.icon, shortcut: action.shortcut?.label,
+        entries.append(.item(PopoverMenuItem(title: action.title(for: target, app: app), icon: action.icon, shortcut: action.shortcut(for: target, app: app)?.label,
                                              destructive: destructiveActions.contains(action), enabled: action.isEnabled(for: target, app: app)) {
             action.perform(target, ctx)
         }))

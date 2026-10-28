@@ -48,7 +48,7 @@ struct PaneHeader: View {
             }
             HStack(spacing: Theme.paneHeaderButtonGap) {
                 PaneHeaderButton(icon: .popOut, help: L10n.detachPane) { Action.detachPane.perform(target, ctx()) }
-                PaneHeaderButton(icon: .close, help: L10n.help(L10n.closePane, .closeTab)) {
+                PaneHeaderButton(icon: .close, help: L10n.help(L10n.closePane, Action.closePane.shortcut(for: target, app: app))) {
                     Action.closePane.perform(target, ctx())
                 }
             }

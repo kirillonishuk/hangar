@@ -85,6 +85,19 @@ enum Action: CaseIterable {
         }
     }
 
+    /// The key as shown for `target`: ⌘W closes a split tab's focused pane, so neither the tab nor another pane shows it.
+    @MainActor func shortcut(for target: ActionTarget, app: AppState) -> Shortcut? {
+        let tab: (UUID, UUID) -> Workspace.Tab? = { task, id in app.state.tasks.first { $0.id == task }?.tabs.first { $0.id == id } }
+        switch (self, target) {
+        case (.closeTab, .tab(let task, let id)):
+            if case .split = tab(task, id)?.root { return nil }
+        case (.closePane, .leaf(let task, let id, let leaf)):
+            if tab(task, id)?.focusedLeafId != leaf { return nil }
+        default: break
+        }
+        return shortcut
+    }
+
     var icon: Icon {
         switch self {
         case .newTask: .add
@@ -237,7 +250,7 @@ enum Action: CaseIterable {
         }
     }
 
-    /// Closing these panes loses unsaved editor files or stops a working agent: one question first (unsaved wins, it
+    /// Closing these panes loses unsaved editor files or stops an agent mid-task: one question first (unsaved wins, it
     /// loses data); otherwise `close` at once.
     @MainActor private func askBeforeClosing(_ leaves: [Leaf], _ ctx: ActionContext, agentInfo: String, button: String,
                                              close: @escaping () -> Void) {
@@ -246,7 +259,7 @@ enum Action: CaseIterable {
         if !unsaved.isEmpty {
             let names = unsaved.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
             ctx.confirm(L10n.editorUnsavedTitle(names), L10n.editorUnsavedInfo, L10n.editorDontSave, close)
-        } else if leaves.contains(where: { app.state(ofLeaf: $0.id) == .working }) {
+        } else if leaves.contains(where: { [.working, .waiting].contains(app.state(ofLeaf: $0.id)) }) {  // waiting: mid-task (R5)
             ctx.confirm(L10n.paneAgentWorking, agentInfo, button, close)
         } else {
             close()

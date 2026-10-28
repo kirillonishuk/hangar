@@ -97,6 +97,11 @@ public enum Theme {
     public static let dropLineWidth: CGFloat = 2
     /// Pointer travel before a press becomes a drag.
     public static let dragThreshold: CGFloat = 4
+    /// Dragging a tab/pane over a pane: each edge's drop zone, as a share of that side (DESIGN «Сплиты»).
+    public static let paneDropZone: CGFloat = 0.25
+    /// The highlighted half a dropped pane will take: `accent` fill at this opacity, `accent` outline.
+    public static let paneDropFillOpacity: CGFloat = 0.18
+    public static let paneDropLineWidth: CGFloat = 2
     public static let tabTitleLeading: CGFloat = 8
     public static let tabTitleTrailing: CGFloat = 10
     public static let railRowHeight: CGFloat = 32

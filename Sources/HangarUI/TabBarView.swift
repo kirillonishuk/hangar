@@ -88,6 +88,8 @@ struct TabBarView: View {
     /// Scroll offset of the tabs (clamped on use); the dragged tab with its translation and the offset at drag start.
     @State private var scroll: CGFloat = 0
     @State private var drag: (tab: UUID, dx: CGFloat, from: CGFloat)?
+    /// The dragged tab is below the bar, over the panes (`PaneDragController`): it stays in place, no insertion line.
+    @State private var paneMode = false
     /// Room for tabs and controls, kept for scroll-into-view outside of layout.
     @State private var room: CGFloat = 0
     @State private var shownTask: UUID?
@@ -175,13 +177,13 @@ struct TabBarView: View {
         let l = layout(task, width: width)
         let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         let diff = app.diffTabs[task.id]
-        let dragDX = drag.map { $0.dx + offset - $0.from }
+        let dragDX = paneMode ? nil : drag.map { $0.dx + offset - $0.from }
         let slot = dropSlot(task, widths: l.widths, dx: dragDX)
         HStack(alignment: .bottom, spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
-                        onDrag: { dx, x in dragged(tab.id, dx: dx, x: x, l: l, minX: minX) },
+                        onDrag: { dx, p in dragged(tab.id, dx: dx, at: p, l: l, minX: minX) },
                         onDragEnd: { endDrag(task, tab: tab.id, widths: l.widths) })
                     .overlay(alignment: slot?.edge == .leading ? .leading : .trailing) {
                         if slot?.tab == tab.id { Rectangle().fill(Theme.ui.accent).frame(width: Theme.dropLineWidth) }
@@ -218,10 +220,12 @@ struct TabBarView: View {
     // MARK: Drag
 
     /// Live drag: the translation plus what the bar scrolled since; near an edge each move scrolls the bar a step.
-    private func dragged(_ tab: UUID, dx: CGFloat, x: CGFloat, l: TabStrip.Layout, minX: CGFloat) {
+    private func dragged(_ tab: UUID, dx: CGFloat, at p: CGPoint, l: TabStrip.Layout, minX: CGFloat) {
         let offset = TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         drag = (tab, dx, drag?.from ?? offset)
-        guard l.overflow else { return }
+        paneMode = app.paneDragMoved?(.tab(tab), p) ?? false
+        let x = p.x
+        guard l.overflow, !paneMode else { return }
         let step = x < minX + Theme.tabDragScrollEdge ? -Theme.tabDragScrollStep
             : x > minX + l.viewport - Theme.tabDragScrollEdge ? Theme.tabDragScrollStep : 0
         if step != 0 { scroll = TabStrip.clamp(offset + step, viewport: l.viewport, content: l.content) }
@@ -237,6 +241,9 @@ struct TabBarView: View {
     }
 
     private func endDrag(_ task: HangarTask, tab: UUID, widths: [CGFloat]) {
+        let handled = app.paneDragEnded?(.tab(tab)) ?? false
+        paneMode = false
+        if handled { drag = nil }
         guard let d = drag, d.tab == tab else { return }
         let l = layout(task, width: room)
         let slot = dropSlot(task, widths: widths, dx: d.dx + TabStrip.clamp(scroll, viewport: l.viewport, content: l.content) - d.from)
@@ -397,8 +404,8 @@ struct TabItem: View {
     let active: Bool
     /// From `TabStrip.layout`; the title truncates inside it.
     var width: CGFloat
-    /// Live drag: translation and pointer x (global space); then the end.
-    var onDrag: (CGFloat, CGFloat) -> Void = { _, _ in }
+    /// Live drag: translation and pointer (window points from the top-left); then the end.
+    var onDrag: (CGFloat, CGPoint) -> Void = { _, _ in }
     var onDragEnd: () -> Void = {}
     @State private var hover = false
     @State private var dragging = false
@@ -429,7 +436,9 @@ struct TabItem: View {
                 Text(verbatim: app.tabLabel(tab)).italic(tab.preview).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             }
             TabCloseButton(active: active, tabHover: hover, dirty: fileLeaf.map { app.editorDirty.contains($0.id) } ?? false,
-                           help: L10n.help(L10n.closeTabHelp, .closeTab)) { Action.closeTab.perform(target, ctx) }
+                           help: L10n.help(L10n.closeTabHelp, Action.closeTab.shortcut(for: target, app: app))) {
+                Action.closeTab.perform(target, ctx)
+            }
         }
         .font(.system(size: Theme.fontSize.tab))
         .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
@@ -452,7 +461,7 @@ struct TabItem: View {
             .onChanged { value in
                 guard app.renaming != target else { return }
                 dragging = true
-                onDrag(value.translation.width, value.location.x)
+                onDrag(value.translation.width, windowPoint(NSApp.currentEvent) ?? value.location)
             }
             .onEnded { _ in
                 guard dragging else { return }

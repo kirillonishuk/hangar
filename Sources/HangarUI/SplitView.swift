@@ -467,6 +467,8 @@ final class FillView: NSView {
     /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (#99).
     private var noTabs = NSView()
     var onAddProject: () -> Void = {}
+    /// The drop zone while a tab is dragged over a pane (`PaneDragController`); above the tab content.
+    let dropOverlay = PaneDropOverlay()
     /// Pane headers' actions (confirmations are the window's); set by the window controller.
     var actionContext: ActionContext
 
@@ -518,6 +520,7 @@ final class FillView: NSView {
         addSubview(placeholder)
         addSubview(emptyState)
         addSubview(noTabs)
+        addSubview(dropOverlay)
         // One retry per display wake for surfaces that failed (typically created while the display slept).
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.retryFailedLeaves() }
@@ -583,6 +586,23 @@ final class FillView: NSView {
     var activeTab: Tab? {
         guard let task = app.selectedTask else { return nil }
         return task.tabs.first { $0.id == task.activeTabId }
+    }
+
+    /// The active tab's panes in window points from the top-left; none while the diff tab or «Сессии» covers them (R3).
+    func paneFrames() -> [UUID: CGRect] {
+        guard !isHidden, !app.sessionsViewVisible, app.activeDiff == nil, let tab = activeTab else { return [:] }
+        var frames: [UUID: CGRect] = [:]
+        for leaf in tab.root.leaves {
+            if let view = leafViews[leaf.id], !view.isHiddenOrHasHiddenAncestor, let r = windowRect(view) { frames[leaf.id] = r }
+        }
+        return frames
+    }
+
+    /// `pane`: from `paneFrames()`.
+    func showDropZone(_ pane: CGRect, edge: SplitEdge) {
+        guard let height = window?.contentView?.frame.height else { return }
+        let r = convert(NSRect(x: pane.minX, y: height - pane.maxY, width: pane.width, height: pane.height), from: nil)
+        dropOverlay.show(over: r, edge: edge)
     }
 
     /// The leaf whose surface has keyboard focus, else the active tab's focused leaf.

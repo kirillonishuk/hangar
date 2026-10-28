@@ -82,6 +82,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
+    /// Where the tab/pane being dragged would drop (zone shown), else nil.
+    var paneDropTarget: PaneDropTarget?
+    /// A tab drag moved / ended (set by the window's `PaneDragController`): true while it is the pane drop's.
+    @ObservationIgnored var paneDragMoved: ((PaneDragSource, CGPoint) -> Bool)?
+    @ObservationIgnored var paneDragEnded: ((PaneDragSource) -> Bool)?
     /// TS/JS language features of the editors (tsserver, #82).
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
     /// `node` from the login shell, looked up once (#82).

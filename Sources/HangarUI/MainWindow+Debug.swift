@@ -299,20 +299,24 @@ extension MainWindowController {
         case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
         case "typeText": ((popoverWindow ?? window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
         case "mouse":
-            // mouse <x> <y> [<x2> <y2>] — window points from the top-left; one point = (double) click, two = drag.
+            // mouse <x> <y> [<x2> <y2> [hold]] — window points from the top-left; one point = (double) click, two = drag;
+            // "hold" keeps the button down at the end (then `key esc` / `mouseUp <x> <y>`).
             // "mouse popover …" → the open popover; otherwise the attached sheet, else the main window.
             let v = arg.split(separator: " ").compactMap { Double($0) }
+            let hold = arg.hasSuffix(" hold")
             guard let window = arg.hasPrefix("popover") ? popoverWindow : (window?.attachedSheet ?? window), v.count >= 2 else { return }
             let h = window.contentView?.frame.height ?? 0
             var events: [(NSEvent.EventType, Double, Double, Int)] = []
             if v.count >= 4 {
                 events.append((.leftMouseDown, v[0], v[1], 1))
                 for i in 1...10 { events.append((.leftMouseDragged, v[0] + (v[2] - v[0]) * Double(i) / 10, v[1] + (v[3] - v[1]) * Double(i) / 10, 1)) }
-                events.append((.leftMouseUp, v[2], v[3], 1))
+                if !hold { events.append((.leftMouseUp, v[2], v[3], 1)) }
+            } else if arg.hasPrefix("up ") {
+                events.append((.leftMouseUp, v[0], v[1], 1))
             } else {
                 for c in 1...(v.count == 3 ? Int(v[2]) : 1) { events += [(.leftMouseDown, v[0], v[1], c), (.leftMouseUp, v[0], v[1], c)] }
             }
-            events.append((.mouseMoved, events.last!.1 + 1, events.last!.2 + 1, 0))  // real pointers keep sending moves
+            if !hold { events.append((.mouseMoved, events.last!.1 + 1, events.last!.2 + 1, 0)) }  // real pointers keep sending moves
             // Spaced out: SwiftUI drops gesture phases delivered within one run-loop turn.
             for (i, ev) in events.enumerated() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03 * Double(i)) {

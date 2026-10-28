@@ -600,6 +600,10 @@
 "durationHour" = "%ld h";
 "closePane" = "Close Pane";
 "detachPane" = "Move to New Tab";
+"dropRight" = "Right";
+"dropLeft" = "Left";
+"dropUp" = "Up";
+"dropDown" = "Down";
 "paneAgentWorking" = "The agent is still working";
 "paneAgentWorkingInfo" = "Close the pane and stop it?";
 "tabAgentWorkingInfo" = "Close the tab and stop it?";

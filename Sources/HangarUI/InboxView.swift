@@ -115,6 +115,8 @@ private struct InboxRow: View {
     let item: AttentionItem
     let act: InboxAction
     @State private var replying = false
+    /// «Убрать» holds the keyboard: shown as under the pointer.
+    @FocusState private var dismissFocused: Bool
     @State private var reply = ""
     @FocusState private var focused: Bool
 
@@ -185,8 +187,10 @@ private struct InboxRow: View {
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
         case .permission, .open:
             if item.attention.reason == .done {
+                // Hidden at rest but still a button: Tab reaches it (and shows it), VoiceOver reads and presses it.
                 InboxButton(title: L10n.inboxDismiss) { app.dismissDone(leafId: item.leafId) }
-                    .opacity(hover ? 1 : 0)
+                    .focused($dismissFocused)
+                    .opacity(hover || dismissFocused ? 1 : 0)
                     .allowsHitTesting(hover)
             }
         }

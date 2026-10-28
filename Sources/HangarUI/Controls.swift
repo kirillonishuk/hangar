@@ -120,26 +120,28 @@ struct ModeChip: View {
     @State private var hover = false
 
     var body: some View {
-        HStack(spacing: Theme.Control.iconGap) {
-            if let icon { IconView(icon: icon, size: Theme.GitTab.chipIcon, tint: tint) }
-            Text(verbatim: title)
-                .font(.system(size: Theme.fontSize.footer, design: mono ? .monospaced : .default))
-                .lineLimit(1)
-                .truncationMode(.middle)
+        // A real (plain) button: keyboard focus, Space / Return and VoiceOver's press work as on any button.
+        Button { if enabled && !on { action() } } label: {
+            HStack(spacing: Theme.Control.iconGap) {
+                if let icon { IconView(icon: icon, size: Theme.GitTab.chipIcon, tint: tint) }
+                Text(verbatim: title)
+                    .font(.system(size: Theme.fontSize.footer, design: mono ? .monospaced : .default))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, Theme.GitTab.chipLeading)
+            .frame(height: Theme.GitTab.chipHeight)
+            .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(fill))
+            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
+                .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(tint)
-        .padding(.horizontal, Theme.GitTab.chipLeading)
-        .frame(height: Theme.GitTab.chipHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(fill))
-        .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
-            .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture { if enabled && !on { action() } }
+        .buttonStyle(.plain)
         .opacity(enabled ? 1 : Theme.inactiveOpacity)
         .pointingHand(enabled && !on)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private var lit: Bool { hover && enabled && !on }

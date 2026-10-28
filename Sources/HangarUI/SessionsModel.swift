@@ -192,7 +192,8 @@ enum SessionsAction: Equatable {
         var out: [(conversation: Conversation, folder: String)] = []
         var seen = Set<String>()
         do {
-            for folder in app.sessionFolders(pid) {
+            // A scan also lists folders inside its folder: the deepest folder goes first, so a worktree inside the project keeps its session.
+            for folder in app.sessionFolders(pid).sorted(by: { $0.count > $1.count }) {
                 for c in try await app.conversations(folder: folder, project: project) where seen.insert(c.agent.rawValue + c.id).inserted {
                     out.append((c, folder))
                 }

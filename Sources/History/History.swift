@@ -39,8 +39,10 @@ public func claudeProjectDirName(_ path: String) -> String {
 /// Claude Code cuts longer names to this many characters and appends `-<hash>`.
 private let claudeNameLimit = 200
 
-func claudeDirMatches(_ name: String, encoded: String) -> Bool {
-    name == encoded || (encoded.count > claudeNameLimit && name.hasPrefix(encoded.prefix(claudeNameLimit) + "-"))
+/// `inside`: also the folders of paths inside it (the name continues with `-`; the recorded cwd confirms).
+func claudeDirMatches(_ name: String, encoded: String, inside: Bool = false) -> Bool {
+    name == encoded || (inside && name.hasPrefix(encoded + "-"))
+        || (encoded.count > claudeNameLimit && name.hasPrefix(encoded.prefix(claudeNameLimit) + "-"))
 }
 
 /// First non-empty line, whitespace collapsed, cut to 80 characters with «…».
@@ -106,25 +108,40 @@ private func titleCandidate(_ text: String?) -> String? {
     return conversationTitle(text)
 }
 
-/// `<id>.jsonl` in a Claude project folder; nil — not a conversation of `folders` (sidechain file, other cwd, no messages).
-func parseClaude(_ s: Sample, fileName: String, folders: Set<String>, mtime: Date?) -> Conversation? {
+/// `path` is `folder` or inside it.
+private func within(_ path: String, _ folders: Set<String>) -> Bool {
+    folders.contains { path == $0 || path.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
+}
+
+/// `<id>.jsonl` in the Claude project folder `dirName`; nil — not a conversation of `folders` or a folder inside them
+/// (sidechain file, other cwd, no messages). The title is Claude's own: `/rename` (`custom-title`), else its generated
+/// `ai-title`, else the first prompt; both records are appended again on later turns, so the latest in the sample wins.
+// shortcut: a rename seen only in the unread middle of a huge file is missed until Claude appends it again.
+func parseClaude(_ s: Sample, fileName: String, dirName: String, folders: Set<String>, mtime: Date?) -> Conversation? {
     guard fileName.hasSuffix(".jsonl"), !fileName.hasPrefix("agent-"),
           let id = validSessionId(String(fileName.dropLast(6))) else { return nil }
-    var count = 0, started: Date?, last: Date?, cwd: String?, branch: String?, title: String?
+    var count = 0, started: Date?, last: Date?, cwds: [String] = [], branch: String?
+    var prompt: String?, customTitle: String?, aiTitle: String?
     for o in s.lines {
         if let d = date(o["timestamp"]) { started = started ?? d; last = d }
-        if cwd == nil, let c = o["cwd"] as? String { cwd = c }
+        if let c = o["cwd"] as? String, !cwds.contains(c) { cwds.append(c) }
         if let b = o["gitBranch"] as? String, !b.isEmpty { branch = b }
         let type = o["type"] as? String
+        if type == "custom-title", let t = (o["customTitle"] as? String).flatMap(conversationTitle) { customTitle = t }
+        if type == "ai-title", let t = (o["aiTitle"] as? String).flatMap(conversationTitle) { aiTitle = t }
         guard type == "user" || type == "assistant", o["isSidechain"] as? Bool != true, o["isMeta"] as? Bool != true else { continue }
         count += 1
-        if title == nil, type == "user" { title = titleCandidate(promptText(o["message"])) }
+        if prompt == nil, type == "user" { prompt = titleCandidate(promptText(o["message"])) }
     }
-    // The folder name is lossy ("/a-b" and "/a/b" share it): the recorded cwd decides.
-    guard count > 0, cwd.map(folders.contains) ?? true, let any = folders.sorted().first else { return nil }
+    // The folder name is lossy ("/a-b" and "/a/b" share it), so a recorded cwd decides; any of them, since the first
+    // line may carry another folder (a resumed or moved conversation). Reported: the cwd the file's folder is named after.
+    let inside = cwds.filter { within($0, folders) }
+    let named = (cwds.isEmpty ? folders.sorted() : inside).first { claudeDirMatches(dirName, encoded: claudeProjectDirName($0)) }
+    guard count > 0, let cwd = named ?? inside.first else { return nil }
     let (n, estimate) = messageCount(count, s)
-    return Conversation(id: id, agent: .claude, cwd: cwd ?? any, started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
-                        messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch, title: title, isOpen: false)
+    return Conversation(id: id, agent: .claude, cwd: cwd, started: started, lastActivity: last ?? mtime ?? started ?? .distantPast,
+                        messageCount: n, messageCountIsEstimate: estimate, gitBranch: branch,
+                        title: customTitle ?? aiTitle ?? prompt, isOpen: false)
 }
 
 /// `rollout-<time>-<id>.jsonl`: the id and cwd come from its `session_meta` line.
@@ -196,11 +213,12 @@ public actor ConversationHistory {
 
         let projects = claudeDir.appendingPathComponent("projects")
         let names = (try? fm.contentsOfDirectory(atPath: projects.path)) ?? []
-        for dir in names where folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0)) }) {
+        // Also folders inside the project (subfolders, Claude's own worktrees): their names start with `<name>-`.
+        for dir in names where folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0), inside: true) }) {
             let d = projects.appendingPathComponent(dir)
             for file in (try? fm.contentsOfDirectory(atPath: d.path)) ?? [] where file.hasSuffix(".jsonl") {
                 let url = d.appendingPathComponent(file)
-                if let c = cached("local", folder, url, &seen, { s, m in parseClaude(s, fileName: file, folders: folders, mtime: m) }) {
+                if let c = cached("local", folder, url, &seen, { s, m in parseClaude(s, fileName: file, dirName: dir, folders: folders, mtime: m) }) {
                     out.append(c)
                 }
             }
@@ -315,7 +333,8 @@ public actor ConversationHistory {
                 guard let s = samples[f.path] else { continue }
                 filesParsed += 1
                 let name = (f.path as NSString).lastPathComponent
-                let c = f.agent == .claude ? parseClaude(s, fileName: name, folders: folders, mtime: nil)
+                let dir = ((f.path as NSString).deletingLastPathComponent as NSString).lastPathComponent
+                let c = f.agent == .claude ? parseClaude(s, fileName: name, dirName: dir, folders: folders, mtime: nil)
                                            : parseCodex(s, fileName: name, folders: folders, mtime: nil)
                 cache[scope + "\0" + folder + "\0" + f.path] = Entry(stamp: f.stamp, conversation: c)
             }
@@ -333,13 +352,13 @@ public actor ConversationHistory {
     }
 }
 
-/// `$1` Claude folder name (or its 200-character prefix when `$2` = 1), `$3` the rollout cwd needle.
+/// `$1` Claude folder name (or its 200-character prefix when `$2` = 1; folders inside it too), `$3` the rollout cwd needle.
 /// Prints `C|X <tab> size <tab> path` per conversation file; reads nothing but listings and rollout prefixes.
 let remoteListScript = #"""
 c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
 x=${CODEX_HOME:-$HOME/.codex}/sessions
 needle=$3
-if [ "$2" = 1 ]; then set -- "$c/$1"-*; else set -- "$c/$1"; fi
+if [ "$2" = 1 ]; then set -- "$c/$1"-*; else set -- "$c/$1" "$c/$1"-*; fi
 for d in "$@"; do
   [ -d "$d" ] || continue
   for f in "$d"/*.jsonl; do

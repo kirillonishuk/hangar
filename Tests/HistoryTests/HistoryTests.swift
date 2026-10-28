@@ -92,6 +92,32 @@ private func writeCodexFixtures(_ f: Fixture) {
     ])
 }
 
+/// Claude Code's own records: `/rename` (`custom-title`, appended again on later turns), its generated title
+/// (`ai-title`), a conversation whose first line carries another cwd, and one started in a subfolder of the project.
+private func writeRenamedFixtures(_ f: Fixture) {
+    let idR = "66666666-6666-4666-8666-666666666666", idT = "77777777-7777-4777-8777-777777777777"
+    let idS = "88888888-8888-4888-8888-888888888888"
+    f.write(".claude/projects/-work-proj/\(idR).jsonl", [
+        #"{"type":"attachment","isSidechain":false,"timestamp":"2026-10-22T08:00:00.000Z","cwd":"/work/app"}"#,
+        claudeUser("Look at the crash", ts: "2026-10-22T08:00:01.000Z"),
+        #"{"type":"custom-title","customTitle":"First name","sessionId":"\#(idR)"}"#,
+        claudeAssistant(ts: "2026-10-22T08:00:02.000Z"),
+        #"{"type":"custom-title","customTitle":"Crash in checkout","sessionId":"\#(idR)"}"#,
+    ])
+    f.write(".claude/projects/-work-proj/\(idT).jsonl", [
+        claudeUser("hi there", ts: "2026-10-22T07:00:00.000Z"),
+        #"{"type":"ai-title","aiTitle":"Greeting the agent","sessionId":"\#(idT)"}"#,
+        claudeAssistant(ts: "2026-10-22T07:00:01.000Z"),
+    ])
+    f.write(".claude/projects/-work-proj--claude-worktrees-fix/\(idS).jsonl", [
+        claudeUser("In a Claude worktree", ts: "2026-10-22T06:00:00.000Z", cwd: "/work/proj/.claude/worktrees/fix"),
+        claudeAssistant(ts: "2026-10-22T06:00:01.000Z"),
+    ])
+    // A sibling folder whose encoded name starts with the project's: not this project.
+    f.write(".claude/projects/-work-proj-old/99999999-9999-4999-8999-999999999999.jsonl",
+            [claudeUser("old", ts: "2026-10-22T05:00:00.000Z", cwd: "/work/proj-old")])
+}
+
 @Suite struct HistoryTests {
     @Test func claudeDirNameEncoding() {
         #expect(claudeProjectDirName("/Users/a/Documents/app") == "-Users-a-Documents-app")
@@ -201,5 +227,22 @@ private func writeCodexFixtures(_ f: Fixture) {
         await #expect(throws: HistoryError.self) {
             try await ConversationHistory().remote(folder: "/work/proj", host: "dev", runner: runner, open: [])
         }
+    }
+
+    @Test func renamedAndSubfolderConversationsAreListed() async throws {
+        let f = Fixture()
+        defer { f.remove() }
+        writeClaudeFixtures(f)
+        writeRenamedFixtures(f)
+        let list = await ConversationHistory().local(folder: "/work/proj", claudeDir: f.claude, codexDir: f.codex, open: [])
+        #expect(list.map(\.title) == ["Crash in checkout", "Greeting the agent", "In a Claude worktree", "Second chat", "Fix the login bug"])
+        #expect(list[0].cwd == "/work/proj")
+        #expect(list[2].cwd == "/work/proj/.claude/worktrees/fix")
+
+        let home = f.home.path
+        let runner = Runner { args, _ in
+            try await Runner.local.run(["-u", "CLAUDE_CONFIG_DIR", "-u", "CODEX_HOME", "HOME=\(home)"] + args, home)
+        }
+        #expect(try await ConversationHistory().remote(folder: "/work/proj", host: "dev", runner: runner, open: []) == list)
     }
 }

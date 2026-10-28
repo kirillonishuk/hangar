@@ -96,6 +96,13 @@ extension MainWindowController {
         }
     }
 
+    /// Pane `n` of the active tab (`hover|menu|clicked|action … leaf <n>`).
+    private func debugLeafTarget(_ n: Int) -> ActionTarget? {
+        guard let task = app.selectedTask, let tab = task.tabs.first(where: { $0.id == task.activeTabId }),
+              tab.root.leaves.indices.contains(n) else { return nil }
+        return .leaf(task: task.id, tab: tab.id, leaf: tab.root.leaves[n].id)
+    }
+
     private func debugCommand(_ command: String) {
         uiLog.info("debug command: \(command, privacy: .public)")
         let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
@@ -167,6 +174,7 @@ extension MainWindowController {
             let target: ActionTarget? = switch f.first {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
             case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            case "leaf": debugLeafTarget(n)
             default: nil
             }
             if parts[0] == "hover" {
@@ -224,6 +232,7 @@ extension MainWindowController {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
             case "archived": app.archivedTasks.indices.contains(n) ? .task(app.archivedTasks[n].id) : nil
             case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
+            case "leaf": debugLeafTarget(n)
             default: app.selectedTask.flatMap { t in t.tabs.indices.contains(n) ? .tab(task: t.id, tab: t.tabs[n].id) : nil }
             }
             if let target { action.perform(target, ctx) }
@@ -274,12 +283,19 @@ extension MainWindowController {
             if let root = window?.attachedSheet?.contentView, let b = find(root) { b.performClick(nil) }
             uiLog.info("alert text: \((self.window?.attachedSheet?.contentView).map(Self.texts) ?? [], privacy: .public)")
         case "focus": if let n = Int(arg) { column.terminalArea.debugFocus(n) }
+        // commitRename <text>: ↩ in the open inline rename field (an inactive window's field never takes the typing).
+        // The field goes first (it saves its own unchanged text on disappear), then the typed name lands.
+        case "commitRename":
+            guard let target = app.renaming else { return }
+            app.cancelRename()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.app.commitRename(target, arg) }
         case "clicked":
             // clicked project|task <n>: what a sidebar row click does (F2 target; the terminal keeps the keyboard)
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 2, let n = Int(f[1]) else { return }
             if f[0] == "project", app.state.projects.indices.contains(n) { app.chromeClicked(.project(app.state.projects[n].id)) }
             if f[0] == "task", app.orderedTasks.indices.contains(n) { app.chromeClicked(.task(app.orderedTasks[n].id)) }
+            if f[0] == "leaf", let target = debugLeafTarget(n) { app.chromeClicked(target) }
         case "activate": NSApp.activate(ignoringOtherApps: true)  // an inactive window drops synthetic first clicks
         case "typeText": ((popoverWindow ?? window?.attachedSheet ?? window)?.firstResponder as? NSTextView)?.insertText(arg, replacementRange: NSRange(location: NSNotFound, length: 0))
         case "mouse":

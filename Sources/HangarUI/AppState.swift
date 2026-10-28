@@ -467,13 +467,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Ends inline editing; blank text keeps the old name (the model rejects it).
     func commitRename(_ target: ActionTarget, _ text: String) {
         if renaming == target { renaming = nil }
+        var autoName: String?
+        if case .leaf(_, _, let id) = target { autoName = leaf(id: id).map(title(of:)) }
         perform { s in
             switch target {
             case .task(let id): s.renameTask(id: id, name: text)
             case .project(let id): s.renameProject(id: id, name: text)
             case .tab(let task, let tab): s.renameTab(taskId: task, tabId: tab, title: text)
-            // Blank: back to the automatic name (terminal / file title).
-            case .leaf(_, _, let leaf): s.renameLeaf(leafId: leaf, title: text)
+            // Blank or the automatic name itself (a field left unchanged): the name keeps following the terminal / file.
+            case .leaf(_, _, let leaf): s.renameLeaf(leafId: leaf, title: text == autoName ? nil : text)
             }
         }
     }

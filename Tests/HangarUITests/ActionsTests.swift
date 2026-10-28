@@ -451,6 +451,9 @@ import Workspace
         #expect(app.name(of: target) == "api")
         app.commitRename(target, "")
         #expect(app.leaf(id: left)?.customTitle == nil)
+        // F2 then a click elsewhere commits the unchanged automatic name: it must keep following the terminal.
+        app.commitRename(target, app.title(of: try #require(app.leaf(id: left))))
+        #expect(app.leaf(id: left)?.customTitle == nil)
     }
 
     @Test func f2RenamesClickedPane() throws {

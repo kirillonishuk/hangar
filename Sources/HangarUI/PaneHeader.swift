@@ -29,7 +29,11 @@ struct PaneHeader: View {
     private func content(_ target: ActionTarget, leaf: Leaf, focused: Bool) -> some View {
         let renaming = app.renaming == target
         let state = app.displayState(ofLeaf: leaf.id, kind: leaf.kind)
-        let shown = (hover || focused) && !renaming
+        var hovered = hover
+        #if DEBUG
+        if app.debugHover == target { hovered = true }  // snapshots can't hover
+        #endif
+        let shown = (hovered || focused) && !renaming
         return HStack(spacing: 0) {
             IconView(icon: .of(leaf.kind), size: Theme.paneHeaderIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3).padding(.trailing, Theme.iconGap)
             // As tabs (`showsDot`): agents always, other panes only while something is going on.
@@ -43,8 +47,8 @@ struct PaneHeader: View {
                 Text(verbatim: app.paneTitle(leaf)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: Theme.paneHeaderButtonGap) {
-                PaneHeaderButton(icon: .popOut, help: L10n.detachPane, active: focused) { Action.detachPane.perform(target, ctx()) }
-                PaneHeaderButton(icon: .close, help: L10n.help(L10n.closePane, .closeTab), active: focused) {
+                PaneHeaderButton(icon: .popOut, help: L10n.detachPane) { Action.detachPane.perform(target, ctx()) }
+                PaneHeaderButton(icon: .close, help: L10n.help(L10n.closePane, .closeTab)) {
                     Action.closePane.perform(target, ctx())
                 }
             }
@@ -74,13 +78,12 @@ struct PaneHeader: View {
 private struct PaneHeaderButton: View {
     let icon: Icon
     let help: String
-    let active: Bool
     let action: () -> Void
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
-            IconView(icon: icon, active: active || hover, size: Theme.smallIconSize).padding(Theme.tabCloseInset)
+            IconView(icon: icon, active: hover, size: Theme.smallIconSize).padding(Theme.tabCloseInset)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }

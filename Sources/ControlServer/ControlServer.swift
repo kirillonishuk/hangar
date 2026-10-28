@@ -20,6 +20,8 @@ public final class ControlServer: @unchecked Sendable {
     private let remote: Bool
     private let handler: @MainActor (ControlMessage) -> Void
     private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
+    /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (#105).
+    private let statusline: (@Sendable (Data) -> String?)?
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?
     private var connections: [Int32: Connection] = [:]
@@ -60,9 +62,11 @@ public final class ControlServer: @unchecked Sendable {
     public init(path: String, remote: Bool = false, handler: @escaping @MainActor (ControlMessage) -> Void,
                 onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in
                     ControlResponse(id: id, body: .failure(ControlError(code: .unknownMethod, message: "not supported")))
-                }) {
+                },
+                statusline: (@Sendable (Data) -> String?)? = nil) {
         self.path = path
         self.remote = remote
+        self.statusline = statusline
         self.handler = handler
         self.onRequest = onRequest
     }
@@ -259,14 +263,17 @@ public final class ControlServer: @unchecked Sendable {
             }
         }
         guard let header = c.header, c.buffer.count >= c.payloadLength else { return }
-        switch RemoteMessage.decode(header: header, payload: Data(c.buffer.prefix(c.payloadLength))) {
+        let payload = Data(c.buffer.prefix(c.payloadLength))
+        // A second reply line `line:<text>` for hangar-remote to print; rendered even when there is no usage to record.
+        let line = RemoteMessage.isStatusline(header) ? statusline?(payload).map { "line:" + $0.filter { $0 != "\n" && $0 != "\r" } } : nil
+        switch RemoteMessage.decode(header: header, payload: payload) {
         case let .success(message):
             let handler = handler
             DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
-            reply(fd, c, #"{"ok":true}"#)
+            reply(fd, c, #"{"ok":true}"# + (line.map { "\n" + $0 } ?? ""))
             drop(fd)
         case let .failure(error):
-            refuse(error)
+            if let line { reply(fd, c, #"{"ok":false,"error":"\#(error.rawValue)"}"# + "\n" + line); drop(fd) } else { refuse(error) }
         }
     }
 

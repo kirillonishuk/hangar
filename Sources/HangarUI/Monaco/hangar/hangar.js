@@ -434,7 +434,7 @@
       const f = diffPath && files.get(diffPath);
       if (f && f.model) post({ type: 'save', file: diffPath, text: f.model.getValue() });
     });
-    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => { lastSide = e; post({ type: 'focus' }); }); wireMenu(e); }
+    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => { lastSide = e; post({ type: 'focus' }); report(); }); wireMenu(e); }
     orig.onDidChangeCursorPosition(() => report());
     // The first change is shown (centered) once the diff is computed; a computed diff is also what the header's
     // counter («2 из 5») and the empty state wait for. Typing ends the wait, so a later recompute never scrolls.
@@ -752,7 +752,7 @@
       case 'diff': showDiff(c); break;
       case 'options':
         inline = c.inline; minimap = c.minimap;
-        if (diff) diff.updateOptions({ renderSideBySide: !inline });
+        if (diff) { diff.updateOptions({ renderSideBySide: !inline }); if (inline) { lastSide = diff.getModifiedEditor(); report(); } }
         if (editor) editor.updateOptions({ minimap: { enabled: minimap } });
         break;
       case 'appearance': setLook(c); break;

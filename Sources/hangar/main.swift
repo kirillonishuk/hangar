@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import AgentStatus
 import ControlServer
+import Workspace
 
 // Hooks must never see output or a non-zero exit from `event`: stdout of some hooks goes into the
 // agent's context and exit code 2 blocks the prompt. A closed pipe must not kill us either.
@@ -75,6 +76,15 @@ func runStatusline(_ rest: [String]) -> Int32 {
     let windows = statuslineWindows(stdin)
     if !windows.isEmpty {
         _ = ControlClient.send(.usage(UsageMessage(agent: "claude", windows: windows)), to: defaultSocketPath())
+    }
+    // Read on every run: Settings' change shows on Claude's next refresh. An unreadable config means the defaults.
+    let env = ProcessInfo.processInfo.environment
+    let config = HangarConfig.load(from: URL(fileURLWithPath: env["HANGAR_CONFIG"] ?? NSHomeDirectory() + "/.config/hangar/config.toml")).config
+    if config.statusline == .hangar {
+        let line = renderStatusline(StatuslineInput(json: stdin), segments: config.statuslineSegments,
+                                    ru: config.language.resolved() == .ru, now: Date())
+        if !line.isEmpty { FileHandle.standardOutput.write(Data((line + "\n").utf8)) }
+        return 0
     }
     guard let i = rest.firstIndex(of: "--then"), i + 1 < rest.count else { return 0 }
     let p = Process()

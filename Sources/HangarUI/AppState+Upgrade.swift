@@ -3,7 +3,10 @@ import Integration
 
 /// Automatic additive upgrade of an installed Claude integration (#96): Hangar's missing hooks only, never the user's.
 extension AppState {
-    public func upgradeClaudeHooksAtLaunch() async { await upgradeClaudeHooks(cli: hangarCLIPath(bundle: .main)) }
+    public func upgradeClaudeHooksAtLaunch() async {
+        await upgradeClaudeHooks(cli: hangarCLIPath(bundle: .main))
+        await syncProjectStatuslines(host: nil)
+    }
 
     /// Launch: the bundled CLI's hooks in this Mac's settings. Errors are logged; Settings then shows «устарела».
     func upgradeClaudeHooks(cli: String?) async {
@@ -25,5 +28,6 @@ extension AppState {
         let m = ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
         _ = await m.autoUpgradeRemoteScript()
         _ = await m.autoUpgradeClaude()
+        await syncProjectStatuslines(host: host)
     }
 }

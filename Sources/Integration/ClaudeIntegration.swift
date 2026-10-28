@@ -69,17 +69,17 @@ public func isHangarCommand(_ command: String) -> Bool {
 
 private func hookCommand(_ cli: String, _ kind: String) -> String { "\(shellQuote(cli)) event \(kind)" }
 
-private func statuslineCommand(_ cli: String, then: String?) -> String {
+func statuslineCommand(_ cli: String, then: String?) -> String {
     "\(shellQuote(cli)) statusline" + (then.map { " --then \(shellQuote($0))" } ?? "")
 }
 
 /// `--then` argument of a Hangar statusline command, if any.
-private func thenArgument(_ command: String) -> String? {
+func thenArgument(_ command: String) -> String? {
     guard let w = shellWords(command), let i = w.firstIndex(of: "--then"), i + 1 < w.count else { return nil }
     return w[i + 1]
 }
 
-private extension Array where Element == JSONMember {
+extension Array where Element == JSONMember {
     subscript(key: String) -> JSONValue? {
         get { first { $0.key == key }?.value }
         set {
@@ -92,7 +92,7 @@ private extension Array where Element == JSONMember {
     }
 }
 
-private func rootObject(_ text: String?) throws(IntegrationError) -> [JSONMember] {
+func rootObject(_ text: String?) throws(IntegrationError) -> [JSONMember] {
     guard let text, !text.allSatisfy(\.isWhitespace) else { return [] }
     guard case .object(let m) = try parseJSON(text) else { throw .notAnObject }
     return m

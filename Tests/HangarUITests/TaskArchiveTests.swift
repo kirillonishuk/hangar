@@ -234,6 +234,23 @@ import TestSupport
         #expect(await waitUntil { !exists(wt + ".hangar-removing") })
     }
 
+    /// #105: Hangar's status line override in the worktree is taken out first, so it does not make the archive «at risk».
+    @Test func archiveTakesStatuslineOverrideOut() async throws {
+        let (t, app, id, _, wt, _, _) = try await make()
+        defer { t.cleanup() }
+        try FileManager.default.createDirectory(atPath: wt + "/.claude", withIntermediateDirectories: true)
+        try #"{"statusLine": {"type": "command", "command": "project-line"}}"#.write(toFile: wt + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        _ = try await TempRepo.offMain { try t.git("add", ".claude/settings.json", in: wt); try t.git("commit", "-qm", "line", in: wt); return t }
+        let claude = t.root + "/claude.json"
+        try #"{"statusLine": {"type": "command", "command": "/opt/hangar statusline"}}"#.write(toFile: claude, atomically: true, encoding: .utf8)
+        app.claudeSettingsURL = URL(fileURLWithPath: claude)
+        app.findAgentDirs = nil
+        app.statuslineSync = true
+        await app.syncProjectStatuslines(host: nil)
+        #expect(exists(wt + "/.claude/settings.local.json"))
+        #expect(await app.archiveRemovingWorktree(id, force: false) == .archived(worktreeRemoved: true))
+    }
+
     /// Simulated quit before the background delete: the startup sweep removes the tombstone next to a known worktree
     /// root, and only there.
     @Test func startupSweepRemovesOnlyKnownTombstones() async throws {

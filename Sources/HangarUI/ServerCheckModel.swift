@@ -14,14 +14,28 @@ while [ -L "$f" ] && [ $i -lt 32 ]; do
 done
 """#
 
+/// The backup of `$f` → `$b`: next to it, or in the folder `$bd` when set (then only the newest `keptBackups` stay).
+let remoteBackup = #"""
+if [ -n "$bd" ]; then mkdir -p "$bd"; chmod 700 "$bd"; printf '%s' "$f" > "$bd/source"; p="$bd/${f##*/}"; else p=$f; fi
+b="$p.hangar-backup-$ts"; k=2
+while [ -e "$b" ]; do b="$p.hangar-backup-$ts-$k"; k=$((k + 1)); done
+cp -p "$f" "$b"
+if [ -n "$bd" ]; then
+  set -- "$p".hangar-backup-*
+  k=$#
+  for x; do [ "$k" -gt \#(keptBackups) ] || break; rm -f "$x"; k=$((k - 1)); done
+fi
+"""#
+
 /// Writes an integration file on the server from stdin = `<expected bytes><new bytes>`: `$1` path, `$2` length of the
-/// expected bytes (`-` = the file must not exist), `$3` timestamp. Symlinks are followed (the link stays a link).
-/// Exit 3 = the file is not what the plan was made from. The old file is copied (`cp -p`) next to it before anything
-/// is replaced; the new one goes to a temp file with the old mode and is renamed over it. Prints the backup path.
-/// `dd bs=1`: `head -c` may read past its count from a pipe, eating the new bytes.
-let remoteFileWriteScript = "set -e\nf=$1; n=$2; ts=$3\n" + remoteResolveLinks + "\n" + #"""
+/// expected bytes (`-` = the file must not exist), `$3` timestamp, `$4` backup folder (empty: next to the file).
+/// Symlinks are followed (the link stays a link). Exit 3 = the file is not what the plan was made from, 4 = read-only.
+/// The old file is copied (`cp -p`) before anything is replaced; the new one goes to a temp file with the old mode and
+/// is renamed over it. Prints the backup path. `dd bs=1`: `head -c` may read past its count from a pipe, eating the new bytes.
+let remoteFileWriteScript = "set -e\nf=$1; n=$2; ts=$3; bd=${4:-}\n" + remoteResolveLinks + "\n" + #"""
 d=${f%/*}
 mkdir -p "$d"
+[ ! -e "$f" ] || [ -w "$f" ] || exit 4
 tmp=$(mktemp "$d/.hangar-XXXXXX")
 trap 'rm -f "$tmp" "$tmp.old"' EXIT
 if [ "$n" = - ]; then
@@ -31,15 +45,26 @@ if [ "$n" = - ]; then
 else
   dd bs=1 count="$n" of="$tmp.old" 2>/dev/null
   [ -f "$f" ] && cmp -s "$tmp.old" "$f" || exit 3
-  b="$f.hangar-backup-$ts"; k=2
-  while [ -e "$b" ]; do b="$f.hangar-backup-$ts-$k"; k=$((k + 1)); done
-  cp -p "$f" "$b"
+"""# + "\n" + remoteBackup + "\n" + #"""
   cp -p "$f" "$tmp"
   cat > "$tmp"
   cmp -s "$tmp.old" "$f" || exit 3
   printf '%s\n' "$b"
 fi
 mv -f "$tmp" "$f"
+"""#
+
+/// Removes a file on the server that is still exactly stdin: `$1` path, `$2` its length, `$3` timestamp, `$4` backup
+/// folder. Exit 3 = changed, 4 = read-only. Prints the backup path.
+let remoteFileRemoveScript = "set -e\nf=$1; n=$2; ts=$3; bd=$4\n" + remoteResolveLinks + "\n" + #"""
+[ -w "$f" ] || exit 4
+tmp=$(mktemp "${f%/*}/.hangar-XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+dd bs=1 count="$n" of="$tmp" 2>/dev/null
+[ -f "$f" ] && cmp -s "$tmp" "$f" || exit 3
+"""# + "\n" + remoteBackup + "\n" + #"""
+rm -f "$f"
+printf '%s\n' "$b"
 """#
 
 /// «Сервер <host>»: the report of the last check, the install plan (run only after «Установить») and the agents'
@@ -76,6 +101,8 @@ mv -f "$tmp" "$f"
     @ObservationIgnored private let remote: RemoteHosts
     @ObservationIgnored private let run: (InstallStep, Data?) async -> RunResult
     @ObservationIgnored var now: () -> Date = Date.init
+    /// Runs before the Claude integration is removed from the server: Hangar's project overrides go first (#105).
+    @ObservationIgnored var beforeClaudeUninstall: (() async -> Void)?
 
     init(host: String, remote: RemoteHosts, run: @escaping (InstallStep, Data?) async -> RunResult) {
         self.host = host
@@ -173,11 +200,11 @@ mv -f "$tmp" "$f"
         }
     }
 
-    /// `cat` on the server; a missing file is nil (not an error).
+    /// `cat` on the server; a missing file is nil (not an error). `test -e`, not cat's (localized) message, says so.
     private func read(_ path: String) async throws -> String? {
-        let r = try await remote.runner(host).run(["cat", path], "")
+        let r = try await remote.runner(host).run(["/bin/sh", "-c", #"[ -e "$1" ] || exit 66; exec cat -- "$1""#, "sh", path], "")
         if r.status == 0 { return r.stdout }
-        if r.status == 1, r.stderr.contains("No such file") { return nil }
+        if r.status == 66 { return nil }
         throw RemoteFileError(message: lastLine(r.stderr) ?? L10n.exitStatus(r.status))
     }
 
@@ -241,9 +268,10 @@ mv -f "$tmp" "$f"
     func applyIntegration(_ p: IntegrationPlan) async -> Bool {
         // The path exactly as read (`URL.path` would normalize it).
         let path = p.displayPath.map { String($0.dropFirst(host.count + 1)) } ?? p.url.path
+        if p.target == .claude, !p.install { await beforeClaudeUninstall?() }
         let r = await write(path, original: p.original, updated: p.updated)
         guard r.status == 0 else {
-            integrationError = r.status == 3 ? L10n.fileChanged : L10n.integrationWriteFailed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))
+            integrationError = remoteWriteError(r)
             return false
         }
         integrationError = nil
@@ -252,14 +280,32 @@ mv -f "$tmp" "$f"
         return true
     }
 
-    /// `remoteFileWriteScript`: backup next to the file, refuses (exit 3) if it is not `original` any more.
-    private func write(_ path: String, original: String?, updated: String) async -> RunResult {
+    private var timestamp: String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyyMMdd-HHmmss"
+        return f.string(from: now())
+    }
+
+    /// `remoteFileWriteScript`: backup next to the file (or in `backupDir`), refuses (exit 3) if it is not `original` any more.
+    private func write(_ path: String, original: String?, updated: String, backupDir: String? = nil) async -> RunResult {
         let old = original.map { Data($0.utf8) }
-        let args = [path, old.map { String($0.count) } ?? "-", f.string(from: now())]
+        let args = [path, old.map { String($0.count) } ?? "-", timestamp, backupDir ?? ""]
         return await remote.write(host, script: remoteFileWriteScript, args: args, input: (old ?? Data()) + Data(updated.utf8))
+    }
+
+    /// `remoteFileRemoveScript`: the file goes only if it is still `original`.
+    private func remove(_ path: String, original: String, backupDir: String) async -> RunResult {
+        let old = Data(original.utf8)
+        return await remote.write(host, script: remoteFileRemoveScript, args: [path, String(old.count), timestamp, backupDir], input: old)
+    }
+
+    private func remoteWriteError(_ r: RunResult) -> String {
+        switch r.status {
+        case 3: L10n.fileChanged
+        case 4: L10n.fileReadOnly
+        default: L10n.integrationWriteFailed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))
+        }
     }
 
     /// On connect (R7, #96): an installed but older `hangar-remote` is Hangar's own file and is replaced by this one through
@@ -304,6 +350,38 @@ mv -f "$tmp" "$f"
             uiLog.error("claude hooks upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
             return false
         }
+    }
+
+    /// Hangar's line in the host's projects (#105) through the same reads and checked writes as «Применить»; backups in
+    /// the server's `~/.hangar/backups`, never in the repo. The CLI is the one the server's Claude settings use for their
+    /// status line (none → only Hangar's overrides are taken back). `hangar` is asked per folder: the choice may change meanwhile.
+    func syncProjectStatuslines(_ dirs: [StatuslineDir], hangar: @escaping () -> Bool) async -> [StatuslineNote] {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let path = integrationPath(.claude), let home = report?.home else { return [] }
+        let backups = home + "/.hangar/backups"
+        let cli = (try? await read(path)).flatMap(hangarStatuslineCLI)
+        var notes: [StatuslineNote] = []
+        for dir in dirs {
+            let note = await syncStatuslineDir(
+                dir, host: host, cli: cli, hangar: hangar,
+                read: { try await self.read($0) },
+                change: { path, original, change in
+                    let r: RunResult
+                    switch change {
+                    case .write(let text): r = await self.write(path, original: original, updated: text, backupDir: backupFolder(root: backups, for: path))
+                    case .remove: r = await self.remove(path, original: original ?? "", backupDir: backupFolder(root: backups, for: path))
+                    }
+                    guard r.status == 0 else { throw RemoteFileError(message: self.remoteWriteError(r)) }
+                    uiLog.info("statusline override \(self.host, privacy: .public):\(path, privacy: .public), backup \(lastLine(r.stdout) ?? "-", privacy: .public)")
+                },
+                ignored: { dir in
+                    guard let r = try? await self.remote.runner(self.host).run(["git", "-C", dir, "check-ignore", "-q", ".claude/settings.local.json"], dir),
+                          r.status == 0 || r.status == 1 else { return nil }
+                    return r.status == 0
+                })
+            if let note { notes.append(note) }
+        }
+        return notes
     }
 }
 

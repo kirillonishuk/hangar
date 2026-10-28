@@ -1041,6 +1041,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let sheet = makeSheet(over: window)
         let model = ServerCheckModel(host: host, remote: app.remote, run: ServerCheckModel.sshRun(remote: app.remote, host: host))
+        model.beforeClaudeUninstall = { [weak app] in await app?.revertProjectStatuslines(host: host) }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
             window.endSheet(sheet)

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped whenever the script below changes; the host check compares it with the installed copy's second line.
-public let hangarRemoteVersion = 4
+public let hangarRemoteVersion = 5
 
 /// `~/.hangar/bin/hangar-remote` on an ssh host: the same argv as `hangar event` / `hangar statusline`.
 /// No JSON in sh: a header line plus the raw payload bytes; the Mac parses them (RemoteMessage).
@@ -25,27 +25,34 @@ read_stdin() {
   if [ -t 0 ]; then p=; else p=$(head -c $max; printf x); p=${p%x}; fi
 }
 
-# $1: header without len. Client output (the server's reply, errors) never reaches the agent.
+# $1: header without len, $2: seconds to wait (default 2). Prints the server's reply; errors never reach the agent.
 deliver() {
   [ -S "$HANGAR_SOCKET" ] || return 0
   n=$(printf %s "$p" | wc -c | tr -cd 0-9)
   h="$1,\"len\":$n}"
+  t=${2:-2}
+  case $t in 0.*) nw=1 ;; *) nw=$t ;; esac
   {
     if command -v python3 >/dev/null 2>&1; then
       { printf '%s\n' "$h"; printf %s "$p"; } | python3 -I -c '
 import socket, sys
 s = socket.socket(socket.AF_UNIX)
-s.settimeout(2)
+s.settimeout(float(sys.argv[2]))
 s.connect(sys.argv[1])
 s.sendall(sys.stdin.buffer.read())
-s.recv(256)' "$HANGAR_SOCKET"
+out = b""
+while len(out) < 65536:
+    b = s.recv(4096)
+    if not b: break
+    out += b
+sys.stdout.buffer.write(out)' "$HANGAR_SOCKET" "$t"
     elif command -v socat >/dev/null 2>&1; then
       # shortcut: a socket path with `,` or `:` would be misread by socat, ~/.hangar/hangar.sock has neither
-      { printf '%s\n' "$h"; printf %s "$p"; } | socat -T2 - "UNIX-CONNECT:$HANGAR_SOCKET"
+      { printf '%s\n' "$h"; printf %s "$p"; } | socat -T"$t" - "UNIX-CONNECT:$HANGAR_SOCKET"
     elif command -v nc >/dev/null 2>&1; then
-      { printf '%s\n' "$h"; printf %s "$p"; } | nc -U -w 2 "$HANGAR_SOCKET"
+      { printf '%s\n' "$h"; printf %s "$p"; } | nc -U -w "$nw" "$HANGAR_SOCKET"
     fi
-  } >/dev/null 2>&1
+  } 2>/dev/null
 }
 
 cmd=$1
@@ -79,7 +86,7 @@ case $cmd in
       esac
       s=
       [ -n "$session" ] && s=",\"session\":\"$session\""
-      deliver "{\"v\":1,\"type\":\"hook\",\"tab\":\"$HANGAR_TAB_ID\",\"leaf\":\"$HANGAR_LEAF_ID\",\"kind\":\"$kind\"$s"
+      deliver "{\"v\":1,\"type\":\"hook\",\"tab\":\"$HANGAR_TAB_ID\",\"leaf\":\"$HANGAR_LEAF_ID\",\"kind\":\"$kind\"$s" >/dev/null
     fi
     # The original notify command still runs outside Hangar or without the app.
     if [ "$kind" = codex-notify ] && [ $# -gt 0 ]; then
@@ -97,7 +104,19 @@ case $cmd in
     done
     # shortcut: input above 256 KiB is truncated for the original command too (real payloads are a few KB)
     read_stdin
-    [ -n "$p" ] && deliver '{"v":1,"type":"statusline"'
+    # Hangar's line rendered on the Mac (a `line:` reply); no answer in time, or the user's line chosen → the original.
+    if [ -n "$p" ]; then
+      r=$(deliver '{"v":1,"type":"statusline"' 0.5)
+      nl='
+'
+      case $r in
+        *"$nl"line:*)
+          l=${r#*"$nl"line:}
+          [ -n "$l" ] && printf '%s\n' "$l"
+          exit 0
+          ;;
+      esac
+    fi
     [ -n "$then" ] || exit 0
     printf %s "$p" | sh -c "$then"
     exit $?

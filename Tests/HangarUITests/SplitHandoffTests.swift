@@ -80,6 +80,7 @@ import Workspace
         #expect(after.window === window)
         #expect(after.windowLosses == 0)
         settle(window)
+        #expect(after.translatesAutoresizingMaskIntoConstraints)
         #expect(after.frame == area.tabViews[tab]?.bounds)
         #expect(area.leafViews[leafA]?.frame == area.tabViews[a]?.bounds)
         #expect(!area.debugCheck().contains("PROBLEM orphan"))
@@ -115,6 +116,8 @@ import Workspace
         #expect(view.window === window)
         #expect(view.windowLosses == 0)
         settle(window)
+        // NSSplitView turns this off for its panes; left off, the layout engine sized the survivor to 0×0 (looked closed).
+        #expect(view.translatesAutoresizingMaskIntoConstraints)
         #expect(view.frame == area.tabViews[a]?.bounds)
     }
 

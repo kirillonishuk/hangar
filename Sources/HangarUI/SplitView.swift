@@ -763,6 +763,9 @@ final class FillView: NSView {
             guard let view = leafViews[leaf.id] else { return nil }
             parent.addSubview(view)  // moves it without leaving the window
             view.isHidden = false  // parked by `park` on its way from another tab
+            // NSSplitView turns this off for its panes; a pane leaving a split kept it off and the layout engine sized it
+            // 0×0 (the surviving pane of a closed split looked closed too).
+            view.translatesAutoresizingMaskIntoConstraints = true
             view.frame = parent.bounds
             view.autoresizingMask = parent is RatioSplitView ? [] : [.width, .height]
             return view

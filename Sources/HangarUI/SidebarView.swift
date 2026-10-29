@@ -573,13 +573,9 @@ struct SidebarView: View {
                 GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
                     IconView(icon: .settings)
                 } expanded: {
-                    HStack(spacing: 0) {
-                        Text(L10n.settings)
-                        Spacer(minLength: 0)
-                        ShortcutHint(text: Shortcut.settings.label)
-                    }
-                    .font(.system(size: Theme.fontSize.sidebarFooter))
-                    .foregroundStyle(Theme.ui.text2)
+                    Text(L10n.settings)
+                        .font(.system(size: Theme.fontSize.sidebarFooter))
+                        .foregroundStyle(Theme.ui.text2)
                 } rail: { EmptyView() }
             }
             .help(L10n.help(L10n.settingsHelp, .settings))

@@ -402,7 +402,9 @@ func taskGitStatus(_ git: Git, base: String?, cached: ChangeSet?) async throws -
     let status = try await git.status(prefix: git.location().prefix)
     let set: ChangeSet
     if let cached { set = cached } else { set = try await git.changedFiles(base.map { .base($0) } ?? .uncommitted, status: status) }
-    let changes = ChangesInfo(added: set.files.reduce(0) { $0 + ($1.added ?? 0) }, removed: set.files.reduce(0) { $0 + ($1.deleted ?? 0) },
+    // Git's numbers: the inspector's cached set also counts untracked files' lines (its «+N»), which git leaves out.
+    let tracked = set.files.filter { $0.change != .untracked }
+    let changes = ChangesInfo(added: tracked.reduce(0) { $0 + ($1.added ?? 0) }, removed: tracked.reduce(0) { $0 + ($1.deleted ?? 0) },
                               files: set.files.count)
     let counts = base == nil ? nil : try? await git.aheadBehind(base: base!)
     return TaskGitStatus(changes: changes, dirty: !status.entries.isEmpty, ahead: counts?.ahead, behind: counts?.behind)

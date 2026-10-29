@@ -88,7 +88,8 @@ extension Git {
 
     /// Changes under the folder, paths relative to it. `status`: the caller's own result (the inspector already ran it,
     /// with the folder's prefix), else one is run here for the untracked files.
-    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil) async throws -> ChangeSet {
+    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil,
+                             countUntracked: Bool = false) async throws -> ChangeSet {
         var effective = mode
         var baseMissing = false
         var from: String?
@@ -128,9 +129,10 @@ extension Git {
         var counted = 0
         for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
             var f = ChangedFile(path: e.path, change: .untracked)
-            // `diff HEAD` has no numstat for untracked files: count their lines, so the row shows «+N» like the others.
+            // `diff HEAD` has no numstat for untracked files: the inspector (`countUntracked`) counts their lines, so the
+            // Changes row shows «+N» like the others; the CLI's totals and the diff stat keep git's numbers.
             // shortcut: only the first `untrackedCounts` (one git process each); raise when a batched count exists.
-            if counted < Self.untrackedCounts {
+            if countUntracked, counted < Self.untrackedCounts {
                 counted += 1
                 let run = try? await inspectRun(["diff", "--no-index", "--numstat", "-z", "--", "/dev/null", e.path], ok: [0, 1])
                 if let entry = run.flatMap({ parseNumstat($0.stdout).first }) { f.added = entry.added }

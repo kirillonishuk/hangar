@@ -293,7 +293,7 @@ struct RefreshParts: OptionSet, Sendable {
                 if input.mode == .base {
                     if let base { mode = .base(base) } else { missing = true }
                 }
-                var set = try await git.changedFiles(mode, status: status)
+                var set = try await git.changedFiles(mode, status: status, countUntracked: true)
                 if missing { set.baseMissing = true }
                 r.changes = set
                 changes = set

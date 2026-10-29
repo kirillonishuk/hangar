@@ -125,13 +125,13 @@ extension Theme {
     /// Inactive segment under the pointer: a touch lighter than its `field` track in every theme.
     public static var segmentHover: NSColor { ns(mix(palette.field, palette.strong, segmentHoverMix)) }
     public static var claudeBrand: NSColor { ns(palette.claude) }
-    /// Terminal cursor: the accent, as a Ghostty default (a user-set `cursor-color` wins) — not the system accent.
+    /// Terminal cursor: the accent, over the user's Ghostty config (#109) — not the system accent.
     public static var terminalCursor: NSColor { ns(palette.accent) }
 
-    /// Terminal colours handed to Ghostty: the theme's background (always over the user's Ghostty config, #109),
-    /// its ANSI palette and the accent cursor.
+    /// Terminal colours handed to Ghostty: the theme's background, text and accent cursor (always over the user's
+    /// Ghostty config, #109) and its ANSI palette.
     public static func terminalColors(of p: ThemePalette = Theme.palette) -> TerminalColors {
-        TerminalColors(background: p.termBg.bare, palette: p.ansi.map { Hex($0).bare }, cursor: p.accent.bare)
+        TerminalColors(background: p.termBg.bare, foreground: p.tx.bare, palette: p.ansi.map { Hex($0).bare }, cursor: p.accent.bare)
     }
 
     // SwiftUI

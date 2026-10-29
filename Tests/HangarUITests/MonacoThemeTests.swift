@@ -164,19 +164,42 @@ import Workspace
     }
 
     /// Editing a color while following the theme creates «Своя» on the theme's editor theme.
-    @Test func editingWhileFollowingCreatesCustomOnThePair() {
+    @Test func editingWhileFollowingCreatesCustomOnThePair() throws {
         var c = HangarConfig()
         c.theme = .navy
         let n = c.customizing(.string, "#d69d85")
         #expect(n.editorPalette == .custom && n.editorCustomBase == .hangar && n.editorColors == [.string: "#d69d85"])
-        // Leftover «Своя» colors on another base are replaced only after asking.
-        var stale = c
-        stale.editorCustomBase = .darkModern
-        stale.editorColors = [.number: "#ffffff"]
-        #expect(stale.customizingReplacesColors)
-        #expect(stale.customizing(.string, "#d69d85").editorColors == [.string: "#d69d85"])
-        stale.editorCustomBase = .hangar
-        #expect(!stale.customizingReplacesColors)
+        // Colors hidden behind «Как у темы» (kept for the switch's way back), on the same base or another: editing
+        // starts a fresh «Своя» on the pair, without asking — exactly the one change.
+        for base in [EditorPalette.hangar, .darkModern] {
+            var hidden = c
+            hidden.editorCustomBase = base
+            hidden.editorColors = [.keyword: "#111111", .number: "#222222", .comment: "#333333", .type: "#444444", .background: "#555555"]
+            #expect(!hidden.customizingReplacesColors)
+            let edited = hidden.customizing(.string, "#d69d85")
+            #expect(edited.editorPalette == .custom && edited.editorCustomBase == .hangar && edited.editorColors == [.string: "#d69d85"])
+            #expect(EditorTheme(edited).changed == [.string])
+            // The file loses the hidden keys in the same write.
+            let text = "theme = \"navy\"\n" + hidden.editorColors.map { "\($0.key.configKey) = \"\($0.value)\"\n" }.sorted().joined()
+            let written = hidden.editorThemeEdit(to: edited)(text)
+            #expect(try HangarConfig.parse(written).editorColors == [.string: "#d69d85"])
+        }
+    }
+
+    /// The settings model's drag preview shows the same fresh «Своя»: no hidden color comes back on screen.
+    @MainActor @Test func dragPreviewHidesHiddenColors() {
+        var c = HangarConfig()
+        c.theme = .navy
+        c.editorCustomBase = .hangar
+        c.editorColors = [.keyword: "#111111"]
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-edtheme-\(UUID())")
+        let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: c,
+                           configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
+        app.keepAwake = .inert()
+        let model = EditorSettingsModel(app: app)
+        model.preview(.string, "#d69d85")
+        #expect(model.theme.changed == [.string])
+        #expect(model.theme.hex(.keyword) == EditorTheme.builtIn(.hangar, .of(.navy))[.keyword])
     }
 
     /// The switch: «Своя» keeps saved colors and their base, or starts empty on the current pair; «Как у темы» keeps

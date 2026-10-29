@@ -3,23 +3,21 @@ import AppKit
 import Testing
 @testable import HangarUI
 
-/// Hangar's Ghostty defaults load before the user's config (their values win): padding, the accent cursor, and the
-/// theme's ANSI palette when the user's config (or Ghostty theme) sets none (the background loads after theirs, #109).
+/// Hangar's Ghostty defaults load before the user's config (their values win): padding and the theme's ANSI palette
+/// when the user's config (or Ghostty theme) sets none. Background, text and cursor load after theirs (#109).
 @MainActor @Suite struct GhosttyDefaultsTests {
-    @Test func defaultsHoldPaddingAndCursor() {
-        #expect(GhosttyApp.defaultsConfig(padding: (x: 12, y: 8), cursor: "61afef")
-                == "window-padding-x = 12\nwindow-padding-y = 8\ncursor-color = 61afef\n")
-        #expect(GhosttyApp.defaultsConfig(padding: nil, cursor: "61afef") == "cursor-color = 61afef\n")
-        #expect(GhosttyApp.defaultsConfig(padding: nil, cursor: nil).isEmpty)
+    @Test func defaultsHoldPadding() {
+        #expect(GhosttyApp.defaultsConfig(padding: (x: 12, y: 8)) == "window-padding-x = 12\nwindow-padding-y = 8\n")
+        #expect(GhosttyApp.defaultsConfig(padding: nil).isEmpty)
     }
 
     @Test func defaultsHoldPalette() {
         let palette = (0..<16).map { String(format: "%06x", $0) }
-        let text = GhosttyApp.defaultsConfig(padding: nil, cursor: nil, palette: palette)
+        let text = GhosttyApp.defaultsConfig(padding: nil, palette: palette)
         #expect(text.hasPrefix("palette = 0=#000000\npalette = 1=#000001\n"))
         #expect(text.hasSuffix("palette = 15=#00000f\n"))
         // What the user's config sets is left out, so theirs stays.
-        #expect(GhosttyApp.defaultsConfig(padding: nil, cursor: nil, palette: []).isEmpty)
+        #expect(GhosttyApp.defaultsConfig(padding: nil, palette: []).isEmpty)
     }
 
     /// Parallel instances (the real app and a debug copy) must not share a file.
@@ -29,8 +27,9 @@ import Testing
         #expect(GhosttyApp.configFileName("overrides", pid: 42) != GhosttyApp.configFileName("defaults", pid: 42))
     }
 
-    @Test func cursorIsTheAccent() {
+    @Test func cursorIsTheAccentAndTextTheThemes() {
         #expect(Theme.terminalColors().cursor == String(cssHex(Theme.accent).dropFirst()))
+        #expect(Theme.terminalColors(of: .of(.navy)).foreground == "e3e7ef")
     }
 }
 
@@ -39,7 +38,7 @@ import Testing
 /// surfaces get on switch); the user's palette stays theirs.
 @MainActor @Suite struct GhosttyLayersTests {
     private func colors(_ bg: String) -> TerminalColors {
-        TerminalColors(background: bg, palette: Array(repeating: "808080", count: 16), cursor: "2a6fd6")
+        TerminalColors(background: bg, foreground: "e3e7ef", palette: Array(repeating: "808080", count: 16), cursor: "2a6fd6")
     }
 
     private func userConfig(_ text: String) throws -> URL {
@@ -52,11 +51,12 @@ import Testing
     }
 
     @Test func pureLayers() {
+        let overrides = "background = 121826\nforeground = e3e7ef\ncursor-color = 2a6fd6\n"
         let theirs = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: true)
-        #expect(theirs.overrides == "background = 121826\n")
+        #expect(theirs.overrides == overrides)
         #expect(!theirs.defaults.contains("background") && !theirs.defaults.contains("palette"))
         let ours = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: false)
-        #expect(ours.overrides == "background = 121826\n")
+        #expect(ours.overrides == overrides)
         #expect(!ours.defaults.contains("background") && ours.defaults.contains("palette = 0=#808080"))
     }
 
@@ -67,14 +67,14 @@ import Testing
         defer { try? FileManager.default.removeItem(at: themed.deletingLastPathComponent()) }
         #expect(GhosttyApp.userSetsPalette([themed]))
         // Every theme switch wins over the user's theme.
-        #expect(GhosttyApp.resolvedBackground(colors("121826"), userFiles: [themed]) == "121826")
-        #expect(GhosttyApp.resolvedBackground(colors("232220"), userFiles: [themed]) == "232220")
+        #expect(GhosttyApp.resolvedColor("background", colors("121826"), userFiles: [themed]) == "121826")
+        #expect(GhosttyApp.resolvedColor("background", colors("232220"), userFiles: [themed]) == "232220")
         // No background of their own: the Hangar theme's too.
         let plain = try userConfig("font-size = 13\n")
         defer { try? FileManager.default.removeItem(at: plain.deletingLastPathComponent()) }
         #expect(!GhosttyApp.userSetsPalette([plain]))
-        #expect(GhosttyApp.resolvedBackground(colors("1e1e1e"), userFiles: [plain]) == "1e1e1e")
-        #expect(GhosttyApp.resolvedBackground(colors("232220"), userFiles: [plain]) == "232220")
+        #expect(GhosttyApp.resolvedColor("background", colors("1e1e1e"), userFiles: [plain]) == "1e1e1e")
+        #expect(GhosttyApp.resolvedColor("background", colors("232220"), userFiles: [plain]) == "232220")
     }
 
     /// `background = …` in the user's own config (no theme) behaves like a theme's.
@@ -84,6 +84,16 @@ import Testing
         let direct = try userConfig("background = #203040\n")
         defer { try? FileManager.default.removeItem(at: direct.deletingLastPathComponent()) }
         #expect(!GhosttyApp.userSetsPalette([direct]))
-        #expect(GhosttyApp.resolvedBackground(colors("121826"), userFiles: [direct]) == "121826")
+        #expect(GhosttyApp.resolvedColor("background", colors("121826"), userFiles: [direct]) == "121826")
+    }
+
+    /// A light Ghostty theme's dark text and cursor would vanish on the app theme's dark background: ours win too.
+    @Test func lightUserThemeGetsTheAppThemesText() throws {
+        #expect(GhosttyApp.initialized)
+        defer { GhosttyApp.removeConfigFiles() }
+        let light = try userConfig("background = #fafafa\nforeground = #202020\ncursor-color = #101010\n")
+        defer { try? FileManager.default.removeItem(at: light.deletingLastPathComponent()) }
+        #expect(GhosttyApp.resolvedColor("background", colors("121826"), userFiles: [light]) == "121826")
+        #expect(GhosttyApp.resolvedColor("foreground", colors("121826"), userFiles: [light]) == "e3e7ef")
     }
 }

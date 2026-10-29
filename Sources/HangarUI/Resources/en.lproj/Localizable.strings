@@ -551,7 +551,7 @@
 "lspLoading" = "%@ · starting…";
 "lspStopped" = "%@ stopped";
 "lspMissing" = "%@ — no language server";
-"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Appearance. Click to check again";
+"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Advanced. Click to check again";
 "lspTooltip" = "%@\nClick to restart";
 
 /* Language servers in Settings (#102) */

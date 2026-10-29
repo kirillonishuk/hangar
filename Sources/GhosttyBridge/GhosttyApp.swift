@@ -85,11 +85,11 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         return cfg
     }
 
-    /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them): the
-    /// background is always the app theme's (#109), over the user's config and Ghostty theme.
+    /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them): background,
+    /// text and cursor are always the app theme's (#109), over the user's config and Ghostty theme.
     static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userPalette: Bool) -> (defaults: String, overrides: String) {
-        let defaults = defaultsConfig(padding: padding, cursor: colors.cursor, palette: userPalette ? [] : colors.palette)
-        return (defaults, "background = \(colors.background)\n")
+        let defaults = defaultsConfig(padding: padding, palette: userPalette ? [] : colors.palette)
+        return (defaults, "background = \(colors.background)\nforeground = \(colors.foreground)\ncursor-color = \(colors.cursor)\n")
     }
 
     /// Whether the user's Ghostty config (or its `theme`) sets a palette: compared with Ghostty's own defaults. Needed
@@ -119,20 +119,19 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         ghostty_config_load_recursive_files(cfg)
     }
 
-    /// The `background` ("rrggbb") a config built from these layers ends up with (tests).
-    static func resolvedBackground(_ colors: TerminalColors, userFiles: [URL]) -> String? {
+    /// The colour `key` ("rrggbb") a config built from these layers ends up with (tests).
+    static func resolvedColor(_ key: String, _ colors: TerminalColors, userFiles: [URL]) -> String? {
         let cfg = buildConfig(colors, padding: nil, userFiles: userFiles)
         defer { ghostty_config_free(cfg) }
-        var c = ghostty_config_color_s(), key = "background"
+        var c = ghostty_config_color_s()
         guard ghostty_config_get(cfg, &c, key, UInt(key.utf8.count)) else { return nil }
         return String(format: "%02x%02x%02x", c.r, c.g, c.b)
     }
 
     /// Text of hangar-ghostty-defaults.conf; empty when there is nothing to set.
     /// `palette` ("rrggbb"): the theme's, left out (empty) where the user's config sets its own.
-    public static func defaultsConfig(padding: (x: Int, y: Int)?, cursor: String?, palette: [String] = []) -> String {
+    public static func defaultsConfig(padding: (x: Int, y: Int)?, palette: [String] = []) -> String {
         (padding.map { "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n" } ?? "")
-            + (cursor.map { "cursor-color = \($0)\n" } ?? "")
             + palette.enumerated().map { "palette = \($0.offset)=#\($0.element)\n" }.joined()
     }
 

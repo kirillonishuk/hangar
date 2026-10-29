@@ -69,7 +69,7 @@ ANSI-палитра терминала (0–7, 8–15):
 - Графит: `#2b2a27 #f0605a #8fcf7f #f0c048 #6cb0f0 #d391d8 #5fc4c4 #d9d4cc`, `#77726b #ff8a80 #a8e09a #ffd77a #8fc4ff #e3aee6 #86dada #fbf8f3`
 - Navy: `#1d2534 #f14c4c #73c991 #e5c07b #3794ff #c586c0 #4fc1ff #d4d9e3`, `#5f687a #ff6b61 #8fe0ab #f5d58a #6cb0ff #d7a2e6 #7fd6ff #ffffff`
 
-Терминал: фон `termBg` темы — всегда (#109): Hangar кладёт его файлом `overrides` после конфига Ghostty пользователя, так что он перекрывает и `background`, и тему Ghostty пользователя; настройки «Фон терминала» нет (прежний ключ `terminal_background` молча игнорируется). Палитра ANSI темы — в `hangar-ghostty-defaults-<pid>.conf` до конфига пользователя, поэтому `palette` / `theme` пользователя побеждают. Смена темы перекрашивает и открытые терминалы (`ghostty_app_update_config`, #87). Файл конфига Ghostty Hangar не меняет.
+Терминал: фон `termBg`, текст `text` и курсор `accent` темы — всегда (#109): Hangar кладёт их файлом `overrides` после конфига Ghostty пользователя, так что они перекрывают и его `background` / `foreground` / `cursor-color`, и тему Ghostty; настройки «Фон терминала» нет (прежний ключ `terminal_background` молча игнорируется). Палитра ANSI темы — в `hangar-ghostty-defaults-<pid>.conf` до конфига пользователя, поэтому `palette` / `theme` пользователя побеждают. Смена темы перекрашивает и открытые терминалы (`ghostty_app_update_config`, #87). Файл конфига Ghostty Hangar не меняет.
 
 Контраст (WCAG AA, проверяется тестом): `text`/`text2` ≥ 4.5 на `bg`, `sidebar`, `panel`, `sheet`, `selected`, `sbHover`, `tabInactive`; `primaryText` на `primary`, `menuHoverText` на `menuHover`, `failedText` на `sidebar` ≥ 4.5; `text3` на `sidebar` ≥ 3.
 

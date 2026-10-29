@@ -150,8 +150,8 @@ struct EditorTheme: Equatable {
         self.colors = colors
     }
 
-    init(_ config: HangarConfig, palette: EditorPalette? = nil) {
-        self.init(palette: palette ?? config.editorPalette, customBase: config.editorCustomBase, custom: config.editorColors,
+    init(_ config: HangarConfig) {
+        self.init(palette: config.editorPalette, customBase: config.editorCustomBase, custom: config.editorColors,
                   app: config.theme)
     }
 
@@ -213,7 +213,8 @@ extension HangarConfig {
         var c = self
         if c.editorPalette != .custom {
             let base = c.editorBase
-            if c.editorCustomBase != base { c.editorColors = [:] }
+            // «Как у темы» starts a fresh «Своя»: colors kept for the switch's way back stay hidden (#109).
+            if c.editorPalette == .theme || c.editorCustomBase != base { c.editorColors = [:] }
             c.editorCustomBase = base
             c.editorPalette = .custom
         }
@@ -222,9 +223,10 @@ extension HangarConfig {
         return c
     }
 
-    /// Editing a built-in theme would drop «Своя»'s changes made on another base: ask first.
+    /// Editing a v0.7.0 built-in theme would drop «Своя»'s changes made on another base: ask first. («Как у темы» drops
+    /// its hidden colors without asking: they aren't on screen, #109.)
     var customizingReplacesColors: Bool {
-        editorPalette != .custom && editorCustomBase != editorBase && !editorColors.isEmpty
+        editorPalette.isBuiltIn && editorCustomBase != editorBase && !editorColors.isEmpty
     }
 
     /// «Сбросить» of one color; nil: «Сбросить всё», back to the app theme's editor theme with nothing left over.

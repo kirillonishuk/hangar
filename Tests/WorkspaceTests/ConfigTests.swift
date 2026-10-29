@@ -223,10 +223,10 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"check_updates = "no""#) }
     }
 
-    /// Settings → Editor: the syntax palette (VS Code Dark+ by default) and the rainbow indents / TODO highlights.
+    /// Settings → Editor: the editor theme (VS Code Dark Modern by default, #108) and the rainbow indents / TODO highlights.
     @Test func editorAppearanceKeys() throws {
         let d = HangarConfig()
-        #expect(d.editorPalette == .darkPlus && d.editorRainbowIndent && d.editorTodoHighlight)
+        #expect(d.editorPalette == .darkModern && d.editorRainbowIndent && d.editorTodoHighlight)
         let c = try HangarConfig.parse("editor_palette = \"hangar\"\neditor_rainbow_indent = false\neditor_todo_highlight = false")
         #expect(c.editorPalette == .hangar && !c.editorRainbowIndent && !c.editorTodoHighlight)
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("editor_palette = \"monokai\"") }

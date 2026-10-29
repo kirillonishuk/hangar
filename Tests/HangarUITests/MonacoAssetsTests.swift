@@ -26,11 +26,12 @@ import Workspace
         #expect(monacoMimeType("a.bin") == "application/octet-stream")
     }
 
-    /// Both syntax palettes take the app theme's editor chrome (themes-v1.html); Hangar's syntax is the diff's muted one (#53).
+    /// Dark+ and Hangar take the app theme's editor chrome (themes-v1.html); Hangar's syntax is the diff's muted one (#53).
     @Test(arguments: AppTheme.allCases) func themeUsesHangarTokens(_ app: AppTheme) throws {
         let p = ThemePalette.of(app)
-        for palette in HangarConfig.EditorPalette.allCases {
-            let theme = try #require(MonacoTheme.json(palette, theme: p)["colors"] as? [String: String])
+        for palette in [EditorPalette.darkPlus, .hangar] {
+            let t = EditorTheme(palette: palette, customBase: .darkModern, custom: [:], app: app)
+            let theme = try #require(MonacoTheme.json(t)["colors"] as? [String: String])
             #expect(theme["editor.background"] == p.editorBg.css)
             #expect(theme["editorCursor.foreground"] == p.accent.css)
             #expect(theme["editorLineNumber.foreground"] == p.edGutter.css)
@@ -38,35 +39,39 @@ import Workspace
             #expect(theme["editor.lineHighlightBackground"] == p.edLine.css)
             #expect(theme["editor.selectionBackground"] == p.edSel.css)
             #expect(theme["editorIndentGuide.background1"] == p.edIndent.css)
-            #expect(theme["editorBracketHighlight.foreground1"] == "#FFD700")
+            #expect(theme["editorBracketHighlight.foreground1"] == "#ffd700")
         }
         // Translucent diff tints keep their alpha (`#rrggbbaa`).
-        let colors = try #require(MonacoTheme.json(.darkPlus, theme: .of(.darkPlus))["colors"] as? [String: String])
+        let dark = EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: .darkPlus)
+        let colors = try #require(MonacoTheme.json(dark)["colors"] as? [String: String])
         #expect(colors["diffEditor.insertedLineBackground"] == "#9bb95533")
         // The syntax doesn't depend on the app theme.
-        let a = try #require(MonacoTheme.json(.darkPlus, theme: .of(.navy))["rules"] as? [[String: String]])
-        let b = try #require(MonacoTheme.json(.darkPlus, theme: .of(.graphite))["rules"] as? [[String: String]])
-        #expect(a == b)
+        func rules(_ app: AppTheme) -> [[String: String]]? {
+            MonacoTheme.json(EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: app))["rules"] as? [[String: String]]
+        }
+        #expect(rules(.navy) == rules(.graphite))
         #expect(MonacoTheme.css(.of(.graphite))["--primary-text"] == "#1c1b19")
     }
 
     @Test func hangarSyntaxRules() throws {
-        let rules = try #require(MonacoTheme.json(.hangar)["rules"] as? [[String: String]])
+        let t = EditorTheme(palette: .hangar, customBase: .darkModern, custom: [:], app: .navy)
+        let rules = try #require(MonacoTheme.json(t)["rules"] as? [[String: String]])
         #expect(rules.contains { $0["token"] == "keyword" && $0["foreground"] == "b79bd9" })
-        #expect(rules.contains { $0["token"] == "comment" && $0["foreground"] == "75819a" })
+        #expect(rules.contains { $0["token"] == "comment" && $0["foreground"] == "75819a" && $0["fontStyle"] == "italic" })
     }
 
     /// VS Code Dark+ (#84): Monarch tokens and tsserver's semantic types in Dark+'s colors.
     @Test func darkPlusColors() throws {
-        let rules = try #require(MonacoTheme.json(.darkPlus)["rules"] as? [[String: String]])
+        let t = EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: .navy)
+        let rules = try #require(MonacoTheme.json(t)["rules"] as? [[String: String]])
         func color(_ token: String) -> String? { rules.first { $0["token"] == token }?["foreground"] }
-        #expect(color("keyword") == "569CD6" && color("keyword.control") == "C586C0")
-        #expect(color("identifier") == "9CDCFE" && color("variable") == "9CDCFE" && color("parameter") == "9CDCFE")
-        #expect(color("type.identifier") == "4EC9B0" && color("class") == "4EC9B0" && color("interface") == "4EC9B0")
-        #expect(color("function") == "DCDCAA" && color("member") == "DCDCAA")
-        #expect(color("string") == "CE9178" && color("number") == "B5CEA8" && color("comment") == "6A9955")
-        #expect(color("constant") == "4FC1FF" && color("delimiter") == "D4D4D4")
-        #expect(color("tag") == "569CD6" && color("attribute.name") == "9CDCFE")
+        #expect(color("keyword") == "569cd6" && color("keyword.control") == "c586c0")
+        #expect(color("identifier") == "9cdcfe" && color("variable") == "9cdcfe" && color("parameter") == "9cdcfe")
+        #expect(color("type.identifier") == "4ec9b0" && color("class") == "4ec9b0" && color("interface") == "4ec9b0")
+        #expect(color("function") == "dcdcaa" && color("member") == "dcdcaa")
+        #expect(color("string") == "ce9178" && color("number") == "b5cea8" && color("comment") == "6a9955")
+        #expect(color("constant") == "4fc1ff" && color("delimiter") == "d4d4d4")
+        #expect(color("tag") == "569cd6" && color("attribute.name") == "9cdcfe")
     }
 
     @Test func bundledMonacoIsThere() throws {

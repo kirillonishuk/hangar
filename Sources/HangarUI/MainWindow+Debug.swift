@@ -36,6 +36,10 @@ extension MainWindowController {
         w?.orderBack(nil)
     }
 
+    static func scrollView(_ v: NSView) -> NSScrollView? {
+        (v as? NSScrollView) ?? v.subviews.lazy.compactMap(scrollView).first
+    }
+
     /// NSPopover's window (e.g. the branch picker), if one is shown.
     private var popoverWindow: NSWindow? {
         NSApp.windows.first { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }
@@ -403,6 +407,47 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
+        case "settingsSize":  // settingsSize min|default|<w> <h>: the settings window's frame size
+            let a = arg.split(separator: " ").compactMap { Double($0) }
+            let size = arg == "min" ? Theme.settingsMinSize : arg == "default" ? Theme.settingsSize
+                : a.count == 2 ? NSSize(width: a[0], height: a[1]) : nil
+            if let size, let w = settings.window {
+                if arg == "default" { w.setContentSize(size) } else { w.setFrame(NSRect(origin: w.frame.origin, size: size), display: true) }
+            }
+        case "settingsScroll":  // settingsScroll <y>|bottom: the page's scroll position
+            if let scroll = settings.window?.contentView.flatMap(Self.scrollView), let doc = scroll.documentView {
+                let max = doc.frame.height - scroll.contentView.bounds.height
+                let y = arg == "bottom" ? max : min(max, Double(arg) ?? 0)
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: doc.isFlipped ? y : max - y))
+                scroll.reflectScrolledClipView(scroll.contentView)
+            }
+        case "settingsFit":  // settingsFit <file>: the window, the page's scroll width and the content's minimum width
+            if let w = settings.window, let host = w.contentViewController as? NSHostingController<SettingsView> {
+                let scroll = w.contentView.flatMap(Self.scrollView)
+                let fit = host.sizeThatFits(in: NSSize(width: 1, height: 100_000))
+                let text = "frame=\(w.frame.size) content=\(w.contentView?.frame.size ?? .zero) minWidth=\(fit.width)"
+                    + " clip=\(scroll?.contentView.bounds.size ?? .zero) doc=\(scroll?.documentView?.frame.size ?? .zero)"
+                    + " hscroll=\(scroll?.hasHorizontalScroller ?? false)\n"
+                try? text.write(toFile: arg, atomically: true, encoding: .utf8)
+            }
+        case "edtheme":  // edtheme sample <typescript|json|diff> | hover <id|-> | color <id> [preview] | close | set <id> <hex> | palette <name> | expand <syntax|editor|diff> | confirm | reset [id]
+            let a = arg.split(separator: " ").map(String.init)
+            let ed = settings.model.editorTheme
+            let color = a.count > 1 ? EditorColor(rawValue: a[1]) : nil
+            switch a.first ?? "" {
+            case "sample": ed.sample = EditorPreviewSample.allCases.first { "\($0)" == a.last } ?? .typescript
+            case "hover": ed.hover(color)
+            case "color": if let color { ed.open(color, anchor: a.count > 2 ? EditorPreviewSample.anchor(of: color, in: ed.sample) : "row-\(color.rawValue)") }
+            case "close": ed.close()
+            case "set": if let color, a.count > 2 { ed.commit(color, a[2]) }
+            case "confirm": ed.confirmReplace()
+            case "reset": ed.reset(color)
+            case "palette": if let p = a.last.flatMap(EditorPalette.init(rawValue:)) { ed.choose(p) }
+            case "expand":
+                let section: EditorColorSection? = switch a.last { case "syntax": .syntax; case "editor": .editor; case "diff": .diff; default: nil }
+                if let section { ed.expanded.insert(section) }
+            default: break
+            }
         case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (#102)
             let a = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard let package = a.first.flatMap(LspPackage.init(rawValue:)) else { return }

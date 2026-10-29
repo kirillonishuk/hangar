@@ -43,7 +43,37 @@ extension HangarConfig {
         try save(to: url) { updating($0, key: key, literal: literal) }
     }
 
-    private static func save(to url: URL, edit: (String) -> String) throws {
+    /// Drops every `key = …` line of the root section (a «Сбросить» of a color); other lines, comments and order stay.
+    public static func removing(_ text: String, key: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        let count = lines.count
+        var i = 0
+        while i < lines.count {
+            let line = lines[i].trimmingCharacters(in: .whitespaces.union(CharacterSet(charactersIn: "\r")))
+            if line.hasPrefix("[") { break }
+            if !line.hasPrefix("#"), let eq = line.firstIndex(of: "="), line[..<eq].trimmingCharacters(in: .whitespaces) == key {
+                lines.remove(at: i)
+            } else {
+                i += 1
+            }
+        }
+        // A file without a final newline stays so: the removed last line's terminator (now trailing, "\r\n" or
+        // "\n") goes with it. `utf8.last`: "\r\n" is one Character, so `hasSuffix("\n")` is false for CRLF files.
+        if lines.count < count, text.utf8.last != UInt8(ascii: "\n"), let last = lines.indices.last {
+            if lines.count > 1, lines[last].isEmpty { lines.removeLast() }
+            if let end = lines.indices.last, lines[end].hasSuffix("\r") { lines[end].removeLast() }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Removes a root key from the file; a missing file stays missing.
+    public static func remove(key: String, from url: URL) throws {
+        guard FileManager.default.fileExists(atPath: url.resolvingSymlinksInPath().path) else { return }
+        try save(to: url) { removing($0, key: key) }
+    }
+
+    /// Edits (or creates) the file with several key changes in one atomic write; a symlinked config keeps its link.
+    public static func save(to url: URL, edit: (String) -> String) throws {
         let target = url.resolvingSymlinksInPath()
         let fm = FileManager.default
         let text = fm.fileExists(atPath: target.path) ? try String(contentsOf: target, encoding: .utf8) : ""

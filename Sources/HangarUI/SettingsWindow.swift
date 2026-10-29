@@ -74,6 +74,7 @@ import Workspace
     private var refusedDraft: String?
     let integration: IntegrationModel
     let lsp: LspServersModel
+    let editorTheme: EditorSettingsModel
     /// Shown in the consent sheet; nothing is written until it is confirmed.
     var pendingPlan: IntegrationPlan?
 
@@ -92,6 +93,8 @@ import Workspace
         }
         #endif
         lsp = LspServersModel(env: env)
+        editorTheme = EditorSettingsModel(app: app)
+        editorTheme.save = { [weak self] change in self?.save(change) }
     }
 
     func review(_ target: IntegrationTarget, install: Bool) {

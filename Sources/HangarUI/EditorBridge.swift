@@ -246,24 +246,39 @@ struct EditorRename: Equatable, Sendable {
     var prefix: String, suffix: String
 }
 
-/// Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills; and the app theme's editor chrome
-/// (Monaco themes + the page's CSS variables) — every editor and diff page, at load and live.
+/// Settings → Editor (#84, #108): the editor theme, rainbow indents, TODO pills and the editor options, in the app
+/// theme's chrome (the page's CSS variables) — every editor and diff page, at load and live.
 struct EditorAppearance: Equatable {
-    var palette: HangarConfig.EditorPalette
+    var theme: EditorTheme
     var rainbow: Bool
     var todo: Bool
-    var theme: AppTheme
+    var options: EditorOptions
 
     init(_ config: HangarConfig) {
-        palette = config.editorPalette
+        theme = EditorTheme(config)
         rainbow = config.editorRainbowIndent
         todo = config.editorTodoHighlight
-        theme = config.theme
+        options = config.editorOptions
     }
 
     var json: [String: Any] {
-        let p = ThemePalette.of(theme)
-        return ["palette": palette.rawValue, "rainbow": rainbow, "todo": todo, "themes": MonacoTheme.all(p), "css": MonacoTheme.css(p)]
+        ["palette": "editor", "rainbow": rainbow, "todo": todo, "themes": ["editor": MonacoTheme.json(theme)],
+         "css": MonacoTheme.css(.of(theme.app), background: theme.hex(.background)),
+         "options": Self.monaco(options), "formatOnSave": options.formatOnSave]
+    }
+
+    /// Monaco's editor options for the settings (`updateOptions` takes the same object live).
+    static func monaco(_ o: EditorOptions) -> [String: Any] {
+        [
+            "fontFamily": o.fontFamily.map { "\"\($0)\", ui-monospace, monospace" } ?? "ui-monospace, Menlo, monospace",
+            "fontSize": o.fontSize, "lineHeight": o.resolvedLineHeight, "fontLigatures": o.ligatures,
+            "tabSize": o.tabSize, "detectIndentation": o.detectIndentation, "wordWrap": o.wordWrap ? "on" : "off",
+            "renderLineHighlight": o.lineHighlight.rawValue, "cursorStyle": o.cursorStyle.rawValue,
+            "cursorBlinking": o.cursorBlinking.rawValue, "renderWhitespace": o.whitespace.rawValue,
+            "bracketPairColorization": ["enabled": o.bracketColors],
+            "guides": ["bracketPairs": o.bracketGuides == .all ? true : o.bracketGuides == .active ? "active" : false,
+                       "indentation": o.indentGuides, "highlightActiveIndentation": o.indentGuides] as [String: Any],
+        ]
     }
 }
 

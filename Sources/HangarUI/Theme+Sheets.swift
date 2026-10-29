@@ -31,7 +31,7 @@ extension Theme.ui {
 
 extension Theme {
     /// Settings window (System Settings style): a category list on the left, the page on the right; resizable.
-    public static let settingsSize = NSSize(width: 760, height: 560)
+    public static let settingsSize = NSSize(width: 970, height: 600)
     public static let settingsMinSize = NSSize(width: 680, height: 440)
     public static let settingsSidebarWidth: CGFloat = 190
     public static let settingsSidebarPadding: CGFloat = 10
@@ -61,14 +61,10 @@ extension Theme {
     public static let switchHeight: CGFloat = 18
     public static let switchInset: CGFloat = 2
     /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
-    public static let themeTileHeight: CGFloat = 76
     public static let themeTileGap: CGFloat = 12
     public static let themeTileRadius: CGFloat = 8
     public static let themeTileBorder: CGFloat = 2
-    public static let themeTileStrip: CGFloat = 28
-    public static let themeTileLine: CGFloat = 4
-    public static let themeTileLineGap: CGFloat = 6
-    public static let themeTilePadding: CGFloat = 10
+    public static let themeTileStrip: CGFloat = 22
     /// Integration status pill: 20 high, 8 side padding, fill of its colour at 15 %.
     public static let pillHeight: CGFloat = 20
     public static let pillPaddingH: CGFloat = 8

@@ -22,7 +22,8 @@ import Workspace
         window.setContentSize(Theme.settingsSize)
         super.init(window: window)
         window.delegate = self
-        if Self.remembersFrame { window.setFrameAutosaveName("HangarSettings") }
+        // A new name with the wider default (#109): a frame saved at the old 760 × 560 doesn't keep it narrow.
+        if Self.remembersFrame { window.setFrameAutosaveName("HangarSettings2") }
         updateTitle()
         observeTheme(#selector(applyTheme))
     }

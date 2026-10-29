@@ -1,17 +1,31 @@
 import AppKit
 import SwiftUI
 
-/// Settings → Editor (#108, editor-theme.html): theme tiles, the color list with its preview, the color popover.
-/// Sized for the settings window's minimum (680 pt: a 441 pt page): tiles 2 × 2, the preview above the list.
+/// Settings → Appearance → Editor (#108, #109, editor-theme.html): the app theme tiles, the color list with its preview,
+/// the color popover. Sized for the settings window's minimum (680 pt: a 441 pt page), the preview above the list.
 extension Theme {
     enum EditorSettings {
-        // Theme tiles: a few lines of code in the theme's own colors over the name.
-        static let tileColumns = 2
-        static let tileFont: CGFloat = 10
-        static let tileLineHeight: CGFloat = 13
-        static let tilePadding: CGFloat = 10
-        /// The hint under the tiles keeps two lines of room: switching themes doesn't move the page.
+        // App theme tiles (#109): a mini window — title bar, sidebar, code in the editor theme the app theme carries.
+        // Three in a row at the minimum page width (441 pt): ≈ 139 each, ≈ 95 of code after the sidebar strip.
+        static let tileHeight: CGFloat = 92
+        static let tileTitlebar: CGFloat = 10
+        static let tileSidebarBar: CGFloat = 3
+        static let tileSidebarShort: CGFloat = 10
+        static let tileSidebarGap: CGFloat = 6
+        static let tileSidebarPadding: CGFloat = 5
+        static let tileFont: CGFloat = 9
+        static let tileLineHeight: CGFloat = 12
+        static let tileCodePadding: CGFloat = 7
+        static let tileCodePaddingV: CGFloat = 6
+        /// Room above «Редактор», the page's second heading: it starts a part of its own.
+        static let subsectionGap: CGFloat = 4
+        /// The editor theme's hint keeps two lines of room: switching doesn't move the page.
         static let hintLines = 2
+
+        /// Preview beside the list from this page width (the 970 pt default window: 731), stacked above it below.
+        static let besidePageWidth: CGFloat = 712
+        static let besidePreviewWidth: CGFloat = 400
+        static let besideGap: CGFloat = 12
 
         // Preview: an editor-like box, as tall as its longest sample (no jump between TypeScript / JSON / Diff).
         static let previewFont: CGFloat = 12

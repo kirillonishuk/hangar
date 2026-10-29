@@ -94,7 +94,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
     /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
     @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
-    /// Settings → Editor changed: every editor and diff page restyles (set by `TerminalArea`).
+    /// Settings → Appearance changed: every editor and diff page restyles (set by `TerminalArea`).
     @ObservationIgnored var onEditorAppearance: ((EditorAppearance) -> Void)?
     /// Unsaved files of an editor leaf (set by `TerminalArea`, which holds the editors).
     @ObservationIgnored var editorUnsaved: ((UUID) -> [String])?
@@ -126,6 +126,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
+    /// Debug hook: `new` / `sessions` — that top sidebar row drawn as hovered.
+    var debugHoverRow: String?
     /// Debug hook: a tab drag fed to the tab strip as its gesture would (tab, x translation, pointer; nil pointer = end).
     /// An inactive window drops synthetic clicks, so `mouse` can't start one.
     @ObservationIgnored var debugTabDrag: ((UUID, CGFloat, CGPoint?) -> Void)?
@@ -758,7 +760,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         uiLog.info("config \(key, privacy: .public) = \(flag)")
     }
 
-    /// Several keys in one write (Settings → Editor → theme and colors, #108).
+    /// Several keys in one write (Settings → Appearance → theme and colors, #108).
     func editConfig(_ edit: (String) -> String, apply: (inout HangarConfig) -> Void) throws {
         try HangarConfig.save(to: configURL, edit: edit)
         apply(&config)
@@ -787,17 +789,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func setTheme(_ theme: AppTheme) throws {
         try setConfig("theme", theme.rawValue) { $0.theme = theme }
         Theme.current = theme
-        applyTerminalColors()
+        GhosttyApp.shared.update(colors: Theme.terminalColors())
         onEditorAppearance?(EditorAppearance(config))
-    }
-
-    func setTerminalBackground(_ background: HangarConfig.TerminalBackground) throws {
-        try setConfig("terminal_background", background.rawValue) { $0.terminalBackground = background }
-        applyTerminalColors()
-    }
-
-    private func applyTerminalColors() {
-        GhosttyApp.shared.update(colors: Theme.terminalColors(force: config.terminalBackground == .hangar))
     }
 
     func setLanguage(_ language: Language) throws {

@@ -1,7 +1,7 @@
 import AppKit
 import Workspace
 
-/// Settings → Editor's state (#108): the hovered and edited color, the preview's sample, a color being dragged (shown
+/// Settings → Appearance → Editor's state (#108, #109): the hovered and edited color, the preview's sample, a color being dragged (shown
 /// in the preview on every frame, written and sent to the editors on release), the «Заменить свою тему?» question.
 @MainActor @Observable final class EditorSettingsModel {
     struct Draft: Equatable {
@@ -25,6 +25,9 @@ import Workspace
     var notice: String?
     /// The settings page's visible height: the preview gets shorter in a short window.
     var pageHeight: CGFloat = 0
+    /// The page's content width: a wide window puts the preview beside the list.
+    var pageWidth: CGFloat = 0
+    var previewBeside: Bool { pageWidth >= Theme.EditorSettings.besidePageWidth }
     @ObservationIgnored private lazy var panelTarget = ColorPanelTarget { [weak self] hex in
         guard let self, let color = self.editing else { return }
         self.commit(color, EditorHex.with(hex, alpha: EditorHex.alpha(self.theme.hex(color))))
@@ -96,10 +99,11 @@ import Workspace
         notice = color == nil ? L10n.s(.edAllReset) : nil
     }
 
-    func choose(_ palette: EditorPalette) {
-        guard palette != app.config.editorPalette else { return }
-        var new = app.config
-        new.editorPalette = palette
+    /// The «Как у темы / Своя» switch.
+    func follow(_ on: Bool) {
+        let new = app.config.followingTheme(on)
+        guard new != app.config else { return }
+        draft = nil
         save { try app.setEditorTheme(new) }
         notice = nil
     }
@@ -124,6 +128,7 @@ import Workspace
         case .darkPlus: "VS Code Dark+"
         case .hangar: "Hangar"
         case .custom: L10n.s(.edCustom)
+        case .theme: L10n.s(.edAsTheme)
         }
     }
 }

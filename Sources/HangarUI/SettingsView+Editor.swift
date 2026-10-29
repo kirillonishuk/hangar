@@ -2,75 +2,67 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Settings → Editor (#84, #108, editor-theme.html): theme tiles, «Цвета» (the preview pinned above the list while the
-/// list scrolls), the editor's options, then the language servers (#102). Everything fits the window's minimum width.
+/// Settings → Appearance (#85, #108, #109, editor-theme.html): the app theme tiles, each carrying its editor theme;
+/// then the editor: «Как у темы / Своя», «Цвета» (the preview pinned above the list while the list scrolls) and the
+/// editor's options. Everything fits the window's minimum width.
 extension SettingsView {
-    var editor: some View {
+    var appearance: some View {
         let ed = model.editorTheme
         return VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            editorThemes(ed)
+            CardSection(title: L10n.themeTitle, card: false) {
+                HStack(alignment: .top, spacing: Theme.themeTileGap) {
+                    ForEach(AppTheme.allCases, id: \.self) { theme in
+                        AppThemeTile(theme: theme, selected: Theme.current == theme) { save { try app.setTheme(theme) } }
+                    }
+                }
+            }
+            Text(verbatim: L10n.editor)
+                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
+                .foregroundStyle(Theme.ui.textStrong)
+                .padding(.top, Theme.EditorSettings.subsectionGap)
+            editorThemeCard(ed)
             editorColors(ed)
             editorFont
             editorIndent
             editorView
-            CardSection(title: L10n.s(.edEditSection)) {
-                row(L10n.s(.edFormatOnSave), first: true) {
-                    CardSwitch(on: options.formatOnSave) { on in setOption("editor_format_on_save", flag: on) { $0.formatOnSave = on } }
-                        .help(L10n.s(.edFormatTip))
-                }
-            }
-            languageServers
         }
         .sheet(isPresented: Binding(get: { ed.pendingReplace != nil }, set: { if !$0 { ed.cancelReplace() } })) {
             ConfirmSheet(message: L10n.s(.edReplaceTitle),
                          info: L10n.f(.edReplaceInfo, EditorSettingsModel.name(app.config.editorCustomBase),
-                                      EditorSettingsModel.name(app.config.editorPalette)),
+                                      EditorSettingsModel.name(app.config.editorBase)),
                          button: L10n.s(.edReplace), onConfirm: { _ in ed.confirmReplace() }, onCancel: { ed.cancelReplace() })
         }
     }
 
     private var options: EditorOptions { app.config.editorOptions }
 
-    // MARK: Theme
+    // MARK: Editor theme
 
-    private func editorThemes(_ ed: EditorSettingsModel) -> some View {
+    /// «Как у темы / Своя», «Сбросить всё» when «Своя» has changes, and what the editor shows (two lines of room, so
+    /// switching never moves the page).
+    private func editorThemeCard(_ ed: EditorSettingsModel) -> some View {
         let config = app.config
-        let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.themeTileGap), count: Theme.EditorSettings.tileColumns)
-        return CardSection(title: L10n.themeTitle, card: false) {
-            VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
-                LazyVGrid(columns: columns, spacing: Theme.themeTileGap) {
-                    ForEach(EditorPalette.allCases, id: \.self) { palette in
-                        EditorThemeTile(name: EditorSettingsModel.name(palette), theme: EditorTheme(config, palette: palette),
-                                        selected: config.editorPalette == palette) { ed.choose(palette) }
-                    }
+        let follows = config.editorPalette == .theme
+        let base = EditorSettingsModel.name(config.editorBase)
+        let changes = config.editorPalette == .custom ? config.editorColors.count : 0
+        let text = follows ? L10n.f(.edHintTheme, base, AppThemeTile.name(config.theme))
+            : changes > 0 ? L10n.f(.edHintCustom, changes, base) : L10n.f(.edHintCustomSame, base)
+        return VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
+            HStack(spacing: Theme.cardRowGap) {
+                Segment(selection: follows, options: [(true, L10n.s(.edAsTheme)), (false, L10n.s(.edCustom))]) { ed.follow($0) }
+                Spacer(minLength: 0)
+                if changes > 0 {
+                    Button { ed.reset(nil) } label: { ActionLabel(title: L10n.s(.edResetAll), icon: .restore) }
+                        .buttonStyle(HeaderActionStyle())
+                        .font(.system(size: Theme.Control.font))
+                        .fixedSize()
                 }
-                themeHint(ed)
             }
-        }
-    }
-
-    /// What the chosen theme is (two lines of room, so switching never moves the page) and «Сбросить всё» for «Своя».
-    private func themeHint(_ ed: EditorSettingsModel) -> some View {
-        let config = app.config
-        let base = EditorSettingsModel.name(config.editorCustomBase)
-        let text = switch config.editorPalette {
-        case .darkModern: L10n.s(.edHintModern)
-        case .darkPlus: L10n.s(.edHintPlus)
-        case .hangar: L10n.s(.edHintHangar)
-        case .custom: config.editorColors.isEmpty ? L10n.f(.edHintCustomSame, base) : L10n.f(.edHintCustom, config.editorColors.count, base)
-        }
-        return HStack(alignment: .top, spacing: Theme.cardRowGap) {
             Text(verbatim: text).foregroundStyle(Theme.ui.text2)
                 .font(.system(size: Theme.fontSize.tab))
                 .lineLimit(Theme.EditorSettings.hintLines, reservesSpace: true)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if config.editorPalette == .custom, !config.editorColors.isEmpty {
-                Button { ed.reset(nil) } label: { ActionLabel(title: L10n.s(.edResetAll), icon: .restore) }
-                    .buttonStyle(HeaderActionStyle())
-                    .font(.system(size: Theme.Control.font))
-                    .fixedSize()
-            }
         }
         .padding(.vertical, Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
@@ -79,15 +71,31 @@ extension SettingsView {
 
     // MARK: Colors
 
+    /// The preview stays in view while the list scrolls: a pinned header above the list, or — in a wide window — a
+    /// pinned header of no height whose preview hangs beside the list (the list leaves it the room on the right).
     private func editorColors(_ ed: EditorSettingsModel) -> some View {
-        CardSection(title: L10n.s(.edColors), card: false) {
+        let beside = ed.previewBeside
+        typealias S = Theme.EditorSettings
+        return CardSection(title: L10n.s(.edColors), card: false) {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 Section {
                     EditorColorList(model: ed)
+                        .padding(.trailing, beside ? S.besidePreviewWidth + S.besideGap : 0)
+                        // The hanging preview never runs past the list into the next section.
+                        .frame(minHeight: beside ? S.headerHeight + 1 + CGFloat(EditorPreview.visibleLines(ed.pageHeight)) * S.previewLineHeight
+                               + 2 * S.previewPaddingV : 0, alignment: .top)
                 } header: {
-                    previewCard(ed)
-                        .padding(.bottom, Theme.settingsHeaderGap)
-                        .background(Theme.ui.sheet)
+                    if beside {
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            previewCard(ed).frame(width: S.besidePreviewWidth)
+                        }
+                        .frame(height: 0, alignment: .top)
+                    } else {
+                        previewCard(ed)
+                            .padding(.bottom, Theme.settingsHeaderGap)
+                            .background(Theme.ui.sheet)
+                    }
                 }
             }
         }
@@ -234,54 +242,82 @@ extension SettingsView {
 
 // MARK: - Parts
 
-/// A theme tile: a few lines of code in the theme's colors over its name; the chosen one is outlined in `accent`.
-private struct EditorThemeTile: View {
-    let name: String
-    let theme: EditorTheme
+/// An app theme as a tile (themes-v1.html `.tcard`): a mini window in its own colours — title bar, sidebar and a few
+/// lines of code in the editor theme it carries (#109) — over its name; the chosen one is outlined in the current `accent`.
+private struct AppThemeTile: View {
+    let theme: AppTheme
     let selected: Bool
     let choose: () -> Void
     @State private var hover = false
 
     private typealias S = Theme.EditorSettings
     private static let code: [[(String, EditorColor)]] = [
-        [("// session.ts", .comment)],
-        [("export", .control), (" ", .text), ("function", .keyword), (" ", .text), ("load", .function), ("()", .bracket1),
-         (" ", .text), ("{", .bracket1)],
-        [("  ", .text), ("const", .keyword), (" ", .text), ("MAX", .constant), (" ", .text), ("=", .operator), (" ", .text),
-         ("12", .number), (";", .punctuation)],
+        [("// app.ts", .comment)],
+        [("const", .keyword), (" ", .text), ("MAX", .constant), (" ", .text), ("=", .operator), (" ", .text), ("12", .number),
+         (";", .punctuation)],
+        [("function", .keyword), (" ", .text), ("load", .function), ("()", .bracket1), (" ", .text), ("{", .bracket1)],
         [("  ", .text), ("return", .control), (" ", .text), ("\"utf8\"", .string), (";", .punctuation)],
+        [("}", .bracket1)],
     ]
 
+    @MainActor static func name(_ theme: AppTheme) -> String {
+        switch theme {
+        case .darkPlus: "VS Code Dark+"
+        case .graphite: L10n.themeGraphite
+        case .navy: "Hangar Navy"
+        }
+    }
+
     var body: some View {
+        let p = ThemePalette.of(theme)
+        let code = EditorTheme(palette: .theme, customBase: .darkModern, custom: [:], app: theme)
         let shape = RoundedRectangle(cornerRadius: Theme.themeTileRadius)
         Button { if !selected { choose() } } label: {
-            VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Self.code.indices, id: \.self) { i in
-                        Self.code[i].reduce(Text(verbatim: "")) { text, part in
-                            text + Text(verbatim: part.0).foregroundStyle(Theme.ui.editor(theme.hex(part.1)))
-                                .italic(part.1 == .comment && theme.italicComments)
+            VStack(spacing: Theme.settingsHeaderGap) {
+                VStack(spacing: 0) {
+                    Theme.ui.of(p.titlebar).frame(height: S.tileTitlebar)
+                    HStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: S.tileSidebarGap) {
+                            Capsule().fill(Theme.ui.of(p.accent)).frame(height: S.tileSidebarBar)
+                            Capsule().fill(Theme.ui.of(p.tx3)).frame(width: S.tileSidebarShort, height: S.tileSidebarBar)
+                            Capsule().fill(Theme.ui.of(p.tx3)).frame(height: S.tileSidebarBar)
                         }
-                        .frame(height: S.tileLineHeight)
+                        .padding(S.tileSidebarPadding)
+                        .frame(width: Theme.themeTileStrip, alignment: .topLeading)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .background(Theme.ui.of(p.sidebar))
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Self.code.indices, id: \.self) { i in
+                                Self.code[i].reduce(Text(verbatim: "")) { text, part in
+                                    text + Text(verbatim: part.0).foregroundStyle(Theme.ui.editor(code.hex(part.1)))
+                                        .italic(part.1 == .comment && code.italicComments)
+                                }
+                                .frame(height: S.tileLineHeight)
+                            }
+                        }
+                        .font(.system(size: S.tileFont, design: .monospaced))
+                        .lineLimit(1)
+                        .padding(.horizontal, S.tileCodePadding)
+                        .padding(.vertical, S.tileCodePaddingV)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .background(Theme.ui.editor(code.hex(.background)))
+                        .clipped()
                     }
                 }
-                .font(.system(size: S.tileFont, design: .monospaced))
-                .lineLimit(1)
-                .padding(S.tilePadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.ui.editor(theme.hex(.background)))
+                .frame(height: S.tileHeight)
                 .clipShape(shape)
                 .overlay(shape.strokeBorder(selected ? Theme.ui.accent : hover ? Theme.ui.controlBorderStrong : Theme.ui.control,
                                             lineWidth: selected ? Theme.themeTileBorder : 1))
-                Text(verbatim: name).lineLimit(1)
+                Text(verbatim: Self.name(theme)).lineLimit(1)
                     .foregroundStyle(selected ? Theme.ui.textStrong : Theme.ui.text2)
             }
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointingHand(!selected)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .accessibilityLabel(name)
+        .accessibilityLabel(Self.name(theme))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }

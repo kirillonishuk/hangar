@@ -46,9 +46,8 @@ extension Theme {
     public static let sectionFilterRing: CGFloat = 1.5
     /// Host row's state and the nav rows' counters/keys end 10 inside the highlight.
     public static let rowEndTrailing: CGFloat = 18
-    /// «+ Новая сессия»: 8 above, 4 below. Bottom group: 6 above, 8 below.
+    /// «Новая сессия»: 8 above, 0 below. Bottom group: 6 above, 8 below.
     public static let newTaskTop: CGFloat = 8
-    public static let newTaskBottom: CGFloat = 4
     public static let bottomBarTop: CGFloat = 6
     public static let bottomBarBottom: CGFloat = 8
 

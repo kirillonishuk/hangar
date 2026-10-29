@@ -196,6 +196,8 @@ extension MainWindowController {
             // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).
             // menu task|project <n>: its «⋯» menu, 200/120 pt into the window.
             let f = arg.split(separator: " ").map(String.init)
+            if parts[0] == "hover", f.first == "new" || f.first == "sessions" { app.debugHoverRow = f.first; return }  // hover new|sessions
+            if parts[0] == "hover" { app.debugHoverRow = nil }
             let n = f.count > 1 ? Int(f[1]) ?? -1 : -1
             let target: ActionTarget? = switch f.first {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
@@ -403,7 +405,7 @@ extension MainWindowController {
             }
         case "sheet":  // sheet [<project index>]
             presentNewTask(projectId: Int(arg).flatMap { app.state.projects.indices.contains($0) ? app.state.projects[$0].id : nil })
-        case "settings":  // settings [general|appearance|editor|notifications|integrations|advanced]
+        case "settings":  // settings [general|appearance|notifications|integrations|advanced]
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
@@ -435,7 +437,7 @@ extension MainWindowController {
                     + " hscroll=\(scroll?.hasHorizontalScroller ?? false)\n"
                 try? text.write(toFile: arg, atomically: true, encoding: .utf8)
             }
-        case "edtheme":  // edtheme sample <typescript|json|diff> | hover <id|-> | color <id> [preview] | close | set <id> <hex> | palette <name> | expand <syntax|editor|diff> | confirm | reset [id]
+        case "edtheme":  // edtheme sample <typescript|json|diff> | hover <id|-> | color <id> [preview] | close | set <id> <hex> | follow on|off | expand <syntax|editor|diff> | confirm | reset [id]
             let a = arg.split(separator: " ").map(String.init)
             let ed = settings.model.editorTheme
             let color = a.count > 1 ? EditorColor(rawValue: a[1]) : nil
@@ -447,7 +449,7 @@ extension MainWindowController {
             case "set": if let color, a.count > 2 { ed.commit(color, a[2]) }
             case "confirm": ed.confirmReplace()
             case "reset": ed.reset(color)
-            case "palette": if let p = a.last.flatMap(EditorPalette.init(rawValue:)) { ed.choose(p) }
+            case "follow": ed.follow(a.last == "on")
             case "expand":
                 let section: EditorColorSection? = switch a.last { case "syntax": .syntax; case "editor": .editor; case "diff": .diff; default: nil }
                 if let section { ed.expanded.insert(section) }
@@ -467,8 +469,6 @@ extension MainWindowController {
             if let theme = AppTheme(rawValue: arg) {
                 do { try app.setTheme(theme) } catch { uiLog.error("theme: \(error.localizedDescription, privacy: .public)") }
             }
-        case "termbg":  // termbg hangar|ghostty: as Settings → Оформление → Фон терминала (live)
-            if let bg = HangarConfig.TerminalBackground(rawValue: arg) { try? app.setTerminalBackground(bg) }
         case "keepAwake":  // keepAwake on|off|working <n>: the ☕ row's states (working holds a real assertion until quit)
             let f = arg.split(separator: " ").map(String.init)
             switch f.first ?? "" {

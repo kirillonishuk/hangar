@@ -115,13 +115,17 @@ import Testing
         #expect(HangarConfig.ParseError.syntax(line: 3, reason: "x").description.contains("line 3"))
     }
 
-    @Test func terminalBackgroundDefaultsToHangar() throws {
-        #expect(try HangarConfig.parse("").terminalBackground == .hangar)
-        #expect(try HangarConfig.parse(#"terminal_background = "ghostty""#).terminalBackground == .ghostty)
-        #expect(try HangarConfig.parse(#"terminal_background = "hangar""#).terminalBackground == .hangar)
-        // The old «theme» meant the Ghostty theme's background: it migrates to «ghostty», not to the Hangar theme.
-        #expect(try HangarConfig.parse(#"terminal_background = "theme""#).terminalBackground == .ghostty)
-        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"terminal_background = "blue""#) }
+    /// The terminal background is always the app theme's (#109): the old «Фон терминала» key loads silently.
+    @Test func oldTerminalBackgroundIsIgnored() throws {
+        for value in [#""ghostty""#, #""hangar""#, #""theme""#, #""blue""#, "ghostty", "true"] {
+            #expect(try HangarConfig.parse("terminal_background = \(value)\ntheme = \"navy\"") == {
+                var c = HangarConfig()
+                c.theme = .navy
+                return c
+            }(), "\(value)")
+        }
+        // Only at the root: under a section it is still an unknown key.
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("[agents]\nterminal_background = \"ghostty\"") }
     }
 
     /// App theme (themes-v1.html): Dark+ by default, for new and existing configs alike.
@@ -262,10 +266,10 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"check_updates = "no""#) }
     }
 
-    /// Settings → Editor: the editor theme (VS Code Dark Modern by default, #108) and the rainbow indents / TODO highlights.
+    /// Settings → Appearance: the editor theme (the app theme's own by default, #109) and the rainbow indents / TODO highlights.
     @Test func editorAppearanceKeys() throws {
         let d = HangarConfig()
-        #expect(d.editorPalette == .darkModern && d.editorRainbowIndent && d.editorTodoHighlight)
+        #expect(d.editorPalette == .theme && d.editorRainbowIndent && d.editorTodoHighlight)
         let c = try HangarConfig.parse("editor_palette = \"hangar\"\neditor_rainbow_indent = false\neditor_todo_highlight = false")
         #expect(c.editorPalette == .hangar && !c.editorRainbowIndent && !c.editorTodoHighlight)
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("editor_palette = \"monokai\"") }

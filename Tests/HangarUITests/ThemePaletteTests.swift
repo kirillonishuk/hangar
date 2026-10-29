@@ -72,13 +72,11 @@ import Workspace
     }
 
     @Test func terminalColorsFollowTheTheme() {
-        let c = Theme.terminalColors(force: false, of: .of(.graphite))
+        let c = Theme.terminalColors(of: .of(.graphite))
         #expect(c.background == "232220")
         #expect(c.palette.count == 16)
         #expect(c.palette[1] == "f0605a")
         #expect(c.cursor == "e8853d")
-        #expect(!c.forceBackground)
-        #expect(Theme.terminalColors(force: true, of: .of(.navy)).forceBackground)
-        #expect(Theme.terminalColors(force: true, of: .of(.navy)).background == "121826")
+        #expect(Theme.terminalColors(of: .of(.navy)).background == "121826")
     }
 }

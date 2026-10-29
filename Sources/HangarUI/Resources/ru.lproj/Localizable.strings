@@ -68,9 +68,6 @@
 "continueTitle" = "Продолжить";
 "externalEditor" = "Внешний редактор";
 "externalEditorPlaceholder" = "пусто — выключен";
-"terminalBackground" = "Фон терминала";
-"backgroundGhostty" = "Из Ghostty";
-"backgroundAsTheme" = "Как тема";
 "appearance" = "Оформление";
 "themeTitle" = "Тема";
 "themeGraphite" = "Графит";
@@ -431,7 +428,7 @@
 "noAgents" = "нет агентов";
 "rowWaiting" = "ждёт";
 "sessionsView" = "Сессии";
-"sessionsViewHelp" = "История сессий";
+"sessionsViewHelp" = "Сессии";
 "segmentGit" = "Git";
 "showGit" = "Показать Git";
 "gitBranch" = "Ветка";
@@ -554,7 +551,7 @@
 "lspLoading" = "%@ · запуск…";
 "lspStopped" = "%@ остановлен";
 "lspMissing" = "%@ — нет языкового сервера";
-"lspMissingTip" = "Определения, ссылки и ошибки даёт языковой сервер (%@), если он установлен: в проекте (.venv, node_modules/.bin), в PATH логин-шелла, в Xcode или скачан в Настройки → Редактор. Нажмите, чтобы проверить снова";
+"lspMissingTip" = "Определения, ссылки и ошибки даёт языковой сервер (%@), если он установлен: в проекте (.venv, node_modules/.bin), в PATH логин-шелла, в Xcode или скачан в Настройки → Дополнительно. Нажмите, чтобы проверить снова";
 "lspTooltip" = "%@\nНажмите, чтобы перезапустить";
 
 /* Language servers in Settings (#102) */
@@ -684,18 +681,17 @@
 "statuslineFailed" = "не записано: %@";
 "fileReadOnly" = "Файл только для чтения — Hangar его не меняет";
 
-/* Settings → Editor: theme, colors, options (#108) */
+/* Settings → Appearance: theme, colors, options (#108) */
 "edCustom" = "Своя";
-"edHintModern" = "Цвета VS Code Dark Modern, включая фон, курсор и номера строк. От темы оформления не зависит.";
-"edHintPlus" = "Синтаксис VS Code Dark+. Фон, выделение и номера строк — из темы оформления.";
-"edHintHangar" = "Приглушённая палитра, как в diff. Фон и номера строк — из темы оформления.";
+"edAsTheme" = "Как у темы";
+"edHintTheme" = "Тема «%2$@» показывает код в «%1$@». Измените любой цвет — получится «Своя».";
 "edHintCustom" = "Изменено цветов: %d. Остальное — как в «%@».";
 "edHintCustomSame" = "Пока совпадает с «%@». Нажмите на любой цвет ниже.";
 "edResetAll" = "Сбросить всё";
 "edColors" = "Цвета";
 "edSyntax" = "Синтаксис";
-"edCreated" = "Создана «Своя»: встроенная тема не меняется.";
-"edAllReset" = "Все цвета «Своей» сброшены.";
+"edCreated" = "Создана «Своя»: при смене темы оформления тема редактора не сменится.";
+"edAllReset" = "Цвета сброшены: редактор снова как у темы.";
 "edReplaceTitle" = "Заменить свою тему?";
 "edReplaceInfo" = "Изменённые цвета «Своей» (на основе «%@») пропадут: она станет основана на «%@».";
 "edReplace" = "Заменить";
@@ -709,7 +705,6 @@
 "edFontSection" = "Шрифт";
 "edIndentSection" = "Отступы и перенос";
 "edViewSection" = "Вид";
-"edEditSection" = "Правка";
 "edFont" = "Шрифт";
 "edSize" = "Размер";
 "edLineHeight" = "Высота строки";

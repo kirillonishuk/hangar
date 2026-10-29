@@ -34,7 +34,7 @@ extension AppState {
 }
 
 extension AppState {
-    /// Settings → Editor: saved to config.toml, applied to the open pages at once (#84).
+    /// Settings → Appearance: saved to config.toml, applied to the open pages at once (#84).
     func setEditorAppearance(_ key: String, _ value: String? = nil, flag: Bool? = nil, apply: (inout HangarConfig) -> Void) throws {
         if let value { try setConfig(key, value, apply: apply) } else if let flag { try setConfig(key, flag: flag, apply: apply) }
         onEditorAppearance?(EditorAppearance(config))
@@ -42,7 +42,7 @@ extension AppState {
 }
 
 extension AppState {
-    /// Settings → Editor → theme and colors (#108): the changed keys in one write, then every open page live.
+    /// Settings → Appearance → theme and colors (#108): the changed keys in one write, then every open page live.
     func setEditorTheme(_ new: HangarConfig) throws {
         try editConfig(config.editorThemeEdit(to: new)) {
             $0.editorPalette = new.editorPalette

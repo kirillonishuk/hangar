@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let socketPath = stateDir.appendingPathComponent("hangar.sock").path
         startControlServer(stateDir: stateDir, socketPath: socketPath)
         Theme.current = config.theme
-        startGhostty(colors: Theme.terminalColors(force: config.terminalBackground == .hangar))
+        startGhostty(colors: Theme.terminalColors())
 
         let store = StateStore(directory: stateDir)
         let result = store.load()

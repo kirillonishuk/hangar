@@ -107,6 +107,7 @@ import Workspace
 
     @Test func editingABuiltInCreatesCustom() {
         var c = HangarConfig()
+        c.editorPalette = .darkModern
         c.theme = .navy
         #expect(!c.customizingReplacesColors)
         let n = c.customizing(.string, "#d69d85")
@@ -140,14 +141,118 @@ import Workspace
         c.editorPalette = .custom
         c.editorColors = [.string: "#d69d85", .number: "#ffffff"]
         #expect(c.resettingColor(.string).editorColors == [.number: "#ffffff"])
-        #expect(c.resettingColor(nil).editorColors.isEmpty && c.resettingColor(nil).editorPalette == .custom)
+        // «Сбросить всё» returns to the app theme's editor theme (#109).
+        #expect(c.resettingColor(nil).editorColors.isEmpty && c.resettingColor(nil).editorPalette == .theme)
+        #expect(c.resettingColor(.string).editorPalette == .custom)
+    }
+
+    // MARK: «Как у темы» (#109)
+
+    /// The default follows the app theme: Dark+ → Dark Modern, Graphite → Dark+ (its greys), Navy → Hangar.
+    @Test func followingTheAppTheme() throws {
+        var c = HangarConfig()
+        for (app, base) in [(AppTheme.darkPlus, EditorPalette.darkModern), (.graphite, .darkPlus), (.navy, .hangar)] {
+            c.theme = app
+            let t = EditorTheme(c)
+            #expect(t.base == base && t.changed.isEmpty)
+            #expect(t.colors == EditorTheme(palette: base, customBase: .darkModern, custom: [:], app: app).colors)
+        }
+        // Graphite's editor is its own warm grey with Dark+ syntax.
+        c.theme = .graphite
+        #expect(EditorTheme(c).hex(.background) == EditorHex.of(ThemePalette.graphite.editorBg))
+        #expect(EditorTheme(c).hex(.keyword) == "#569cd6")
+    }
+
+    /// Editing a color while following the theme creates «Своя» on the theme's editor theme.
+    @Test func editingWhileFollowingCreatesCustomOnThePair() throws {
+        var c = HangarConfig()
+        c.theme = .navy
+        let n = c.customizing(.string, "#d69d85")
+        #expect(n.editorPalette == .custom && n.editorCustomBase == .hangar && n.editorColors == [.string: "#d69d85"])
+        // Colors hidden behind «Как у темы» (kept for the switch's way back), on the same base or another: editing
+        // starts a fresh «Своя» on the pair, without asking — exactly the one change.
+        for base in [EditorPalette.hangar, .darkModern] {
+            var hidden = c
+            hidden.editorCustomBase = base
+            hidden.editorColors = [.keyword: "#111111", .number: "#222222", .comment: "#333333", .type: "#444444", .background: "#555555"]
+            #expect(!hidden.customizingReplacesColors)
+            let edited = hidden.customizing(.string, "#d69d85")
+            #expect(edited.editorPalette == .custom && edited.editorCustomBase == .hangar && edited.editorColors == [.string: "#d69d85"])
+            #expect(EditorTheme(edited).changed == [.string])
+            // The file loses the hidden keys in the same write.
+            let text = "theme = \"navy\"\n" + hidden.editorColors.map { "\($0.key.configKey) = \"\($0.value)\"\n" }.sorted().joined()
+            let written = hidden.editorThemeEdit(to: edited)(text)
+            #expect(try HangarConfig.parse(written).editorColors == [.string: "#d69d85"])
+        }
+    }
+
+    /// The settings model's drag preview shows the same fresh «Своя»: no hidden color comes back on screen.
+    @MainActor @Test func dragPreviewHidesHiddenColors() {
+        var c = HangarConfig()
+        c.theme = .navy
+        c.editorCustomBase = .hangar
+        c.editorColors = [.keyword: "#111111"]
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-edtheme-\(UUID())")
+        let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: c,
+                           configURL: dir.appendingPathComponent("c.toml"), socketPath: "/tmp/hg-test/hangar.sock")
+        app.keepAwake = .inert()
+        let model = EditorSettingsModel(app: app)
+        model.preview(.string, "#d69d85")
+        #expect(model.theme.changed == [.string])
+        #expect(model.theme.hex(.keyword) == EditorTheme.builtIn(.hangar, .of(.navy))[.keyword])
+    }
+
+    /// The switch: «Своя» keeps saved colors and their base, or starts empty on the current pair; «Как у темы» keeps
+    /// them for the way back.
+    @Test func switchBetweenThemeAndCustom() {
+        var c = HangarConfig()
+        c.theme = .graphite
+        let own = c.followingTheme(false)
+        #expect(own.editorPalette == .custom && own.editorCustomBase == .darkPlus && own.editorColors.isEmpty)
+        var saved = c
+        saved.editorCustomBase = .hangar
+        saved.editorColors = [.number: "#ffffff"]
+        let back = saved.followingTheme(false)
+        #expect(back.editorPalette == .custom && back.editorCustomBase == .hangar && back.editorColors == [.number: "#ffffff"])
+        let follow = back.followingTheme(true)
+        #expect(follow.editorPalette == .theme && follow.editorColors == [.number: "#ffffff"] && EditorTheme(follow).base == .darkPlus)
+        // A v0.7.0 built-in («Своя» look, no changes) to «Как у темы».
+        var legacy = c
+        legacy.editorPalette = .hangar
+        #expect(legacy.followingTheme(true).editorPalette == .theme)
+    }
+
+    /// v0.7.0's explicit built-ins look as before in every app theme; editing one makes «Своя» on it.
+    @Test(arguments: AppTheme.allCases) func legacyPalettesKeepTheirLook(_ app: AppTheme) {
+        for legacy in [EditorPalette.darkModern, .darkPlus, .hangar] {
+            var c = HangarConfig()
+            c.theme = app
+            c.editorPalette = legacy
+            #expect(EditorTheme(c).base == legacy && EditorTheme(c).colors == EditorTheme.builtIn(legacy, .of(app)))
+            let n = c.customizing(.number, "#ffffff")
+            #expect(n.editorPalette == .custom && n.editorCustomBase == legacy && n.editorColors == [.number: "#ffffff"])
+        }
+    }
+
+    /// Defaults leave the file: «Как у темы» and Dark Modern's base are no keys at all.
+    @Test func followingTheThemeRemovesTheKeys() throws {
+        let text = "theme = \"navy\"\neditor_palette = \"custom\"\neditor_custom_base = \"hangar\"\neditor_color_string = \"#d69d85\"\n"
+        let old = try HangarConfig.parse(text)
+        #expect(old.editorThemeEdit(to: old.resettingColor(nil))(text) == "theme = \"navy\"\n")
+        let followed = old.editorThemeEdit(to: old.followingTheme(true))(text)
+        #expect(followed == "theme = \"navy\"\neditor_custom_base = \"hangar\"\neditor_color_string = \"#d69d85\"\n")
+        let parsed = try HangarConfig.parse(followed)
+        #expect(parsed.editorPalette == .theme && parsed.editorColors == [.string: "#d69d85"])
+        var dm = parsed.followingTheme(false)
+        dm.editorCustomBase = .darkModern
+        #expect(!parsed.editorThemeEdit(to: dm)(followed).contains("editor_custom_base"))
     }
 
     /// Only the keys that differ are written; a reset color's line leaves the file, comments stay.
     @Test func configEditWritesOnlyTheDifference() throws {
         let text = "# mine\ntheme = \"navy\"\neditor_color_number = \"#ffffff\" # bright\n"
         var old = try HangarConfig.parse(text)
-        old.editorPalette = .darkPlus
+        old.editorPalette = .darkPlus  // a v0.7.0 built-in
         let created = old.customizing(.string, "#d69d85")
         let written = old.editorThemeEdit(to: created)(text)
         #expect(written == "# mine\ntheme = \"navy\"\neditor_palette = \"custom\"\neditor_custom_base = \"dark-plus\"\neditor_color_string = \"#d69d85\"\n")

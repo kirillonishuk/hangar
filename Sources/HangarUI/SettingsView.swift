@@ -44,7 +44,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .notifications:
             [.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .limitNotificationsTitle, .notifyDoneTitle,
              .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle, .keepAwakeShort, .notificationPermissionTitle]
-        case .integrations: [.integrationClaude, .integrationCodex, .integrationMCP]
+        case .integrations: [.integrationClaude, .integrationCodex, .integrationMCP, .statuslineShow]
         case .advanced: [.configFile]
         }
     }
@@ -73,7 +73,7 @@ func settingsLabelWidth(_ lang: Language) -> CGFloat {
 
 struct SettingsView: View {
     @Bindable var model: SettingsModel
-    private var app: AppState { model.app }
+    var app: AppState { model.app }
     @FocusState private var editingExternal: Bool
     @State private var authorization: UNAuthorizationStatus?
 
@@ -474,6 +474,7 @@ struct SettingsView: View {
                 row(L10n.integrationCodex) { integrationValue(.codex) }
                 if model.integration.cli == nil { mcpValue }
             }
+            statusline
             // The commands to add Hangar's MCP server, one row per agent.
             if model.integration.cli != nil { CardSection(title: L10n.integrationMCP) { mcpValue } }
         }
@@ -575,9 +576,9 @@ struct SettingsView: View {
         }
     }
 
-    private func save(_ change: () throws -> Void) { model.save(change) }
+    func save(_ change: () throws -> Void) { model.save(change) }
 
-    private func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
+    func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
         CardRow(label: label, labelWidth: settingsLabelWidth(L10n.resolve(L10n.language)), first: first, value: value)
     }
 }
@@ -681,6 +682,8 @@ private struct ThemeTile: View {
 struct Segment<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
+    /// Shown but not choosable (with the control's tooltip saying why).
+    var disabled: [Value] = []
     let choose: (Value) -> Void
     @State private var hovered: Int?
 
@@ -689,6 +692,7 @@ struct Segment<Value: Equatable>: View {
             ForEach(options.indices, id: \.self) { i in
                 let (value, title) = options[i]
                 let on = value == selection
+                let off = disabled.contains(value)
                 Button { if !on { choose(value) } } label: {
                     Text(title)
                         .foregroundStyle(on ? Theme.ui.textStrong : hovered == i ? Theme.ui.text : Theme.ui.text2)
@@ -699,7 +703,9 @@ struct Segment<Value: Equatable>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .pointingHand(!on)
+                .disabled(off)
+                .opacity(off ? Theme.disabledButtonOpacity : 1)
+                .pointingHand(!on && !off)
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hovered = h ? i : (hovered == i ? nil : hovered) } }
                 .accessibilityAddTraits(on ? .isSelected : [])
             }

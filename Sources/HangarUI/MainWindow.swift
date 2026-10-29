@@ -483,6 +483,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             case .enter: if !event.isARepeat { app.openActiveDiffInEditor() }
             case .toggleMode: if !event.isARepeat { app.inspector.toggleMode() }
             case .close: if !event.isARepeat { app.closeDiff() }
+            case .nextChange: column.terminalArea.shownDiffEditor?.goChange(next: true)
+            case .prevChange: column.terminalArea.shownDiffEditor?.goChange(next: false)
             }
             return true
         }
@@ -1030,6 +1032,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let sheet = makeSheet(over: window)
         let model = ServerCheckModel(host: host, remote: app.remote, run: ServerCheckModel.sshRun(remote: app.remote, host: host))
+        model.beforeClaudeUninstall = { [weak app] in await app?.revertProjectStatuslines(host: host) }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
             window.endSheet(sheet)

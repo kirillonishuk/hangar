@@ -21,8 +21,7 @@ import Workspace
 
     /// `system` → ru if the first preferred language is Russian, else en.
     nonisolated static func resolve(_ language: Language, preferred: [String] = Locale.preferredLanguages) -> Language {
-        guard language == .system else { return language }
-        return preferred.first.map { Locale(identifier: $0).language.languageCode?.identifier == "ru" } == true ? .ru : .en
+        language.resolved(preferred: preferred)
     }
 
     /// SwiftPM's generated `Bundle.module` fatalErrors when the bundle is missing, so it is never used: look in
@@ -122,7 +121,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
-        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp
+        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
@@ -165,6 +164,10 @@ import Workspace
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
         case searchMatchOne, searchMatchFew, searchMatchMany, searchInFilesOne, searchInFilesFew, searchInFilesMany
+        case statuslineTitle, statuslineShow, statuslineHangar, statuslineUser, statuslineHangarHelp, statuslineUserHelp, statuslineNoOwnHelp
+        case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration
+        case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
+        case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
     }
 
     // Search tab (find in files, #91)
@@ -470,6 +473,29 @@ import Workspace
     static var codexLookup: String { s(.codexLookup) }
     static var integrationNeedsApp: String { s(.integrationNeedsApp) }
     static var integrationMCP: String { s(.integrationMCP) }
+    static var statuslineTitle: String { s(.statuslineTitle) }
+    static var statuslineShow: String { s(.statuslineShow) }
+    static var statuslineHangar: String { s(.statuslineHangar) }
+    static var statuslineUser: String { s(.statuslineUser) }
+    static var statuslineHangarHelp: String { s(.statuslineHangarHelp) }
+    static func statuslineUserHelp(_ command: String) -> String { f(.statuslineUserHelp, command) }
+    static var statuslineNoOwnHelp: String { s(.statuslineNoOwnHelp) }
+    static var statuslinePreview: String { s(.statuslinePreview) }
+    static var statuslineUserPreview: String { s(.statuslineUserPreview) }
+    static var statuslineParts: String { s(.statuslineParts) }
+    static var statuslineNeedsIntegration: String { s(.statuslineNeedsIntegration) }
+    static var statuslineSegModel: String { s(.statuslineSegModel) }
+    static var statuslineSegContext: String { s(.statuslineSegContext) }
+    static var statuslineSegFiveHour: String { s(.statuslineSegFiveHour) }
+    static var statuslineSegWeek: String { s(.statuslineSegWeek) }
+    static var statuslineSegBranch: String { s(.statuslineSegBranch) }
+    static var statuslineSegEffort: String { s(.statuslineSegEffort) }
+    static var fileReadOnly: String { s(.fileReadOnly) }
+    static var statuslineProjects: String { s(.statuslineProjects) }
+    static var statuslineProjectsHelp: String { s(.statuslineProjectsHelp) }
+    static var statuslineOverridden: String { s(.statuslineOverridden) }
+    static var statuslineNotIgnored: String { s(.statuslineNotIgnored) }
+    static func statuslineFailed(_ why: String) -> String { f(.statuslineFailed, why) }
     static var copyCommand: String { s(.copyCommand) }
     static var commandCopied: String { s(.commandCopied) }
     static var mcpHint: String { s(.mcpHint) }
@@ -748,6 +774,10 @@ import Workspace
     static var diffNotChanged: String { s(.diffNotChanged) }
     static var diffNotAFile: String { s(.diffNotAFile) }
     static var diffTabHelp: String { s(.diffTabHelp) }
+    static var diffNoChanges: String { s(.diffNoChanges) }
+    static func diffChangeCounter(_ index: Int, _ count: Int) -> String { f(.diffChangeCounter, index, count) }
+    static var diffPrevChange: String { s(.diffPrevChange) }
+    static var diffNextChange: String { s(.diffNextChange) }
 
     // SSH hosts, remote project and server sheets
     static var integrationNotInstalled: String { s(.integrationNotInstalled) }

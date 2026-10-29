@@ -1,6 +1,6 @@
 import SwiftUI
 
-// One control language (controls-v2.html, B′ «Мягкие заливки», decision #104): a filled `primary` button for the one
+// One control language (controls-v2.html, B′ «Мягкие заливки», decision #106): a filled `primary` button for the one
 // main action of a row or toast; `button` fill for the rest; modes are Git-filter chips; header actions stay unfilled
 // until hovered; links stay `accentText`; hints are `text3` and never clickable. Keys go only into tooltips.
 

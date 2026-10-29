@@ -38,7 +38,7 @@ struct StatusCounts: Equatable {
 
 /// Text of the window status bar (redesign v1 §7). Left: machine · non-zero counts of the selected project (the
 /// project itself is in the title). Right: the pane count of a split tab, an editor's language — never what the tab
-/// or a pane header already says (no duplicated information, decision #104).
+/// or a pane header already says (no duplicated information, decision #106).
 struct StatusBarLine: Equatable {
     /// nil — this Mac.
     var host: String?

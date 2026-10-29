@@ -14,6 +14,7 @@ import Workspace
         app.perform { $0.deleteTask(id: id) }
         return
     }
+    await app.revertProjectStatuslines(host: app.project(task.projectId)?.host, dirs: [StatuslineDir(path: path, name: task.name)])
     let check: WorktreeCheck
     do {
         check = try await checkWorktree(path, git: git, runner: runner)

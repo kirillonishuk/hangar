@@ -141,7 +141,13 @@ extension AppState {
     }
 }
 
-enum DiffKey: Equatable { case up, down, enter, toggleMode, close }
+enum DiffKey: Equatable { case up, down, enter, toggleMode, close, prevChange, nextChange }
+
+/// F7 / ⇧F7 step through a diff's changes (as in VS Code); ⌥⌘↑/↓ are taken (files in the diff, split focus elsewhere).
+enum DiffChangeKey {
+    static let next = "F7"
+    static let prev = "⇧F7"
+}
 
 /// Keys of the shown diff tab, by keyCode (any layout); only while it is shown and no text field edits.
 /// ↑/↓/↩ belong to Monaco while its diff editor has focus (`webFocused`; there ⌥⌘↑/↓ step through files).
@@ -154,6 +160,8 @@ func diffKeyRoute(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, diffActive:
     case (36, []) where !webFocused: return .enter
     case (11, .option): return .toggleMode
     case (13, .command): return .close
+    case (98, []): return .nextChange   // F7
+    case (98, .shift): return .prevChange
     default: return nil
     }
 }

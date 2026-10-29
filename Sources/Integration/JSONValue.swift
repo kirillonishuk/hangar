@@ -22,6 +22,8 @@ public enum IntegrationError: Error, Equatable {
     case unsupportedNotify
     case invalidTOML(line: Int)
     case changedOnDisk
+    /// The file is not writable: Hangar leaves it as it is.
+    case readOnly
 }
 
 public func parseJSON(_ text: String) throws(IntegrationError) -> JSONValue {

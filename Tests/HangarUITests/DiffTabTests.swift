@@ -203,6 +203,27 @@ import Workspace
         #expect(diffKeyRoute(keyCode: 126, modifiers: .command, diffActive: true, editingText: false) == nil)
     }
 
+    @Test func changeNavigationKeys() {
+        // F7 / ⇧F7 work wherever the focus is in the diff, also inside Monaco; ⌥⌘↑/↓ stay the files' keys.
+        for web in [false, true] {
+            #expect(diffKeyRoute(keyCode: 98, modifiers: [.function], diffActive: true, editingText: false, webFocused: web) == .nextChange)
+            #expect(diffKeyRoute(keyCode: 98, modifiers: [.shift, .function], diffActive: true, editingText: false, webFocused: web) == .prevChange)
+        }
+        #expect(diffKeyRoute(keyCode: 98, modifiers: [], diffActive: false, editingText: false) == nil)
+        #expect(diffKeyRoute(keyCode: 98, modifiers: .command, diffActive: true, editingText: false) == nil)
+        #expect(shortcut(keyCode: 98, modifiers: []) == nil && shortcut(keyCode: 98, modifiers: .shift) == nil, "F7 must stay free in the table")
+    }
+
+    @Test func changeCounter() {
+        #expect(ChangeCounter().text == nil && !ChangeCounter().isEmpty && !ChangeCounter().canStep)  // not computed yet
+        #expect(ChangeCounter(index: 0, count: 0).isEmpty)
+        #expect(ChangeCounter(index: 0, count: 0).text == nil)
+        let c = ChangeCounter(index: 2, count: 5)
+        #expect(c.canStep && !c.isEmpty)
+        #expect(c.text == L10n.diffChangeCounter(2, 5))
+        #expect(L10n.diffChangeCounter(2, 5).contains("2") && L10n.diffChangeCounter(2, 5).contains("5"))
+    }
+
     private func rows(_ diff: String, origPath: String? = nil) -> [DiffRow] {
         diffRows(.loaded(parseUnifiedDiff(diff)), origPath: origPath)
     }

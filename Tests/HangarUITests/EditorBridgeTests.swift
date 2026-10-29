@@ -6,6 +6,20 @@ import Testing
 @Suite struct EditorBridgeTests {
     private func msg(_ json: String) -> BridgeMessage? { BridgeMessage.decode(json) }
 
+    @Test func changesMessage() {
+        #expect(msg(#"{"type":"changes","index":2,"count":5}"#) == .changes(index: 2, count: 5))
+        #expect(msg(#"{"type":"changes","index":0,"count":0}"#) == .changes(index: 0, count: 0))
+        #expect(msg(#"{"type":"changes","index":6,"count":5}"#) == nil)       // index beyond the count
+        #expect(msg(#"{"type":"changes","index":-1,"count":5}"#) == nil)
+        #expect(msg(#"{"type":"changes","index":1,"count":-1}"#) == nil)
+        #expect(msg(#"{"type":"changes","index":1,"count":99999999}"#) == nil)
+        #expect(msg(#"{"type":"changes","index":"1","count":5}"#) == nil)
+        #expect(msg(#"{"type":"changes","index":true,"count":5}"#) == nil)
+        #expect(msg(#"{"type":"changes","count":5}"#) == nil)
+        let cmd = EditorCommand.goChange(next: false).json as? [String: Any]
+        #expect(cmd?["type"] as? String == "goChange" && cmd?["next"] as? Bool == false)
+    }
+
     @Test func decodesEachKind() {
         #expect(msg(#"{"type":"ready"}"#) == .ready)
         #expect(msg(#"{"type":"clipboard","action":"paste"}"#) == .clipboard(.paste))

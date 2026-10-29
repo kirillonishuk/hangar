@@ -159,6 +159,10 @@ public enum RemoteMessage {
         return len > maxPayload ? .invalid(.tooLarge) : .message(length: len)
     }
 
+    static func isStatusline(_ header: Data) -> Bool {
+        (try? JSONSerialization.jsonObject(with: header) as? [String: Any])?["type"] as? String == "statusline"
+    }
+
     public static func decode(header: Data, payload: Data) -> Result<ControlMessage, ProtocolError> {
         switch Self.header(header) {
         case .request: return .failure(.badRequest)

@@ -43,6 +43,10 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorTodoHighlight = true
     /// Look for a new GitHub release on launch and on activation, at most hourly (#86).
     public var checkUpdates = true
+    /// Claude Code's status line (#105): Hangar's own line everywhere, or the user's original command.
+    public var statusline: StatuslineMode = .hangar
+    /// The segments of Hangar's line; unknown names in the file are skipped.
+    public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults
 
     /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
     public enum TerminalBackground: String, Sendable { case hangar, ghostty }
@@ -101,6 +105,11 @@ public struct HangarConfig: Equatable, Sendable {
                 }
                 continue
             }
+            if section.isEmpty, key == "statusline_segments" {
+                let names = try stringArray(rawValue, line: n + 1)
+                config.statuslineSegments = StatuslineSegment.allCases.filter { names.contains($0.rawValue) }
+                continue
+            }
             let value = try stringValue(rawValue, line: n + 1)
             switch (section, key) {
             case ("", "default_agent"):
@@ -131,6 +140,11 @@ public struct HangarConfig: Equatable, Sendable {
                     throw ParseError.syntax(line: n + 1, reason: #"language must be "system", "ru" or "en""#)
                 }
                 config.language = lang
+            case ("", "statusline"):
+                guard let mode = StatuslineMode(rawValue: value) else {
+                    throw ParseError.syntax(line: n + 1, reason: #"statusline must be "hangar" or "user""#)
+                }
+                config.statusline = mode
             case ("", "external_editor"):
                 config.externalEditor = value.isEmpty ? nil : value
             case ("", "sound_permission"), ("", "sound_question"), ("", "sound_done"), ("", "sound_failed"), ("", "sound_limit"):
@@ -167,6 +181,30 @@ public struct HangarConfig: Equatable, Sendable {
             throw ParseError.syntax(line: line, reason: "value must be true or false")
         }
         return word == "true"
+    }
+
+    /// Parses a one-line `["a", "b"]` of strings optionally followed by a `#` comment.
+    private static func stringArray(_ s: Substring, line: Int) throws -> [String] {
+        var rest = Substring(s.trimmingCharacters(in: .whitespaces))
+        guard rest.hasPrefix("[") else { throw ParseError.syntax(line: line, reason: "value must be an array of strings") }
+        rest = rest.dropFirst()
+        var out: [String] = []
+        while true {
+            rest = rest.drop { $0 == " " || $0 == "\t" }
+            if rest.hasPrefix("]") {
+                let tail = rest.dropFirst().trimmingCharacters(in: .whitespaces)
+                guard tail.isEmpty || tail.hasPrefix("#") else { throw ParseError.syntax(line: line, reason: "unexpected text after array") }
+                return out
+            }
+            guard rest.hasPrefix("\""), let end = rest.dropFirst().firstIndex(where: { $0 == "\"" || $0 == "\\" }), rest[end] == "\"" else {
+                throw ParseError.syntax(line: line, reason: "array items must be plain quoted strings")
+            }
+            out.append(String(rest[rest.index(after: rest.startIndex)..<end]))
+            rest = rest[rest.index(after: end)...].drop { $0 == " " || $0 == "\t" }
+            if rest.hasPrefix(",") { rest = rest.dropFirst() } else if !rest.hasPrefix("]") {
+                throw ParseError.syntax(line: line, reason: "expected , or ] in array")
+            }
+        }
     }
 
     /// Parses `"..."` (with `\"` and `\\` escapes) optionally followed by a `#` comment.

@@ -367,6 +367,11 @@ extension Theme {
         public static let paddingH: CGFloat = 8
         /// Diff tab: the path header and hunk headers (mockup `.dh` 6×14, gap 12; `.hunk` 2×14).
         public static let headerPaddingV: CGFloat = 6
+        /// Header's previous / next change buttons.
+        public static let navButtonWidth: CGFloat = 24
+        public static let counterWidth: CGFloat = 48
+        public static let navButtonHeight: CGFloat = 22
+        public static let navButtonRadius: CGFloat = 5
         public static let headerPaddingH: CGFloat = 14
         public static let headerGap: CGFloat = 12
         public static let hunkPaddingV: CGFloat = 2

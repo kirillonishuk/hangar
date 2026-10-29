@@ -277,10 +277,12 @@ func chipDropTarget(chips: [StatuslineSegment], frames: [StatuslineSegment: CGRe
                     dragged s: StatuslineSegment, at p: CGPoint) -> Int? {
     let slack = frames[s]?.height ?? 0
     guard row.insetBy(dx: -slack, dy: -slack).contains(p) else { return nil }
-    // Chips are in reading order over wrapped lines: a chip is after the pointer on a lower line, or right of it on its line.
+    // Chips are in reading order over wrapped lines: a chip is after the pointer on a lower line, or right of it on its
+    // line; a pointer in the slack above or below counts on the first or last line.
+    let y = min(max(p.y, row.minY), row.maxY)
     let index = chips.firstIndex { c in
         guard let f = frames[c] else { return false }
-        return f.minY > p.y || (f.maxY >= p.y && f.midX > p.x)
+        return f.minY > y || (f.maxY >= y && f.midX > p.x)
     } ?? chips.count
     return statuslineMove(chips, s, to: index) != chips ? index : nil
 }

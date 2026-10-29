@@ -110,18 +110,20 @@ struct HeaderActionStyle: ButtonStyle {
 
 /// A mode or filter chip, 24 — the Git tab's filter chip: the chosen one `accent` 14 % with an `accent` 25 % border and
 /// `accentText`; another is a plain label that gets a `hover` fill under the pointer. Disabled .38, reason in `help`.
+/// `toggles`: a multi-select filter — a click on the chosen one clears it.
 struct ModeChip: View {
     let title: String
     var icon: Icon?
     var mono = false
     let on: Bool
     var enabled = true
+    var toggles = false
     let action: () -> Void
     @State private var hover = false
 
     var body: some View {
         // A real (plain) button: keyboard focus, Space / Return and VoiceOver's press work as on any button.
-        Button { if enabled && !on { action() } } label: {
+        Button { if enabled && (toggles || !on) { action() } } label: {
             HStack(spacing: Theme.Control.iconGap) {
                 if let icon { IconView(icon: icon, size: Theme.GitTab.chipIcon, tint: tint) }
                 Text(verbatim: title)
@@ -140,7 +142,7 @@ struct ModeChip: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .opacity(enabled ? 1 : Theme.inactiveOpacity)
-        .pointingHand(enabled && !on)
+        .pointingHand(enabled && (toggles || !on))
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .accessibilityAddTraits(on ? .isSelected : [])
     }

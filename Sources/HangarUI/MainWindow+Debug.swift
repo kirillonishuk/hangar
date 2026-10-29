@@ -2,6 +2,7 @@
 import AppKit
 import Exec
 import Git
+import History
 import SwiftUI
 import Usage
 import Workspace
@@ -165,9 +166,25 @@ extension MainWindowController {
             }
         // «Сессии»: the search text; the n-th project.
         case "sessionsQuery": column.sessionsModel.query = arg
-        case "sessionsClick":  // sessionsClick <n>: as a click on the n-th conversation row of «Сессии»
+        case "sessionsClick":  // sessionsClick <n>: as a click on the n-th row of «Сессии» (its main action)
             let m = column.sessionsModel
-            if let n = Int(arg), m.conversationRows.indices.contains(n) { Task { await m.perform(m.action(for: m.conversationRows[n]), ctx: ctx) } }
+            let rows = m.visibleList
+            if let n = Int(arg), rows.indices.contains(n) { Task { await m.perform(m.primaryAction(rows[n]), ctx: ctx) } }
+        case "sessionsHover":  // sessionsHover <n> | -1: the n-th row drawn as hovered (snapshots can't hover)
+            let rows = column.sessionsModel.visibleList
+            column.sessionsModel.hovered = Int(arg).flatMap { rows.indices.contains($0) ? rows[$0].id : nil }
+        case "sessionsScope":  // sessionsScope all | local | <host>
+            app.showSessionsView(scope: arg == "all" ? .all : arg == "local" ? .local : .host(arg))
+        case "sessionsChip":  // sessionsChip claude | codex | open | archived | history: toggles that chip
+            let m = column.sessionsModel
+            switch arg {
+            case "claude": m.toggle(HistoryAgent.claude)
+            case "codex": m.toggle(HistoryAgent.codex)
+            case "open": m.toggle(SessionsRowState.open)
+            case "archived": m.toggle(SessionsRowState.archived)
+            case "history": m.toggle(SessionsRowState.history)
+            default: m.resetFilters()
+            }
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }

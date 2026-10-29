@@ -154,12 +154,13 @@ import Workspace
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
         case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
         case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
-        case sessionsNoMatch, sessionsTitle, sessionsClosed, sessionsConversations, sessionsToday, sessionsYesterday, sessionsYesterdayAt
-        case sessionsSearch, sessionsAll, sessionsOpen, sessionsGo, sessionsMarkerOpen, sessionsMarkerClosed
-        case sessionsNoSession, sessionsMessages, sessionsSplit, sessionsNoClosed, sessionsNoConversations, sessionsLoading
-        case sessionsOffline, sessionsUntitled, sessionsProjectHelp, sessionsTabOne, sessionsTabFew, sessionsTabMany
-        case sessionsClosedOne, sessionsClosedFew, sessionsClosedMany, sessionsConvOne, sessionsConvFew, sessionsConvMany
-        case sessionsLoadFailed, sessionsLoadFailedLocal, sessionsAllProjects, sessionsHostScope, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
+        case sessionsNoMatch, sessionsTitle, sessionsYesterday, sessionsSearch, sessionsAll, sessionsGo, sessionsMarkerOpen
+        case sessionsMessages, sessionsLoading, sessionsOffline, sessionsUntitled, sessionsTabOne, sessionsTabFew, sessionsTabMany
+        case sessionsMore, sessionsMarkerArchived, sessionsMarkerHistory, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
+        case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
+        case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
+        case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp
+        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
@@ -196,43 +197,50 @@ import Workspace
 
     // «Сессии» (⌘Y)
     static var sessionsTitle: String { s(.sessionsTitle) }
-    static var sessionsClosed: String { s(.sessionsClosed) }
-    static var sessionsConversations: String { s(.sessionsConversations) }
-    static var sessionsToday: String { s(.sessionsToday) }
     static var sessionsYesterday: String { s(.sessionsYesterday) }
-    static func sessionsYesterdayAt(_ time: String) -> String { f(.sessionsYesterdayAt, time) }
     static var sessionsSearch: String { s(.sessionsSearch) }
     static var sessionsAll: String { s(.sessionsAll) }
-    static var sessionsOpen: String { s(.sessionsOpen) }
+    static var sessionsMore: String { s(.sessionsMore) }
     static var sessionsGo: String { s(.sessionsGo) }
     static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
-    static var sessionsMarkerClosed: String { s(.sessionsMarkerClosed) }
-    static var sessionsNoSession: String { s(.sessionsNoSession) }
+    static var sessionsMarkerArchived: String { s(.sessionsMarkerArchived) }
+    static var sessionsMarkerHistory: String { s(.sessionsMarkerHistory) }
+    static var sessionsChipOpen: String { s(.sessionsChipOpen) }
+    static var sessionsChipArchived: String { s(.sessionsChipArchived) }
+    static var sessionsChipHistory: String { s(.sessionsChipHistory) }
+    static var sessionsReset: String { s(.sessionsReset) }
+    static var sessionsResetFilters: String { s(.sessionsResetFilters) }
+    static func sessionsShowMore(_ n: Int) -> String { f(.sessionsShowMore, Int32(clamping: n)) }
     static func sessionsMessages(_ n: Int) -> String { f(.sessionsMessages, Int32(clamping: n)) }
-    static var sessionsSplit: String { s(.sessionsSplit) }
-    static var sessionsNoClosed: String { s(.sessionsNoClosed) }
     static var sessionsNoMatch: String { s(.sessionsNoMatch) }
-    static var sessionsNoConversations: String { s(.sessionsNoConversations) }
+    /// «По запросу «stripe» ничего нет».
+    static func sessionsNoMatchQuery(_ query: String) -> String { f(.sessionsNoMatchQuery, query) }
+    static var sessionsEmpty: String { s(.sessionsEmpty) }
     static var sessionsLoading: String { s(.sessionsLoading) }
+    static func sessionsReadingHost(_ host: String) -> String { f(.sessionsReadingHost, host) }
+    /// «devbox не ответил за 20 с».
+    static func sessionsHostTimedOut(_ host: String, _ seconds: Int) -> String { f(.sessionsHostTimedOut, host, Int32(clamping: seconds)) }
+    static func sessionsHostFailed(_ host: String) -> String { f(.sessionsHostFailed, host) }
     static func sessionsOffline(_ host: String) -> String { f(.sessionsOffline, host) }
-    /// «Не удалось загрузить с devbox: …»; nil host — this Mac.
-    static func sessionsLoadFailed(_ host: String?, _ message: String) -> String {
-        host.map { f(.sessionsLoadFailed, $0, message) } ?? f(.sessionsLoadFailedLocal, message)
-    }
+    static var sessionsOfflineHint: String { s(.sessionsOfflineHint) }
+    static var sessionsConnect: String { s(.sessionsConnect) }
+    /// «Не удалось загрузить разговоры: …» (this Mac).
+    static func sessionsLoadFailedLocal(_ message: String) -> String { f(.sessionsLoadFailedLocal, message) }
     static var sessionsTimedOut: String { s(.sessionsTimedOut) }
-    static var sessionsAllProjects: String { s(.sessionsAllProjects) }
     static var sessionsContinue: String { s(.sessionsContinue) }
-    /// «Все проекты на devbox».
-    static func sessionsHostScope(_ host: String) -> String { f(.sessionsHostScope, host) }
+    static func sessionsContinueIn(_ session: String) -> String { f(.sessionsContinueIn, session) }
+    static var sessionsContinueNew: String { s(.sessionsContinueNew) }
+    static var sessionsRestoreHelp: String { s(.sessionsRestoreHelp) }
+    static func sessionsHelpSession(_ name: String) -> String { f(.sessionsHelpSession, name) }
+    /// «Сессия deploy-logs: 2 вкладки».
+    static func sessionsArchivedHelp(_ name: String, _ tabs: String) -> String { f(.sessionsArchivedHelp, name, tabs) }
+    static func sessionsArchivedSince(_ date: String) -> String { f(.sessionsArchivedSince, date) }
     static var projectSessions: String { s(.projectSessions) }
     static var sessionsUnknownError: String { s(.sessionsUnknownError) }
     static var allArchived: String { s(.allArchived) }
     static var allArchivedOpen: String { s(.allArchivedOpen) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
-    static var sessionsProjectHelp: String { s(.sessionsProjectHelp) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
-    static func sessionsClosedCount(_ n: Int) -> String { count(n, .sessionsClosedOne, .sessionsClosedFew, .sessionsClosedMany) }
-    static func sessionsConversationCount(_ n: Int) -> String { count(n, .sessionsConvOne, .sessionsConvFew, .sessionsConvMany) }
 
 
     /// Every tooltip of a clickable (icons-v2.html): «Действие — ⌥⌘I», or the action alone without a key.

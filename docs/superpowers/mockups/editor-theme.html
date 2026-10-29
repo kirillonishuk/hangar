@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Hangar — тема и настройки редактора</title>
+<!--
+  Макет: Настройки → Редактор (спека 2026-10-29-editor-theme-design.md).
+  Язык контролов — B′ из controls-v2.html (заливка button / moreBg, чипы accent 14 %, карточки с рамкой lineSheet).
+  Живой: плитки тем, клик по образцу или по токену в превью → поповер цвета, наведение на строку цвета приглушает
+  всё, кроме её токенов, опции ниже сразу меняют превью. Оформление окна (Dark+ / Navy) — переключатель над окном.
+  Параметры для снимков: ?app=navy|dark-plus &preset=dark-modern|dark-plus|hangar|custom &pop=<id> &hover=<id>
+  Цвета «VS Code Dark Modern» сняты один раз (29.10) с VS Code владельца: theme-defaults/dark_modern.json → dark_plus.json
+  → dark_vs.json + значения по умолчанию реестра цветов (то же в Monaco 0.57).
+-->
+<style>
+*{box-sizing:border-box}
+:root{--mono:"SF Mono",Menlo,monospace}
+/* app themes (DESIGN.md, ThemePalette) */
+.t-dp{--bg:#1e1e1e;--titlebar:#252526;--sidebar:#252526;--sheet:#252526;--field:#313131;--hover:#2a2d2e;--sbHover:#2a2d2e;--hoverStrong:#37373d;--selected:#37373d;
+  --moreBg:#45494e;--line:#333333;--lineSheet:#3c3c3c;--control:#3c3c3c;--controlStrong:#454545;--winBorder:#3c3c3c;--button:#3a3d41;--buttonPressed:#2f3135;
+  --tx:#cccccc;--strong:#ffffff;--tx2:#a3a3a3;--tx3:#6e6e6e;--accent:#007acc;--accentText:#3794ff;--primary:#0e639c;--primaryText:#fff;--gitA:#73c991;--gitD:#f48771;--waiting:#e8a33d;
+  --a14:rgba(0,122,204,.14);--a25:rgba(0,122,204,.25);--a18:rgba(0,122,204,.18)}
+.t-navy{--bg:#121826;--titlebar:#121826;--sidebar:#1d2534;--sheet:#1d2534;--field:#121826;--hover:#1a2130;--sbHover:#273044;--hoverStrong:#2b3444;--selected:#2e3749;
+  --moreBg:#3a4456;--line:#222b3b;--lineSheet:#2b3444;--control:#2b3444;--controlStrong:#3a4456;--winBorder:#2b3446;--button:#2b3444;--buttonPressed:#222b3b;
+  --tx:#e3e7ef;--strong:#ffffff;--tx2:#9ba4b7;--tx3:#687185;--accent:#4ea1f3;--accentText:#5fb0ff;--primary:#2a6fd6;--primaryText:#fff;--gitA:#73c991;--gitD:#f07a6e;--waiting:#ffb340;
+  --a14:rgba(78,161,243,.14);--a25:rgba(78,161,243,.25);--a18:rgba(78,161,243,.18)}
+
+body{margin:0;background:#141414;color:#c8c8c8;font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:32px 40px 56px;min-width:1300px}
+h1{font-size:25px;font-weight:600;color:#fff;margin:0 0 6px;letter-spacing:-.01em}
+.lead{color:#9a9a9a;max-width:880px;margin:0 0 18px;font-size:14.5px}
+.lead b{color:#e6e6e6;font-weight:500}
+.mockbar{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:12.5px;color:#8f8f8f}
+.mockbar .sw2{display:flex;background:#232323;border:1px solid #333;border-radius:7px;padding:2px}
+.mockbar .sw2 button{all:unset;cursor:pointer;padding:3px 12px;border-radius:5px;color:#a3a3a3;font-size:12.5px}
+.mockbar .sw2 button.on{background:#45494e;color:#fff}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+
+/* ===== settings window ===== */
+.win{position:relative;width:1180px;border:1px solid var(--winBorder);border-radius:11px;overflow:hidden;background:var(--sheet);color:var(--tx);font-size:13px;box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.wtitle{height:30px;display:flex;align-items:center;justify-content:center;background:var(--sheet);border-bottom:1px solid var(--line);font-size:13px;color:var(--tx2);position:relative}
+.lights{position:absolute;left:12px;top:9px;display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.lights i+i{background:#febc2e}.lights i+i+i{background:#28c840}
+.wbody{display:flex;min-height:900px}
+.cats{width:190px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);padding:8px}
+.cat{height:30px;display:flex;align-items:center;gap:9px;padding:0 10px;border-radius:6px;color:var(--tx);cursor:pointer}
+.cat svg{width:15px;height:15px;color:var(--tx2)}
+.cat:hover{background:var(--sbHover)}
+.cat.on{background:var(--selected);color:var(--strong)}.cat.on svg{color:var(--strong)}
+.page{flex:1;min-width:0;padding:22px 24px 28px}
+.page h2{font-size:17px;font-weight:600;color:var(--strong);margin:0 0 18px}
+.sec{margin-bottom:20px}
+.sech{display:flex;align-items:center;height:22px;margin-bottom:7px}
+.sech b{font-size:12.5px;font-weight:600;color:var(--tx2)}
+.sech .sp{flex:1}
+.card{border:1px solid var(--lineSheet);border-radius:8px}
+.row{display:flex;align-items:center;gap:12px;min-height:40px;padding:7px 12px;border-top:1px solid var(--lineSheet)}
+.row:first-child{border-top:none}
+.row .lb{width:220px;flex:none;color:var(--tx);white-space:nowrap}
+.row .val{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.note{font-size:12px;color:var(--tx3)}
+
+/* controls (B′) */
+.bs{all:unset;height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 9px;border-radius:6px;background:var(--button);font-size:12px;color:var(--tx);white-space:nowrap;cursor:pointer}
+.bs:hover{background:var(--moreBg);color:var(--strong)}.bs:active{background:var(--buttonPressed)}
+.bs svg{width:12px;height:12px;color:var(--tx2)}
+.bgh{all:unset;height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 7px;border-radius:6px;font-size:11.5px;color:var(--tx2);white-space:nowrap;cursor:pointer}
+.bgh:hover{background:var(--hoverStrong);color:var(--strong)}.bgh:active{background:var(--moreBg)}
+.bgh svg{width:12px;height:12px}
+.seg{display:inline-flex;height:24px;background:var(--field);border:1px solid var(--control);border-radius:6px;padding:1px}
+.seg button{all:unset;cursor:pointer;padding:0 10px;display:flex;align-items:center;border-radius:4px;font-size:12px;color:var(--tx2);white-space:nowrap}
+.seg button:hover{background:var(--hoverStrong);color:var(--tx)}
+.seg button.on{background:var(--moreBg);color:var(--strong);cursor:default}
+.swt{all:unset;cursor:pointer;width:30px;height:18px;border-radius:9px;background:var(--control);position:relative;flex:none}
+.swt:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--tx2);transition:left .12s}
+.swt.on{background:var(--primary)}.swt.on:after{left:14px;background:var(--primaryText)}
+.step{display:inline-flex;align-items:center;height:24px;border:1px solid var(--control);background:var(--field);border-radius:6px;overflow:hidden}
+.step button{all:unset;cursor:pointer;width:24px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--tx2);font-size:14px}
+.step button:hover{background:var(--hoverStrong);color:var(--strong)}
+.step span{min-width:44px;text-align:center;font:12.5px var(--mono);color:var(--tx);border-left:1px solid var(--control);border-right:1px solid var(--control);line-height:22px;padding:0 6px}
+.sel{all:unset;cursor:pointer;height:24px;min-width:200px;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px 0 10px;border:1px solid var(--controlStrong);background:var(--field);border-radius:6px;font-size:12.5px;color:var(--tx)}
+.sel:hover{border-color:var(--tx3)}
+.sel svg{width:11px;height:11px;color:var(--tx2)}
+button:focus-visible,.sw:focus-visible,.tile:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* theme tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:12px}
+.tile{all:unset;cursor:pointer;min-width:0;display:flex;flex-direction:column;gap:7px}
+.tile .mini{height:84px;border-radius:7px;border:1px solid var(--control);padding:9px 10px;font:10.5px/15px var(--mono);white-space:pre;overflow:hidden;position:relative}
+.tile:hover .mini{border-color:var(--tx3)}
+.tile.on .mini{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.tile .nm{font-size:12.5px;color:var(--tx);display:flex;gap:6px;align-items:baseline}
+.tile.on .nm{color:var(--strong)}
+.tile .nm i{font-style:normal;font-size:11.5px;color:var(--tx3)}
+.thint{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--lineSheet);font-size:12.5px;color:var(--tx2);min-height:40px}
+.thint .sp{flex:1}
+
+/* colour editor */
+.ced{display:grid;grid-template-columns:318px 1fr;min-height:560px}
+.clist{border-right:1px solid var(--lineSheet);padding:6px 0 8px}
+.cgh{font-size:11.5px;font-weight:600;color:var(--tx3);padding:10px 14px 3px}
+.crow{height:28px;display:flex;align-items:center;gap:9px;padding:0 8px 0 12px;margin:0 6px;border-radius:6px;cursor:default;position:relative}
+.crow:hover,.crow.hv{background:var(--hoverStrong)}
+.crow.act{background:var(--selected)}
+.crow .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .hx{font:11.5px var(--mono);color:var(--tx3)}
+.crow .mod{position:absolute;left:3px;top:11px;width:5px;height:5px;border-radius:50%;background:var(--accentText)}
+.crow .rs{all:unset;cursor:pointer;width:20px;height:20px;border-radius:4px;display:none;align-items:center;justify-content:center;color:var(--tx2)}
+.crow .rs svg{width:12px;height:12px}
+.crow .rs:hover{background:var(--moreBg);color:var(--strong)}
+.crow.m:hover .rs,.crow.m.hv .rs{display:flex}
+.crow.m:hover .hx,.crow.m.hv .hx{display:none}
+.sw{all:unset;cursor:pointer;width:18px;height:18px;border-radius:4px;flex:none;position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);
+  background-image:linear-gradient(45deg,#777 25%,transparent 25%,transparent 75%,#777 75%),linear-gradient(45deg,#777 25%,#aaa 25%,#aaa 75%,#777 75%);background-size:8px 8px;background-position:0 0,4px 4px}
+.sw i{position:absolute;inset:0;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.sw:hover{transform:scale(1.08)}
+.trio{display:flex;gap:4px}
+
+/* preview */
+.pvw{display:flex;flex-direction:column;min-width:0}
+.pvh{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-bottom:1px solid var(--lineSheet)}
+.pvh .ttl{font-size:12px;color:var(--tx2);flex:1}
+.pv{flex:1;overflow:hidden;border-radius:0 0 8px 0;position:relative}
+.ftab{height:26px;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12px;color:var(--tx2);border-top:1px solid rgba(255,255,255,.06)}
+.ftab:first-child{border-top:none}
+.ftab b{font-weight:500;color:var(--tx)}
+.code{position:relative;font-family:var(--ef);font-size:var(--efs);line-height:var(--elh);padding:4px 0 8px}
+.ln{display:flex;position:relative;min-height:var(--elh)}
+.ln .g{width:46px;flex:none;text-align:right;padding-right:14px;color:var(--e-gutter);user-select:none}
+.ln .mk{width:14px;flex:none;text-align:center;user-select:none}
+.ln .c{flex:1;min-width:0;white-space:pre;position:relative;padding-right:10px;tab-size:var(--tab)}
+.wrap .ln .c{white-space:pre-wrap;word-break:break-word}
+.nowrap .ln .c{overflow:hidden}
+.ln.cur .g{color:var(--e-gutterActive)}
+.lh-line .ln.cur .c,.lh-all .ln.cur .c{background:var(--e-lineFill);box-shadow:var(--e-lineBorder)}
+.lh-gutter .ln.cur .g,.lh-all .ln.cur .g{background:var(--e-lineFill)}
+.ln.add{background:var(--e-diffAddLine)}.ln.del{background:var(--e-diffDelLine)}
+.ln.add .mk{color:var(--gitA)}.ln.del .mk{color:var(--gitD)}
+.tk{border-radius:2px;transition:opacity .12s}
+.tk.selbg{background:var(--e-sel)}
+.tk.ins{background:var(--e-diffAddText)}.tk.rem{background:var(--e-diffDelText)}
+.tk.find{background:var(--e-find)}
+.todo{border-radius:3px;padding:0 3px;background:#b38a3c;color:#fff;font-weight:700}
+.ws{color:var(--e-ws)}
+.ig{position:absolute;top:0;bottom:0;width:1px;background:var(--e-indent);pointer-events:none}
+.ig.act{background:var(--e-indentActive)}
+.caret{display:inline-block;position:relative;width:0;height:var(--elh);vertical-align:top}
+.caret:after{content:"";position:absolute;left:0;top:1px;bottom:1px;width:2px;background:var(--e-cursor)}
+.cs-block .caret:after{width:.62em;opacity:.55}
+.cs-underline .caret:after{top:auto;height:2px;width:.62em}
+.cb-blink .caret:after{animation:blink 1.06s steps(1) infinite}
+.cb-smooth .caret:after{animation:smooth 1.06s ease-in-out infinite}
+@keyframes blink{50%{opacity:0}}@keyframes smooth{0%,20%{opacity:1}60%,80%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret:after{animation:none!important}}
+/* hover a colour row: everything else steps back */
+.pv.focus .tk:not(.on),.pv.focus .todo{opacity:.22}
+.pv.focus .tk.on{opacity:1}
+.pv.focus-ui .tk{opacity:.5}
+.pv .uion{outline:1px dashed var(--accentText);outline-offset:-1px}
+.pv .tk[data-g]{cursor:pointer}
+
+/* colour popover */
+.pop{position:absolute;z-index:20;width:280px;background:var(--sheet);border:1px solid var(--controlStrong);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.55);padding:12px;display:none}
+.pop.open{display:block}
+.pop .ph{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pop .big{width:34px;height:34px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);flex:none}
+.pop .ph b{display:block;font-weight:600;color:var(--strong);font-size:13px}
+.pop .ph span{font-size:11.5px;color:var(--tx3)}
+.pop .flds{display:flex;gap:6px;margin-bottom:10px}
+.fld{height:26px;border:1px solid var(--control);background:var(--field);border-radius:6px;display:flex;align-items:center;padding:0 8px;gap:6px;font-size:11.5px;color:var(--tx3)}
+.fld:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--a18)}
+.fld input{all:unset;font:12.5px var(--mono);color:var(--tx);width:100%}
+.pop .hue{height:12px;border-radius:6px;margin:2px 0 10px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);position:relative;cursor:pointer}
+.pop .hue i{position:absolute;top:-2px;width:6px;height:16px;border-radius:3px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);transform:translateX(-3px)}
+.pop .lt{height:12px;border-radius:6px;margin:0 0 12px;position:relative;cursor:pointer}
+.pop .lt i{position:absolute;top:-2px;width:6px;height:16px;border-radius:3px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);transform:translateX(-3px)}
+.pop .pl{font-size:11.5px;color:var(--tx3);margin-bottom:6px}
+.pop .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-bottom:12px}
+.pop .grid .sw{width:100%;height:20px}
+.pop .grid .sw.cur{box-shadow:0 0 0 2px var(--accent)}
+.pop .pf{display:flex;align-items:center;gap:6px;border-top:1px solid var(--lineSheet);margin:0 -12px -12px;padding:8px 12px}
+.pop .pf .sp{flex:1}
+
+/* status line under the page */
+.msg{font-size:12px;color:var(--tx2);padding:6px 2px 0;min-height:24px}
+.msg b{color:var(--strong);font-weight:500}
+
+/* comparison strip */
+.cmp{margin-top:34px;width:1180px}
+.cmp h3{font-size:17px;color:#fff;margin:0 0 6px;font-weight:600}
+.cmp p{margin:0 0 12px;color:#9a9a9a;font-size:13.5px;max-width:880px}
+.cmpt{display:grid;grid-template-columns:200px 1fr 1fr;border:1px solid #2c2c2c;border-radius:9px;overflow:hidden;font-size:12.5px}
+.cmpt div{padding:6px 12px;border-top:1px solid #262626;display:flex;align-items:center;gap:8px;color:#bdbdbd}
+.cmpt .h{color:#8f8f8f;font-weight:600;border-top:none;background:#1a1a1a}
+.cmpt code{font:11.5px var(--mono);color:#d6d6d6}
+.cmpt .chip{width:13px;height:13px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);flex:none}
+.cmpt .same{color:#6e6e6e}
+</style></head>
+<body>
+<h1>Тема и настройки редактора</h1>
+<p class="lead">Настройки → Редактор. Новая встроенная тема <b>«VS Code Dark Modern»</b> — цвета взяты из вашего VS Code один раз и зашиты в Hangar, никакой синхронизации. Любую тему можно открыть как <b>«Своя»</b>: нажмите на образец цвета или на слово в превью. Наведите курсор на строку цвета — в превью останутся видны только её токены.</p>
+<div class="mockbar">Оформление окна в макете:
+  <div class="sw2" id="appSw"><button data-app="dark-plus">Dark+</button><button data-app="navy">Navy</button></div>
+</div>
+
+<div class="win" id="win">
+  <div class="wtitle"><div class="lights"><i></i><i></i><i></i></div>Редактор</div>
+  <div class="wbody">
+    <nav class="cats" id="cats"></nav>
+    <main class="page">
+      <h2>Редактор</h2>
+
+      <section class="sec">
+        <div class="sech"><b>Тема</b></div>
+        <div class="card">
+          <div class="tiles" id="tiles"></div>
+          <div class="thint"><span id="thint"></span><span class="sp"></span><span id="thintAct"></span></div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sech"><b>Цвета</b></div>
+        <div class="card ced">
+          <div class="clist" id="clist"></div>
+          <div class="pvw">
+            <div class="pvh"><span class="ttl">Превью</span>
+              <div class="seg" id="pvSeg"><button data-pv="all" class="on">Всё</button><button data-pv="ts">TypeScript</button><button data-pv="json">JSON</button><button data-pv="diff">Diff</button></div>
+            </div>
+            <div class="pv" id="pv"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sech"><b>Шрифт</b></div>
+        <div class="card" id="optFont"></div>
+      </section>
+      <section class="sec">
+        <div class="sech"><b>Отступы и перенос</b></div>
+        <div class="card" id="optIndent"></div>
+      </section>
+      <section class="sec">
+        <div class="sech"><b>Вид</b></div>
+        <div class="card" id="optView"></div>
+      </section>
+      <section class="sec">
+        <div class="sech"><b>Правка</b></div>
+        <div class="card" id="optEdit"></div>
+      </section>
+      <div class="msg" id="msg"></div>
+    </main>
+  </div>
+  <div class="pop" id="pop"></div>
+</div>
+
+<section class="cmp">
+  <h3>Что меняется по сравнению с нынешним «VS Code Dark+» в Hangar</h3>
+  <p>Цвета синтаксиса у Dark Modern те же, что у Dark+: тема VS Code подключает dark_plus.json и меняет только интерфейс. Разница, которую видно, — в фоне, тексте, номерах строк, курсоре, текущей строке и шрифте.</p>
+  <div class="cmpt" id="cmpt"></div>
+</section>
+
+<script>
+/* ---------- data ---------- */
+const APP = {
+  'dark-plus': {bg:'#1e1e1e',lineFill:'#2a2a2a',sel:'#264f78',gutter:'#858585',gutterActive:'#c6c6c6',cursor:'#007acc',indent:'#404040',indentActive:'#454545',ws:'#3c3c3c',
+    find:'#e8a33d59',diffAddLine:'#9bb95533',diffDelLine:'#ff000033',diffAddText:'#73c9911f',diffDelText:'#f487711f',tx:'#cccccc'},
+  'navy': {bg:'#121826',lineFill:'#19202e',sel:'#264f78',gutter:'#5f687a',gutterActive:'#c6cbd6',cursor:'#4ea1f3',indent:'#262f40',indentActive:'#3a4456',ws:'#2b3444',
+    find:'#ffb34059',diffAddLine:'#73c99121',diffDelLine:'#f14c4c26',diffAddText:'#73c9911f',diffDelText:'#f07a6e1f',tx:'#e3e7ef'},
+};
+const DARKPLUS_TOK = {kw:'#569cd6',ctl:'#c586c0',str:'#ce9178',esc:'#d7ba7d',rx:'#d16969',cmt:'#6a9955',num:'#b5cea8',type:'#4ec9b0',fn:'#dcdcaa',vr:'#9cdcfe',cst:'#4fc1ff',key:'#9cdcfe',pun:'#d4d4d4',op:'#d4d4d4',text:'#d4d4d4'};
+const BR = {br1:'#ffd700',br2:'#da70d6',br3:'#179fff'};
+// fromApp: UI colours follow the app theme (Hangar's presets); Dark Modern brings its own, as VS Code does.
+const PRESETS = {
+  'dark-modern': {name:'VS Code Dark Modern', sub:'ваш VS Code', lineStyle:'border',
+    tok:{...DARKPLUS_TOK, pun:'#cccccc', text:'#cccccc'},
+    ui:{bg:'#1f1f1f',line:'#282828',sel:'#264f78',gutter:'#6e7681',gutterActive:'#cccccc',cursor:'#aeafad',indent:'#404040',indentActive:'#707070',ws:'#e3e4e229',find:'#9e6a03',
+        diffAddLine:'#9bb95533',diffDelLine:'#ff000033',diffAddText:'#9ccc2c33',diffDelText:'#ff000033',...BR}},
+  'dark-plus': {name:'VS Code Dark+', sub:'', lineStyle:'fill', fromApp:true, tok:DARKPLUS_TOK},
+  'hangar': {name:'Hangar', sub:'приглушённая', lineStyle:'fill', fromApp:true, italicComments:true,
+    tok:{kw:'#b79bd9',ctl:'#b79bd9',str:'#a9c48f',esc:'#a9c48f',rx:'#a9c48f',cmt:'#75819a',num:'#d5a274',type:'#dcc283',fn:'@tx',vr:'@tx',cst:'#d5a274',key:'#dcc283',pun:'@tx',op:'@tx',text:'@tx'}},
+};
+const ITEMS = [
+  {sec:'Синтаксис', rows:[
+    ['kw','Ключевые слова','const, function, new, as, true, null'],
+    ['ctl','Управление','import, export, return, if, await'],
+    ['str','Строки','"utf8", значения JSON'],
+    ['esc','Экранирование','\\t, \\n внутри строк'],
+    ['rx','Регулярные выражения','/^[a-z-]+$/'],
+    ['cmt','Комментарии','// …'],
+    ['num','Числа','12, 0.5, 0xff'],
+    ['type','Типы и классы','Session, Promise, string'],
+    ['fn','Функции и методы','readFile, parse'],
+    ['vr','Переменные и свойства','path, data.tabs'],
+    ['cst','Константы','MAX_TABS, члены enum'],
+    ['key','Ключи JSON','"name", "version"'],
+    ['pun','Скобки и знаки','; , . — без раскраски по глубине'],
+    ['op','Операторы','= > ...'],
+    ['text','Остальной текст','всё, что не попало в группы'],
+  ]},
+  {sec:'Редактор', rows:[
+    ['bg','Фон'],['line','Текущая строка'],['sel','Выделение'],['find','Найденное'],['gutter','Номера строк'],['gutterActive','Номер текущей строки'],
+    ['cursor','Курсор'],['indent','Направляющие отступов'],['indentActive','Активная направляющая'],['ws','Символы пробелов'],
+    ['brackets','Скобки по глубине'],
+  ]},
+  {sec:'Diff', rows:[
+    ['diffAddLine','Добавленные строки'],['diffDelLine','Удалённые строки'],['diffAddText','Добавленный текст'],['diffDelText','Удалённый текст'],
+  ]},
+];
+const LABEL = Object.fromEntries(ITEMS.flatMap(s => s.rows.map(r => [r[0], r[1]])));
+const HINT = Object.fromEntries(ITEMS.flatMap(s => s.rows.map(r => [r[0], r[2] || ''])));
+const UI_KEYS = ITEMS[1].rows.map(r => r[0]).concat(ITEMS[2].rows.map(r => r[0]));
+
+/* ---------- state ---------- */
+const q = new URLSearchParams(location.search);
+const S = {
+  app: q.get('app') || 'dark-plus',
+  preset: q.get('preset') || 'dark-modern',
+  custom: {base:'dark-modern', over:{}},
+  pv: 'all',
+  o: {font:'Menlo', size:12, lh:0, lig:false, tab:2, detect:true, wrap:'off', ws:'none', cursor:'line', blink:'blink', lineHl:'line',
+      brColor:true, brGuides:'active', indentGuides:true, rainbow:true, todo:true, formatSave:false},
+};
+if (S.preset === 'custom') S.custom.over = {str:'#d69d85', cmt:'#7c8f6e', bg:'#1b1b1b'};
+
+function base(id){ return PRESETS[id === 'custom' ? S.custom.base : id]; }
+function resolve(id){
+  const p = base(id), a = APP[S.app];
+  const tok = {}; for (const k in p.tok) tok[k] = p.tok[k] === '@tx' ? a.tx : p.tok[k];
+  const ui = p.fromApp ? {bg:a.bg,line:a.lineFill,sel:a.sel,gutter:a.gutter,gutterActive:a.gutterActive,cursor:a.cursor,indent:a.indent,indentActive:a.indentActive,ws:a.ws,find:a.find,
+      diffAddLine:a.diffAddLine,diffDelLine:a.diffDelLine,diffAddText:a.diffAddText,diffDelText:a.diffDelText,...BR} : {...p.ui};
+  const all = {...tok, ...ui};
+  if (id === 'custom') Object.assign(all, S.custom.over);
+  return all;
+}
+const cur = () => resolve(S.preset);
+const lineStyle = () => base(S.preset).lineStyle;
+
+/* ---------- samples (Monarch / semantic token groups) ---------- */
+const TS = [
+  '«ctl|import» «pun|{» «fn|readFile» «pun|}» «ctl|from» «str|"node:fs/promises"»«pun|;»',
+  '«ctl|import» «kw|type» «pun|{» «type|Session»«pun|,» «type|SessionFile» «pun|}» «ctl|from» «str|"./model"»«pun|;»',
+  '',
+  '«cmt|// Читает файл сессии. »«todo|TODO:»«cmt| кешировать по mtime»',
+  '«ctl|export» «kw|async» «kw|function» «fn|loadSession»«pun|(»«vr|path»«pun|:» «type|string»«pun|):» «type|Promise»«pun|<»«type|Session»«pun|>» «pun|{»',
+  '  «kw|const» «cst|MAX_TABS» «op|=» «num|12»«pun|;»«caret|»',
+  '  «kw|const» «vr@selbg|raw» «op|=» «ctl|await» «fn|readFile»«pun|(»«vr|path»«pun|,» «str|"utf8"»«pun|);»',
+  '  «kw|const» «vr|data» «op|=» «type|JSON»«pun|.»«fn|parse»«pun|(»«vr|raw»«pun|)» «kw|as» «type|SessionFile»«pun|;»',
+  '  «ctl|if» «pun|(»«vr|data»«pun|.»«vr|tabs»«pun|.»«vr|length» «op|>» «cst|MAX_TABS»«pun|)» «vr|data»«pun|.»«vr|tabs»«pun|.»«vr|length» «op|=» «cst|MAX_TABS»«pun|;»',
+  '  «kw|const» «vr|ok» «op|=» «rx|/^[a-z-]+$/»«pun|.»«fn|test»«pun|(»«vr|data»«pun|.»«vr|name»«pun|);»',
+  '  «ctl|return» «kw|new» «type|Session»«pun|(»«vr|data»«pun|.»«vr|name»«pun|.»«fn|split»«pun|(»«str|"»«esc|\\t»«str|"»«pun|),» «vr|ok»«pun|);»',
+  '«pun|}»',
+];
+const JSONS = [
+  '«pun|{»',
+  '  «key|"name"»«pun|:» «str|"hangar"»«pun|,»',
+  '  «key|"version"»«pun|:» «str|"0.42.0"»«pun|,»',
+  '  «key|"private"»«pun|:» «kw|true»«pun|,»',
+  '  «key|"tabs"»«pun|:» «num|3»«pun|,»',
+  '  «key|"theme"»«pun|:» «kw|null»«pun|,»',
+  '  «key|"agents"»«pun|:» «pun|[»«str|"claude"»«pun|,» «str|"codex"»«pun|]»',
+  '«pun|}»',
+];
+const DIFF = [ // [old, new, kind, text]
+  [6,6,'','  «kw|const» «cst|MAX_TABS» «op|=» «num|12»«pun|;»'],
+  [7,7,'','  «kw|const» «vr|raw» «op|=» «ctl|await» «fn|readFile»«pun|(»«vr|path»«pun|,» «str|"utf8"»«pun|);»'],
+  [8,'','del','  «kw|const» «vr|data» «op|=» «type|JSON»«pun|.»«fn|parse»«pun|(»«vr|raw»«pun|)»«pun@rem|;»'],
+  ['',8,'add','  «kw|const» «vr|data» «op|=» «type|JSON»«pun|.»«fn|parse»«pun|(»«vr|raw»«pun|)»«kw@ins| as»«type@ins| SessionFile»«pun|;»'],
+  [9,9,'','  «ctl|if» «pun|(»«vr|data»«pun|.»«vr|tabs»«pun|.»«vr|length» «op|>» «cst|MAX_TABS»«pun|)» «ctl|return» «vr|data»«pun|;»'],
+];
+
+/* ---------- render: preview ---------- */
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let depth = 0;
+function tokens(src, c){
+  const out = []; let last = 0;
+  const re = /«([\w@]+)\|([^»]*)»/g; let m;
+  const plain = t => t && out.push(span('text', t, ''));
+  while ((m = re.exec(src))) { plain(src.slice(last, m.index)); const [g, flag] = m[1].split('@'); out.push(span(g, m[2], flag || '')); last = re.lastIndex; }
+  plain(src.slice(last));
+  return out.join('');
+  function span(g, t, flag){
+    if (g === 'caret') return '<span class="caret" data-ui="cursor"></span>';
+    if (g === 'todo') return S.o.todo ? `<span class="todo">${esc(t)}</span>` : span('cmt', t, '');
+    const st = `color:${c[g]}` + (g === 'cmt' && base(S.preset).italicComments ? ';font-style:italic' : '');
+    const cls = 'tk' + (flag ? ' ' + flag : '');
+    const ui = flag === 'selbg' ? ' data-ui="sel"' : flag === 'ins' ? ' data-ui="diffAddText"' : flag === 'rem' ? ' data-ui="diffDelText"' : '';
+    if (g === 'pun' && S.o.brColor) {
+      return [...t].map(ch => {
+        if ('([{'.includes(ch)) { const k = 'br' + (depth % 3 + 1); depth++; return `<span class="${cls}" data-g="brackets" data-ui="brackets" style="color:${c[k]}">${esc(ch)}</span>`; }
+        if (')]}'.includes(ch)) { depth = Math.max(0, depth - 1); const k = 'br' + (depth % 3 + 1); return `<span class="${cls}" data-g="brackets" data-ui="brackets" style="color:${c[k]}">${esc(ch)}</span>`; }
+        return `<span class="${cls}" data-g="pun" style="${st}"${ui}>${esc(ch)}</span>`;
+      }).join('');
+    }
+    return `<span class="${cls}" data-g="${g}" style="${st}"${ui}>${wsRender(t, flag)}</span>`;
+  }
+}
+function wsRender(t, flag){
+  const show = S.o.ws === 'all' || (S.o.ws === 'selection' && flag === 'selbg');
+  return show ? esc(t).replace(/ /g, '<span class="ws">·</span>') : esc(t);
+}
+function lineHTML(src, c, opts){
+  const lead = (src.match(/^ */) || [''])[0].length, lvl = lead / 2;
+  let body = src.slice(lead);
+  const pad = ' '.repeat(lvl * S.o.tab);
+  const padHTML = S.o.ws === 'all' ? `<span class="ws">${'·'.repeat(pad.length)}</span>` : pad;
+  let guides = '';
+  if (S.o.indentGuides) for (let i = 0; i < lvl; i++) guides += `<i class="ig${opts.activeGuide && i === 0 ? ' act' : ''}" data-ui="${opts.activeGuide && i === 0 ? 'indentActive' : 'indent'}" style="left:calc(${i * S.o.tab}ch)"></i>`;
+  return guides + padHTML + tokens(body, c);
+}
+function block(lines, c, curLine, activeFrom, activeTo){
+  depth = 0;
+  return '<div class="code">' + lines.map((l, i) => {
+    const n = i + 1;
+    return `<div class="ln${n === curLine ? ' cur' : ''}" ${n === curLine ? 'data-ui="line"' : ''}><span class="g" data-ui="${n === curLine ? 'gutterActive' : 'gutter'}">${n}</span><span class="c">${lineHTML(l, c, {activeGuide: n >= activeFrom && n <= activeTo})}</span></div>`;
+  }).join('') + '</div>';
+}
+function diffBlock(c){
+  depth = 0;
+  return '<div class="code">' + DIFF.map(([a, b, k, l]) =>
+    `<div class="ln ${k}" ${k ? `data-ui="${k === 'add' ? 'diffAddLine' : 'diffDelLine'}"` : ''}><span class="g" data-ui="gutter" style="width:34px;padding-right:6px">${a}</span><span class="g" data-ui="gutter" style="width:34px;padding-right:6px">${b}</span><span class="mk">${k === 'add' ? '+' : k === 'del' ? '−' : ''}</span><span class="c">${lineHTML(l, c, {})}</span></div>`
+  ).join('') + '</div>';
+}
+function renderPreview(){
+  const c = cur(), pv = document.getElementById('pv');
+  const lh = S.o.lh || Math.round(S.o.size * 1.5);
+  const ls = lineStyle();
+  const vars = {'--ef': `"${S.o.font}", Menlo, monospace`, '--efs': S.o.size + 'px', '--elh': lh + 'px', '--tab': S.o.tab,
+    '--e-gutter': c.gutter, '--e-gutterActive': c.gutterActive, '--e-sel': c.sel, '--e-cursor': c.cursor, '--e-indent': c.indent, '--e-indentActive': c.indentActive,
+    '--e-ws': c.ws, '--e-find': c.find, '--e-diffAddLine': c.diffAddLine, '--e-diffDelLine': c.diffDelLine, '--e-diffAddText': c.diffAddText, '--e-diffDelText': c.diffDelText,
+    '--e-lineFill': ls === 'fill' ? c.line : 'transparent', '--e-lineBorder': ls === 'border' ? `inset 0 0 0 2px ${c.line}` : 'none'};
+  for (const k in vars) pv.style.setProperty(k, vars[k]);
+  pv.style.background = c.bg;
+  pv.style.fontVariantLigatures = S.o.lig ? 'normal' : 'none';
+  pv.className = `pv lh-${S.o.lineHl} cs-${S.o.cursor} cb-${S.o.blink} ${S.o.wrap === 'off' ? 'nowrap' : 'wrap'}`;
+  const parts = [];
+  const head = (name, rest) => `<div class="ftab" style="background:color-mix(in srgb, ${c.bg} 88%, #fff 3%)"><b>${name}</b>${rest ? `<span>${rest}</span>` : ''}</div>`;
+  if (S.pv === 'all' || S.pv === 'ts') parts.push(head('session.ts', '') + block(TS, c, 6, 6, 11));
+  if (S.pv === 'all' || S.pv === 'json') parts.push(head('package.json', '') + block(JSONS, c, 0, 0, 0));
+  if (S.pv === 'all' || S.pv === 'diff') parts.push(head('session.ts', 'изменения') + diffBlock(c));
+  pv.innerHTML = parts.join('');
+  pv.querySelectorAll('.tk[data-g]').forEach(el => el.addEventListener('click', e => openPop(el.dataset.g, el)));
+  if (hoverId) highlight(hoverId);
+}
+
+/* ---------- render: colour list ---------- */
+function isMod(id){ return S.preset === 'custom' && (id in S.custom.over || (id === 'brackets' && ['br1','br2','br3'].some(k => k in S.custom.over))); }
+function swatch(color, id, extra = ''){ return `<button class="sw" data-id="${id}" ${extra} title="${LABEL[id] || ''}" aria-label="${LABEL[id] || id}: ${color}"><i style="background:${color}"></i></button>`; }
+function renderList(){
+  const c = cur();
+  const el = document.getElementById('clist');
+  el.innerHTML = ITEMS.map(s => `<div class="cgh">${s.sec}</div>` + s.rows.map(([id, name, hint]) => {
+    const m = isMod(id);
+    const sw = id === 'brackets' ? `<span class="trio">${swatch(c.br1, 'br1')}${swatch(c.br2, 'br2')}${swatch(c.br3, 'br3')}</span>` : swatch(c[id], id);
+    const hx = id === 'brackets' ? '' : c[id].toLowerCase();
+    return `<div class="crow${m ? ' m' : ''}${popId === id || (id === 'brackets' && /^br/.test(popId || '')) ? ' act' : ''}${hoverId === id ? ' hv' : ''}" data-row="${id}" ${hint ? `title="${esc(hint)}"` : ''}>
+      ${m ? '<span class="mod"></span>' : ''}${sw}<span class="nm">${name}</span><span class="hx">${hx}</span>
+      ${m ? `<button class="rs" data-reset="${id}" title="Сбросить к «${PRESETS[S.custom.base].name}»" aria-label="Сбросить"><svg class="i" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.5v3h3"/></svg></button>` : ''}
+    </div>`;
+  }).join('')).join('');
+  el.querySelectorAll('.sw').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openPop(b.dataset.id, b); }));
+  el.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); resetItem(b.dataset.reset); }));
+  el.querySelectorAll('.crow').forEach(r => {
+    r.addEventListener('mouseenter', () => { hoverId = r.dataset.row; highlight(hoverId); });
+    r.addEventListener('mouseleave', () => { hoverId = null; highlight(null); });
+  });
+}
+let hoverId = q.get('hover'), popId = null;
+function highlight(id){
+  const pv = document.getElementById('pv');
+  pv.classList.remove('focus', 'focus-ui');
+  pv.querySelectorAll('.on').forEach(e => e.classList.remove('on'));
+  pv.querySelectorAll('.uion').forEach(e => e.classList.remove('uion'));
+  if (!id) return;
+  if (UI_KEYS.includes(id) && id !== 'brackets') {
+    if (id === 'bg') return;
+    pv.classList.add('focus-ui');
+    pv.querySelectorAll(`[data-ui="${id}"]`).forEach(e => e.classList.add('uion'));
+    return;
+  }
+  pv.classList.add('focus');
+  pv.querySelectorAll(id === 'brackets' ? '[data-g="brackets"]' : `[data-g="${id}"]`).forEach(e => e.classList.add('on'));
+}
+
+/* ---------- tiles ---------- */
+function renderTiles(){
+  const el = document.getElementById('tiles');
+  const ids = ['dark-modern', 'dark-plus', 'hangar', 'custom'];
+  el.innerHTML = ids.map(id => {
+    const c = resolve(id);
+    const it = id === 'custom' ? S.custom : null;
+    const nm = id === 'custom' ? 'Своя' : PRESETS[id].name;
+    const sub = id === 'custom' ? (Object.keys(S.custom.over).length ? `на основе ${PRESETS[S.custom.base].name.replace('VS Code ', '')}` : 'пока не изменена') : PRESETS[id].sub;
+    const ital = base(id).italicComments ? 'font-style:italic;' : '';
+    return `<button class="tile${S.preset === id ? ' on' : ''}" data-tile="${id}">
+      <div class="mini" style="background:${c.bg};color:${c.text}"><span style="color:${c.cmt};${ital}">// ${id === 'custom' ? 'ваши цвета' : 'session.ts'}</span>
+<span style="color:${c.ctl}">export</span> <span style="color:${c.kw}">function</span> <span style="color:${c.fn}">load</span><span style="color:${c.br1}">(</span><span style="color:${c.vr}">p</span>: <span style="color:${c.type}">string</span><span style="color:${c.br1}">)</span> <span style="color:${c.br1}">{</span>
+  <span style="color:${c.kw}">const</span> <span style="color:${c.cst}">MAX</span> = <span style="color:${c.num}">12</span>;
+  <span style="color:${c.ctl}">return</span> <span style="color:${c.str}">"utf8"</span>;</div>
+      <span class="nm">${nm}${sub ? `<i>${sub}</i>` : ''}</span></button>`;
+  }).join('');
+  el.querySelectorAll('.tile').forEach(t => t.addEventListener('click', () => { S.preset = t.dataset.tile; closePop(); all(); }));
+  const hint = document.getElementById('thint'), act = document.getElementById('thintAct');
+  const n = Object.keys(S.custom.over).length;
+  hint.textContent = {
+    'dark-modern': 'Цвета VS Code Dark Modern, включая фон, курсор и номера строк. От темы оформления не зависит.',
+    'dark-plus': 'Синтаксис Dark+. Фон, выделение и номера строк берутся из темы оформления.',
+    'hangar': 'Приглушённая палитра, как в diff интеграции. Фон и номера строк из темы оформления.',
+    'custom': n ? `Изменено цветов: ${n}. Остальное — как в «${PRESETS[S.custom.base].name}».` : `Пока совпадает с «${PRESETS[S.custom.base].name}». Нажмите на любой образец цвета.`,
+  }[S.preset];
+  act.innerHTML = S.preset === 'custom' && n ? '<button class="bgh" id="resetAll"><svg class="i" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.5v3h3"/></svg>Сбросить всё</button>' : '';
+  const ra = document.getElementById('resetAll'); if (ra) ra.addEventListener('click', () => { S.custom.over = {}; say('Все цвета «Своей» сброшены.'); all(); });
+}
+
+/* ---------- popover ---------- */
+function hexParts(h){ h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); return {rgb: '#' + h.slice(0, 6), a: h.length === 8 ? parseInt(h.slice(6), 16) / 255 : 1}; }
+function toHex(rgb, a){ return rgb + (a < 1 ? Math.round(a * 255).toString(16).padStart(2, '0') : ''); }
+function rgb2hsl(hex){ const n = parseInt(hex.slice(1), 16); let r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0, l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+  return [h * 360, s, l]; }
+function hsl2hex(h, s, l){ h /= 360; const f = (p, q, t) => { t = (t + 1) % 1; return t < 1/6 ? p + (q - p) * 6 * t : t < 1/2 ? q : t < 2/3 ? p + (q - p) * (2/3 - t) * 6 : p; };
+  let r, g, b; if (!s) r = g = b = l; else { const q2 = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q2; r = f(p, q2, h + 1/3); g = f(p, q2, h); b = f(p, q2, h - 1/3); }
+  return '#' + [r, g, b].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join(''); }
+
+function openPop(id, anchor){
+  popId = id;
+  const pop = document.getElementById('pop'), win = document.getElementById('win');
+  drawPop();
+  const r = anchor.getBoundingClientRect(), w = win.getBoundingClientRect();
+  let left = r.right - w.left + 12, top = r.top - w.top - 14;
+  if (left + 290 > w.width) left = r.left - w.left - 292;
+  top = Math.min(top, w.height - 330);
+  pop.style.left = left + 'px'; pop.style.top = top + 'px';
+  pop.classList.add('open');
+  renderList();
+}
+function closePop(){ popId = null; document.getElementById('pop').classList.remove('open'); }
+function drawPop(){
+  const id = popId, c = cur(), pop = document.getElementById('pop');
+  const {rgb, a} = hexParts(c[id]); const [h, s, l] = rgb2hsl(rgb);
+  const name = /^br\d/.test(id) ? `Скобки, уровень ${id.slice(2)}` : LABEL[id];
+  const translucent = a < 1 || /^diff|^ws$|^find$/.test(id);
+  const theme = [...new Set(Object.entries(c).filter(([k]) => !/^diff|^ws|^bg|^line|^find|^indent|^gutter$/.test(k)).map(([, v]) => hexParts(v).rgb.toLowerCase()))].slice(0, 20);
+  const changed = S.preset === 'custom' && id in S.custom.over;
+  const where = S.preset === 'custom' ? '' : `<span>Изменение создаст «Свою» на основе «${PRESETS[S.preset].name}»</span>`;
+  pop.innerHTML = `
+    <div class="ph"><div class="big" style="background:${c[id]}"></div><div><b>${name}</b>${where || `<span>${HINT[id] ? esc(HINT[id]) : ''}</span>`}</div></div>
+    <div class="flds"><label class="fld" style="flex:1">HEX<input id="hexIn" value="${rgb}" spellcheck="false" aria-label="HEX"></label>
+      ${translucent ? `<label class="fld" style="width:84px">α<input id="aIn" value="${Math.round(a * 100)}%" aria-label="Прозрачность"></label>` : ''}</div>
+    <div class="hue" id="hue" title="Оттенок"><i style="left:${h / 360 * 100}%"></i></div>
+    <div class="lt" id="lt" title="Яркость" style="background:linear-gradient(90deg,#000,${hsl2hex(h, Math.max(s, .5), .5)},#fff)"><i style="left:${l * 100}%"></i></div>
+    <div class="pl">Цвета этой темы</div>
+    <div class="grid">${theme.map(v => `<button class="sw${v === rgb.toLowerCase() ? ' cur' : ''}" data-pick="${v}" title="${v}"><i style="background:${v}"></i></button>`).join('')}</div>
+    <div class="pf"><button class="bs" id="sysPick"><svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11M2.5 8h11"/></svg>Системная палитра…</button><span class="sp"></span>
+      ${changed ? '<button class="bgh" id="popReset">Сбросить</button>' : ''}</div>
+    <input type="color" id="nativeCol" value="${rgb}" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0">`;
+  const set = v => apply(id, toHex(v, a));
+  pop.querySelector('#hexIn').addEventListener('change', e => { const v = e.target.value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) set((v[0] === '#' ? v : '#' + v).toLowerCase()); });
+  const aIn = pop.querySelector('#aIn'); if (aIn) aIn.addEventListener('change', e => { const n = Math.max(0, Math.min(100, parseInt(e.target.value))) / 100; if (!isNaN(n)) apply(id, toHex(rgb, n)); });
+  pop.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => set(b.dataset.pick)));
+  const drag = (el, fn) => { const go = ev => { const r = el.getBoundingClientRect(); fn(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width))); };
+    el.addEventListener('pointerdown', ev => { el.setPointerCapture(ev.pointerId); go(ev); el.onpointermove = go; el.onpointerup = () => { el.onpointermove = null; }; }); };
+  drag(pop.querySelector('#hue'), t => set(hsl2hex(t * 360, Math.max(s, .35), l)));
+  drag(pop.querySelector('#lt'), t => set(hsl2hex(h, s, Math.max(.04, Math.min(.96, t)))));
+  const nat = pop.querySelector('#nativeCol');
+  pop.querySelector('#sysPick').addEventListener('click', () => nat.click());
+  nat.addEventListener('input', e => set(e.target.value));
+  const pr = pop.querySelector('#popReset'); if (pr) pr.addEventListener('click', () => resetItem(id));
+}
+function apply(id, v){
+  if (S.preset !== 'custom') {
+    S.custom = {base: S.preset, over: {}};
+    say(`Создана тема <b>«Своя»</b> на основе «${PRESETS[S.preset].name}». Встроенная тема не меняется.`);
+    S.preset = 'custom';
+  }
+  if (v === hexParts(resolve(S.custom.base)[id]).rgb && !(id in S.custom.over)) return;
+  S.custom.over[id] = v;
+  all(true);
+}
+function resetItem(id){
+  const keys = id === 'brackets' ? ['br1', 'br2', 'br3'] : [id];
+  keys.forEach(k => delete S.custom.over[k]);
+  all(true);
+}
+function say(html){ document.getElementById('msg').innerHTML = html; }
+
+/* ---------- options ---------- */
+const OPTS = {
+  optFont: [
+    ['Шрифт', () => `<button class="sel" title="Моноширинные шрифты системы">${S.o.font}<svg class="i" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg></button>`, el => el.querySelector('.sel').addEventListener('click', () => { const f = ['Menlo', 'SF Mono', 'JetBrains Mono', 'Monaco']; S.o.font = f[(f.indexOf(S.o.font) + 1) % f.length]; all(); })],
+    ['Размер', () => stepper('size', S.o.size + ' pt'), el => wireStep(el, 'size', 9, 24)],
+    ['Высота строки', () => stepper('lh', S.o.lh ? S.o.lh + ' pt' : 'авто') + (S.o.lh ? '' : `<span class="note">${Math.round(S.o.size * 1.5)} pt — 1,5 размера, как в VS Code</span>`), el => wireStep(el, 'lh', 0, 40)],
+    ['Лигатуры', () => sw('lig')],
+  ],
+  optIndent: [
+    ['Ширина табуляции', () => seg('tab', [[2, '2'], [4, '4'], [8, '8']])],
+    ['Определять по файлу', () => sw('detect') + '<span class="note">отступ уже открытого файла важнее</span>'],
+    ['Перенос строк', () => seg('wrap', [['off', 'Нет'], ['on', 'По ширине окна']])],
+  ],
+  optView: [
+    ['Текущая строка', () => seg('lineHl', [['none', 'Нет'], ['gutter', 'Номер'], ['line', 'Строка'], ['all', 'Номер и строка']])],
+    ['Курсор', () => seg('cursor', [['line', 'Линия'], ['block', 'Блок'], ['underline', 'Подчёркивание']])],
+    ['Мигание курсора', () => seg('blink', [['blink', 'Мигает'], ['smooth', 'Плавно'], ['solid', 'Не мигает']])],
+    ['Пробелы', () => seg('ws', [['none', 'Не показывать'], ['selection', 'В выделении'], ['all', 'Все']])],
+    ['Скобки по глубине', () => sw('brColor')],
+    ['Направляющие скобок', () => seg('brGuides', [['off', 'Нет'], ['active', 'Активная пара'], ['all', 'Все']])],
+    ['Направляющие отступов', () => sw('indentGuides')],
+    ['Радужные отступы', () => sw('rainbow')],
+    ['Подсветка TODO', () => sw('todo')],
+  ],
+  optEdit: [
+    ['Форматировать при сохранении', () => sw('formatSave') + '<span class="note">TypeScript и языки с сервером</span>'],
+  ],
+};
+const sw = k => `<button class="swt${S.o[k] ? ' on' : ''}" data-sw="${k}" role="switch" aria-checked="${S.o[k]}"></button>`;
+const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-seg="${k}" data-v="${v}" class="${S.o[k] == v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const stepper = (k, label) => `<div class="step"><button data-dec="${k}" aria-label="Меньше">−</button><span>${label}</span><button data-inc="${k}" aria-label="Больше">+</button></div>`;
+function wireStep(el, k, lo, hi){
+  el.querySelector('[data-dec]').addEventListener('click', () => { S.o[k] = k === 'lh' && S.o[k] && S.o[k] <= Math.round(S.o.size * 1.2) ? 0 : Math.max(lo, (S.o[k] || Math.round(S.o.size * 1.5)) - 1); all(); });
+  el.querySelector('[data-inc]').addEventListener('click', () => { S.o[k] = Math.min(hi, (S.o[k] || (k === 'lh' ? Math.round(S.o.size * 1.5) : 0)) + 1); all(); });
+}
+function renderOpts(){
+  for (const [box, rows] of Object.entries(OPTS)) {
+    const el = document.getElementById(box);
+    el.innerHTML = rows.map(([l, f]) => `<div class="row"><span class="lb">${l}</span><span class="val">${f()}</span></div>`).join('');
+    [...el.querySelectorAll('.row')].forEach((r, i) => rows[i][2] && rows[i][2](r));
+    el.querySelectorAll('[data-sw]').forEach(b => b.addEventListener('click', () => { S.o[b.dataset.sw] = !S.o[b.dataset.sw]; all(); }));
+    el.querySelectorAll('[data-seg]').forEach(b => b.addEventListener('click', () => { const v = b.dataset.v; S.o[b.dataset.seg] = isNaN(+v) ? v : +v; all(); }));
+  }
+}
+
+/* ---------- chrome ---------- */
+const CATS = [['Общие', '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4"/>'],
+  ['Оформление', '<circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 0 0 12z" fill="currentColor"/>'],
+  ['Редактор', '<path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"/>'],
+  ['Уведомления', '<path d="M4 11V7a4 4 0 0 1 8 0v4l1 1H3z"/><path d="M6.5 13.5a1.5 1.5 0 0 0 3 0"/>'],
+  ['Интеграции', '<path d="M6 3v3M10 3v3M4.5 6h7v2a3.5 3.5 0 0 1-7 0zM8 11.5V14"/>'],
+  ['Дополнительно', '<circle cx="3.5" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="12.5" cy="8" r="1"/>']];
+document.getElementById('cats').innerHTML = CATS.map(([n, p]) => `<div class="cat${n === 'Редактор' ? ' on' : ''}"><svg class="i" viewBox="0 0 16 16">${p}</svg>${n}</div>`).join('');
+
+function renderCmp(){
+  const dm = resolve('dark-modern'); const save = S.app; S.app = 'dark-plus'; const dp = resolve('dark-plus'); S.app = save;
+  const rows = [
+    ['Фон', dp.bg, dm.bg], ['Текст и знаки', dp.text, dm.text], ['Номера строк', dp.gutter, dm.gutter], ['Номер текущей', dp.gutterActive, dm.gutterActive],
+    ['Курсор', dp.cursor, dm.cursor], ['Текущая строка', dp.line + ' заливка', dm.line + ' рамка 2 px'], ['Найденное', dp.find, dm.find],
+    ['Добавленный текст в diff', dp.diffAddText, dm.diffAddText], ['Удалённый текст в diff', dp.diffDelText, dm.diffDelText],
+    ['Шрифт', 'SF Mono 13 / 20', 'не входит в тему: Menlo 12, высота авто (18) — ставится в «Шрифт» ниже, как в вашем VS Code'],
+    ['Синтаксис', 'Dark+', 'тот же Dark+ — dark_modern.json подключает dark_plus.json'],
+  ];
+  const chip = v => /^#/.test(v) ? `<span class="chip" style="background:${v.split(' ')[0]}"></span><code>${v}</code>` : `<span>${v}</span>`;
+  document.getElementById('cmpt').innerHTML = '<div class="h">Что</div><div class="h">Сейчас: Dark+ в теме Dark+</div><div class="h">Будет: VS Code Dark Modern</div>' +
+    rows.map(([n, a, b]) => `<div>${n}</div><div>${chip(a)}</div><div${a === b ? ' class="same"' : ''}>${chip(b)}</div>`).join('');
+}
+
+function all(keepPop){
+  document.getElementById('win').className = 'win ' + (S.app === 'navy' ? 't-navy' : 't-dp');
+  document.body.className = S.app === 'navy' ? 't-navy' : 't-dp';
+  document.querySelectorAll('#appSw button').forEach(b => b.classList.toggle('on', b.dataset.app === S.app));
+  renderTiles(); renderList(); renderPreview(); renderOpts();
+  if (keepPop && popId) drawPop(); else if (!keepPop) closePop();
+}
+document.querySelectorAll('#appSw button').forEach(b => b.addEventListener('click', () => { S.app = b.dataset.app; all(); }));
+document.querySelectorAll('#pvSeg button').forEach(b => b.addEventListener('click', () => {
+  S.pv = b.dataset.pv; document.querySelectorAll('#pvSeg button').forEach(x => x.classList.toggle('on', x === b)); renderPreview(); }));
+document.addEventListener('click', e => { if (popId && !e.target.closest('.pop') && !e.target.closest('.sw') && !e.target.closest('.tk')) { closePop(); renderList(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && popId) { closePop(); renderList(); } });
+all(); renderCmp();
+if (S.preset === 'custom') say(`Создана тема <b>«Своя»</b> на основе «${PRESETS[S.custom.base].name}». Встроенная тема не меняется.`);
+if (q.get('pop')) { const b = document.querySelector(`#clist .sw[data-id="${q.get('pop')}"]`); if (b) openPop(q.get('pop'), b); }
+if (hoverId) { renderList(); highlight(hoverId); }
+</script>
+</body></html>

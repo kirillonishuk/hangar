@@ -144,7 +144,6 @@
 "fromBranch" = "От ветки";
 "newBranch" = "Новая ветка";
 "fromName" = "из названия";
-"currentBranch" = "текущая ветка: %@";
 "refreshHelp" = "Обновить ветки (git fetch)";
 "searchBranches" = "поиск ветки";
 "branchesRemote" = "remote";
@@ -274,10 +273,10 @@
 "statusShowChanges" = "Показать изменения";
 "segmentChanges" = "Changes %d";
 "segmentChangesTitle" = "Changes";
-"changesHintBase" = "База: %@";
-"changesHintToBase" = "⌥B — сравнить с %@";
+"changesBaseNone" = "нет базы";
+"changesHintToBase" = "Сравнить с %@ — ⌥B";
 "changesHintUncommitted" = "Незакоммиченное";
-"changesHintToUncommitted" = "⌥B — незакоммиченное";
+"changesHintToUncommitted" = "Только незакоммиченное — ⌥B";
 "baseMissing" = "Базовая ветка %@ не найдена — показано незакоммиченное";
 "noChanges" = "Нет изменений";
 "statusTruncated" = "Показаны первые %d изменений";
@@ -413,8 +412,11 @@
 "paneOne" = "%d панель";
 "paneFew" = "%d панели";
 "paneMany" = "%d панелей";
+"notifySectionEvents" = "События";
+"notifySectionSystem" = "Dock и система";
 "statusMachineHelp" = "Машина, на которой идёт сессия";
 "statusNextWorkingHelp" = "Следующая работающая сессия";
+"statusNextWaitingHelp" = "Следующий агент проекта, который ждёт ответа";
 "statusFailedHelp" = "Показать сессию с ошибкой";
 "statusPanesHelp" = "Панели во вкладке";
 "agentCountOne" = "%d агент";

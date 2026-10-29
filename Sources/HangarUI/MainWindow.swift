@@ -932,20 +932,15 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         quitAlertShown = true
         // Quit from Settings («Обновить до …» there): the question would hide behind that window.
         if NSApp.isActive, !window.isKeyWindow { window.makeKeyAndOrderFront(nil) }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = text.message
-        alert.informativeText = text.info
-        alert.addButton(withTitle: L10n.quit).hasDestructiveAction = true
-        alert.addButton(withTitle: L10n.cancel)
-        alert.beginSheetModal(for: window) { [weak self] response in
-            MainActor.assumeIsolated {
-                self?.quitAlertShown = false
-                let ok = response == .alertFirstButtonReturn
-                if ok { self?.quitConfirmed = true }
-                then(ok)
-            }
-        }
+        window.beginHangarSheet({ end in
+            ConfirmSheet(message: text.message, info: text.info, button: L10n.quit,
+                         onConfirm: { _ in end(.OK) }, onCancel: { end(.cancel) })
+        }, done: { [weak self] response in
+            self?.quitAlertShown = false
+            let ok = response == .OK
+            if ok { self?.quitConfirmed = true }
+            then(ok)
+        })
     }
 
     /// For `applicationShouldTerminate`.
@@ -958,11 +953,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Non-modal feedback for a refused close/quit: a sheet on the new-task sheet (or on the window).
     public func notifyCreatingTask() {
         guard let host = sheetWindow ?? window, host.attachedSheet == nil else { return }
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = L10n.creatingWorktreeWait
-        alert.addButton(withTitle: L10n.ok)
-        alert.beginSheetModal(for: host)
+        host.beginHangarSheet { end in ConfirmSheet(message: L10n.creatingWorktreeWait, onConfirm: { _ in end(.OK) }) }
     }
 
     private func makeSheet(over window: NSWindow) -> NSWindow {
@@ -1088,34 +1079,21 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// switch row, and `then` gets its state.
     private func confirm(_ message: String, _ info: String, _ button: String, checkbox: String?, _ then: @escaping (Bool) -> Void) {
         guard let window, window.attachedSheet == nil else { return }
-        let sheet = makeSheet(over: window)
-        let close: () -> Void = { [weak self, weak sheet] in
-            guard let self, let sheet else { return }
-            window.endSheet(sheet)
-            self.sheetWindow = nil
-        }
-        let view = ConfirmSheet(message: message, info: info, button: button, checkbox: checkbox,
-                                onConfirm: { checked in close(); then(checked) }, onCancel: close)
-        begin(sheet, view, on: window)
+        sheetWindow = window.beginHangarSheet({ end in
+            ConfirmSheet(message: message, info: info, button: button, checkbox: checkbox,
+                         onConfirm: { checked in end(.OK); then(checked) }, onCancel: { end(.cancel) })
+        }, done: { [weak self] _ in self?.sheetWindow = nil })
     }
 
     private func showError(_ message: String, _ info: String) {
         guard let window, window.attachedSheet == nil else { return }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = message
-        alert.informativeText = info
-        alert.addButton(withTitle: L10n.ok)
-        alert.beginSheetModal(for: window)
+        window.beginHangarSheet { end in ConfirmSheet(message: message, info: info, onConfirm: { _ in end(.OK) }) }
     }
 
     private func showConfigWarning(_ text: String) {
         guard let window else { return }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L10n.configNotApplied
-        alert.informativeText = "\(text)\n\(L10n.usingDefaults)"
-        alert.addButton(withTitle: L10n.ok)
-        alert.beginSheetModal(for: window)
+        window.beginHangarSheet { end in
+            ConfirmSheet(message: L10n.configNotApplied, info: "\(text)\n\(L10n.usingDefaults)", onConfirm: { _ in end(.OK) })
+        }
     }
 }

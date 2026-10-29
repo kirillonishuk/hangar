@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Hangar — кликабельные элементы v2</title>
+<!--
+  Макет v2: язык кнопок, который выглядит родным для Hangar (Dark+, плоские поверхности, линии-разделители).
+  Основа — вариант B из controls-v1 («Заливки»), переделанный под приложение (B′), и одна альтернатива для сравнения (C).
+  Каждый вариант показан в шести местах, как они выглядят сейчас: инспектор (Changes, Поиск), «Входящие», «Сессии», пустая сессия, тост.
+  Токены — ThemePalette.darkPlus. Размеры в px = pt 1:1. Наведение/нажатие показаны статично (.h / .p) и работают живьём.
+-->
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#1e1e1e;--titlebar:#252526;--panel:#252526;--sheet:#252526;--field:#3c3c3c;--hover:#2a2d2e;--hoverStrong:#37373d;--selected:#37373d;
+  --menuHover:#04395e;--moreBg:#45494e;--line:#333333;--lineSheet:#3c3c3c;--control:#3c3c3c;--controlStrong:#454545;--button:#3a3d41;
+  --tx:#cccccc;--strong:#ffffff;--tx2:#a3a3a3;--tx3:#6e6e6e;--accent:#007acc;--accentText:#3794ff;--primary:#0e639c;--primaryText:#ffffff;
+  --working:#4fc1ff;--waiting:#e8a33d;--done:#89d185;--failed:#f14c4c;--failedText:#f48771;--gitA:#73c991;--gitM:#e2c08d;--gitD:#f48771;--claude:#d97757;
+  --a14:rgba(0,122,204,.14);--a25:rgba(0,122,204,.25);--a24:rgba(0,122,204,.24);
+  --primaryHover:#1177bb;--primaryPressed:#0b5180;--w7:rgba(255,255,255,.07);--w12:rgba(255,255,255,.12);
+  --mono:"JetBrains Mono","SF Mono",Menlo,monospace;
+}
+body{margin:0;background:#151515;color:#c8c8c8;font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:36px 40px 56px;width:1640px}
+h1{font-size:26px;font-weight:600;color:#fff;margin:0 0 8px;letter-spacing:-.01em}
+.lead{color:#9a9a9a;max-width:1080px;margin:0;font-size:14.5px}
+.lead b{color:#e6e6e6;font-weight:500}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+svg.b{fill:currentColor;flex:none;display:block}
+.mono{font-family:var(--mono)}
+code{font:11.5px var(--mono);color:#c9c9c9}
+
+/* ===== direction sections ===== */
+.dirsec{margin-top:44px;padding-top:26px;border-top:1px solid #2a2a2a}
+.dir-h{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.dir-h h2{font-size:21px;color:#fff;margin:0;font-weight:600}
+.dir-h .tag{font-size:12.5px;color:#89d185;border:1px solid rgba(137,209,133,.35);border-radius:10px;padding:0 9px;height:20px;display:inline-flex;align-items:center}
+.dir-h .tag.alt{color:#a3a3a3;border-color:#3c3c3c}
+.dir-sub{color:#9a9a9a;font-size:14px;max-width:1180px;margin:0 0 18px}
+.rules{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;margin-bottom:20px}
+.rule{padding:12px 14px 13px;border-left:1px solid #2a2a2a;background:#191919}
+.rule:first-child{border-left:none}
+.rule b{display:block;color:#eee;font-size:13px;font-weight:600;margin-bottom:8px}
+.rule .demo{display:flex;align-items:center;gap:8px;min-height:30px;margin-bottom:8px;flex-wrap:wrap}
+.rule p{margin:0;font-size:12px;color:#8f8f8f;line-height:1.45}
+
+.board{display:grid;gap:22px 22px;align-items:start}
+.b1{grid-template-columns:340px 340px 1fr}
+.b2{grid-template-columns:900px 1fr;margin-top:24px}
+.shot{position:relative}
+.cap{font-size:12.5px;color:#8f8f8f;margin-top:9px;line-height:1.45;max-width:640px}
+.cap b{color:#d6d6d6;font-weight:500}
+
+/* ===== app chrome (faithful to dark-plus screenshots) ===== */
+.app{position:relative;font-size:13px;color:var(--tx);border:1px solid #3c3c3c;border-radius:10px;overflow:hidden}
+.titlebar{height:38px;background:var(--titlebar);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center;position:relative;font-size:13px}
+.titlebar .t1{color:var(--tx2)}.titlebar .t2{color:var(--strong);font-weight:500}
+.titlebar .dotsep{color:var(--tx3);margin:0 7px}
+.tbtn{position:absolute;top:5px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--tx2)}
+.tbtn.h{background:var(--hover);color:var(--strong)}
+.insp{width:340px;height:350px;background:var(--panel)}
+.seg{margin:8px 10px 0;height:28px;background:var(--field);border-radius:6px;padding:2px;display:flex;font-size:12px;color:var(--tx2)}
+.seg div{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:4px}
+.seg .on{color:var(--strong)}
+.seg .cnt{font-size:11.5px;font-weight:500;background:rgba(110,110,110,.30);color:var(--tx);border-radius:8px;height:16px;padding:0 5px;display:inline-flex;align-items:center}
+.modebar{height:36px;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--line)}
+.modebar .sum{margin-left:auto;font-size:11.5px;color:var(--tx3);white-space:nowrap}
+.frow{height:24px;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;position:relative}
+.frow .nm{white-space:nowrap}
+.frow .dir{all:unset;color:var(--tx3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.frow .n{font:11.5px var(--mono);width:28px;text-align:right}
+.frow .st{font:600 11.5px var(--mono);width:14px;text-align:center}
+.frow.h{background:var(--hover)}
+.ico{width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center}
+
+/* search panel */
+.sfield{height:28px;margin:10px 10px 0;border:1px solid var(--control);background:var(--field);border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 3px 0 8px}
+.sfield.focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,122,204,.18)}
+.sfield .q{flex:1;color:var(--tx);font-size:13.5px}
+.srow{display:flex;align-items:center;gap:6px;margin:10px 10px 0}
+.srow .sfield{flex:1;margin:0}
+.glob{height:28px;margin:6px 10px 0;border:1px solid var(--control);background:var(--field);border-radius:7px;display:flex;align-items:center;padding:0 9px;font:12.5px var(--mono);color:var(--tx)}
+.glob.ph{color:var(--tx3);font:13.5px -apple-system,sans-serif}
+.sstat{font-size:11.5px;color:var(--tx3);padding:9px 14px 4px}
+.hitf{height:24px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:13px}
+.hitf .dir{all:unset;color:var(--tx3);font-size:11.5px}
+.hitf .c{margin-left:auto;font-size:11.5px;color:var(--tx);background:rgba(110,110,110,.30);border-radius:8px;padding:0 6px;height:16px;display:flex;align-items:center}
+.hit{height:22px;display:flex;align-items:center;padding:0 10px 0 36px;font:12px var(--mono);color:var(--tx2);white-space:nowrap;overflow:hidden}
+.hit .m{background:rgba(234,92,0,.33);color:var(--strong);border-radius:2px}
+.hit .ln{color:var(--tx3);width:26px;flex:none}
+
+/* inbox */
+.inboxwrap{position:relative;width:520px;height:418px;background:var(--bg);border:1px solid #3c3c3c;border-radius:10px;overflow:hidden}
+.inboxwrap .titlebar{border-radius:0}
+.pop{position:absolute;right:22px;top:48px;width:400px;background:var(--sheet);border:1px solid var(--controlStrong);border-radius:12px;padding:8px;box-shadow:0 20px 46px rgba(0,0,0,.6);font-size:13px;color:var(--tx)}
+.pop:before{content:"";position:absolute;top:-7px;right:66px;width:12px;height:12px;background:var(--sheet);border-left:1px solid var(--controlStrong);border-top:1px solid var(--controlStrong);transform:rotate(45deg)}
+.irow{display:flex;gap:8px;padding:6px 8px;border-radius:6px;position:relative}
+.irow.h{background:var(--hover)}
+.irow .rs{height:16px;display:flex;align-items:center}
+.irow .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.irow .l1{height:16px;display:flex;align-items:center;font-size:12px;color:var(--tx2);gap:8px}
+.irow .l1 .tm{margin-left:auto;font-size:11.5px;color:var(--tx3)}
+.irow .l2{height:22px;display:flex;align-items:center;gap:6px}
+.irow .l2 .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.isep{height:1px;background:var(--lineSheet);margin:6px -8px}
+.ihead{display:flex;align-items:center;height:24px;padding:0 8px;font-size:11.5px;color:var(--tx3);margin-top:2px}
+.ihead .sp{flex:1}
+
+/* sessions */
+.main{background:var(--bg)}
+.sessions{width:900px;height:420px}
+.shead{height:52px;display:flex;align-items:center;padding:0 16px 0 20px;gap:10px;border-bottom:1px solid var(--line)}
+.shead .ttl{font-size:15px;font-weight:600;color:var(--strong)}
+.shead .meta{color:var(--tx2);font-size:13px}
+.shead .meta span{color:var(--tx3)}
+.pills{margin-left:auto;height:28px;background:var(--field);border-radius:7px;padding:2px;display:flex;font-size:12px;color:var(--tx2)}
+.pills div{padding:0 14px;display:flex;align-items:center;border-radius:5px}
+.pills .on{background:var(--moreBg);color:var(--strong)}
+.shead .sfield{margin:0;width:250px}
+.grp{font-size:12px;font-weight:600;color:var(--tx3);padding:12px 20px 4px}
+.srow2{height:34px;display:flex;align-items:center;gap:10px;margin:0 8px;padding:0 12px;border-radius:6px;position:relative}
+.srow2.h{background:var(--hover)}
+.srow2 .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow2 .mt{display:flex;align-items:center;gap:22px;color:var(--tx2);font-size:12.5px;white-space:nowrap}
+.srow2 .mt .br{display:flex;align-items:center;gap:5px}
+.srow2 .mt .t3{color:var(--tx3)}
+.srow2 .mt .tm{width:44px;text-align:right;color:var(--tx3)}
+.acts{display:none;align-items:center;gap:4px}
+.srow2.h .acts,.srow2:hover .acts,.irow.h .acts,.irow:hover .acts{display:flex}
+.srow2.h .hide-h,.srow2:hover .hide-h{display:none}
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:var(--sheet);border:1px solid var(--controlStrong);border-radius:12px;padding:6px 6px 6px 16px;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--tx);box-shadow:0 14px 36px rgba(0,0,0,.5);white-space:nowrap}
+
+/* empty session */
+.empty{width:100%;height:420px;display:flex;flex-direction:column}
+.tabstrip{height:34px;background:var(--titlebar);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 10px;color:var(--tx2)}
+.ecenter{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.enote{color:var(--tx3);font-size:13px;margin-bottom:12px}
+.elist{width:430px}
+.elist .lh{font-size:12px;font-weight:600;color:var(--tx3);padding:0 8px 4px}
+.crow{height:30px;display:flex;align-items:center;gap:9px;padding:0 8px;border-radius:6px;font-size:13px;position:relative}
+.crow.h{background:var(--hover)}
+.crow .tm{margin-left:auto;color:var(--tx3);font-size:12px}
+.ebtns{display:flex;gap:12px;margin-top:16px}
+.bottombar{height:28px;background:var(--titlebar);border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:11.5px;font-weight:600;color:var(--tx2)}
+
+/* cursor + tooltip */
+.cur{position:absolute;width:16px;height:18px;pointer-events:none;z-index:8}
+.cur svg{width:16px;height:18px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.7))}
+.tip{position:absolute;z-index:9;background:#2b2b2c;border:1px solid #4a4a4a;color:#dcdcdc;font-size:12px;border-radius:5px;padding:2px 8px;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,.45)}
+.tip .k{color:#a3a3a3}
+
+/* ================= B′ — soft fills ================= */
+/* primary: the one thing a row is for */
+.bp{height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 10px;border-radius:6px;background:var(--primary);font-size:12px;color:var(--primaryText);white-space:nowrap;cursor:pointer;font-weight:500;flex:none}
+.bp:hover,.bp.h{background:var(--primaryHover)}
+.bp.p,.bp:active{background:var(--primaryPressed)}
+/* soft: VS Code secondary button, fill = button */
+.bs{height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 9px;border-radius:6px;background:var(--button);font-size:12px;color:var(--tx);white-space:nowrap;cursor:pointer;flex:none}
+.bs svg{width:12px;height:12px;color:var(--tx2)}
+.bs:hover,.bs.h{background:var(--moreBg);color:var(--strong)}
+.bs:hover svg,.bs.h svg{color:var(--strong)}
+.bs.p,.bs:active{background:#2f3135}
+.bs.icon{width:22px;padding:0;justify-content:center}
+.bs.danger:hover,.bs.danger.h{background:rgba(241,76,76,.22)}
+.bs.danger:hover svg,.bs.danger.h svg{color:var(--failedText)}
+.bs.dis{opacity:.38;cursor:default}
+/* ghost: header actions, no fill until hover */
+.bg{height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 7px;border-radius:6px;font-size:11.5px;color:var(--tx2);white-space:nowrap;cursor:pointer;flex:none}
+.bg:hover,.bg.h{background:var(--hoverStrong);color:var(--strong)}
+.bg.p,.bg:active{background:var(--moreBg)}
+/* chip: = Git filter chip (24, 8/6, r6, accent 14% + 25% border when on) */
+.chip{height:24px;display:inline-flex;align-items:center;gap:5px;padding:0 8px;border-radius:6px;border:1px solid transparent;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer;flex:none}
+.chip svg{width:12px;height:12px}
+.chip:hover,.chip.h{background:var(--hoverStrong);color:var(--tx)}
+.chip.p{background:var(--moreBg)}
+.chip.on{background:var(--a14);border-color:var(--a25);color:var(--accentText);cursor:default}
+.chip .mono{font-size:11.5px}
+/* big choice (empty session) */
+.bk{height:30px;display:inline-flex;align-items:center;gap:8px;padding:0 14px 0 11px;border-radius:7px;background:var(--button);color:var(--strong);font-size:13.5px;cursor:pointer}
+.bk:hover,.bk.h{background:var(--moreBg)}
+.bk.p,.bk:active{background:var(--hoverStrong)}
+.bk .k{color:var(--tx2);font-size:12px}
+/* field toggles: same "on" as chip */
+.tg{width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid transparent;font:500 11.5px var(--mono);color:var(--tx2);cursor:pointer;flex:none;position:relative}
+.tg svg{width:13px;height:13px}
+.tg:hover,.tg.h{background:var(--hoverStrong);color:var(--strong)}
+.tg.on{background:var(--a14);border-color:var(--a25);color:var(--accentText)}
+.tg.big{width:28px;height:28px;border-radius:6px}
+.tg.big svg{width:15px;height:15px}
+.lnk{color:var(--accentText);cursor:pointer}
+.lnk:hover,.lnk.h{text-decoration:underline;text-underline-offset:2px}
+.focus{outline:1px solid #007fd4;outline-offset:1px}
+
+/* ================= C — icons on hover ================= */
+.ib{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;color:var(--tx2);cursor:pointer;flex:none}
+.ib svg{width:15px;height:15px}
+.ib:hover,.ib.h{background:var(--w7);color:var(--strong)}
+.ib.p,.ib:active{background:var(--w12);color:var(--strong)}
+.ib.danger:hover,.ib.danger.h{color:var(--failedText)}
+.lb{height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 6px;border-radius:5px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer;flex:none}
+.lb svg{width:13px;height:13px}
+.lb:hover,.lb.h{background:var(--w7);color:var(--strong)}
+.lb.p,.lb:active{background:var(--w12)}
+.lb.acc{color:var(--accentText);font-weight:500}
+.lb.acc:hover,.lb.acc.h{background:var(--a14);color:var(--accentText)}
+.lb.acc.p{background:var(--a24)}
+.dd{height:24px;display:inline-flex;align-items:center;gap:3px;padding:0 4px 0 7px;border-radius:5px;font-size:12px;color:var(--tx);cursor:pointer;white-space:nowrap}
+.dd svg{width:12px;height:12px;color:var(--tx2)}
+.dd:hover,.dd.h,.dd.open{background:var(--w7)}
+.menu{position:absolute;z-index:7;background:var(--sheet);border:1px solid var(--controlStrong);border-radius:8px;padding:4px;box-shadow:0 18px 40px rgba(0,0,0,.6);font-size:13px;color:var(--tx);min-width:250px}
+.mi{height:24px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;white-space:nowrap}
+.mi .ck{width:14px;color:var(--tx)}
+.mi .k{margin-left:auto;color:var(--tx3);font-size:12px;padding-left:18px}
+.mi.h{background:var(--menuHover);color:#fff}.mi.h .k{color:#c8d8e8}
+.msep{height:1px;background:var(--lineSheet);margin:4px 4px}
+.mhint{font-size:11.5px;color:var(--tx3);padding:2px 8px 3px}
+.tgc{width:22px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid transparent;font:500 11.5px var(--mono);color:var(--tx2);cursor:pointer;flex:none}
+.tgc:hover,.tgc.h{background:var(--w7);color:var(--strong)}
+.tgc.on{background:rgba(36,137,219,.32);border-color:#007acc;color:var(--strong)}
+.startlink{color:var(--accentText)}
+.crow.act:hover .startlink,.crow.act.h .startlink{color:#5aa9ff}
+
+/* states table */
+.states{margin-top:24px;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;background:var(--panel)}
+.states table{border-collapse:collapse;width:100%;font-size:12.5px}
+.states th{font-weight:500;color:#8f8f8f;text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);background:#1f1f1f;font-size:12px}
+.states td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--tx)}
+.states tr:last-child td{border-bottom:none}
+.states td:first-child{color:#d6d6d6;width:220px}
+.states td:first-child small{display:block;color:#7c7c7c;font-size:11.5px}
+.states td.on-bg{background:var(--bg)}
+
+.verdict{margin-top:44px;padding:18px 22px;border:1px solid #2f4a63;border-radius:12px;background:#17202a;color:#cdd6df;font-size:14px;max-width:1300px}
+.verdict b{color:#fff}
+.verdict p{margin:6px 0 0}
+</style></head><body>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="g-sidebarLeft" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M6 2.75v10.5"/></symbol>
+<symbol id="g-sidebarRight" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M10 2.75v10.5"/></symbol>
+<symbol id="g-add" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="g-branch" viewBox="0 0 16 16"><path d="M4 2.25v8"/><circle cx="4" cy="12" r="1.75"/><circle cx="12" cy="4" r="1.75"/><path d="M12 5.75A6.25 6.25 0 0 1 5.75 12"/></symbol>
+<symbol id="g-terminal" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.75 6.25 6.75 8l-2 1.75M8.75 10h2.5"/></symbol>
+<symbol id="g-gauge" viewBox="0 0 16 16"><path d="M2.75 12A5.75 5.75 0 1 1 13.25 12"/><path d="M8 9.65 10.9 6.9"/><circle cx="8" cy="9.65" r=".6"/></symbol>
+<symbol id="g-archive" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="3.25" rx="1"/><path d="M3.25 6v5.25a2 2 0 0 0 2 2h5.5a2 2 0 0 0 2-2V6M6.5 8.75h3"/></symbol>
+<symbol id="g-close" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></symbol>
+<symbol id="g-chevronDown" viewBox="0 0 16 16"><path d="M4.5 6.25 8 9.75l3.5-3.5"/></symbol>
+<symbol id="g-chevronUp" viewBox="0 0 16 16"><path d="M4.5 9.75 8 6.25l3.5 3.5"/></symbol>
+<symbol id="g-chevronRight" viewBox="0 0 16 16"><path d="M6.25 4.5 9.75 8l-3.5 3.5"/></symbol>
+<symbol id="g-more" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"/></symbol>
+<symbol id="g-openExternal" viewBox="0 0 16 16"><path d="M14.25 9.25v2a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2h3.5M10.5 2.75h3.75v3.75M14.25 2.75 8.5 8.5"/></symbol>
+<symbol id="g-restore" viewBox="0 0 16 16"><path d="M5.5 3.25 2.75 6 5.5 8.75M2.75 6h6.75a3.5 3.5 0 0 1 0 7H6.5"/></symbol>
+<symbol id="g-trash" viewBox="0 0 16 16"><path d="M2.25 4.25h11.5M6 4.25v-1a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M3.75 4.25v7a2 2 0 0 0 2 2h4.5a2 2 0 0 0 2-2v-7M6.75 7v3.5M9.25 7v3.5"/></symbol>
+<symbol id="g-checkServer" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="m5.25 8.25 1.85 1.85 3.65-3.85"/></symbol>
+<symbol id="g-check" viewBox="0 0 16 16"><path d="m3.25 8.5 3 3 6.5-7"/></symbol>
+<symbol id="g-reply" viewBox="0 0 16 16"><path d="M6.25 3.75 2.75 7.25l3.5 3.5"/><path d="M2.75 7.25h6.5a4 4 0 0 1 4 4v1"/></symbol>
+<symbol id="g-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.25"/><path d="m10.25 10.25 3 3"/></symbol>
+<symbol id="g-funnel" viewBox="0 0 16 16"><path d="M2.25 3.25h11.5l-4.5 5.25v4.25l-2.5 1V8.5z"/></symbol>
+<symbol id="g-bell" viewBox="0 0 16 16"><path d="M4 11.25V7.5a4 4 0 0 1 8 0v3.75l1.25 1H2.75zM6.5 13.75h3"/></symbol>
+<symbol id="g-ask" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25"/><path d="M6.25 6.4a1.85 1.85 0 1 1 2.6 1.7c-.55.25-.85.7-.85 1.3v.2M8 11.6h.01"/></symbol>
+<symbol id="g-shield" viewBox="0 0 16 16"><path d="M8 1.9 13 3.75v4c0 3-2.1 5.2-5 6.35-2.9-1.15-5-3.35-5-6.35v-4z"/></symbol>
+<symbol id="g-file" viewBox="0 0 16 16"><path d="M9.25 1.75h-4.5a2 2 0 0 0-2 2v8.5a2 2 0 0 0 2 2h6.5a2 2 0 0 0 2-2v-6.5zM9.25 1.75v4h4"/></symbol>
+<symbol id="b-claude" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+<symbol id="b-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+<symbol id="hand" viewBox="0 0 16 18"><path d="M5.5 9V2.6a1.1 1.1 0 0 1 2.2 0V8V6.6a1.1 1.1 0 0 1 2.2 0V8.3V7.4a1.1 1.1 0 0 1 2.2 0v1.2V8.4a1 1 0 0 1 2 0V12c0 2.6-1.7 4.5-4.4 4.5H8.6c-1.4 0-2.3-.6-3.2-1.7L2.2 10.6a1.1 1.1 0 0 1 1.6-1.5z" fill="#fff" stroke="#000" stroke-width="1"/></symbol>
+</defs></svg>
+
+<h1>Hangar — кликабельные элементы v2</h1>
+<p class="lead">Основа — вариант B из v1 («Заливки»), переделанный так, чтобы он выглядел частью приложения, а не набором чужих кнопок. Рядом — одна альтернатива для сравнения. Оба варианта показаны в шести местах: инспектор (Changes и Поиск), «Входящие», «Сессии», пустая сессия и тост. Всё нарисовано так, как эти места выглядят сейчас в Dark+. Курсор-рука — там, где показано наведение. <b>Цвета только из ThemePalette, новых токенов нет.</b></p>
+
+<div id="out"></div>
+
+<div class="verdict">
+<b>Рекомендация — B′ «Мягкие заливки».</b>
+<p>Эти заливки уже есть в приложении: <code>button</code> у вторичной кнопки VS Code, <code>hoverStrong</code> у «+ Новая сессия», <code>accent</code> 14 % у чипа ветки в Git. Значит, кнопка читается как кнопка, но новой формы не появляется. Акцентная заливка — одна на строку («Разрешить»). Остальные действия строки появляются только при наведении, поэтому столбика плашек нет. Режимы показаны теми же чипами, что фильтры Git: выбранный виден сразу, без тултипа. Клавиши (⌥B, ⌘Z, ⌘T) показаны только в тултипе «Действие — клавиша», как везде в приложении.</p>
+<p>У C самый «VS Code» вид, и он самый тихий. Но у главного действия нет заливки, и при беглом взгляде «Разрешить» снова похоже на подпись. Из C в B′ стоит взять только раскрывающийся список режима: он нужен там, где для двух чипов не хватает ширины.</p>
+</div>
+
+<script>
+const I=(id,s=16,st='')=>`<svg class="i" width="${s}" height="${s}" style="${st}"><use href="#g-${id}"/></svg>`;
+const B=(id,s=16,c)=>`<svg class="b" width="${s}" height="${s}" style="color:${c}"><use href="#b-${id}"/></svg>`;
+const hand=(x,y)=>`<div class="cur" style="left:${x}px;top:${y}px"><svg><use href="#hand"/></svg></div>`;
+const tip=(x,y,t,k)=>`<div class="tip" style="left:${x}px;top:${y}px">${t}${k?` <span class="k">— ${k}</span>`:''}</div>`;
+
+/* ---------- shared chrome ---------- */
+const seg=(active)=>`<div class="seg">${['Files','Changes','Git','Search'].map(n=>`<div class="${n===active?'on':''}">${n}${n==='Changes'?' <span class="cnt">3</span>':''}</div>`).join('')}</div>`;
+const files=(hov)=>[
+  ['M','InspectorView.swift','Sources/HangarUI','+12','−3','gitM'],
+  ['M','InboxView.swift','Sources/HangarUI','+40','−6','gitM'],
+  ['A','controls-v2.html','docs/superpowers/mockups','+612','','gitA'],
+].map((f,i)=>`<div class="frow${i===hov?' h':''}"><span class="nm">${f[1]}</span><span class="dir">${f[2]}</span><span class="n" style="color:var(--gitA)">${f[3]}</span><span class="n" style="color:var(--gitD)">${f[4]}</span><span class="st" style="color:var(--${f[5]})">${f[0]}</span></div>`).join('');
+const hits=()=>`
+ <div class="hitf">${I('chevronDown',12,'color:var(--tx2)')}<span>InboxView.swift</span><span class="dir">Sources/HangarUI</span><span class="c">3</span></div>
+ <div class="hit"><span class="ln">99</span>InboxButton(title: L10n.<span class="m">inboxClear</span>)</div>
+ <div class="hit"><span class="ln">185</span>InboxButton(title: L10n.<span class="m">inboxDismiss</span>)</div>
+ <div class="hit"><span class="ln">192</span>private struct <span class="m">InboxButton</span>: View {</div>
+ <div class="hitf">${I('chevronDown',12,'color:var(--tx2)')}<span>UndoToast.swift</span><span class="dir">Sources/HangarUI</span><span class="c">1</span></div>
+ <div class="hit"><span class="ln">75</span>Button { undo.undo(restore) } label: {</div>`;
+
+/* ======================= B′ ======================= */
+function dirB(){return `
+<section class="dirsec" id="dirB">
+ <div class="dir-h"><h2>B′ · Мягкие заливки</h2><span class="tag">основной кандидат</span></div>
+ <p class="dir-sub">Это B из v1, но заливки взяты с поверхностей, которые уже есть в приложении. Ярко залита только одна кнопка — главное действие строки. Остальные действия строки появляются при наведении. Режимы показаны теми же чипами, что фильтры в Git.</p>
+ <div class="rules">
+  <div class="rule"><b>Главное действие строки</b><div class="demo"><span class="bp">Разрешить</span><span class="bp h">Разрешить</span><span class="bp p">Разрешить</span></div><p>Заливка <code>primary</code>, наведение светлее, нажатие темнее. Одна на строку или тост; если в строке её нет, нет и акцентного цвета.</p></div>
+  <div class="rule"><b>Обычное действие</b><div class="demo"><span class="bs">${I('reply')}Ответить</span><span class="bs h">${I('reply')}Ответить</span><span class="bs icon danger h">${I('trash')}</span></div><p>Заливка <code>button</code> (вторичная кнопка Dark+), при наведении <code>moreBg</code>. Действия, которые нужны не всегда, появляются только при наведении на строку.</p></div>
+  <div class="rule"><b>Режим и фильтр</b><div class="demo"><span class="chip on">Незакоммиченное</span><span class="chip h">${I('branch')}<span class="mono">origin/main</span></span></div><p>Тот же чип, что «main ▾» в Git: выбранный — <code>accent</code> 14 % с рамкой 25 %, другой — просто подпись с заливкой при наведении. Видно, что выбрано.</p></div>
+  <div class="rule"><b>Действие в заголовке и ссылка</b><div class="demo"><span class="bg">Очистить</span><span class="bg h">Очистить</span><span class="lnk h">Открыть страницу релиза</span></div><p>Действие в заголовке секции — без заливки, заливка <code>hoverStrong</code> только при наведении. Ссылка ведёт наружу — <code>accentText</code>, подчёркивание при наведении.</p></div>
+ </div>
+
+ <div class="board b1">
+  <div class="shot">
+   <div class="app insp">${seg('Changes')}
+    <div class="modebar"><span class="chip on">Незакоммиченное</span><span class="chip h">${I('branch')}<span class="mono">origin/main</span></span><span class="sum">3 файла</span></div>
+    <div style="height:6px"></div>${files(1)}
+   </div>
+   ${hand(206,60)}${tip(96,80,'Сравнить с origin/main','⌥B')}
+   <div class="cap"><b>Changes.</b> Оба режима всегда видны, выбранный подсвечен, как фильтр в Git. Клавиша — только в тултипе. Строки файлов не меняются.</div>
+  </div>
+  <div class="shot">
+   <div class="app insp">${seg('Search')}
+    <div class="srow"><div class="sfield focus">${I('search',14,'color:var(--tx3)')}<span class="q">inbox</span><span class="tg on">Aa</span><span class="tg h" style="text-decoration:underline">ab</span><span class="tg">.*</span></div><span class="tg big on">${I('funnel')}</span></div>
+    <div class="glob">Sources/**/*.swift</div>
+    <div class="glob ph">Исключить: node_modules, *.min.js</div>
+    <div class="sstat">5 совпадений в 2 файлах</div>${hits()}
+   </div>
+   ${hand(240,54)}${tip(150,76,'Слово целиком')}
+   <div class="cap"><b>Поиск.</b> Включённый переключатель выглядит так же, как выбранный чип: <code>accent</code> 14 % и рамка. Воронка с включёнными фильтрами тоже. Выключенный — серый глиф, при наведении квадрат.</div>
+  </div>
+  <div class="shot">
+   <div class="inboxwrap">
+    <div class="titlebar"><span class="t1">hangar</span><span class="dotsep">·</span><span class="t2">splits</span>
+     <div class="tbtn h" style="right:44px;width:46px;gap:2px">${I('bell')}<span style="font-size:11.5px;font-weight:600;color:var(--strong)">3</span></div>
+     <div class="tbtn" style="right:8px">${I('sidebarRight')}</div></div>
+    <div class="pop">
+     <div class="irow"><div class="rs">${I('shield',14,'color:var(--waiting)')}</div><div class="body"><div class="l1">hangar › splits<span class="tm">2 мин</span></div><div class="l2"><span class="tx">Bash: swift test --filter Inbox</span><span class="bp">Разрешить</span></div></div></div>
+     <div class="irow"><div class="rs">${I('ask',14,'color:var(--waiting)')}</div><div class="body"><div class="l1">hangar › inbox<span class="tm">5 мин</span></div><div class="l2"><span class="tx">Какой вариант берём — A или B?</span><span class="bs">${I('reply')}Ответить</span></div></div></div>
+     <div class="irow"><div class="rs">${I('gauge',14,'color:var(--failedText)')}</div><div class="body"><div class="l1">claude · лимит 5 часов<span class="tm">12 мин</span></div><div class="l2"><span class="tx">Лимит исчерпан, сброс в 18:40</span><span class="bs">Открыть лимиты</span></div></div></div>
+     <div class="isep"></div>
+     <div class="ihead">Недавно готово<span class="sp"></span><span class="bg">Очистить</span></div>
+     <div class="irow h"><div class="rs">${I('checkServer',14,'color:var(--done)')}</div><div class="body"><div class="l1">hangar › docs<span class="tm">14 мин</span></div><div class="l2"><span class="tx">Готово: макет controls-v2 собран</span><span class="acts"><span class="bs h">Убрать</span></span></div></div></div>
+     <div class="irow"><div class="rs">${I('checkServer',14,'color:var(--done)')}</div><div class="body"><div class="l1">hangar › splits<span class="tm">31 мин</span></div><div class="l2"><span class="tx">Готово: тесты сплитов прошли</span><span class="acts"><span class="bs">Убрать</span></span></div></div></div>
+    </div>
+    ${hand(452,284)}
+   </div>
+   <div class="cap"><b>Входящие.</b> У каждой срочной строки видно одно её действие, акцентное — только «Разрешить». «Убрать» у готовых строк появляется при наведении, поэтому справа нет столбика из пяти плашек. «Очистить» в заголовке — без заливки.</div>
+  </div>
+ </div>
+
+ <div class="board b2">
+  <div class="shot">
+   <div class="app main sessions">
+    <div class="shead"><span class="ttl">Сессии</span><span class="meta">hangar <span>· 2 закрытые · 5 разговоров</span></span>
+     <div class="pills"><div class="on">Все</div><div>Claude</div><div>Codex</div></div>
+     <div class="sfield">${I('search',14,'color:var(--tx3)')}<span class="q" style="color:var(--tx3)">Поиск по сессиям и разговорам</span></div></div>
+    <div class="grp">Закрытые сессии</div>
+    <div class="srow2">${I('archive',16,'color:var(--tx2)')}<span class="nm">inbox-buttons</span><span class="mt"><span class="br">${I('branch',12)}fix/inbox</span><span class="t3">3 вкладки</span><span class="tm">вчера</span></span></div>
+    <div class="srow2 h">${I('archive',16,'color:var(--tx2)')}<span class="nm">splits-panels</span><span class="mt"><span class="br">${I('branch',12)}feat/splits</span><span class="t3">1 вкладка</span><span class="tm hide-h">23:06</span></span><span class="acts"><span class="bs icon danger">${I('trash')}</span><span class="bs h">${I('restore')}Восстановить</span></span></div>
+    <div class="grp">Среда, 28 октября</div>
+    <div class="srow2">${B('claude',16,'var(--claude)')}<span class="nm">Кнопки в инспекторе плохо читаются</span><span class="mt"><span class="br">${I('branch',12)}main</span><span class="t3">24 сообщ.</span><span class="tm">12:23</span></span></div>
+    <div class="srow2">${B('openai',16,'#fff')}<span class="nm">Codex: тесты сплитов</span><span class="mt"><span class="br">${I('branch',12)}feat/splits</span><span class="t3">20 сообщ.</span><span class="tm">13:10</span></span><span class="acts"><span class="bs">${I('openExternal')}Открыть</span></span></div>
+    <div class="srow2">${B('claude',16,'var(--claude)')}<span class="nm">Почему тост перекрывает панель TERMINAL</span><span class="mt"><span class="br">${I('branch',12)}main</span><span class="t3">8 сообщ.</span><span class="tm">10:02</span></span></div>
+    <div class="toast">Сессия в архиве<span class="bs">${I('restore')}Отменить</span></div>
+   </div>
+   ${hand(838,130)}
+   <div class="cap"><b>Сессии и тост.</b> При наведении время строки заменяется её действиями: корзина (иконка, при наведении красная) и «Восстановить». Остальные строки остаются тихими. В тосте «Отменить» — обычная кнопка, ⌘Z в тултипе.</div>
+  </div>
+  <div class="shot">
+   <div class="app main"><div class="empty">
+    <div class="tabstrip">${I('add',16)}</div>
+    <div class="ecenter"><div class="enote">Нет вкладок</div>
+     <div class="elist"><div class="lh">Продолжить</div>
+      <div class="crow">${B('claude',15,'var(--claude)')}add caching to the catalog API<span class="tm">11 ч назад</span></div>
+      <div class="crow">${B('openai',15,'#fff')}redirect drops the query string<span class="tm">13 ч назад</span></div>
+      <div class="crow">${B('claude',15,'var(--claude)')}why does the CI dependency cache miss<span class="tm">1 дн. назад</span></div></div>
+     <div class="ebtns"><span class="bk">${B('claude',15,'var(--claude)')}Claude</span><span class="bk h">${B('openai',15,'#fff')}Codex</span><span class="bk">${I('terminal',15)}Терминал <span class="k">⌘T</span></span></div>
+    </div>
+    <div class="bottombar">${I('terminal',14)}ТЕРМИНАЛ</div>
+   </div></div>
+   ${hand(300,286)}
+   <div class="cap"><b>Пустая сессия.</b> Кнопки почти как сейчас, только заливка <code>button</code> вместо <code>hoverStrong</code>, поэтому они не сливаются с подсветкой строк «Продолжить». При наведении <code>moreBg</code>. ⌘T остаётся обычной подсказкой, как «⌘N» в сайдбаре.</div>
+  </div>
+ </div>
+ ${statesB()}
+</section>`}
+
+function statesB(){return `
+ <div class="states"><table>
+  <tr><th>Элемент</th><th>Покой</th><th>Наведение</th><th>Нажатие</th><th>Фокус с клавиатуры</th><th>Неактивно</th></tr>
+  <tr><td>Главное действие<small>primary · 22 · r6 · 12 medium</small></td><td><span class="bp">Разрешить</span></td><td><span class="bp h">Разрешить</span></td><td><span class="bp p">Разрешить</span></td><td><span class="bp focus">Разрешить</span></td><td><span class="bp" style="opacity:.38">Разрешить</span></td></tr>
+  <tr><td>Обычное действие<small>button → moreBg → темнее</small></td><td><span class="bs">${I('restore')}Восстановить</span></td><td><span class="bs h">${I('restore')}Восстановить</span></td><td><span class="bs p">${I('restore')}Восстановить</span></td><td><span class="bs focus">${I('restore')}Восстановить</span></td><td><span class="bs dis">${I('restore')}Восстановить</span></td></tr>
+  <tr><td>Удаление (иконка)<small>корзина красная только при наведении</small></td><td><span class="bs icon danger">${I('trash')}</span></td><td><span class="bs icon danger h">${I('trash')}</span></td><td><span class="bs icon p">${I('trash')}</span></td><td><span class="bs icon focus">${I('trash')}</span></td><td><span class="bs icon dis">${I('trash')}</span></td></tr>
+  <tr><td>Чип режима / фильтра<small>= Git-чип: 24 · r6 · accent 14 %</small></td><td><span class="chip">${I('branch')}<span class="mono">origin/main</span></span></td><td><span class="chip h">${I('branch')}<span class="mono">origin/main</span></span></td><td><span class="chip p">${I('branch')}<span class="mono">origin/main</span></span></td><td><span class="chip focus">${I('branch')}<span class="mono">origin/main</span></span></td><td><span class="chip on">Незакоммиченное</span> <span style="color:#7c7c7c;font-size:11.5px">выбран</span></td></tr>
+  <tr><td>Переключатель в поле<small>22×20 · r4 · вкл = как чип</small></td><td><span class="tg">.*</span></td><td><span class="tg h">.*</span></td><td><span class="tg on">.*</span> <span style="color:#7c7c7c;font-size:11.5px">вкл</span></td><td><span class="tg focus">.*</span></td><td><span class="tg" style="opacity:.38">.*</span></td></tr>
+  <tr><td class="">Большая кнопка выбора<small>30 · r7 · button</small></td><td class="on-bg"><span class="bk">${I('terminal',15)}Терминал <span class="k">⌘T</span></span></td><td class="on-bg"><span class="bk h">${I('terminal',15)}Терминал <span class="k">⌘T</span></span></td><td class="on-bg"><span class="bk p">${I('terminal',15)}Терминал <span class="k">⌘T</span></span></td><td class="on-bg"><span class="bk focus">${I('terminal',15)}Терминал <span class="k">⌘T</span></span></td><td class="on-bg"><span class="bk" style="opacity:.38">${I('terminal',15)}Терминал</span></td></tr>
+  <tr><td>Тултип<small>«Действие — клавиша», как везде</small></td><td colspan="5" style="position:relative;height:40px"><span class="tip" style="position:static;display:inline-block">Сравнить с origin/main <span class="k">— ⌥B</span></span> &nbsp; <span class="tip" style="position:static;display:inline-block">Отменить архивирование <span class="k">— ⌘Z</span></span> &nbsp; <span class="tip" style="position:static;display:inline-block">Удалить навсегда</span></td></tr>
+ </table></div>`}
+
+/* ======================= C ======================= */
+function dirC(){return `
+<section class="dirsec" id="dirC">
+ <div class="dir-h"><h2>C · Иконки по наведению</h2><span class="tag alt">альтернатива для сравнения</span></div>
+ <p class="dir-sub">Как во встроенных действиях дерева VS Code и Zed: без заливок, глиф из набора Hangar. При наведении — квадрат белый 7 %, при нажатии — 12 %, как у кнопок заголовка. Режим выбирается из раскрывающегося списка «Незакоммиченное ▾» (Xcode, Zed). Главное действие отличается только цветом <code>accentText</code>.</p>
+ <div class="rules">
+  <div class="rule"><b>Главное действие строки</b><div class="demo"><span class="lb acc">${I('check')}Разрешить</span><span class="lb acc h">${I('check')}Разрешить</span></div><p>Глиф и подпись цветом <code>accentText</code>, без заливки. При наведении <code>accent</code> 14 %.</p></div>
+  <div class="rule"><b>Действия строки</b><div class="demo"><span class="ib">${I('restore')}</span><span class="ib h">${I('restore')}</span><span class="ib danger h">${I('trash')}</span><span class="ib">${I('more')}</span></div><p>Иконки 22×22 появляются только при наведении на строку. Название и клавиша — в тултипе. Редкие действия — в «⋯».</p></div>
+  <div class="rule"><b>Режим</b><div class="demo"><span class="dd">Незакоммиченное${I('chevronDown')}</span><span class="dd h">Незакоммиченное${I('chevronDown')}</span></div><p>Подпись с шевроном, при наведении квадрат. Меню с галочкой и клавишей справа, как в системных меню.</p></div>
+  <div class="rule"><b>Переключатели поля</b><div class="demo"><span class="tgc">Aa</span><span class="tgc h">ab</span><span class="tgc on">.*</span></div><p>Как в поиске VS Code: включённый — синяя рамка и заливка. Тот же синий у основной кнопки, поэтому в B′ он мягче.</p></div>
+ </div>
+
+ <div class="board b1">
+  <div class="shot">
+   <div class="app insp">${seg('Changes')}
+    <div class="modebar" style="height:34px;gap:4px"><span class="dd open">Незакоммиченное${I('chevronDown')}</span><span class="sum">3 файла</span></div>
+    <div style="height:6px"></div>${files(-1)}
+    <div class="menu" style="left:10px;top:72px">
+     <div class="mi"><span class="ck">${I('check',14)}</span>Незакоммиченное</div>
+     <div class="mi h"><span class="ck"></span>Сравнить с <span class="mono" style="font-size:12px">origin/main</span><span class="k">⌥B</span></div>
+    </div>
+   </div>
+   ${hand(170,98)}
+   <div class="cap"><b>Changes.</b> Места меньше, чем у двух чипов, но второй режим не виден, пока не откроешь меню. Клавиша ⌥B видна в меню.</div>
+  </div>
+  <div class="shot">
+   <div class="app insp">${seg('Search')}
+    <div class="srow"><div class="sfield focus">${I('search',14,'color:var(--tx3)')}<span class="q">inbox</span><span class="tgc on">Aa</span><span class="tgc h" style="text-decoration:underline">ab</span><span class="tgc">.*</span></div><span class="ib on" style="width:28px;height:28px;color:var(--accentText);position:relative">${I('funnel')}<span style="position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--accentText)"></span></span></div>
+    <div class="glob">Sources/**/*.swift</div>
+    <div class="glob ph">Исключить: node_modules, *.min.js</div>
+    <div class="sstat">5 совпадений в 2 файлах</div>${hits()}
+   </div>
+   ${hand(240,54)}${tip(150,76,'Слово целиком')}
+   <div class="cap"><b>Поиск.</b> Близко к VS Code. Включённые фильтры видны по синей воронке с точкой.</div>
+  </div>
+  <div class="shot">
+   <div class="inboxwrap">
+    <div class="titlebar"><span class="t1">hangar</span><span class="dotsep">·</span><span class="t2">splits</span>
+     <div class="tbtn h" style="right:44px;width:46px;gap:2px">${I('bell')}<span style="font-size:11.5px;font-weight:600;color:var(--strong)">3</span></div>
+     <div class="tbtn" style="right:8px">${I('sidebarRight')}</div></div>
+    <div class="pop">
+     <div class="irow"><div class="rs">${I('shield',14,'color:var(--waiting)')}</div><div class="body"><div class="l1">hangar › splits<span class="tm">2 мин</span></div><div class="l2"><span class="tx">Bash: swift test --filter Inbox</span><span class="lb acc">${I('check')}Разрешить</span></div></div></div>
+     <div class="irow"><div class="rs">${I('ask',14,'color:var(--waiting)')}</div><div class="body"><div class="l1">hangar › inbox<span class="tm">5 мин</span></div><div class="l2"><span class="tx">Какой вариант берём — A или B?</span><span class="lb">${I('reply')}Ответить</span></div></div></div>
+     <div class="irow"><div class="rs">${I('gauge',14,'color:var(--failedText)')}</div><div class="body"><div class="l1">claude · лимит 5 часов<span class="tm">12 мин</span></div><div class="l2"><span class="tx">Лимит исчерпан, сброс в 18:40</span><span class="lb">${I('gauge')}Лимиты</span></div></div></div>
+     <div class="isep"></div>
+     <div class="ihead">Недавно готово<span class="sp"></span><span class="ib" title="Очистить">${I('trash',14)}</span></div>
+     <div class="irow h"><div class="rs">${I('checkServer',14,'color:var(--done)')}</div><div class="body"><div class="l1">hangar › docs<span class="tm">14 мин</span></div><div class="l2"><span class="tx">Готово: макет controls-v2 собран</span><span class="acts"><span class="ib h">${I('close',14)}</span></span></div></div></div>
+     <div class="irow"><div class="rs">${I('checkServer',14,'color:var(--done)')}</div><div class="body"><div class="l1">hangar › splits<span class="tm">31 мин</span></div><div class="l2"><span class="tx">Готово: тесты сплитов прошли</span><span class="acts"><span class="ib">${I('close',14)}</span></span></div></div></div>
+    </div>
+    ${hand(452,284)}
+   </div>
+   <div class="cap"><b>Входящие.</b> Очень тихо: ни одной заливки в покое. Но «Разрешить» снова похоже на цветную подпись. Ради него и открывают «Входящие», так что здесь это минус.</div>
+  </div>
+ </div>
+
+ <div class="board b2">
+  <div class="shot">
+   <div class="app main sessions">
+    <div class="shead"><span class="ttl">Сессии</span><span class="meta">hangar <span>· 2 закрытые · 5 разговоров</span></span>
+     <div class="pills"><div class="on">Все</div><div>Claude</div><div>Codex</div></div>
+     <div class="sfield">${I('search',14,'color:var(--tx3)')}<span class="q" style="color:var(--tx3)">Поиск по сессиям и разговорам</span></div></div>
+    <div class="grp">Закрытые сессии</div>
+    <div class="srow2">${I('archive',16,'color:var(--tx2)')}<span class="nm">inbox-buttons</span><span class="mt"><span class="br">${I('branch',12)}fix/inbox</span><span class="t3">3 вкладки</span><span class="tm">вчера</span></span></div>
+    <div class="srow2 h">${I('archive',16,'color:var(--tx2)')}<span class="nm">splits-panels</span><span class="mt"><span class="br">${I('branch',12)}feat/splits</span><span class="t3">1 вкладка</span><span class="tm hide-h">23:06</span></span><span class="acts"><span class="ib h">${I('restore')}</span><span class="ib danger">${I('trash')}</span></span></div>
+    <div class="grp">Среда, 28 октября</div>
+    <div class="srow2">${B('claude',16,'var(--claude)')}<span class="nm">Кнопки в инспекторе плохо читаются</span><span class="mt"><span class="br">${I('branch',12)}main</span><span class="t3">24 сообщ.</span><span class="tm">12:23</span></span></div>
+    <div class="srow2">${B('openai',16,'#fff')}<span class="nm">Codex: тесты сплитов</span><span class="mt"><span class="br">${I('branch',12)}feat/splits</span><span class="t3">20 сообщ.</span><span class="tm">13:10</span></span><span class="acts"><span class="ib">${I('openExternal')}</span></span></div>
+    <div class="srow2">${B('claude',16,'var(--claude)')}<span class="nm">Почему тост перекрывает панель TERMINAL</span><span class="mt"><span class="br">${I('branch',12)}main</span><span class="t3">8 сообщ.</span><span class="tm">10:02</span></span></div>
+    <div class="toast" style="padding-right:8px">Сессия в архиве<span class="lb acc">${I('restore')}Отменить</span></div>
+   </div>
+   ${hand(816,130)}${tip(760,162,'Восстановить')}
+   <div class="cap"><b>Сессии и тост.</b> Самая «родная» часть C: ровно как встроенные действия строки в VS Code. Подпись есть только в тултипе, поэтому у незнакомых иконок (корзина рядом с «восстановить») нужен тултип.</div>
+  </div>
+  <div class="shot">
+   <div class="app main"><div class="empty">
+    <div class="tabstrip">${I('add',16)}</div>
+    <div class="ecenter"><div class="enote">Нет вкладок</div>
+     <div class="elist"><div class="lh">Новая вкладка</div>
+      <div class="crow act">${B('claude',15,'var(--claude)')}<span class="startlink">Claude</span></div>
+      <div class="crow act h">${B('openai',15,'#fff')}<span class="startlink">Codex</span></div>
+      <div class="crow act">${I('terminal',15,'color:var(--tx2)')}<span class="startlink">Терминал</span><span class="tm">⌘T</span></div>
+      <div class="lh" style="margin-top:12px">Продолжить</div>
+      <div class="crow">${B('claude',15,'var(--claude)')}add caching to the catalog API<span class="tm">11 ч назад</span></div>
+      <div class="crow">${B('openai',15,'#fff')}redirect drops the query string<span class="tm">13 ч назад</span></div></div>
+    </div>
+    <div class="bottombar">${I('terminal',14)}ТЕРМИНАЛ</div>
+   </div></div>
+   ${hand(150,186)}
+   <div class="cap"><b>Пустая сессия.</b> Как стартовая страница VS Code: два списка, действия — строки со ссылками. Выглядит цельно, но кнопки пропадают совсем.</div>
+  </div>
+ </div>
+ ${statesC()}
+</section>`}
+
+function statesC(){return `
+ <div class="states"><table>
+  <tr><th>Элемент</th><th>Покой</th><th>Наведение</th><th>Нажатие</th><th>Фокус с клавиатуры</th><th>Неактивно</th></tr>
+  <tr><td>Главное действие<small>accentText · фон при наведении accent 14 %</small></td><td><span class="lb acc">${I('check')}Разрешить</span></td><td><span class="lb acc h">${I('check')}Разрешить</span></td><td><span class="lb acc p">${I('check')}Разрешить</span></td><td><span class="lb acc focus">${I('check')}Разрешить</span></td><td><span class="lb acc" style="opacity:.38">${I('check')}Разрешить</span></td></tr>
+  <tr><td>Иконка-действие<small>22×22 · r5 · белый 7 % / 12 %</small></td><td><span class="ib">${I('restore')}</span></td><td><span class="ib h">${I('restore')}</span></td><td><span class="ib p">${I('restore')}</span></td><td><span class="ib focus">${I('restore')}</span></td><td><span class="ib" style="opacity:.38">${I('restore')}</span></td></tr>
+  <tr><td>Подпись-действие<small>глиф + текст text2</small></td><td><span class="lb">${I('reply')}Ответить</span></td><td><span class="lb h">${I('reply')}Ответить</span></td><td><span class="lb p">${I('reply')}Ответить</span></td><td><span class="lb focus">${I('reply')}Ответить</span></td><td><span class="lb" style="opacity:.38">${I('reply')}Ответить</span></td></tr>
+  <tr><td>Список режима<small>24 · шеврон 12</small></td><td><span class="dd">Незакоммиченное${I('chevronDown')}</span></td><td><span class="dd h">Незакоммиченное${I('chevronDown')}</span></td><td><span class="dd open">Незакоммиченное${I('chevronDown')}</span> <span style="color:#7c7c7c;font-size:11.5px">открыт</span></td><td><span class="dd focus">Незакоммиченное${I('chevronDown')}</span></td><td><span class="dd" style="opacity:.38">Незакоммиченное${I('chevronDown')}</span></td></tr>
+  <tr><td>Переключатель в поле<small>как в VS Code</small></td><td><span class="tgc">.*</span></td><td><span class="tgc h">.*</span></td><td><span class="tgc on">.*</span> <span style="color:#7c7c7c;font-size:11.5px">вкл</span></td><td><span class="tgc focus">.*</span></td><td><span class="tgc" style="opacity:.38">.*</span></td></tr>
+ </table></div>`}
+
+document.getElementById('out').innerHTML = dirB() + dirC();
+</script>
+</body></html>

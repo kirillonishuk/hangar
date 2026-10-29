@@ -125,7 +125,8 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
                   openFile: try c.decodeIfPresent(String.self, forKey: .openFile),
                   openLine: try c.decodeIfPresent(Int.self, forKey: .openLine))
         if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }
-        customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
+        // An editor pane is named by its file: a name from a version that allowed renaming it is dropped.
+        if kind != .editor { customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle) }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -225,6 +226,8 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
                   root: try c.decode(SplitNode.self, forKey: .root), focusedLeafId: try c.decode(UUID.self, forKey: .focusedLeafId),
                   customTitle: try c.decodeIfPresent(String.self, forKey: .customTitle))
         preview = try c.decodeIfPresent(Bool.self, forKey: .preview) ?? false
+        // A file tab is named by its file (as its pane): an old rename is dropped.
+        if case .leaf(let leaf) = root, leaf.kind == .editor { customTitle = nil }
     }
 
     public func encode(to encoder: Encoder) throws {

@@ -73,13 +73,30 @@ import Testing
         #expect(more)
         p.finish()
         let r = p.results
-        #expect(r.files.map(\.path) == ["src/a b/привет.txt", "bin.txt"])
-        let a = r.files[0].hits
+        // Sorted once at the end, not in rg's (thread) order.
+        #expect(r.files.map(\.path) == ["bin.txt", "src/a b/привет.txt"])
+        let a = r.files[1].hits
         // UTF-16 columns: «привет » is 7 units (13 bytes); 😀 is 2 units (4 bytes).
         #expect(a[0] == SearchHit(line: 1, column: 8, preview: "привет foo bar", ranges: [7..<10]))
         #expect(a[1] == SearchHit(line: 7, column: 4, preview: "😀 foo foo", ranges: [3..<6, 7..<10]))
-        #expect(r.files[1].hits == [SearchHit(line: 2, column: 3, preview: "\u{FFFD} foo", ranges: [2..<5])])
+        #expect(r.files[0].hits == [SearchHit(line: 2, column: 3, preview: "\u{FFFD} foo", ranges: [2..<5])])
         #expect(r.lines == 3 && r.matches == 4 && !r.truncated)
+    }
+
+    /// While streaming, groups keep arrival order (a later line of an earlier file joins its group, nothing moves);
+    /// `finish` sorts them by path once, case-insensitively, so identical searches end in one order.
+    @Test func groupsStreamInArrivalOrderAndEndSorted() {
+        func match(_ path: String) -> String {
+            #"{"type":"match","data":{"path":{"text":"\#(path)"},"lines":{"text":"foo\n"},"line_number":1,"absolute_offset":0,"submatches":[{"match":{"text":"foo"},"start":0,"end":3}]}}"#
+        }
+        var p = SearchParser(engine: .ripgrep, query: SearchQuery(text: "foo"))
+        _ = p.feed(rg([match("b.ts"), match("Summary.tsx"), match("a.ts")]))
+        #expect(p.results.files.map(\.path) == ["b.ts", "Summary.tsx", "a.ts"])
+        _ = p.feed(rg([match("b.ts"), match("c.ts")]))
+        #expect(p.results.files.map(\.path) == ["b.ts", "Summary.tsx", "a.ts", "c.ts"])
+        #expect(p.results.files[0].hits.count == 2)
+        p.finish()
+        #expect(p.results.files.map(\.path) == ["a.ts", "b.ts", "c.ts", "Summary.tsx"])
     }
 
     /// Chunks split lines (and multibyte characters) anywhere.

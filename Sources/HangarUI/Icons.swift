@@ -14,6 +14,7 @@ enum Icon: CaseIterable {
     case appearance, bell, bellSlash, plug
     case lock, question, alert, check
     case popOut
+    case filter
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -114,6 +115,8 @@ enum Icon: CaseIterable {
         case .check: [.line(p(3, 8.5), p(6.5, 12), p(13, 4.5))]
         // ⇱: a pane goes up into the tab strip, its own tab.
         case .popOut: [.line(p(2.75, 2.75), p(13.25, 2.75)), .line(p(5.25, 10.25), p(5.25, 6), p(9.5, 6)), .line(p(5.25, 6), p(12.75, 13.5))]
+        // A funnel: Search's include / exclude filters.
+        case .filter: [.poly([p(2.25, 3), p(13.75, 3), p(9.25, 8.5), p(9.25, 13), p(6.75, 11.75), p(6.75, 8.5)], closed: true)]
         case .claude, .codex: []  // brand logos
         }
     }

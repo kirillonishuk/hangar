@@ -352,52 +352,63 @@ struct SettingsView: View {
             .help(text)
     }
 
+    /// Three sections (DESIGN «секции через 20»): the master switch and macOS's permission; the events, dimmed while the
+    /// master is off (they only shape the banners); the Dock badge, SSH bell and sleep, which work without banners.
     private var notifications: some View {
-        CardSection {
-            row(L10n.notificationsTitle, first: true) {
-                CardSwitch(on: app.config.notifications) { on in
-                    save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
+        let on = app.config.notifications
+        return VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
+            CardSection {
+                row(L10n.notificationsTitle, first: true) {
+                    CardSwitch(on: on) { on in
+                        save { try app.setConfig("notifications", flag: on) { $0.notifications = on } }
+                    }
                 }
+                if app.notificationAuthorization != nil { permissionRow }
             }
-            ForEach(notificationReasons, id: \.self) { reason in
-                row(reasonTitle(reason)) {
-                    CardSwitch(on: app.notifyEnabled(reason)) { on in save { try app.setNotify(reason, on) } }
-                    Spacer(minLength: Theme.cardRowGap)
-                    soundMenu(reason)
+            CardSection(title: L10n.notifySectionEvents) {
+                ForEach(Array(notificationReasons.enumerated()), id: \.element) { i, reason in
+                    row(reasonTitle(reason), first: i == 0) {
+                        CardSwitch(on: app.notifyEnabled(reason)) { on in save { try app.setNotify(reason, on) } }
+                        Spacer(minLength: Theme.cardRowGap)
+                        soundMenu(reason)
+                    }
                 }
-            }
-            // S1 = A: the Allow button exists; off by default, with its risk in the tooltip.
-            row(L10n.allowFromNotificationTitle) {
-                CardSwitch(on: app.config.allowFromNotification) { on in
-                    save { try app.setConfig("allow_from_notification", flag: on) { $0.allowFromNotification = on } }
+                // S1 = A: the Allow button exists; off by default, with its risk in the tooltip.
+                row(L10n.allowFromNotificationTitle) {
+                    CardSwitch(on: app.config.allowFromNotification) { on in
+                        save { try app.setConfig("allow_from_notification", flag: on) { $0.allowFromNotification = on } }
+                    }
                 }
-            }
-            .help(L10n.allowFromNotificationHelp)
-            row(L10n.notifyWhenActiveTitle) {
-                CardSwitch(on: app.config.notifyWhenActive) { on in
-                    save { try app.setConfig("notify_when_active", flag: on) { $0.notifyWhenActive = on } }
+                .help(L10n.allowFromNotificationHelp)
+                row(L10n.notifyWhenActiveTitle) {
+                    CardSwitch(on: app.config.notifyWhenActive) { on in
+                        save { try app.setConfig("notify_when_active", flag: on) { $0.notifyWhenActive = on } }
+                    }
                 }
+                .help(L10n.notifyWhenActiveHelp)
             }
-            .help(L10n.notifyWhenActiveHelp)
-            row(L10n.dockBadgeTitle) {
-                CardSwitch(on: app.config.dockBadge) { on in
-                    save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
+            .opacity(on ? 1 : Theme.inactiveOpacity)
+            .disabled(!on)
+            CardSection(title: L10n.notifySectionSystem) {
+                row(L10n.dockBadgeTitle, first: true) {
+                    CardSwitch(on: app.config.dockBadge) { on in
+                        save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
+                    }
                 }
-            }
-            .help(L10n.dockBadgeHelp)
-            row(L10n.sshTerminalBellTitle) {
-                CardSwitch(on: app.config.sshTerminalBell) { on in
-                    save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
+                .help(L10n.dockBadgeHelp)
+                row(L10n.sshTerminalBellTitle) {
+                    CardSwitch(on: app.config.sshTerminalBell) { on in
+                        save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
+                    }
                 }
-            }
-            .help(L10n.sshTerminalBellHelp)
-            row(L10n.keepAwakeShort) {
-                CardSwitch(on: app.config.keepAwake) { on in
-                    save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
+                .help(L10n.sshTerminalBellHelp)
+                row(L10n.keepAwakeShort) {
+                    CardSwitch(on: app.config.keepAwake) { on in
+                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
+                    }
                 }
+                .help(L10n.keepAwakeTitle)
             }
-            .help(L10n.keepAwakeTitle)
-            if app.notificationAuthorization != nil { permissionRow }
         }
         .task { authorization = await app.notificationAuthorization?() }
         // The switch is flipped in System Settings: re-read it when the user comes back.
@@ -528,9 +539,9 @@ struct SettingsView: View {
             }
         } else {
             row(L10n.integrationMCP) {
+                // One message: the pill, its reason in the tooltip (as the Claude / Codex rows).
                 Pill(text: L10n.pillUnavailable, color: Theme.ui.text3).help(L10n.integrationNeedsApp)
-                Text(verbatim: L10n.integrationNeedsApp).foregroundStyle(Theme.ui.text3).lineLimit(1).truncationMode(.tail)
-                    .help(L10n.integrationNeedsApp)
+                Spacer(minLength: 0)
             }
         }
     }
@@ -667,7 +678,7 @@ private struct ThemeTile: View {
     }
 }
 
-/// Segmented control in the token colors (`field` track, `control` active segment): only for real choices.
+/// Segmented control in the token colors (`field` track with a `control` border, `moreBg` active segment): only for real choices.
 struct Segment<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
@@ -688,7 +699,7 @@ struct Segment<Value: Equatable>: View {
                         .padding(.vertical, Theme.segmentItemPaddingV)
                         .padding(.horizontal, Theme.segmentItemPaddingH)
                         .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                            .fill(on ? Theme.ui.control : hovered == i ? Theme.ui.hover : .clear))
+                            .fill(on ? Theme.ui.moreBg : hovered == i ? Theme.ui.segmentHover : .clear))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -13,7 +13,6 @@ extension Theme {
     public static let toastGap: CGFloat = 10
     public static let toastPaddingH: CGFloat = 16
     public static let toastPaddingV: CGFloat = 6
-    public static let toastButtonPaddingH: CGFloat = 10
 
     /// Tab `×`: its hover box reaches this far around the 10 pt icon (into the tab's padding), corner radius.
     public static let tabCloseInset: CGFloat = 3

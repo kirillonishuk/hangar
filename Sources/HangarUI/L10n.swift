@@ -103,7 +103,7 @@ import Workspace
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
-        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, currentBranch, refreshHelp
+        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
@@ -117,7 +117,7 @@ import Workspace
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
-        case segmentFiles, segmentChanges, segmentChangesTitle, changesHintBase, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case segmentFiles, segmentChanges, segmentChangesTitle, changesBaseNone, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
@@ -141,7 +141,8 @@ import Workspace
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         // Window status bar (redesign v1 §7)
         case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
-        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusPanesHelp, statusFailedHelp
+        case notifySectionEvents, notifySectionSystem
+        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusNextWaitingHelp, statusPanesHelp, statusFailedHelp
         case updateAvailable, updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
         case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
@@ -306,7 +307,6 @@ import Workspace
     static var fromBranch: String { s(.fromBranch) }
     static var newBranch: String { s(.newBranch) }
     static var fromName: String { s(.fromName) }
-    static func currentBranch(_ name: String) -> String { f(.currentBranch, name) }
     static var refreshHelp: String { s(.refreshHelp) }
     static var searchBranches: String { s(.searchBranches) }
     static var branchesRemote: String { s(.branchesRemote) }
@@ -604,8 +604,11 @@ import Workspace
     static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
     static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
     static var thisMac: String { s(.thisMac) }
+    static var notifySectionEvents: String { s(.notifySectionEvents) }
+    static var notifySectionSystem: String { s(.notifySectionSystem) }
     static var statusMachineHelp: String { s(.statusMachineHelp) }
     static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
+    static var statusNextWaitingHelp: String { s(.statusNextWaitingHelp) }
     static var statusFailedHelp: String { s(.statusFailedHelp) }
     static var statusPanesHelp: String { s(.statusPanesHelp) }
     // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
@@ -643,7 +646,7 @@ import Workspace
     static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static var segmentChangesTitle: String { s(.segmentChangesTitle) }
-    static func changesHintBase(_ branch: String) -> String { f(.changesHintBase, branch) }
+    static var changesBaseNone: String { s(.changesBaseNone) }
     static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
     static var changesHintUncommitted: String { s(.changesHintUncommitted) }
     static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }

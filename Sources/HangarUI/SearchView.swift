@@ -147,7 +147,7 @@ private struct SearchToggle: View {
         Button { on.toggle() } label: {
             label
                 .font(.system(size: Theme.SearchTab.toggleFont, weight: .medium, design: .monospaced))
-                .foregroundStyle(on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text3)
+                .foregroundStyle(on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
                 .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
                 .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
                     .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
@@ -164,7 +164,7 @@ private struct SearchToggle: View {
     }
 }
 
-/// «…» opens the include / exclude fields (as VS Code's); a dot while either holds a glob.
+/// The funnel opens the include / exclude fields (as VS Code's «…»); a dot while either holds a glob.
 private struct SearchFiltersToggle: View {
     @Binding var on: Bool
     let active: Bool
@@ -172,7 +172,7 @@ private struct SearchFiltersToggle: View {
 
     var body: some View {
         Button { on.toggle() } label: {
-            IconView(icon: .more, size: Theme.iconSize, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text3)
+            IconView(icon: .filter, size: Theme.Control.icon, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
                 .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
                 .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
                     .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))

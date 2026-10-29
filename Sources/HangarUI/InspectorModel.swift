@@ -71,6 +71,11 @@ struct RefreshParts: OptionSet, Sendable {
     }
 
     @ObservationIgnored private var git: @Sendable (String) -> Git = { Git(repo: $0) }
+    /// Untracked files' line counts (Changes «+N») with the size:mtime they were taken at; this context only.
+    @ObservationIgnored private var untrackedCache: [String: UntrackedLines] = [:]
+    @ObservationIgnored private var counting: Task<Void, Never>?
+    /// Untracked files counted per refresh (one process for all; the rest stay without «+N»).
+    static let untrackedCountLimit = 500
     @ObservationIgnored private var remote = false
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
     /// The task whose data is loaded (kept while the inspector is hidden, so another selected task must not use it).
@@ -157,6 +162,8 @@ struct RefreshParts: OptionSet, Sendable {
 
     private func resetChanges() {
         changes = nil
+        counting?.cancel()
+        untrackedCache = [:]
         statusTruncated = false
         error = nil
     }
@@ -354,7 +361,10 @@ struct RefreshParts: OptionSet, Sendable {
             baseName = r.baseName
             knownBase = .some(r.baseName)
         }
-        if let changes = r.changes { self.changes = changes }
+        if let changes = r.changes {
+            self.changes = withUntrackedCounts(changes)
+            countUntracked()
+        }
         // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).
         if let diff = r.diff, r.diffPath == diffPath {
             self.diff = diff
@@ -364,5 +374,32 @@ struct RefreshParts: OptionSet, Sendable {
             firstLoad = false
             expanded.formUnion(autoExpanded(for: changes.files.map(\.path), fileCount: r.paths))
         }
+    }
+
+    // MARK: Untracked counts
+
+    /// The list shows at once with what the cache knows; one process then counts the untracked files (re-reading only
+    /// those whose size or mtime changed) and fills in their «+N».
+    private func countUntracked() {
+        guard let set = changes, let root = context.root else { return }
+        let paths = Array(set.files.lazy.filter { $0.change == .untracked }.map(\.path).prefix(Self.untrackedCountLimit))
+        guard !paths.isEmpty else { return }
+        counting?.cancel()
+        let git = self.git(root), known = untrackedCache, ctx = context
+        counting = Task { [weak self] in
+            let counts = await git.untrackedLines(paths, known: known)
+            guard let self, !Task.isCancelled, self.context == ctx, let current = self.changes else { return }
+            self.untrackedCache.merge(counts) { $1 }
+            let filled = self.withUntrackedCounts(current)
+            if filled != current { self.changes = filled }
+        }
+    }
+
+    private func withUntrackedCounts(_ set: ChangeSet) -> ChangeSet {
+        var set = set
+        for i in set.files.indices where set.files[i].change == .untracked {
+            set.files[i].added = untrackedCache[set.files[i].path]?.lines
+        }
+        return set
     }
 }

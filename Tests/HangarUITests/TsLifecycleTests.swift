@@ -153,7 +153,8 @@ import TestSupport
         langs.opened(dir + "/a.ts", text: "x", host: nil, owner: owner(sink))
         #expect(await waitUntil { !sink.statuses.isEmpty })
         #expect(sink.statuses.last??.level == .off)
-        #expect(sink.statuses.last??.text == L10n.tsNoTypeScript)
+        #expect(sink.statuses.last??.text == "TS")
+        #expect(sink.statuses.last??.tooltip.hasPrefix(L10n.tsNoTypeScript) == true)
         #expect(logLines().isEmpty)
         #expect(await langs.request(ProviderRequest(id: 3, kind: .hover, file: dir + "/a.ts", line: 1, column: 1), host: nil) { _ in nil } == nil)
     }

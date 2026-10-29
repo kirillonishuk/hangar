@@ -56,8 +56,7 @@ public enum Theme {
     public static let inspectorSegmentRadius: CGFloat = 6
     public static let inspectorSegmentItemRadius: CGFloat = 4
     public static let inspectorSegmentPaddingH: CGFloat = 10
-    /// Changes: the mode line's «·» gaps. Changes / Search rows show a folder only with at least this much room.
-    public static let changesModeGap: CGFloat = 5
+    /// Changes / Search rows show a folder only with at least this much room.
     public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
@@ -69,7 +68,6 @@ public enum Theme {
     public static let statusItemHeight: CGFloat = 20
     public static let statusItemPaddingH: CGFloat = 4
     public static let statusItemRadius: CGFloat = 4
-    public static let statusRingWidth: CGFloat = 1.5
     /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
     public static let drawerBarHeight: CGFloat = 28
     public static let drawerGrabHeight: CGFloat = 5
@@ -85,6 +83,8 @@ public enum Theme {
     public static let railDotBorder: CGFloat = 1.5
     /// Rail dot sticks out of the monogram's top-right corner by this much.
     public static let railDotOffset: CGFloat = 3.5
+    /// A tab's status dot sits on its icon's bottom-right corner, this far out.
+    public static let tabDotOffset: CGFloat = 3
     public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
     public static let tabPaddingV: CGFloat = 6
@@ -130,8 +130,6 @@ public enum Theme {
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
     public static let hoverFade: Double = 0.12
-    /// Project settings: characters of the worktree folder inside its one-line hint.
-    public static let hintPathLength = 40
     public static let selectionFade: Double = 0.15
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
@@ -158,6 +156,18 @@ public enum Theme {
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = 2
     public static let inactiveOpacity: Double = 0.38
+    /// Row / toast / header actions (Controls.swift, controls-v2 B′): 22 high, radius 6, 12 pt medium, glyph 12.
+    enum Control {
+        static let height: CGFloat = 22
+        static let radius: CGFloat = 6
+        static let font: CGFloat = 12
+        static let icon: CGFloat = 12
+        static let iconGap: CGFloat = 5
+        static let paddingH: CGFloat = 8
+        static let headerPaddingH: CGFloat = 6
+        static let hoverBrightness = 0.06
+        static let pressedBrightness = -0.06
+    }
     public static let disabledButtonOpacity: Double = 0.45
 
     /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
@@ -189,6 +199,8 @@ public enum Theme {
     public static let segmentRadius: CGFloat = 7
     public static let segmentPadding: CGFloat = 2
     public static let segmentItemRadius: CGFloat = 5
+    /// Share of `textStrong` mixed into `field` for an inactive segment under the pointer.
+    public static let segmentHoverMix = 0.07
     public static let segmentItemPaddingV: CGFloat = 3
     public static let segmentItemPaddingH: CGFloat = 11
     /// The Changes count in the inspector segment: a capsule of `text3` (22 %, 30 % on the active part), label gap.
@@ -296,8 +308,7 @@ extension Theme {
         public static let rowPaddingH: CGFloat = 8
         public static let rowGap: CGFloat = 8
         public static let lineGap: CGFloat = 3
-        public static let buttonPaddingH: CGFloat = 6
-        public static let buttonHeight: CGFloat = 20
+        public static let buttonHeight: CGFloat = 22
         public static let sectionPaddingTop: CGFloat = 8
         /// More rows than this scroll inside `listHeight`.
         public static let scrollAfter = 7

@@ -108,7 +108,8 @@ enum MonacoTheme {
             "minimap.background": h(p.editorBg), "editorOverviewRuler.border": "#00000000",
             "editorError.foreground": h(p.failed), "editorWarning.foreground": h(p.waiting),
             "editorInfo.foreground": h(p.accent),
-            "diffEditor.insertedTextBackground": h(p.gitA, alpha: 0.2), "diffEditor.removedTextBackground": h(p.gitD, alpha: 0.2),
+            // Changed chars: a light step over the row tint, not a saturated slab.
+            "diffEditor.insertedTextBackground": h(p.gitA, alpha: 0.12), "diffEditor.removedTextBackground": h(p.gitD, alpha: 0.12),
             "diffEditor.insertedLineBackground": h(p.diffAdd), "diffEditor.removedLineBackground": h(p.diffDel),
             "diffEditorGutter.insertedLineBackground": h(p.diffAdd), "diffEditorGutter.removedLineBackground": h(p.diffDel),
             "diffEditor.diagonalFill": h(p.line), "diffEditor.border": h(p.line),

@@ -58,31 +58,24 @@ import SwiftUI
 struct UndoToastView: View {
     let undo: ArchiveUndo
     let restore: (UUID) -> Void
-    @State private var hover = false
 
     var body: some View {
         if let message = undo.message {
             Text(message).foregroundStyle(Theme.ui.text)
                 .font(.system(size: Theme.fontSize.base))
                 .padding(.horizontal, Theme.toastPaddingH)
-                .padding(.vertical, Theme.toastPaddingV + Theme.buttonPaddingV)
+                .frame(height: Theme.Control.height)
+                .padding(.vertical, Theme.toastPaddingV)
                 .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.sheet))
                 .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.sheetBorder, lineWidth: 1))
                 .fixedSize()
         } else if undo.taskId != nil {
             HStack(spacing: Theme.toastGap) {
                 Text(L10n.taskArchived).foregroundStyle(Theme.ui.text)
-                Button { undo.undo(restore) } label: {
-                    Text(L10n.undoArchive)
-                        .foregroundStyle(hover ? Theme.ui.textStrong : Theme.ui.accentText)
-                        .padding(.vertical, Theme.buttonPaddingV)
-                        .padding(.horizontal, Theme.toastButtonPaddingH)
-                        .background(RoundedRectangle(cornerRadius: Theme.buttonRadius).fill(hover ? Theme.ui.hoverStrong : .clear))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointingHand()
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+                // A secondary action (controls-v2 B′): a button, not a blue word that reads as a link.
+                Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
+                    .buttonStyle(ActionButtonStyle())
+                    .help(L10n.undoArchive)
             }
             .font(.system(size: Theme.fontSize.base))
             .padding(.leading, Theme.toastPaddingH)

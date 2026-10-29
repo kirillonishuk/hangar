@@ -6,7 +6,7 @@ Hangar — нативное macOS-приложение (Swift, AppKit + SwiftUI)
 - Спека: `docs/superpowers/specs/2026-10-18-hangar-design.md`
 - Решения и открытые вопросы: `docs/decisions.md`
 - Дизайн-система: `docs/design/DESIGN.md`
-- Макеты: `docs/superpowers/mockups/` (`style-a-v2.html`, `new-task-v4.html`, `limits.html`, `icons-sidebar.html` (свёрнутая рейка), `icons-v2.html` (иконки, тултипы, клавиши) — эталон; `style-a-screens.html` — устаревшая раскладка, только уведомление)
+- Макеты: `docs/superpowers/mockups/` (`style-a-v2.html`, `new-task-v4.html`, `limits.html`, `icons-sidebar.html` (свёрнутая рейка), `icons-v2.html` (иконки, тултипы, клавиши), `controls-v2.html` (язык контролов, вариант B′, #106) — эталон; `style-a-screens.html` — устаревшая раскладка, только уведомление)
 
 ## Не ходить по кругу
 - Спека и `decisions.md` обязательны. Решённый вопрос не переоткрывать без новой информации (факт, ошибка, слово пользователя).

@@ -99,30 +99,27 @@ import Workspace
     /// Before the diff tab shows another file or closes: an edited buffer is saved, dropped or kept (Cancel).
     func confirmLeave(_ then: @escaping () -> Void) {
         guard hasUnsaved, let path = editablePath, let window = page.webView.window else { then(); return }
-        let alert = NSAlert()
-        alert.messageText = L10n.editorUnsavedTitle((path as NSString).lastPathComponent)
-        alert.informativeText = L10n.editorUnsavedInfo
-        alert.addButton(withTitle: L10n.save)
-        alert.addButton(withTitle: L10n.editorDontSave)
-        alert.addButton(withTitle: L10n.cancel)
-        alert.beginSheetModal(for: window) { [weak self] response in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                switch response {
-                case .alertFirstButtonReturn:
-                    Task {
-                        if let text = await self.page.text(of: path) { await self.session?.handle(.save(file: path, text: text)) }
-                        if !self.hasUnsaved { then() }
-                    }
-                case .alertSecondButtonReturn:
-                    self.session = nil
-                    self.editablePath = nil
-                    self.shown = nil  // the same file again is sent afresh, without the dropped edits
-                    then()
-                default: break
+        window.beginHangarSheet({ end in
+            ConfirmSheet(message: L10n.editorUnsavedTitle((path as NSString).lastPathComponent), info: L10n.editorUnsavedInfo,
+                         button: L10n.save, destructive: false, other: L10n.editorDontSave,
+                         onOther: { end(.alertSecondButtonReturn) },
+                         onConfirm: { _ in end(.alertFirstButtonReturn) }, onCancel: { end(.cancel) })
+        }, done: { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                Task {
+                    if let text = await self.page.text(of: path) { await self.session?.handle(.save(file: path, text: text)) }
+                    if !self.hasUnsaved { then() }
                 }
+            case .alertSecondButtonReturn:
+                self.session = nil
+                self.editablePath = nil
+                self.shown = nil  // the same file again is sent afresh, without the dropped edits
+                then()
+            default: break
             }
-        }
+        })
     }
 }
 

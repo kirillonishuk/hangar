@@ -364,7 +364,8 @@ import Foundation
         case .notConnected: text = L10n.tsNotConnected
         case .noTypeScript, .found: text = L10n.tsNoTypeScript
         }
-        return LanguageStatus(text: text, tooltip: L10n.tsUnavailableTip, level: .off)
+        // The status bar says only «TS» with a grey dot; the reason is the tooltip's first line.
+        return LanguageStatus(text: "TS", tooltip: text + "\n" + L10n.tsUnavailableTip, level: .off)
     }
 
     private static func openArgs(_ path: String, _ text: String, root: String) -> [String: Any] {

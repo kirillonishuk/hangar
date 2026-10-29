@@ -23,7 +23,6 @@ import Workspace
     var base: String?
     private(set) var branches: [Branch] = []
     private(set) var defaultBase: String?
-    private(set) var currentBranch: String?
     private(set) var availability = Availability.loading
     private(set) var fetch = FetchState.idle
     private(set) var lastFetch: Date?
@@ -92,7 +91,6 @@ import Workspace
         }
         branches = (try? await git.listBranches()) ?? []
         defaultBase = try? await git.defaultBranch()
-        currentBranch = try? await git.currentBranch()
         remotes = (try? await git.remotes()) ?? []
         lastFetch = await git.lastFetch()
         if let last = project.lastBaseBranch, branches.contains(where: { $0.name == last }) {

@@ -125,7 +125,7 @@ struct SessionsView: View {
                         .font(.system(size: Theme.fontSize.segment))
                         .foregroundStyle(on ? Theme.ui.textStrong : Theme.ui.text2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(on ? Theme.ui.control : .clear, in: RoundedRectangle(cornerRadius: Theme.historySegmentItemRadius))
+                        .background(on ? Theme.ui.moreBg : .clear, in: RoundedRectangle(cornerRadius: Theme.historySegmentItemRadius))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -273,21 +273,16 @@ struct SessionsView: View {
             .pointingHand()
     }
 
+    /// Row actions (controls-v2 B′): secondary buttons; the trash alone is a square that turns red under the pointer.
     private func actionButton(icon: Icon?, title: String?, help: String?, _ perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
-            HStack(spacing: Theme.historyActionGap) {
-                if let icon { IconView(icon: icon, size: Theme.historyActionIcon, tint: Theme.ui.textStrong) }
-                if let title { Text(title).font(.system(size: Theme.fontSize.footer)) }
+            if let title { ActionLabel(title: title, icon: icon) } else if let icon {
+                // A square: the style's side paddings make it exactly as wide as it is high.
+                IconView(icon: icon, size: Theme.Control.icon).frame(width: Theme.Control.height - 2 * Theme.Control.paddingH)
             }
-            .foregroundStyle(Theme.ui.textStrong)
-            .padding(.horizontal, title == nil ? 0 : Theme.historyActionPaddingH)
-            .frame(minWidth: Theme.historyActionHeight, minHeight: Theme.historyActionHeight)
-            .background(Theme.ui.hoverStrong, in: RoundedRectangle(cornerRadius: Theme.historyActionRadius))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ActionButtonStyle(destructive: icon == .trash))
         .help(help ?? "")
-        .pointingHand()
     }
 
     /// Count and time: a fixed minimum width keeps rows aligned; hidden (not removed) under the hover actions.

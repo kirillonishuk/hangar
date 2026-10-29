@@ -61,6 +61,29 @@ import Exec
         }
     }
 
+    /// Untracked lines (the Changes row's «+N»): one process for all files, odd names intact, a last line without a
+    /// newline counted, binary and over-cap files without a count, and an unchanged file answered from the cache.
+    @Test func untrackedLinesInOneProcess() async throws {
+        let t = try featRepo(); defer { t.cleanup() }
+        try write(t, "two lines.txt", "a\nb\n")
+        try write(t, "-dash\tтаб.txt", "a\nb\nc")
+        try write(t, "big.txt", String(repeating: "x\n", count: 600))
+        try Data([0x00, 0x01, 0x0A, 0xFF]).write(to: URL(fileURLWithPath: t.repo + "/bin.dat"))
+        let g = Git(repo: t.repo)
+        let paths = ["two lines.txt", "-dash\tтаб.txt", "big.txt", "bin.dat", "gone.txt"]
+        let first = await g.untrackedLines(paths, maxBytes: 1_000)
+        #expect(first["two lines.txt"]?.lines == 2)
+        #expect(first["-dash\tтаб.txt"]?.lines == 3)
+        #expect(first["big.txt"] != nil && first["big.txt"]?.lines == nil)
+        #expect(first["bin.dat"] != nil && first["bin.dat"]?.lines == nil)
+        #expect(first["gone.txt"] == nil)
+        // Same size and mtime: the cached value comes back (a fake count proves the file wasn't re-read).
+        var known = first
+        known["two lines.txt"]?.lines = 99
+        let second = await g.untrackedLines(["two lines.txt"], known: known)
+        #expect(second["two lines.txt"]?.lines == 99)
+    }
+
     /// A file literally named `HEAD`: without `--` after the rev git calls the argument ambiguous.
     @Test func fileNamedLikeTheRev() async throws {
         let t = try TempRepo(); defer { t.cleanup() }

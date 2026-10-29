@@ -49,7 +49,6 @@ import TestSupport
         #expect(m.availability == .ready)
         #expect(m.base == "origin/release")
         #expect(m.defaultBase == "origin/main")
-        #expect(m.currentBranch == "main")
     }
 
     @Test func staleLastBaseFallsBackToDefault() async throws {

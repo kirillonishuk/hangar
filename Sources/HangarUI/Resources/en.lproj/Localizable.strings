@@ -144,7 +144,6 @@
 "fromBranch" = "From branch";
 "newBranch" = "New branch";
 "fromName" = "from the name";
-"currentBranch" = "current branch: %@";
 "refreshHelp" = "Refresh branches (git fetch)";
 "searchBranches" = "search branches";
 "branchesRemote" = "remote";
@@ -274,10 +273,10 @@
 "statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
 "segmentChangesTitle" = "Changes";
-"changesHintBase" = "Base: %@";
-"changesHintToBase" = "⌥B — compare with %@";
+"changesBaseNone" = "no base";
+"changesHintToBase" = "Compare with %@ — ⌥B";
 "changesHintUncommitted" = "Uncommitted";
-"changesHintToUncommitted" = "⌥B — uncommitted only";
+"changesHintToUncommitted" = "Uncommitted only — ⌥B";
 "baseMissing" = "Base branch %@ not found — showing uncommitted";
 "noChanges" = "No changes";
 "statusTruncated" = "Showing the first %d changes";
@@ -413,8 +412,11 @@
 "paneOne" = "%d pane";
 "paneFew" = "%d panes";
 "paneMany" = "%d panes";
+"notifySectionEvents" = "Events";
+"notifySectionSystem" = "Dock and system";
 "statusMachineHelp" = "Machine the session runs on";
 "statusNextWorkingHelp" = "Next working session";
+"statusNextWaitingHelp" = "Next agent of the project waiting for you";
 "statusFailedHelp" = "Show the failed session";
 "statusPanesHelp" = "Panes in the tab";
 "agentCountOne" = "%d agent";

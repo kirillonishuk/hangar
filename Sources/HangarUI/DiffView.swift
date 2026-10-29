@@ -260,18 +260,14 @@ struct DiffView: View {
             }
             // A commit's file (Git tab): which commit, as the details show its hash.
             if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accentText) }
-            if content.isText {
-                Text(verbatim: "+\(content.added)").foregroundStyle(Theme.Diff.badgeA)
-                Text(verbatim: "−\(content.deleted)").foregroundStyle(Theme.Diff.badgeD)
-            }
+            // No «+N −M» here: the Changes (or commit) row beside it already shows the counts.
             Spacer(minLength: 0)
             if content.isText {
                 changeNav
-                HStack(spacing: Theme.Diff.headerGap) {
+                HStack(spacing: Theme.GitTab.chipGap) {
                     modeButton(L10n.diffSideBySide, inline: false)
                     modeButton(L10n.diffInline, inline: true)
                 }
-                .font(.system(size: Theme.fontSize.segment))
             }
         }
         .font(.system(size: Theme.Diff.font, design: .monospaced))
@@ -307,18 +303,13 @@ struct DiffView: View {
         .help(help)
     }
 
-    /// Side by side / inline; the choice persists (`WorkspaceState.diffInline`).
+    /// Side by side / inline as mode chips; the choice persists (`WorkspaceState.diffInline`).
     private func modeButton(_ title: String, inline: Bool) -> some View {
-        let on = app.state.diffInline == inline
-        return Button {
-            guard !on else { return }
+        ModeChip(title: title, on: app.state.diffInline == inline) {
             app.perform { $0.diffInline = inline }
             editor.setInline(inline)
-        } label: {
-            Text(verbatim: title).foregroundStyle(on ? Theme.ui.text : Theme.ui.text3)
         }
-        .buttonStyle(.plain)
-        .pointingHand(!on)
+        .fixedSize()
     }
 }
 

@@ -148,7 +148,6 @@ public struct SearchParser {
     private var buffer: [UInt8] = []
     /// Inside an over-long line: bytes are dropped up to its newline.
     private var skipping = false
-    private var index: [String: Int] = [:]
     /// git grep reports one column; the line's matches are found here again (same toggles).
     private lazy var matcher: NSRegularExpression? = searchRegex(query)
 
@@ -182,10 +181,13 @@ public struct SearchParser {
     }
 
     /// End of output: a last line without a newline.
+    /// The end of the output: the last line, then groups sorted by path (case-insensitively, as a file tree) — rg's
+    /// threads report files in any order, and identical searches must not come out reordered.
     public mutating func finish() {
         if !buffer.isEmpty, !results.truncated, !skipping { parse(buffer[...]) }
         buffer = []
         skipping = false
+        results.files.sort { ($0.path.lowercased(), $0.path) < ($1.path.lowercased(), $1.path) }
     }
 
     private mutating func parse(_ line: ArraySlice<UInt8>) {
@@ -246,17 +248,14 @@ public struct SearchParser {
 
     private mutating func add(path: String, line: Int, text: String, ranges: [Range<Int>], column: Int?) {
         guard !results.truncated else { return }
-        if let known = index[path], results.files[known].hits.count >= perFile { results.files[known].truncated = true; return }
+        // Arrival order while streaming (nothing moves under the reader); `finish` sorts once. A known file is looked
+        // up from the end, where its lines land.
+        let known = results.files.lastIndex { $0.path == path }
+        if let known, results.files[known].hits.count >= perFile { results.files[known].truncated = true; return }
         // The total cap first: no empty group for a file whose first line is past it.
         guard results.lines < total else { results.truncated = true; return }
         let i: Int
-        if let known = index[path] {
-            i = known
-        } else {
-            i = results.files.count
-            index[path] = i
-            results.files.append(SearchFile(path: path, hits: []))
-        }
+        if let known { i = known } else { i = results.files.count; results.files.append(SearchFile(path: path, hits: [])) }
         let (preview, shown) = searchPreview(text, ranges)
         let col = ranges.first.map { $0.lowerBound + 1 } ?? column ?? 1
         results.files[i].hits.append(SearchHit(line: line, column: col, preview: preview, ranges: shown))

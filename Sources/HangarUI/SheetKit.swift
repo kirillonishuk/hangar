@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The parts every settings-like screen shares (the settings window and the sheets): header, sections of cards,
@@ -131,25 +132,31 @@ extension View {
     }
 }
 
-/// Archive / delete / remove confirmations in the sheet style (instead of a system alert): the question, what it
-/// means, an optional switch (e.g. «also delete the branch»), «Отмена» and the destructive button.
+/// Confirmations and notices in the sheet style (instead of a system alert): the question, what it means, an
+/// optional switch (e.g. «also delete the branch»), «Отмена» and the primary button (destructive by default).
+/// `other` adds a middle button («Не сохранять»); `onCancel == nil` makes a notice with one «OK» (↩ or Esc).
 struct ConfirmSheet: View {
     let message: String
-    let info: String
-    let button: String
+    var info = ""
+    var button = L10n.ok
+    var destructive = true
     var checkbox: String?
+    var other: String?
+    var onOther: () -> Void = {}
     let onConfirm: (_ checked: Bool) -> Void
-    let onCancel: () -> Void
+    var onCancel: (() -> Void)?
     @State private var checked = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: message)
-            Text(verbatim: info)
-                .foregroundStyle(Theme.ui.text2)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Theme.sheetNameTop)
+            if !info.isEmpty {
+                Text(verbatim: info)
+                    .foregroundStyle(Theme.ui.text2)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Theme.sheetNameTop)
+            }
             if let checkbox {
                 CardSection {
                     CardRow(label: checkbox, labelWidth: Theme.cardLabelWide, first: true) {
@@ -160,15 +167,52 @@ struct ConfirmSheet: View {
                 .padding(.top, Theme.sheetGap)
             }
             SheetFooter {
-                Button(L10n.cancel, action: onCancel)
-                    .buttonStyle(SheetButton(primary: false))
-                    .keyboardShortcut(.cancelAction)
-                Button(button) { onConfirm(checked) }
-                    .buttonStyle(SheetButton(primary: true, destructive: true))
-                    .keyboardShortcut(.return, modifiers: .command)
+                if let onCancel {
+                    Button(L10n.cancel, action: onCancel)
+                        .buttonStyle(SheetButton(primary: false))
+                        .keyboardShortcut(.cancelAction)
+                    if let other {
+                        Button(other, action: onOther)
+                            .buttonStyle(SheetButton(primary: false))
+                    }
+                    Button(button) { onConfirm(checked) }
+                        .buttonStyle(SheetButton(primary: true, destructive: destructive))
+                        .keyboardShortcut(.return, modifiers: .command)
+                } else {
+                    Button(button) { onConfirm(false) }
+                        .buttonStyle(SheetButton(primary: true))
+                        .keyboardShortcut(.defaultAction)
+                        // A notice: Esc closes it too (the invisible button only carries the shortcut).
+                        .background {
+                            Button("") { onConfirm(false) }.keyboardShortcut(.cancelAction)
+                                .opacity(0).accessibilityHidden(true)
+                        }
+                }
             }
             .padding(.top, Theme.sheetGap)
         }
         .sheetFrame(width: Theme.confirmSheetWidth)
+    }
+}
+
+extension NSWindow {
+    /// Shows `content` as a Hangar sheet on this window (queued after a sheet already up). Its buttons call
+    /// `end(response)`; `done` then runs exactly once, also when the sheet is ended from outside (`.stop`).
+    @discardableResult
+    func beginHangarSheet<V: View>(_ content: (_ end: @escaping (NSApplication.ModalResponse) -> Void) -> V,
+                                   done: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) -> NSWindow {
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
+                             styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        sheet.backgroundColor = Theme.sheet
+        sheet.appearance = appearance
+        let end: (NSApplication.ModalResponse) -> Void = { [weak self, weak sheet] response in
+            guard let self, let sheet, sheet.sheetParent === self else { return }
+            self.endSheet(sheet, returnCode: response)
+        }
+        let host = NSHostingController(rootView: content(end))
+        host.sizingOptions = [.preferredContentSize]
+        sheet.contentViewController = host
+        beginSheet(sheet) { response in MainActor.assumeIsolated { done(response) } }
+        return sheet
     }
 }

@@ -134,6 +134,25 @@ extension Git {
         return ChangeSet(files: files, from: rev, mode: effective, baseMissing: baseMissing, truncated: truncated)
     }
 
+    /// Lines of untracked files (git has no numstat for them), for the Changes row's «+N»: one process through the
+    /// runner for all of them (one round trip on a host). `known` is the caller's cache: a file whose size and mtime
+    /// still match isn't read again. Binary, empty, over-`maxBytes` and vanished files get no count.
+    public func untrackedLines(_ paths: [String], known: [String: UntrackedLines] = [:],
+                               maxBytes: Int = 2_000_000) async -> [String: UntrackedLines] {
+        guard !paths.isEmpty else { return [:] }
+        let args = paths.flatMap { [known[$0]?.stamp ?? "-", $0] }
+        guard let r = try? await runner.run(["sh", "-c", untrackedLinesScript, "sh", String(maxBytes)] + args, repo),
+              r.status == 0 else { return [:] }
+        var out: [String: UntrackedLines] = [:]
+        for record in r.stdout.split(separator: "\0") {
+            let f = record.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            guard f.count == 3 else { continue }
+            let path = String(f[2]), stamp = String(f[0])
+            out[path] = f[1] == "=" ? known[path] : UntrackedLines(stamp: stamp, lines: Int(f[1]))
+        }
+        return out
+    }
+
     public func diff(file: ChangedFile, from: String, maxLines: Int = 20_000) async throws -> FileDiff {
         let untracked = file.change == .untracked
         let paths = (untracked ? ["/dev/null"] : []) + (file.origPath.map { [$0] } ?? []) + [file.path]
@@ -166,3 +185,28 @@ extension Git {
         return r
     }
 }
+
+/// One untracked file's line count and the `size:mtime` it was taken at (nil lines: binary, empty or too big).
+public struct UntrackedLines: Equatable, Sendable {
+    public var stamp: String
+    public var lines: Int?
+    public init(stamp: String, lines: Int?) { self.stamp = stamp; self.lines = lines }
+}
+
+/// `sh -c` body: `$1` byte cap, then «stamp path» pairs. Prints `stamp\tlines\tpath\0` (`=` when the stamp is the
+/// known one, `-` when not counted). GNU `stat -c`, else BSD `stat -f`; a last line without a newline counts too.
+let untrackedLinesScript = #"""
+cap=$1; shift
+while [ $# -ge 2 ]; do
+  k=$1; f=$2; shift 2; p="./$f"
+  [ -f "$p" ] || continue
+  m=$(stat -c '%s:%Y' "$p" 2>/dev/null || stat -f '%z:%m' "$p" 2>/dev/null) || continue
+  if [ "$m" = "$k" ]; then printf '%s\t=\t%s\0' "$m" "$f"; continue; fi
+  n=-
+  if [ "${m%%:*}" -le "$cap" ] && LC_ALL=C grep -Iq '' "$p" 2>/dev/null; then
+    n=$(wc -l < "$p" | tr -d ' ')
+    [ -n "$(tail -c 1 "$p")" ] && n=$((n + 1))
+  fi
+  printf '%s\t%s\t%s\0' "$m" "$n" "$f"
+done
+"""#

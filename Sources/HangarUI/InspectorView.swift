@@ -94,7 +94,7 @@ private struct SegmentItem: View {
         .padding(.vertical, Theme.segmentItemPaddingV)
         .padding(.horizontal, Theme.segmentBadgeGap)
         .frame(minWidth: reserveBadge ? Self.reserved(title) : 0, maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.control : lit ? Theme.ui.hover : .clear))
+        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.moreBg : lit ? Theme.ui.segmentHover : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .pointingHand(!on)
@@ -309,55 +309,23 @@ private struct ChangesList: View {
         }
     }
 
-    /// The list's header: what is compared · what ⌥B (or a click here) switches to; a missing base offers nothing.
-    /// Always there (empty while loading), so the rows never move.
+    /// The list's header: two mode chips, the chosen one lit (controls-v2 B′); ⌥B switches, the key is in the tooltip.
+    /// Always there (empty while loading), so the rows never move; without a base the second chip is dimmed.
     private var modeLine: some View {
-        let parts: (Text, String?)? = model.changes.map { changes in
-            if case .base(let b) = changes.mode {
-                return (monoBranch(L10n.changesHintBase(b), b), L10n.changesHintToUncommitted)
-            }
-            if changes.baseMissing { return (Text(L10n.changesHintUncommitted), nil) }
-            return (Text(L10n.changesHintUncommitted), model.baseName.map(L10n.changesHintToBase))
-        }
-        return ChangesModeLine(first: parts?.0, second: parts?.1) { model.toggleMode() }
-    }
-}
-
-/// «Незакоммиченное · ⌥B — сравнить с origin/main» in one `text3` line of the Search status line's height; the
-/// switch part truncates first. Clickable when it offers a switch.
-private struct ChangesModeLine: View {
-    let first: Text?
-    let second: String?
-    let toggle: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        HStack(spacing: Theme.changesModeGap) {
-            if let first { first.layoutPriority(1) }
-            if let second {
-                Text(verbatim: "·")
-                Text(second).truncationMode(.middle)
-            }
+        let onBase = if case .base = model.changes?.mode { true } else { false }
+        let base: String? = if case .base(let b) = model.changes?.mode { b } else { model.baseName }
+        let hasBase = base != nil && model.changes?.baseMissing != true
+        return HStack(spacing: Theme.GitTab.chipGap) {
+            ModeChip(title: L10n.changesHintUncommitted, on: model.changes != nil && !onBase) { model.toggleMode() }
+                .fixedSize()
+                .help(L10n.changesHintToUncommitted)
+            ModeChip(title: base ?? L10n.changesBaseNone, icon: .branch, mono: base != nil, on: onBase, enabled: hasBase) { model.toggleMode() }
+                .help(hasBase ? L10n.changesHintToBase(base ?? "") : base.map(L10n.baseMissing) ?? L10n.baseMissingUnknown)
             Spacer(minLength: 0)
         }
-        .lineLimit(1)
-        .font(.system(size: Theme.fontSize.counter))
-        .foregroundStyle(hover && second != nil ? Theme.ui.text2 : Theme.ui.text3)
         .padding(.horizontal, Theme.rowPaddingH)
         .frame(height: Theme.GitTab.sectionHeight)
-        .contentShape(Rectangle())
-        .onTapGesture { if second != nil { toggle() } }
-        .pointingHand(second != nil)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .help(second ?? "")
     }
-}
-
-/// The branch name inside a localized sentence, set in monospaced (DESIGN.md «Моно»: ветки).
-private func monoBranch(_ sentence: String, _ branch: String) -> Text {
-    guard let r = sentence.range(of: branch, options: .backwards) else { return Text(sentence) }
-    let mono = Text(branch).font(.system(size: Theme.fontSize.counter, design: .monospaced))
-    return Text(sentence[..<r.lowerBound]) + mono + Text(sentence[r.upperBound...])
 }
 
 /// Widths of the `+N` / `−M` columns of one Changes list: the longest numbers of the list, so stats line up.

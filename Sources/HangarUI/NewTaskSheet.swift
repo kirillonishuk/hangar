@@ -205,7 +205,7 @@ struct NewTaskSheet: View {
 
     private var footerHint: String {
         if let entry = model.progress { return L10n.copyingEntry(entry) }
-        if !model.worktree, let branch = model.currentBranch { return L10n.currentBranch(branch) }
+        // Not «текущая ветка: main»: the «От ветки» row above already names it.
         return L10n.escCancel
     }
 
@@ -229,8 +229,8 @@ struct NewTaskSheet: View {
     }
 }
 
-/// Sheet / settings button: `primary` fill or `button`; `destructive` — `failedText` on `failed` 18 % (white on red
-/// fails AA); lighter on hover (120 ms), hand only while enabled.
+/// Sheet / settings button: `primary` fill or `button` (→ `moreBg` under the pointer, as every secondary action);
+/// `destructive` — `failedText` on `failed` 18 % (white on red fails AA); lighter on hover (120 ms), hand only while enabled.
 struct SheetButton: ButtonStyle {
     let primary: Bool
     var destructive = false
@@ -253,8 +253,9 @@ struct SheetButton: ButtonStyle {
                 .padding(.vertical, Theme.buttonPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                    .fill(destructive ? Theme.ui.failed.opacity(Theme.destructiveFillOpacity) : primary ? Theme.ui.primary : Theme.ui.button)
-                    .brightness(hover && enabled ? Theme.sheetButtonHoverBrightness : 0))
+                    .fill(destructive ? Theme.ui.failed.opacity(Theme.destructiveFillOpacity) : primary ? Theme.ui.primary
+                          : hover && enabled ? Theme.ui.moreBg : Theme.ui.button)
+                    .brightness(hover && enabled && (primary || destructive) ? Theme.sheetButtonHoverBrightness : 0))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
                 .opacity(pressed ? Theme.pressedOpacity : 1)
                 .pointingHand(enabled)

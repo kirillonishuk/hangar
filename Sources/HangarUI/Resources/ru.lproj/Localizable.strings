@@ -428,7 +428,7 @@
 "noAgents" = "нет агентов";
 "rowWaiting" = "ждёт";
 "sessionsView" = "Сессии";
-"sessionsViewHelp" = "История сессий";
+"sessionsViewHelp" = "Сессии";
 "segmentGit" = "Git";
 "showGit" = "Показать Git";
 "gitBranch" = "Ветка";

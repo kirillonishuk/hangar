@@ -196,6 +196,8 @@ extension MainWindowController {
             // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).
             // menu task|project <n>: its «⋯» menu, 200/120 pt into the window.
             let f = arg.split(separator: " ").map(String.init)
+            if parts[0] == "hover", f.first == "new" || f.first == "sessions" { app.debugHoverRow = f.first; return }  // hover new|sessions
+            if parts[0] == "hover" { app.debugHoverRow = nil }
             let n = f.count > 1 ? Int(f[1]) ?? -1 : -1
             let target: ActionTarget? = switch f.first {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil

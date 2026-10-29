@@ -6,7 +6,7 @@ import TestSupport
 @testable import HangarUI
 import Workspace
 
-/// «Сессии» (⌘Y): closed sessions, conversations by day, search, open markers, routing.
+/// «Сессии» (⌘Y, #107): one list by project, archived sessions as rows, scope, chips, search, state words, routing.
 @MainActor @Suite struct SessionsModelTests {
     private static let utc: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -106,18 +106,56 @@ import Workspace
         return (w, m)
     }
 
-    // MARK: Day grouping
+    // MARK: Groups
 
-    @Test func groupsConversationsByDayNewestFirst() async throws {
-        let (_, m) = try await loaded()
+    /// One group per project; conversations and the archived session without conversations mixed, newest first.
+    @Test func groupsByProjectNewestFirst() async throws {
+        let (w, m) = try await loaded()
         #expect(m.load == .loaded)
-        let days = m.days
-        #expect(days.map(\.day) == [.today, .yesterday, .date(date("2026-10-22T00:00:00Z"))])
-        #expect(days[0].rows.map(\.conversation.id) == [idA, idX])
-        #expect(days[1].rows.map(\.conversation.id) == [idB])
-        #expect(days[2].rows.map(\.conversation.id) == [idC])
-        #expect(days[0].rows[0].conversation.messageCount == 4)
-        #expect(m.conversationCount == 4)
+        let groups = m.groups
+        #expect(groups.map(\.id) == [w.project] && groups[0].name == "shop" && groups[0].note == nil)
+        #expect(groups[0].items.map(\.id) == ["claude:" + idA, "codex:" + idX, "session:" + w.closed.uuidString, "claude:" + idB, "claude:" + idC])
+        #expect(groups[0].items.map(\.state) == [.history, .history, .archived, .history, .history])
+        #expect(m.conversationRows.first?.conversation.messageCount == 4)
+        #expect(m.conversationRows.count == 4)
+    }
+
+    /// The «где» column: ⎇ for a worktree's conversation, the folder for the project's main folder.
+    @Test func rowsKnowWhereTheyWereFound() async throws {
+        let (_, m) = try await loaded()
+        func row(_ id: String) throws -> ConversationRow { try #require(m.conversationRows.first { $0.conversation.id == id }) }
+        #expect(try row(idA).inWorktree && row(idB).inWorktree)
+        #expect(try !row(idC).inWorktree && !row(idX).inWorktree)
+    }
+
+    /// More than five rows fold to five and «Показать ещё N»; a folded group shows none; ↑↓ walk the rows on screen.
+    @Test func longGroupsFoldAndTheKeyboardWalksVisibleRows() async throws {
+        let w = world()
+        for i in 0..<7 {
+            try w.fixture.claudeConversation(id: "7777777\(i)-7777-4777-8777-777777777777", cwd: "/work/shop", branch: "main",
+                                             at: "2026-10-2\(i)T10:00:00Z", prompt: "задача \(i)")
+        }
+        w.app.showSessionsView()
+        let m = SessionsModel(app: w.app)
+        await m.reload()
+        let g = try #require(m.groups.first)
+        #expect(g.items.count == 8)  // 7 conversations and the archived session
+        #expect(m.visibleItems(g).count == Theme.sessionsGroupLimit && m.hiddenCount(g) == 3)
+        m.step(by: -1)
+        #expect(m.selection == m.visibleItems(g).last?.id)  // up with nothing chosen: the last row
+        m.step(by: 1)
+        #expect(m.selection == m.visibleItems(g).last?.id)  // stays on the last visible one
+        m.selection = nil
+        m.step(by: 1)
+        #expect(m.selection == g.items[0].id)
+        #expect(m.activateSelection() == m.primaryAction(g.items[0]))
+        m.expanded.insert(g.id)
+        #expect(m.visibleItems(g).count == 8 && m.hiddenCount(g) == 0)
+        m.toggleCollapsed(g.id)
+        #expect(m.visibleItems(g).isEmpty && m.hiddenCount(g) == 0 && m.visibleList.isEmpty)
+        #expect(m.activateSelection() == nil)
+        m.toggleCollapsed(g.id)
+        #expect(m.visibleItems(g).count == 8)
     }
 
     @Test func historyDayBoundaries() {
@@ -133,10 +171,24 @@ import Workspace
         let (w, m) = try await loaded()
         let row = try #require(m.closedRows.first)
         #expect(m.closedRows.count == 1)
-        #expect(row.id == w.closed && row.name == "fix-ci-cache" && row.branch == "fix/ci-cache")
-        #expect(row.closedAt == date("2026-10-24T18:20:00Z"))
-        #expect(row.changes == LineChanges(added: 12, deleted: 3))
-        #expect(row.tabLeaves == [1, 1])
+        #expect(row.id == w.closed && row.name == "fix-ci-cache" && row.branch == "fix/ci-cache" && row.project == w.project)
+        #expect(row.archivedAt == date("2026-10-24T18:20:00Z"))
+        #expect(row.tabs == 2)
+        #expect(m.primaryAction(.session(row)) == .restore(w.closed) && SessionsItem.session(row).archivedTask == w.closed)
+    }
+
+    /// An archived session whose conversation is listed shows through it («в архиве», «Восстановить»), not as a second row.
+    @Test func archivedSessionWithAListedConversationIsNotRepeated() async throws {
+        let (w, m) = try await loaded()
+        w.app.perform { s in
+            let leaf = s.tasks.first { $0.id == w.closed }!.tabs[0].root.leaves[0].id
+            s.setAgentSessionId(leafId: leaf, self.idB)
+        }
+        #expect(m.closedRows.isEmpty)
+        let row = try #require(m.conversationRows.first { $0.conversation.id == idB })
+        #expect(row.state == .archived && SessionsItem.conversation(row).archivedTask == w.closed)
+        #expect(m.primaryAction(.conversation(row)) == .restore(w.closed))
+        #expect(m.groups[0].items.count == 4)
     }
 
     @Test func closedSessionsNewestFirst() {
@@ -168,44 +220,98 @@ import Workspace
 
     // MARK: Search
 
-    @Test func searchFiltersBothGroups() async throws {
+    @Test func searchFiltersEveryRow() async throws {
         let (_, m) = try await loaded()
         m.query = "кэш"
         #expect(m.closedRows.isEmpty)
-        #expect(m.days.flatMap(\.rows).map(\.conversation.id) == [idA, idB])  // by title
+        #expect(m.conversationRows.map(\.conversation.id) == [idA, idB])  // by title
         m.query = "ci-cache"
         #expect(m.closedRows.map(\.name) == ["fix-ci-cache"])  // by name
-        #expect(m.days.flatMap(\.rows).map(\.conversation.id) == [idB])  // by branch
+        #expect(m.conversationRows.map(\.conversation.id) == [idB])  // by branch
         m.query = "STORE объясни"  // every word, any case
         #expect(m.closedRows.isEmpty)
-        #expect(m.days.flatMap(\.rows).map(\.conversation.id) == [idC])
+        #expect(m.conversationRows.map(\.conversation.id) == [idC])
+        m.query = "SHOP"  // by project
+        #expect(m.conversationRows.count == 4 && m.closedRows.count == 1)
         m.query = "  "
-        #expect(m.days.flatMap(\.rows).count == 4)
+        #expect(m.conversationRows.count == 4 && !m.isFiltering)
     }
 
-    @Test func agentFilterKeepsClosedSessions() async throws {
-        let (_, m) = try await loaded()
-        m.agent = .codex
-        #expect(m.days.flatMap(\.rows).map(\.conversation.id) == [idX])
-        #expect(m.closedRows.count == 1)
+    /// An archived session whose only listed conversation is filtered out by the search is findable again as its own row.
+    @Test func archivedSessionShowsWhenItsConversationIsFilteredOut() async throws {
+        let (w, m) = try await loaded()
+        w.app.perform { s in
+            let leaf = s.tasks.first { $0.id == w.closed }!.tabs[0].root.leaves[0].id
+            s.setAgentSessionId(leafId: leaf, self.idC)  // «объясни структуру store», branch main
+        }
+        #expect(m.closedRows.isEmpty)  // shows through idC
+        m.query = "fix/ci"  // the session's branch, not idC's
+        #expect(!m.conversationRows.contains { $0.conversation.id == idC })
+        #expect(m.closedRows.map(\.id) == [w.closed])
+    }
+
+    /// «Сессии проекта» starts clean: a stale search or chip from the last visit would hide the project's rows.
+    @Test func projectSessionsClearsStaleSearchAndChips() async throws {
+        let (w, m) = try await loaded()
+        m.query = "zzz"
+        m.toggle(HistoryAgent.codex)
+        m.toggle(SessionsRowState.open)
+        w.app.hideSessionsView()
+        Action.projectSessions.perform(.project(w.project), ActionContext(app: w.app))
+        #expect(m.query.isEmpty && m.agents.isEmpty && m.states.isEmpty && w.app.sessionsProject == w.project)
+        #expect(m.conversationRows.count == 4)
+    }
+
+    /// The hovered and the keyboard's row never outlive the view: after «Перейти» or any hide, ⌘Y shows none.
+    @Test func pointerIsClearedWhenTheViewHides() async throws {
+        let (w, m) = try await loaded()
+        let first = try #require(m.visibleList.first)
+        m.hovered = first.id
+        m.selection = first.id
+        #expect(m.hovered == first.id && m.selection == first.id)
+        w.app.hideSessionsView()
+        #expect(m.hovered == nil && m.selection == nil)
+        w.app.showSessionsView()
+        m.hovered = first.id
+        w.app.select(taskId: w.main)  // picking a session in the sidebar hides it too
+        #expect(!w.app.sessionsViewVisible && m.hovered == nil)
+    }
+
+    /// Chips: multi-select, none = all; an archived session row has no agent (a chosen agent hides it) and is «в архиве».
+    @Test func chipsFilterByAgentAndState() async throws {
+        let (w, m) = try await loaded()
+        m.toggle(HistoryAgent.codex)
+        #expect(m.conversationRows.map(\.conversation.id) == [idX] && m.closedRows.isEmpty && m.isFiltering)
+        m.toggle(HistoryAgent.claude)
+        #expect(m.conversationRows.count == 4 && m.closedRows.isEmpty)
+        m.resetChips()
+        m.toggle(SessionsRowState.archived)
+        #expect(m.conversationRows.isEmpty && m.closedRows.map(\.id) == [w.closed])
+        m.toggle(SessionsRowState.history)
+        #expect(m.conversationRows.count == 4 && m.closedRows.count == 1)
+        m.toggle(SessionsRowState.archived)
+        #expect(m.closedRows.isEmpty)
+        m.query = "кэш"
+        m.resetFilters()
+        #expect(!m.isFiltering && m.query.isEmpty && m.conversationRows.count == 4 && m.closedRows.count == 1)
     }
 
     // MARK: Open markers and routing
 
     @Test func placesAndRouting() async throws {
         let (w, m) = try await loaded()
-        func row(_ id: String) throws -> ConversationRow { try #require(m.days.flatMap(\.rows).first { $0.conversation.id == id }) }
+        func row(_ id: String) throws -> ConversationRow { try #require(m.conversationRows.first { $0.conversation.id == id }) }
         #expect(try row(idA).place == .session(task: w.feature, name: "api-cache"))
         #expect(try row(idB).place == .none)  // the closed session in its folder never held it
         #expect(try row(idC).place == .none)  // the main folder's session holds other conversations: a session of its own
         #expect(m.action(for: try row(idA)) == .open(try row(idA).conversation, task: w.feature))
         #expect(m.action(for: try row(idB)) == .openInNewSession(try row(idB).conversation, project: w.project))
-        #expect(m.closedAction(w.closed) == .restore(w.closed))
+        #expect(m.primaryAction(.conversation(try row(idA))) == m.action(for: try row(idA)))
     }
 
     @Test func rootConversationWithoutMainSessionOpensANewOne() async throws {
         let (w, m) = try await loaded(mainSession: false)
-        let row = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idC })
+        let row = try #require(m.conversationRows.first { $0.conversation.id == idC })
         #expect(row.place == .none)
         #expect(m.action(for: row) == .openInNewSession(row.conversation, project: w.project))
         await m.perform(m.action(for: row), ctx: ActionContext(app: w.app))
@@ -295,7 +401,7 @@ import Workspace
 
     @Test func openMarkersFollowLiveTabs() async throws {
         let (w, m) = try await loaded()
-        let before = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idA })
+        let before = try #require(m.conversationRows.first { $0.conversation.id == idA })
         #expect(!before.isOpen)
         await m.perform(m.action(for: before), ctx: ActionContext(app: w.app))
         // Opened in its own session, as a resumed tab; the view gives way to it.
@@ -306,13 +412,13 @@ import Workspace
         #expect(!w.app.sessionsViewVisible)
         // Back in «Сессии» without a rescan: the marker is merged from the live tabs.
         w.app.showSessionsView()
-        let after = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idA })
-        #expect(after.isOpen && after.place == .open(task: w.feature, leaf: tab.focusedLeafId, name: "api-cache"))
+        let after = try #require(m.conversationRows.first { $0.conversation.id == idA })
+        #expect(after.isOpen && after.state == .open && after.place == .open(task: w.feature, leaf: tab.focusedLeafId, name: "api-cache"))
         #expect(m.action(for: after) == .focus(leaf: tab.focusedLeafId))
         // Closing that tab drops the marker even though the scan said open.
         w.app.perform { $0.closeTab(taskId: w.feature, tabId: tab.id) }
         await m.reload()
-        let closedTab = try #require(m.days.flatMap(\.rows).first { $0.conversation.id == idA })
+        let closedTab = try #require(m.conversationRows.first { $0.conversation.id == idA })
         #expect(!closedTab.isOpen)
     }
 
@@ -337,7 +443,7 @@ import Workspace
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
         app.showSessionsView(projectId: p)
         let m = SessionsModel(app: app)
-        await m.perform(m.closedAction(t), ctx: ActionContext(app: app))
+        await m.perform(.restore(t), ctx: ActionContext(app: app))
         let task = try #require(app.selectedTask)
         #expect(task.id == t && !task.archived && task.tabs.count == 2)
         #expect(!app.sessionsViewVisible)
@@ -405,7 +511,28 @@ import Workspace
         let m = SessionsModel(app: w.app)
         #expect(m.load == .idle)
         await m.reload()
-        #expect(m.load == .loaded && m.days.isEmpty && m.conversationCount == 0)
+        #expect(m.load == .loaded && m.conversationRows.isEmpty)
+        #expect(m.placeholder == nil && m.groups.map(\.items.count) == [1])  // the archived session still shows
+    }
+
+    /// Nothing to list: loading, then «пусто»; with a search or a chip — «ничего не найдено».
+    @Test func placeholders() async {
+        var s = WorkspaceState()
+        _ = s.addProject(name: "p", path: "/work/p")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.claudeSettingsURL = dir.appendingPathComponent("claude/settings.json")
+        app.codexConfigURL = dir.appendingPathComponent("codex/config.toml")
+        app.showSessionsView()
+        let m = SessionsModel(app: app)
+        #expect(m.placeholder == .loading)
+        await m.reload()
+        #expect(m.placeholder == .empty)
+        m.query = "stripe"
+        #expect(m.placeholder == .noMatch)
+        m.query = ""
+        m.toggle(SessionsRowState.open)
+        #expect(m.placeholder == .noMatch)
     }
 
     @Test func offlineRemoteProjectSkipsTheScan() async {
@@ -416,7 +543,54 @@ import Workspace
         app.showSessionsView()
         let m = SessionsModel(app: app)
         await m.reload()
-        #expect(m.load == .loaded && m.offlineHosts == ["devbox"] && m.days.isEmpty)
+        #expect(m.load == .loaded && m.offlineHosts == ["devbox"] && m.conversationRows.isEmpty)
+        #expect(m.groups.map(\.note) == [.offline] && m.placeholder == nil)  // «Все»: a note in the host's group
+        m.query = "stripe"
+        #expect(m.placeholder == .noMatch)  // a search that found nothing says so over the host's note
+        m.query = ""
+        app.showSessionsView(scope: .host("devbox"))
+        await m.reload()
+        #expect(m.placeholder == .offline("devbox"))  // the host chosen: centered, with «Подключиться»
+    }
+
+    /// An offline host's archived sessions still show (they are in state.json); «Восстановить» waits for the connection.
+    @Test func offlineHostArchivedSessionsShowButWait() async throws {
+        var s = WorkspaceState()
+        s.projects.append(Project(name: "srv", location: .ssh(host: "devbox", path: "/srv/app")))
+        let t = s.addTask(projectId: s.projects[0].id, name: "deploy-logs")
+        s.addTab(taskId: t, kind: .shell)
+        s.archiveTask(id: t, at: date("2026-10-23T10:00:00Z"))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.showSessionsView(scope: .host("devbox"))
+        let m = SessionsModel(app: app)
+        await m.reload()
+        let item = try #require(m.groups.first?.items.first)
+        #expect(item == .session(ClosedSessionRow(id: t, name: "deploy-logs", project: s.projects[0].id, branch: nil,
+                                                  archivedAt: date("2026-10-23T10:00:00Z"), tabs: 1)))
+        #expect(m.offlineHost(item) == "devbox" && !m.canRun(item) && m.placeholder == nil)
+        m.selection = item.id
+        #expect(m.activateSelection() == nil)
+    }
+
+    /// «Все» / «Этот Mac» / a host; a scope with no projects (a host's last project removed) falls back to «Все».
+    @Test func scopeAllLocalAndHost() {
+        var s = WorkspaceState()
+        let local = s.addProject(name: "shop", path: "/work/shop")
+        s.projects.append(Project(name: "srv", location: .ssh(host: "devbox", path: "/srv/app")))
+        let remote = s.projects[1].id
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        let m = SessionsModel(app: app)
+        app.showSessionsView(scope: .local)
+        #expect(m.scope == .local && m.projects.map(\.id) == [local])
+        app.showSessionsView(scope: .host("devbox"))
+        #expect(m.scope == .host("devbox") && m.projects.map(\.id) == [remote] && app.sessionsHosts == ["devbox"])
+        app.showSessionsView(scope: .host("gpu-box"))
+        #expect(app.sessionsScope == .all)
+        app.showSessionsView(scope: .host("devbox"))
+        app.perform { $0.projects.removeAll { $0.id == remote } }
+        #expect(m.scope == .all && m.projects.map(\.id) == [local])
     }
 
     /// ⌘Y lists every project (a host terminal selected too, #64); a project's menu or link scopes it, «Все» resets.
@@ -436,21 +610,67 @@ import Workspace
         #expect(w.app.sessionsScope == .all)
         let m = SessionsModel(app: w.app)
         await m.reload()
-        #expect(m.load == .loaded && m.closedCount == 2)
-        #expect(m.closedRows.map(\.origin) == ["shop", "blog"])
-        #expect(m.conversationRows.map(\.origin) == ["shop", "blog"])
+        #expect(m.load == .loaded && m.closedRows.map(\.project) == [w.project, other])
+        #expect(m.conversationRows.map(\.project) == [w.project, other])
+        #expect(m.groups.map(\.id) == [w.project, other])
         #expect(m.action(for: m.conversationRows[1]) == .openInNewSession(m.conversationRows[1].conversation, project: other))
 
         w.app.hideSessionsView()
+        // A project with a similar name and a conversation mentioning «blog» must not leak into «blog»'s list.
+        var similar = UUID()
+        w.app.perform { similar = $0.addProject(name: "blog-old", path: "/work/blog-old") }
+        try w.fixture.claudeConversation(id: idX, cwd: "/work/blog-old", branch: "blog", at: "2026-10-24T11:00:00Z", prompt: "blog пост")
         Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
-        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .project(other))
+        // «Сессии проекта»: that project by id (a removable chip), the search stays empty.
+        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .all && w.app.sessionsProject == other)
+        #expect(m.query.isEmpty && m.project?.id == other && m.projects.map(\.id) == [other] && m.isFiltering)
         await m.reload()
         #expect(m.closedRows.map(\.name) == ["draft"] && m.conversationRows.map(\.conversation.id) == [idC])
-        w.app.showSessionsView(scope: .all)
+        #expect(m.groups.map(\.id) == [other])
+        m.clearProject()  // the chip's «×»
         await m.reload()
-        #expect(m.conversationCount == 2)
-        w.app.showSessionsView(projectId: w.app.state.hostShells[0].id)  // a host terminal's pseudo-project is no scope
-        #expect(w.app.sessionsScope == .all)
+        let listed: Set<UUID> = Set(m.conversationRows.map(\.project))
+        #expect(listed == [w.project, other, similar])
+        Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
+        w.app.showSessionsView(scope: .local)  // a scope from the segment drops the chip
+        #expect(w.app.sessionsProject == nil)
+        Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
+        m.resetFilters()
+        #expect(w.app.sessionsProject == nil && !m.isFiltering)
+        w.app.showSessionsView(projectId: w.app.state.hostShells[0].id)  // a host terminal's pseudo-project is no project
+        #expect(w.app.sessionsScope == .all && w.app.sessionsProject == nil)
+    }
+
+    /// A host still connecting reads «Читаю…» in its group, not «Нет связи»; that comes only once it gave up or dropped.
+    @Test func connectingHostIsLoadingNotOffline() async {
+        var s = WorkspaceState()
+        s.projects.append(Project(name: "srv", location: .ssh(host: "devbox", path: "/srv/app")))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.showSessionsView(scope: .host("devbox"))
+        let m = SessionsModel(app: app)
+        m.hostLink = { _ in .connecting }
+        await m.reload()
+        #expect(m.offlineHosts.isEmpty && m.connectingHosts == ["devbox"])
+        #expect(m.groups.map(\.note) == [.loading] && m.placeholder == nil)
+        m.hostLink = { _ in .offline }
+        await m.reload()
+        #expect(m.connectingHosts.isEmpty && m.placeholder == .offline("devbox"))
+    }
+
+    @Test func hostLinkStates() {
+        var info = HostInfo()
+        #expect(sessionsHostLink(nil) == .offline && sessionsHostLink(info) == .offline)  // never connected
+        info.state = .connecting
+        #expect(sessionsHostLink(info) == .connecting)
+        info.state = .reconnecting(attempt: 2)
+        #expect(sessionsHostLink(info) == .connecting)
+        info.retryPaused = true  // nothing retrying until the app is active again
+        #expect(sessionsHostLink(info) == .offline)
+        info.state = .unreachable("ssh: timed out")
+        #expect(sessionsHostLink(info) == .offline)
+        info.state = .connected
+        #expect(sessionsHostLink(info) == .connected)
     }
 
     /// One source failing keeps the others' conversations and says why, with a retry; the load always finishes.
@@ -465,9 +685,10 @@ import Workspace
         #expect(m.load == .loaded)
         #expect(m.failures.first?.message == "ssh: connect to host devbox port 22: Operation timed out")
         #expect(m.conversationRows.map(\.conversation.id).sorted() == [idB, idC, idX].sorted())
+        #expect(m.localFailure?.timedOut == false)
         broken = false
         await m.reload()
-        #expect(m.load == .loaded && m.failures.isEmpty && m.conversationCount == 4)
+        #expect(m.load == .loaded && m.failures.isEmpty && m.conversationRows.count == 4)
     }
 
     /// A source that never answers is cut at its timeout; rows already found show while it is pending.
@@ -482,14 +703,14 @@ import Workspace
             return list
         }
         let run = Task { await fresh.reload() }
-        #expect(await waitUntil { fresh.conversationCount == 2 })  // both worktrees' conversations, before the root answers
+        #expect(await waitUntil { fresh.conversationRows.count == 2 })  // both worktrees' conversations, before the root answers
         #expect(fresh.load == .loading)
         run.cancel()
         _ = await run.value
         fresh.localTimeout = .milliseconds(200)
         await fresh.reload()
         // Cut by the timeout: said so, and the root's rows read so far are kept.
-        #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationCount == 4)
+        #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationRows.count == 4)
     }
 
     /// A new scan (scope change, retry) cancels the one still running: it stops, the newer result stands.
@@ -509,7 +730,7 @@ import Workspace
         flag.hang = false
         await m.reload()
         await first.value
-        #expect(flag.stopped && m.load == .loaded && m.failures.isEmpty && m.conversationCount == 4)
+        #expect(flag.stopped && m.load == .loaded && m.failures.isEmpty && m.conversationRows.count == 4)
     }
 
     /// «Открыт» is any live agent leaf with that id — a TERMINAL panel too, in another project too; never a leaf on
@@ -527,7 +748,7 @@ import Workspace
         }
         let remoteLeaf = try #require(w.app.state.tasks.first { $0.id == remote }?.tabs.last?.focusedLeafId)
         w.app.perform { $0.setAgentSessionId(leafId: remoteLeaf, self.idC) }
-        func row(_ id: String) -> ConversationRow? { m.conversationRows.first { $0.conversation.id == id && $0.origin == "shop" } }
+        func row(_ id: String) -> ConversationRow? { m.conversationRows.first { $0.conversation.id == id && $0.project == w.project } }
         #expect(row(idC)?.isOpen == false)  // the same id on devbox is another conversation
         // A claude in another project's TERMINAL panel (state.json allows it) holds it: «Перейти» goes there.
         let held = Leaf(kind: .claude, cwd: "/work/shop", agentSessionId: idC)
@@ -582,7 +803,7 @@ import Workspace
         w.app.perform { nested = $0.addProject(name: "admin", path: "/work/shop/admin") }
         await m.reload()
         // All projects: listed once, under the deeper project.
-        #expect(m.conversationRows.filter { $0.conversation.id == inner }.map(\.origin) == ["admin"])
+        #expect(m.conversationRows.filter { $0.conversation.id == inner }.map(\.project) == [nested])
         w.app.showSessionsView(projectId: w.project)
         await m.reload()
         #expect(!m.conversationRows.contains { $0.conversation.id == inner })  // listed under the deeper project only

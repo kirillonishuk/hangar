@@ -24,15 +24,15 @@ import Testing
         #expect(c.agentCommands[.codex] == "codex")
     }
 
-    /// #105: the status line choice and its segments; unknown segment names are skipped, the order is the renderer's.
+    /// #105, #110: the status line choice and its segments in the file's order; unknown and repeated names are skipped.
     @Test func statuslineKeys() throws {
         #expect(HangarConfig().statusline == .hangar && HangarConfig().statuslineSegments == StatuslineSegment.defaults)
         let c = try HangarConfig.parse("""
         statusline = "user"
-        statusline_segments = ["week", "5h", "future", "branch"]  # comment
+        statusline_segments = ["week", "5h", "future", "week", "branch"]  # comment
         """)
         #expect(c.statusline == .user)
-        #expect(c.statuslineSegments == [.fiveHour, .week, .branch])
+        #expect(c.statuslineSegments == [.week, .fiveHour, .branch])
         #expect(try HangarConfig.parse("statusline_segments = []").statuslineSegments.isEmpty)
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"statusline = "mine""#) }
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"statusline_segments = "model""#) }
@@ -40,6 +40,45 @@ import Testing
         // The writer's array literal reads back.
         let text = HangarConfig.updating("", key: "statusline_segments", literal: #"["model", "context"]"#)
         #expect(try HangarConfig.parse(text).statuslineSegments == [.model, .context])
+    }
+
+    /// #110: `statusline_order` keeps every chip's place (off ones too): unknown and repeated names skipped, missing
+    /// ones appended in the default order; the on ones fill their slots in `statusline_segments`' order.
+    @Test func statuslineOrder() throws {
+        #expect(HangarConfig().statuslineOrder == StatuslineSegment.allCases)
+        #expect(HangarConfig().statuslineChips == StatuslineSegment.allCases)
+        let c = try HangarConfig.parse(#"statusline_order = ["branch", "nope", "week", "branch", "model"]"#)
+        #expect(c.statuslineOrder == [.branch, .week, .model, .context, .fiveHour, .effort])
+        // The default on segments refill their slots (week, model, context, 5h) in their own order.
+        #expect(c.statuslineChips == [.branch, .model, .context, .fiveHour, .week, .effort])
+        // A hand-edited segments order wins over the stored slots of the on chips.
+        let edited = try HangarConfig.parse("""
+        statusline_segments = ["week", "model"]
+        statusline_order = ["model", "context", "effort", "week", "5h", "branch"]
+        """)
+        #expect(edited.statuslineChips == [.week, .context, .effort, .model, .fiveHour, .branch])
+        // Only segments, no order (a config from before #110): the on ones take the first default slots of their set.
+        let old = try HangarConfig.parse(#"statusline_segments = ["week", "5h"]"#)
+        #expect(old.statuslineChips == [.model, .context, .week, .fiveHour, .branch, .effort])
+    }
+
+    /// #110: Settings writes the chips' order and the on ones together; both read back.
+    @Test func statuslineWrite() throws {
+        let chips: [StatuslineSegment] = [.week, .branch, .model, .context, .fiveHour, .effort]
+        let text = HangarConfig.settingStatusline("statusline = \"hangar\"\n", chips: chips, on: [.model, .week, .effort])
+        let c = try HangarConfig.parse(text)
+        #expect(c.statuslineSegments == [.week, .model, .effort])
+        #expect(c.statuslineOrder == chips && c.statuslineChips == chips)
+        #expect(text.contains(#"statusline_segments = ["week", "model", "effort"]"#) && text.hasPrefix("statusline = \"hangar\""))
+    }
+
+    @Test func statuslineMoves() {
+        let all = StatuslineSegment.allCases  // model, context, 5h, week, branch, effort
+        #expect(statuslineMove(all, .week, to: 0) == [.week, .model, .context, .fiveHour, .branch, .effort])
+        #expect(statuslineMove(all, .model, to: 6) == [.context, .fiveHour, .week, .branch, .effort, .model])
+        #expect(statuslineMove(all, .model, to: 2) == [.context, .model, .fiveHour, .week, .branch, .effort])
+        #expect(statuslineMove(all, .context, to: 1) == all && statuslineMove(all, .context, to: 2) == all)
+        #expect(statuslineMove(all, .effort, to: 99) == all)
     }
 
     /// The Helix-era `editor` key (#81) is ignored, so an old config still loads.

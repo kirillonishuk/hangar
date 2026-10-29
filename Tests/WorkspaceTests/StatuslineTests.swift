@@ -18,38 +18,44 @@ private let full = """
 """
 
 @Suite struct StatuslineTests {
-    @Test func defaultLineEnglishAndRussian() {
-        let en = renderStatusline(input(full), segments: StatuslineSegment.defaults, ru: false, now: now)
+    /// #110: the line is English whatever Hangar's language; the renderer has no language to take.
+    @Test func defaultLineIsEnglish() {
+        let en = renderStatusline(input(full), segments: StatuslineSegment.defaults, now: now)
         #expect(plain(en) == "Opus 5.5 │ ctx ━━━───── 38% │ 5h ━━━───── 42% 1h47m │ wk 18%")
         #expect(plain(en).count <= 60)
-        let ru = renderStatusline(input(full), segments: StatuslineSegment.defaults, ru: true, now: now)
-        #expect(plain(ru) == "Opus 5.5 │ контекст ━━━───── 38% │ 5ч ━━━───── 42% 1ч47м │ нед 18%")
         #expect(!en.contains("$") && !en.contains("0.04") && !en.contains("\n"))
     }
 
     @Test func missingDataLeavesSegmentsOut() {
         // Before the first reply: no rate limits, no context percentage yet.
         let early = renderStatusline(input(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":null}}"#),
-                                     segments: StatuslineSegment.defaults, ru: false, now: now)
+                                     segments: StatuslineSegment.defaults, now: now)
         #expect(plain(early) == "Sonnet 4.6")
-        #expect(renderStatusline(input("{}"), segments: StatuslineSegment.defaults, ru: false, now: now) == "")
-        #expect(renderStatusline(input("not json"), segments: StatuslineSegment.defaults, ru: false, now: now) == "")
+        #expect(renderStatusline(input("{}"), segments: StatuslineSegment.defaults, now: now) == "")
+        #expect(renderStatusline(input("not json"), segments: StatuslineSegment.defaults, now: now) == "")
         // A reset in the past is dropped, the percentage stays.
         let past = renderStatusline(input(#"{"rate_limits":{"five_hour":{"used_percentage":5,"resets_at":1}}}"#),
-                                    segments: [.fiveHour], ru: false, now: now)
+                                    segments: [.fiveHour], now: now)
         #expect(plain(past) == "5h ━─────── 5%")
     }
 
-    @Test func orderIsFixedAndSegmentsChosen() {
-        let line = renderStatusline(input(full), segments: [.branch, .week, .model], ru: false, now: now)
-        #expect(plain(line) == "Opus 5.5 │ wk 18% │ ⎇ feat/login")
-        let effort = renderStatusline(input(full), segments: [.model, .effort], ru: false, now: now)
-        #expect(plain(effort) == "Opus 5.5 medium")
+    /// #110: segments come in the configured order; effort chosen is a part of its own, in its place.
+    @Test func segmentsInConfiguredOrder() {
+        let line = renderStatusline(input(full), segments: [.branch, .week, .model], now: now)
+        #expect(plain(line) == "⎇ feat/login │ wk 18% │ Opus 5.5")
+        #expect(plain(renderStatusline(input(full), segments: [.fiveHour, .context], now: now))
+                == "5h ━━━───── 42% 1h47m │ ctx ━━━───── 38%")
+        #expect(plain(renderStatusline(input(full), segments: [.model, .effort], now: now)) == "Opus 5.5 │ effort medium")
+        #expect(plain(renderStatusline(input(full), segments: [.effort, .week], now: now)) == "effort medium │ wk 18%")
+        // A high level without the effort part stays a marker of the model; with it, it is not shown twice.
+        let high = #"{"model":{"display_name":"Opus 5.5"},"effort":{"level":"high"}}"#
+        #expect(plain(renderStatusline(input(high), segments: [.model], now: now)) == "Opus 5.5 high")
+        #expect(plain(renderStatusline(input(high), segments: [.effort, .model], now: now)) == "effort high │ Opus 5.5")
     }
 
     @Test func modelMarkers() {
         let json = #"{"model":{"id":"claude-opus-4-7[1m]","display_name":"Opus 4.7 (1M context)"},"context_window":{"context_window_size":1000000,"used_percentage":12.4},"fast_mode":true,"effort":{"level":"high"}}"#
-        let line = renderStatusline(input(json), segments: StatuslineSegment.defaults, ru: false, now: now)
+        let line = renderStatusline(input(json), segments: StatuslineSegment.defaults, now: now)
         #expect(plain(line) == "Opus 4.7 1M fast high │ ctx ━─────── 12%")
         #expect(line.contains("\u{1B}[2m1M\u{1B}[0m"))
         #expect(shortModelName(display: "Claude Sonnet 4.5", id: nil) == "Sonnet 4.5")
@@ -61,7 +67,7 @@ private let full = """
 
     @Test func thresholdsColour() {
         func five(_ p: Double) -> String {
-            renderStatusline(input(#"{"rate_limits":{"five_hour":{"used_percentage":\#(p)}}}"#), segments: [.fiveHour], ru: false, now: now)
+            renderStatusline(input(#"{"rate_limits":{"five_hour":{"used_percentage":\#(p)}}}"#), segments: [.fiveHour], now: now)
         }
         #expect(!five(79.4).contains("\u{1B}[33m") && !five(79.4).contains("\u{1B}[31m"))
         #expect(five(80).contains("\u{1B}[33m80%\u{1B}[0m"))
@@ -73,25 +79,23 @@ private let full = """
 
     @Test func weekResetOnlyNearLimit() {
         let json = #"{"rate_limits":{"seven_day":{"used_percentage":83,"resets_at":\#(1_800_000_000 + 2 * 86_400 + 3 * 3600)}}}"#
-        #expect(plain(renderStatusline(input(json), segments: [.week], ru: false, now: now)) == "wk 83% 2d3h")
-        #expect(plain(renderStatusline(input(json), segments: [.week], ru: true, now: now)) == "нед 83% 2д3ч")
+        #expect(plain(renderStatusline(input(json), segments: [.week], now: now)) == "wk 83% 2d3h")
     }
 
     @Test func durations() {
-        #expect(compactDuration(10, ru: false) == "1m")
-        #expect(compactDuration(47 * 60, ru: false) == "47m")
-        #expect(compactDuration(107 * 60, ru: false) == "1h47m")
-        #expect(compactDuration(2 * 3600, ru: false) == "2h")
-        #expect(compactDuration(2 * 86_400 + 3 * 3600, ru: false) == "2d3h")
-        #expect(compactDuration(3 * 86_400, ru: true) == "3д")
-        #expect(compactDuration(107 * 60, ru: true) == "1ч47м")
+        #expect(compactDuration(10) == "1m")
+        #expect(compactDuration(47 * 60) == "47m")
+        #expect(compactDuration(107 * 60) == "1h47m")
+        #expect(compactDuration(2 * 3600) == "2h")
+        #expect(compactDuration(2 * 86_400 + 3 * 3600) == "2d3h")
+        #expect(compactDuration(3 * 86_400) == "3d")
     }
 
     @Test func ansiSpansForPreview() {
         #expect(ansiSpans("a\u{1B}[2mb\u{1B}[0m\u{1B}[33mc\u{1B}[0md\u{1B}[31me") ==
                 [AnsiSpan("a", .normal), AnsiSpan("b", .dim), AnsiSpan("c", .yellow), AnsiSpan("d", .normal), AnsiSpan("e", .red)])
         #expect(ansiSpans("x\u{1B}[1Ay\u{1B}") == [AnsiSpan("xy", .normal)])
-        let sample = renderStatusline(.sample(now: now), segments: StatuslineSegment.defaults, ru: false, now: now)
+        let sample = renderStatusline(.sample(now: now), segments: StatuslineSegment.defaults, now: now)
         #expect(plain(sample) == "Opus 5.5 │ ctx ━━━───── 38% │ 5h ━━━━━━━─ 84% 1h47m │ wk 31%")
         #expect(ansiSpans(sample).contains(AnsiSpan("84%", .yellow)))
     }

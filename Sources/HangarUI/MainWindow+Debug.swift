@@ -407,6 +407,11 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
+        case "statuslineMove":  // statuslineMove <segment> <index>: as a chip dropped before the index-th chip (#110)
+            let a = arg.split(separator: " ")
+            if a.count == 2, let s = StatuslineSegment(rawValue: String(a[0])), let i = Int(a[1]) {
+                try? app.moveStatuslineSegment(s, to: i)
+            }
         case "settingsSize":  // settingsSize min|default|<w> <h>: the settings window's frame size
             let a = arg.split(separator: " ").compactMap { Double($0) }
             let size = arg == "min" ? Theme.settingsMinSize : arg == "default" ? Theme.settingsSize

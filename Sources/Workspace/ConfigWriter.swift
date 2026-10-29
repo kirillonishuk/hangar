@@ -43,6 +43,13 @@ extension HangarConfig {
         try save(to: url) { updating($0, key: key, literal: literal) }
     }
 
+    /// Settings' status line chips (#110): their order and the on ones, in one edit.
+    public static func settingStatusline(_ text: String, chips: [StatuslineSegment], on: Set<StatuslineSegment>) -> String {
+        func literal(_ list: [StatuslineSegment]) -> String { "[" + list.map { "\"\($0.rawValue)\"" }.joined(separator: ", ") + "]" }
+        let segments = updating(text, key: "statusline_segments", literal: literal(chips.filter(on.contains)))
+        return updating(segments, key: "statusline_order", literal: literal(chips))
+    }
+
     /// Drops every `key = …` line of the root section (a «Сбросить» of a color); other lines, comments and order stay.
     public static func removing(_ text: String, key: String) -> String {
         var lines = text.components(separatedBy: "\n")

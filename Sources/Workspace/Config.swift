@@ -50,8 +50,17 @@ public struct HangarConfig: Equatable, Sendable {
     public var checkUpdates = true
     /// Claude Code's status line (#105): Hangar's own line everywhere, or the user's original command.
     public var statusline: StatuslineMode = .hangar
-    /// The segments of Hangar's line; unknown names in the file are skipped.
+    /// The segments of Hangar's line, in the order shown; unknown and repeated names in the file are skipped.
     public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults
+    /// Settings' row of chips, the off ones too (`statusline_order`, #110): every segment once, missing ones appended.
+    public var statuslineOrder: [StatuslineSegment] = StatuslineSegment.allCases
+
+    /// The chips as Settings shows them: `statuslineOrder`'s slots, the on ones refilled in `statuslineSegments`' order,
+    /// so a hand-edited `statusline_segments` wins and the off chips keep their places.
+    public var statuslineChips: [StatuslineSegment] {
+        var on = statuslineSegments.makeIterator()
+        return statuslineOrder.map { statuslineSegments.contains($0) ? on.next() ?? $0 : $0 }
+    }
 
     /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
     public enum TerminalBackground: String, Sendable { case hangar, ghostty }
@@ -111,8 +120,12 @@ public struct HangarConfig: Equatable, Sendable {
                 continue
             }
             if section.isEmpty, key == "statusline_segments" {
-                let names = try stringArray(rawValue, line: n + 1)
-                config.statuslineSegments = StatuslineSegment.allCases.filter { names.contains($0.rawValue) }
+                config.statuslineSegments = StatuslineSegment.list(try stringArray(rawValue, line: n + 1))
+                continue
+            }
+            if section.isEmpty, key == "statusline_order" {
+                let order = StatuslineSegment.list(try stringArray(rawValue, line: n + 1))
+                config.statuslineOrder = order + StatuslineSegment.allCases.filter { !order.contains($0) }
                 continue
             }
             if section.isEmpty, try parseEditorKey(key, rawValue, line: n + 1, into: &config) { continue }

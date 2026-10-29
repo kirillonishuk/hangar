@@ -668,6 +668,9 @@
 "statuslineUserPreview" = "Claude запускает вашу команду";
 "statuslineParts" = "Части";
 "statuslineNeedsIntegration" = "Появится, когда интеграция Claude установлена";
+"statuslineChipHelp" = "Нажмите — показать или скрыть; перетащите — изменить порядок";
+"statuslineMoveLeft" = "Левее";
+"statuslineMoveRight" = "Правее";
 "statuslineSegModel" = "Модель";
 "statuslineSegContext" = "Контекст";
 "statuslineSegFiveHour" = "5 часов";

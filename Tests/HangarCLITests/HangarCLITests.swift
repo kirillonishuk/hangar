@@ -227,11 +227,16 @@ private let statusFixture = Data("""
         #expect(String(decoding: r.out, as: UTF8.self).contains("\u{1B}[31m96%"))
         #expect(await inbox.wait(count: 1).count == 1)
 
-        // Before the first reply: no rate limits → only what is known; Russian labels follow the config.
+        // Before the first reply: no rate limits → only what is known. English in a Russian Hangar too (#110).
         try "statusline = \"hangar\"\nlanguage = \"ru\"\n".write(toFile: config, atomically: true, encoding: .utf8)
         let early = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir),
                                          stdin: Data(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":3}}"#.utf8))
-        #expect(visible(early.out) == "Sonnet 4.6 │ контекст ━─────── 3%\n")
+        #expect(visible(early.out) == "Sonnet 4.6 │ ctx ━─────── 3%\n")
+
+        // The segments in the config's order (#110).
+        try "language = \"ru\"\nstatusline_segments = [\"week\", \"5h\", \"model\"]\n".write(toFile: config, atomically: true, encoding: .utf8)
+        let ordered = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
+        #expect(visible(ordered.out) == "wk 18% │ 5h ━━━━━━━━ 96% 1h48m │ Opus 4.7 1M\n")
 
         // An unreadable config is the defaults (Hangar's line); no data at all prints nothing.
         try "statusline = 5".write(toFile: config, atomically: true, encoding: .utf8)

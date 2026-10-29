@@ -668,6 +668,9 @@
 "statuslineUserPreview" = "Claude runs your command";
 "statuslineParts" = "Parts";
 "statuslineNeedsIntegration" = "Shows once the Claude integration is installed";
+"statuslineChipHelp" = "Click to show or hide; drag to reorder";
+"statuslineMoveLeft" = "Move Left";
+"statuslineMoveRight" = "Move Right";
 "statuslineSegModel" = "Model";
 "statuslineSegContext" = "Context";
 "statuslineSegFiveHour" = "5 hours";

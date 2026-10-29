@@ -1,52 +1,53 @@
 import SwiftUI
 import Workspace
 
-/// Settings → Интеграции → «Строка состояния Claude» (#105): which line Claude shows, a live preview from the same
+/// Settings → Интеграции → Claude Code → «Строка состояния» (#105, #111): which line Claude shows, a live preview from the same
 /// renderer as `hangar statusline`, its segments, and the projects whose own line Hangar overrides.
 extension SettingsView {
-    var statusline: some View {
-        let integration = model.integration
+    /// The status line row of the Claude Code card: the choice, the preview with its chips, the overridden projects.
+    @ViewBuilder var statuslineRows: some View {
+        let integration = app.integrations
         let mode = app.config.statusline
-        return CardSection(title: L10n.statuslineTitle) {
-            row(L10n.statuslineShow, first: true) {
-                Segment(selection: mode, options: [(.hangar, L10n.statuslineHangar), (.user, L10n.statuslineUser)],
-                        disabled: integration.userStatusline == nil && mode != .user ? [.user] : []) { m in
-                    save { try app.setStatuslineMode(m) }
-                }
-                .help(mode == .hangar ? (integration.userStatusline == nil ? L10n.statuslineNoOwnHelp : L10n.statuslineHangarHelp)
-                                      : integration.userStatusline.map(L10n.statuslineUserHelp) ?? L10n.statuslineNoOwnHelp)
+        FunctionRow(title: L10n.intStatuslineTitle, subtitle: L10n.intStatuslineSub) {
+            Segment(selection: mode, options: [(.hangar, L10n.statuslineHangar), (.user, L10n.statuslineUser)],
+                    disabled: integration.userStatusline == nil && mode != .user ? [.user] : []) { m in
+                save { try app.setStatuslineMode(m) }
             }
-            // The hint under the choice, wrapped: beside it, it was cut to «Появится, когда…» (#110).
-            if !integration.statuslineIsHangar {
-                wideRow {
-                    Text(verbatim: L10n.statuslineNeedsIntegration).foregroundStyle(Theme.ui.text3)
-                        .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
-                }
+            .help(mode == .hangar ? (integration.userStatusline == nil ? L10n.statuslineNoOwnHelp : L10n.statuslineHangarHelp)
+                                  : integration.userStatusline.map(L10n.statuslineUserHelp) ?? L10n.statuslineNoOwnHelp)
+        }
+        // The hint under the choice, wrapped: beside it, it was cut to «Появится, когда…» (#110).
+        if !integration.statuslineIsHangar {
+            wideRow(divider: false) {
+                Text(verbatim: L10n.statuslineNeedsIntegration).foregroundStyle(Theme.ui.text3)
+                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
             }
-            // The preview and the parts take the card's whole width: the line is ~60 columns.
+        }
+        // The preview and the parts take the card's whole width: the line is ~60 columns.
+        wideRow(divider: false) {
+            StatuslineParts(mode: mode, chips: app.config.statuslineChips, on: app.config.statuslineSegments,
+                            own: integration.userStatusline, title: segmentTitle,
+                            toggle: { s, on in save { try app.setStatuslineSegment(s, on: on) } },
+                            move: { s, i in save { try app.moveStatuslineSegment(s, to: i) } })
+        }
+        if !app.statuslineNotes.isEmpty {
             wideRow {
-                StatuslineParts(mode: mode, chips: app.config.statuslineChips, on: app.config.statuslineSegments,
-                                own: integration.userStatusline, title: segmentTitle,
-                                toggle: { s, on in save { try app.setStatuslineSegment(s, on: on) } },
-                                move: { s, i in save { try app.moveStatuslineSegment(s, to: i) } })
+                Text(verbatim: L10n.statuslineProjects).foregroundStyle(Theme.ui.text2)
+                ForEach(app.statuslineNotes) { note in statuslineNoteRow(note) }
             }
-            if !app.statuslineNotes.isEmpty {
-                wideRow {
-                    Text(verbatim: L10n.statuslineProjects).foregroundStyle(Theme.ui.text2)
-                    ForEach(app.statuslineNotes) { note in statuslineNoteRow(note) }
-                }
-                .help(L10n.statuslineProjectsHelp)
-            }
+            .help(L10n.statuslineProjectsHelp)
         }
     }
 
     /// A card row without the label column, with `CardRow`'s paddings and divider.
-    private func wideRow(@ViewBuilder _ content: () -> some View) -> some View {
+    /// `divider: false` continues the row above (the status line's preview under its choice).
+    func wideRow(divider: Bool = true, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: Theme.cardRowPaddingV) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, Theme.cardRowPaddingV)
+            .padding(.top, divider ? Theme.cardRowPaddingV : 0)
+            .padding(.bottom, Theme.cardRowPaddingV)
             .padding(.horizontal, Theme.cardRowPaddingH)
-            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1) }
+            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(divider ? 1 : 0) }
     }
 
     private func segmentTitle(_ s: StatuslineSegment) -> String {

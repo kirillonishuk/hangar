@@ -67,9 +67,8 @@ rm -f "$f"
 printf '%s\n' "$b"
 """#
 
-/// «Сервер <host>»: the report of the last check, the install plan (run only after «Установить») and the agents'
-/// integrations on the server. Nothing is written to the server except by `installFinished` of a confirmed install
-/// or `applyIntegration` of a plan the user confirmed in the diff sheet; local ~/.claude / ~/.codex are never touched.
+/// «Сервер <host>»: the report of the last check and the install plan (run only after «Установить»); the agents'
+/// integrations on the server, once agreed to (#111): `applyAgent`. Local ~/.claude / ~/.codex are never touched here.
 @MainActor @Observable final class ServerCheckModel {
     enum Phase: Equatable { case checking, ready, installing, failed(String) }
 
@@ -89,20 +88,10 @@ printf '%s\n' "$b"
     private(set) var installRun = 0
     /// The terminal of the last confirmed install (kept after it exits, so its output stays readable).
     private(set) var installSpec: LaunchSpec?
-    /// Integration states on the server; nil while not read (or the agent is not there).
-    private(set) var claude: IntegrationState?
-    private(set) var codex: IntegrationState?
-    var integrationError: String?
-    /// After a write: where the backup went.
-    var message: String?
-    /// Shown in the consent sheet; nothing is written until it is confirmed.
-    var pendingPlan: IntegrationPlan?
 
     @ObservationIgnored private let remote: RemoteHosts
     @ObservationIgnored private let run: (InstallStep, Data?) async -> RunResult
     @ObservationIgnored var now: () -> Date = Date.init
-    /// Runs before the Claude integration is removed from the server: Hangar's project overrides go first (#105).
-    @ObservationIgnored var beforeClaudeUninstall: (() async -> Void)?
 
     init(host: String, remote: RemoteHosts, run: @escaping (InstallStep, Data?) async -> RunResult) {
         self.host = host
@@ -138,7 +127,6 @@ printf '%s\n' "$b"
         report = r
         plan = installPlan(r, remoteVersion: hangarRemoteVersion, optional: optional)
         phase = .ready
-        await readIntegrations()
     }
 
     /// The install terminal's command: `terminalScript(confirmed or current steps)` through `ssh -t`.
@@ -184,19 +172,78 @@ printf '%s\n' "$b"
 
     // MARK: Integrations
 
-    private func integrationPath(_ t: IntegrationTarget) -> String? {
-        report.map { t == .claude ? $0.claudeDir + "/settings.json" : $0.codexHome + "/config.toml" }
+    private func integrationPath(_ agent: MCPAgent) -> String? {
+        report.map { agent == .claude ? $0.claudeDir + "/settings.json" : $0.codexHome + "/config.toml" }
     }
 
-    private func readIntegrations() async {
-        guard let cli else { return }
-        for t in [IntegrationTarget.claude, .codex] {
-            var state: IntegrationState?
-            if t == .claude || report?.tools[.codex] != nil, let path = integrationPath(t) {
-                // No file yet (nil) is «not installed»; an unreadable one stays unknown.
-                if let text = try? await read(path) as String?? { state = t == .claude ? claudeState(text, cli: cli) : codexState(text, cli: cli) }
+    /// An older Hangar's entries are in the server's Claude settings or Codex config (#111: such a host joins silently).
+    /// An unreadable file counts as none: the host's sheet then asks.
+    func hasHangarIntegration() async -> Bool {
+        if report == nil { report = remote.hosts[host]?.report }
+        for agent in [MCPAgent.claude, .codex] {
+            guard let path = integrationPath(agent), let text = try? await read(path) else { continue }
+            if agent == .claude ? claudeState(text, cli: "") != .notInstalled : codexState(text, cli: "") != .notInstalled { return true }
+        }
+        return false
+    }
+
+    /// `hangar-remote` (what the hooks call) when the server has none: the install's own upload step, nothing else.
+    func ensureRemoteScript() async {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let r = report, r.remoteVersion == nil,
+              let step = installPlan(r, remoteVersion: hangarRemoteVersion, optional: []).steps.first(where: { !$0.inTerminal }) else { return }
+        let w = await run(step, Data(hangarRemoteScript.utf8))
+        guard w.status == 0 else {
+            uiLog.error("hangar-remote install on \(self.host, privacy: .public) failed: \(w.status) \(lastLine(w.stderr) ?? "", privacy: .public)")
+            return
+        }
+        uiLog.info("hangar-remote installed on \(self.host, privacy: .public)")
+        await remote.recheck(host)
+        report = remote.hosts[host]?.report ?? report
+    }
+
+    /// The new text of the agent's file on the server for these functions; nil = nothing to change.
+    private func updated(_ agent: MCPAgent, _ original: String?, hooks: Bool, statusline: Bool) throws -> String? {
+        guard let cli else { return nil }
+        return switch agent {
+        case .claude: try claudeApply(original, cli: cli, hooks: hooks, statusline: statusline, ours: remoteOwnership(cli: cli))
+        case .codex: try codexApply(original, cli: cli, notify: hooks, ours: remoteOwnership(cli: cli))
+        }
+    }
+
+    /// The agent's file on the server brought to these functions (#96, #111): the same `cat` read and checked write as
+    /// every server file (backup next to it, refused if it changed). No agent there → `.noAgent`, nothing written.
+    func applyAgent(_ agent: MCPAgent, hooks: Bool, statusline: Bool) async -> MachineMark {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let r = report, cli != nil, let path = integrationPath(agent) else { return .failed(L10n.hostDisconnected) }
+        guard r.tools[agent == .claude ? .claude : .codex] != nil else { return .noAgent }
+        do {
+            let original = try await read(path)
+            guard let text = try updated(agent, original, hooks: hooks, statusline: statusline) else { return .done(changed: nil, backup: nil) }
+            let w = await write(path, original: original, updated: text)
+            guard w.status == 0 else {
+                uiLog.error("\(agent.rawValue, privacy: .public) integration on \(self.host, privacy: .public) failed: \(w.status)")
+                return .failed(remoteWriteError(w))
             }
-            if t == .claude { claude = state } else { codex = state }
+            let backup = lastLine(w.stdout)
+            uiLog.info("\(agent.rawValue, privacy: .public) integration on \(self.host, privacy: .public), backup \(backup ?? "-", privacy: .public)")
+            return .done(changed: now(), backup: backup.map { host + ":" + $0 })
+        } catch {
+            uiLog.error("\(agent.rawValue, privacy: .public) integration on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
+            return .failed((error as? RemoteFileError)?.message ?? IntegrationModel.describe(error))
+        }
+    }
+
+    /// «Что изменится» of the host's sheet: the diff `applyAgent` would write.
+    func preview(_ agent: MCPAgent, hooks: Bool, statusline: Bool) async -> PlannedChange? {
+        if report == nil { report = remote.hosts[host]?.report }
+        guard let r = report, r.tools[agent == .claude ? .claude : .codex] != nil, let path = integrationPath(agent) else { return nil }
+        do {
+            let original = try await read(path)
+            guard let text = try updated(agent, original, hooks: hooks, statusline: statusline) else { return nil }
+            return PlannedChange(path: host + ":" + path, diff: collapsed(lineDiff(original ?? "", text)))
+        } catch {
+            return nil
         }
     }
 
@@ -208,76 +255,9 @@ printf '%s\n' "$b"
         throw RemoteFileError(message: lastLine(r.stderr) ?? L10n.exitStatus(r.status))
     }
 
-    /// The file the write will replace (its symlinks followed on the server), for the sheet's backup line.
-    private func resolve(_ path: String) async throws -> String {
-        let r = try await remote.runner(host).run(["/bin/sh", "-c", "f=$1\n" + remoteResolveLinks + "\nprintf '%s\\n' \"$f\"", "sh", path], "")
-        guard r.status == 0, let real = lastLine(r.stdout) else { throw RemoteFileError(message: lastLine(r.stderr) ?? L10n.exitStatus(r.status)) }
-        return real
-    }
-
     private struct RemoteFileError: LocalizedError {
         var message: String
         var errorDescription: String? { message }
-    }
-
-    /// The diff the consent sheet shows: the same install/uninstall as on this Mac, for the server's file.
-    func integrationPlan(_ t: IntegrationTarget, install: Bool) async -> IntegrationPlan? {
-        guard let cli, let path = integrationPath(t) else { return nil }
-        message = nil
-        do {
-            let original = try await read(path)
-            let updated: String
-            switch (t, install) {
-            case (.claude, true): updated = try claudeInstall(original, cli: cli)
-            case (.codex, true): updated = try codexInstall(original, cli: cli)
-            case (_, false):
-                guard let original else { return nil }
-                updated = t == .claude ? try claudeUninstall(original) : try codexUninstall(original)
-            }
-            integrationError = nil
-            let real = try await resolve(path)
-            return IntegrationPlan(target: t, install: install, url: URL(fileURLWithPath: path), resolved: URL(fileURLWithPath: real),
-                                   original: original, updated: updated, diff: collapsed(lineDiff(original ?? "", updated)),
-                                   displayPath: host + ":" + path, backupDisplayPath: host + ":" + real)
-        } catch {
-            integrationError = (error as? RemoteFileError)?.message ?? IntegrationModel.describe(error)
-            return nil
-        }
-    }
-
-    func review(_ t: IntegrationTarget, install: Bool) async {
-        integrationError = nil
-        pendingPlan = await integrationPlan(t, install: install)
-    }
-
-    func cancelPlan() {
-        pendingPlan = nil
-        integrationError = nil
-    }
-
-    /// «Применить»: written → the sheet closes; the file changed meanwhile → a fresh diff with the error; else the same plan.
-    func confirmPlan() async {
-        guard let plan = pendingPlan else { return }
-        if await applyIntegration(plan) { pendingPlan = nil; return }
-        guard integrationError == L10n.fileChanged else { return }
-        pendingPlan = await integrationPlan(plan.target, install: plan.install)
-        integrationError = L10n.fileChanged
-    }
-
-    /// Writes the confirmed plan on the server; refuses (`fileChanged`) if the file is not what the plan was made from.
-    func applyIntegration(_ p: IntegrationPlan) async -> Bool {
-        // The path exactly as read (`URL.path` would normalize it).
-        let path = p.displayPath.map { String($0.dropFirst(host.count + 1)) } ?? p.url.path
-        if p.target == .claude, !p.install { await beforeClaudeUninstall?() }
-        let r = await write(path, original: p.original, updated: p.updated)
-        guard r.status == 0 else {
-            integrationError = remoteWriteError(r)
-            return false
-        }
-        integrationError = nil
-        message = lastLine(r.stdout).map { L10n.backupCreated(host + ":" + $0) }
-        await readIntegrations()
-        return true
     }
 
     private var timestamp: String {
@@ -326,28 +306,6 @@ printf '%s\n' "$b"
             return true
         } catch {
             uiLog.error("hangar-remote upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
-            return false
-        }
-    }
-
-    /// On connect (#96): an installed Claude integration gets Hangar's missing hooks only, through the same backup and
-    /// checked write as «Применить». Not installed, current, unreadable or a failed write → false, file as it was
-    /// (the «Сервер» sheet then shows «устарела» as before).
-    func autoUpgradeClaude() async -> Bool {
-        if report == nil { report = remote.hosts[host]?.report }
-        guard let cli, let path = integrationPath(.claude) else { return false }
-        do {
-            let original = try await read(path)
-            guard let updated = try claudeUpgrade(original, cli: cli) else { return false }
-            let r = await write(path, original: original, updated: updated)
-            guard r.status == 0 else {
-                uiLog.error("claude hooks upgrade on \(self.host, privacy: .public) failed: \(r.status) \(lastLine(r.stderr) ?? "", privacy: .public)")
-                return false
-            }
-            uiLog.info("claude hooks upgraded on \(self.host, privacy: .public), backup \(lastLine(r.stdout) ?? "", privacy: .public)")
-            return true
-        } catch {
-            uiLog.error("claude hooks upgrade on \(self.host, privacy: .public): \(String(describing: error), privacy: .public)")
             return false
         }
     }

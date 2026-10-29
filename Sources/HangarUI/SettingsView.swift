@@ -60,15 +60,6 @@ func settingsLabelWidth(_ lang: Language) -> CGFloat {
     return min(widest + Theme.settingsLabelSlack, Theme.settingsLabelMax)
 }
 
-/// Settings integration pill: green when installed, amber for a to-do; red is kept for errors.
-@MainActor func integrationPill(_ state: IntegrationState) -> (text: String, color: Color) {
-    switch state {
-    case .installed, .installedStatuslineByUser: (L10n.pillInstalled, Theme.ui.done)
-    case .outdated: (L10n.pillOutdated, Theme.ui.waiting)
-    case .notInstalled: (L10n.pillMissing, Theme.ui.waiting)
-    }
-}
-
 struct SettingsView: View {
     @Bindable var model: SettingsModel
     var app: AppState { model.app }
@@ -102,11 +93,6 @@ struct SettingsView: View {
         .frame(minWidth: Theme.settingsMinSize.width)
         .font(.system(size: Theme.fontSize.sheetRow))
         .background(Theme.ui.sheet)
-        .sheet(isPresented: Binding(get: { model.pendingPlan != nil }, set: { if !$0 { model.cancelPlan() } })) {
-            if let plan = model.pendingPlan {
-                IntegrationSheet(plan: plan, error: model.integration.error, onApply: model.confirmPlan, onCancel: model.cancelPlan)
-            }
-        }
     }
 
     @ViewBuilder private var page: some View {
@@ -121,7 +107,7 @@ struct SettingsView: View {
 
     /// A write error or an integration message, under the page (nothing when all is well: no jump of the cards).
     @ViewBuilder private var footer: some View {
-        if let text = model.error ?? model.integration.message ?? (model.category == .appearance ? model.editorTheme.notice : nil) {
+        if let text = model.error ?? (model.category == .appearance ? model.editorTheme.notice : nil) {
             Text(verbatim: text)
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
                 .lineLimit(1).truncationMode(.middle)
@@ -425,19 +411,6 @@ struct SettingsView: View {
         }
     }
 
-    private var integrations: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            CardSection {
-                row(L10n.integrationClaude, first: true) { integrationValue(.claude) }
-                row(L10n.integrationCodex) { integrationValue(.codex) }
-                if model.integration.cli == nil { mcpValue }
-            }
-            statusline
-            // The commands to add Hangar's MCP server, one row per agent.
-            if model.integration.cli != nil { CardSection(title: L10n.integrationMCP) { mcpValue } }
-        }
-    }
-
     /// The config file; then what the editor does through tsserver / language servers (#109: not the look, so not in
     /// «Оформление»): format on save and the servers themselves.
     private var advanced: some View {
@@ -469,85 +442,6 @@ struct SettingsView: View {
             Button(L10n.showInFinder) { NSWorkspace.shared.activateFileViewerSelecting([app.configURL]) }
                 .buttonStyle(SheetButton(primary: false))
                 .fixedSize()
-        }
-    }
-
-    // MARK: Integrations
-
-    /// Status pill (the whole sentence in its tooltip), the file it writes, and the action (only after the consent sheet).
-    @ViewBuilder private func integrationValue(_ target: IntegrationTarget) -> some View {
-        let status = integrationStatus(target)
-        let integration = model.integration
-        Pill(text: status.pill, color: status.color).help(status.text)
-        if integration.pathsReady, integration.cli != nil, target == .claude || integration.codex != .notFound {
-            let path = tildePath((target == .claude ? integration.claudeSettings : integration.codexConfig).path)
-            Text(verbatim: path)
-                .font(.system(size: Theme.fontSize.counter, design: .monospaced))
-                .foregroundStyle(Theme.ui.text3)
-                .lineLimit(1).truncationMode(.middle)
-                .help(path)
-        }
-        Spacer(minLength: Theme.cardRowGap)
-        if let action = status.action {
-            Button(action.title) { model.review(target, install: action.install) }
-                .buttonStyle(SheetButton(primary: false))
-                .fixedSize()
-        }
-    }
-
-    /// Commands for the user to run in a terminal: Hangar itself never touches the agents' MCP configs.
-    @ViewBuilder private var mcpValue: some View {
-        if let cli = model.integration.cli {
-            let commands = mcpAddCommands(cli: cli)
-            ForEach(Array([("claude", commands.claude), ("codex", commands.codex)].enumerated()), id: \.offset) { i, item in
-                row(item.0, first: i == 0) {
-                    Text(verbatim: item.1)
-                        .font(.system(size: Theme.fontSize.counter, design: .monospaced))
-                        .foregroundStyle(Theme.ui.text2)
-                        .lineLimit(1).truncationMode(.middle)
-                        .help(item.1)
-                    Spacer(minLength: Theme.cardRowGap)
-                    Button(L10n.copyCommand) { model.copy(item.1) }
-                        .buttonStyle(SheetButton(primary: false))
-                        .fixedSize()
-                }
-            }
-        } else {
-            row(L10n.integrationMCP) {
-                // One message: the pill, its reason in the tooltip (as the Claude / Codex rows).
-                Pill(text: L10n.pillUnavailable, color: Theme.ui.text3).help(L10n.integrationNeedsApp)
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private func integrationStatus(_ target: IntegrationTarget)
-        -> (pill: String, text: String, color: Color, action: (title: String, install: Bool)?) {
-        let integration = model.integration
-        if model.pendingPlan == nil, integration.errorTarget == target, let error = integration.error {
-            return (L10n.pillError, error, Theme.ui.failed, nil)
-        }
-        guard integration.pathsReady else { return (L10n.pillChecking, L10n.integrationChecking, Theme.ui.text3, nil) }
-        let state: IntegrationState
-        switch target {
-        case .claude: state = integration.claude
-        case .codex:
-            switch integration.codex {
-            case nil: return (L10n.pillChecking, L10n.codexLookup, Theme.ui.text3, nil)
-            case .notFound?: return (L10n.pillUnavailable, L10n.codexNotFound, Theme.ui.text3, nil)
-            case .found(let s)?: state = s
-            }
-        }
-        guard let cli = integration.cli else { return (L10n.pillUnavailable, L10n.integrationNeedsApp, Theme.ui.text3, nil) }
-        let pill = integrationPill(state)
-        if installBlocked(cli: cli), state == .notInstalled || state == .outdated {
-            return (pill.text, L10n.moveToApplications, pill.color, nil)  // removal stays possible from the other states
-        }
-        return switch state {
-        case .installed: (pill.text, L10n.integrationInstalled, pill.color, (L10n.removeIntegration, false))
-        case .installedStatuslineByUser: (pill.text, L10n.integrationStatuslineByUser, pill.color, (L10n.removeIntegration, false))
-        case .outdated: (pill.text, L10n.integrationOutdated, pill.color, (L10n.updateEllipsis, true))
-        case .notInstalled: (pill.text, target == .claude ? L10n.hooksMissing : L10n.codexNotifyMissing, pill.color, (L10n.installEllipsis, true))
         }
     }
 

@@ -50,6 +50,11 @@ extension HangarConfig {
         return updating(segments, key: "statusline_order", literal: literal(chips))
     }
 
+    /// `["a", "b"]` for a list key (host names: no quotes or backslashes in them).
+    public static func listLiteral(_ items: [String]) -> String {
+        "[" + items.map { "\"\($0)\"" }.joined(separator: ", ") + "]"
+    }
+
     /// Drops every `key = …` line of the root section (a «Сбросить» of a color); other lines, comments and order stay.
     public static func removing(_ text: String, key: String) -> String {
         var lines = text.components(separatedBy: "\n")

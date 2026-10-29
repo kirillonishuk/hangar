@@ -170,7 +170,67 @@ import Workspace
         case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration, statuslineChipHelp, statuslineMoveLeft, statuslineMoveRight
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
+        // Integrations by function (#111)
+        case intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, awaitingIntegrationAnswer
     }
+
+
+    // Integrations by function (#111)
+    static var intHooksTitle: String { s(.intHooksTitle) }
+    static var intHooksClaudeSub: String { s(.intHooksClaudeSub) }
+    static var intHooksCodexSub: String { s(.intHooksCodexSub) }
+    static var intLimitsTitle: String { s(.intLimitsTitle) }
+    static var intLimitsSub: String { s(.intLimitsSub) }
+    static var intStatuslineTitle: String { s(.intStatuslineTitle) }
+    static var intStatuslineSub: String { s(.intStatuslineSub) }
+    static var intStatuslineSheetTitle: String { s(.intStatuslineSheetTitle) }
+    static var intStatuslineSheetSub: String { s(.intStatuslineSheetSub) }
+    static var intMCPSub: String { s(.intMCPSub) }
+    static var intMCPSheetSub: String { s(.intMCPSheetSub) }
+    static var intThisMacTag: String { s(.intThisMacTag) }
+    static var intThisMacTagHelp: String { s(.intThisMacTagHelp) }
+    static var intWhereInstalled: String { s(.intWhereInstalled) }
+    static var intWhereTo: String { s(.intWhereTo) }
+    static var intThisMac: String { s(.intThisMac) }
+    static var intOffline: String { s(.intOffline) }
+    static var intOnConnect: String { s(.intOnConnect) }
+    static var intConnectEllipsis: String { s(.intConnectEllipsis) }
+    static func intNoAgentOnHost(_ a: String) -> String { f(.intNoAgentOnHost, a) }
+    static var intSkipped: String { s(.intSkipped) }
+    static var intFailed: String { s(.intFailed) }
+    static func intTipUpdated(_ a: String) -> String { f(.intTipUpdated, a) }
+    static var intTipCurrent: String { s(.intTipCurrent) }
+    static func intTipBackup(_ a: String) -> String { f(.intTipBackup, a) }
+    static var intTipOffline: String { s(.intTipOffline) }
+    static var intTipUndecided: String { s(.intTipUndecided) }
+    static var intTipSkipped: String { s(.intTipSkipped) }
+    static func intTipFailed(_ a: String) -> String { f(.intTipFailed, a) }
+    static func intTipNoAgent(_ a: String) -> String { f(.intTipNoAgent, a) }
+    static var intNotFound: String { s(.intNotFound) }
+    static func intAgentNotFound(_ a: String, _ b: String) -> String { f(.intAgentNotFound, a, b) }
+    static var intMCPForeign: String { s(.intMCPForeign) }
+    static var intMCPOtherCopy: String { s(.intMCPOtherCopy) }
+    static func intMCPFailed(_ a: String) -> String { f(.intMCPFailed, a) }
+    static var intMCPUnreadable: String { s(.intMCPUnreadable) }
+    static var intMCPMissing: String { s(.intMCPMissing) }
+    static func intSheetTitle(_ a: String) -> String { f(.intSheetTitle, a) }
+    static var intSheetSubtitle: String { s(.intSheetSubtitle) }
+    static var intWhatChanges: String { s(.intWhatChanges) }
+    static var intHideChanges: String { s(.intHideChanges) }
+    static var intNoChanges: String { s(.intNoChanges) }
+    static var intNotNow: String { s(.intNotNow) }
+    static var intConnect: String { s(.intConnect) }
+    static func intHostTitle(_ a: String) -> String { f(.intHostTitle, a) }
+    static var intHostSubtitle: String { s(.intHostSubtitle) }
+    static var intHostSkip: String { s(.intHostSkip) }
+    static var intHostRemote: String { s(.intHostRemote) }
+    static var intPartHooks: String { s(.intPartHooks) }
+    static var intPartLimits: String { s(.intPartLimits) }
+    static var intPartStatusline: String { s(.intPartStatusline) }
+    static var intNothingOn: String { s(.intNothingOn) }
+    static var intAgentOffHelp: String { s(.intAgentOffHelp) }
+    static var intMCPNote: String { s(.intMCPNote) }
+    static var awaitingIntegrationAnswer: String { s(.awaitingIntegrationAnswer) }
 
     // Search tab (find in files, #91)
     static var segmentSearch: String { s(.segmentSearch) }

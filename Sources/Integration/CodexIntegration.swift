@@ -242,7 +242,7 @@ public func tomlRootStringArray(_ toml: String, key: String) throws(IntegrationE
 }
 
 private func isHangarNotify(_ v: [String]) -> Bool {
-    v.count >= 3 && (v[0] == "hangar" || v[0].hasSuffix("/hangar")) && v[1] == "event" && v[2] == "codex-notify"
+    v.count >= 3 && (v[0] == "hangar" || v[0].hasSuffix("/hangar") || v[0].hasSuffix("/hangar-remote")) && v[1] == "event" && v[2] == "codex-notify"
 }
 
 /// Original notify argv Hangar wraps (after `--then`); empty when Hangar has nothing to chain.
@@ -288,6 +288,26 @@ public func codexUninstall(_ toml: String) throws(IntegrationError) -> String {
         lines.replaceSubrange(found.lines, with: [notifyLine(then) + found.comment + last])
     }
     return lines.joined(separator: "\n")
+}
+
+/// The state of Hangar's `notify` in Codex's config (#111): wanted → installed for `cli` (a user's notify is wrapped,
+/// Hangar's own with an older path `ours` accepts moves to `cli`); not wanted → Hangar's own is taken out (the wrapped
+/// one restored). Another Hangar copy's notify is left alone. nil = nothing to write.
+public func codexApply(_ toml: String?, cli: String, notify: Bool, ours: (String) -> Bool) throws(IntegrationError) -> String? {
+    let entry = try scanNotify(toml ?? "", key: notifyKey).entry
+    if let found = entry, isHangarNotify(found.values) {
+        guard ours(found.values[0]) else { return nil }
+        if notify { return found.values[0] == cli ? nil : try codexInstall(toml, cli: cli) }
+        return try codexUninstall(toml ?? "")
+    }
+    return notify ? try codexInstall(toml, cli: cli) : nil
+}
+
+/// `codexApply` on a file, through the same checked write as Claude's.
+public func codexApplyFile(_ url: URL, cli: String, notify: Bool, ours: (String) -> Bool, now: Date) throws -> FileWrite? {
+    let original = try readUserFile(url)
+    guard let updated = try codexApply(original, cli: cli, notify: notify, ours: ours) else { return nil }
+    return FileWrite(backup: try writeUserFile(url, text: updated, expected: original, now: now))
 }
 
 public func codexState(_ toml: String?, cli: String) -> IntegrationState {

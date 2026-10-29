@@ -490,17 +490,17 @@ extension MainWindowController {
         case "externalDraft": settings.model.externalEditor = arg  // as if typed, without ↩
         case "closeSettings": settings.window?.performClose(nil)
         case "integration":
-            // integration claude|codex install|remove (opens the consent sheet) | confirm (= «Применить») | cancel | dump
+            // integration ask claude|codex|host <h> | answer yes|no (the shown sheet's buttons) | diff (opens «Что изменится») | dump
             let f = arg.split(separator: " ").map(String.init)
-            let m = settings.model
             switch f.first ?? "" {
-            case "claude", "codex": m.review(f[0] == "claude" ? .claude : .codex, install: f.count > 1 && f[1] == "install")
-            case "confirm": m.confirmPlan()
-            case "cancel": m.cancelPlan()
+            case "ask" where f.count >= 2:
+                app.requestIntegration(f[1] == "host" && f.count == 3 ? .host(f[2]) : .agent(f[1] == "codex" ? .codex : .claude))
+            case "answer" where f.count == 2: integrationSheetAnswer?(f[1] == "yes")
+            case "diff": integrationSheetDiff?()
             default: break
             }
-            let i = m.integration
-            uiLog.info("integration claude=\(String(describing: i.claude), privacy: .public) codex=\(String(describing: i.codex), privacy: .public) cli=\(i.cli ?? "-", privacy: .public) sheet=\(m.pendingPlan != nil) attached=\(self.settings.window?.attachedSheet != nil) error=\(i.error ?? "-", privacy: .public) message=\(i.message ?? "-", privacy: .public)")
+            let i = app.integrations
+            uiLog.info("integration ask=\(String(describing: i.ask), privacy: .public) marks=\(String(describing: i.marks), privacy: .public) mcp=\(String(describing: i.mcp), privacy: .public) claude=\(String(describing: self.app.config.claudeIntegration), privacy: .public) codex=\(String(describing: self.app.config.codexIntegration), privacy: .public) hosts=\(self.app.config.integrationHosts, privacy: .public) skipped=\(self.app.config.integrationHostsSkipped, privacy: .public)")
         case "lang":
             if let lang = Language(rawValue: arg) {
                 do { try app.setLanguage(lang) } catch { uiLog.error("lang: \(error.localizedDescription, privacy: .public)") }
@@ -631,8 +631,6 @@ extension MainWindowController {
                 if f.count == 2, let server, let tool = RemoteTool(rawValue: f[1]) {
                     if server.optional.contains(tool) { server.optional.remove(tool) } else { server.optional.insert(tool) }
                 }
-            case "review": if let server { Task { await server.review(f.count > 1 && f[1] == "codex" ? .codex : .claude, install: !(f.count > 2 && f[2] == "remove")) } }
-            case "confirm": if let server { Task { await server.confirmPlan() } }  // = «Применить» in the diff sheet
             case "snap":  // the diff sheet on top of the remote sheet
                 guard f.count == 2, let view = window?.attachedSheet?.attachedSheet?.contentView,
                       let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { break }
@@ -644,7 +642,7 @@ extension MainWindowController {
             }
             let hosts = app.remote.hosts.map { "\($0.key)=\($0.value.state) attention=\($0.value.needsAttention)" }
             uiLog.info("remote hosts=\(hosts, privacy: .public) phase=\(String(describing: server?.phase), privacy: .public) report=\(server?.report.map { "remote=\($0.remoteVersion ?? 0) tools=\($0.tools.keys.map(\.rawValue).sorted())" } ?? "-", privacy: .public)")
-            uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) claude=\(String(describing: server?.claude), privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
+            uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
         case "window":
             // window minimize|restore|hide|unhide|out|front: occlusion changes without activating the app.
             switch arg {

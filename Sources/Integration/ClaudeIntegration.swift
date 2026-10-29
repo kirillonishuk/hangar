@@ -175,54 +175,87 @@ public func claudeInstall(_ text: String?, cli: String) throws(IntegrationError)
     return printJSON(.object(root))
 }
 
-/// Entries an older Hangar installed: only these exact ones are removed as obsolete by `claudeUpgrade`.
+/// Entries an older Hangar installed: only these exact ones are removed as obsolete by `claudeApply`.
 let claudeHooksRetired: [(event: String, matcher: String?, kind: String)] = [
     ("StopFailure", "rate_limit", "stop-failure"),
 ]
 
-/// Automatic upgrade of an installed integration (#96): adds only Hangar's missing hooks at the end of their events.
-/// Hangar owns a handler only if its command is exactly `<cli> event <kind>`; anything longer (`… && say done`) is the
-/// user's. Removed: owned handlers at a retired event+matcher (`claudeHooksRetired`). A kind counts as present if any
-/// handler of its event starts with `<cli> event <kind>`, whatever its matcher: nothing is duplicated for a user's edit.
-/// nil = nothing to do: not installed, already current, or installed for another CLI path (the consent sheet rewrites those).
-public func claudeUpgrade(_ text: String?, cli: String) throws(IntegrationError) -> String? {
-    var root = try rootObject(text)
-    guard case .object(var events)? = root["hooks"] else { return nil }
-    func matcher(_ g: [JSONMember]) -> String { if case .string(let m)? = g["matcher"] { m } else { "" } }
-    func owned(_ handler: JSONValue) -> String? {
-        guard let c = command(of: handler), let w = shellWords(c), w.count == 3, w[0] == cli, w[1] == "event" else { return nil }
-        return w[2]
+/// Which CLI paths in a user's file are this Hangar's own (#111): the current helper, or another `Hangar.app` helper
+/// path left by a moved or re-installed app. A copy outside `/Applications` never claims entries that lead into an
+/// existing `/Applications/Hangar.app` (two copies would otherwise pull the entries back and forth at every launch).
+public func localOwnership(cli: String, exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) })
+    -> @Sendable (String) -> Bool {
+    { path in
+        if path == cli { return true }
+        guard path.hasSuffix("/Contents/Helpers/hangar") else { return false }
+        return cli.hasPrefix("/Applications/") || !path.hasPrefix("/Applications/") || !exists(path)
     }
-    let current = Set(claudeHooks.map { "\($0.event)|\($0.matcher ?? "")|\($0.kind)" })
-    let retired = Set(claudeHooksRetired.map { "\($0.event)|\($0.matcher ?? "")|\($0.kind)" }).subtracting(current)
+}
 
-    var installed = false
-    for event in events {
-        guard case .array(let groups) = event.value else { continue }
-        for case .object(let g) in groups {
-            guard case .array(let handlers)? = g["hooks"] else { continue }
-            for h in handlers {
-                guard let c = command(of: h), isHangarCommand(c) else { continue }
-                guard shellWords(c)?.first == cli else { return nil }
-                installed = true
+/// On a server the hooks call `~/.hangar/bin/hangar-remote`; any `hangar-remote` path is Hangar's.
+public func remoteOwnership(cli: String) -> @Sendable (String) -> Bool {
+    { $0 == cli || $0.hasSuffix("/hangar-remote") }
+}
+
+/// The CLI word of a command Hangar writes: `<cli> event <kind>` exactly, or `<cli> statusline …`; nil for the user's.
+private func hangarCLI(of c: String) -> String? {
+    guard isHangarCommand(c), let w = shellWords(c) else { return nil }
+    if w[1] == "event" { return w.count == 3 ? w[0] : nil }
+    return w[0]
+}
+
+/// The state Hangar's entries in Claude's user settings should be in (#111): `hooks` and `statusline` say which are
+/// wanted, everything else is left alone. Hangar owns a handler only if its command is exactly `<cli> event <kind>`
+/// with a CLI `ours` accepts (an older path is moved to `cli`); compound commands, user-changed matchers and the user's
+/// handlers stay (#96). Missing hooks are appended to their events; the obsolete ones (`claudeHooksRetired`) go; an
+/// unwanted function's entries are removed (the wrapped status line is restored). An entry of another Hangar copy
+/// (a CLI `ours` refuses) leaves the whole file alone. nil = nothing to write.
+public func claudeApply(_ text: String?, cli: String, hooks: Bool, statusline: Bool,
+                        ours: (String) -> Bool) throws(IntegrationError) -> String? {
+    let original = try rootObject(text)
+    var root = original
+    var events: [JSONMember] = []
+    switch root["hooks"] {
+    case nil: break
+    case .object(let e)?: events = e
+    default: throw .notAnObject
+    }
+    func eachCommand(_ body: (String) -> Void) {
+        for event in events {
+            guard case .array(let groups) = event.value else { continue }
+            for case .object(let g) in groups {
+                guard case .array(let handlers)? = g["hooks"] else { continue }
+                for h in handlers { if let c = command(of: h) { body(c) } }
             }
         }
+        if case .object(let sl)? = root["statusLine"], case .string(let c)? = sl["command"] { body(c) }
     }
-    guard installed else { return nil }
+    var foreign = false
+    eachCommand { c in if let x = hangarCLI(of: c), !ours(x) { foreign = true } }
+    guard !foreign else { return nil }
 
-    var changed = false, emptied: Set<String> = []
+    func matcher(_ g: [JSONMember]) -> String { if case .string(let m)? = g["matcher"] { m } else { "" } }
+    let current = Set(claudeHooks.map { "\($0.event)|\($0.matcher ?? "")|\($0.kind)" })
+    let retired = Set(claudeHooksRetired.map { "\($0.event)|\($0.matcher ?? "")|\($0.kind)" }).subtracting(current)
+    var emptied: Set<String> = []
     for ei in events.indices {
         guard case .array(var groups) = events[ei].value else { continue }
         var touched = false
         for gi in groups.indices.reversed() {
             guard case .object(var g) = groups[gi], case .array(let handlers)? = g["hooks"] else { continue }
-            let kept = handlers.filter { h in owned(h).map { !retired.contains("\(events[ei].key)|\(matcher(g))|\($0)") } ?? true }
-            guard kept.count != handlers.count else { continue }
+            var kept: [JSONValue] = []
+            for h in handlers {
+                guard let c = command(of: h), let x = hangarCLI(of: c), let w = shellWords(c), w[1] == "event" else { kept.append(h); continue }
+                if !hooks || retired.contains("\(events[ei].key)|\(matcher(g))|\(w[2])") { continue }
+                guard x != cli, case .object(var m) = h else { kept.append(h); continue }
+                m["command"] = .string(hookCommand(cli, w[2]))  // a moved app: the same entry, the current path
+                kept.append(.object(m))
+            }
+            guard kept != handlers else { continue }
             touched = true
             if kept.isEmpty { groups.remove(at: gi) } else { g["hooks"] = .array(kept); groups[gi] = .object(g) }
         }
         guard touched else { continue }
-        changed = true
         events[ei].value = .array(groups)
         if groups.isEmpty { emptied.insert(events[ei].key) }
     }
@@ -237,29 +270,58 @@ public func claudeUpgrade(_ text: String?, cli: String) throws(IntegrationError)
         }
         return false
     }
-    for h in claudeHooks where !present(h) {
-        var groups: [JSONValue] = []
-        if let existing = events[h.event] {
-            guard case .array(let a) = existing else { throw .notAnObject }
-            groups = a
+    if hooks {
+        for h in claudeHooks where !present(h) {
+            var groups: [JSONValue] = []
+            if let existing = events[h.event] {
+                guard case .array(let a) = existing else { throw .notAnObject }
+                groups = a
+            }
+            groups.append(hookGroup(h, cli: cli))
+            events[h.event] = .array(groups)
+            emptied.remove(h.event)
         }
-        groups.append(hookGroup(h, cli: cli))
-        events[h.event] = .array(groups)
-        emptied.remove(h.event)
-        changed = true
     }
-    guard changed else { return nil }
     events.removeAll { emptied.contains($0.key) }
-    root["hooks"] = .object(events)
-    return printJSON(.object(root))
+    if root["hooks"] != nil || !events.isEmpty {
+        // Hooks emptied by Hangar's removal take the key with them; a key that was already empty stays.
+        root["hooks"] = events.isEmpty && !emptied.isEmpty ? nil : .object(events)
+    }
+
+    switch root["statusLine"] {
+    case nil:
+        if statusline {
+            root["statusLine"] = .object([
+                JSONMember(key: "type", value: .string("command")),
+                JSONMember(key: "command", value: .string(statuslineCommand(cli, then: nil))),
+            ])
+        }
+    case .object(var sl)?:
+        // shortcut: a statusLine without a string `command` is left alone; Hangar then gets no usage from it.
+        guard case .string(let c)? = sl["command"] else { break }
+        if hangarCLI(of: c) == nil {
+            guard statusline else { break }
+            sl["command"] = .string(statuslineCommand(cli, then: c))
+        } else if statusline {
+            sl["command"] = .string(statuslineCommand(cli, then: thenArgument(c)))
+        } else if let then = thenArgument(c) {
+            sl["command"] = .string(then)
+        } else {
+            root["statusLine"] = nil
+            break
+        }
+        root["statusLine"] = .object(sl)
+    default: break
+    }
+    return root == original ? nil : printJSON(.object(root))
 }
 
-/// `claudeUpgrade` on a file: backup next to it, atomic write that refuses if the file changed meanwhile.
+/// `claudeApply` on a file: backup next to it, atomic write that refuses if the file changed meanwhile.
 /// nil = nothing written. Throws (file untouched) on an unreadable or unparsable file or a failed write.
-public func claudeUpgradeFile(_ url: URL, cli: String, now: Date) throws -> URL? {
+public func claudeApplyFile(_ url: URL, cli: String, hooks: Bool, statusline: Bool, ours: (String) -> Bool, now: Date) throws -> FileWrite? {
     let original = try readUserFile(url)
-    guard let updated = try claudeUpgrade(original, cli: cli) else { return nil }
-    return try writeUserFile(url, text: updated, expected: original, now: now)
+    guard let updated = try claudeApply(original, cli: cli, hooks: hooks, statusline: statusline, ours: ours) else { return nil }
+    return FileWrite(backup: try writeUserFile(url, text: updated, expected: original, now: now))
 }
 
 public func claudeUninstall(_ text: String) throws(IntegrationError) -> String {

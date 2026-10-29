@@ -199,6 +199,15 @@ private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
         #expect(t(.context, 70) == nil && t(.context, 100) == nil)  // its own place
         #expect(t(.week, 5, 200) == nil && t(.week, -100) == nil)   // released off the row
         #expect(t(.week, 5, 30) == 0)                                 // a little below still counts
+        // Wrapped onto two lines (week, branch, effort below): the lower line's start is after model…context…5h.
+        for (i, s) in chips.enumerated() { frames[s] = CGRect(x: Double(i % 3) * 60, y: i < 3 ? 0 : 30, width: 54, height: 24) }
+        let two = CGRect(x: 0, y: 0, width: 174, height: 54)
+        func w(_ s: StatuslineSegment, _ x: Double, _ y: Double) -> Int? {
+            HangarUI.chipDropTarget(chips: chips, frames: frames, row: two, dragged: s, at: CGPoint(x: x, y: y))
+        }
+        #expect(w(.model, 5, 42) == 3)     // before week, at the lower line's start
+        #expect(w(.effort, 170, 12) == 3)  // after 5h, the upper line's end
+        #expect(w(.model, 100, 42) == 5)   // between branch and effort
     }
 
     @Test func previewSplitsBars() {

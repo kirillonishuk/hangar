@@ -204,7 +204,7 @@ private struct StatuslineParts: View {
         let order = drag.flatMap { d in d.target.map { statuslineMove(chips, d.segment, to: $0) } } ?? chips
         VStack(alignment: .leading, spacing: Theme.cardRowPaddingV) {
             StatuslinePreview(mode: mode, segments: order.filter(on.contains), own: own)
-            HStack(spacing: Theme.pickGap) {
+            ChipFlow(spacing: Theme.pickGap) {  // wraps: the Russian row is wider than the card at the minimum window
                 ForEach(Array(chips.enumerated()), id: \.element) { i, s in
                     let isOn = on.contains(s)
                     let lifted = drag?.segment == s
@@ -257,13 +257,15 @@ private struct StatuslineParts: View {
     /// The accent line in the gap where the dragged chip would land (its middle, or just outside the row's ends).
     @ViewBuilder private var dropLine: some View {
         let rects = chips.compactMap { frames[$0] }
-        if let target = drag?.target, rects.count == chips.count, let first = rects.first {
+        if let target = drag?.target, rects.count == chips.count {
             let half = Theme.pickGap / 2
-            let x = target == 0 ? first.minX - half : target == chips.count ? rects[target - 1].maxX + half
-                : (rects[target - 1].maxX + rects[target].minX) / 2
+            // Between two chips of one line: the gap's middle; else before the target chip or after the last one.
+            let (x, rect) = target == chips.count ? (rects[target - 1].maxX + half, rects[target - 1])
+                : target > 0 && rects[target - 1].minY == rects[target].minY ? ((rects[target - 1].maxX + rects[target].minX) / 2, rects[target])
+                : (rects[target].minX - half, rects[target])
             RoundedRectangle(cornerRadius: Theme.statuslineDropLine / 2).fill(Theme.ui.accent)
-                .frame(width: Theme.statuslineDropLine, height: first.height)
-                .offset(x: x - Theme.statuslineDropLine / 2, y: first.minY)
+                .frame(width: Theme.statuslineDropLine, height: rect.height)
+                .offset(x: x - Theme.statuslineDropLine / 2, y: rect.minY)
                 .allowsHitTesting(false)
         }
     }
@@ -273,9 +275,49 @@ private struct StatuslineParts: View {
 /// it); nil off the row (with a chip's height of slack around it) or when the order would not change.
 func chipDropTarget(chips: [StatuslineSegment], frames: [StatuslineSegment: CGRect], row: CGRect,
                     dragged s: StatuslineSegment, at p: CGPoint) -> Int? {
-    guard row.insetBy(dx: -row.height, dy: -row.height).contains(p) else { return nil }
-    let index = chips.firstIndex { (frames[$0]?.midX ?? 0) > p.x } ?? chips.count
+    let slack = frames[s]?.height ?? 0
+    guard row.insetBy(dx: -slack, dy: -slack).contains(p) else { return nil }
+    // Chips are in reading order over wrapped lines: a chip is after the pointer on a lower line, or right of it on its line.
+    let index = chips.firstIndex { c in
+        guard let f = frames[c] else { return false }
+        return f.minY > p.y || (f.maxY >= p.y && f.midX > p.x)
+    } ?? chips.count
     return statuslineMove(chips, s, to: index) != chips ? index : nil
+}
+
+/// Chips left to right, wrapping onto a new line when the card is narrower than the row.
+private struct ChipFlow: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = lines(subviews, width: proposal.width ?? .infinity)
+        let width = rows.map { r in r.reduce(0) { $0 + $1.width } + spacing * CGFloat(r.count - 1) }.max() ?? 0
+        let height = rows.map { r in r.map(\.height).max() ?? 0 }.reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY, i = 0
+        for row in lines(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for size in row {
+                subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+                i += 1
+            }
+            y += (row.map(\.height).max() ?? 0) + spacing
+        }
+    }
+
+    private func lines(_ subviews: Subviews, width: CGFloat) -> [[CGSize]] {
+        var rows: [[CGSize]] = [[]], used: CGFloat = 0
+        for size in subviews.map({ $0.sizeThatFits(.unspecified) }) {
+            if !rows[rows.count - 1].isEmpty, used + spacing + size.width > width { rows.append([]); used = 0 }
+            used += (rows[rows.count - 1].isEmpty ? 0 : spacing) + size.width
+            rows[rows.count - 1].append(size)
+        }
+        return rows
+    }
 }
 
 /// Escape during a chip drag: a key monitor lives only while the drag does; `cancelled` hides the drag at once and

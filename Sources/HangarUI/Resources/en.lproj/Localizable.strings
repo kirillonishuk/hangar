@@ -431,7 +431,7 @@
 "noAgents" = "no agents";
 "rowWaiting" = "waiting";
 "sessionsView" = "Sessions";
-"sessionsViewHelp" = "Session history";
+"sessionsViewHelp" = "Sessions";
 "segmentGit" = "Git";
 "showGit" = "Show Git";
 "gitBranch" = "Branch";

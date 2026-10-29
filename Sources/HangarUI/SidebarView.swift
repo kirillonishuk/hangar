@@ -47,7 +47,7 @@ struct SidebarView: View {
             let inset = collapsed ? Theme.railInset : Theme.rowInset
             VStack(spacing: 0) {
                 Color.clear.frame(height: Theme.sidebarTopGap)
-                newTaskButton(visibleWidth: geo.size.width, inset: inset)
+                newTaskRow
                 sessionsRow
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -82,38 +82,35 @@ struct SidebarView: View {
 
     // MARK: Top
 
-    /// Filled full-width button; the fill is inset so the `+` keeps the shared marker x.
-    private func newTaskButton(visibleWidth: CGFloat, inset: CGFloat) -> some View {
-        Button { ctx.newTask(nil) } label: {
+    private func forcedHoverRow(_ name: String) -> Bool {
+        #if DEBUG
+        app.debugHoverRow == name
+        #else
+        false
+        #endif
+    }
+
+    /// A plain row like «Сессии»; only the `+` is accent. The shortcut lives in the tooltip.
+    private var newTaskRow: some View {
+        HoverRow(action: { ctx.newTask(nil) }, forceHover: forcedHoverRow("new")) { _ in
             GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .add, tint: Theme.ui.accentText)
             } expanded: {
-                HStack(spacing: 0) {
-                    Text(L10n.newTask).foregroundStyle(Theme.ui.accentText)
-                    Spacer(minLength: 0)
-                    ShortcutHint(text: Shortcut.newTask.label)
-                }
+                Text(L10n.newTask).foregroundStyle(Theme.ui.textRow)
             } rail: { EmptyView() }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(FilledRowStyle(width: visibleWidth - 2 * inset, inset: inset, radius: Theme.rowRadius, outlined: true))
         .padding(.top, Theme.newTaskTop)
-        .padding(.bottom, Theme.newTaskBottom)
         .help(L10n.help(L10n.newTaskHelp, .newTask))
     }
 
-    /// «Сессии ⌘Y»: the history of sessions, closed ones included (the АРХИВ section's successor).
+    /// «Сессии»: the history of sessions, closed ones included (the АРХИВ section's successor).
     private var sessionsRow: some View {
-        HoverRow(selected: app.sessionsViewVisible, action: { app.showSessionsView() }) { _ in
+        HoverRow(selected: app.sessionsViewVisible, action: { app.showSessionsView() }, forceHover: forcedHoverRow("sessions")) { _ in
             GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .history, active: app.sessionsViewVisible)
             } expanded: {
-                HStack(spacing: 0) {
-                    Text(L10n.sessionsView)
-                        .foregroundStyle(app.sessionsViewVisible ? Theme.ui.selectionText : Theme.ui.textRow)
-                    Spacer(minLength: 0)
-                    ShortcutHint(text: Shortcut.sessions.label)
-                }
+                Text(L10n.sessionsView)
+                    .foregroundStyle(app.sessionsViewVisible ? Theme.ui.selectionText : Theme.ui.textRow)
             } rail: { EmptyView() }
         }
         .help(L10n.help(L10n.sessionsViewHelp, .sessions))

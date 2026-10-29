@@ -88,8 +88,7 @@ extension Git {
 
     /// Changes under the folder, paths relative to it. `status`: the caller's own result (the inspector already ran it,
     /// with the folder's prefix), else one is run here for the untracked files.
-    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil,
-                             countUntracked: Bool = false) async throws -> ChangeSet {
+    public func changedFiles(_ mode: DiffMode, limit: Int = 5_000, status given: StatusResult? = nil) async throws -> ChangeSet {
         var effective = mode
         var baseMissing = false
         var from: String?
@@ -126,18 +125,8 @@ extension Git {
         if let given { st = given } else { st = try await status(limit: limit, prefix: location().prefix) }
         // `git rm --cached x`: deleted in the diff and untracked in status — keep the diff's entry.
         let listed = Set(files.map(\.path))
-        var counted = 0
         for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
-            var f = ChangedFile(path: e.path, change: .untracked)
-            // `diff HEAD` has no numstat for untracked files: the inspector (`countUntracked`) counts their lines, so the
-            // Changes row shows «+N» like the others; the CLI's totals and the diff stat keep git's numbers.
-            // shortcut: only the first `untrackedCounts` (one git process each); raise when a batched count exists.
-            if countUntracked, counted < Self.untrackedCounts {
-                counted += 1
-                let run = try? await inspectRun(["diff", "--no-index", "--numstat", "-z", "--", "/dev/null", e.path], ok: [0, 1])
-                if let entry = run.flatMap({ parseNumstat($0.stdout).first }) { f.added = entry.added }
-            }
-            files.append(f)
+            files.append(ChangedFile(path: e.path, change: .untracked))
         }
         let truncated = st.truncated || files.count > limit
         // Status may be capped while `diff HEAD` omits some of its entries (staged, then reverted): fewer files than the limit.
@@ -145,8 +134,24 @@ extension Git {
         return ChangeSet(files: files, from: rev, mode: effective, baseMissing: baseMissing, truncated: truncated)
     }
 
-    /// Untracked files whose lines `changedFiles` counts (one `git diff --no-index` each).
-    static let untrackedCounts = 50
+    /// Lines of untracked files (git has no numstat for them), for the Changes row's «+N»: one process through the
+    /// runner for all of them (one round trip on a host). `known` is the caller's cache: a file whose size and mtime
+    /// still match isn't read again. Binary, empty, over-`maxBytes` and vanished files get no count.
+    public func untrackedLines(_ paths: [String], known: [String: UntrackedLines] = [:],
+                               maxBytes: Int = 2_000_000) async -> [String: UntrackedLines] {
+        guard !paths.isEmpty else { return [:] }
+        let args = paths.flatMap { [known[$0]?.stamp ?? "-", $0] }
+        guard let r = try? await runner.run(["sh", "-c", untrackedLinesScript, "sh", String(maxBytes)] + args, repo),
+              r.status == 0 else { return [:] }
+        var out: [String: UntrackedLines] = [:]
+        for record in r.stdout.split(separator: "\0") {
+            let f = record.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            guard f.count == 3 else { continue }
+            let path = String(f[2]), stamp = String(f[0])
+            out[path] = f[1] == "=" ? known[path] : UntrackedLines(stamp: stamp, lines: Int(f[1]))
+        }
+        return out
+    }
 
     public func diff(file: ChangedFile, from: String, maxLines: Int = 20_000) async throws -> FileDiff {
         let untracked = file.change == .untracked
@@ -180,3 +185,28 @@ extension Git {
         return r
     }
 }
+
+/// One untracked file's line count and the `size:mtime` it was taken at (nil lines: binary, empty or too big).
+public struct UntrackedLines: Equatable, Sendable {
+    public var stamp: String
+    public var lines: Int?
+    public init(stamp: String, lines: Int?) { self.stamp = stamp; self.lines = lines }
+}
+
+/// `sh -c` body: `$1` byte cap, then «stamp path» pairs. Prints `stamp\tlines\tpath\0` (`=` when the stamp is the
+/// known one, `-` when not counted). GNU `stat -c`, else BSD `stat -f`; a last line without a newline counts too.
+let untrackedLinesScript = #"""
+cap=$1; shift
+while [ $# -ge 2 ]; do
+  k=$1; f=$2; shift 2; p="./$f"
+  [ -f "$p" ] || continue
+  m=$(stat -c '%s:%Y' "$p" 2>/dev/null || stat -f '%z:%m' "$p" 2>/dev/null) || continue
+  if [ "$m" = "$k" ]; then printf '%s\t=\t%s\0' "$m" "$f"; continue; fi
+  n=-
+  if [ "${m%%:*}" -le "$cap" ] && LC_ALL=C grep -Iq '' "$p" 2>/dev/null; then
+    n=$(wc -l < "$p" | tr -d ' ')
+    [ -n "$(tail -c 1 "$p")" ] && n=$((n + 1))
+  fi
+  printf '%s\t%s\t%s\0' "$m" "$n" "$f"
+done
+"""#

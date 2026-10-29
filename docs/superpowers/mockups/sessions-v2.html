@@ -2,7 +2,8 @@
 <html lang="ru"><head><meta charset="utf-8"><title>Hangar — «Сессии» v2</title>
 <!--
   Экран «Сессии» (⌘Y), версия 2. Жалобы владельца (2026-10-29): экран неудобный; квадратики у закрытых сессий непонятны;
-  не видно, что список ограничен ssh-хостом; выбранный «таб» с серверами выглядит как кнопка; нужна «Открыть в ворктри».
+  не видно, что список ограничен ssh-хостом; выбранный «таб» с серверами выглядит как кнопка.
+  Ответы владельца: «Открыть в ворктри» не делаем; архивные сессии без бесед — строками с «Восстановить».
   Язык контролов — B′ (controls-v2.html, #106), правило «без повторов». Темы — Navy и Dark+ (ThemePalette).
   Размеры в px = pt 1:1. Рендер одного кадра: sessions-v2.html?only=<id> (id у каждого .frame).
   Записка: docs/superpowers/specs/2026-10-29-sessions-v2-design.md
@@ -30,7 +31,7 @@ section{margin-top:46px;padding-top:26px;border-top:1px solid #1f2735}
 .tag{font-size:12.5px;color:#73c991;border:1px solid rgba(115,201,145,.35);border-radius:10px;padding:0 9px;height:20px;display:inline-flex;align-items:center;margin-left:12px;vertical-align:3px;font-weight:400}
 .tag.alt{color:#9ba4b7;border-color:#2b3444}
 .cap{font-size:12.5px;color:#8a93a6;margin-top:10px;line-height:1.5;max-width:1100px}
-.fixes{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid #1f2735;border-radius:10px;overflow:hidden;margin-top:22px}
+.fixes{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #1f2735;border-radius:10px;overflow:hidden;margin-top:22px}
 .fix{padding:12px 14px 14px;border-left:1px solid #1f2735;background:#111723}
 .fix:first-child{border-left:none}
 .fix q{display:block;color:#e6e9ef;font-size:13px;font-style:normal;margin-bottom:6px;quotes:"«" "»"}
@@ -181,6 +182,7 @@ svg.i,svg.b{width:14px;height:14px}
 </style></head><body>
 
 <svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="g-terminal" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.75 6.25 6.75 8l-2 1.75M8.75 10h2.5"/></symbol>
 <symbol id="g-add" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
 <symbol id="g-branch" viewBox="0 0 16 16"><path d="M4 2.25v8"/><circle cx="4" cy="12" r="1.75"/><circle cx="12" cy="4" r="1.75"/><path d="M12 5.75A6.25 6.25 0 0 1 5.75 12"/></symbol>
 <symbol id="g-project" viewBox="0 0 16 16"><path d="M3.75 2.75h2.6l1.6 1.75h4.3a2 2 0 0 1 2 2v4.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2z"/></symbol>
@@ -200,25 +202,24 @@ svg.i,svg.b{width:14px;height:14px}
 </defs></svg>
 
 <div id="intro">
-<h1>«Сессии» v2 — один список разговоров, понятный охват, «Открыть в ворктри»</h1>
-<p class="lead">Экран ⌘Y сейчас — два несвязанных списка («Закрытые сессии» с квадратиками вкладок и «Разговоры» по дням), охват спрятан в тексте «Проекты на devbox ▾», а выбранный сегмент залит тем же серым, что кнопки. В v2 <b>строка — это разговор</b> (Claude или Codex), сгруппированный <b>по проекту</b>; у строки одно <b>состояние словом</b>; охват — <b>сегмент слева</b> с иконками машин; выбранное везде <b>акцентное</b>, кнопки — серые или синие. Новое действие <b>«Открыть в ворктри»</b> для разговоров, которые шли в основной папке проекта.</p>
+<h1>«Сессии» v2 — один список, понятный охват, состояние словом</h1>
+<p class="lead">Экран ⌘Y сейчас — два несвязанных списка («Закрытые сессии» с квадратиками вкладок и «Разговоры» по дням), охват спрятан в тексте «Проекты на devbox ▾», а выбранный сегмент залит тем же серым, что кнопки. В v2 <b>строка — это разговор</b> (Claude или Codex), сгруппированный <b>по проекту</b>; у строки одно <b>состояние словом</b>; охват — <b>сегмент слева</b> с иконками машин; выбранное везде <b>акцентное</b>, кнопки — серые или синие.</p>
 <div class="fixes">
   <div class="fix"><q>экран очень неудобный</q><p>Один список вместо двух, группы по проекту (как в сайдбаре), длинные группы свёрнуты до 5 строк. Даты — справа в строке, без заголовков дней.</p></div>
   <div class="fix"><q>квадратики у закрытых сессий непонятные</q><p>Квадратиков нет. Состояние словом: «открыт», «в архиве», «в истории». Число вкладок архивной сессии — в тултипе.</p></div>
   <div class="fix"><q>как я должен понять, что тут сессии только ssh</q><p>Охват — сегмент «Все / Этот Mac / devbox / gpu-box» с иконкой машины и точкой связи. Видно всегда, а не только в выпадающем меню.</p></div>
   <div class="fix"><q>выбранная таба с серваками как кнопка новой сессии</q><p>Выбранное — акцентная подложка с рамкой (как чип фильтра Git). Серая заливка — только у кнопок действий.</p></div>
-  <div class="fix"><q>открыть бы её через ворктри</q><p>«Открыть в ворктри» в строке. Ветка занята основной папкой — кнопка недоступна, причина в тултипе.</p></div>
 </div>
 </div>
 
 <section id="sec-a">
 <h2>Вариант A — список <span class="tag">рекомендую</span></h2>
-<p class="sub">Шапка: заголовок, <b>сегмент охвата</b>, поиск. Под ней чипы-фильтры: агент и состояние (ничего не выбрано — все). Группа = проект; хост пишется <b>в заголовке группы</b>, а не в каждой строке, и только при охвате «Все». Строка: агент, название, где шла беседа (<b>папка</b> — основная папка проекта, <b>⎇</b> — свой ворктри) и ветка, состояние, время. Под курсором состояние и время прячутся, на их месте действия: одно главное (синее) и остальные серые.</p>
-<div class="frame" id="a-navy" data-theme="navy" data-variant="a" data-hover="busy"></div>
-<p class="cap"><b>Navy.</b> Под курсором беседа из основной папки shop на ветке <span style="font-family:var(--mono)">main</span>, которая сейчас выгружена в основной папке. «Открыть в ворктри» недоступна (.38), тултип объясняет почему. Третья строка — беседа на ветке <span style="font-family:var(--mono)">feature/cart-prices</span>: для неё кнопка активна (видно на кадре Dark+).</p>
+<p class="sub">Шапка: заголовок, <b>сегмент охвата</b>, поиск. Под ней чипы-фильтры: агент и состояние (ничего не выбрано — все). Группа = проект; хост пишется <b>в заголовке группы</b>, а не в каждой строке, и только при охвате «Все». Строка: агент, название, где шла беседа (<b>папка</b> — основная папка проекта, <b>⎇</b> — свой ворктри) и ветка, состояние, время. Архивная сессия Hangar без бесед (только терминалы) — тоже строка группы: иконка терминала, имя сессии, «в архиве». Под курсором состояние и время прячутся, на их месте действия: одно главное (синее) и остальные серые.</p>
+<div class="frame" id="a-navy" data-theme="navy" data-variant="a" data-hover="term"></div>
+<p class="cap"><b>Navy.</b> Под курсором архивная сессия <span style="font-family:var(--mono)">deploy-logs</span> без бесед (две вкладки терминала): «Восстановить» и корзина, в тултипе — что внутри и когда закрыта. Квадратиков раскладки нет: число вкладок — словами в тултипе.</p>
 <div style="height:26px"></div>
 <div class="frame" id="a-dp" data-theme="dp" data-variant="a" data-hover="ok"></div>
-<p class="cap"><b>Dark+.</b> Под курсором беседа на <span style="font-family:var(--mono)">feature/cart-prices</span> из основной папки: «Продолжить» (как сейчас — в сессии основной папки) и «Открыть в ворктри» (создаёт ворктри этой ветки и продолжает беседу в нём). У открытых строк главное действие — «Перейти», у архивных — «Восстановить» и корзина.</p>
+<p class="cap"><b>Dark+.</b> Под курсором беседа только из истории: одно действие «Продолжить» (как сейчас — в сессии ворктри этой папки или в новой сессии основной папки; куда именно — в тултипе). У открытых строк главное действие — «Перейти», у архивных — «Восстановить» и корзина.</p>
 </section>
 
 <section id="sec-scope">
@@ -238,34 +239,23 @@ svg.i,svg.b{width:14px;height:14px}
 </div>
 </section>
 
-<section id="sec-wt">
-<h2>«Открыть в ворктри»: когда доступно и что происходит</h2>
-<p class="sub">Кнопка есть только у бесед из <b>основной папки</b> проекта, когда ветка беседы известна. Беседы из ворктри уже в ворктри: у них «Продолжить» открывает их сессию. Правило владельца по умолчанию: ветку занимает основная папка — кнопка недоступна, причина в тултипе. Предложение сверху: в «⋯» строки пункт «В новой ветке от main…» (лист «Новая сессия» с ворктри от этой ветки, затем беседа продолжается в нём).</p>
-<div class="flow">
-  <div class="step"><div class="num">1. Нажата «Открыть в ворктри»</div><div class="frame" id="wt-1" data-theme="navy" data-variant="wt" data-step="1"></div></div>
-  <div class="step"><div class="num">2. git worktree add, затем продолжение</div><div class="frame" id="wt-2" data-theme="navy" data-variant="wt" data-step="2"></div></div>
-  <div class="step"><div class="num">Ветка занята: тултип и «⋯» (предложение)</div><div class="frame" id="wt-3" data-theme="navy" data-variant="wt" data-step="3"></div></div>
-</div>
-<p class="cap">Шаг 2: на месте действий — «Создаю ворктри…» со спиннером; готово — экран закрывается, выбрана новая сессия (имя из названия беседы, ворктри <span style="font-family:var(--mono)">shop.worktrees/feature-cart-prices</span>), беседа продолжается в первой вкладке. Ошибка git — текст первой строкой тултипа и «Повторить» в строке; экран не закрывается.</p>
-</section>
-
 <section id="sec-b">
 <h2>Вариант B — список и панель подробностей <span class="tag alt">альтернатива</span></h2>
-<p class="sub">Строки те же, только уже; выбранная раскрыта справа: где шла беседа, ветка, сессия Hangar, сколько сообщений, последнее сообщение. Действия — в панели, причина недоступности написана словами под кнопкой. Плюс — превью «о чём была беседа». Минус — экран делится на две колонки, на 13" список становится узким, и нужно ещё читать хвост файла беседы.</p>
+<p class="sub">Строки те же, только уже; выбранная раскрыта справа: где шла беседа, ветка, сессия Hangar, сколько сообщений, последнее сообщение. Действия — в панели, под ними словами — куда продолжится беседа. Плюс — превью «о чём была беседа». Минус — экран делится на две колонки, на 13" список становится узким, и нужно ещё читать хвост файла беседы.</p>
 <div class="frame" id="b-navy" data-theme="navy" data-variant="b"></div>
 <div style="height:26px"></div>
 <div class="frame" id="b-dp" data-theme="dp" data-variant="b"></div>
 </section>
 
 <div class="verdict" id="verdict"><b>Рекомендация — A.</b>
-<p>Всё нужное для выбора помещается в строку, клавиатура (↑↓, ↩ — главное действие, ⌥↩ — «Открыть в ворктри») работает без второй колонки, и повторов нет: проект и хост — в заголовке группы, сессия Hangar — в тултипе состояния. Превью последнего сообщения из B можно добавить позже тултипом строки, если понадобится.</p>
-<p>Вопросы владельцу: (1) ветка занята основной папкой — только недоступно с причиной (по умолчанию) или ещё пункт «В новой ветке от main…» в «⋯»? (2) Архивные сессии без бесед (только терминалы) — показывать строкой «в архиве» в группе проекта или оставить только в АРХИВЕ сайдбара? (3) Claude: продолжение в другой папке требует копии файла беседы в <span style="font-family:var(--mono)">~/.claude/projects/&lt;ворктри&gt;/</span> — согласны, что Hangar пишет туда (только копирует, оригинал не трогает)?</p>
+<p>Всё нужное для выбора помещается в строку, клавиатура (↑↓, ↩ — главное действие) работает без второй колонки, и повторов нет: проект и хост — в заголовке группы, сессия Hangar — в тултипе состояния. Превью последнего сообщения из B можно добавить позже тултипом строки, если понадобится.</p>
+<p>Решено владельцем: «Открыть в ворктри» не делаем; архивные сессии без бесед показываются строками с «Восстановить». Открыт только выбор варианта.</p>
 </div>
 
 <script>
 const I=(id,cls='i')=>`<svg class="${cls}" viewBox="0 0 16 16"><use href="#${id}"/></svg>`;
 const B=(id)=>`<svg class="b" viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
-const AG={claude:`<span class="ag claude">${B('b-claude')}</span>`,codex:`<span class="ag codex">${B('b-openai')}</span>`};
+const AG={term:`<span class="ag codex" style="color:var(--tx2)">${I('g-terminal')}</span>`,claude:`<span class="ag claude">${B('b-claude')}</span>`,codex:`<span class="ag codex">${B('b-openai')}</span>`};
 
 // where: 'main' = the project's main folder, 'wt' = a worktree; wt: 'ok' | 'busy' (branch checked out in the main folder)
 const DATA=[
@@ -274,6 +264,7 @@ const DATA=[
   {id:'busy',a:'claude',t:'Почему падает e2e checkout на CI',w:'main',br:'main',s:'hist',wt:'busy',tm:'11:05'},
   {id:'ok',a:'codex',t:'Миграция корзины на новый API цен',w:'main',br:'feature/cart-prices',s:'hist',wt:'ok',tm:'вчера'},
   {id:'r4',a:'claude',t:'Промокоды: вынести расчёт скидки в сервис',w:'wt',br:'promo-service',s:'arch',tm:'24 окт.'},
+  {id:'term',a:'term',t:'deploy-logs',w:'wt',br:'deploy-logs',s:'arch',tm:'23 окт.'},
   {id:'r5',a:'claude',t:'Обновить README по деплою',w:'main',br:'main',s:'open',dot:'waiting',tm:'21 окт.'},
  ]},
  {p:'hangar',host:null,n:3,rows:[
@@ -295,9 +286,8 @@ function where(r,short){
 }
 function acts(r){
   if(r.s==='open') return `<span class="bp">Перейти</span>`;
-  if(r.s==='arch') return `<span class="bs icon danger">${I('g-trash')}</span><span class="bp">Восстановить</span>`;
-  let s=`<span class="bp">Продолжить</span>`;
-  if(r.w==='main'&&r.wt) s=`<span class="bs ${r.wt==='busy'?'dis':''}" data-wt="${r.id}">${I('g-branch')}Открыть в ворктри</span>`+s;
+  if(r.s==='arch') return `<span class="bs icon danger">${I('g-trash')}</span><span class="bp" data-main>Восстановить</span>`;
+  let s=`<span class="bp" data-main>Продолжить</span>`;
   return s;
 }
 function row(r,opt={}){
@@ -337,15 +327,15 @@ function win(theme,inner,{w=1250,h=640,side=true,title='Сессии'}={}){
 function listA(opt){
   return DATA.map(g=>ghd(g,true)+g.rows.map(r=>row(r,opt)).join('')+(g.n>g.rows.length&&g.p==='shop'?`<div class="more"><span class="ghost">Показать ещё 9</span></div>`:'')).join('');
 }
-const TIP_BUSY=`<b style="font-weight:600">Ветка main занята основной папкой shop.</b><br>Git не выгружает одну ветку в два ворктри. Переключите основную папку на другую ветку или продолжите беседу там.`;
-const TIP_OK=`Создать ворктри ветки <span style="font-family:var(--mono)">feature/cart-prices</span> и продолжить беседу в нём <span class="k">— ⌥↩</span>`;
+const TIP={term:`Сессия deploy-logs: 2 вкладки терминала, ⎇ deploy-logs. В архиве с 23 окт.<br><span class="k">Восстановить — ворктри и вкладки вернутся</span>`,
+  ok:`Продолжить в новой сессии shop (основная папка) <span class="k">— ↩</span>`};
 
 function render(el){
   const th=el.dataset.theme, v=el.dataset.variant;
   if(v==='a'){
     const hv=el.dataset.hover;
     el.innerHTML=win(th,header('all')+filters()+`<div class="list">${listA({hover:hv})}</div>`);
-    pin(el,hv,hv==='busy'?TIP_BUSY:TIP_OK);
+    pin(el,hv,TIP[hv]);
   } else if(v==='scope'){
     const one=(on,body)=>`<div class="app navy" style="width:610px;height:150px;margin-bottom:0"><div class="main">${header(on)}${filters()}${body}</div></div>`;
     el.innerHTML=`<div class="grid2">${one('all','<div class="list"><div class="ghd">'+I('g-chevronDown')+'<span class="pn">api</span><span class="host">'+I('g-sshHost')+'devbox</span><span class="n">6</span></div></div>')}${one('devbox','<div class="list"><div class="ghd">'+I('g-chevronDown')+'<span class="pn">api</span><span class="n">6</span></div></div>')}</div>
@@ -359,18 +349,6 @@ function render(el){
     if(st==='offline'){on='gpu';body=`<div class="center"><div class="t">Нет связи с gpu-box</div><div class="s">Разговоры на сервере читаются через ssh, когда хост подключён.</div><span class="bp big">Подключиться</span></div>`;}
     if(st==='empty'){on='mac';q='stripe';fo=['codex'];body=`<div class="center"><div class="t">По запросу «stripe» среди бесед Codex ничего нет</div><span class="bs big">Сбросить фильтры</span><div class="s" style="margin-top:14px">Без поиска и фильтров, если бесед нет совсем: «Здесь появятся беседы Claude и Codex из проектов этого Mac».</div></div>`;}
     el.innerHTML=win('navy',header(on,q)+filters(fo)+body,{w:640,h:330,side:false});
-  } else if(v==='wt'){
-    const s=el.dataset.step, r=DATA[0].rows[2], rb=DATA[0].rows[1];
-    const mini=(inner)=>`<div class="mini navy" style="width:860px;height:${s==='3'?210:110}px;position:relative">${inner}</div>`;
-    if(s==='1'){ el.innerHTML=mini(row(r,{hover:'ok'})+row(DATA[0].rows[3]));
-      const b=el.querySelector('[data-wt]'); b.classList.add('h'); pinTo(el,b,`Создать ворктри ветки <span style="font-family:var(--mono)">feature/cart-prices</span> и продолжить беседу в нём`,true);}
-    if(s==='2'){ el.innerHTML=mini(`<div class="row h">${AG.codex}<div class="tt">${r.t}</div><div class="acts" style="display:flex"><span class="note" style="margin:0;padding:0;height:22px"><span class="spin"></span>Создаю ворктри…</span></div></div>`+row(DATA[0].rows[3])+
-      `<div class="cap" style="padding:8px 20px 0;margin:0;font-size:12px;color:var(--tx3)">Ошибка git → в строке «Не удалось создать ворктри» и «Повторить»</div>`);}
-    if(s==='3'){ el.innerHTML=mini(row(rb,{hover:'busy'}).replace('<div class="acts">','<div class="acts"><span class="bs icon h" data-more>'+I('g-more')+'</span>'));
-      const m=el.querySelector('[data-more]'), box=el.firstElementChild, br=box.getBoundingClientRect(), mr=m.getBoundingClientRect();
-      const menu=document.createElement('div'); menu.className='menu'; menu.style.cssText=`right:${br.right-mr.right}px;top:${mr.bottom-br.top+4}px`;
-      menu.innerHTML=`<div class="mi dis">${I('g-branch')}Открыть в ворктри</div><div class="mhint">main занята основной папкой shop</div><div class="msep"></div><div class="mi h">${I('g-add')}В новой ветке от main…</div><div class="mi">Скопировать id беседы</div>`;
-      box.appendChild(menu); box.style.overflow='visible';}
   } else if(v==='b'){
     const opt={sel:'busy',noBranch:false,paneActs:true};
     const list=`<div class="list">`+DATA.map(g=>ghd(g,true)+g.rows.map(r=>row(r,opt)).join('')).join('')+`</div>`;
@@ -380,14 +358,14 @@ function render(el){
       <div class="kv"><span class="k">Сессия</span><span class="v" style="color:var(--tx3)">нет — только в истории Claude</span></div>
       <div class="kv"><span class="k">Сообщений</span><span class="v">42 · начата 27 окт.</span></div></div>
       <div class="prev"><b>Последнее сообщение</b>Таймаут был в шаге оплаты: тестовый эквайер отвечает дольше 5 с. Поднял таймаут до 15 с только в CI и добавил ретрай в фикстуре.</div>
-      <div class="pacts"><div class="ln"><span class="bp big">Продолжить</span><span class="bs big dis">${I('g-branch')}Открыть в ворктри</span></div>
-      <div class="why">Ветка main занята основной папкой shop — git не выгружает одну ветку в два ворктри.</div></div></div>`;
+      <div class="pacts"><div class="ln"><span class="bp big">Продолжить</span></div>
+      <div class="why">Продолжится в новой сессии shop: беседа шла в основной папке.</div></div></div>`;
     el.innerHTML=win(th,header('all')+filters()+`<div class="split">${list}${pane}</div>`);
     el.querySelectorAll('.split .row .br').forEach(b=>b.style.width='150px');
   }
 }
 function pin(el,id,html){
-  const b=el.querySelector(`[data-wt="${id}"]`); if(!b) return; if(!b.classList.contains('dis')) b.classList.add('h');
+  const b=el.querySelector(`.row[data-id="${id}"] [data-main]`); if(!b) return; b.classList.add('h');
   pinTo(el,b,html,false);
 }
 function pinTo(el,b,html,below){

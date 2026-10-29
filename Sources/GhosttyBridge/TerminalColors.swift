@@ -1,16 +1,16 @@
-/// The Hangar theme's terminal colours ("rrggbb"). Background and the 16 ANSI colours load before the user's Ghostty
-/// config, so the user's own (or their Ghostty theme's) win; `forceBackground` («Фон терминала: как тема») puts the
-/// background after it instead, so it wins over theirs (decision #36).
+/// The Hangar theme's terminal colours ("rrggbb"). The 16 ANSI colours load before the user's Ghostty config, so
+/// theirs (or their Ghostty theme's) win; background, text and cursor always load after it: they are the app theme's
+/// (#109), so a light Ghostty theme's dark text can't land on a dark background.
 public struct TerminalColors: Equatable, Sendable {
     public var background: String
+    public var foreground: String
     public var palette: [String]
     public var cursor: String
-    public var forceBackground: Bool
 
-    public init(background: String, palette: [String], cursor: String, forceBackground: Bool) {
+    public init(background: String, foreground: String, palette: [String], cursor: String) {
         self.background = background
+        self.foreground = foreground
         self.palette = palette
         self.cursor = cursor
-        self.forceBackground = forceBackground
     }
 }

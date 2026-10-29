@@ -3,7 +3,7 @@ import Workspace
 
 typealias EditorPalette = HangarConfig.EditorPalette
 
-/// The three lists of Settings → Editor → «Цвета».
+/// The three lists of Settings → Appearance → «Цвета».
 enum EditorColorSection: CaseIterable { case syntax, editor, diff }
 
 extension EditorColor {
@@ -122,8 +122,8 @@ struct EditorHSL: Equatable {
     }
 }
 
-/// One editor theme resolved to all its colors (#108): a built-in one (VS Code Dark Modern has its own editor colors;
-/// Dark+ and Hangar take theirs from the app theme) or «Своя» = its base plus the changed colors.
+/// One editor theme resolved to all its colors (#108, #109): the app theme's pair, a built-in one (VS Code Dark Modern
+/// has its own editor colors; Dark+ and Hangar take theirs from the app theme) or «Своя» = its base plus the changed colors.
 struct EditorTheme: Equatable {
     let palette: EditorPalette
     /// The built-in theme the colors come from (itself, or «Своя»'s base).
@@ -137,7 +137,9 @@ struct EditorTheme: Equatable {
     init(palette: EditorPalette, customBase: EditorPalette, custom: [EditorColor: String], app: AppTheme) {
         self.palette = palette
         self.app = app
-        base = palette == .custom ? (customBase == .custom ? .darkModern : customBase) : palette
+        var config = HangarConfig()
+        (config.editorPalette, config.editorCustomBase, config.theme) = (palette, customBase, app)
+        base = config.editorBase
         var colors = Self.builtIn(base, ThemePalette.of(app))
         if palette == .custom {
             for (color, hex) in custom { colors[color] = hex }
@@ -148,8 +150,8 @@ struct EditorTheme: Equatable {
         self.colors = colors
     }
 
-    init(_ config: HangarConfig, palette: EditorPalette? = nil) {
-        self.init(palette: palette ?? config.editorPalette, customBase: config.editorCustomBase, custom: config.editorColors,
+    init(_ config: HangarConfig) {
+        self.init(palette: config.editorPalette, customBase: config.editorCustomBase, custom: config.editorColors,
                   app: config.theme)
     }
 
@@ -203,15 +205,17 @@ struct EditorTheme: Equatable {
 // MARK: «Своя»: changes to the config
 
 extension HangarConfig {
-    /// A color changed in Settings: on a built-in theme it creates «Своя» on that base and switches to it (the
-    /// built-in stays as it is); a color equal to the base's own is no change at all.
+    /// A color changed in Settings: following the app theme or on a built-in theme it creates «Своя» on the theme
+    /// shown (the built-in stays as it is); a color equal to the base's own is no change at all.
     func customizing(_ color: EditorColor, _ hex: String) -> HangarConfig {
         // Only colors drawn over text take an alpha (as the config parser): the preview then matches the editor.
         let hex = color.translucent ? hex : EditorHex.with(hex, alpha: 1)
         var c = self
         if c.editorPalette != .custom {
-            if c.editorCustomBase != c.editorPalette { c.editorColors = [:] }
-            c.editorCustomBase = c.editorPalette
+            let base = c.editorBase
+            // «Как у темы» starts a fresh «Своя»: colors kept for the switch's way back stay hidden (#109).
+            if c.editorPalette == .theme || c.editorCustomBase != base { c.editorColors = [:] }
+            c.editorCustomBase = base
             c.editorPalette = .custom
         }
         let own = EditorTheme.builtIn(c.editorCustomBase, ThemePalette.of(theme))[color]
@@ -219,25 +223,48 @@ extension HangarConfig {
         return c
     }
 
-    /// Editing a built-in theme would drop «Своя»'s changes made on another base: ask first.
+    /// Editing a v0.7.0 built-in theme would drop «Своя»'s changes made on another base: ask first. («Как у темы» drops
+    /// its hidden colors without asking: they aren't on screen, #109.)
     var customizingReplacesColors: Bool {
-        editorPalette != .custom && editorCustomBase != editorPalette && !editorColors.isEmpty
+        editorPalette.isBuiltIn && editorCustomBase != editorBase && !editorColors.isEmpty
     }
 
-    /// «Сбросить» of one color (nil: «Сбросить всё»).
+    /// «Сбросить» of one color; nil: «Сбросить всё», back to the app theme's editor theme with nothing left over.
     func resettingColor(_ color: EditorColor?) -> HangarConfig {
         var c = self
-        if let color { c.editorColors[color] = nil } else { c.editorColors = [:] }
+        if let color { c.editorColors[color] = nil } else {
+            c.editorColors = [:]
+            c.editorCustomBase = HangarConfig().editorCustomBase
+            c.editorPalette = .theme
+        }
+        return c
+    }
+
+    /// The «Как у темы / Своя» switch. «Своя» brings back the saved colors on their base, or starts empty on the theme
+    /// shown; «Как у темы» keeps them for the way back.
+    func followingTheme(_ follow: Bool) -> HangarConfig {
+        var c = self
+        if follow {
+            c.editorPalette = .theme
+        } else if c.editorPalette != .custom {
+            if c.editorColors.isEmpty { c.editorCustomBase = c.editorBase }
+            c.editorPalette = .custom
+        }
         return c
     }
 
     /// The config file edit that turns `self`'s editor theme keys into `new`'s: only what differs, removed when gone.
     func editorThemeEdit(to new: HangarConfig) -> (String) -> String {
         { text in
+            // A default value is no key at all («Как у темы», Dark Modern's base).
+            func set(_ t: String, _ key: String, _ value: EditorPalette, default: EditorPalette) -> String {
+                value == `default` ? HangarConfig.removing(t, key: key) : HangarConfig.updating(t, key: key, value: value.rawValue)
+            }
+            let defaults = HangarConfig()
             var t = text
-            if new.editorPalette != editorPalette { t = HangarConfig.updating(t, key: "editor_palette", value: new.editorPalette.rawValue) }
+            if new.editorPalette != editorPalette { t = set(t, "editor_palette", new.editorPalette, default: defaults.editorPalette) }
             if new.editorCustomBase != editorCustomBase {
-                t = HangarConfig.updating(t, key: "editor_custom_base", value: new.editorCustomBase.rawValue)
+                t = set(t, "editor_custom_base", new.editorCustomBase, default: defaults.editorCustomBase)
             }
             for color in EditorColor.allCases where new.editorColors[color] != editorColors[color] {
                 t = new.editorColors[color].map { HangarConfig.updating(t, key: color.configKey, value: $0) }

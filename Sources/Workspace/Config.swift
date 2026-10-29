@@ -9,7 +9,6 @@ public enum AppTheme: String, Sendable, CaseIterable { case darkPlus = "dark-plu
 public struct HangarConfig: Equatable, Sendable {
     public var defaultAgent: LeafKind = .claude
     public var agentCommands: [LeafKind: String] = [.claude: "claude", .codex: "codex"]
-    public var terminalBackground: TerminalBackground = .hangar
     /// Dark+ for new installs and existing configs alike (the user's choice).
     public var theme: AppTheme = .darkPlus
     public var language: Language = .system
@@ -37,9 +36,9 @@ public struct HangarConfig: Equatable, Sendable {
     public var keepAwake = true
     /// Dock badge with the number of leaves needing the user (permission, question, failed), and a Dock bounce on a new request out of focus.
     public var dockBadge = true
-    /// The editor theme (#84, #108): VS Code Dark Modern (default, also for configs that never chose one), Dark+,
-    /// Hangar's muted palette or «Своя» (a built-in `editorCustomBase` plus `editorColors`); rainbow indents and TODO pills.
-    public var editorPalette: EditorPalette = .darkModern
+    /// The editor theme (#84, #108, #109): the app theme's own (default, also for configs without the key), a built-in
+    /// one chosen in v0.7.0, or «Своя» (a built-in `editorCustomBase` plus `editorColors`); rainbow indents and TODO pills.
+    public var editorPalette: EditorPalette = .theme
     public var editorCustomBase: EditorPalette = .darkModern
     /// «Своя»'s changed colors only (`#rrggbb` / `#rrggbbaa`, lower case).
     public var editorColors: [EditorColor: String] = [:]
@@ -53,9 +52,30 @@ public struct HangarConfig: Equatable, Sendable {
     /// The segments of Hangar's line; unknown names in the file are skipped.
     public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults
 
-    /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
-    public enum TerminalBackground: String, Sendable { case hangar, ghostty }
-    public enum EditorPalette: String, Sendable, CaseIterable { case darkModern = "dark-modern", darkPlus = "dark-plus", hangar, custom }
+    public enum EditorPalette: String, Sendable, CaseIterable {
+        case theme, darkModern = "dark-modern", darkPlus = "dark-plus", hangar, custom
+
+        /// The editor theme an app theme carries (#109). Graphite: Dark+, whose editor colors are the app theme's greys.
+        public static func paired(with theme: AppTheme) -> Self {
+            switch theme {
+            case .darkPlus: .darkModern
+            case .graphite: .darkPlus
+            case .navy: .hangar
+            }
+        }
+
+        /// A built-in theme of its own (not «как у темы», not «Своя»).
+        public var isBuiltIn: Bool { self != .theme && self != .custom }
+    }
+
+    /// The built-in editor theme whose colors the editor shows: the app theme's pair, the one chosen, or «Своя»'s base.
+    public var editorBase: EditorPalette {
+        switch editorPalette {
+        case .theme: .paired(with: theme)
+        case .custom: editorCustomBase.isBuiltIn ? editorCustomBase : .paired(with: theme)
+        default: editorPalette
+        }
+    }
 
     public init() {}
 
@@ -115,6 +135,8 @@ public struct HangarConfig: Equatable, Sendable {
                 config.statuslineSegments = StatuslineSegment.allCases.filter { names.contains($0.rawValue) }
                 continue
             }
+            // The terminal background is always the app theme's (#109): the old setting is ignored, whatever its value.
+            if section.isEmpty, key == "terminal_background" { continue }
             if section.isEmpty, try parseEditorKey(key, rawValue, line: n + 1, into: &config) { continue }
             let value = try stringValue(rawValue, line: n + 1)
             switch (section, key) {
@@ -125,12 +147,6 @@ public struct HangarConfig: Equatable, Sendable {
                 config.defaultAgent = kind
             case ("", "editor"):
                 continue  // the Helix-era terminal editor (#81): ignored, so old configs still load
-            case ("", "terminal_background"):
-                // Before the themes `"theme"` meant the Ghostty theme's background: read as `ghostty`, rewritten on save.
-                guard let bg = value == "theme" ? .ghostty : TerminalBackground(rawValue: value) else {
-                    throw ParseError.syntax(line: n + 1, reason: #"terminal_background must be "hangar" or "ghostty""#)
-                }
-                config.terminalBackground = bg
             case ("", "theme"):
                 guard let theme = AppTheme(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: #"theme must be "dark-plus", "graphite" or "navy""#)
@@ -138,7 +154,7 @@ public struct HangarConfig: Equatable, Sendable {
                 config.theme = theme
             case ("", "editor_palette"):
                 guard let palette = EditorPalette(rawValue: value) else {
-                    throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "dark-modern", "dark-plus", "hangar" or "custom""#)
+                    throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "theme", "dark-modern", "dark-plus", "hangar" or "custom""#)
                 }
                 config.editorPalette = palette
             case ("", "language"):

@@ -2,11 +2,11 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Settings → Editor (#108): the editor theme, «Своя» colors and the editor options in config.toml.
+/// Settings → Appearance (#108): the editor theme, «Своя» colors and the editor options in config.toml.
 @Suite struct EditorConfigTests {
     @Test func defaults() {
         let c = HangarConfig()
-        #expect(c.editorPalette == .darkModern)
+        #expect(c.editorPalette == .theme)
         #expect(c.editorCustomBase == .darkModern)
         #expect(c.editorColors.isEmpty)
         let o = c.editorOptions
@@ -21,10 +21,41 @@ import Testing
         #expect(try HangarConfig.parse(#"editor_palette = "dark-modern""#).editorPalette == .darkModern)
         #expect(try HangarConfig.parse(#"editor_palette = "dark-plus""#).editorPalette == .darkPlus)
         #expect(try HangarConfig.parse(#"editor_palette = "custom""#).editorPalette == .custom)
+        #expect(try HangarConfig.parse(#"editor_palette = "theme""#).editorPalette == .theme)
+        #expect(throws: HangarConfig.ParseError.syntax(line: 1, reason: #"editor_palette must be "theme", "dark-modern", "dark-plus", "hangar" or "custom""#)) {
+            try HangarConfig.parse(#"editor_palette = "monokai""#)
+        }
         #expect(try HangarConfig.parse(#"editor_custom_base = "hangar""#).editorCustomBase == .hangar)
         // «Своя» is based on a built-in theme, never on itself.
         #expect(throws: HangarConfig.ParseError.syntax(line: 1, reason: #"editor_custom_base must be "dark-modern", "dark-plus" or "hangar""#)) {
             try HangarConfig.parse(#"editor_custom_base = "custom""#)
+        }
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"editor_custom_base = "theme""#) }
+    }
+
+    /// #109: the app theme carries its editor theme; a missing key follows it.
+    @Test func themePairsItsEditorTheme() throws {
+        #expect(HangarConfig.EditorPalette.paired(with: .darkPlus) == .darkModern)
+        #expect(HangarConfig.EditorPalette.paired(with: .navy) == .hangar)
+        #expect(HangarConfig.EditorPalette.paired(with: .graphite) == .darkPlus)
+        for (theme, base) in [("dark-plus", HangarConfig.EditorPalette.darkModern), ("graphite", .darkPlus), ("navy", .hangar)] {
+            let missing = try HangarConfig.parse("theme = \"\(theme)\"")
+            #expect(missing.editorPalette == .theme && missing.editorBase == base)
+            let explicit = try HangarConfig.parse("theme = \"\(theme)\"\neditor_palette = \"theme\"")
+            #expect(explicit.editorPalette == .theme && explicit.editorBase == base)
+        }
+    }
+
+    /// v0.7.0's explicit built-ins keep their look whatever the app theme; «Своя» keeps its base.
+    @Test func explicitPalettesKeepTheirBase() throws {
+        for app in ["dark-plus", "graphite", "navy"] {
+            for legacy in [HangarConfig.EditorPalette.darkModern, .darkPlus, .hangar] {
+                let c = try HangarConfig.parse("theme = \"\(app)\"\neditor_palette = \"\(legacy.rawValue)\"")
+                #expect(c.editorPalette == legacy && c.editorBase == legacy)
+            }
+            let custom = try HangarConfig.parse("theme = \"\(app)\"\neditor_palette = \"custom\"\neditor_custom_base = \"hangar\"")
+            #expect(custom.editorBase == .hangar)
+            #expect(try HangarConfig.parse("theme = \"\(app)\"\neditor_palette = \"custom\"").editorBase == .darkModern)
         }
     }
 
@@ -150,6 +181,6 @@ import Testing
             return HangarConfig.removing(t, key: "editor_palette")
         }
         let c = try HangarConfig.parse(String(contentsOf: url, encoding: .utf8))
-        #expect(c.editorPalette == .darkModern && c.editorCustomBase == .darkPlus && c.editorColors == [.number: "#ffffff"])
+        #expect(c.editorPalette == .theme && c.editorCustomBase == .darkPlus && c.editorColors == [.number: "#ffffff"])
     }
 }

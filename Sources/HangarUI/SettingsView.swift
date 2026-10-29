@@ -7,7 +7,7 @@ import Workspace
 
 /// A page of the settings window, in the order of its list.
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, editor, notifications, integrations, advanced
+    case general, appearance, notifications, integrations, advanced
 
     var id: Self { self }
 
@@ -15,7 +15,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: .settingsGeneral
         case .appearance: .appearance
-        case .editor: .editor
         case .notifications: .settingsNotifications
         case .integrations: .settingsIntegrations
         case .advanced: .settingsAdvanced
@@ -28,7 +27,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: .settings
         case .appearance: .appearance
-        case .editor: .editor
         case .notifications: .bell
         case .integrations: .plug
         case .advanced: .more
@@ -39,14 +37,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var labelKeys: [L10n.Key] {
         switch self {
         case .general: [.languageTitle, .defaultAgent, .externalEditor, .checkUpdatesTitle, .versionTitle]
-        case .appearance: [.terminalBackground]
-        case .editor: [.edFont, .edSize, .edLineHeight, .edLigatures, .edTabSize, .edDetect, .edWrap, .edLineHighlight, .edCursor, .edBlink,
-                       .edWhitespace, .edBracketColors, .edBracketGuides, .edIndentGuides, .editorRainbowTitle, .editorTodoTitle, .edFormatOnSave]
+        case .appearance: [.edFont, .edSize, .edLineHeight, .edLigatures, .edTabSize, .edDetect, .edWrap, .edLineHighlight, .edCursor,
+                           .edBlink, .edWhitespace, .edBracketColors, .edBracketGuides, .edIndentGuides, .editorRainbowTitle, .editorTodoTitle]
         case .notifications:
             [.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .limitNotificationsTitle, .notifyDoneTitle,
              .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle, .keepAwakeShort, .notificationPermissionTitle]
         case .integrations: [.integrationClaude, .integrationCodex, .integrationMCP, .statuslineShow]
-        case .advanced: [.configFile]
+        case .advanced: [.configFile, .edFormatOnSave]
         }
     }
 }
@@ -93,7 +90,10 @@ struct SettingsView: View {
                     .padding(Theme.settingsPagePadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.editorTheme.pageHeight = $0 }
+                .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                    model.editorTheme.pageHeight = $0.height
+                    model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePadding
+                }
                 footer
             }
         }
@@ -113,7 +113,6 @@ struct SettingsView: View {
         switch model.category {
         case .general: general
         case .appearance: appearance
-        case .editor: editor
         case .notifications: notifications
         case .integrations: integrations
         case .advanced: advanced
@@ -122,7 +121,7 @@ struct SettingsView: View {
 
     /// A write error or an integration message, under the page (nothing when all is well: no jump of the cards).
     @ViewBuilder private var footer: some View {
-        if let text = model.error ?? model.integration.message ?? (model.category == .editor ? model.editorTheme.notice : nil) {
+        if let text = model.error ?? model.integration.message ?? (model.category == .appearance ? model.editorTheme.notice : nil) {
             Text(verbatim: text)
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
                 .lineLimit(1).truncationMode(.middle)
@@ -220,28 +219,7 @@ struct SettingsView: View {
         }
     }
 
-    // Themes (themes-v1.html): three preview tiles; the terminal background follows the theme or Ghostty.
-    private var appearance: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            CardSection(title: L10n.themeTitle, card: false) {
-                HStack(spacing: Theme.themeTileGap) {
-                    ForEach(AppTheme.allCases, id: \.self) { theme in
-                        ThemeTile(theme: theme, selected: Theme.current == theme) { save { try app.setTheme(theme) } }
-                    }
-                }
-            }
-            CardSection {
-                row(L10n.terminalBackground, first: true) {
-                    Segment(selection: app.config.terminalBackground,
-                            options: [(.hangar, L10n.backgroundAsTheme), (.ghostty, L10n.backgroundGhostty)]) { bg in
-                        save { try app.setTerminalBackground(bg) }
-                    }
-                }
-            }
-        }
-    }
-
-    // Settings → Editor → language servers (#102): status per language, download / remove Hangar's own copies.
+    // Settings → Advanced → language servers (#102, #109): status per language, download / remove Hangar's own copies.
     var languageServers: some View {
         CardSection(title: L10n.lspSection) {
             ForEach(Array(LspServersModel.rows.enumerated()), id: \.element.id) { i, r in
@@ -460,20 +438,37 @@ struct SettingsView: View {
         }
     }
 
+    /// The config file; then what the editor does through tsserver / language servers (#109: not the look, so not in
+    /// «Оформление»): format on save and the servers themselves.
     private var advanced: some View {
-        CardSection {
-            row(L10n.configFile, first: true) {
-                let path = tildePath(app.configURL.path)
-                Text(verbatim: path)
-                    .font(.system(size: Theme.fontSize.tab, design: .monospaced))
-                    .foregroundStyle(Theme.ui.text2)
-                    .lineLimit(1).truncationMode(.middle)
-                    .help(path)
-                Spacer(minLength: Theme.cardRowGap)
-                Button(L10n.showInFinder) { NSWorkspace.shared.activateFileViewerSelecting([app.configURL]) }
-                    .buttonStyle(SheetButton(primary: false))
-                    .fixedSize()
+        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
+            CardSection {
+                configFileRow
             }
+            CardSection(title: L10n.editor) {
+                row(L10n.s(.edFormatOnSave), first: true) {
+                    CardSwitch(on: app.config.editorOptions.formatOnSave) { on in
+                        save { try app.setEditorAppearance("editor_format_on_save", flag: on) { $0.editorOptions.formatOnSave = on } }
+                    }
+                    .help(L10n.s(.edFormatTip))
+                }
+            }
+            languageServers
+        }
+    }
+
+    private var configFileRow: some View {
+        row(L10n.configFile, first: true) {
+            let path = tildePath(app.configURL.path)
+            Text(verbatim: path)
+                .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+                .foregroundStyle(Theme.ui.text2)
+                .lineLimit(1).truncationMode(.middle)
+                .help(path)
+            Spacer(minLength: Theme.cardRowGap)
+            Button(L10n.showInFinder) { NSWorkspace.shared.activateFileViewerSelecting([app.configURL]) }
+                .buttonStyle(SheetButton(primary: false))
+                .fixedSize()
         }
     }
 
@@ -596,65 +591,6 @@ private struct SettingsSidebar: View {
         .frame(width: Theme.settingsSidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Theme.ui.sidebar)
-    }
-}
-
-/// A theme as a tile (themes-v1.html `.tcard`): a mini window in its own colours over its name; the chosen one is
-/// outlined in the current `accent`.
-private struct ThemeTile: View {
-    let theme: AppTheme
-    let selected: Bool
-    let choose: () -> Void
-    @State private var hover = false
-
-    private var name: String {
-        switch theme {
-        case .darkPlus: "VS Code Dark+"
-        case .graphite: L10n.themeGraphite
-        case .navy: "Hangar Navy"
-        }
-    }
-
-    var body: some View {
-        let p = ThemePalette.of(theme)
-        let shape = RoundedRectangle(cornerRadius: Theme.themeTileRadius)
-        Button { if !selected { choose() } } label: {
-            VStack(spacing: Theme.settingsHeaderGap) {
-                HStack(spacing: 0) {
-                    Theme.ui.of(p.sidebar).frame(width: Theme.themeTileStrip)
-                    VStack(alignment: .leading, spacing: Theme.themeTileLineGap) {
-                        line(p.accent, 0.7)
-                        line(p.tx2, 0.5)
-                        line(p.gitA, 0.8)
-                        line(p.gitM, 0.35)
-                    }
-                    .padding(Theme.themeTilePadding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-                .frame(height: Theme.themeTileHeight)
-                .background(Theme.ui.of(p.editorBg))
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(selected ? Theme.ui.accent : hover ? Theme.ui.controlBorderStrong : Theme.ui.control,
-                                            lineWidth: selected ? Theme.themeTileBorder : 1))
-                Text(verbatim: name).lineLimit(1)
-                    .foregroundStyle(selected ? Theme.ui.textStrong : Theme.ui.text2)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .pointingHand(!selected)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .accessibilityLabel(name)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-    }
-
-    /// A line of «code»: a bar in one of the theme's colours, `fraction` of the editor's width.
-    private func line(_ color: Hex, _ fraction: CGFloat) -> some View {
-        GeometryReader { g in
-            Capsule().fill(Theme.ui.of(color)).frame(width: g.size.width * fraction)
-        }
-        .frame(height: Theme.themeTileLine)
     }
 }
 

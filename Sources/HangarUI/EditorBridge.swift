@@ -246,7 +246,7 @@ struct EditorRename: Equatable, Sendable {
     var prefix: String, suffix: String
 }
 
-/// Settings → Editor (#84, #108): the editor theme, rainbow indents, TODO pills and the editor options, in the app
+/// Settings → Appearance (#84, #108): the editor theme, rainbow indents, TODO pills and the editor options, in the app
 /// theme's chrome (the page's CSS variables) — every editor and diff page, at load and live.
 struct EditorAppearance: Equatable {
     var theme: EditorTheme

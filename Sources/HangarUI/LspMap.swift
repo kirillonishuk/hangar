@@ -59,7 +59,7 @@ enum LspMap {
 
     /// Project-local first (only where the server is conventionally installed: a venv, node_modules/.bin — the same
     /// trust as tsserver from the project's node_modules), then the login shell's PATH, then the usual install places,
-    /// then Hangar's own folder (`hangarDir`, Settings → Editor, #102: the user's own install wins);
+    /// then Hangar's own folder (`hangarDir`, Settings → Advanced, #102: the user's own install wins);
     /// `toolchain(name)` last (sourcekit-lsp through `xcrun`). `/usr/bin` is skipped: its developer-tool shims open the
     /// «install command line tools» dialog on a Mac without them.
     static func find(_ language: LspLanguage, projectRoot: String, path: [String], home: String, hangarDir: String? = nil,

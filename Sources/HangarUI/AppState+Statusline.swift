@@ -26,8 +26,7 @@ func statuslineRenderer(configURL: URL) -> @Sendable (Data) -> String? {
     { payload in
         let config = HangarConfig.load(from: configURL).config
         guard config.statusline == .hangar else { return nil }
-        return renderStatusline(StatuslineInput(json: payload), segments: config.statuslineSegments,
-                                ru: config.language.resolved() == .ru, now: Date())
+        return renderStatusline(StatuslineInput(json: payload), segments: config.statuslineSegments, now: Date())
     }
 }
 
@@ -98,9 +97,23 @@ extension AppState {
     func setStatuslineSegment(_ segment: StatuslineSegment, on: Bool) throws {
         var set = Set(config.statuslineSegments)
         if on { set.insert(segment) } else { set.remove(segment) }
-        let segments = StatuslineSegment.allCases.filter(set.contains)
-        let literal = "[" + segments.map { "\"\($0.rawValue)\"" }.joined(separator: ", ") + "]"
-        try setConfig("statusline_segments", literal: literal) { $0.statuslineSegments = segments }
+        try setStatuslineChips(config.statuslineChips, on: set)
+    }
+
+    /// A chip moved (drag or «Left»/«Right», #110): before the chip at `index` of the current row.
+    func moveStatuslineSegment(_ segment: StatuslineSegment, to index: Int) throws {
+        let chips = statuslineMove(config.statuslineChips, segment, to: index)
+        guard chips != config.statuslineChips else { return }
+        try setStatuslineChips(chips, on: Set(config.statuslineSegments))
+    }
+
+    /// Both keys in one write: the on segments in the chips' order for the renderer, the whole row for Settings.
+    private func setStatuslineChips(_ chips: [StatuslineSegment], on: Set<StatuslineSegment>) throws {
+        try editConfig({ HangarConfig.settingStatusline($0, chips: chips, on: on) }) {
+            $0.statuslineSegments = chips.filter(on.contains)
+            $0.statuslineOrder = chips
+        }
+        uiLog.info("config statusline_segments = \(chips.filter(on.contains).map(\.rawValue), privacy: .public)")
     }
 
     /// Projects of `host` (nil = this Mac) get Hangar's line in their local settings when «Hangar» is chosen and the

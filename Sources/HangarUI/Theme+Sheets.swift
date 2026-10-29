@@ -48,6 +48,10 @@ extension Theme {
     public static let statuslineFaint: Double = 0.5
     public static let statuslinePreviewFont: CGFloat = 12
     public static let statuslineBarHeavy: CGFloat = 2
+    /// Where a dragged part's chip lands (#110).
+    public static let statuslineDropLine: CGFloat = 2
+    /// A preview line wider than the card fades out over its last points instead of being cut.
+    public static let statuslinePreviewFade: CGFloat = 16
     public static let settingsHeaderGap: CGFloat = 8
     /// The label column is measured from the longest label of the language (+ slack); never wider than the max.
     public static let settingsLabelSlack: CGFloat = 1

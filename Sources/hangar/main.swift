@@ -81,8 +81,7 @@ func runStatusline(_ rest: [String]) -> Int32 {
     let env = ProcessInfo.processInfo.environment
     let config = HangarConfig.load(from: URL(fileURLWithPath: env["HANGAR_CONFIG"] ?? NSHomeDirectory() + "/.config/hangar/config.toml")).config
     if config.statusline == .hangar {
-        let line = renderStatusline(StatuslineInput(json: stdin), segments: config.statuslineSegments,
-                                    ru: config.language.resolved() == .ru, now: Date())
+        let line = renderStatusline(StatuslineInput(json: stdin), segments: config.statuslineSegments, now: Date())
         if !line.isEmpty { FileHandle.standardOutput.write(Data((line + "\n").utf8)) }
         return 0
     }

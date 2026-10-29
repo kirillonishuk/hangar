@@ -167,7 +167,7 @@ import Workspace
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
         case searchMatchOne, searchMatchFew, searchMatchMany, searchInFilesOne, searchInFilesFew, searchInFilesMany
         case statuslineTitle, statuslineShow, statuslineHangar, statuslineUser, statuslineHangarHelp, statuslineUserHelp, statuslineNoOwnHelp
-        case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration
+        case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration, statuslineChipHelp, statuslineMoveLeft, statuslineMoveRight
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
     }
@@ -493,6 +493,9 @@ import Workspace
     static var statuslineUserPreview: String { s(.statuslineUserPreview) }
     static var statuslineParts: String { s(.statuslineParts) }
     static var statuslineNeedsIntegration: String { s(.statuslineNeedsIntegration) }
+    static var statuslineChipHelp: String { s(.statuslineChipHelp) }
+    static var statuslineMoveLeft: String { s(.statuslineMoveLeft) }
+    static var statuslineMoveRight: String { s(.statuslineMoveRight) }
     static var statuslineSegModel: String { s(.statuslineSegModel) }
     static var statuslineSegContext: String { s(.statuslineSegContext) }
     static var statuslineSegFiveHour: String { s(.statuslineSegFiveHour) }

@@ -3,10 +3,27 @@ import Foundation
 /// Which line Claude Code shows (`statusline` in config.toml): Hangar's own, or the user's original command (`--then`).
 public enum StatuslineMode: String, Sendable, CaseIterable { case hangar, user }
 
-/// A part of Hangar's status line (`statusline_segments`). Shown in this order (importance), whatever the config's order.
+/// A part of Hangar's status line (`statusline_segments`), shown in the config's order (#110).
 public enum StatuslineSegment: String, Sendable, CaseIterable {
     case model, context, fiveHour = "5h", week, branch, effort
     public static let defaults: [StatuslineSegment] = [.model, .context, .fiveHour, .week]
+
+    /// Names from config.toml: unknown and repeated ones skipped, the first place wins.
+    static func list(_ names: [String]) -> [StatuslineSegment] {
+        var out: [StatuslineSegment] = []
+        for case let s? in names.map(StatuslineSegment.init(rawValue:)) where !out.contains(s) { out.append(s) }
+        return out
+    }
+}
+
+/// `segment` taken out of `chips` and put before the chip at `index` of the original row (`chips.count` = last);
+/// an index past the end changes nothing.
+public func statuslineMove(_ chips: [StatuslineSegment], _ segment: StatuslineSegment, to index: Int) -> [StatuslineSegment] {
+    guard let from = chips.firstIndex(of: segment), index >= 0, index <= chips.count else { return chips }
+    var out = chips
+    out.remove(at: from)
+    out.insert(segment, at: index > from ? index - 1 : index)
+    return out
 }
 
 /// The status line fields Hangar shows, from Claude Code's stdin JSON; anything absent or malformed is nil.
@@ -95,14 +112,13 @@ func shortModelName(display: String?, id: String?) -> String? {
     return d.isEmpty ? nil : d
 }
 
-/// «47m», «1h47m», «2d3h» (ru: «47м», «1ч47м», «2д3ч»); under a minute counts as one.
-public func compactDuration(_ seconds: Double, ru: Bool) -> String {
-    let (d, h, m) = ru ? ("д", "ч", "м") : ("d", "h", "m")
+/// «47m», «1h47m», «2d3h» (English in every language, #110); under a minute counts as one.
+public func compactDuration(_ seconds: Double) -> String {
     let minutes = max(1, Int((seconds / 60).rounded(.up)))
-    if minutes < 60 { return "\(minutes)\(m)" }
-    if minutes < 24 * 60 { return "\(minutes / 60)\(h)" + (minutes % 60 > 0 ? "\(minutes % 60)\(m)" : "") }
+    if minutes < 60 { return "\(minutes)m" }
+    if minutes < 24 * 60 { return "\(minutes / 60)h" + (minutes % 60 > 0 ? "\(minutes % 60)m" : "") }
     let hours = minutes / 60
-    return "\(hours / 24)\(d)" + (hours % 24 > 0 ? "\(hours % 24)\(h)" : "")
+    return "\(hours / 24)d" + (hours % 24 > 0 ? "\(hours % 24)h" : "")
 }
 
 /// ANSI SGR the renderer uses: the terminal's own palette, so the line follows its theme.
@@ -133,38 +149,42 @@ private func percentText(_ percent: Double) -> String {
     styled("\(Int(percent.rounded()))%", levelColor(percent))
 }
 
-/// Hangar's status line: one line, segments in order of importance, a segment without its data left out (nothing
-/// at all → ""). Labels and separators dim, values neutral, yellow ≥ 80 %, red ≥ 95 %.
-public func renderStatusline(_ input: StatuslineInput, segments: [StatuslineSegment], ru: Bool, now: Date) -> String {
-    let on = Set(segments)
+/// Hangar's status line: one line, segments in the given order, a segment without its data left out (nothing at all
+/// → ""). Always English, whatever Hangar's language (#110): it lives in Claude's terminal, often on a server.
+/// Labels and separators dim, values neutral, yellow ≥ 80 %, red ≥ 95 %.
+public func renderStatusline(_ input: StatuslineInput, segments: [StatuslineSegment], now: Date) -> String {
     func label(_ s: String) -> String { styled(s, SGR.dim) }
     func until(_ resetsAt: Double?) -> String? {
         guard let r = resetsAt, r > now.timeIntervalSince1970 else { return nil }
-        return compactDuration(r - now.timeIntervalSince1970, ru: ru)
+        return compactDuration(r - now.timeIntervalSince1970)
     }
-    var parts: [String] = []
-    if on.contains(.model), let model = input.model {
-        var markers: [String] = []
-        if let size = input.contextSize, size >= 1_000_000 { markers.append("1M") }
-        if input.fast { markers.append("fast") }
-        if let e = input.effort, on.contains(.effort) || ["high", "xhigh", "max"].contains(e.lowercased()) { markers.append(e) }
-        parts.append(([model] + markers.map(label)).joined(separator: " "))
+    func part(_ segment: StatuslineSegment) -> String? {
+        switch segment {
+        case .model:
+            guard let model = input.model else { return nil }
+            var markers: [String] = []
+            if let size = input.contextSize, size >= 1_000_000 { markers.append("1M") }
+            if input.fast { markers.append("fast") }
+            // A high level shows even without the effort part; with it, the part says it in its own place.
+            if let e = input.effort, !segments.contains(.effort), ["high", "xhigh", "max"].contains(e.lowercased()) { markers.append(e) }
+            return ([model] + markers.map(label)).joined(separator: " ")
+        case .context:
+            return input.contextPercent.map { "\(label("ctx")) \(bar($0)) \(percentText($0))" }
+        case .fiveHour:
+            guard let p = input.fiveHour.used else { return nil }
+            let reset = until(input.fiveHour.resetsAt).map { " " + label($0) } ?? ""
+            return "\(label("5h")) \(bar(p)) \(percentText(p))\(reset)"
+        case .week:
+            guard let p = input.week.used else { return nil }
+            let reset = p >= 80 ? until(input.week.resetsAt).map { " " + label($0) } ?? "" : ""
+            return "\(label("wk")) \(percentText(p))\(reset)"
+        case .branch:
+            return input.branch.map { "\(label("⎇")) \($0)" }
+        case .effort:
+            return input.effort.map { "\(label("effort")) \($0)" }
+        }
     }
-    if on.contains(.context), let p = input.contextPercent {
-        parts.append("\(label(ru ? "контекст" : "ctx")) \(bar(p)) \(percentText(p))")
-    }
-    if on.contains(.fiveHour), let p = input.fiveHour.used {
-        let reset = until(input.fiveHour.resetsAt).map { " " + label($0) } ?? ""
-        parts.append("\(label(ru ? "5ч" : "5h")) \(bar(p)) \(percentText(p))\(reset)")
-    }
-    if on.contains(.week), let p = input.week.used {
-        let reset = p >= 80 ? until(input.week.resetsAt).map { " " + label($0) } ?? "" : ""
-        parts.append("\(label(ru ? "нед" : "wk")) \(percentText(p))\(reset)")
-    }
-    if on.contains(.branch), let b = input.branch {
-        parts.append("\(label("⎇")) \(b)")
-    }
-    return parts.joined(separator: label(" │ "))
+    return segments.compactMap(part).joined(separator: label(" │ "))
 }
 
 /// A run of the rendered line with its style, for Settings' preview (the same SGR codes the renderer writes).

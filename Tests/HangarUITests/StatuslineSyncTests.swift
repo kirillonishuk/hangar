@@ -184,6 +184,32 @@ private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
         #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8)) == nil)
     }
 
+    /// #110: a chip dropped in a gap lands there; off the row or back in its own place, nothing moves.
+    @Test func chipDropTarget() {
+        let chips = StatuslineSegment.allCases  // model, context, 5h, week, branch, effort
+        var frames: [StatuslineSegment: CGRect] = [:]
+        for (i, s) in chips.enumerated() { frames[s] = CGRect(x: Double(i) * 60, y: 0, width: 54, height: 24) }
+        let row = CGRect(x: 0, y: 0, width: 354, height: 24)
+        func t(_ s: StatuslineSegment, _ x: Double, _ y: Double = 12) -> Int? {
+            HangarUI.chipDropTarget(chips: chips, frames: frames, row: row, dragged: s, at: CGPoint(x: x, y: y))
+        }
+        #expect(t(.week, 5) == 0)
+        #expect(t(.model, 340) == 6)
+        #expect(t(.model, 100) == 2)
+        #expect(t(.context, 70) == nil && t(.context, 100) == nil)  // its own place
+        #expect(t(.week, 5, 200) == nil && t(.week, -100) == nil)   // released off the row
+        #expect(t(.week, 5, 30) == 0)                                 // a little below still counts
+        // Wrapped onto two lines (week, branch, effort below): the lower line's start is after model…context…5h.
+        for (i, s) in chips.enumerated() { frames[s] = CGRect(x: Double(i % 3) * 60, y: i < 3 ? 0 : 30, width: 54, height: 24) }
+        let two = CGRect(x: 0, y: 0, width: 174, height: 54)
+        func w(_ s: StatuslineSegment, _ x: Double, _ y: Double) -> Int? {
+            HangarUI.chipDropTarget(chips: chips, frames: frames, row: two, dragged: s, at: CGPoint(x: x, y: y))
+        }
+        #expect(w(.model, 5, 42) == 3)     // before week, at the lower line's start
+        #expect(w(.effort, 170, 12) == 3)  // after 5h, the upper line's end
+        #expect(w(.model, 100, 42) == 5)   // between branch and effort
+    }
+
     @Test func previewSplitsBars() {
         #expect(statuslinePieces("a \u{1B}[33m━━\u{1B}[0m\u{1B}[2m───\u{1B}[0m 80%") == [
             .text("a ", .normal), .bar(cells: 2, heavy: true, .yellow), .bar(cells: 3, heavy: false, .dim), .text(" 80%", .normal),

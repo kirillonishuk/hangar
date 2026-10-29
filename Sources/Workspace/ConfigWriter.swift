@@ -46,6 +46,7 @@ extension HangarConfig {
     /// Drops every `key = …` line of the root section (a «Сбросить» of a color); other lines, comments and order stay.
     public static func removing(_ text: String, key: String) -> String {
         var lines = text.components(separatedBy: "\n")
+        let count = lines.count
         var i = 0
         while i < lines.count {
             let line = lines[i].trimmingCharacters(in: .whitespaces.union(CharacterSet(charactersIn: "\r")))
@@ -56,10 +57,11 @@ extension HangarConfig {
                 i += 1
             }
         }
-        // The removed line was the last one, unterminated: the new last line drops its now-trailing terminator.
-        if text.utf8.last != UInt8(ascii: "\n"), lines.count > 1, lines.last == "" {  // "\r\n" is one Character: not hasSuffix
-            lines.removeLast()
-            if let last = lines.last, last.hasSuffix("\r") { lines[lines.count - 1] = String(last.dropLast()) }
+        // A file without a final newline stays so: the removed last line's terminator (now trailing, "\r\n" or
+        // "\n") goes with it. `utf8.last`: "\r\n" is one Character, so `hasSuffix("\n")` is false for CRLF files.
+        if lines.count < count, text.utf8.last != UInt8(ascii: "\n"), let last = lines.indices.last {
+            if lines.count > 1, lines[last].isEmpty { lines.removeLast() }
+            if let end = lines.indices.last, lines[end].hasSuffix("\r") { lines[end].removeLast() }
         }
         return lines.joined(separator: "\n")
     }

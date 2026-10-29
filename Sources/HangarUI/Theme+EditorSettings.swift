@@ -17,6 +17,9 @@ extension Theme {
         static let previewFont: CGFloat = 12
         static let previewLineHeight: CGFloat = 18
         static let previewLines = 12
+        /// At the window's minimum the preview shows 6 lines; the page keeps `previewReserve` for the rest.
+        static let previewMinLines = 6
+        static let previewReserve: CGFloat = 300
         static let previewPaddingV: CGFloat = 8
         static let previewPaddingH: CGFloat = 10
         static let previewGutter: CGFloat = 26

@@ -37,14 +37,6 @@ extension EditorColor {
         default: []
         }
     }
-
-    /// Colors drawn over text: the popover offers an opacity next to the HEX.
-    var translucent: Bool {
-        switch self {
-        case .selection, .find, .whitespace, .diffAddedLine, .diffRemovedLine, .diffAddedText, .diffRemovedText: true
-        default: false
-        }
-    }
 }
 
 /// `#rrggbb(aa)` helpers for the editor colors (config values, Monaco's theme).
@@ -106,6 +98,27 @@ enum EditorHex {
         default: (c, 0, x)
         }
         return from(r: r + m, g: g + m, b: b + m, a: a)
+    }
+}
+
+/// The popover's hue and lightness bars. A color made by the bars keeps the hue and saturation it was made with:
+/// near black or white they can't be read back from the hex, so a drag to black and back would lose them.
+struct EditorHSL: Equatable {
+    var h, s, l, a: Double
+
+    init(h: Double, s: Double, l: Double, a: Double) { (self.h, self.s, self.l, self.a) = (h, s, l, a) }
+
+    init(_ hex: String) {
+        let x = EditorHex.hsl(hex)
+        self.init(h: x.h, s: x.s, l: x.l, a: x.a)
+    }
+
+    var hex: String { EditorHex.fromHSL(h: min(h, 0.999), s: s, l: l, a: a) }
+
+    /// The held values while the color on screen is still the one they made; otherwise the color's own.
+    static func basis(_ hex: String, held: (hsl: EditorHSL, hex: String)?) -> EditorHSL {
+        if let held, held.hex == hex { return held.hsl }
+        return EditorHSL(hex)
     }
 }
 
@@ -193,6 +206,8 @@ extension HangarConfig {
     /// A color changed in Settings: on a built-in theme it creates «Своя» on that base and switches to it (the
     /// built-in stays as it is); a color equal to the base's own is no change at all.
     func customizing(_ color: EditorColor, _ hex: String) -> HangarConfig {
+        // Only colors drawn over text take an alpha (as the config parser): the preview then matches the editor.
+        let hex = color.translucent ? hex : EditorHex.with(hex, alpha: 1)
         var c = self
         if c.editorPalette != .custom {
             if c.editorCustomBase != c.editorPalette { c.editorColors = [:] }

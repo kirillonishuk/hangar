@@ -139,14 +139,27 @@
   }
 
   // «Форматировать при сохранении» (#108): the language server's format first (the menu's own action, so only files
-  // with a provider), then the save; a server that doesn't answer in 3 s doesn't hold the save up.
+  // with a provider), then the save; a server that doesn't answer in 3 s doesn't hold the save up. Its late edits are
+  // dropped (the token below): they would change the buffer just saved and mark it unsaved again.
+  let saveFormat = null;   // { model, late } of the format a save is waiting for
   function formatThen(ed, then) {
     const action = look.formatOnSave && ed.getAction('editor.action.formatDocument');
     if (!action || !action.isSupported()) { then(); return; }
+    const token = { model: ed.getModel(), late: false };
+    saveFormat = token;
     let done = false;
-    const finish = () => { if (!done) { done = true; then(); } };
-    Promise.race([action.run(), new Promise((r) => setTimeout(r, 3000))]).then(finish, finish);
+    const finish = (timedOut) => {
+      if (done) return;
+      done = true;
+      token.late = timedOut === true;
+      if (saveFormat === token && !token.late) saveFormat = null;
+      then();
+    };
+    action.run().then(() => finish(false), () => finish(false));
+    setTimeout(() => finish(true), 3000);
   }
+  /// Edits of a format the save stopped waiting for: none.
+  const lateFormat = (model, token) => !!token && token.model === model && token.late;
 
   // Buffers with a language server are mirrored there (tsserver #82, LSP #90): every change goes to Swift as an
   // incremental edit.
@@ -729,8 +742,10 @@
       ls.registerDocumentFormattingEditProvider(lang, {
         provideDocumentFormattingEdits: (m, o, t) => {
           const end = { lineNumber: m.getLineCount(), column: m.getLineMaxColumn(m.getLineCount()) };
+          // Only a request the save is waiting for right now (a later manual format is never dropped).
+          const token = saveFormat && !saveFormat.late ? saveFormat : null;
           return ask('format', m, end, t, undefined, { tabSize: o.tabSize, insertSpaces: o.insertSpaces })
-            .then((r) => (r && r.kind === 'edits' ? r.items.map((i) => ({ range: range(i), text: i.text })) : []));
+            .then((r) => (r && r.kind === 'edits' && !lateFormat(m, token) ? r.items.map((i) => ({ range: range(i), text: i.text })) : []));
         },
       });
     }

@@ -34,6 +34,20 @@ enum EditorPreviewSample: CaseIterable {
         }
     }
 
+    /// The line that shows `color` (where a hovered row scrolls the preview).
+    func line(showing color: EditorColor) -> Int? {
+        let line: EditorPreviewLine? = switch color {
+        case .line, .cursor, .gutterActive, .indentActive: lines.first { $0.current }
+        case .selection: lines.first { $0.runs.contains { $0.mark == .selection } }
+        case .find: lines.first { $0.runs.contains { $0.mark == .find } }
+        case .diffAddedLine, .diffAddedText: lines.first { $0.change == .added }
+        case .diffRemovedLine, .diffRemovedText: lines.first { $0.change == .removed }
+        case .indent: lines.first { $0.indent >= 4 }
+        default: lines.first { $0.runs.contains { $0.color == color } }
+        }
+        return line?.id
+    }
+
     #if DEBUG
     /// The popover anchor of the first token of `color` in `sample` (debug `edtheme color <id> preview`).
     static func anchor(of color: EditorColor, in sample: Self) -> String? {
@@ -166,16 +180,28 @@ struct EditorPreview: View {
         let lines = model.sample.lines
         let diff = model.sample == .diff
         let gutter = diff ? 2 * S.previewDiffGutter + S.previewDiffMarker : S.previewGutter
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(lines) { line in
-                row(line, theme: theme, cw: cw, gutter: gutter)
+        // A short window shows fewer lines (the list under the pinned preview stays usable); the rest scrolls, and a
+        // hovered row brings its line into view.
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(lines) { line in
+                        row(line, theme: theme, cw: cw, gutter: gutter)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            Spacer(minLength: 0)
+            .scrollIndicators(.automatic)
+            .onChange(of: model.hovered) { _, color in
+                guard let color, let id = model.sample.line(showing: color) else { return }
+                withAnimation(Motion.ease(Theme.selectionFade)) { proxy.scrollTo(id, anchor: .center) }
+            }
         }
         .font(Font(font))
+        // Padding outside the scroll view: the box shows whole lines only.
+        .frame(height: CGFloat(Self.visibleLines(model.pageHeight)) * S.previewLineHeight)
         .padding(.vertical, S.previewPaddingV)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(height: CGFloat(S.previewLines) * S.previewLineHeight + 2 * S.previewPaddingV, alignment: .top)
         .background(Theme.ui.editor(theme.hex(.background)))
         .overlay { if model.hovered == .background { outline() } }
         .contentShape(Rectangle())
@@ -315,6 +341,13 @@ struct EditorPreview: View {
 
     private func presented(_ anchor: String) -> Binding<Bool> {
         Binding(get: { model.editing != nil && model.anchor == anchor }, set: { if !$0, model.anchor == anchor { model.close() } })
+    }
+
+    /// Lines the preview shows for a settings page this tall: all 12 at the default size, 6 at the minimum.
+    static func visibleLines(_ pageHeight: CGFloat) -> Int {
+        guard pageHeight > 0 else { return Theme.EditorSettings.previewLines }
+        let fit = Int(((pageHeight - Theme.EditorSettings.previewReserve) / Theme.EditorSettings.previewLineHeight).rounded(.down))
+        return min(Theme.EditorSettings.previewLines, max(Theme.EditorSettings.previewMinLines, fit))
     }
 
     /// Brackets take the punctuation color when depth colors are off (as in Monaco).

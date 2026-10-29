@@ -11,6 +11,14 @@ public enum EditorColor: String, Sendable, CaseIterable {
     case diffAddedText = "diff_added_text", diffRemovedText = "diff_removed_text"
 
     public var configKey: String { "editor_color_" + rawValue }
+
+    /// Colors drawn over text (selection, find matches, whitespace, diff tints): the only ones with an alpha.
+    public var translucent: Bool {
+        switch self {
+        case .selection, .find, .whitespace, .diffAddedLine, .diffRemovedLine, .diffAddedText, .diffRemovedText: true
+        default: false
+        }
+    }
 }
 
 /// Settings → Editor options (#108): what Monaco is created and updated with.
@@ -123,8 +131,9 @@ extension HangarConfig {
                 throw ParseError.unknownKey(line: line, key: key)
             }
             guard let hex = normalizedHex(try stringValue(raw, line: line)) else {
-                throw fail("\(key) must be #rgb, #rrggbb or #rrggbbaa")
+                throw fail(color.translucent ? "\(key) must be #rgb, #rrggbb or #rrggbbaa" : "\(key) must be #rgb or #rrggbb")
             }
+            guard color.translucent || hex.count == 7 else { throw fail("\(key) must be #rgb or #rrggbb") }
             config.editorColors[color] = hex
         }
         return true

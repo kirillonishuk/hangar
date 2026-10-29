@@ -44,11 +44,18 @@ import Testing
         #expect(throws: HangarConfig.ParseError.unknownKey(line: 2, key: "editor_color_sparkle")) {
             try HangarConfig.parse("# c\neditor_color_sparkle = \"#ffffff\"")
         }
-        for bad in ["red", "#12", "#12345", "#gggggg", "#1234567", ""] {
-            #expect(throws: HangarConfig.ParseError.syntax(line: 1, reason: "editor_color_string must be #rgb, #rrggbb or #rrggbbaa")) {
+        for bad in ["red", "#12", "#12345", "#gggggg", "#1234567", "", "#d69d8580"] {
+            #expect(throws: HangarConfig.ParseError.syntax(line: 1, reason: "editor_color_string must be #rgb or #rrggbb")) {
                 try HangarConfig.parse("editor_color_string = \"\(bad)\"")
             }
         }
+        // Only colors drawn over text take an alpha.
+        #expect(throws: HangarConfig.ParseError.syntax(line: 1, reason: "editor_color_selection must be #rgb, #rrggbb or #rrggbbaa")) {
+            try HangarConfig.parse("editor_color_selection = \"#12\"")
+        }
+        #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse("editor_color_background = \"#1f1f1f80\"") }
+        #expect(EditorColor.allCases.filter(\.translucent) == [.selection, .find, .whitespace, .diffAddedLine, .diffRemovedLine,
+                                                              .diffAddedText, .diffRemovedText])
     }
 
     @Test func options() throws {
@@ -117,6 +124,11 @@ import Testing
         #expect(HangarConfig.removing(text, key: "editor_color_number") == text)
         #expect(HangarConfig.removing("a = \"1\"\r\nb = \"2\"\r\n", key: "a") == "b = \"2\"\r\n")
         #expect(HangarConfig.removing("a = \"1\"", key: "a") == "")
+        // No final newline (CRLF or LF): the remaining last line keeps none, no stray "\r".
+        #expect(HangarConfig.removing("a = \"1\"\r\nb = \"2\"", key: "b") == "a = \"1\"")
+        #expect(HangarConfig.removing("a = \"1\"\r\nb = \"2\"", key: "a") == "b = \"2\"")
+        #expect(HangarConfig.removing("a = \"1\"\nb = \"2\"", key: "b") == "a = \"1\"")
+        #expect(HangarConfig.removing("a = \"1\"\r\nb = \"2\"\r\n", key: "b") == "a = \"1\"\r\n")
         // A commented-out line with the same name stays.
         #expect(HangarConfig.removing("# a = \"0\"\na = \"1\"\n", key: "a") == "# a = \"0\"\n")
     }

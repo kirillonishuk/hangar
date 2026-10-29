@@ -114,6 +114,9 @@ import Workspace
         // The base's own value is no change.
         #expect(n.customizing(.keyword, "#569cd6").editorColors == [.string: "#d69d85"])
         #expect(n.customizing(.string, "#ce9178").editorColors.isEmpty)
+        // A solid color drops a typed alpha (preview and editor show the same); colors over text keep it.
+        #expect(n.customizing(.number, "#ffffff80").editorColors[.number] == "#ffffff")
+        #expect(n.customizing(.selection, "#11223380").editorColors[.selection] == "#11223380")
         // Editing «Своя» again adds to it.
         #expect(n.customizing(.number, "#ffffff").editorColors == [.string: "#d69d85", .number: "#ffffff"])
     }
@@ -177,6 +180,28 @@ import Workspace
         #expect(defaults["fontFamily"] as? String == "ui-monospace, Menlo, monospace" && defaults["lineHeight"] as? Int == 20)
     }
 
+    /// Dragging lightness to black and back gives the color back; hue doesn't drift while the color is near black.
+    @Test func barsKeepHueAndSaturation() {
+        let start = "#ce9178"
+        var c = EditorHSL.basis(start, held: nil)
+        let original = c
+        c.l = 0
+        let black = c.hex
+        #expect(black == "#000000")
+        // Read back from the hex alone, black has no hue: the held values are what keeps it.
+        #expect(EditorHSL(black).s == 0)
+        var back = EditorHSL.basis(black, held: (c, black))
+        #expect(back.h == original.h && back.s == original.s)
+        back.l = original.l
+        #expect(back.hex == start)
+        // Near black the hue bar keeps its place.
+        var dark = original
+        dark.l = 0.02
+        #expect(EditorHSL.basis(dark.hex, held: (dark, dark.hex)).h == original.h)
+        // Another color on screen (typed, reset): the held values no longer apply.
+        #expect(EditorHSL.basis("#569cd6", held: (c, black)) == EditorHSL("#569cd6"))
+    }
+
     @Test func hslRoundTrip() {
         for hex in ["#569cd6", "#ce9178", "#1f1f1f", "#ffffff", "#000000", "#4ec9b0", "#da70d6"] {
             let x = EditorHex.hsl(hex)
@@ -199,6 +224,10 @@ import Workspace
         for color in EditorColor.allCases where color.section == .syntax && color != .jsonKey && color != .text {
             #expect(ts.shows(color), "\(color)")
         }
+        // Fewer lines in a short window: 12 at the default page (560), 6 at the minimum (412); a hovered row's line is found.
+        #expect(EditorPreview.visibleLines(560) == 12 && EditorPreview.visibleLines(412) == 6 && EditorPreview.visibleLines(0) == 12)
+        #expect(ts.line(showing: .escape) == 10 && ts.line(showing: .cursor) == 4 && ts.line(showing: .find) == 7)
+        #expect(EditorPreviewSample.diff.line(showing: .diffAddedText) == 3)
         #expect(EditorPreviewSample.json.shows(.jsonKey) && !EditorPreviewSample.typescript.shows(.diffAddedLine))
         #expect(EditorPreviewSample.diff.lines.contains { $0.change == .added } && EditorPreviewSample.diff.lines.contains { $0.change == .removed })
     }

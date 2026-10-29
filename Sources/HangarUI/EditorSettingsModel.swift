@@ -23,6 +23,8 @@ import Workspace
     var pendingReplace: Draft?
     /// What the last change did («Создана тема «Своя»…»), under the page.
     var notice: String?
+    /// The settings page's visible height: the preview gets shorter in a short window.
+    var pageHeight: CGFloat = 0
     @ObservationIgnored private lazy var panelTarget = ColorPanelTarget { [weak self] hex in
         guard let self, let color = self.editing else { return }
         self.commit(color, EditorHex.with(hex, alpha: EditorHex.alpha(self.theme.hex(color))))

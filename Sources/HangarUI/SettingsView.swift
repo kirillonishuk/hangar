@@ -93,6 +93,7 @@ struct SettingsView: View {
                     .padding(Theme.settingsPagePadding)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.editorTheme.pageHeight = $0 }
                 footer
             }
         }

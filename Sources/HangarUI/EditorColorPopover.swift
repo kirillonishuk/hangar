@@ -97,6 +97,8 @@ struct EditorColorPopover: View {
     @Bindable var model: EditorSettingsModel
     @State private var hexText = ""
     @State private var alphaText = ""
+    /// What the bars made last, so hue and saturation survive a trip to black or white.
+    @State private var held: (hsl: EditorHSL, hex: String)?
     @FocusState private var focused: Bool
 
     private typealias S = Theme.EditorSettings
@@ -108,7 +110,7 @@ struct EditorColorPopover: View {
     private func content(_ color: EditorColor) -> some View {
         let theme = model.theme
         let hex = theme.hex(color)
-        let hsl = EditorHex.hsl(hex)
+        let hsl = EditorHSL.basis(hex, held: held)
         return VStack(alignment: .leading, spacing: S.popoverGap) {
             HStack(spacing: S.popoverGap) {
                 EditorSwatch(hex: hex, size: S.popoverSwatch)
@@ -139,9 +141,12 @@ struct EditorColorPopover: View {
                 }
             }
             .font(.system(size: Theme.fontSize.tab))
-            bar(hueGradient, at: hsl.h, help: L10n.s(.edHue)) { EditorHex.fromHSL(h: min($0, 0.999), s: max(hsl.s, 0.05), l: hsl.l, a: hsl.a) }
+            bar(hueGradient, at: hsl.h, help: L10n.s(.edHue)) { c, v in
+                c.h = v
+                c.s = max(c.s, 0.05)  // a grey gets a hint of the hue, or the bar would do nothing
+            }
             bar(Gradient(colors: [.black, Theme.ui.editor(EditorHex.fromHSL(h: hsl.h, s: hsl.s, l: 0.5)), .white]), at: hsl.l,
-                help: L10n.s(.edLightness)) { EditorHex.fromHSL(h: hsl.h, s: hsl.s, l: $0, a: hsl.a) }
+                help: L10n.s(.edLightness)) { c, v in c.l = v }
             Text(verbatim: L10n.s(.edThemeColors)).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(S.gridSwatch), spacing: S.gridGap), count: S.gridColumns),
                       alignment: .leading, spacing: S.gridGap) {
@@ -183,8 +188,9 @@ struct EditorColorPopover: View {
     private func commitText(_ color: EditorColor, _ current: String) {
         let typed = hexText.hasPrefix("#") ? hexText : "#" + hexText
         guard let rgb = HangarConfig.normalizedHex(typed.trimmingCharacters(in: .whitespaces)) else { sync(current); return }
-        let alpha = color.translucent ? (Double(alphaText.trimmingCharacters(in: .whitespaces)).map { $0 / 100 } ?? EditorHex.alpha(current))
-            : EditorHex.alpha(rgb)
+        // A solid color's alpha (typed as #rrggbbaa) is dropped: only colors over text are translucent.
+        let alpha = color.translucent ? (Double(alphaText.trimmingCharacters(in: .whitespaces)).map { $0 / 100 } ?? EditorHex.alpha(rgb))
+            : 1
         model.commit(color, EditorHex.with(rgb, alpha: alpha))
     }
 
@@ -193,7 +199,8 @@ struct EditorColorPopover: View {
     }
 
     /// A gradient bar with a knob at `value` (0…1); dragging previews, the release commits.
-    private func bar(_ gradient: Gradient, at value: Double, help: String, color make: @escaping (Double) -> String) -> some View {
+    private func bar(_ gradient: Gradient, at value: Double, help: String,
+                     update: @escaping (inout EditorHSL, Double) -> Void) -> some View {
         GeometryReader { g in
             let w = g.size.width
             ZStack(alignment: .leading) {
@@ -207,19 +214,23 @@ struct EditorColorPopover: View {
             .frame(height: S.knob)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { d in
-                    guard let color = model.editing else { return }
-                    model.preview(color, make(max(0, min(1, d.location.x / w))))
-                }
-                .onEnded { d in
-                    guard let color = model.editing else { return }
-                    model.commit(color, make(max(0, min(1, d.location.x / w))))
-                })
+                .onChanged { d in if let (color, hex) = drag(d, width: w, update) { model.preview(color, hex) } }
+                .onEnded { d in if let (color, hex) = drag(d, width: w, update) { model.commit(color, hex) } })
         }
         .frame(height: S.knob)
         .pointingHand()
         .help(help)
         .accessibilityLabel(help)
+    }
+
+    /// One step of a bar drag: from the held values (not the hex, which loses hue at black), remembered for the next.
+    private func drag(_ d: DragGesture.Value, width: CGFloat, _ update: (inout EditorHSL, Double) -> Void) -> (EditorColor, String)? {
+        guard let color = model.editing else { return nil }
+        var c = EditorHSL.basis(model.theme.hex(color), held: held)
+        update(&c, max(0, min(1, d.location.x / width)))
+        let hex = c.hex
+        held = (c, hex)
+        return (color, hex)
     }
 
     /// The theme's own opaque colors, each once (picking from them keeps the palette small).

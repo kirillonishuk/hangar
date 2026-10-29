@@ -293,6 +293,10 @@
 "diffNotChanged" = "File is no longer changed";
 "diffNotAFile" = "Not a file: a directory or a nested repository";
 "diffTabHelp" = "Close";
+"diffNoChanges" = "No changes";
+"diffChangeCounter" = "%d of %d";
+"diffPrevChange" = "Previous change";
+"diffNextChange" = "Next change";
 "keepAwakeTitle" = "Keep awake while agents work";
 "keepAwakeOffHelp" = "Keep awake: off";
 "keepAwakeIdleHelp" = "Keep awake: on — the Mac won't sleep while agents work";

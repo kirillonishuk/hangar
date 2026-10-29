@@ -293,6 +293,10 @@
 "diffNotChanged" = "Файл больше не изменён";
 "diffNotAFile" = "Не файл: каталог или вложенный репозиторий";
 "diffTabHelp" = "Закрыть";
+"diffNoChanges" = "Нет изменений";
+"diffChangeCounter" = "%d из %d";
+"diffPrevChange" = "Предыдущее изменение";
+"diffNextChange" = "Следующее изменение";
 "keepAwakeTitle" = "Не засыпать, пока агенты работают";
 "keepAwakeOffHelp" = "Не засыпать: выключено";
 "keepAwakeIdleHelp" = "Не засыпать: включено — Mac не уснёт, пока агенты работают";

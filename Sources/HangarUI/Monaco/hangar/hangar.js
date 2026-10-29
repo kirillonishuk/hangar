@@ -434,21 +434,66 @@
       const f = diffPath && files.get(diffPath);
       if (f && f.model) post({ type: 'save', file: diffPath, text: f.model.getValue() });
     });
-    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => post({ type: 'focus' })); wireMenu(e); }
-    let first = true;
+    for (const e of [orig, mod]) { e.onDidFocusEditorText(() => { lastSide = e; post({ type: 'focus' }); report(); }); wireMenu(e); }
+    orig.onDidChangeCursorPosition(() => report());
+    // The first change is shown (centered) once the diff is computed; a computed diff is also what the header's
+    // counter («2 из 5») and the empty state wait for. Typing ends the wait, so a later recompute never scrolls.
+    mod.onDidChangeModelContent(() => { awaiting = false; });
+    mod.onDidChangeCursorPosition(() => report());
     diff.onDidUpdateDiff(() => {
-      if (!first) return;
-      first = false;
-      const changes = diff.getLineChanges() || [];
-      if (changes.length && !pendingLine) {
-        const c = changes[0], line = c.modifiedEndLineNumber > 0 ? c.modifiedStartLineNumber : Math.max(1, c.modifiedStartLineNumber);
-        mod.revealLineInCenter(line);
-        mod.setPosition({ lineNumber: line, column: 1 });
+      const lines = changeLines();
+      if (awaiting && lines.length && !pendingLine) {
+        awaiting = false;
+        mod.revealLineInCenter(lines[0]);
+        mod.setPosition({ lineNumber: lines[0], column: 1 });
       }
+      report(true);
     });
-    resetFirst = () => { first = true; };
+    resetFirst = () => { awaiting = true; lastReport = ''; lastSide = null; };
   }
   let resetFirst = () => {};
+  let awaiting = true, lastReport = '', lastSide = null;
+
+  /// The cursor's line on the modified side, from whichever side was focused last (the base side is mapped across).
+  function cursorLine() {
+    const mod = diff.getModifiedEditor();
+    return lastSide === diff.getOriginalEditor() ? toModified(lastSide.getPosition().lineNumber) : mod.getPosition().lineNumber;
+  }
+
+  /// The modified-side line each change starts at (a pure deletion: the line it follows).
+  function changeLines() {
+    return (diff.getLineChanges() || []).map((c) => c.modifiedEndLineNumber > 0 ? c.modifiedStartLineNumber : Math.max(1, c.modifiedStartLineNumber));
+  }
+
+  /// The change the cursor is in or after (1-based; 0 before the first one) and the count, to Swift when they changed.
+  function report(computed) {
+    if (!diff.getModel()) return;
+    const lines = changeLines(), line = cursorLine();
+    if (!lines.length && !computed) return;
+    let index = 0;
+    for (const l of lines) if (l <= line) index++;
+    if (lines.length) index = Math.max(1, index);
+    const key = index + '/' + lines.length;
+    if (key === lastReport) return;
+    lastReport = key;
+    post({ type: 'changes', index, count: lines.length });
+  }
+
+  /// F7 / ⇧F7 and the header's arrows: the next / previous change from the cursor, wrapping at the ends.
+  function goChange(next) {
+    const lines = changeLines();
+    if (!lines.length) return;
+    const mod = diff.getModifiedEditor(), at = cursorLine();
+    let target;
+    if (next) target = lines.find((l) => l > at) ?? lines[0];
+    else target = [...lines].reverse().find((l) => l < at) ?? lines[lines.length - 1];
+    awaiting = false;
+    lastSide = mod;
+    mod.revealLineInCenter(target);
+    mod.setPosition({ lineNumber: target, column: 1 });
+    mod.focus();
+  }
+
   let pendingLine = null;
 
   /// A line of the original side → the same place on the modified side.
@@ -707,10 +752,11 @@
       case 'diff': showDiff(c); break;
       case 'options':
         inline = c.inline; minimap = c.minimap;
-        if (diff) diff.updateOptions({ renderSideBySide: !inline });
+        if (diff) { diff.updateOptions({ renderSideBySide: !inline }); if (inline) { lastSide = diff.getModifiedEditor(); report(); } }
         if (editor) editor.updateOptions({ minimap: { enabled: minimap } });
         break;
       case 'appearance': setLook(c); break;
+      case 'goChange': if (diff) goChange(c.next); break;
       case 'focus': (editor || (diff && diff.getModifiedEditor())).focus(); break;
     }
   }

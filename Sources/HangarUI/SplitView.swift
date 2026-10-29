@@ -463,12 +463,13 @@ final class FillView: NSView {
     private var lastVisible: [UUID: Bool] = [:]
     private var shownTab: UUID?
     private var shownFocus: UUID?
-    /// The task's diff tab is shown instead of its tabs (created on first use).
     /// Each task's diff tab, with its Monaco page, while that diff tab exists (an edited buffer survives task switches).
     private var diffHosts: [UUID: (host: DiffHostView, editor: DiffEditorController)] = [:]
     /// The Monaco pages of the file tabs (#83, ≤ 2 for a split); made with the first file tab, gone with the last.
     private var editorHost: EditorHost?
-    /// The selected task's.
+    /// The selected task's diff editor (F7 / ⇧F7, debug commands).
+    var shownDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
+    /// The selected task's diff tab view.
     private var diffHost: DiffHostView? { app.selectedTask.flatMap { diffHosts[$0.id]?.host } }
     private var shownDiff = false
     private let placeholder = NSTextField(labelWithString: "")
@@ -945,7 +946,6 @@ final class FillView: NSView {
         return tab.root.leaves.compactMap { leafViews[$0.id]?.editor }.map { $0.host.page($0.page).webView }
     }
 
-    var debugDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
 
     func debugEditors() -> [String] {
         leafViews.values.compactMap { view in

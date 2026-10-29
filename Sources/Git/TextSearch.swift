@@ -57,9 +57,7 @@ public func searchGlobs(_ field: String) -> [String] {
 /// `--no-index --exclude-standard` does), dotfiles searched (not `.git`), very long lines cut to a preview. The query is
 /// the value of `-e` and globs are `--glob=…`, so nothing the user types can become an option.
 public func ripgrepArgs(_ q: SearchQuery, perFile: Int = SearchLimits.perFile) -> [String] {
-    // `--sort path`: files come in one order every run (rg's threads otherwise report them as they finish), and the
-    // parser keeps arrival order, so groups neither jump while streaming nor reorder between identical searches.
-    var a = ["--json", "--no-config", "--hidden", "--no-require-git", "--sort", "path", "--max-columns", String(SearchLimits.maxColumns),
+    var a = ["--json", "--no-config", "--hidden", "--no-require-git", "--max-columns", String(SearchLimits.maxColumns),
              "--max-columns-preview", q.caseSensitive ? "--case-sensitive" : "--ignore-case"]
     if !q.regex { a.append("--fixed-strings") }
     if q.wholeWord { a.append("--word-regexp") }
@@ -183,10 +181,13 @@ public struct SearchParser {
     }
 
     /// End of output: a last line without a newline.
+    /// The end of the output: the last line, then groups sorted by path (case-insensitively, as a file tree) — rg's
+    /// threads report files in any order, and identical searches must not come out reordered.
     public mutating func finish() {
         if !buffer.isEmpty, !results.truncated, !skipping { parse(buffer[...]) }
         buffer = []
         skipping = false
+        results.files.sort { ($0.path.lowercased(), $0.path) < ($1.path.lowercased(), $1.path) }
     }
 
     private mutating func parse(_ line: ArraySlice<UInt8>) {
@@ -247,7 +248,8 @@ public struct SearchParser {
 
     private mutating func add(path: String, line: Int, text: String, ranges: [Range<Int>], column: Int?) {
         guard !results.truncated else { return }
-        // Arrival order (rg `--sort path`, git grep's own): a known file is looked up from the end, where its lines land.
+        // Arrival order while streaming (nothing moves under the reader); `finish` sorts once. A known file is looked
+        // up from the end, where its lines land.
         let known = results.files.lastIndex { $0.path == path }
         if let known, results.files[known].hits.count >= perFile { results.files[known].truncated = true; return }
         // The total cap first: no empty group for a file whose first line is past it.

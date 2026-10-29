@@ -500,6 +500,10 @@ extension MainWindowController {
             default: break
             }
             let i = app.integrations
+            if f.first == "dump", f.count == 2 {
+                let hosts = app.integrationHostList.map { "\($0)=\(String(describing: app.remote.hosts[$0]?.state))" }
+                try? "ask=\(String(describing: i.ask)) marks=\(i.marks) mcp=\(i.mcp) hosts=\(hosts)\n".write(toFile: f[1], atomically: true, encoding: .utf8)
+            }
             uiLog.info("integration ask=\(String(describing: i.ask), privacy: .public) marks=\(String(describing: i.marks), privacy: .public) mcp=\(String(describing: i.mcp), privacy: .public) claude=\(String(describing: self.app.config.claudeIntegration), privacy: .public) codex=\(String(describing: self.app.config.codexIntegration), privacy: .public) hosts=\(self.app.config.integrationHosts, privacy: .public) skipped=\(self.app.config.integrationHostsSkipped, privacy: .public)")
         case "lang":
             if let lang = Language(rawValue: arg) {

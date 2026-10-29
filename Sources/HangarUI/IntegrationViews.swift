@@ -64,12 +64,12 @@ struct WhereRow: View {
     let items: [WhereItem]
 
     var body: some View {
-        // shortcut: one line, a long host list is cut at the end; wrap when someone has that many hosts.
-        HStack(spacing: Theme.integrationWhereGap) {
+        // Wraps instead of cutting a host's state off when the window is narrow or the hosts are many.
+        FlowLayout(spacing: Theme.integrationWhereGap, lineSpacing: Theme.sheetLineGap) {
             Text(verbatim: label).foregroundStyle(Theme.ui.text3)
             ForEach(items) { item in entry(item) }
-            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .font(.system(size: Theme.fontSize.tab))
         .lineLimit(1)
         .padding(.vertical, Theme.cardRowPaddingV)
@@ -106,6 +106,36 @@ struct WhereRow: View {
             Circle().fill(Theme.ui.waiting).frame(width: Theme.statusDot, height: Theme.statusDot)
             Text(verbatim: t).foregroundStyle(Theme.ui.accent)
         }
+    }
+}
+
+/// Children left to right at their own size, wrapping to a new line when the next one doesn't fit.
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = arrange(subviews, width: proposal.width ?? .infinity)
+        let width = frames.map(\.maxX).max() ?? 0, height = frames.map(\.maxY).max() ?? 0
+        return CGSize(width: proposal.width.map { min($0, width) } ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (frame, view) in zip(arrange(subviews, width: bounds.width), subviews) {
+            view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func arrange(_ subviews: Subviews, width: CGFloat) -> [CGRect] {
+        var out: [CGRect] = [], x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += line + lineSpacing; line = 0 }
+            out.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            x += size.width + spacing
+            line = max(line, size.height)
+        }
+        return out
     }
 }
 
@@ -211,7 +241,8 @@ private struct AskFooter: View {
 /// «Подключить Hangar к Claude Code?» (#111): before the agent's first tab starts; the switches are its functions.
 struct IntegrationAgentSheet: View {
     let agent: MCPAgent
-    let whereItems: [WhereItem]
+    /// Read in `body`: a language switch while the sheet is up redraws them.
+    let whereItems: () -> [WhereItem]
     let preview: (AgentChoice) async -> [PlannedChange]
     let onAnswer: (Bool, AgentChoice) -> Void
     @State private var choice = AgentChoice()
@@ -237,7 +268,7 @@ struct IntegrationAgentSheet: View {
                 FunctionRow(title: L10n.integrationMCP, subtitle: L10n.intMCPSheetSub, tag: L10n.intThisMacTag, tagHelp: L10n.intThisMacTagHelp) {
                     CardSwitch(on: choice.mcp) { choice.mcp = $0; refresh() }
                 }
-                WhereRow(label: L10n.intWhereTo, items: whereItems)
+                WhereRow(label: L10n.intWhereTo, items: whereItems())
             }
             .sheetCard()
             if let changes { ChangesView(changes: changes).padding(.top, Theme.sheetGap) }
@@ -261,8 +292,8 @@ struct IntegrationAgentSheet: View {
 /// «Подключить Hangar на <host>?» (#111): the shared choice, listed; no switches.
 struct IntegrationHostSheet: View {
     let host: String
-    /// Agent → its functions as a phrase; nil = not connected on this Mac (not listed).
-    let parts: [(agent: MCPAgent, text: String)]
+    /// The connected agents and their functions as a phrase (read in `body`, like the agent sheet's machines).
+    let parts: () -> [(agent: MCPAgent, text: String)]
     let preview: () async -> [PlannedChange]
     let onAnswer: (Bool) -> Void
     @State private var changes: [PlannedChange]?
@@ -272,6 +303,7 @@ struct IntegrationHostSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             AskHeader(icon: .sshHost, title: L10n.intHostTitle(host), subtitle: L10n.intHostSubtitle)
             VStack(spacing: 0) {
+                let parts = parts()
                 ForEach(Array(parts.enumerated()), id: \.offset) { i, p in
                     line(icon: p.agent == .claude ? .claude : .codex, title: agentTitle(p.agent), detail: p.text, first: i == 0)
                 }

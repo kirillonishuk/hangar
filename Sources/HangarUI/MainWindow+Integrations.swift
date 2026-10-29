@@ -16,7 +16,7 @@ extension MainWindowController {
             switch ask {
             case .agent(let agent):
                 AnyView(IntegrationAgentSheet(
-                    agent: agent, whereItems: app.askWhereItems(),
+                    agent: agent, whereItems: { app.askWhereItems() },
                     preview: { await app.previewAgent(agent, choice: $0) },
                     onAnswer: { connect, choice in
                         guard !answered else { return }
@@ -27,7 +27,7 @@ extension MainWindowController {
                     expose: expose))
             case .host(let host):
                 AnyView(IntegrationHostSheet(
-                    host: host, parts: app.hostParts(),
+                    host: host, parts: { app.hostParts() },
                     preview: { await app.previewHost(host) },
                     onAnswer: { connect in
                         guard !answered else { return }

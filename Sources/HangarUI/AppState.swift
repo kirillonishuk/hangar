@@ -245,6 +245,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored lazy var findAgentCLI: (MCPAgent) async -> String? = { [weak self, userShell] agent in
         let command = await MainActor.run { self?.config.agentCommands[agent == .claude ? .claude : .codex] } ?? agent.rawValue
         let name = shellWords(command)?.first ?? agent.rawValue
+        #if DEBUG
+        // Verification runs never start the real agents' `mcp add`: only an absolute `[agents]` command (a fake) is used.
+        guard name.hasPrefix("/") else { return nil }
+        #endif
         return await resolveCommand(name, runner: .local, shell: userShell)
     }
     /// Runs the agents' `mcp add` / `mcp remove`; tests use a fake.
@@ -460,7 +464,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
         // Tabs and the drawer alike get the task's port (#60).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
-        if integrationGate(leaf.kind, host: remoteLeafHost(leaf.id)) { throw LaunchError.awaitingConsent }
+        if integrationGate(leaf.kind, host: nil) { throw LaunchError.awaitingConsent }
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
         if let host = hostShellHost(ofLeaf: leaf.id) {
             // state.json is editable: a host that is not safe on an ssh command line never launches.
@@ -472,6 +476,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
                 Task { await remote.connect(host) }
                 throw LaunchError.notConnected(host: host)
             }
+            // Connected: a new host's connect decides (its sheet or an older install) before its agents start.
+            if integrationGate(leaf.kind, host: host) { throw LaunchError.awaitingConsent }
             return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target,
                                      restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }

@@ -21,7 +21,7 @@ public enum EditorColor: String, Sendable, CaseIterable {
     }
 }
 
-/// Settings → Editor options (#108): what Monaco is created and updated with.
+/// Settings → Appearance options (#108): what Monaco is created and updated with.
 public struct EditorOptions: Equatable, Sendable {
     /// nil: the system monospace font (SF Mono).
     public var fontFamily: String?
@@ -97,7 +97,7 @@ extension HangarConfig {
         switch key {
         case "editor_custom_base":
             let value = try stringValue(raw, line: line)
-            guard let base = EditorPalette(rawValue: value), base != .custom else {
+            guard let base = EditorPalette(rawValue: value), base.isBuiltIn else {
                 throw fail(#"editor_custom_base must be "dark-modern", "dark-plus" or "hangar""#)
             }
             config.editorCustomBase = base

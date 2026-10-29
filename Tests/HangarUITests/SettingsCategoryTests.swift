@@ -7,7 +7,7 @@ import Workspace
 /// Settings window (System Settings style): the category list and the one-line label column.
 @MainActor @Suite struct SettingsCategoryTests {
     @Test func categoriesInOrderWithOwnIcons() {
-        #expect(SettingsCategory.allCases == [.general, .appearance, .editor, .notifications, .integrations, .advanced])
+        #expect(SettingsCategory.allCases == [.general, .appearance, .notifications, .integrations, .advanced])
         #expect(Set(SettingsCategory.allCases.map(\.icon)).count == SettingsCategory.allCases.count)
     }
 

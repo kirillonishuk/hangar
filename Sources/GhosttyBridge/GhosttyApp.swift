@@ -53,7 +53,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// `ghostty_init` once per process (the app and tests that build configs).
     static let initialized = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS
 
-    /// Theme / «Фон терминала» switch: rebuilds the config; `ghostty_app_update_config` hands it to every open surface,
+    /// Theme switch: rebuilds the config; `ghostty_app_update_config` hands it to every open surface,
     /// which replays the same layers, so open terminals recolor too (decision #87; checked live with a user `theme`).
     public func update(colors: TerminalColors) {
         guard let app else { return }
@@ -66,24 +66,18 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// The user's config with Hangar's files around it; logs its diagnostics.
     /// `userFiles`: instead of the user's default Ghostty files (tests); nil = theirs.
     static func buildConfig(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userFiles: [URL]? = nil) -> ghostty_config_t? {
-        let user = userSets(userFiles)
-        let layers = layers(colors, padding: padding, userBackground: user.background, userPalette: user.palette)
+        let userPalette = userSetsPalette(userFiles)
+        let layers = layers(colors, padding: padding, userPalette: userPalette)
         let defaults = layers.defaults.isEmpty ? nil : writeConfig(configFileName("defaults"), layers.defaults)
         let overridesFile = tempFile(configFileName("overrides"))
-        var override: URL?
-        if let text = layers.overrides {
-            override = writeConfig(configFileName("overrides"), text)
-            // A failed write keeps the previous overrides (the last theme's background) rather than dropping them.
-            if override == nil, FileManager.default.fileExists(atPath: overridesFile.path) {
-                ghosttyLog.error("terminal background: keeping the previous \(overridesFile.path, privacy: .public)")
-                override = overridesFile
-            }
-        } else {
-            try? FileManager.default.removeItem(at: overridesFile)
+        var override = writeConfig(configFileName("overrides"), layers.overrides)
+        // A failed write keeps the previous overrides (the last theme's background) rather than dropping them.
+        if override == nil, FileManager.default.fileExists(atPath: overridesFile.path) {
+            ghosttyLog.error("terminal background: keeping the previous \(overridesFile.path, privacy: .public)")
+            override = overridesFile
         }
         let cfg = makeConfig(defaults: defaults, override: override, userFiles: userFiles)
-        let bg = override != nil ? "Hangar \(colors.background)" : user.background ? "Ghostty config" : "Hangar default \(colors.background)"
-        ghosttyLog.info("terminal background: \(bg, privacy: .public); palette: \(user.palette ? "Ghostty config" : "Hangar", privacy: .public)")
+        ghosttyLog.info("terminal background: Hangar \(colors.background, privacy: .public); palette: \(userPalette ? "Ghostty config" : "Hangar", privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
             let message = String(cString: ghostty_config_get_diagnostic(cfg, i).message)
             ghosttyLog.warning("config: \(message, privacy: .public)")
@@ -91,19 +85,16 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         return cfg
     }
 
-    /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them, nil = none).
-    /// The background goes to `overrides` when forced («как тема»), else to `defaults` unless the user sets one.
-    static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userBackground: Bool,
-                       userPalette: Bool) -> (defaults: String, overrides: String?) {
-        let defaults = defaultsConfig(padding: padding, cursor: colors.cursor,
-                                      background: userBackground || colors.forceBackground ? nil : colors.background,
-                                      palette: userPalette ? [] : colors.palette)
-        return (defaults, colors.forceBackground ? "background = \(colors.background)\n" : nil)
+    /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them): the
+    /// background is always the app theme's (#109), over the user's config and Ghostty theme.
+    static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userPalette: Bool) -> (defaults: String, overrides: String) {
+        let defaults = defaultsConfig(padding: padding, cursor: colors.cursor, palette: userPalette ? [] : colors.palette)
+        return (defaults, "background = \(colors.background)\n")
     }
 
-    /// Whether the user's Ghostty config (or its `theme`) sets a background / palette: compared with Ghostty's own
-    /// defaults. Needed because a `theme` is applied under all loaded files, Hangar's defaults included.
-    static func userSets(_ userFiles: [URL]? = nil) -> (background: Bool, palette: Bool) {
+    /// Whether the user's Ghostty config (or its `theme`) sets a palette: compared with Ghostty's own defaults. Needed
+    /// because a `theme` is applied under all loaded files, Hangar's defaults included.
+    static func userSetsPalette(_ userFiles: [URL]? = nil) -> Bool {
         let bare = ghostty_config_new(), user = ghostty_config_new()
         defer { ghostty_config_free(bare); ghostty_config_free(user) }
         ghostty_config_finalize(bare)
@@ -115,7 +106,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
                   ghostty_config_get(user, &b, key, UInt(key.utf8.count)) else { return false }
             return withUnsafeBytes(of: &a) { pa in withUnsafeBytes(of: &b) { pb in !pa.elementsEqual(pb) } }
         }
-        return (differs("background", ghostty_config_color_s()), differs("palette", ghostty_config_palette_s()))
+        return differs("palette", ghostty_config_palette_s())
     }
 
     private static func loadUserFiles(_ cfg: ghostty_config_t?, _ files: [URL]?) {
@@ -138,12 +129,10 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     }
 
     /// Text of hangar-ghostty-defaults.conf; empty when there is nothing to set.
-    /// `background` / `palette` ("rrggbb"): the theme's, left out (nil / empty) where the user's config sets its own.
-    public static func defaultsConfig(padding: (x: Int, y: Int)?, cursor: String?, background: String? = nil,
-                                      palette: [String] = []) -> String {
+    /// `palette` ("rrggbb"): the theme's, left out (empty) where the user's config sets its own.
+    public static func defaultsConfig(padding: (x: Int, y: Int)?, cursor: String?, palette: [String] = []) -> String {
         (padding.map { "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n" } ?? "")
             + (cursor.map { "cursor-color = \($0)\n" } ?? "")
-            + (background.map { "background = \($0)\n" } ?? "")
             + palette.enumerated().map { "palette = \($0.offset)=#\($0.element)\n" }.joined()
     }
 

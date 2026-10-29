@@ -128,11 +128,10 @@ extension Theme {
     /// Terminal cursor: the accent, as a Ghostty default (a user-set `cursor-color` wins) — not the system accent.
     public static var terminalCursor: NSColor { ns(palette.accent) }
 
-    /// Terminal colours handed to Ghostty: the theme's background and ANSI palette, the accent cursor.
-    /// `force`: «Фон терминала: как тема» — the background wins over the user's Ghostty config (#36).
-    public static func terminalColors(force: Bool, of p: ThemePalette = Theme.palette) -> TerminalColors {
-        TerminalColors(background: p.termBg.bare, palette: p.ansi.map { Hex($0).bare }, cursor: p.accent.bare,
-                       forceBackground: force)
+    /// Terminal colours handed to Ghostty: the theme's background (always over the user's Ghostty config, #109),
+    /// its ANSI palette and the accent cursor.
+    public static func terminalColors(of p: ThemePalette = Theme.palette) -> TerminalColors {
+        TerminalColors(background: p.termBg.bare, palette: p.ansi.map { Hex($0).bare }, cursor: p.accent.bare)
     }
 
     // SwiftUI

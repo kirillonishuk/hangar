@@ -68,9 +68,6 @@
 "continueTitle" = "Continue";
 "externalEditor" = "External editor";
 "externalEditorPlaceholder" = "empty — off";
-"terminalBackground" = "Terminal background";
-"backgroundGhostty" = "From Ghostty";
-"backgroundAsTheme" = "As theme";
 "appearance" = "Appearance";
 "themeTitle" = "Theme";
 "themeGraphite" = "Graphite";
@@ -554,7 +551,7 @@
 "lspLoading" = "%@ · starting…";
 "lspStopped" = "%@ stopped";
 "lspMissing" = "%@ — no language server";
-"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Editor. Click to check again";
+"lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Appearance. Click to check again";
 "lspTooltip" = "%@\nClick to restart";
 
 /* Language servers in Settings (#102) */
@@ -681,18 +678,17 @@
 "statuslineFailed" = "not written: %@";
 "fileReadOnly" = "The file is read-only — Hangar leaves it as it is";
 
-/* Settings → Editor: theme, colors, options (#108) */
+/* Settings → Appearance: theme, colors, options (#108) */
 "edCustom" = "Custom";
-"edHintModern" = "VS Code Dark Modern's colors, background, cursor and line numbers included. Doesn't follow the app theme.";
-"edHintPlus" = "VS Code Dark+ syntax. Background, selection and line numbers follow the app theme.";
-"edHintHangar" = "The diff's muted palette. Background and line numbers follow the app theme.";
+"edAsTheme" = "As theme";
+"edHintTheme" = "“%2$@” shows code in “%1$@”. Change any color to make it Custom.";
 "edHintCustom" = "Colors changed: %d. The rest is as in “%@”.";
 "edHintCustomSame" = "Same as “%@” so far. Click any color below.";
 "edResetAll" = "Reset all";
 "edColors" = "Colors";
 "edSyntax" = "Syntax";
-"edCreated" = "Created Custom: the built-in theme stays as it is.";
-"edAllReset" = "All of Custom's colors are reset.";
+"edCreated" = "Created Custom: switching the app theme won’t switch the editor theme.";
+"edAllReset" = "Colors reset: the editor follows the app theme again.";
 "edReplaceTitle" = "Replace your custom theme?";
 "edReplaceInfo" = "Custom's changed colors (based on “%@”) will be lost: it will be based on “%@”.";
 "edReplace" = "Replace";
@@ -706,7 +702,6 @@
 "edFontSection" = "Font";
 "edIndentSection" = "Indentation and wrapping";
 "edViewSection" = "View";
-"edEditSection" = "Editing";
 "edFont" = "Font";
 "edSize" = "Size";
 "edLineHeight" = "Line height";

@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Update
 
-/// A language server Settings → Editor can download into Hangar's own folder (#102). Each lives in `<dir>/<rawValue>/`
+/// A language server Settings → Advanced can download into Hangar's own folder (#102). Each lives in `<dir>/<rawValue>/`
 /// with a marker file: only such folders are Hangar's and may be removed.
 enum LspPackage: String, CaseIterable, Sendable {
     case pyright, gopls, rustAnalyzer = "rust-analyzer"

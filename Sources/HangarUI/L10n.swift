@@ -159,7 +159,7 @@ import Workspace
         case sessionsMore, sessionsMarkerArchived, sessionsMarkerHistory, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
-        case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp
+        case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
         case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
@@ -209,6 +209,9 @@ import Workspace
     static var sessionsChipArchived: String { s(.sessionsChipArchived) }
     static var sessionsChipHistory: String { s(.sessionsChipHistory) }
     static var sessionsReset: String { s(.sessionsReset) }
+    /// «Проект: shop».
+    static func sessionsProjectChip(_ name: String) -> String { f(.sessionsProjectChip, name) }
+    static var sessionsProjectChipHelp: String { s(.sessionsProjectChipHelp) }
     static var sessionsResetFilters: String { s(.sessionsResetFilters) }
     static func sessionsShowMore(_ n: Int) -> String { f(.sessionsShowMore, Int32(clamping: n)) }
     static func sessionsMessages(_ n: Int) -> String { f(.sessionsMessages, Int32(clamping: n)) }

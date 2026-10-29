@@ -11,12 +11,15 @@ extension AppState {
     /// its name in the search. It overlays the session area; the selection stays (and is saved), so Esc or a relaunch is
     /// back on that session.
     func showSessionsView(projectId: UUID? = nil) {
-        if let p = state.projects.first(where: { $0.id == projectId }) { sessionsQuery = p.name }
         showSessionsView(scope: .all)
+        // A host terminal's pseudo-project is no project: all of them.
+        if sessionsViewVisible, state.projects.contains(where: { $0.id == projectId }) { sessionsProject = projectId }
     }
 
+    /// A scope from ⌘Y or the segment: every project of it (the project chip goes).
     func showSessionsView(scope: SessionsScope) {
         guard !state.projects.isEmpty else { beep(); return }  // no project: nothing to show
+        sessionsProject = nil
         sessionsScope = sessionsProjects(scope).isEmpty ? .all : scope
         sessionsViewVisible = true
         didChange?()
@@ -129,7 +132,7 @@ enum SessionsAction: Equatable {
 
 @MainActor @Observable final class SessionsModel {
     @ObservationIgnored let app: AppState
-    /// The search text lives in `AppState`: «Сессии проекта» fills it.
+    /// The search text lives in `AppState` (the debug channel sets it too).
     var query: String {
         get { app.sessionsQuery }
         set { app.sessionsQuery = newValue }
@@ -148,11 +151,13 @@ enum SessionsAction: Equatable {
     private(set) var failures: [SessionsFailure] = []
     /// Hosts of scoped projects that are not connected: their conversations are not read («нет связи»).
     private(set) var offlineHosts: [String] = []
+    /// Hosts still connecting: their groups show the spinner until they connect (then a rescan) or give up.
+    private(set) var connectingHosts: [String] = []
     /// Hosts still being read on a first load (its groups say so); a rescan swaps the list in at the end instead.
     private(set) var pendingHosts: Set<String> = []
     /// Scanned conversations with the folder and project they were found in, newest first.
     private(set) var found: [Found] = []
-    @ObservationIgnored private var foundScope: SessionsScope?
+    @ObservationIgnored private var foundKey: String?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var running: Task<Void, Never>?
     /// Injectable for tests.
@@ -161,6 +166,8 @@ enum SessionsAction: Equatable {
     /// Per call: a host that stops answering must not keep «Загрузка…» forever; the local scan only reads samples.
     @ObservationIgnored var remoteTimeout: Duration = .seconds(20)
     @ObservationIgnored var localTimeout: Duration = .seconds(60)
+    /// A host's link; tests replace it.
+    @ObservationIgnored lazy var hostLink: (String) -> SessionsHostLink = { [app] in sessionsHostLink(app.remote.hosts[$0]) }
     /// The conversations of one folder; tests replace it.
     @ObservationIgnored var scan: (@MainActor @Sendable (String, Project) async throws -> [Conversation])?
 
@@ -174,7 +181,16 @@ enum SessionsAction: Equatable {
 
     /// The chosen scope while it has projects; «Все» once a host's last project is gone.
     var scope: SessionsScope { app.sessionsProjects(app.sessionsScope).isEmpty ? .all : app.sessionsScope }
-    var projects: [Project] { app.sessionsProjects(scope) }
+    /// The project chip's project while it exists.
+    var project: Project? { app.sessionsProject.flatMap { id in app.state.projects.first { $0.id == id } } }
+    /// The scope's projects, or only the chip's.
+    var projects: [Project] { project.map { [$0] } ?? app.sessionsProjects(scope) }
+
+    /// The chip's «×»: every project of the scope again.
+    func clearProject() { app.sessionsProject = nil }
+
+    /// What the list was read for: a different one starts empty and fills in as it is read.
+    var loadKey: String { "\(scope)|\(project?.id.uuidString ?? "")" }
 
     /// Rescans when the view opens or the scope changes (no watchers); remote projects read through their host.
     /// This Mac's projects go first, then each host; a host that fails or is silent past its timeout is skipped with a
@@ -191,11 +207,12 @@ enum SessionsAction: Equatable {
     private func load() async {
         generation += 1
         let gen = generation
-        let scope = self.scope
-        if foundScope != scope { found = [] }
-        foundScope = scope
+        let key = loadKey
+        if foundKey != key { found = [] }
+        foundKey = key
         failures = []
         offlineHosts = []
+        connectingHosts = []
         load = .loading
         let progressive = found.isEmpty
         let all = app.state.projects
@@ -204,13 +221,16 @@ enum SessionsAction: Equatable {
         var out: [Found] = []
         var seen = Set<String>()
         let sources: [String?] = [nil] + app.sessionsHosts.filter { h in scoped.contains { $0.host == h } }
-        pendingHosts = progressive ? Set(sources.compactMap { $0 }.filter { app.remote.hosts[$0]?.state == .connected }) : []
+        pendingHosts = progressive ? Set(sources.compactMap { $0 }.filter { hostLink($0) == .connected }) : []
         for host in sources {
             let inSource = scoped.filter { $0.host == host }
             guard !inSource.isEmpty else { continue }
-            if let host, app.remote.hosts[host]?.state != .connected {
-                offlineHosts.append(host)
-                continue
+            if let host {
+                switch hostLink(host) {
+                case .connected: break
+                case .connecting: connectingHosts.append(host); continue
+                case .offline: offlineHosts.append(host); continue
+                }
             }
             let limit = host == nil ? localTimeout : remoteTimeout
             source: for project in inSource {
@@ -277,7 +297,9 @@ enum SessionsAction: Equatable {
         return closedSessionRows(app.state.tasks, projects: projects).filter { !held.contains($0.id) && admits(.session($0)) }
     }
 
-    var isFiltering: Bool { !agents.isEmpty || !states.isEmpty || !query.trimmingCharacters(in: .whitespaces).isEmpty }
+    var isFiltering: Bool {
+        !agents.isEmpty || !states.isEmpty || project != nil || !query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     private func admits(_ item: SessionsItem) -> Bool {
         guard sessionsAdmits(item, agents: agents, states: states), let p = app.project(projectOf(item)) else { return false }
@@ -313,7 +335,7 @@ enum SessionsAction: Equatable {
     private func note(host: String) -> SessionsNote? {
         if offlineHosts.contains(host) { return .offline }
         if let f = failures.first(where: { $0.host == host }) { return .failed(f) }
-        return pendingHosts.contains(host) ? .loading : nil
+        return pendingHosts.contains(host) || connectingHosts.contains(host) ? .loading : nil
     }
 
     /// This Mac's scan failed or timed out: one note above the groups.
@@ -346,7 +368,7 @@ enum SessionsAction: Equatable {
 
     func toggle(_ state: SessionsRowState) { if states.remove(state) == nil { states.insert(state) } }
 
-    /// «Сбросить» resets the chips; «Сбросить фильтры» (nothing found) the search too.
+    /// «Сбросить» resets the agent and state chips; «Сбросить фильтры» (nothing found) the project chip and the search too.
     func resetChips() {
         agents = []
         states = []
@@ -354,6 +376,7 @@ enum SessionsAction: Equatable {
 
     func resetFilters() {
         resetChips()
+        clearProject()
         query = ""
     }
 

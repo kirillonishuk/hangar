@@ -507,6 +507,8 @@
 "sessionsContinueIn" = "Resume in session %@ as a new tab";
 "sessionsContinueNew" = "Resume in a new session of the main folder";
 "sessionsRestoreHelp" = "Restore — the worktree and tabs come back";
+"sessionsProjectChip" = "Project: %@";
+"sessionsProjectChipHelp" = "Remove — all projects";
 "allArchived" = "All sessions are archived";
 "allArchivedOpen" = "Open sessions";
 "integrationNeedsRemote" = "Install hangar-remote first, with the install plan";

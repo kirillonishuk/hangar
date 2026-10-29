@@ -32,10 +32,9 @@ struct SessionsView: View {
         .onAppear { searchFocused = true }
     }
 
-    /// A rescan when the scope changes or one of its hosts connects or drops (no watchers otherwise).
+    /// A rescan when the scope or the project chip changes, or a host connects, drops or gives up (no watchers otherwise).
     private var reloadKey: String {
-        let hosts = app.sessionsHosts.filter { app.remote.hosts[$0]?.state == .connected }
-        return "\(model.scope)|" + hosts.joined(separator: ",")
+        model.loadKey + "|" + app.sessionsHosts.map { "\($0)=\(sessionsHostLink(app.remote.hosts[$0]))" }.joined(separator: ",")
     }
 
     // MARK: Header
@@ -65,11 +64,13 @@ struct SessionsView: View {
     /// Agent | state chips (none chosen = all); «Сбросить» keeps its place while hidden, so nothing moves.
     private var chips: some View {
         HStack(spacing: Theme.historyChipGap) {
+            if let p = model.project {
+                SessionsProjectChip(title: L10n.sessionsProjectChip(p.name)) { model.clearProject() }
+                separator
+            }
             ModeChip(title: "Claude", on: model.agents.contains(.claude), toggles: true) { model.toggle(.claude) }
             ModeChip(title: "Codex", on: model.agents.contains(.codex), toggles: true) { model.toggle(.codex) }
-            Rectangle().fill(Theme.ui.line)
-                .frame(width: Theme.historyChipSeparator.width, height: Theme.historyChipSeparator.height)
-                .padding(.horizontal, Theme.historyChipGap)
+            separator
             ModeChip(title: L10n.sessionsChipOpen, on: model.states.contains(.open), toggles: true) { model.toggle(.open) }
             ModeChip(title: L10n.sessionsChipArchived, on: model.states.contains(.archived), toggles: true) { model.toggle(.archived) }
             ModeChip(title: L10n.sessionsChipHistory, on: model.states.contains(.history), toggles: true) { model.toggle(.history) }
@@ -85,6 +86,12 @@ struct SessionsView: View {
         .padding(.leading, Theme.historyPaddingH)
         .padding(.trailing, Theme.historyPaddingTrailing)
         .frame(height: Theme.historyFilterHeight)
+    }
+
+    private var separator: some View {
+        Rectangle().fill(Theme.ui.line)
+            .frame(width: Theme.historyChipSeparator.width, height: Theme.historyChipSeparator.height)
+            .padding(.horizontal, Theme.historyChipGap)
     }
 
     // MARK: List
@@ -261,5 +268,33 @@ private struct SessionsScopeLabel: View {
         .contentShape(Rectangle())
         .pointingHand()
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+    }
+}
+
+/// «Проект: shop ×»: the chosen-chip look (`accent` 14 % + border, `accentText`); a click anywhere on it removes it.
+private struct SessionsProjectChip: View {
+    let title: String
+    let remove: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: remove) {
+            HStack(spacing: Theme.Control.iconGap) {
+                Text(verbatim: title).font(.system(size: Theme.fontSize.footer)).lineLimit(1).truncationMode(.middle)
+                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: hover ? Theme.ui.textStrong : Theme.ui.accentText)
+            }
+            .foregroundStyle(Theme.ui.accentText)
+            .padding(.horizontal, Theme.GitTab.chipLeading)
+            .frame(height: Theme.GitTab.chipHeight)
+            .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity)))
+            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
+                .stroke(Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity), lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .help(L10n.sessionsProjectChipHelp)
+        .accessibilityAddTraits(.isSelected)
     }
 }

@@ -576,15 +576,61 @@ import Workspace
         #expect(m.action(for: m.conversationRows[1]) == .openInNewSession(m.conversationRows[1].conversation, project: other))
 
         w.app.hideSessionsView()
+        // A project with a similar name and a conversation mentioning «blog» must not leak into «blog»'s list.
+        var similar = UUID()
+        w.app.perform { similar = $0.addProject(name: "blog-old", path: "/work/blog-old") }
+        try w.fixture.claudeConversation(id: idX, cwd: "/work/blog-old", branch: "blog", at: "2026-10-24T11:00:00Z", prompt: "blog пост")
         Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
-        // «Сессии проекта»: «Все» with the project's name in the search (no project scope).
-        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .all && m.query == "blog")
+        // «Сессии проекта»: that project by id (a removable chip), the search stays empty.
+        #expect(w.app.sessionsViewVisible && w.app.sessionsScope == .all && w.app.sessionsProject == other)
+        #expect(m.query.isEmpty && m.project?.id == other && m.projects.map(\.id) == [other] && m.isFiltering)
         await m.reload()
         #expect(m.closedRows.map(\.name) == ["draft"] && m.conversationRows.map(\.conversation.id) == [idC])
-        m.query = ""
-        #expect(m.conversationRows.count == 2)
-        w.app.showSessionsView(projectId: w.app.state.hostShells[0].id)  // a host terminal's pseudo-project fills no search
-        #expect(w.app.sessionsScope == .all && m.query.isEmpty)
+        #expect(m.groups.map(\.id) == [other])
+        m.clearProject()  // the chip's «×»
+        await m.reload()
+        let listed: Set<UUID> = Set(m.conversationRows.map(\.project))
+        #expect(listed == [w.project, other, similar])
+        Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
+        w.app.showSessionsView(scope: .local)  // a scope from the segment drops the chip
+        #expect(w.app.sessionsProject == nil)
+        Action.projectSessions.perform(.project(other), ActionContext(app: w.app))
+        m.resetFilters()
+        #expect(w.app.sessionsProject == nil && !m.isFiltering)
+        w.app.showSessionsView(projectId: w.app.state.hostShells[0].id)  // a host terminal's pseudo-project is no project
+        #expect(w.app.sessionsScope == .all && w.app.sessionsProject == nil)
+    }
+
+    /// A host still connecting reads «Читаю…» in its group, not «Нет связи»; that comes only once it gave up or dropped.
+    @Test func connectingHostIsLoadingNotOffline() async {
+        var s = WorkspaceState()
+        s.projects.append(Project(name: "srv", location: .ssh(host: "devbox", path: "/srv/app")))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-sessions-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.showSessionsView(scope: .host("devbox"))
+        let m = SessionsModel(app: app)
+        m.hostLink = { _ in .connecting }
+        await m.reload()
+        #expect(m.offlineHosts.isEmpty && m.connectingHosts == ["devbox"])
+        #expect(m.groups.map(\.note) == [.loading] && m.placeholder == nil)
+        m.hostLink = { _ in .offline }
+        await m.reload()
+        #expect(m.connectingHosts.isEmpty && m.placeholder == .offline("devbox"))
+    }
+
+    @Test func hostLinkStates() {
+        var info = HostInfo()
+        #expect(sessionsHostLink(nil) == .offline && sessionsHostLink(info) == .offline)  // never connected
+        info.state = .connecting
+        #expect(sessionsHostLink(info) == .connecting)
+        info.state = .reconnecting(attempt: 2)
+        #expect(sessionsHostLink(info) == .connecting)
+        info.retryPaused = true  // nothing retrying until the app is active again
+        #expect(sessionsHostLink(info) == .offline)
+        info.state = .unreachable("ssh: timed out")
+        #expect(sessionsHostLink(info) == .offline)
+        info.state = .connected
+        #expect(sessionsHostLink(info) == .connected)
     }
 
     /// One source failing keeps the others' conversations and says why, with a retry; the load always finishes.

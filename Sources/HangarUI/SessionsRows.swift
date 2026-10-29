@@ -13,6 +13,21 @@ enum SessionsScope: Hashable {
     case host(String)
 }
 
+/// Whether a host's conversations can be read now: connected, on its way (a spinner, not «нет связи»), or not.
+enum SessionsHostLink: Equatable {
+    case connected, connecting, offline
+}
+
+/// Connecting, or reconnecting with a retry under way, is not «нет связи» yet; given up, paused or never connected is.
+func sessionsHostLink(_ info: HostInfo?) -> SessionsHostLink {
+    switch info?.state {
+    case .connected: .connected
+    case .connecting: .connecting
+    case .reconnecting: info?.retryPaused == true ? .offline : .connecting
+    case .disconnected, .unreachable, nil: .offline
+    }
+}
+
 /// A row's state word: «открыт» (a live leaf holds it), «в архиве» (an archived session holds it, or is the row),
 /// «в истории» (only in the agent's files).
 enum SessionsRowState: Hashable, CaseIterable {

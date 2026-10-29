@@ -507,6 +507,8 @@
 "sessionsContinueIn" = "Продолжить в сессии %@ новой вкладкой";
 "sessionsContinueNew" = "Продолжить в новой сессии основной папки";
 "sessionsRestoreHelp" = "Восстановить — ворктри и вкладки вернутся";
+"sessionsProjectChip" = "Проект: %@";
+"sessionsProjectChipHelp" = "Убрать — все проекты";
 "allArchived" = "Все сессии в архиве";
 "allArchivedOpen" = "Открыть сессии";
 "integrationNeedsRemote" = "Сначала установите hangar-remote по плану установки";

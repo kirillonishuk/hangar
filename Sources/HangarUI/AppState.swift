@@ -146,8 +146,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// «Сессии» (⌘Y) is shown instead of the session area, for `sessionsScope` (SessionsModel.swift).
     var sessionsViewVisible = false
     var sessionsScope: SessionsScope = .all
-    /// Its search text: a project's «Сессии проекта» fills it with the project's name (no project scope, #107).
+    /// Its search text.
     var sessionsQuery = ""
+    /// «Сессии проекта», the archived hint, a link: only this project, shown as a removable chip (#107).
+    var sessionsProject: UUID?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()

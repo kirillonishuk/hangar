@@ -235,6 +235,8 @@ private struct StatuslineParts: View {
             .accessibilityLabel(L10n.statuslineParts)
         }
         .onChange(of: gesture == nil) { _, ended in if ended { escape.stop() } }
+        // Closed mid-drag (⌘W with the button held): the monitor must not keep eating Escape app-wide.
+        .onDisappear { escape.stop() }
     }
 
     private func dragGesture(_ s: StatuslineSegment) -> some Gesture {
@@ -332,8 +334,8 @@ private struct ChipFlow: Layout {
         cancelled = false
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return event }  // Escape
-            self?.cancelled = true
+            guard event.keyCode == 53, let self else { return event }  // Escape
+            self.cancelled = true
             return nil
         }
     }

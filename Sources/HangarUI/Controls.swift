@@ -138,6 +138,7 @@ struct ModeChip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
         .opacity(enabled ? 1 : Theme.inactiveOpacity)
         .pointingHand(enabled && !on)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }

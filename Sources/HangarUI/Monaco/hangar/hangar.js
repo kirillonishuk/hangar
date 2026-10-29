@@ -19,7 +19,7 @@
   const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
   let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
-  let look = cfg.appearance;   // { palette, rainbow, todo, themes, css } (Settings → Editor #84, app theme)
+  let look = cfg.appearance;   // { palette, rainbow, todo, themes, css, options, formatOnSave } (Settings → Editor #84, #108)
   const queue = [];
   const pending = new Map(); // provider request id → resolve
 
@@ -72,13 +72,13 @@
       { keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, command: '-editor.action.quickCommand' },
     ]);
     registerProviders();
-    const common = { theme: 'hangar-' + look.palette, bracketPairColorization: { enabled: true },
-      guides: { bracketPairs: 'active', indentation: true, highlightActiveIndentation: true }, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: cfg.fontSize, lineHeight: cfg.lineHeight,
+    // Font, cursor, guides, whitespace, wrap, tab size: Settings → Editor (look.options), also live in setLook.
+    const common = Object.assign({ theme: 'hangar-' + look.palette,
       automaticLayout: true, minimap: { enabled: minimap }, scrollBeyondLastLine: false, smoothScrolling: false,
-      cursorBlinking: 'solid', renderLineHighlight: 'all', fixedOverflowWidgets: true, contextmenu: false,
+      fixedOverflowWidgets: true, contextmenu: false,
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false }, padding: { top: 6 },
       stickyScroll: { enabled: false }, overviewRulerBorder: false, hideCursorInOverviewRuler: true, mouseWheelZoom: false,
-      'semanticHighlighting.enabled': true };
+      'semanticHighlighting.enabled': true }, look.options);
     if (cfg.mode === 'diff') {
       diff = monaco.editor.createDiffEditor($('host'), Object.assign({}, common, {
         renderSideBySide: !inline, originalEditable: false, readOnly: true, renderOverviewRuler: false,
@@ -135,7 +135,17 @@
 
   function save() {
     const f = active && files.get(active);
-    if (f && f.model && !f.readOnly) postFile(f, { type: 'save', text: f.model.getValue() });
+    if (f && f.model && !f.readOnly) formatThen(editor, () => postFile(f, { type: 'save', text: f.model.getValue() }));
+  }
+
+  // «Форматировать при сохранении» (#108): the language server's format first (the menu's own action, so only files
+  // with a provider), then the save; a server that doesn't answer in 3 s doesn't hold the save up.
+  function formatThen(ed, then) {
+    const action = look.formatOnSave && ed.getAction('editor.action.formatDocument');
+    if (!action || !action.isSupported()) { then(); return; }
+    let done = false;
+    const finish = () => { if (!done) { done = true; then(); } };
+    Promise.race([action.run(), new Promise((r) => setTimeout(r, 3000))]).then(finish, finish);
   }
 
   // Buffers with a language server are mirrored there (tsserver #82, LSP #90): every change goes to Swift as an
@@ -318,6 +328,8 @@
     applyCss(c.css);
     defineThemes(c.themes);
     monaco.editor.setTheme('hangar-' + look.palette);
+    if (editor) editor.updateOptions(look.options);
+    if (diff) diff.updateOptions(look.options);
     redecorate.forEach((f) => f());
   }
 
@@ -433,7 +445,7 @@
     });
     mod.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       const f = diffPath && files.get(diffPath);
-      if (f && f.model) post({ type: 'save', file: diffPath, text: f.model.getValue() });
+      if (f && f.model) formatThen(mod, () => post({ type: 'save', file: diffPath, text: f.model.getValue() }));
     });
     for (const e of [orig, mod]) { e.onDidFocusEditorText(() => { lastSide = e; post({ type: 'focus' }); report(); }); wireMenu(e); }
     orig.onDidChangeCursorPosition(() => report());

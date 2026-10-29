@@ -40,3 +40,22 @@ extension AppState {
         onEditorAppearance?(EditorAppearance(config))
     }
 }
+
+extension AppState {
+    /// Settings → Editor → theme and colors (#108): the changed keys in one write, then every open page live.
+    func setEditorTheme(_ new: HangarConfig) throws {
+        try editConfig(config.editorThemeEdit(to: new)) {
+            $0.editorPalette = new.editorPalette
+            $0.editorCustomBase = new.editorCustomBase
+            $0.editorColors = new.editorColors
+        }
+        uiLog.info("config editor theme = \(new.editorPalette.rawValue, privacy: .public), \(new.editorColors.count) colors")
+        onEditorAppearance?(EditorAppearance(config))
+    }
+
+    /// An editor option back to its default.
+    func resetEditorOption(_ key: String, apply: (inout HangarConfig) -> Void) throws {
+        try removeConfig(key, apply: apply)
+        onEditorAppearance?(EditorAppearance(config))
+    }
+}

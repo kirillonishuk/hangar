@@ -5,8 +5,6 @@ import Workspace
 extension Theme {
     /// The Monaco editor and diff (#80): code font and the page's own chrome (bars, buttons).
     enum Editor {
-        static let fontSize: CGFloat = 13
-        static let lineHeight: CGFloat = 20
         /// The diff's header row: as tall as the tab bar above it.
         static let headerHeight: CGFloat = Theme.tabBarHeight
         static let buttonFont: CGFloat = Theme.fontSize.tab
@@ -24,70 +22,51 @@ func cssHex(_ color: NSColor, alpha: Double? = nil) -> String {
     return "#" + h(c.redComponent) + h(c.greenComponent) + h(c.blueComponent) + (alpha.map { h(CGFloat($0)) } ?? "")
 }
 
-/// Hangar's Monaco theme: the app theme's editor chrome (themes-v1.html: background, gutter, current line, selection,
-/// indent guides, diff tints) with the chosen syntax palette (#84) — VS Code Dark+ (default, the same in every app theme)
-/// or the diff's muted colors. Rules cover Monarch tokens and tsserver's semantic types (class, function, variable …).
+/// Hangar's Monaco theme (#80, #84, #108): the editor theme's colors (syntax rules for Monarch tokens and tsserver's
+/// semantic types, the editor's parts, diff tints) inside the app theme's chrome (widgets, menus, peek, scrollbars).
 enum MonacoTheme {
-    static func json(_ palette: HangarConfig.EditorPalette, theme p: ThemePalette = Theme.palette) -> [String: Any] {
-        ["base": "vs-dark", "inherit": true, "rules": rules(palette, p), "colors": colors(p)]
-    }
-
-    /// Both syntax palettes in the current app theme; the page redefines them when the app theme changes.
-    static func all(_ p: ThemePalette = Theme.palette) -> [String: Any] {
-        Dictionary(uniqueKeysWithValues: HangarConfig.EditorPalette.allCases.map { ($0.rawValue, json($0, theme: p)) })
+    static func json(_ t: EditorTheme) -> [String: Any] {
+        ["base": "vs-dark", "inherit": true, "rules": rules(t), "colors": colors(t)]
     }
 
     /// `#rrggbb`, plus `aa` for `alpha` or a translucent token.
-    private static func h(_ x: Hex, alpha: Double? = nil) -> String {
-        "#" + x.bare + ((alpha ?? (x.alpha < 1 ? x.alpha : nil)).map { String(format: "%02x", Int(($0 * 255).rounded())) } ?? "")
-    }
+    private static func h(_ x: Hex, alpha: Double? = nil) -> String { EditorHex.of(x, alpha: alpha) }
 
-    private static func rules(_ palette: HangarConfig.EditorPalette, _ p: ThemePalette) -> [[String: String]] {
-        let token: [(String, String)]
-        switch palette {
-        case .darkPlus:
-            let keyword = "569CD6", control = "C586C0", variable = "9CDCFE", type = "4EC9B0", function = "DCDCAA"
-            token = [
-                ("keyword", keyword), ("keyword.control", control), ("identifier", variable), ("type.identifier", type),
-                ("type", type), ("class", type), ("interface", type), ("enum", type), ("namespace", type), ("typeParameter", type),
-                ("variable", variable), ("parameter", variable), ("property", variable), ("enumMember", "4FC1FF"),
-                ("function", function), ("member", function), ("string", "CE9178"), ("string.escape", "D7BA7D"),
-                ("regexp", "D16969"), ("number", "B5CEA8"), ("comment", "6A9955"), ("comment.doc", "6A9955"),
-                ("constant", "4FC1FF"), ("delimiter", "D4D4D4"), ("delimiter.bracket", "D4D4D4"), ("operator", "D4D4D4"),
-                ("tag", keyword), ("metatag", keyword), ("attribute.name", variable), ("attribute.value", "CE9178"),
-                ("string.key.json", variable), ("annotation", type), ("predefined", function), ("", "D4D4D4"),
-            ]
-        case .hangar:
-            func hex(_ kind: SyntaxKind) -> String { String(format: "%06x", Theme.Diff.syntaxHex(kind)) }
-            let pairs: [(String, SyntaxKind)] = [
-                ("keyword", .keyword), ("keyword.control", .keyword), ("tag", .keyword), ("metatag", .keyword), ("string", .string),
-                ("string.key.json", .type), ("attribute.value", .string), ("regexp", .string), ("comment", .comment),
-                ("comment.doc", .comment), ("number", .number), ("constant", .number), ("enumMember", .number), ("type", .type),
-                ("type.identifier", .type), ("class", .type), ("interface", .type), ("enum", .type), ("namespace", .type),
-                ("typeParameter", .type), ("attribute.name", .type), ("annotation", .type), ("predefined", .type),
-            ]
-            token = pairs.map { ($0.0, hex($0.1)) } + [("", p.tx.bare)]
+    private static func rules(_ t: EditorTheme) -> [[String: String]] {
+        EditorColor.allCases.flatMap { color in
+            color.tokens.map { token in
+                var rule = ["token": token, "foreground": EditorHex.rgb(t.hex(color))]
+                if color == .comment, t.italicComments { rule["fontStyle"] = "italic" }
+                return rule
+            }
         }
-        var rules = token.map { ["token": $0.0, "foreground": $0.1] }
-        if palette == .hangar { rules[rules.firstIndex { $0["token"] == "comment" }!]["fontStyle"] = "italic" }
-        return rules
     }
 
-    private static func colors(_ p: ThemePalette) -> [String: String] {
-        // Bracket pairs as in VS Code: gold, orchid, blue by depth.
-        let brackets = ["#FFD700", "#DA70D6", "#179FFF"]
+    private static func colors(_ t: EditorTheme) -> [String: String] {
+        let p = ThemePalette.of(t.app)
+        let modern = t.base == .darkModern
+        func c(_ color: EditorColor) -> String { t.hex(color) }
+        // Derived from a changed color, so «Своя» stays consistent: half as strong as the color itself.
+        func softer(_ color: EditorColor, _ own: String, _ factor: Double) -> String {
+            t.changed.contains(color) ? EditorHex.with(c(color), alpha: EditorHex.alpha(c(color)) * factor) : own
+        }
+        let brackets = [c(.bracket1), c(.bracket2), c(.bracket3)]
         return [
-            "editor.background": h(p.editorBg), "editor.foreground": h(p.tx),
-            "editorLineNumber.foreground": h(p.edGutter), "editorLineNumber.activeForeground": h(p.edGutterActive),
-            "editorCursor.foreground": h(p.accent), "editor.selectionBackground": h(p.edSel),
-            "editor.inactiveSelectionBackground": h(p.edSel, alpha: 0.6),
-            "editor.lineHighlightBackground": h(p.edLine), "editor.lineHighlightBorder": h(p.edLine),
+            "editor.background": c(.background), "editor.foreground": c(.text), "editorGutter.background": c(.background),
+            "minimap.background": c(.background), "peekViewEditor.background": c(.background),
+            "peekViewEditorGutter.background": c(.background), "editorStickyScroll.background": c(.background),
+            "editorLineNumber.foreground": c(.gutter), "editorLineNumber.activeForeground": c(.gutterActive),
+            "editorCursor.foreground": c(.cursor), "editor.selectionBackground": c(.selection),
+            "editor.inactiveSelectionBackground": softer(.selection, modern ? "#3a3d41" : h(p.edSel, alpha: 0.6), 0.6),
+            // VS Code Dark Modern frames the current line; the others fill it.
+            "editor.lineHighlightBackground": t.lineFilled ? c(.line) : "#00000000", "editor.lineHighlightBorder": c(.line),
             "editor.wordHighlightBackground": h(p.selected, alpha: 0.7),
-            "editor.findMatchBackground": h(p.waiting, alpha: 0.35),
-            "editor.findMatchHighlightBackground": h(p.waiting, alpha: 0.18),
-            "editorBracketMatch.background": h(p.selected), "editorBracketMatch.border": h(p.controlStrong),
-            "editorIndentGuide.background1": h(p.edIndent), "editorIndentGuide.activeBackground1": h(p.controlStrong),
-            "editorWhitespace.foreground": h(p.control), "editorGutter.background": h(p.editorBg),
+            "editor.findMatchBackground": c(.find),
+            "editor.findMatchHighlightBackground": softer(.find, modern ? "#ea5c0055" : h(p.waiting, alpha: 0.18), 0.5),
+            "editorBracketMatch.background": modern ? "#0064001a" : h(p.selected),
+            "editorBracketMatch.border": modern ? "#888888" : h(p.controlStrong),
+            "editorIndentGuide.background1": c(.indent), "editorIndentGuide.activeBackground1": c(.indentActive),
+            "editorWhitespace.foreground": c(.whitespace),
             "editorWidget.background": h(p.sheet), "editorWidget.border": h(p.winBorder),
             "editorWidget.foreground": h(p.tx), "widget.shadow": "#00000066",
             "input.background": h(p.field), "input.border": h(p.controlStrong),
@@ -105,37 +84,36 @@ enum MonacoTheme {
             "scrollbar.shadow": "#00000000", "scrollbarSlider.background": h(p.control, alpha: 0.6),
             "scrollbarSlider.hoverBackground": h(p.controlStrong, alpha: 0.8),
             "scrollbarSlider.activeBackground": h(p.controlStrong),
-            "minimap.background": h(p.editorBg), "editorOverviewRuler.border": "#00000000",
+            "editorOverviewRuler.border": "#00000000",
             "editorError.foreground": h(p.failed), "editorWarning.foreground": h(p.waiting),
             "editorInfo.foreground": h(p.accent),
-            // Changed chars: a light step over the row tint, not a saturated slab.
-            "diffEditor.insertedTextBackground": h(p.gitA, alpha: 0.12), "diffEditor.removedTextBackground": h(p.gitD, alpha: 0.12),
-            "diffEditor.insertedLineBackground": h(p.diffAdd), "diffEditor.removedLineBackground": h(p.diffDel),
-            "diffEditorGutter.insertedLineBackground": h(p.diffAdd), "diffEditorGutter.removedLineBackground": h(p.diffDel),
+            "diffEditor.insertedTextBackground": c(.diffAddedText), "diffEditor.removedTextBackground": c(.diffRemovedText),
+            "diffEditor.insertedLineBackground": c(.diffAddedLine), "diffEditor.removedLineBackground": c(.diffRemovedLine),
+            "diffEditorGutter.insertedLineBackground": c(.diffAddedLine), "diffEditorGutter.removedLineBackground": c(.diffRemovedLine),
             "diffEditor.diagonalFill": h(p.line), "diffEditor.border": h(p.line),
             "diffEditor.unchangedRegionBackground": h(p.bottomBar),
             "diffEditor.unchangedRegionForeground": h(p.tx2),
-            "peekView.border": h(p.winBorder), "peekViewEditor.background": h(p.editorBg),
+            "peekView.border": h(p.winBorder),
             "peekViewResult.background": h(p.sheet), "peekViewTitle.background": h(p.sheet),
             "peekViewTitleLabel.foreground": h(p.strong), "peekViewTitleDescription.foreground": h(p.tx3),
             "peekViewResult.fileForeground": h(p.tx), "peekViewResult.lineForeground": h(p.tx2),
             "peekViewResult.selectionBackground": h(p.selected), "peekViewResult.selectionForeground": h(p.strong),
             "peekViewResult.matchHighlightBackground": h(p.waiting, alpha: 0.25),
             "peekViewEditor.matchHighlightBackground": h(p.waiting, alpha: 0.25),
-            "peekViewEditorGutter.background": h(p.editorBg),
-            "editorStickyScroll.background": h(p.editorBg), "editorStickyScrollHover.background": h(p.hover),
+            "editorStickyScrollHover.background": h(p.hover),
             "editorBracketHighlight.foreground1": brackets[0], "editorBracketHighlight.foreground2": brackets[1],
             "editorBracketHighlight.foreground3": brackets[2], "editorBracketHighlight.unexpectedBracket.foreground": h(p.failed),
-            "editorBracketPairGuide.activeBackground1": brackets[0] + "80", "editorBracketPairGuide.activeBackground2": brackets[1] + "80",
-            "editorBracketPairGuide.activeBackground3": brackets[2] + "80",
+            "editorBracketPairGuide.activeBackground1": EditorHex.with(brackets[0], alpha: 0.5),
+            "editorBracketPairGuide.activeBackground2": EditorHex.with(brackets[1], alpha: 0.5),
+            "editorBracketPairGuide.activeBackground3": EditorHex.with(brackets[2], alpha: 0.5),
         ]
     }
 
     /// CSS variables of the page's own chrome (file tabs, bars, the diff header's toggle).
-    static func css(_ p: ThemePalette = Theme.palette) -> [String: String] {
+    static func css(_ p: ThemePalette = Theme.palette, background: String? = nil) -> [String: String] {
         let e = Theme.Editor.self
         return [
-            "--bg": h(p.editorBg), "--line": h(p.line), "--text": h(p.tx),
+            "--bg": background ?? h(p.editorBg), "--line": h(p.line), "--text": h(p.tx),
             "--text-strong": h(p.strong), "--text2": h(p.tx2), "--text3": h(p.tx3),
             "--accent": h(p.accent), "--primary": h(p.primary), "--primary-text": h(p.primaryText),
             "--waiting": h(p.waiting), "--button": h(p.button), "--button-hover": h(p.controlStrong),

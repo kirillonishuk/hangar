@@ -37,8 +37,13 @@ public struct HangarConfig: Equatable, Sendable {
     public var keepAwake = true
     /// Dock badge with the number of leaves needing the user (permission, question, failed), and a Dock bounce on a new request out of focus.
     public var dockBadge = true
-    /// The editor's syntax colors (#84): VS Code Dark+ or Hangar's muted palette; rainbow indents and TODO pills.
-    public var editorPalette: EditorPalette = .darkPlus
+    /// The editor theme (#84, #108): VS Code Dark Modern (default, also for configs that never chose one), Dark+,
+    /// Hangar's muted palette or «Своя» (a built-in `editorCustomBase` plus `editorColors`); rainbow indents and TODO pills.
+    public var editorPalette: EditorPalette = .darkModern
+    public var editorCustomBase: EditorPalette = .darkModern
+    /// «Своя»'s changed colors only (`#rrggbb` / `#rrggbbaa`, lower case).
+    public var editorColors: [EditorColor: String] = [:]
+    public var editorOptions = EditorOptions()
     public var editorRainbowIndent = true
     public var editorTodoHighlight = true
     /// Look for a new GitHub release on launch and on activation, at most hourly (#86).
@@ -50,7 +55,7 @@ public struct HangarConfig: Equatable, Sendable {
 
     /// `hangar`: the Hangar theme's background wins over the user's Ghostty config (#36); `ghostty`: Ghostty's own.
     public enum TerminalBackground: String, Sendable { case hangar, ghostty }
-    public enum EditorPalette: String, Sendable, CaseIterable { case darkPlus = "dark-plus", hangar }
+    public enum EditorPalette: String, Sendable, CaseIterable { case darkModern = "dark-modern", darkPlus = "dark-plus", hangar, custom }
 
     public init() {}
 
@@ -110,6 +115,7 @@ public struct HangarConfig: Equatable, Sendable {
                 config.statuslineSegments = StatuslineSegment.allCases.filter { names.contains($0.rawValue) }
                 continue
             }
+            if section.isEmpty, try parseEditorKey(key, rawValue, line: n + 1, into: &config) { continue }
             let value = try stringValue(rawValue, line: n + 1)
             switch (section, key) {
             case ("", "default_agent"):
@@ -132,7 +138,7 @@ public struct HangarConfig: Equatable, Sendable {
                 config.theme = theme
             case ("", "editor_palette"):
                 guard let palette = EditorPalette(rawValue: value) else {
-                    throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "dark-plus" or "hangar""#)
+                    throw ParseError.syntax(line: n + 1, reason: #"editor_palette must be "dark-modern", "dark-plus", "hangar" or "custom""#)
                 }
                 config.editorPalette = palette
             case ("", "language"):
@@ -173,7 +179,7 @@ public struct HangarConfig: Equatable, Sendable {
     }
 
     /// Parses a bare `true` / `false` optionally followed by a `#` comment.
-    private static func boolValue(_ s: Substring, line: Int) throws -> Bool {
+    static func boolValue(_ s: Substring, line: Int) throws -> Bool {
         let t = s.trimmingCharacters(in: .whitespaces)
         let word = t.prefix { $0 != " " && $0 != "\t" && $0 != "#" }
         let tail = t.dropFirst(word.count).trimmingCharacters(in: .whitespaces)
@@ -208,7 +214,7 @@ public struct HangarConfig: Equatable, Sendable {
     }
 
     /// Parses `"..."` (with `\"` and `\\` escapes) optionally followed by a `#` comment.
-    private static func stringValue(_ s: Substring, line: Int) throws -> String {
+    static func stringValue(_ s: Substring, line: Int) throws -> String {
         let t = s.trimmingCharacters(in: .whitespaces)
         guard t.hasPrefix("\"") else { throw ParseError.syntax(line: line, reason: "value must be a quoted string") }
         var out = ""

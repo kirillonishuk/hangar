@@ -40,7 +40,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: [.languageTitle, .defaultAgent, .externalEditor, .checkUpdatesTitle, .versionTitle]
         case .appearance: [.terminalBackground]
-        case .editor: [.editorPaletteTitle, .editorRainbowTitle, .editorTodoTitle]
+        case .editor: [.edFont, .edSize, .edLineHeight, .edLigatures, .edTabSize, .edDetect, .edWrap, .edLineHighlight, .edCursor, .edBlink,
+                       .edWhitespace, .edBracketColors, .edBracketGuides, .edIndentGuides, .editorRainbowTitle, .editorTodoTitle, .edFormatOnSave]
         case .notifications:
             [.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .limitNotificationsTitle, .notifyDoneTitle,
              .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle, .keepAwakeShort, .notificationPermissionTitle]
@@ -95,7 +96,9 @@ struct SettingsView: View {
                 footer
             }
         }
-        .frame(minWidth: Theme.settingsMinSize.width, minHeight: Theme.settingsMinSize.height)
+        // Width only: the window's minimum is a frame size (title bar included); a content minHeight of the same
+        // value overflowed the window at its minimum and cut 14 pt off the page's top and bottom.
+        .frame(minWidth: Theme.settingsMinSize.width)
         .font(.system(size: Theme.fontSize.sheetRow))
         .background(Theme.ui.sheet)
         .sheet(isPresented: Binding(get: { model.pendingPlan != nil }, set: { if !$0 { model.cancelPlan() } })) {
@@ -118,7 +121,7 @@ struct SettingsView: View {
 
     /// A write error or an integration message, under the page (nothing when all is well: no jump of the cards).
     @ViewBuilder private var footer: some View {
-        if let text = model.error ?? model.integration.message {
+        if let text = model.error ?? model.integration.message ?? (model.category == .editor ? model.editorTheme.notice : nil) {
             Text(verbatim: text)
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
                 .lineLimit(1).truncationMode(.middle)
@@ -237,32 +240,8 @@ struct SettingsView: View {
         }
     }
 
-    // Settings → Editor (#84): the syntax palette, rainbow indents, TODO pills.
-    private var editor: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-            CardSection {
-                row(L10n.editorPaletteTitle, first: true) {
-                    Segment(selection: app.config.editorPalette, options: [(.darkPlus, "VS Code Dark+"), (.hangar, "Hangar")]) { p in
-                        save { try app.setEditorAppearance("editor_palette", p.rawValue) { $0.editorPalette = p } }
-                    }
-                }
-                row(L10n.editorRainbowTitle) {
-                    CardSwitch(on: app.config.editorRainbowIndent) { on in
-                        save { try app.setEditorAppearance("editor_rainbow_indent", flag: on) { $0.editorRainbowIndent = on } }
-                    }
-                }
-                row(L10n.editorTodoTitle) {
-                    CardSwitch(on: app.config.editorTodoHighlight) { on in
-                        save { try app.setEditorAppearance("editor_todo_highlight", flag: on) { $0.editorTodoHighlight = on } }
-                    }
-                }
-            }
-            languageServers
-        }
-    }
-
     // Settings → Editor → language servers (#102): status per language, download / remove Hangar's own copies.
-    private var languageServers: some View {
+    var languageServers: some View {
         CardSection(title: L10n.lspSection) {
             ForEach(Array(LspServersModel.rows.enumerated()), id: \.element.id) { i, r in
                 row(r.name, first: i == 0) { lspValue(r) }

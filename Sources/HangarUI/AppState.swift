@@ -747,6 +747,19 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         uiLog.info("config \(key, privacy: .public) = \(flag)")
     }
 
+    /// Several keys in one write (Settings → Editor → theme and colors, #108).
+    func editConfig(_ edit: (String) -> String, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.save(to: configURL, edit: edit)
+        apply(&config)
+    }
+
+    /// A key back to its default: it leaves the file.
+    func removeConfig(_ key: String, apply: (inout HangarConfig) -> Void) throws {
+        try HangarConfig.remove(key: key, from: configURL)
+        apply(&config)
+        uiLog.info("config \(key, privacy: .public) removed")
+    }
+
     private func updateKeepAwake() { keepAwake.update(working: workingLeafCount, enabled: config.keepAwake) }
 
     /// Called on status and setting changes only (no timer); hands the label over only when it changes.

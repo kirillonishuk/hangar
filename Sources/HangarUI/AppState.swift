@@ -144,12 +144,19 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `now` for «3 мин» in the inbox: taken when it opens, no ticking clock.
     var inboxClock = Date()
     /// «Сессии» (⌘Y) is shown instead of the session area, for `sessionsScope` (SessionsModel.swift).
-    var sessionsViewVisible = false
+    var sessionsViewVisible = false {
+        didSet { if !sessionsViewVisible { sessionsPointer = nil } }  // however it hides, no row stays hovered or chosen
+    }
     var sessionsScope: SessionsScope = .all
     /// Its search text.
     var sessionsQuery = ""
     /// «Сессии проекта», the archived hint, a link: only this project, shown as a removable chip (#107).
     var sessionsProject: UUID?
+    /// Its agent and state chips.
+    var sessionsAgents: Set<HistoryAgent> = []
+    var sessionsStates: Set<SessionsRowState> = []
+    /// The row under the pointer and the keyboard's row; nil while hidden.
+    var sessionsPointer: SessionsPointer?
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()

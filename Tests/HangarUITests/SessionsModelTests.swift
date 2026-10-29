@@ -237,6 +237,46 @@ import Workspace
         #expect(m.conversationRows.count == 4 && !m.isFiltering)
     }
 
+    /// An archived session whose only listed conversation is filtered out by the search is findable again as its own row.
+    @Test func archivedSessionShowsWhenItsConversationIsFilteredOut() async throws {
+        let (w, m) = try await loaded()
+        w.app.perform { s in
+            let leaf = s.tasks.first { $0.id == w.closed }!.tabs[0].root.leaves[0].id
+            s.setAgentSessionId(leafId: leaf, self.idC)  // «объясни структуру store», branch main
+        }
+        #expect(m.closedRows.isEmpty)  // shows through idC
+        m.query = "fix/ci"  // the session's branch, not idC's
+        #expect(!m.conversationRows.contains { $0.conversation.id == idC })
+        #expect(m.closedRows.map(\.id) == [w.closed])
+    }
+
+    /// «Сессии проекта» starts clean: a stale search or chip from the last visit would hide the project's rows.
+    @Test func projectSessionsClearsStaleSearchAndChips() async throws {
+        let (w, m) = try await loaded()
+        m.query = "zzz"
+        m.toggle(HistoryAgent.codex)
+        m.toggle(SessionsRowState.open)
+        w.app.hideSessionsView()
+        Action.projectSessions.perform(.project(w.project), ActionContext(app: w.app))
+        #expect(m.query.isEmpty && m.agents.isEmpty && m.states.isEmpty && w.app.sessionsProject == w.project)
+        #expect(m.conversationRows.count == 4)
+    }
+
+    /// The hovered and the keyboard's row never outlive the view: after «Перейти» or any hide, ⌘Y shows none.
+    @Test func pointerIsClearedWhenTheViewHides() async throws {
+        let (w, m) = try await loaded()
+        let first = try #require(m.visibleList.first)
+        m.hovered = first.id
+        m.selection = first.id
+        #expect(m.hovered == first.id && m.selection == first.id)
+        w.app.hideSessionsView()
+        #expect(m.hovered == nil && m.selection == nil)
+        w.app.showSessionsView()
+        m.hovered = first.id
+        w.app.select(taskId: w.main)  // picking a session in the sidebar hides it too
+        #expect(!w.app.sessionsViewVisible && m.hovered == nil)
+    }
+
     /// Chips: multi-select, none = all; an archived session row has no agent (a chosen agent hides it) and is «в архиве».
     @Test func chipsFilterByAgentAndState() async throws {
         let (w, m) = try await loaded()

@@ -28,6 +28,12 @@ func sessionsHostLink(_ info: HostInfo?) -> SessionsHostLink {
     }
 }
 
+/// The keyboard's chosen row and the hovered one (row ids).
+struct SessionsPointer: Equatable {
+    var selection: String?
+    var hovered: String?
+}
+
 /// A row's state word: «открыт» (a live leaf holds it), «в архиве» (an archived session holds it, or is the row),
 /// «в истории» (only in the agent's files).
 enum SessionsRowState: Hashable, CaseIterable {

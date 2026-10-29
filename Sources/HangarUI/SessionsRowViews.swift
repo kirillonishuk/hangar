@@ -50,15 +50,17 @@ struct SessionsRow: View {
     var body: some View {
         let hovered = model.hovered == item.id
         let selected = model.selection == item.id
+        // The keyboard's row shows its actions too: ↩'s target is visible. State and time keep their place, hidden.
+        let active = hovered || selected
         HStack(spacing: Theme.historyRowGap) {
             icon
             Text(verbatim: title).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
             place.frame(width: Theme.historyWhereWidth, alignment: .leading)
-            state.frame(width: Theme.historyStateWidth, alignment: .leading).opacity(hovered ? 0 : 1)
+            state.frame(width: Theme.historyStateWidth, alignment: .leading).opacity(active ? 0 : 1)
             Text(verbatim: time)
                 .font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3).lineLimit(1)
                 .frame(width: Theme.historyTimeWidth, alignment: .trailing)
-                .opacity(hovered ? 0 : 1)
+                .opacity(active ? 0 : 1)
         }
         .font(.system(size: Theme.fontSize.base))
         .foregroundStyle(Theme.ui.text)
@@ -69,8 +71,8 @@ struct SessionsRow: View {
         .overlay(alignment: .trailing) {
             HStack(spacing: Theme.historyActionGap) { actions }
                 .padding(.trailing, Theme.historyRowPaddingH)
-                .opacity(hovered ? 1 : 0)
-                .allowsHitTesting(hovered)
+                .opacity(active ? 1 : 0)
+                .allowsHitTesting(active)
         }
         .contentShape(Rectangle())
         .onTapGesture { if model.canRun(item) { model.selection = item.id; run(model.primaryAction(item)) } }
@@ -78,7 +80,7 @@ struct SessionsRow: View {
             if inside { model.hovered = item.id } else if model.hovered == item.id { model.hovered = nil }
         }
         .help(help)
-        .animation(Motion.reduced ? nil : .easeOut(duration: Theme.hoverFade), value: hovered)
+        .animation(Motion.reduced ? nil : .easeOut(duration: Theme.hoverFade), value: active)
         .padding(.horizontal, Theme.historyRowInset)
         .pointingHand(model.canRun(item))
     }

@@ -13,7 +13,13 @@ extension AppState {
     func showSessionsView(projectId: UUID? = nil) {
         showSessionsView(scope: .all)
         // A host terminal's pseudo-project is no project: all of them.
-        if sessionsViewVisible, state.projects.contains(where: { $0.id == projectId }) { sessionsProject = projectId }
+        if sessionsViewVisible, state.projects.contains(where: { $0.id == projectId }) {
+            // Only that project: no stale search or chips hiding its rows.
+            sessionsProject = projectId
+            sessionsQuery = ""
+            sessionsAgents = []
+            sessionsStates = []
+        }
     }
 
     /// A scope from ⌘Y or the segment: every project of it (the project chip goes).
@@ -137,15 +143,27 @@ enum SessionsAction: Equatable {
         get { app.sessionsQuery }
         set { app.sessionsQuery = newValue }
     }
-    /// The chips (multi-select; none chosen admits all).
-    var agents: Set<HistoryAgent> = []
-    var states: Set<SessionsRowState> = []
+    /// The chips (multi-select; none chosen admits all); in `AppState`, so «Сессии проекта» clears them.
+    var agents: Set<HistoryAgent> {
+        get { app.sessionsAgents }
+        set { app.sessionsAgents = newValue }
+    }
+    var states: Set<SessionsRowState> {
+        get { app.sessionsStates }
+        set { app.sessionsStates = newValue }
+    }
     /// Collapsed groups, and groups showing all rows instead of the first `Theme.sessionsGroupLimit`.
     var collapsed: Set<UUID> = []
     var expanded: Set<UUID> = []
-    /// The keyboard's row (↑↓, ↩) and the pointer's (its actions show).
-    var selection: String?
-    var hovered: String?
+    /// The keyboard's row (↑↓, ↩) and the pointer's: their actions show. In `AppState`, cleared whenever the view hides.
+    var selection: String? {
+        get { app.sessionsPointer?.selection }
+        set { app.sessionsPointer = SessionsPointer(selection: newValue, hovered: app.sessionsPointer?.hovered) }
+    }
+    var hovered: String? {
+        get { app.sessionsPointer?.hovered }
+        set { app.sessionsPointer = SessionsPointer(selection: app.sessionsPointer?.selection, hovered: newValue) }
+    }
     private(set) var load: SessionsLoad = .idle
     /// Sources that failed or did not answer in time; the others' rows still show.
     private(set) var failures: [SessionsFailure] = []
@@ -156,7 +174,12 @@ enum SessionsAction: Equatable {
     /// Hosts still being read on a first load (its groups say so); a rescan swaps the list in at the end instead.
     private(set) var pendingHosts: Set<String> = []
     /// Scanned conversations with the folder and project they were found in, newest first.
-    private(set) var found: [Found] = []
+    private(set) var found: [Found] = [] {
+        didSet { foundVersion &+= 1 }
+    }
+    @ObservationIgnored private var foundVersion = 0
+    /// The rows and groups of the last inputs: a body asks for them many times, a hover or selection changes none.
+    @ObservationIgnored private var cache: (key: ListKey, list: List)?
     @ObservationIgnored private var foundKey: String?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var running: Task<Void, Never>?
@@ -185,6 +208,9 @@ enum SessionsAction: Equatable {
     var project: Project? { app.sessionsProject.flatMap { id in app.state.projects.first { $0.id == id } } }
     /// The scope's projects, or only the chip's.
     var projects: [Project] { project.map { [$0] } ?? app.sessionsProjects(scope) }
+
+    /// Shown or hidden: no row stays drawn hovered or chosen from the last visit.
+    func clearPointer() { app.sessionsPointer = nil }
 
     /// The chip's «×»: every project of the scope again.
     func clearProject() { app.sessionsProject = nil }
@@ -273,29 +299,103 @@ enum SessionsAction: Equatable {
 
     // MARK: Rows and groups
 
+    /// Everything the rows depend on; reading it also registers the view's observation of each part.
+    private struct ListKey: Equatable {
+        var found: Int
+        var state: WorkspaceState
+        var agents: Set<HistoryAgent>
+        var states: Set<SessionsRowState>
+        var query: String
+        var projects: [UUID]
+        var offline: [String], connecting: [String], pending: Set<String>, failures: [SessionsFailure]
+    }
+
+    private struct List {
+        var conversations: [ConversationRow]
+        var closed: [ClosedSessionRow]
+        var groups: [SessionsGroup]
+    }
+
+    private var list: List {
+        let key = ListKey(found: foundVersion, state: app.state, agents: agents, states: states, query: query,
+                          projects: projects.map(\.id), offline: offlineHosts, connecting: connectingHosts, pending: pendingHosts,
+                          failures: failures)
+        _ = found.count  // observed: a rescan's rows redraw the list
+        if let cache, cache.key == key { return cache.list }
+        let list = makeList()
+        cache = (key, list)
+        return list
+    }
+
+    private func makeList() -> List {
+        let all = allConversationRows()
+        let conversations = all.filter { admits(.conversation($0)) }
+        // A session shows through its listed conversations; when the chips or the search hide them, it is its own row again.
+        let held = Set(conversations.compactMap { r -> UUID? in if case .closed(let t, _) = r.place { t } else { nil } })
+        let closed = closedSessionRows(app.state.tasks, projects: projects).filter { !held.contains($0.id) && admits(.session($0)) }
+        let items = conversations.map(SessionsItem.conversation) + closed.map(SessionsItem.session)
+        let byProject = Dictionary(grouping: items, by: projectOf)
+        let groups = projects.compactMap { p -> SessionsGroup? in
+            let rows = (byProject[p.id] ?? []).sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+            let note = p.host.flatMap(note(host:))
+            guard !rows.isEmpty || note != nil else { return nil }
+            return SessionsGroup(id: p.id, name: p.name, host: p.host, items: rows, note: note)
+        }
+        return List(conversations: conversations, closed: closed, groups: groups)
+    }
+
     /// Every scanned conversation with its place; open markers come from the live tabs now, not from the scan.
-    private var allConversationRows: [ConversationRow] {
+    private func allConversationRows() -> [ConversationRow] {
         let open = app.openConversationLeaves
         let byId = Dictionary(app.state.projects.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        let tasks = Dictionary(grouping: app.state.tasks, by: \.projectId).mapValues { $0.sorted { $0.order < $1.order } }
+        let names = Dictionary(app.state.tasks.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        let ordered = app.state.tasks.sorted { $0.order < $1.order }
+        // Archived sessions by the conversations their agents hold (project, agent, id), first in sidebar order: one pass.
+        var archived: [String: HangarTask] = [:]
+        for t in ordered where t.archived {
+            for leaf in t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap({ $0 }) {
+                guard let agent: HistoryAgent = leaf.kind == .claude ? .claude : leaf.kind == .codex ? .codex : nil,
+                      let id = validSessionId(leaf.agentSessionId) else { continue }
+                let key = t.projectId.uuidString + "\0" + agent.rawValue + "\0" + id
+                if archived[key] == nil { archived[key] = t }
+            }
+        }
+        // Open worktree sessions by folder: a worktree's conversation resumes in a new tab there.
+        var worktrees: [String: HangarTask] = [:]
+        for t in ordered where !t.archived {
+            if case .worktree(let path, _, _) = t.mode, worktrees[t.projectId.uuidString + "\0" + path] == nil {
+                worktrees[t.projectId.uuidString + "\0" + path] = t
+            }
+        }
         return found.compactMap { f in
             guard let project = byId[f.project] else { return nil }
-            return ConversationRow(conversation: f.conversation,
-                                   place: place(f.conversation, folder: f.folder, project: project, tasks: tasks[project.id] ?? [], open: open),
-                                   project: project.id, folder: f.folder, projectPath: project.path)
+            let c = f.conversation
+            // Only a leaf holding this very conversation makes it open (or archived): a session of the same folder holds
+            // others, and restoring one of those would bring back its agents, not this one. Open in any project counts.
+            let place: ConversationPlace
+            if let o = open[conversationKey(host: project.host, agent: c.agent, id: c.id)] {
+                place = .open(task: o.task, leaf: o.leaf, name: names[o.task] ?? "")
+            } else if let t = archived[project.id.uuidString + "\0" + c.agent.rawValue + "\0" + c.id] {
+                place = .closed(task: t.id, name: t.name)
+            } else if let t = worktrees[project.id.uuidString + "\0" + f.folder] {
+                place = .session(task: t.id, name: t.name)
+            } else {
+                // Not held anywhere, main folder: a session of its own, named after it.
+                place = .none
+            }
+            return ConversationRow(conversation: c, place: place, project: project.id, folder: f.folder, projectPath: project.path)
         }
     }
 
     /// Conversations past the chips and the search, newest first.
-    var conversationRows: [ConversationRow] {
-        allConversationRows.filter { admits(.conversation($0)) }
-    }
+    var conversationRows: [ConversationRow] { list.conversations }
 
-    /// Archived sessions none of whose conversations is listed: their own rows (one with conversations shows through them).
-    var closedRows: [ClosedSessionRow] {
-        let held = Set(allConversationRows.compactMap { r -> UUID? in if case .closed(let t, _) = r.place { t } else { nil } })
-        return closedSessionRows(app.state.tasks, projects: projects).filter { !held.contains($0.id) && admits(.session($0)) }
-    }
+    /// Archived sessions none of whose listed conversations shows them: their own rows.
+    var closedRows: [ClosedSessionRow] { list.closed }
+
+    /// The scope's projects in sidebar order, each with its rows (newest first) and its host's note; a project with
+    /// neither is left out.
+    var groups: [SessionsGroup] { list.groups }
 
     var isFiltering: Bool {
         !agents.isEmpty || !states.isEmpty || project != nil || !query.trimmingCharacters(in: .whitespaces).isEmpty
@@ -316,19 +416,6 @@ enum SessionsAction: Equatable {
         switch item {
         case .conversation(let r): r.project
         case .session(let r): r.project
-        }
-    }
-
-    /// The scope's projects in sidebar order, each with its rows (newest first) and its host's note; a project with
-    /// neither is left out.
-    var groups: [SessionsGroup] {
-        let items = conversationRows.map(SessionsItem.conversation) + closedRows.map(SessionsItem.session)
-        let byProject = Dictionary(grouping: items, by: projectOf)
-        return projects.compactMap { p in
-            let rows = (byProject[p.id] ?? []).sorted { ($0.date, $0.id) > ($1.date, $1.id) }
-            let note = p.host.flatMap(note(host:))
-            guard !rows.isEmpty || note != nil else { return nil }
-            return SessionsGroup(id: p.id, name: p.name, host: p.host, items: rows, note: note)
         }
     }
 
@@ -400,29 +487,6 @@ enum SessionsAction: Equatable {
     }
 
     // MARK: Actions
-
-    private func place(_ c: Conversation, folder: String, project: Project, tasks: [HangarTask],
-                       open: [String: (task: UUID, leaf: UUID)]) -> ConversationPlace {
-        // Only a leaf holding this very conversation makes it open (or closed): a session of the same folder holds others,
-        // and restoring one of those would bring back its agents, not this conversation. Open in any project counts.
-        let kind: LeafKind = c.agent == .claude ? .claude : .codex
-        if let o = open[conversationKey(host: project.host, agent: c.agent, id: c.id)] {
-            return .open(task: o.task, leaf: o.leaf, name: app.state.tasks.first { $0.id == o.task }?.name ?? "")
-        }
-        if let t = tasks.first(where: { t in
-            t.archived && (t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap { $0 })
-                .contains { $0.kind == kind && validSessionId($0.agentSessionId) == c.id }
-        }) {
-            return .closed(task: t.id, name: t.name)
-        }
-        // Not held anywhere: a worktree's conversation resumes in a new tab of that worktree's open session; one of the
-        // main folder gets a session of its own, named after it (a main-folder session holds unrelated conversations).
-        let owner = tasks.first { t in
-            guard !t.archived, case .worktree(let path, _, _) = t.mode else { return false }
-            return path == folder
-        }
-        return owner.map { .session(task: $0.id, name: $0.name) } ?? .none
-    }
 
     func action(for row: ConversationRow) -> SessionsAction {
         switch row.place {

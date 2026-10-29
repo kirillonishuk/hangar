@@ -29,7 +29,11 @@ struct SessionsView: View {
         }
         .background(Theme.ui.bg)
         .task(id: reloadKey) { await model.reload() }
-        .onAppear { searchFocused = true }
+        .onAppear {
+            model.clearPointer()
+            searchFocused = true
+        }
+        .onDisappear { model.clearPointer() }
     }
 
     /// A rescan when the scope or the project chip changes, or a host connects, drops or gives up (no watchers otherwise).
@@ -127,7 +131,7 @@ struct SessionsView: View {
                 }
                 .padding(.bottom, Theme.historyListBottom)
             }
-            .onChange(of: model.selection) { _, id in if let id { proxy.scrollTo(id) } }
+            .background(SessionsScrollFollower(model: model, proxy: proxy))
         }
     }
 
@@ -296,5 +300,15 @@ private struct SessionsProjectChip: View {
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .help(L10n.sessionsProjectChipHelp)
         .accessibilityAddTraits(.isSelected)
+    }
+}
+
+/// Scrolls to the keyboard's row; its own view, so a selection change does not redraw the whole list.
+private struct SessionsScrollFollower: View {
+    let model: SessionsModel
+    let proxy: ScrollViewProxy
+
+    var body: some View {
+        Color.clear.onChange(of: model.selection) { _, id in if let id { proxy.scrollTo(id) } }
     }
 }

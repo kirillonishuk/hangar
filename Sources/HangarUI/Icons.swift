@@ -6,7 +6,7 @@ import Workspace
 /// Every icon in the UI (icons-v2.html, decision #56): line glyphs drawn in code on a 16 grid, 1.5 pt stroke at every
 /// size, round caps and joins; only the agents keep their brand logos. No glyph data outside this file.
 enum Icon: CaseIterable {
-    case sidebarLeft, sidebarRight, add, project, branch, sshHost, editor, shell, diff, keepAwake, limits, settings
+    case sidebarLeft, sidebarRight, add, project, branch, sshHost, mac, editor, shell, diff, keepAwake, limits, settings
     case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
@@ -30,6 +30,7 @@ enum Icon: CaseIterable {
              .arc(from: p(12, 5.75), to: p(5.75, 12), r: 6.25, large: false, sweep: true)]
         case .sshHost:
             [.rect(1.75, 2.75, 12.5, 4.5, 2), .rect(1.75, 8.75, 12.5, 4.5, 2), .dot(p(4.75, 5)), .dot(p(4.75, 11))]
+        case .mac: [.rect(2.75, 3.25, 10.5, 7.25, 1.5), .line(p(1.25, 12.75), p(14.75, 12.75))]  // «Этот Mac» (sessions-v2.html)
         case .editor:
             [.shape(p(10.5, 2.75), p(13.25, 5.5), p(5.5, 13.25), p(2.75, 13.25), p(2.75, 10.5)), .line(p(8.75, 4.5), p(11.5, 7.25))]
         case .shell: [.frame, .line(p(4.75, 6.25), p(6.75, 8), p(4.75, 9.75)), .line(p(8.75, 10), p(11.25, 10))]

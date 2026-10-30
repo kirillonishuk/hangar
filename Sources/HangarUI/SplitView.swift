@@ -680,6 +680,7 @@ final class FillView: NSView {
             let host = DiffHostView(rootView: DiffView(app: app, taskId: id, editor: editor))
             host.frame = content.bounds
             host.autoresizingMask = [.width, .height]
+            host.safeAreaRegions = []  // placed by the terminal area, not by the window's titlebar inset
             content.addSubview(host)
             diffHosts[id] = (host, editor)
         }

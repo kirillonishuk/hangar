@@ -21,6 +21,7 @@ struct PaneHeader: View {
     @MainActor static func hosted(app: AppState, ctx: @escaping () -> ActionContext, leafId: UUID, focus: @escaping () -> Void) -> NSView {
         let view = NSHostingView(rootView: PaneHeader(app: app, ctx: ctx, leafId: leafId, focus: focus))
         view.sizingOptions = []
+        view.safeAreaRegions = []  // placed by the terminal area, not by the window's titlebar inset
         return view
     }
 

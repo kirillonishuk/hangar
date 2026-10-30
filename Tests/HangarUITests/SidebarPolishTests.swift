@@ -31,7 +31,7 @@ import Testing
     }
 
     @Test func railTileStyleFollowsSelection() {
-        #expect(RailTileStyle(selected: false) == RailTileStyle(fill: Theme.ui.hover, border: Theme.ui.line2, text: Theme.ui.text1))
+        #expect(RailTileStyle(selected: false) == RailTileStyle(fill: Theme.ui.hover2, border: .clear, text: Theme.ui.text1))
         #expect(RailTileStyle(selected: true) == RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.text0))
     }
 

@@ -409,28 +409,9 @@
 "cmdLimits" = "Subscription Limits";
 "cmdAttentionOnly" = "Waiting Only";
 "thisMac" = "This Mac";
-"workingOne" = "%d working";
-"workingFew" = "%d working";
-"workingMany" = "%d working";
-"attentionOne" = "%d needs attention";
-"attentionFew" = "%d need attention";
-"attentionMany" = "%d need attention";
-"failedOne" = "%d error";
-"failedFew" = "%d errors";
-"failedMany" = "%d errors";
-"limitedOne" = "%d at limit";
-"limitedFew" = "%d at limit";
-"limitedMany" = "%d at limit";
-"paneOne" = "%d pane";
-"paneFew" = "%d panes";
-"paneMany" = "%d panes";
 "notifySectionEvents" = "Events";
 "notifySectionSystem" = "Dock and system";
-"statusMachineHelp" = "Machine the chat runs on";
-"statusNextWorkingHelp" = "Next working chat";
-"statusNextWaitingHelp" = "Next agent of the project waiting for you";
-"statusFailedHelp" = "Show the failed chat";
-"statusPanesHelp" = "Panes in the tab";
+"cmdNextWorking" = "Go to Next Working Chat";
 "agentCountOne" = "%d agent";
 "agentCountFew" = "%d agents";
 "agentCountMany" = "%d agents";
@@ -442,7 +423,6 @@
 "tabCountMany" = "%d tabs";
 "noAgents" = "no agents";
 "rowWaiting" = "waiting";
-"sessionsView" = "History";
 "sessionsViewHelp" = "History";
 "segmentGit" = "Git";
 "showGit" = "Show Git";
@@ -597,7 +577,6 @@
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";
 
 /* In-app updates (#86) */
-"updateAvailable" = "%@ available";
 "updateTo" = "Update to %@";
 "updateAvailableHelp" = "New Hangar version: what’s new and install";
 "updateSheetTitle" = "Hangar %@ is available";

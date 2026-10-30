@@ -130,12 +130,12 @@ struct TabBarView: View {
     var body: some View {
         GeometryReader { geo in
             let width = Swift.max(geo.size.width - Theme.tabTitleLeading - Theme.tabTitleTrailing, 0)
-            HStack(alignment: .bottom, spacing: Theme.tabGap) {
+            HStack(spacing: Theme.tabGap) {
                 if let task = app.selectedTask { strip(task, width: width, minX: geo.frame(in: .global).minX + Theme.tabTitleLeading) }
                 Spacer(minLength: 0)
             }
             .padding(.leading, Theme.tabTitleLeading)
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            .frame(maxHeight: .infinity)
             .onChange(of: width, initial: true) { _, w in
                 room = w
                 reveal()
@@ -154,7 +154,7 @@ struct TabBarView: View {
 
     /// Natural width of a tab: paddings, icon (the status dot is its badge), title, `×` (kept in place while hidden).
     private static func natural(text: CGFloat) -> CGFloat {
-        let chrome = 2 * Theme.tabPaddingH + Theme.iconSize + Theme.iconGap + Theme.rowEndGap + Theme.smallIconSize
+        let chrome = 2 * Theme.tabPaddingH + Theme.Icon.row + Theme.iconGap + Theme.rowEndGap + Theme.smallIconSize
         return (chrome + text).rounded(.up)
     }
 
@@ -211,7 +211,7 @@ struct TabBarView: View {
         let paneSlot: Int? = if drag == nil, case .tabBar(let i)? = app.paneDropTarget { i } else { nil }
         let gap = Theme.tabMinWidth + Theme.tabGap
         let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.tabBarButton - l.viewport))
-        HStack(alignment: .bottom, spacing: Theme.tabGap) {
+        HStack(spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
                         width: l.widths[i],
@@ -277,7 +277,7 @@ struct TabBarView: View {
 
     /// Where a dragged tab or pane will land: an `accent` outline.
     private func slotOutline(width: CGFloat) -> some View {
-        let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+        let shape = RoundedRectangle(cornerRadius: Theme.tabRadius)
         return shape.fill(Theme.ui.accent.opacity(Theme.Opacity.fill))
             .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
             .frame(width: width)
@@ -360,10 +360,9 @@ struct TabBarView: View {
             }
             return entries
         }
-        .padding(.bottom, Theme.railInset)
     }
 
-    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell. As tall as a tab and on its baseline.
+    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell.
     private func addMenu(shellOnly: Bool) -> some View {
         PopoverMenuButton(icon: .add, size: .regular, help: L10n.help(L10n.newTabHelp, .newTab)) {
             let kinds: [(String, LeafKind)] = (shellOnly ? [] : [("Claude", .claude), ("Codex", .codex)]) + [("Shell", .shell)]
@@ -450,7 +449,7 @@ private struct TabBackground: View {
     let hover: Bool
 
     var body: some View {
-        UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+        RoundedRectangle(cornerRadius: Theme.tabRadius)
             .fill(active ? Theme.ui.hover2 : hover ? Theme.ui.hover : .clear)
     }
 }
@@ -489,16 +488,16 @@ struct TabItem: View {
             // on the icon (as on the rail's tiles): one marker per tab, not a dot and a logo side by side.
             Group {
                 if let file = fileLeaf?.openFile {
-                    FileIconView(name: (file as NSString).lastPathComponent)
+                    FileIconView(name: (file as NSString).lastPathComponent, size: Theme.Icon.row)
                 } else if let kind = tab.root.leaves.first?.kind {
-                    IconView(icon: .of(kind), active: active)
+                    IconView(icon: .of(kind), active: active, size: Theme.Icon.row)
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .topTrailing) {
                 if app.showsDot(tab, state: dot) {
-                    StatusDot(state: dot, size: Theme.railDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
+                    StatusDot(state: dot, size: Theme.Icon.tabDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
                               borderWidth: Theme.railDotBorder)
-                        .offset(x: Theme.tabDotOffset, y: Theme.tabDotOffset)
+                        .offset(x: Theme.tabDotOffset, y: -Theme.tabDotOffset)
                         .help(app.statusText(dot, leaves: tab.root.leaves))
                 }
             }
@@ -515,7 +514,7 @@ struct TabItem: View {
                 Action.closeTab.perform(target, ctx)
             }
         }
-        .font(Theme.Typography.secondary.font())
+        .font(Theme.Typography.body.font())
         .foregroundStyle(active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
@@ -570,11 +569,11 @@ private struct DiffTabItem: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            IconView(icon: .diff, active: tab.active).padding(.trailing, Theme.iconGap)
+            IconView(icon: .diff, active: tab.active, size: Theme.Icon.row).padding(.trailing, Theme.iconGap)
             Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
-        .font(Theme.Typography.secondary.font())
+        .font(Theme.Typography.body.font())
         .foregroundStyle(tab.active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)

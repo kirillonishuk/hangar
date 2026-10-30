@@ -175,7 +175,7 @@ import Testing
     @Test func oldStateWithoutSidebarFieldsDecodes() throws {
         let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
         let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
-        #expect(s.sidebarWidth == 240)
+        #expect(s.sidebarWidth == 256)
         #expect(s.sidebarCollapsed == false)
         #expect(s.inspectorVisible == true)
         var changed = s
@@ -196,7 +196,7 @@ import Testing
     @Test func oldStateWithoutInspectorWidthLoads() throws {
         let json = #"{"projects":[],"tasks":[],"inspectorVisible":true}"#
         var s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
-        #expect(s.inspectorWidth == 340)
+        #expect(s.inspectorWidth == 320)
         s.inspectorWidth = 380
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s)).inspectorWidth == 380)
     }

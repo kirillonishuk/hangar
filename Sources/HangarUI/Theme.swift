@@ -9,28 +9,17 @@ public enum Theme {
     // Fonts: `Theme.Typography` (Theme+Tokens.swift).
 
     // Sizes
-    public static let sidebarWidth: CGFloat = 240
+    /// Sidebar 256 (200–320), inspector 320 (280–420): design system §2.4.
+    public static let sidebarWidth: CGFloat = 256
     public static let sidebarMin: CGFloat = 200
     public static let sidebarMax: CGFloat = 320
-    public static let tabBarHeight: CGFloat = 34
-    /// One titlebar across the whole window (redesign v1 §6).
-    public static let titleBarHeight: CGFloat = 38
-    /// Hit area of titlebar buttons (sidebar toggles), radius `railItemRadius`.
-    public static let titleButtonSize: CGFloat = 28
-    /// x of the left sidebar toggle: clear of the traffic lights (x 9…69); the same collapsed and expanded.
-    public static let titlebarToggleX: CGFloat = 84
-    /// Same toggle in full screen, where the traffic lights are hidden.
-    public static let titlebarFullScreenX: CGFloat = 12
-    public static let titlebarTrailing: CGFloat = 10
-    public static let titleBranchIcon: CGFloat = 12
-    /// Gap between the titlebar and «+ Новая сессия».
-    public static let sidebarTopGap: CGFloat = 8
+    public static let tabBarHeight: CGFloat = Height.barTabs
     public static let windowSize = NSSize(width: 1200, height: 760)
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
     /// Right sidebar (DESIGN.md «Раскладка»): default width, drag limits; tree level indent, file row padding (~22 high).
-    public static let inspectorWidth: CGFloat = 340
-    public static let inspectorMin: CGFloat = 300
+    public static let inspectorWidth: CGFloat = 320
+    public static let inspectorMin: CGFloat = 280
     public static let inspectorMax: CGFloat = 420
     public static let treeIndent: CGFloat = 12
     public static let fileRowPaddingV: CGFloat = 3
@@ -39,14 +28,6 @@ public enum Theme {
     public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
-    /// Window status bar (redesign v1 §7): height, side padding, gap between parts; clickable items 20 high, radius 4.
-    /// Also the height of a leaf's «↩ перезапустить» bar.
-    public static let statusBarHeight: CGFloat = 24
-    public static let statusBarPaddingH: CGFloat = 12
-    public static let statusBarGap: CGFloat = 12
-    public static let statusItemHeight: CGFloat = 20
-    public static let statusItemPaddingH: CGFloat = 4
-    public static let statusItemRadius: CGFloat = 4
     /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
     public static let drawerBarHeight: CGFloat = 28
     public static let drawerGrabHeight: CGFloat = 5
@@ -66,8 +47,8 @@ public enum Theme {
     public static let worktreeEndIcon: CGFloat = 12
     public static let rowPaddingH: CGFloat = 14
     public static let tabPaddingV: CGFloat = 6
-    public static let tabPaddingH: CGFloat = 14
-    public static let tabGap: CGFloat = 2
+    public static let tabPaddingH: CGFloat = Space.s3
+    public static let tabGap: CGFloat = Space.s1
     public static let tabRadius: CGFloat = 6
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
@@ -86,8 +67,8 @@ public enum Theme {
     public static let paneDragGhostShadowRadius: CGFloat = 10
     public static let paneDragGhostShadowOpacity: CGFloat = 0.5
     public static let tabTitleLeading: CGFloat = 8
-    public static let tabTitleTrailing: CGFloat = 10
-    public static let railRowHeight: CGFloat = 32
+    public static let tabTitleTrailing: CGFloat = Space.s2
+    public static let railRowHeight: CGFloat = Height.rowSidebar
     /// Icons v2 (decision #56): drawn on a 16 grid with a 1.5 pt line at every size.
     public static let iconSize: CGFloat = 16
     public static let iconGrid: CGFloat = 16
@@ -96,7 +77,7 @@ public enum Theme {
     public static let smallIconSize: CGFloat = 10
     /// Row markers sit on the rail's centre line in both modes (icons-sidebar.html `.g`), so the rail's icons line up with its tiles.
     public static let gutterMarkerX: CGFloat = sidebarRailWidth / 2
-    public static let gutterTextX: CGFloat = 34
+    public static let gutterTextX: CGFloat = gutterMarkerX + Icon.toolbar / 2 + Space.s2
     public static let sectionGap: CGFloat = 10
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
@@ -118,8 +99,8 @@ public enum Theme {
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4
     public static let paneHeaderPaddingH: CGFloat = 12
-    /// A split pane's header strip: constant, so the terminal never jumps when its buttons show.
-    public static let paneHeaderHeight: CGFloat = 24
+    /// A pane header (split pane, editor): constant, so the content never jumps when its buttons show.
+    public static let paneHeaderHeight: CGFloat = Height.barPane
     public static let paneHeaderIcon: CGFloat = 12
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = 2
@@ -161,7 +142,6 @@ public enum Theme {
     /// ↻ next to «обновлено …».
     public static let sheetIconButtonSize: CGFloat = 22
     // SSH hosts and the server sheet
-    public static let hostIconSize: CGFloat = 13
     /// «Claude Code на сервере»: wider than the card's usual 110, so the label stays on one line.
     public static let remoteIntegrationLabelWidth: CGFloat = 200
     public static let installTerminalHeight: CGFloat = 260
@@ -220,10 +200,8 @@ extension Theme {
 
     /// «Входящие»: the titlebar bell and its popover (look of the limits popover).
     public enum Inbox {
-        /// Reserved for up to «99+» right of the bell, so the bell never moves.
-        public static let countWidth: CGFloat = 22
-        public static let bellGap: CGFloat = 2
-        public static let bellPaddingH: CGFloat = 6
+        /// The toolbar bell's counter (§3.13): a `failed` circle 14 high.
+        public static let badge: CGFloat = 14
         public static let popoverWidth: CGFloat = 400
         public static let popoverPaddingV: CGFloat = 8
         public static let popoverPaddingH: CGFloat = 8
@@ -249,14 +227,6 @@ extension Theme {
             case .failed: ui.failed
             case .limit: ui.status(.limit)
             case .done: ui.text3
-            }
-        }
-
-        static func tint(_ tint: BellTint) -> Color {
-            switch tint {
-            case .accent: ui.accentText
-            case .failed: ui.failed
-            case .muted: ui.text2
             }
         }
     }

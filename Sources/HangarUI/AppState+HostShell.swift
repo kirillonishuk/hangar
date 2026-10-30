@@ -30,10 +30,10 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
-    /// What the inspector says instead of its data: no session, or a host's terminal (#64), which has no project folder —
-    /// the inspector still holds the previous session's files then, and must not show them.
+    /// What the inspector says instead of its data: a host's terminal (#64), which has no project folder — the inspector
+    /// still holds the previous chat's files then, and must not show them. No chat: the inspector is empty (§3.19).
     var inspectorNotice: String? {
-        guard let task = selectedTask else { return L10n.inspectorNoTask }
+        guard let task = selectedTask else { return nil }
         return isHostShellTask(task.id) ? L10n.inspectorHostShell : nil
     }
 

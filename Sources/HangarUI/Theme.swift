@@ -221,11 +221,8 @@ extension Theme {
         public static let paddingH: CGFloat = Space.s2
         /// Diff tab: the path header and hunk headers (mockup `.dh` 6×14, gap 12; `.hunk` 2×14).
         public static let headerPaddingV: CGFloat = Space.s2
-        /// Header's previous / next change buttons.
-        public static let navButtonWidth: CGFloat = Height.controlSmall
+        /// The «2 из 5» slot before the previous / next change buttons.
         public static let counterWidth: CGFloat = 48
-        public static let navButtonHeight: CGFloat = Height.controlSmall
-        public static let navButtonRadius: CGFloat = Radius.control
         public static let headerPaddingH: CGFloat = Space.s3
         public static let headerGap: CGFloat = Space.s3
 

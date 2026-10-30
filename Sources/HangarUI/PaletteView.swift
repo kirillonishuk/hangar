@@ -192,7 +192,7 @@ struct PaletteView: View {
             title(item, on: on)
             if !item.subtitle.isEmpty {
                 Text(item.subtitle)
-                    .font((item.kind == .file ? Theme.Typography.mono : Theme.Typography.secondary).font())
+                    .font(Theme.Typography.secondary.font())  // a file's folder as in the inspector (§3.7)
                     .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
                     .truncationMode(.head)
                     .layoutPriority(-1)
@@ -278,7 +278,8 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .rename: .rename
     case .prevTask: .chevronUp
     case .nextTask: .chevronDown
-    case .prevTab, .nextTab, .tab, .focusSplit, .quickOpen, .commandPalette, .attentionFilter: .chevronRight
+    case .prevTab: .chevronLeft
+    case .nextTab, .tab, .focusSplit, .quickOpen, .commandPalette, .attentionFilter: .chevronRight
     case .toggleSidebar: .sidebarLeft
     case .toggleInspector: .sidebarRight
     case .inspectorChanges: .diff

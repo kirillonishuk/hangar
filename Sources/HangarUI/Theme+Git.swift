@@ -37,8 +37,9 @@ extension Theme {
         static let maxLanes = 8
         /// Ref chips shown in a row, then «+k»; all refs are in the tooltip.
         static let maxRefs = 2
-        /// A log row's chips: widest, narrowest when the row is tight, gap; the subject always keeps `subjectMin`.
-        static let refMaxWidth: CGFloat = 104
+        /// A log row's chips: widest (`origin/release/2.0` whole), narrowest when the row is tight, gap; the subject
+        /// goes first and gives way down to `subjectMin`.
+        static let refMaxWidth: CGFloat = 160
         static let refMinWidth: CGFloat = 44
         static let refGap: CGFloat = Space.s1
         static let subjectMin: CGFloat = 72

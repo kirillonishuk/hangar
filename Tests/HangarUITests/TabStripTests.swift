@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Testing
 @testable import HangarUI
@@ -9,6 +10,13 @@ import Testing
     let control = Theme.tabGap + Theme.Height.controlRegular
 
     private func total(_ w: [CGFloat]) -> CGFloat { w.reduce(0, +) + gap * CGFloat(max(w.count - 1, 0)) }
+
+    /// Titles are measured in the tabs' font (`body` 13), italic for previews and the diff tab: «math.ts» is never cut.
+    @Test @MainActor func titlesMeasuredInTabFont() {
+        let small = ("math.ts" as NSString).size(withAttributes: [.font: Theme.Typography.secondary.nsFont()]).width
+        #expect(TabBarView.textWidth("math.ts") > small)
+        #expect(TabBarView.textWidth("math.ts", italic: true) >= TabBarView.textWidth("math.ts") - 1)
+    }
 
     @Test func roomyBarClampsNaturalWidths() {
         let l = TabStrip.layout(natural: [60, 150, 400], width: 2000)

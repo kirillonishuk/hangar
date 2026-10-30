@@ -141,7 +141,7 @@
 "branchDirtyNewHint" = "Новая ветка возьмёт изменения с собой.";
 "branchCheckedOutInChat" = "Ветка «%1$@» открыта в чате «%2$@»: одна ветка не может быть в двух папках сразу.";
 "branchCheckedOutAt" = "Ветка «%1$@» открыта в другой папке: %2$@";
-"branchIgnoredOverwrite" = "Ветка хранит файлы, которые здесь игнорируются, — git молча заменит их: %@. Перенесите их и попробуйте снова.";
+"branchIgnoredOverwrite" = "Git молча заменит файлы, которые здесь игнорируются, а в ветке есть: %@. Перенесите их и попробуйте снова.";
 "branchOperationInProgress" = "Не закончен git %@: завершите или отмените его, затем переключайтесь.";
 "fetchFailed" = "git fetch не удался";
 "createWithoutFetch" = "Создать без fetch";
@@ -309,7 +309,7 @@
 "statusShowChanges" = "Показать изменения";
 "segmentChanges" = "Изменения %d";
 "segmentChangesTitle" = "Изменения";
-"changesBaseNone" = "нет базы";
+"changesWholeBranch" = "Вся ветка";
 "changesHintToBase" = "Сравнить с %@ — ⌥B";
 "changesHintUncommitted" = "Не в коммите";
 "changesHintToUncommitted" = "Только не в коммите — ⌥B";
@@ -318,7 +318,6 @@
 "statusTruncated" = "Показаны первые %d изменений";
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
-"inspectorNoTask" = "Чат не выбран";
 "inspectorHostShell" = "Обычный SSH-терминал — нет папки проекта";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";

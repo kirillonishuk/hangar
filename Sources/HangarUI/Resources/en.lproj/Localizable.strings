@@ -309,7 +309,7 @@
 "statusShowChanges" = "Show changes";
 "segmentChanges" = "Changes %d";
 "segmentChangesTitle" = "Changes";
-"changesBaseNone" = "no base";
+"changesWholeBranch" = "Whole branch";
 "changesHintToBase" = "Compare with %@ — ⌥B";
 "changesHintUncommitted" = "Not committed";
 "changesHintToUncommitted" = "Not committed only — ⌥B";
@@ -318,7 +318,6 @@
 "statusTruncated" = "Showing the first %d changes";
 "filesTruncated" = "Not all files shown (over %d)";
 "gitFailed" = "git: %@";
-"inspectorNoTask" = "No chat selected";
 "inspectorHostShell" = "Plain SSH terminal — no project folder";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";

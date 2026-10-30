@@ -5,8 +5,6 @@ import Workspace
 extension Theme {
     /// The Monaco editor and diff (#80): code font and the page's own chrome (bars, buttons).
     enum Editor {
-        /// The diff's header row: as tall as the tab bar above it.
-        static let headerHeight: CGFloat = Theme.Height.barTabs
         static let buttonFont: CGFloat = Theme.Typography.secondary.size
         /// The conflict / notice bar above the text.
         static let barHeight: CGFloat = Theme.Height.barPane

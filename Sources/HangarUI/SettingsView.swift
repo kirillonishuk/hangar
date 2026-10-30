@@ -258,7 +258,7 @@ struct SettingsView: View {
                 .buttonStyle(.hangar(.secondary))
                 .fixedSize()
         case nil:
-            Pill(text: L10n.lspNotInstalled, color: Theme.ui.waiting)
+            Pill(text: L10n.lspNotInstalled, color: Theme.ui.text3)  // a fact, not a call to act (§5)
             if package.tool == nil || lsp.tools[package] != nil {
                 Button(L10n.lspDownload) { lsp.install(package) }
                     .buttonStyle(.hangar(.secondary))

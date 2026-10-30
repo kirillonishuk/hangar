@@ -144,8 +144,9 @@ struct TabBarView: View {
         }
         .frame(height: Theme.Height.barTabs)
         .background(WindowDragArea())
-        .background(Theme.ui.bg1)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+        // No chat: no strip (§3.19) — the bar takes the empty state's colour and loses its line.
+        .background(app.selectedTask == nil ? Theme.ui.bg0 : Theme.ui.bg1)
+        .overlay(alignment: .bottom) { if app.selectedTask != nil { Rectangle().fill(Theme.ui.line).frame(height: 1) } }
         .ignoresSafeArea()
         .onChange(of: activeKey) { reveal() }
     }
@@ -158,10 +159,11 @@ struct TabBarView: View {
         return (chrome + text).rounded(.up)
     }
 
-    private static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
-        let base = Theme.Typography.secondary.nsFont()
-        let font = italic ? NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask) : base
-        return (text as NSString).size(withAttributes: [.font: font]).width
+    /// In the tabs' own font (`body`, §3.4), so a short title is never cut.
+    static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
+        let base = Theme.Typography.body.nsFont()
+        let font = italic ? NSFont(descriptor: base.fontDescriptor.withSymbolicTraits(.italic), size: base.pointSize) ?? base : base
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
@@ -171,7 +173,7 @@ struct TabBarView: View {
         }
         var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
         if let diff = app.diffTabs[task.id] {
-            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true)))
+            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true)))
             whole.append(true)
         }
         return TabStrip.layout(natural: natural, whole: whole, width: width)
@@ -569,7 +571,7 @@ private struct DiffTabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             IconView(icon: .diff, active: tab.active, size: Theme.Icon.row).padding(.trailing, Theme.Space.iconGap)
-            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: (tab.path as NSString).lastPathComponent).italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(Theme.Typography.body.font())

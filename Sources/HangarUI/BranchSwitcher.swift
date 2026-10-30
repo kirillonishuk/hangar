@@ -66,6 +66,11 @@ import Workspace
         creating = true
     }
 
+    /// A new query: the last refusal was about another branch, it goes (a running action keeps its progress).
+    func edited() {
+        if progress == nil { refusal = nil }
+    }
+
     /// Esc in the new-branch step goes back to the list.
     func back() -> Bool {
         guard creating, progress == nil else { return false }
@@ -125,6 +130,7 @@ import Workspace
     var search = PopoverMenuContent.Search(placeholder: L10n.switcherSearch, mono: true, highlightFirst: true)
     search.prompt = { switcher.creating ? L10n.branchNamePrompt : nil }
     search.cancel = { switcher.back() }
+    search.edited = { switcher.edited() }
     var content = PopoverMenuContent(search: search, width: Theme.menuWidthWide) { switcher.entries($0) }
     content.note = { switcher.note }
     content.checkColumn = false  // the check and «+» share the icon slot (mockup)
@@ -156,9 +162,10 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
     guard let c, let head = c.head else { return [] }
     let name = query.trimmingCharacters(in: .whitespaces)
     if creating {
-        return [.header(L10n.branchFromCurrent(head.title)),
-                .item(PopoverMenuItem(title: name.isEmpty ? L10n.branchCreate : L10n.branchCreateNamed(name), icon: .add,
-                                      enabled: !busy && !name.isEmpty, keepsOpen: true) { create(name) })]
+        var item = PopoverMenuItem(title: name.isEmpty ? L10n.branchCreate : L10n.branchCreateNamed(name), icon: .add,
+                                   enabled: !busy && !name.isEmpty, keepsOpen: true) { create(name) }
+        item.monoSpan = name.isEmpty ? nil : name
+        return [.header(L10n.branchFromCurrent(head.title), mono: head.title), .item(item)]
     }
     let rows = branchSwitcherRows(c, query: query)
     var entries: [PopoverMenuEntry] = []
@@ -179,9 +186,11 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
     if name.isEmpty || !branchNameTaken(c, name) {
         if !entries.isEmpty { entries.append(.separator) }
         let title = name.isEmpty ? L10n.branchNewFrom(head.title) : L10n.branchCreateNamed(name)
-        entries.append(.item(PopoverMenuItem(title: title, icon: .add, enabled: !busy, keepsOpen: true) {
+        var item = PopoverMenuItem(title: title, icon: .add, enabled: !busy, keepsOpen: true) {
             if name.isEmpty { startCreating() } else { create(name) }
-        }))
+        }
+        item.monoSpan = name.isEmpty ? head.title : name
+        entries.append(.item(item))
     }
     return entries
 }

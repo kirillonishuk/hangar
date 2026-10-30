@@ -7,8 +7,8 @@ import Testing
     private var glyphs: [Icon] { Icon.allCases.filter { $0 != .claude && $0 != .codex } }
 
     @Test func fortyOneGlyphsAndTwoBrands() {
-        #expect(glyphs.count == 45)  // mac («Сессии» scope); filter (Search filters); bellSlash (muted session); + history, search (redesign v1); appearance, bell, plug (settings categories); lock, question, alert, check (inbox reasons); popOut (pane → own tab)
-        #expect(Icon.allCases.count == 47)
+        #expect(glyphs.count == 46)  // chevronLeft (palette «Предыдущая вкладка»); mac («Сессии» scope); filter (Search filters); bellSlash (muted session); + history, search (redesign v1); appearance, bell, plug (settings categories); lock, question, alert, check (inbox reasons); popOut (pane → own tab)
+        #expect(Icon.allCases.count == 48)
     }
 
     @Test func glyphsAreTemplatesOfTheRequestedSize() {

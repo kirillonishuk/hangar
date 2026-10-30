@@ -57,10 +57,6 @@ struct SearchPanel: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
-            if let engine = model.engine, model.status != .idle {
-                Text(verbatim: engine == .ripgrep ? "rg" : "git grep")
-                    .font(Theme.Typography.monoSmall.font())
-            }
         }
         .font(Theme.Typography.caption.font())
         .foregroundStyle(Theme.ui.text3)

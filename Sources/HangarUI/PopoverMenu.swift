@@ -18,6 +18,8 @@ struct PopoverMenuItem {
     var note: String?
     /// Branches, paths: `mono`.
     var mono = false
+    /// A branch inside a sentence («Создать ветку feat/x»): only this part of `title` is `mono` (§4).
+    var monoSpan: String?
     /// A status dot on the icon's corner (a tab in the overflow menu).
     var dot: AgentState?
     /// A file's own icon instead of `icon` (a path pick).
@@ -50,8 +52,8 @@ struct PopoverMenuItem {
 enum PopoverMenuEntry: Equatable {
     case item(PopoverMenuItem)
     case separator
-    /// Not clickable, never highlighted («redesign-v1 · feat/redesign-v1»).
-    case header(String)
+    /// Not clickable, never highlighted («redesign-v1 · feat/redesign-v1»); `mono` — the part in `mono` (a branch).
+    case header(String, mono: String? = nil)
 
     var item: PopoverMenuItem? { if case .item(let i) = self { i } else { nil } }
 
@@ -59,10 +61,10 @@ enum PopoverMenuEntry: Equatable {
     static func == (a: Self, b: Self) -> Bool {
         switch (a, b) {
         case (.separator, .separator): true
-        case (.header(let x), .header(let y)): x == y
+        case (.header(let x, let xm), .header(let y, let ym)): x == y && xm == ym
         case (.item(let x), .item(let y)):
             x.title == y.title && x.icon == y.icon && x.shortcut == y.shortcut && x.destructive == y.destructive
-                && x.enabled == y.enabled && x.checked == y.checked && x.note == y.note && x.mono == y.mono && x.dot == y.dot
+                && x.enabled == y.enabled && x.checked == y.checked && x.note == y.note && x.mono == y.mono && x.monoSpan == y.monoSpan && x.dot == y.dot
                 && x.file?.name == y.file?.name && x.file?.isDir == y.file?.isDir && x.help == y.help && x.keepsOpen == y.keepsOpen
         default: false
         }
@@ -87,7 +89,7 @@ private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .re
     let actions = Action.list(for: target, app: app)
     var entries: [PopoverMenuEntry] = []
     if case .task(let id) = target, !actions.isEmpty, let task = app.state.tasks.first(where: { $0.id == id }) {
-        entries.append(.header(task.branch.map { "\(task.name) · \($0)" } ?? task.name))
+        entries.append(.header(task.branch.map { "\(task.name) · \($0)" } ?? task.name, mono: task.branch))
     }
     for (i, action) in actions.enumerated() {
         if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { entries.append(.separator) }
@@ -153,10 +155,13 @@ struct PopoverMenuContent {
         var highlightFirst = false
         /// ↩ with nothing highlighted: the typed text (an author's name, a path).
         var submit: ((String) -> Void)?
-        /// Replaces `placeholder` while it returns a value (the switcher's new-branch name).
+        /// Replaces `placeholder` while it returns a value (the switcher's new-branch name): the field is a name then,
+        /// not a search, and loses its search icon.
         var prompt: (() -> String?)?
         /// Esc: true when handled (a step back), else the menu closes.
         var cancel: (() -> Bool)?
+        /// The typed text changed (before the list is rebuilt for it).
+        var edited: (() -> Void)?
     }
 
     init(search: Search? = nil, width: CGFloat = Theme.menuWidth, entries: @escaping (String) -> [PopoverMenuEntry]) {
@@ -390,6 +395,7 @@ final class PopoverMenuPanel: NSPanel {
 
     func queryChanged() {
         guard let search = content.search else { return }
+        search.edited?()
         menuState.refresh(content)
         menuState.highlighted = menuInitialHighlight(entries, highlightFirst: search.highlightFirst, preferChecked: false)
     }
@@ -426,11 +432,12 @@ struct PopoverMenuView: View {
         let layout = state.layout
         VStack(spacing: 0) {
             if let search = content.search {
+                let prompt = search.prompt?()
                 PickerSearchField(text: Binding(get: { state.query }, set: { state.query = $0; panel?.queryChanged() }),
-                                  placeholder: search.prompt?() ?? search.placeholder,
+                                  placeholder: prompt ?? search.placeholder,
                                   font: search.mono ? Theme.Typography.mono.nsFont() : Theme.Typography.body.nsFont(),
                                   onMove: { panel?.move($0) }, onSubmit: { panel?.submit() }, onCancel: { if let panel { panel.cancel() } else { PopoverMenu.close() } })
-                    .inputField(focused: true, icon: .search)  // the list's keys go through it: always the focused one
+                    .inputField(focused: true, icon: prompt == nil ? .search : nil)  // the list's keys go through it: always the focused one
                     .padding(.bottom, entries.isEmpty && state.note == nil ? 0 : Theme.menuPadding)
             }
             if !entries.isEmpty {
@@ -467,9 +474,9 @@ struct PopoverMenuView: View {
         case .item(let item): row(item, index: index, layout: layout)
         case .separator:
             Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.vertical, Theme.menuPadding)
-        case .header(let text):
-            Text(verbatim: text).lineLimit(1).truncationMode(.tail)
-                .font(Theme.Typography.caption.font(.semibold))
+        case .header(let text, let span):
+            Text(monoSpan(text, span: span, font: Theme.Typography.caption.font(.semibold), mono: Theme.Typography.monoSmall.font(.semibold)))
+                .lineLimit(1).truncationMode(.tail)
                 .foregroundStyle(Theme.ui.text3)
                 .padding(.horizontal, Theme.Space.s2)
                 .frame(maxWidth: .infinity, minHeight: Theme.Height.rowList, maxHeight: Theme.Height.rowList, alignment: .leading)
@@ -499,8 +506,9 @@ struct PopoverMenuView: View {
                     }
                 }
             }
-            Text(verbatim: item.title).lineLimit(1).truncationMode(.middle)
-                .font(item.mono ? Theme.Typography.mono.font() : Theme.Typography.body.font())
+            Text(monoSpan(item.title, span: item.mono ? item.title : item.monoSpan, font: Theme.Typography.body.font(),
+                          mono: Theme.Typography.mono.font()))
+                .lineLimit(1).truncationMode(.middle)
                 .foregroundStyle(text)
             Spacer(minLength: 0)
             if let key = item.shortcut {
@@ -621,4 +629,12 @@ struct PopoverMenuButton: View {
         IconButton(icon: icon, size: size, help: help) { PopoverMenu.show(entries(), below: anchor.view) }
             .background(MenuAnchorView(anchor: anchor))
     }
+}
+
+/// `text` in `font` with its last occurrence of `span` in `mono`: a branch inside a sentence keeps the branch's face (§4).
+func monoSpan(_ text: String, span: String?, font: Font, mono: Font) -> AttributedString {
+    var out = AttributedString(text)
+    out.font = font
+    if let span, !span.isEmpty, let r = out.range(of: span, options: .backwards) { out[r].font = mono }
+    return out
 }

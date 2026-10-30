@@ -72,7 +72,7 @@ import Workspace
         let all = menu.entries("")
         let titles = all.map { e -> String in
             switch e {
-            case .header(let t): "# " + t
+            case .header(let t, _): "# " + t
             case .item(let i): i.title + (i.checked ? " ✓" : "")
             case .separator: "—"
             }

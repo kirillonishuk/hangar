@@ -98,13 +98,16 @@ import Workspace
 
     @Test func newBranchStepStartsAtCurrentHead() {
         let empty = entries(choices(uncommitted: 2), creating: true)
-        #expect(empty.first == .header(L10n.branchFromCurrent("feat/discount")))
+        #expect(empty.first == .header(L10n.branchFromCurrent("feat/discount"), mono: "feat/discount"))
         #expect(items(empty).map(\.enabled) == [false])
         #expect(items(entries(choices(), query: "fix/x", creating: true)).map(\.title) == [L10n.branchCreateNamed("fix/x")])
+        // The branch inside the sentence is mono (§4).
+        #expect(items(entries(choices(), query: "fix/x", creating: true)).map(\.monoSpan) == ["fix/x"])
+        #expect(items(entries(choices())).last?.monoSpan == "feat/discount")
         let note = branchSwitcherNote(choices(uncommitted: 2), loadError: nil, creating: true, progress: nil, refusal: nil)
         #expect(note?.text == L10n.branchDirtyNewHint)
         // Detached: starts from the short hash.
-        #expect(entries(choices(head: .detached("abc1234")), creating: true).first == .header(L10n.branchFromCurrent("abc1234")))
+        #expect(entries(choices(head: .detached("abc1234")), creating: true).first == .header(L10n.branchFromCurrent("abc1234"), mono: "abc1234"))
         #expect(entries(choices(head: nil)).isEmpty)
     }
 

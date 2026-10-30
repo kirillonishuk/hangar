@@ -123,10 +123,10 @@ import Workspace
         case integrationConfirmTitle, backupWillBeCreated, backupCreated, linesUnchanged, apply, moveToApplications, integrationChecking
         case integrationMCP, copyCommand, commandCopied, mcpHint, dockBadgeTitle, dockBadgeHelp
         case fileCountOne, fileCountFew, fileCountMany, statusShowChanges
-        case segmentFiles, segmentChanges, segmentChangesTitle, changesBaseNone, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
+        case segmentFiles, segmentChanges, segmentChangesTitle, changesWholeBranch, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
-        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorNoTask, inspectorHostShell
+        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorHostShell
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -746,7 +746,7 @@ import Workspace
     static var keepAwakeShort: String { s(.keepAwakeShort) }
     static func segmentChanges(_ n: Int) -> String { f(.segmentChanges, Int32(clamping: n)) }
     static var segmentChangesTitle: String { s(.segmentChangesTitle) }
-    static var changesBaseNone: String { s(.changesBaseNone) }
+    static var changesWholeBranch: String { s(.changesWholeBranch) }
     static func changesHintToBase(_ branch: String) -> String { f(.changesHintToBase, branch) }
     static var changesHintUncommitted: String { s(.changesHintUncommitted) }
     static var changesHintToUncommitted: String { s(.changesHintToUncommitted) }
@@ -756,7 +756,6 @@ import Workspace
     static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
-    static var inspectorNoTask: String { s(.inspectorNoTask) }
     static var inspectorHostShell: String { s(.inspectorHostShell) }
 
     // Git tab (redesign v1 §4)

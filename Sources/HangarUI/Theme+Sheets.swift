@@ -37,7 +37,7 @@ extension Theme {
     /// Where a dragged part's chip lands (#110).
     public static let statuslineDropLine: CGFloat = 2
     /// A preview line wider than the card fades out over its last points instead of being cut.
-    public static let statuslinePreviewFade: CGFloat = 16
+    public static let statuslinePreviewFade: CGFloat = Space.s8
     public static let settingsHeaderGap: CGFloat = Space.s2
     /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
     public static let themeTileGap: CGFloat = Space.s3

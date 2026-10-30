@@ -50,9 +50,10 @@ public struct Git: Sendable {
         return r?.status == 0
     }
 
+    /// The output must be the name itself: `--branch` expands `@{-1}` and `@{-N}` to a previous branch.
     public func isValidBranchName(_ name: String) async -> Bool {
         let r = try? await runner.run(["git", "check-ref-format", "--branch", name], repo)
-        return r?.status == 0
+        return r?.status == 0 && r?.stdout.trimmed == name
     }
 
     // MARK: Branches
@@ -183,26 +184,26 @@ public struct Git: Sendable {
     // MARK: Helpers
 
     @discardableResult
-    private func exec(_ args: [String]) async throws -> String {
+    func exec(_ args: [String]) async throws -> String {
         let r = try await runner.run(["git"] + args, repo)
         guard r.status == 0 else { throw GitError(args: args, status: r.status, stderr: r.stderr.trimmed) }
         return r.stdout
     }
 
     /// Runs a "checking" command: exit 0 -> trimmed stdout, non-zero -> nil.
-    private func probe(_ args: [String]) async throws -> String? {
+    func probe(_ args: [String]) async throws -> String? {
         let r = try await runner.run(["git", "--no-optional-locks"] + args, repo)
         guard r.status == 0 else { return nil }
         let s = r.stdout.trimmed
         return s.isEmpty ? nil : s
     }
 
-    private func refExists(_ ref: String) async -> Bool {
+    func refExists(_ ref: String) async -> Bool {
         let r = try? await runner.run(["git", "--no-optional-locks", "rev-parse", "--verify", "--quiet", ref], repo)
         return r?.status == 0
     }
 }
 
-private extension String {
+extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }

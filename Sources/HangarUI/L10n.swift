@@ -108,6 +108,7 @@ import Workspace
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case switcherSearch, switcherLocal, switcherRemote, branchCurrent, branchInChatNote, branchInFolderNote, branchNewFrom, branchCreate, branchCreateNamed
         case branchNamePrompt, branchFromCurrent, branchSwitching, branchCreating, branchesLoading, branchSwitchHint
+        case branchDirtyRepo, branchSwitched, branchCreated
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
         case keepAwakeTitle
@@ -411,6 +412,9 @@ import Workspace
     static func branchCreating(_ name: String) -> String { f(.branchCreating, name) }
     static var branchesLoading: String { s(.branchesLoading) }
     static var branchSwitchHint: String { s(.branchSwitchHint) }
+    static func branchDirtyRepo(_ files: String) -> String { f(.branchDirtyRepo, files) }
+    static func branchSwitched(_ name: String) -> String { f(.branchSwitched, name) }
+    static func branchCreated(_ name: String) -> String { f(.branchCreated, name) }
     static func updatedAgo(_ age: String) -> String { f(.updatedAgo, age) }
     static var justNow: String { s(.justNow) }
     static func minutesAgo(_ n: Int) -> String { f(.minutesAgo, n) }

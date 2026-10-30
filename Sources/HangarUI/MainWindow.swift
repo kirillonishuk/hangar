@@ -266,6 +266,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                                                 toggleSidebar: { [weak self] in self?.toggleSidebar() })
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
+        app.branchModel.toast = { [weak self] in self?.column.archiveUndo.show(message: $0) }
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
             let reselect = self.app.selectedTask == nil

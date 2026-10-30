@@ -5,6 +5,8 @@ import Workspace
 
 /// The toolbar's branch switcher (spec design-system §3.2, decision #114) for one chat: its lists, the new-branch
 /// step, the action running, the last refusal. The menu closes after a switch or a new branch; a refusal stays in it.
+/// One per chat (`BranchModel.switchers`): an action outlives its menu — reopening shows it running, and a result that
+/// lands with the menu closed is a toast (a refusal also waits in the menu for the next open).
 @MainActor @Observable final class BranchSwitcher {
     let taskId: UUID
     private(set) var choices: BranchChoices?
@@ -14,6 +16,8 @@ import Workspace
     /// «Переключаю на x…» while git runs; everything is inactive.
     private(set) var progress: String?
     private(set) var refusal: PopoverMenuNote?
+    /// The refusal arrived with the menu closed: the next open still shows it.
+    @ObservationIgnored private var unseen = false
     @ObservationIgnored private weak var app: AppState?
     /// The menu this switcher is shown in: closed after a done action, if still open.
     @ObservationIgnored weak var panel: PopoverMenuPanel?
@@ -24,6 +28,17 @@ import Workspace
     }
 
     private var task: HangarTask? { app?.state.tasks.first { $0.id == taskId } }
+
+    private var isShown: Bool { panel.map { PopoverMenu.panel === $0 } ?? false }
+
+    /// The menu opens: the list starts over unless an action runs, an old refusal goes unless it was never seen.
+    func opened(in panel: PopoverMenuPanel) {
+        self.panel = panel
+        if progress == nil { creating = false }
+        if !unseen { refusal = nil }
+        unseen = false
+        Task { await load() }
+    }
 
     func load() async {
         guard let app, let task else { return }
@@ -62,44 +77,63 @@ import Workspace
     func switchTo(_ branch: Branch) {
         guard progress == nil, let app, let task else { return }
         if !branch.isRemote, choices?.head == .branch(branch.name) { return PopoverMenu.close(ifShowing: panel) }
-        run(L10n.branchSwitching(branch.name)) { await app.switchBranchError(of: task, to: branch) }
+        run(L10n.branchSwitching(branch.name), done: L10n.branchSwitched(branch.name)) { await app.switchBranchError(of: task, to: branch) }
     }
 
     func create(_ name: String) {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard progress == nil, !name.isEmpty, let app, let task else { return }
-        run(L10n.branchCreating(name)) { await app.createBranchError(of: task, name: name) }
+        run(L10n.branchCreating(name), done: L10n.branchCreated(name)) { await app.createBranchError(of: task, name: name) }
     }
 
-    private func run(_ what: String, _ action: @escaping () async -> Error?) {
+    private func run(_ what: String, done: String, _ action: @escaping () async -> Error?) {
         refusal = nil
+        unseen = false
         progress = what
+        announce(what)
         Task {
             let error = await action()
             progress = nil
-            guard let error else { return PopoverMenu.close(ifShowing: panel) }
-            refusal = branchRefusalNote(error, text: app?.branchText(error, projectId: task?.projectId ?? UUID()) ?? error.localizedDescription)
+            guard let error else {
+                if isShown { PopoverMenu.close(ifShowing: panel) } else { app?.branchModel.toast(done) }
+                return announce(done)
+            }
+            let text = app?.branchText(error, projectId: task?.projectId ?? UUID()) ?? error.localizedDescription
+            refusal = branchRefusalNote(error, text: text, subfolder: choices?.subfolder == true)
+            let spoken = [refusal?.lead, refusal?.text].compactMap { $0 }.joined(separator: " ")
+            if !isShown {
+                unseen = true
+                app?.branchModel.toast(spoken)
+            }
+            announce(spoken)
             await load()  // the count of changes or the taken branches may have moved meanwhile
         }
+    }
+
+    /// VoiceOver hears the progress and the result (the note changes without focus moving).
+    private func announce(_ text: String) {
+        guard let element = NSApp?.mainWindow ?? NSApp?.keyWindow else { return }
+        NSAccessibility.post(element: element, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 }
 
 /// Opens the switcher under the branch button. `onClose` runs when the menu goes away.
 @MainActor func showBranchSwitcher(app: AppState, task: HangarTask, below view: NSView?, onClose: @escaping () -> Void) {
-    let switcher = BranchSwitcher(app: app, taskId: task.id)
+    let switcher = app.branchModel.switchers[task.id] ?? BranchSwitcher(app: app, taskId: task.id)
+    app.branchModel.switchers[task.id] = switcher
     var search = PopoverMenuContent.Search(placeholder: L10n.switcherSearch, mono: true, highlightFirst: true)
     search.prompt = { switcher.creating ? L10n.branchNamePrompt : nil }
     search.cancel = { switcher.back() }
     var content = PopoverMenuContent(search: search, width: Theme.menuWidthWide) { switcher.entries($0) }
     content.note = { switcher.note }
-    content.iconSlot = true
+    content.checkColumn = false  // the check and «+» share the icon slot (mockup)
     content.onClose = onClose
     let before = PopoverMenu.panel
     PopoverMenu.show(content, below: view)
     // A click on the open switcher's button only closes it.
     guard let panel = PopoverMenu.panel, panel !== before else { return onClose() }
-    switcher.panel = panel
-    Task { await switcher.load() }
+    switcher.opened(in: panel)
 }
 
 /// Filtered (case-insensitive substring) lists: the current branch first among the local ones, then newest commit
@@ -142,8 +176,7 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
                                                  keepsOpen: !current) { switchTo(b) }))
         }
     }
-    let exists = c.local.contains { $0.name == name }
-    if name.isEmpty || !exists {
+    if name.isEmpty || !branchNameTaken(c, name) {
         if !entries.isEmpty { entries.append(.separator) }
         let title = name.isEmpty ? L10n.branchNewFrom(head.title) : L10n.branchCreateNamed(name)
         entries.append(.item(PopoverMenuItem(title: title, icon: .add, enabled: !busy, keepsOpen: true) {
@@ -151,6 +184,14 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
         }))
     }
     return entries
+}
+
+/// The typed text already names a branch: a local one, a remote one (`origin/main`), or a remote one by its short name
+/// (`release-2.4` existing only as `origin/release-2.4`, which the list offers to switch to with tracking).
+/// shortcut: the short name drops the first path part as the remote; a remote named with «/» isn't matched, change if one shows up.
+func branchNameTaken(_ c: BranchChoices, _ name: String) -> Bool {
+    c.local.contains { $0.name == name }
+        || c.remote.contains { $0.name == name || $0.name.split(separator: "/", maxSplits: 1).last.map(String.init) == name }
 }
 
 /// Under the list, by priority: the action running, its refusal, a failed load, loading, uncommitted changes
@@ -162,15 +203,21 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
     if let loadError { return PopoverMenuNote(text: loadError, tone: .failed) }
     guard let c else { return PopoverMenuNote(text: L10n.branchesLoading, busy: true) }
     guard c.uncommitted > 0 else { return nil }
-    return PopoverMenuNote(lead: L10n.branchDirty(L10n.fileCount(c.uncommitted)),
+    return PopoverMenuNote(lead: dirtyLead(c.uncommitted, subfolder: c.subfolder),
                            text: creating ? L10n.branchDirtyNewHint : L10n.branchDirtyHint + " " + L10n.branchDirtyNewHint, tone: .waiting)
 }
 
 /// A refused or failed action: uncommitted changes as the list shows them (count + what to do), the rest — the
 /// refusal's text (#114) or git's own — as a failure.
-@MainActor func branchRefusalNote(_ error: Error, text: String) -> PopoverMenuNote {
+@MainActor func branchRefusalNote(_ error: Error, text: String, subfolder: Bool = false) -> PopoverMenuNote {
     if case .dirty(let n) = error as? BranchSwitchError {
-        return PopoverMenuNote(lead: L10n.branchDirty(L10n.fileCount(n)), text: L10n.branchDirtyHint, tone: .waiting)
+        return PopoverMenuNote(lead: dirtyLead(n, subfolder: subfolder), text: L10n.branchDirtyHint, tone: .waiting)
     }
     return PopoverMenuNote(text: text, tone: .failed)
+}
+
+/// The count is the whole repository's (git switches it all): a project in a subfolder says so, or an empty «Изменения»
+/// next to it would look like a contradiction.
+@MainActor private func dirtyLead(_ n: Int, subfolder: Bool) -> String {
+    subfolder ? L10n.branchDirtyRepo(L10n.fileCount(n)) : L10n.branchDirty(L10n.fileCount(n))
 }

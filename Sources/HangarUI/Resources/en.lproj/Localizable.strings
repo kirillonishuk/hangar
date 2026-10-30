@@ -175,6 +175,9 @@
 "branchCreating" = "Creating branch %@…";
 "branchesLoading" = "Loading branches…";
 "branchSwitchHint" = "Opens the branch list: switch or create a new one";
+"branchDirtyRepo" = "There are uncommitted changes in the repository (%@, counting files outside the project folder).";
+"branchSwitched" = "Switched to %@";
+"branchCreated" = "Created branch %@";
 "updatedAgo" = "updated %@";
 "justNow" = "just now";
 "minutesAgo" = "%ld min ago";

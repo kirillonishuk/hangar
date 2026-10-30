@@ -141,8 +141,8 @@ struct PopoverMenuContent {
     var note: (() -> PopoverMenuNote?)?
     /// The menu closed (a pick, Esc, a click elsewhere, `close()`).
     var onClose: (() -> Void)?
-    /// The icon column stays when the text filters out every check and icon: the names don't move as you type.
-    var iconSlot = false
+    /// Forces the separate check column on or off (nil: from the entries, `PopoverMenuLayout`).
+    var checkColumn: Bool?
 
     struct Search {
         let placeholder: String
@@ -180,8 +180,8 @@ func menuInitialHighlight(_ entries: [PopoverMenuEntry], highlightFirst: Bool, p
 
 /// The columns and height a menu's entries need, worked out once per open / text change (not per hover).
 struct PopoverMenuLayout: Equatable {
-    /// A column of checks before the icons: a checked item has its own icon («все вкладки», a path pick). Otherwise
-    /// the check takes the icon's place (the branch switcher's «+» row shares it).
+    /// A column of checks before the icons: some item is checked and items have their own icons («все вкладки»,
+    /// a path pick). Without icons the check takes the icon's place.
     var checkColumn = false
     var iconColumn = false
     /// The list's natural height (items and headers `row.list`, separators 1 + 6 + 6), before the scroll cap.
@@ -190,8 +190,7 @@ struct PopoverMenuLayout: Equatable {
     init(_ entries: [PopoverMenuEntry]) {
         let icons = entries.contains { $0.item.map { $0.icon != nil || $0.file != nil } == true }
         let checks = entries.contains { $0.item?.checked == true }
-        // Only a checked item with its own icon needs both («все вкладки»); else the check takes the icon's place.
-        checkColumn = entries.contains { $0.item.map { $0.checked && ($0.icon != nil || $0.file != nil) } == true }
+        checkColumn = checks && icons
         iconColumn = icons || checks
         height = entries.reduce(0) { sum, e in
             if case .separator = e { return sum + 1 + 2 * Theme.menuPadding }
@@ -325,8 +324,12 @@ struct PopoverMenuLayout: Equatable {
         }
         self.entries = entries
         self.note = note
+        // Columns only appear while a menu is open: typing that filters out the checked item or every icon doesn't
+        // move the names sideways.
+        let was = layout
         layout = PopoverMenuLayout(entries)
-        if content.iconSlot { layout.iconColumn = true }
+        layout.checkColumn = content.checkColumn ?? (layout.checkColumn || was.checkColumn)
+        layout.iconColumn = layout.iconColumn || was.iconColumn
         if let h = highlighted, !entries.indices.contains(h) || entries[h].item?.enabled != true { highlighted = nil }
         changed()
     }

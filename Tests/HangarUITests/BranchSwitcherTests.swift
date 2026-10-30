@@ -47,6 +47,27 @@ import Workspace
         #expect(none[0].keepsOpen && none[0].enabled)
     }
 
+    /// A remote branch by its full or short name is not offered as a new one; the short name lists the remote to track.
+    @Test func noCreateRowForRemoteNames() {
+        #expect(branchNameTaken(choices(), "origin/main"))
+        #expect(branchNameTaken(choices(), "release-2.4"))
+        #expect(branchNameTaken(choices(), "main"))
+        #expect(!branchNameTaken(choices(), "feat/new"))
+        for q in ["origin/main", "release-2.4"] {
+            #expect(!items(entries(choices(), query: q)).contains { $0.title.contains(L10n.branchCreate) })
+        }
+        let release = items(entries(choices(), query: "release-2.4"))
+        #expect(release.map(\.title) == ["origin/release-2.4"] && release[0].enabled)
+    }
+
+    /// A project in a subfolder: the count is the repository's, and the note says so.
+    @Test func subfolderSaysRepositoryWide() {
+        var c = choices(uncommitted: 3)
+        c.subfolder = true
+        #expect(branchSwitcherNote(c, loadError: nil, creating: false, progress: nil, refusal: nil)?.lead == L10n.branchDirtyRepo(L10n.fileCount(3)))
+        #expect(branchRefusalNote(BranchSwitchError.dirty(files: 3), text: "", subfolder: true).lead == L10n.branchDirtyRepo(L10n.fileCount(3)))
+    }
+
     @Test func dirtyTreeDisablesSwitchingButNotNewBranch() {
         let e = items(entries(choices(uncommitted: 4)))
         let switches = e.filter { $0.mono && !$0.checked }
@@ -110,6 +131,8 @@ import Workspace
         app.requestHead(app.state.tasks[0])  // the toolbar shows it
         await app.branchModel.idle()
         let m = BranchSwitcher(app: app, taskId: id)
+        var toasts: [String] = []
+        app.branchModel.toast = { toasts.append($0) }
         func settle() async throws {
             for _ in 0..<300 where m.progress != nil { try await Task.sleep(nanoseconds: 20_000_000) }
             await app.branchModel.idle()
@@ -123,11 +146,18 @@ import Workspace
         try await settle()
         #expect(m.refusal == branchRefusalNote(BranchSwitchError.dirty(files: 1), text: ""))
         #expect(try String(contentsOfFile: t.repo + "/a.txt", encoding: .utf8) == "x")
+        // It finished with no menu open: a toast, and the next open still shows the refusal; the one after doesn't.
+        #expect(toasts.last == L10n.branchDirty(L10n.fileCount(1)) + " " + L10n.branchDirtyHint)
+        m.opened(in: PopoverMenuPanel(content: PopoverMenuContent([])))
+        #expect(m.refusal != nil)
+        m.opened(in: PopoverMenuPanel(content: PopoverMenuContent([])))
+        #expect(m.refusal == nil)
 
         m.startCreating()
         m.create("feat/new")
         try await settle()
         #expect(m.refusal == nil)
+        #expect(toasts.last == L10n.branchCreated("feat/new"))
         #expect(try await t.git("branch", "--show-current", in: t.repo) == "feat/new")
         #expect(app.head(of: app.state.tasks[0]) == .branch("feat/new"))
 

@@ -19,6 +19,10 @@ import Workspace
     @ObservationIgnored var lastFocusRefresh: Date?
     @ObservationIgnored private var loads: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var again: [String: (ids: [UUID], load: Load)] = [:]
+    /// The toolbar's switcher of each chat opened so far: its running action outlives the menu.
+    @ObservationIgnored var switchers: [UUID: BranchSwitcher] = [:]
+    /// A switcher's result that landed with its menu closed (the window shows it as a toast).
+    @ObservationIgnored var toast: (String) -> Void = { _ in }
 
     /// Returns true the first time the chat shows.
     func show(_ id: UUID) -> Bool {
@@ -63,6 +67,8 @@ struct BranchChoices: Equatable {
     var uncommitted: Int
     /// Branch → who has it checked out elsewhere: the chat's name, else the folder. Disabled in the list.
     var elsewhere: [String: String]
+    /// The project is a subfolder of its repository: `uncommitted` counts the whole repository.
+    var subfolder = false
 }
 
 extension AppState {
@@ -144,6 +150,7 @@ extension AppState {
         async let all = git.listBranches()
         async let uncommitted = git.uncommittedCount()
         async let checkedOut = git.checkedOutBranches()
+        async let location = git.location()
         let current = try await head
         var elsewhere: [String: String] = [:]
         for (branch, path) in try await checkedOut where current != .branch(branch) {
@@ -151,7 +158,7 @@ extension AppState {
         }
         let branches = try await all
         return BranchChoices(head: current, local: branches.filter { !$0.isRemote }, remote: branches.filter(\.isRemote),
-                             uncommitted: try await uncommitted, elsewhere: elsewhere)
+                             uncommitted: try await uncommitted, elsewhere: elsewhere, subfolder: !(try await location).prefix.isEmpty)
     }
 
     /// `git switch` in the chat's folder (decision #114). nil when done, else the message for the user.

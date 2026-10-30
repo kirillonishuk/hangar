@@ -202,7 +202,10 @@
 "worktreeRemoveFailed" = "Couldn't remove the copy";
 "branchKept" = "Branch “%@” is not merged — kept";
 "creatingWorktreeWait" = "Creating the copy — wait a few seconds";
-"worktreeRootInsideProject" = "The folder is inside the project: copies will appear in its tree";
+"worktreeRootInsideProject" = "This folder is inside the project: editors would watch the copies and slow down. Use a folder next to the project: %@";
+"worktreesInsideNotice" = "Copies live inside the project — editors watch them and slow down";
+"keepWorktreesBeside" = "Keep next to the project";
+"keepWorktreesBesideHelp" = "New copies go to %@. Existing ones stay where they are and keep working";
 "statusWorking" = "working";
 "statusWaiting" = "waiting for you";
 "statusDone" = "done";

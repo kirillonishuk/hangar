@@ -323,6 +323,34 @@ import Workspace
         #expect(drawer.focusedLeaf != nil)
     }
 
+    @Test func insideRootRefusedOnlyWhenNewlyTyped() {
+        #expect(worktreeRootRefused("/p/app/.claude/worktrees", stored: nil, path: "/p/app", remote: false))
+        #expect(worktreeRootRefused("/p/app", stored: "/p/app.worktrees", path: "/p/app/", remote: true))
+        // The stored inside folder (set before) is kept as is: existing copies keep working.
+        #expect(!worktreeRootRefused("/p/app/.claude/worktrees", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
+        #expect(!worktreeRootRefused(nil, stored: "/p/app/wt", path: "/p/app", remote: false))
+        // The stored folder in another spelling is still the stored one.
+        #expect(!worktreeRootRefused("/p/app/.claude/./worktrees/", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
+        #expect(worktreeRootRefused("/p/app/.claude/x/../wt", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
+        #expect(!worktreeRootRefused("/p/app.worktrees", stored: nil, path: "/p/app", remote: false))
+        // On a server the path is compared as typed: Linux is case-sensitive.
+        #expect(!worktreeRootRefused("/P/APP/wt", stored: nil, path: "/p/app", remote: true))
+    }
+
+    @Test func insideNoticeOnlyForInsideRoots() {
+        var p = Project(name: "app", location: .local(path: "/p/app"))
+        #expect(!worktreesInsideNoticeShown(p))
+        p.worktreeRoot = "/p/app.worktrees"
+        #expect(!worktreesInsideNoticeShown(p))
+        p.worktreeRoot = "/p/other/wt"
+        #expect(!worktreesInsideNoticeShown(p))
+        p.worktreeRoot = "/p/app/.claude/worktrees"
+        #expect(worktreesInsideNoticeShown(p))
+        let remote = Project(name: "api", location: .ssh(host: "box", path: "/srv/api"), worktreeRoot: "/srv/api/.wt")
+        #expect(worktreesInsideNoticeShown(remote))
+        #expect(!worktreesInsideNoticeShown(Project(name: "api", location: .ssh(host: "box", path: "/srv/api"), worktreeRoot: "/srv/api.worktrees")))
+    }
+
     @Test func worktreeRootInputValidation() {
         L10n.language = .en
         #expect(worktreeRootInput("") == .success(nil))
@@ -333,12 +361,7 @@ import Workspace
         #expect(L10n.pathMustBeAbsolute == "Use an absolute path")
         #expect(L10n.branchAuto("origin/main") == "default (origin/main)")
         #expect(L10n.worktreeFolder == "Where to create copies")
-        #expect(worktreeRootInsideProject("/p/app/wt", project: "/p/app"))
-        #expect(worktreeRootInsideProject("/p/app", project: "/p/app/"))
-        #expect(!worktreeRootInsideProject("/p/app.worktrees", project: "/p/app"))
-        #expect(!worktreeRootInsideProject("/p", project: "/p/app"))
-        #expect(worktreeRootInsideProject("~/app/wt", project: NSHomeDirectory() + "/app"))
-        #expect(worktreeRootInsideProject(" /p/app/wt ", project: " /p/app "))
+        #expect(L10n.worktreeRootInsideProject("~/dev/app.worktrees").hasSuffix("Use a folder next to the project: ~/dev/app.worktrees"))
         #expect(L10n.creatingWorktreeWait == "Creating the copy — wait a few seconds")
         L10n.language = .ru
         #expect(L10n.pathMustBeAbsolute == "Нужен абсолютный путь")

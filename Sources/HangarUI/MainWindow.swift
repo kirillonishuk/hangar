@@ -84,6 +84,8 @@ final class WindowRootController: NSViewController {
     private let split: NSSplitViewController
     let titleBar: NSHostingView<WindowTitleBar>
     let metrics: TitleBarMetrics
+    nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
+    private var observesWindow = false
 
     init(app: AppState, split: NSSplitViewController) {
         self.split = split
@@ -94,6 +96,8 @@ final class WindowRootController: NSViewController {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
     override func loadView() {
         let v = NSView()
@@ -118,9 +122,10 @@ final class WindowRootController: NSViewController {
         if split.splitViewItems.count > 1 {
             let column = split.splitViewItems[1].viewController.view
             column.postsFrameChangedNotifications = true
-            NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: column, queue: .main) { [weak self] _ in
+            observers.append(NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: column,
+                                                                    queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.updateContentX() }
-            }
+            })
         }
     }
 
@@ -140,9 +145,13 @@ final class WindowRootController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         let nc = NotificationCenter.default
-        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didResizeNotification] {
-            nc.addObserver(forName: name, object: view.window, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.metrics.update(from: self?.view.window) }
+        // Once: the window's notifications (a reappearing view must not add them again).
+        if !observesWindow, let window = view.window {
+            observesWindow = true
+            for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didResizeNotification] {
+                observers.append(nc.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.metrics.update(from: self?.view.window) }
+                })
             }
         }
         metrics.update(from: view.window)
@@ -929,6 +938,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.
     /// A new-task create is in progress: closing the window or quitting would abandon a half-made worktree.
     public var isCreatingTask: Bool { newTaskModel?.creating == true }
+    /// Full screen: the empty toolbar would only add a blank band over our own 52 (and could take its clicks).
+    public func windowWillEnterFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = false }
+    public func windowDidExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
+    /// Refused (e.g. the app is not active): no exit follows, so the toolbar comes back here.
+    public func windowDidFailToEnterFullScreen(_ window: NSWindow) { window.toolbar?.isVisible = true }
+
     public func windowShouldClose(_ sender: NSWindow) -> Bool {
         switch currentQuitDecision() {
         case .terminateNow: return true

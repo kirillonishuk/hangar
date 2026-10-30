@@ -400,9 +400,11 @@ extension MainWindowController {
             try? "moved=\(moves) ended=\(ended) target=\(String(describing: app.paneDropTarget)) tabs=\(frames)\n"
                 .write(toFile: NSTemporaryDirectory() + "hangar-pdrag.txt", atomically: true, encoding: .utf8)
         case "hit":
-            // hit <x> <y>: the view under a window point (from the top-left) and its frame in window coordinates.
+            // hit <x> <y>: the view under a window point (from the top-left) and its frame in window coordinates; from the
+            // window's frame view, so the titlebar and toolbar views count too.
             let v = arg.split(separator: " ").compactMap { Double($0) }
-            guard let content = window?.contentView, v.count == 2, let hit = content.hitTest(content.convert(NSPoint(x: v[0], y: content.frame.height - v[1]), from: nil)) else { return }
+            guard let frameView = window?.contentView?.superview, v.count == 2,
+                  let hit = frameView.hitTest(NSPoint(x: v[0], y: frameView.frame.height - v[1])) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
         case "connectHost": presentConnectHost()
         case "update":  // update check|show|install|later|dump <file>: the in-app updater (#86) against HANGAR_UPDATE_FEED
@@ -646,8 +648,9 @@ extension MainWindowController {
             uiLog.info("remote hosts=\(hosts, privacy: .public) phase=\(String(describing: server?.phase), privacy: .public) report=\(server?.report.map { "remote=\($0.remoteVersion ?? 0) tools=\($0.tools.keys.map(\.rawValue).sorted())" } ?? "-", privacy: .public)")
             uiLog.info("remote phase=\(String(describing: m?.phase), privacy: .public) server=\(String(describing: server?.phase), privacy: .public) steps=\(server?.plan.steps.map(\.command) ?? [], privacy: .public) manual=\(server?.plan.manual.map(\.rawValue) ?? [], privacy: .public) terminal=\(server?.installSpec?.command ?? "-", privacy: .public) hosts=\(hosts, privacy: .public) sheetWindow=\(self.window?.attachedSheet?.windowNumber ?? 0) main=\(self.window?.windowNumber ?? 0) sheetSize=\(String(describing: self.window?.attachedSheet?.frame.size), privacy: .public)")
         case "window":
-            // window minimize|restore|hide|unhide|out|front: occlusion changes without activating the app.
+            // window minimize|restore|hide|unhide|out|front: occlusion changes without activating the app; fullscreen toggles it.
             switch arg {
+            case "fullscreen": window?.toggleFullScreen(nil)
             case "minimize": window?.miniaturize(nil)
             case "restore": window?.deminiaturize(nil)
             case "hide": NSApp.hide(nil)

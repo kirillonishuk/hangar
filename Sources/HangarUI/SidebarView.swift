@@ -516,7 +516,7 @@ struct SidebarView: View {
     @ViewBuilder private func rowEnd(_ task: HangarTask, state: AgentState, selected: Bool) -> some View {
         switch state {
         case .waiting, .failed, .limit:
-            Text(L10n.statusLabel(state))
+            Text(L10n.rowStatus(state))
                 .font(Theme.Typography.caption.font())
                 .foregroundStyle(selected ? Theme.ui.onAccent : state == .failed ? Theme.ui.failedText : Theme.ui.waiting)
                 .lineLimit(1)

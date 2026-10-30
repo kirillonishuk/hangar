@@ -46,7 +46,7 @@ import Workspace
         super.init(frame: .zero)
         wantsLayer = true
         icon.image = Icon.shell.image
-        label.font = .systemFont(ofSize: Theme.fontSize.counter, weight: .semibold)
+        label.font = Theme.Typography.caption.nsFont(.semibold)
         [fill, icon, label, chevron].forEach(addSubview)
         setAccessibilityRole(.button)
         applyTheme()

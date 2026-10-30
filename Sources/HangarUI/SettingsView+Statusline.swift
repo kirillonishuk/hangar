@@ -71,7 +71,7 @@ extension SettingsView {
         return HStack(spacing: Theme.pickGap) {
             Text(verbatim: note.name).foregroundStyle(Theme.ui.text).lineLimit(1).layoutPriority(2)
             Text(verbatim: path)
-                .font(.system(size: Theme.fontSize.counter, design: .monospaced))
+                .font(Theme.Typography.monoSmall.font())
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: Theme.cardRowGap)
@@ -106,7 +106,7 @@ struct StatuslinePreview: View {
                     .lineLimit(1).truncationMode(.tail)
             }
         }
-        .font(.system(size: Theme.statuslinePreviewFont, design: .monospaced))
+        .font(Theme.Typography.mono.font())
         .padding(.horizontal, Theme.statuslinePreviewPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statuslinePreviewHeight, alignment: .leading)
         .clipped()
@@ -123,7 +123,7 @@ private struct StatuslineCells: View {
     let line: String
 
     var body: some View {
-        let cell = ("0" as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: Theme.statuslinePreviewFont, weight: .regular)]).width
+        let cell = ("0" as NSString).size(withAttributes: [.font: Theme.Typography.mono.nsFont()]).width
         HStack(spacing: 0) {
             ForEach(Array(statuslinePieces(line).enumerated()), id: \.offset) { _, piece in
                 switch piece {

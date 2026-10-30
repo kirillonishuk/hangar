@@ -100,7 +100,7 @@ private struct LimitBadge: View {
 
     var body: some View {
         Text(level == .full ? L10n.limitBadgeFull : L10n.limitBadgeAlmost)
-            .font(.system(size: Theme.Limit.badgeFont))
+            .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.Limit.textColor(level))
             .padding(.horizontal, Theme.Limit.badgePaddingH)
             .padding(.vertical, Theme.Limit.badgePaddingV)
@@ -152,7 +152,7 @@ struct LimitsBlock: View {
         let top = level(percent: limitBlockPercent(u), limitReached: u.limitReached)
         return HStack(spacing: Theme.Limit.rowGap) {
             Text(agent.rawValue)
-                .font(.system(size: Theme.Limit.nameFont))
+                .font(Theme.Typography.caption.font())
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1)
                 .frame(width: Theme.Limit.nameWidth, alignment: .leading)
@@ -163,7 +163,7 @@ struct LimitsBlock: View {
                 LimitBar(percent: week?.usedPercent ?? reached, level: week.map { windowLevel($0, in: u) } ?? top, height: Theme.Limit.blockBar)
             }
             Text(percentText(limitBlockPercent(u)))
-                .font(.system(size: Theme.Limit.percentFont).monospacedDigit())
+                .font(Theme.Typography.caption.font().monospacedDigit())
                 .foregroundStyle(Theme.Limit.textColor(top))
                 .frame(width: Theme.Limit.percentWidth, alignment: .trailing)
         }
@@ -220,7 +220,7 @@ struct LimitsPopover: View {
                 .buttonStyle(.hangar(.plain, .small))
                 .help(L10n.refreshLimitsHelp)
             }
-            .font(.system(size: Theme.fontSize.small))
+            .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.ui.text3)
             .padding(.top, Theme.railInset)
         }
@@ -233,14 +233,14 @@ struct LimitsPopover: View {
     private func agent(_ agent: UsageAgent, _ u: AgentUsage) -> some View {
         VStack(alignment: .leading, spacing: Theme.Limit.itemGap) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Limit.rowGap) {
-                Text(agentName(agent)).font(.system(size: Theme.Limit.agentFont, weight: .bold)).foregroundStyle(Theme.ui.textStrong)
+                Text(agentName(agent)).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.textStrong)
                 if let plan = u.plan { Text(plan).foregroundStyle(Theme.ui.text2) }
                 Spacer(minLength: 0)
                 Text(L10n.updatedAgo(ageLabel(since: u.updatedAt, now: app.usageClock)))
-                    .font(.system(size: Theme.fontSize.small).monospaced())
+                    .font(Theme.Typography.monoSmall.font())
                     .foregroundStyle(Theme.ui.text3)
             }
-            .font(.system(size: Theme.fontSize.small))
+            .font(Theme.Typography.caption.font())
             // Its own line: next to the name it would push «обновлено …» onto two lines.
             if limitBadgeWithoutWindows(u) { LimitBadge(level: .full) }
             ForEach(u.windows.sorted { rank($0.kind) < rank($1.kind) }, id: \.kind) { w in
@@ -252,16 +252,16 @@ struct LimitsPopover: View {
     private func window(_ w: UsageWindow, agent: UsageAgent, level: UsageLevel) -> some View {
         VStack(alignment: .leading, spacing: Theme.railInset) {
             HStack(spacing: Theme.Limit.rowGap) {
-                Text(limitWindowTitle(w.kind, agent: agent)).fontWeight(.medium).foregroundStyle(Theme.ui.text)
+                Text(limitWindowTitle(w.kind, agent: agent)).fontWeight(.semibold).foregroundStyle(Theme.ui.text)
                 Spacer(minLength: 0)
                 if level > .ok { LimitBadge(level: level) }
                 Text(percentText(w.usedPercent)).monospacedDigit().foregroundStyle(Theme.ui.text2)
             }
-            .font(.system(size: Theme.fontSize.footer))
+            .font(Theme.Typography.secondary.font())
             LimitBar(percent: w.usedPercent, level: level, height: Theme.Limit.popoverBar)
             if let r = w.resetsAt, r > app.usageClock {
                 Text(resetLabel(r, now: app.usageClock, calendar: .current))
-                    .font(.system(size: Theme.fontSize.small))
+                    .font(Theme.Typography.caption.font())
                     .foregroundStyle(Theme.ui.text3)
             }
         }

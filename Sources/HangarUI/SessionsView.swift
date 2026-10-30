@@ -47,7 +47,7 @@ struct SessionsView: View {
     private var header: some View {
         HStack(spacing: Theme.historyHeaderGap) {
             Text(L10n.sessionsTitle)
-                .font(.system(size: Theme.historyTitleSize, weight: .semibold))
+                .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.textStrong)
                 .fixedSize()
             // Only remote projects make a scope worth choosing.
@@ -157,7 +157,7 @@ struct SessionsView: View {
                     Text(L10n.sessionsLoading).foregroundStyle(Theme.ui.text3)
                 }
             case .offline(let host):
-                Text(L10n.sessionsOffline(host)).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                Text(L10n.sessionsOffline(host)).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
                 Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
                 Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary, .small))
             case .empty:
@@ -165,11 +165,11 @@ struct SessionsView: View {
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
-                    .font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                    .font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
                 Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(.hangar(.secondary, .small))
             }
         }
-        .font(.system(size: Theme.fontSize.base))
+        .font(Theme.Typography.body.font())
         .multilineTextAlignment(.center)
         .frame(maxWidth: Theme.historyCenterHintWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

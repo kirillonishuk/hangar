@@ -159,7 +159,7 @@ struct ServerCheckView: View {
             VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 ForEach(lines, id: \.self) { Text($0).foregroundStyle(Theme.ui.waiting) }
             }
-            .font(.system(size: Theme.fontSize.tab))
+            .font(Theme.Typography.secondary.font())
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, Theme.sheetMessageTop)
@@ -170,7 +170,7 @@ struct ServerCheckView: View {
         VStack(alignment: .leading, spacing: Theme.sheetMessageTop) {
             HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.installPlanTitle)
-                    .font(.system(size: Theme.fontSize.tab, weight: .semibold))
+                    .font(Theme.Typography.secondary.font(.semibold))
                     .foregroundStyle(Theme.ui.text2)
                 Spacer(minLength: 0)
                 if embedded, !model.plan.steps.isEmpty { InstallButton(model: model, primary: false) }
@@ -185,7 +185,7 @@ struct ServerCheckView: View {
                     // By title, not index: the plan shrinks after an install while the old rows are still diffed.
                     ForEach(model.plan.steps, id: \.title) { step in
                         Text(verbatim: step.command)
-                            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
+                            .font(Theme.Typography.monoSmall.font())
                             .foregroundStyle(Theme.ui.text2)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -218,7 +218,7 @@ struct ServerCheckView: View {
                 HStack(spacing: Theme.inlineGap) {
                     Checkbox(tool.rawValue, showsLabel: false, isOn: Binding(get: { model.optional.contains(tool) },
                                              set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } }))
-                    Text(verbatim: tool.rawValue).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    Text(verbatim: tool.rawValue).font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.sheetText)
                 }
                 .disabled(model.phase == .installing)
@@ -228,7 +228,7 @@ struct ServerCheckView: View {
 
     private func errorText(_ text: String) -> some View {
         Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+            .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.failed)
             .lineLimit(Theme.errorMaxLines)
             .fixedSize(horizontal: false, vertical: true)

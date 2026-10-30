@@ -59,10 +59,10 @@ struct SearchPanel: View {
             Spacer(minLength: 0)
             if let engine = model.engine, model.status != .idle {
                 Text(verbatim: engine == .ripgrep ? "rg" : "git grep")
-                    .font(.system(size: Theme.fontSize.counter, design: .monospaced))
+                    .font(Theme.Typography.monoSmall.font())
             }
         }
-        .font(.system(size: Theme.fontSize.counter))
+        .font(Theme.Typography.caption.font())
         .foregroundStyle(Theme.ui.text3)
         .frame(minHeight: Theme.GitTab.sectionHeight)
         .padding(.horizontal, Theme.rowPaddingH)
@@ -82,7 +82,7 @@ struct SearchPanel: View {
 
     private func line(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: Theme.fontSize.counter))
+            .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.ui.text3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -143,7 +143,7 @@ private struct SearchToggle: View {
     @Binding var on: Bool
 
     var body: some View {
-        Button { on.toggle() } label: { label.font(Theme.Typography.mono.font()) }
+        Button { on.toggle() } label: { label.font(Theme.Typography.monoSmall.font(.semibold)) }
             .buttonStyle(ChipStyle(on: on, square: true))
             .help(help)
             .accessibilityLabel(help)
@@ -201,13 +201,13 @@ private struct SearchFileHeader: View {
                 FileIconView(name: name)
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
-                        .font(.system(size: Theme.fontSize.row))
+                        .font(Theme.Typography.body.font())
                         .foregroundStyle(Theme.ui.textRow)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !dir.isEmpty {
                         Text(dir)
-                            .font(.system(size: Theme.fontSize.counter))
+                            .font(Theme.Typography.caption.font())
                             .foregroundStyle(Theme.ui.text3)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -216,7 +216,7 @@ private struct SearchFileHeader: View {
                     }
                 }
                 Text(verbatim: file.truncated ? "\(file.hits.count)+" : "\(file.hits.count)")
-                    .font(.system(size: Theme.fontSize.counter, design: .monospaced))
+                    .font(Theme.Typography.monoSmall.font())
                     .foregroundStyle(Theme.ui.text3)
             }
             .padding(.horizontal, Theme.rowPaddingH)
@@ -235,7 +235,7 @@ private struct SearchHitRow: View {
     var body: some View {
         HoverRow(action: action) { _ in
             Text(marked)
-                .font(.system(size: Theme.SearchTab.mono, design: .monospaced))
+                .font(Theme.Typography.mono.font())
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)

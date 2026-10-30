@@ -27,7 +27,7 @@ struct ConnectHostSheet: View {
             }
             .padding(.top, Theme.sheetNameTop)
             Text(L10n.plainSSHHint)
-                .font(.system(size: Theme.fontSize.tab))
+                .font(Theme.Typography.secondary.font())
                 .foregroundStyle(Theme.ui.text3)
                 .padding(.top, Theme.sheetMessageTop)
             footer

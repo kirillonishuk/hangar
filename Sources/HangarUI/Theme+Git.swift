@@ -80,14 +80,9 @@ extension Theme {
         /// Below this panel height the details replace the log (a window under ~640 pt).
         static let compactHeight: CGFloat = 540
         static let detailsHeader: CGFloat = 32
-        static let subjectFont: CGFloat = 13.5
-        static let subjectFontLarge: CGFloat = 14.5
-        static let bodyFont: CGFloat = 13
-        static let metaFont: CGFloat = 12
         static let metaPaddingV: CGFloat = 8
         static let filesHeader: CGFloat = 28
         static let fileIndent: CGFloat = 22
-        static let mono: CGFloat = 12
         /// The A / M / D letter column of a commit file.
         static let badgeWidth: CGFloat = 14
         /// Notices (offline, errors, empty): top and side padding.
@@ -106,6 +101,5 @@ extension Theme {
         static let fileRow: CGFloat = 24
         static let hitIndent: CGFloat = 36
         static let hitPaddingV: CGFloat = 3
-        static let mono: CGFloat = 12
     }
 }

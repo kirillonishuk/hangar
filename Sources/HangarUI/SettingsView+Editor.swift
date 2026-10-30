@@ -17,7 +17,7 @@ extension SettingsView {
                 }
             }
             Text(verbatim: L10n.editor)
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
+                .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.textStrong)
                 .padding(.top, Theme.EditorSettings.subsectionGap)
             editorThemeCard(ed)
@@ -58,7 +58,7 @@ extension SettingsView {
                 }
             }
             Text(verbatim: text).foregroundStyle(Theme.ui.text2)
-                .font(.system(size: Theme.fontSize.tab))
+                .font(Theme.Typography.secondary.font())
                 .lineLimit(Theme.EditorSettings.hintLines, reservesSpace: true)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -361,7 +361,7 @@ private struct EditorColorList: View {
         } label: {
             HStack(spacing: Theme.pickGap) {
                 IconView(icon: open ? .chevronDown : .chevronRight, size: Theme.pickChevronSize, tint: Theme.ui.text3)
-                Text(verbatim: title(section)).font(.system(size: Theme.fontSize.tab, weight: .semibold)).foregroundStyle(Theme.ui.text2)
+                Text(verbatim: title(section)).font(Theme.Typography.secondary.font(.semibold)).foregroundStyle(Theme.ui.text2)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)
@@ -399,7 +399,7 @@ private struct EditorColorList: View {
                     for c in changed { model.reset(c) }
                 }
             } else if !brackets {
-                Text(verbatim: theme.hex(color)).font(.system(size: S.hexFont, design: .monospaced)).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: theme.hex(color)).font(Theme.Typography.monoSmall.font()).foregroundStyle(Theme.ui.text3)
                     .fixedSize()
             }
         }

@@ -7,10 +7,10 @@ extension Theme {
     enum Editor {
         /// The diff's header row: as tall as the tab bar above it.
         static let headerHeight: CGFloat = Theme.tabBarHeight
-        static let buttonFont: CGFloat = Theme.fontSize.tab
+        static let buttonFont: CGFloat = Theme.Typography.secondary.size
         /// The conflict / notice bar above the text.
         static let barHeight: CGFloat = 30
-        static let barFont: CGFloat = Theme.fontSize.base
+        static let barFont: CGFloat = Theme.Typography.body.size
         static let radius: CGFloat = 6
     }
 }

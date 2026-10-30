@@ -137,7 +137,7 @@ struct PaletteView: View {
         VStack(spacing: 0) {
             PickerSearchField(text: Binding(get: { model.query }, set: { model.setQuery($0) }),
                               placeholder: L10n.paletteSearch,
-                              font: .systemFont(ofSize: Theme.paletteQueryFont),
+                              font: Theme.Typography.title.nsFont(),
                               onMove: { model.move($0) },
                               onSubmit: { if let item = model.highlighted { choose(item) } },
                               onCancel: close)
@@ -155,7 +155,7 @@ struct PaletteView: View {
     @ViewBuilder private var list: some View {
         if model.sections.isEmpty, !model.showsLoading {
             Text(L10n.paletteEmpty)
-                .font(.system(size: Theme.paletteRowFont))
+                .font(Theme.Typography.body.font())
                 .foregroundStyle(Theme.ui.text3)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -164,7 +164,7 @@ struct PaletteView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(model.sections, id: \.kind) { section in
                             Text(L10n.paletteSection(section.kind))
-                                .font(.system(size: Theme.fontSize.small, weight: .semibold))
+                                .font(Theme.Typography.caption.font(.semibold))
                                 .foregroundStyle(Theme.ui.text3)
                                 .frame(maxWidth: .infinity, minHeight: Theme.paletteSectionHeight, alignment: .bottomLeading)
                                 .padding(.horizontal, Theme.palettePaddingH)
@@ -172,7 +172,7 @@ struct PaletteView: View {
                         }
                         if model.showsLoading {
                             Text(L10n.paletteLoading)
-                                .font(.system(size: Theme.paletteDetailFont))
+                                .font(Theme.Typography.secondary.font())
                                 .foregroundStyle(Theme.ui.text3)
                                 .frame(maxWidth: .infinity, minHeight: Theme.paletteRowHeight, alignment: .leading)
                                 .padding(.horizontal, Theme.palettePaddingH)
@@ -192,7 +192,7 @@ struct PaletteView: View {
             title(item, on: on)
             if !item.subtitle.isEmpty {
                 Text(item.subtitle)
-                    .font(.system(size: Theme.paletteDetailFont, design: item.kind == .file ? .monospaced : .default))
+                    .font((item.kind == .file ? Theme.Typography.mono : Theme.Typography.secondary).font())
                     .foregroundStyle(Theme.ui.text3)
                     .truncationMode(.head)
                     .layoutPriority(-1)
@@ -220,12 +220,12 @@ struct PaletteView: View {
             var part = AttributedString(String(ch))
             if hits.contains(i) {
                 part.foregroundColor = Theme.ui.textStrong
-                part.font = .system(size: Theme.paletteRowFont, weight: .semibold)
+                part.font = Theme.Typography.body.font(.semibold)
             }
             s += part
         }
         return Text(s)
-            .font(.system(size: Theme.paletteRowFont))
+            .font(Theme.Typography.body.font())
             .foregroundStyle(on ? Theme.ui.selectionText : Theme.ui.text)
             .truncationMode(.tail)
     }
@@ -248,13 +248,13 @@ struct PaletteView: View {
                 if let branch = task?.branch {
                     HStack(spacing: Theme.paletteIconGap) {
                         IconView(icon: .branch, size: Theme.worktreeEndIcon)
-                        Text(branch).font(.system(size: Theme.paletteDetailFont, design: .monospaced)).truncationMode(.middle)
+                        Text(branch).font(Theme.Typography.mono.font()).truncationMode(.middle)
                     }
                 }
                 if let host = task.flatMap({ app.project($0.projectId)?.host }) {
                     HStack(spacing: Theme.paletteIconGap) {
                         IconView(icon: .sshHost, size: Theme.worktreeEndIcon)
-                        Text(host).font(.system(size: Theme.paletteDetailFont))
+                        Text(host).font(Theme.Typography.secondary.font())
                     }
                 }
             }

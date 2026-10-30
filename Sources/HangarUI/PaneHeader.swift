@@ -64,7 +64,7 @@ struct PaneHeader: View {
             .opacity(shown ? 1 : 0)
             .allowsHitTesting(shown)
         }
-        .font(.system(size: Theme.fontSize.counter))
+        .font(Theme.Typography.caption.font())
         .foregroundStyle(focused ? Theme.ui.text2 : Theme.ui.text3)
         .padding(.horizontal, Theme.paneHeaderPaddingH)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

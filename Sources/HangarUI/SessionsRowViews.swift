@@ -15,17 +15,17 @@ struct SessionsGroupHeader: View {
             HStack(alignment: .lastTextBaseline, spacing: Theme.historyGroupGap) {
                 IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.historyGroupIcon, tint: Theme.ui.text3)
                     .alignmentGuide(.lastTextBaseline) { $0[.bottom] - Theme.historyGroupBottom / 3 }
-                Text(verbatim: group.name).font(.system(size: Theme.fontSize.base, weight: .semibold)).foregroundStyle(Theme.ui.text)
+                Text(verbatim: group.name).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.text)
                     .lineLimit(1)
                 if showHost, let host = group.host {
                     HStack(spacing: Theme.historyColumnGap - 1) {
                         IconView(icon: .sshHost, size: Theme.historyHostIcon, tint: Theme.ui.text3)
-                        Text(verbatim: host).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3).lineLimit(1)
+                        Text(verbatim: host).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 0)
                 if !group.items.isEmpty {
-                    Text(verbatim: "\(group.items.count)").font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                    Text(verbatim: "\(group.items.count)").font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
                 }
             }
             .padding(.horizontal, Theme.historyPaddingH)
@@ -58,11 +58,11 @@ struct SessionsRow: View {
             place.frame(width: Theme.historyWhereWidth, alignment: .leading)
             state.frame(width: Theme.historyStateWidth, alignment: .leading).opacity(active ? 0 : 1)
             Text(verbatim: time)
-                .font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3).lineLimit(1)
+                .font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3).lineLimit(1)
                 .frame(width: Theme.historyTimeWidth, alignment: .trailing)
                 .opacity(active ? 0 : 1)
         }
-        .font(.system(size: Theme.fontSize.base))
+        .font(Theme.Typography.body.font())
         .foregroundStyle(Theme.ui.text)
         .padding(.horizontal, Theme.historyRowPaddingH)
         .frame(height: Theme.historyRowHeight)
@@ -110,7 +110,7 @@ struct SessionsRow: View {
         HStack(spacing: Theme.historyColumnGap) {
             if let glyph { IconView(icon: glyph, size: Theme.historyColumnIcon, tint: Theme.ui.text3) }
             if let text {
-                Text(verbatim: text).font(.system(size: Theme.fontSize.footer, design: .monospaced)).foregroundStyle(Theme.ui.text2)
+                Text(verbatim: text).font(Theme.Typography.mono.font()).foregroundStyle(Theme.ui.text2)
                     .lineLimit(1).truncationMode(.middle)
             }
         }
@@ -129,7 +129,7 @@ struct SessionsRow: View {
                 Text(L10n.sessionsMarkerHistory).foregroundStyle(Theme.ui.text3)
             }
         }
-        .font(.system(size: Theme.fontSize.footer))
+        .font(Theme.Typography.secondary.font())
         .lineLimit(1)
     }
 
@@ -217,7 +217,7 @@ struct SessionsNoteRow: View {
         HStack(spacing: Theme.historyRowGap) {
             if spinner { ProgressView().controlSize(.mini).frame(width: Theme.historyRowIcon) }
             if let dot { StatusDot(state: dot).frame(width: Theme.historyRowIcon) }
-            Text(verbatim: text).font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
+            Text(verbatim: text).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                 .lineLimit(1).truncationMode(.tail)
                 .help(help ?? "")
             if let button { Button(button, action: action).buttonStyle(.hangar(.secondary, .small)) }

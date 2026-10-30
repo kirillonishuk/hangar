@@ -151,11 +151,11 @@ struct RemoteProjectSheet: View {
                 ProgressView().controlSize(.small)
                 Text(L10n.hostConnecting).foregroundStyle(Theme.ui.text3)
             }
-            .font(.system(size: Theme.fontSize.tab))
+            .font(Theme.Typography.secondary.font())
             .padding(.top, Theme.sheetMessageTop)
         case .failed(let text, let mono):
             Text(verbatim: text)
-                .font(.system(size: Theme.fontSize.tab, design: mono ? .monospaced : .default))
+                .font((mono ? Theme.Typography.mono : Theme.Typography.secondary).font())
                 .foregroundStyle(Theme.ui.failed)
                 .lineLimit(Theme.errorMaxLines)
                 .fixedSize(horizontal: false, vertical: true)

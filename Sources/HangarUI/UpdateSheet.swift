@@ -45,7 +45,7 @@ struct UpdateSheet: View {
             if lines.isEmpty { Text(verbatim: L10n.updateNoNotes).foregroundStyle(Theme.ui.text3) }
             ForEach(lines.indices, id: \.self) { i in
                 Text(inline(lines[i].text))
-                    .font(.system(size: Theme.fontSize.sheetRow, weight: lines[i].heading ? .semibold : .regular))
+                    .font(Theme.Typography.body.font(lines[i].heading ? .semibold : .regular))
                     .foregroundStyle(lines[i].heading ? Theme.ui.textStrong : Theme.ui.text2)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)

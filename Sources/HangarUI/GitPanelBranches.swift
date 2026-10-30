@@ -31,7 +31,7 @@ struct GitBranchesBlock: View {
                     // The checked-out branch (or the detached hash) is the header; the list holds the rest.
                     IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.text2)
                     Text(verbatim: headTitle)
-                        .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+                        .font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -112,11 +112,11 @@ private struct GitBranchRow: View {
 
     @ViewBuilder private var title: some View {
         if row.kind == .head {
-            Text(verbatim: "HEAD").font(.system(size: Theme.fontSize.row)).foregroundStyle(Theme.ui.textRow)
+            Text(verbatim: "HEAD").font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.textRow)
             GitRefPill(ref: CommitRef(kind: .head, name: row.title), lane: 0, head: nil)
         } else {
             Text(verbatim: row.title)
-                .font(.system(size: Theme.fontSize.row, design: row.kind == .branch ? .monospaced : .default))
+                .font((row.kind == .branch ? Theme.Typography.mono : Theme.Typography.body).font())
                 .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -129,10 +129,10 @@ private struct GitBranchRow: View {
                 if b.ahead > 0 { Text(verbatim: "↑\(b.ahead)") }
                 if b.behind > 0 { Text(verbatim: "↓\(b.behind)") }
             }
-            .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+            .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.text3)
         } else if let count = row.count {
-            Text(verbatim: "\(count)").font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
+            Text(verbatim: "\(count)").font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
         }
     }
 

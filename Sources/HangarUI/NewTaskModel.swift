@@ -4,7 +4,7 @@ import Git
 import Observation
 import Workspace
 
-/// Logic of the new-task sheet: worktree toggle, base branch, background fetch, branch validation, worktree creation.
+/// Logic of the «Новый чат» sheet: name, where to work (project folder / separate copy), base branch, background fetch, branch validation, worktree creation.
 /// git runs only on open (`load`), on ↻ (`refresh`) and before create; no timers.
 @MainActor @Observable final class NewTaskModel {
     enum Availability: Equatable { case loading, notRepository, noCommits, ready, hostOffline(String) }
@@ -13,6 +13,16 @@ import Workspace
     var name = "" {
         didSet { if !branchEdited { suggestBranch() } }
     }
+    /// The first message for the agent; names the chat (and its branch) while «Название» is empty.
+    var message = "" {
+        didSet { if !branchEdited, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { suggestBranch() } }
+    }
+    /// «Задание для …» unfolded (folded by default: the prompt can be written later, in the tab).
+    var promptOpen = false
+    /// What the chat will be called (decision #116).
+    var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames) }
+    /// The project folder's HEAD, for «В папке проекта»; nil until loaded or outside git.
+    private(set) var head: Head?
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.
     var branch = "" {
         didSet { if !suggesting { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
@@ -44,6 +54,7 @@ import Workspace
     private(set) var commandToSave: String?
     let taskBranches: Set<String>
 
+    @ObservationIgnored private let chatNames: [String]
     @ObservationIgnored private let project: Project
     @ObservationIgnored private let git: Git
     @ObservationIgnored private var remotes: [String] = []
@@ -56,8 +67,9 @@ import Workspace
     @ObservationIgnored private var fetchId: UUID?
     @ObservationIgnored private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(project: Project, git: Git, taskBranches: Set<String>) {
+    init(project: Project, git: Git, taskBranches: Set<String>, chatNames: [String] = []) {
         self.project = project
+        self.chatNames = chatNames
         self.git = git
         self.taskBranches = taskBranches
         worktree = project.worktreeByDefault
@@ -67,7 +79,7 @@ import Workspace
     }
 
     var canCreate: Bool {
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !creating else { return false }
+        guard !creating else { return false }
         return !worktree || (availability == .ready && base != nil && branchError == nil)
     }
 
@@ -84,6 +96,7 @@ import Workspace
             worktree = false
             return
         }
+        head = try? await git.head()
         guard await git.hasCommits() else {
             availability = .noCommits
             worktree = false
@@ -257,7 +270,7 @@ import Workspace
     /// `name` itself if it has `/`, is a branch name and doesn't start with a remote (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
     /// remote of the same name; case-insensitive, as refs on macOS' disk) or its worktree folder exists, `-2`, `-3`, …
     private func suggestBranch() {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = chatName
         var suggestion = ""
         if !trimmed.isEmpty {
             let taken = Set(branches.map { b in

@@ -542,14 +542,23 @@ extension MainWindowController {
                 PopoverMenu.show(menu, at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
             default: debugMenu(parts[0], f.first ?? "", rest)
             }
-        case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
+        case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Ветка копии»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntMessage": newTaskModelForDebug?.message = arg  // as if typed into «Задание для …»
+        case "ntPrompt": newTaskModelForDebug?.promptOpen = arg == "open"  // the «Задание для …» fold
         case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
             if let sheet = window?.attachedSheet,
                let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
                                         windowNumber: sheet.windowNumber, context: nil, characters: "\r",
                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
                 uiLog.info("ntCreate handled=\(sheet.performKeyEquivalent(with: e))")
+            }
+        case "ntCancel":  // Esc into the sheet: «Отмена» (cancel action) runs, as a user's key would
+            if let sheet = window?.attachedSheet,
+               let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: sheet.windowNumber, context: nil, characters: "\u{1b}",
+                                        charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53) {
+                uiLog.info("ntCancel handled=\(sheet.performKeyEquivalent(with: e)) open=\(self.window?.attachedSheet != nil)")
             }
         case "ntState":  // the sheet's progress and errors
             if let m = newTaskModelForDebug {

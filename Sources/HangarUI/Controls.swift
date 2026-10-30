@@ -21,6 +21,11 @@ extension Theme {
         /// Checkbox 14, radius 4 (sheets).
         static let checkbox: CGFloat = 14
         static let checkboxRadius: CGFloat = 4
+        /// Radio option (§3.11, sheets): radio 14 — off a 1.5 `text3` ring, on a 4 `accent` ring; the chosen
+        /// option's fill is `accent` at .08 (a §3.11 value, not one of the §2.7 opacities).
+        static let radioEdge: CGFloat = 1.5
+        static let radioOnEdge: CGFloat = 4
+        static let optionFill = 0.08
         /// Switch 32 × 18, knob 14 (settings).
         static let switchWidth: CGFloat = 32
         static let switchHeight: CGFloat = 18
@@ -507,19 +512,22 @@ func segmentBadge(_ count: Int) -> String? {
 struct Checkbox: View {
     let label: String
     var showsLabel = true
+    /// Shown `mono` after the label («Подготовить копию: pnpm install»).
+    var detail: String?
     let on: Bool
     let toggle: (Bool) -> Void
     @Environment(\.isEnabled) private var enabled
 
-    init(_ label: String, showsLabel: Bool = true, on: Bool, toggle: @escaping (Bool) -> Void) {
+    init(_ label: String, showsLabel: Bool = true, detail: String? = nil, on: Bool, toggle: @escaping (Bool) -> Void) {
         self.label = label
         self.showsLabel = showsLabel
+        self.detail = detail
         self.on = on
         self.toggle = toggle
     }
 
-    init(_ label: String, showsLabel: Bool = true, isOn: Binding<Bool>) {
-        self.init(label, showsLabel: showsLabel, on: isOn.wrappedValue) { isOn.wrappedValue = $0 }
+    init(_ label: String, showsLabel: Bool = true, detail: String? = nil, isOn: Binding<Bool>) {
+        self.init(label, showsLabel: showsLabel, detail: detail, on: isOn.wrappedValue) { isOn.wrappedValue = $0 }
     }
 
     var body: some View {
@@ -532,16 +540,62 @@ struct Checkbox: View {
                     if on { IconView(icon: .check, size: Theme.Icon.inline, tint: Theme.ui.onAccent) }
                 }
                 .frame(width: Theme.Control.checkbox, height: Theme.Control.checkbox)
-                if showsLabel { Text(verbatim: label).foregroundStyle(Theme.ui.text1) }
+                if showsLabel { Text(verbatim: detail == nil ? label : label + ":").foregroundStyle(Theme.ui.text1) }
+                if let detail {
+                    Text(verbatim: detail).font(Theme.Typography.mono.font()).foregroundStyle(Theme.ui.text0)
+                        .lineLimit(1).truncationMode(.middle)
+                }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled)
-        .accessibilityLabel(label)
+        .accessibilityLabel(detail.map { label + ": " + $0 } ?? label)
         .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
         .accessibilityAddTraits(.isToggle)
+    }
+}
+
+/// Radio option (§3.11, sheets): a card — radio 14, title `body` 600, detail `secondary` `text2`; the chosen one has an
+/// `accent` edge on `accent` .08. Dims itself when disabled (once: callers put `.disabled` on it, no opacity).
+struct RadioOption: View {
+    let title: String
+    let detail: AttributedString
+    let selected: Bool
+    let choose: () -> Void
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.popover)
+        Button(action: choose) {
+            HStack(alignment: .top, spacing: Theme.Space.s2) {
+                Circle()
+                    .strokeBorder(selected ? Theme.ui.accent : Theme.ui.text3,
+                                  lineWidth: selected ? Theme.Control.radioOnEdge : Theme.Control.radioEdge)
+                    .background(Circle().fill(selected ? Theme.ui.onAccent : .clear))
+                    .frame(width: Theme.Control.checkbox, height: Theme.Control.checkbox)
+                    .padding(.top, (Theme.Typography.body.lineHeight - Theme.Control.checkbox) / 2)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: title).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.text0)
+                    Text(detail).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text2)
+                        .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(Theme.Space.s3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(shape.fill(selected ? Theme.ui.accent.opacity(Theme.Control.optionFill) : .clear))
+            .overlay(shape.strokeBorder(selected ? Theme.ui.accent : Theme.ui.line2))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
+        .pointingHand(enabled)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(String(detail.characters))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

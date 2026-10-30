@@ -387,24 +387,6 @@ import Workspace
         #expect(shown.notices.isEmpty)
     }
 
-    /// The bell counts permission + question + failed; the status bar's «ждёт внимания» only the selected project's
-    /// asking agents — a failure there is «ошибка», never «ждёт».
-    @Test func statusBarWaitsExcludeFailures() {
-        let f = make()
-        permission(f)
-        f.app.signal(.exited(code: 1), leaf: f.tab1.root.leaves[0].id)  // codex failed
-        send(f, f.otherTab, .stop, message: "ok")  // done: not counted
-        #expect(attentionCount(f.app.attentionItems) == 2)
-        #expect(f.app.statusBar.counts.failed == 1)
-        #expect(f.app.statusBar.counts.waiting == 1)
-        // Its click goes to that agent (not the all-projects inbox), from anywhere in the project.
-        f.app.perform { $0.select(taskId: f.other) }
-        f.app.revealNextWaiting()
-        #expect(f.app.state.selectedTaskId == f.task)
-        #expect(f.app.selectedTask?.activeTabId == f.tab0.id)
-        #expect(!f.app.inboxShown)
-    }
-
     @Test func leafVisibleRules() {
         let f = make()
         let a = f.tab0.root.leaves[0].id

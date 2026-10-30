@@ -110,7 +110,7 @@ import Update
         }
     }
 
-    /// The status-bar pill: an offer that wasn't skipped, while checks are on.
+    /// The toolbar pill: an offer that wasn't skipped, while checks are on.
     var pill: UpdateOffer? {
         guard feed != nil, enabled(), let offer, offer.version != record.skipped else { return nil }
         return offer
@@ -296,7 +296,6 @@ import Update
 }
 
 extension L10n {
-    static func updateAvailable(_ v: String) -> String { f(.updateAvailable, v) }
     static func updateTo(_ v: String) -> String { f(.updateTo, v) }
     static var updateAvailableHelp: String { s(.updateAvailableHelp) }
     static func updateSheetTitle(_ v: String) -> String { f(.updateSheetTitle, v) }

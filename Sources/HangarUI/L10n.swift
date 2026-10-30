@@ -141,17 +141,14 @@ import Workspace
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
-        // Window status bar (redesign v1 §7)
-        case thisMac, workingOne, workingFew, workingMany, attentionOne, attentionFew, attentionMany, failedOne, failedFew, failedMany, limitedOne, limitedFew, limitedMany
-        case notifySectionEvents, notifySectionSystem
-        case paneOne, paneFew, paneMany, statusMachineHelp, statusNextWorkingHelp, statusNextWaitingHelp, statusPanesHelp, statusFailedHelp
-        case updateAvailable, updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
+        case thisMac, notifySectionEvents, notifySectionSystem, cmdNextWorking
+        case updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
         case updateLater, updateSkip, updateDownloading, updateDownloadingPlain, updatePreparing, updateReady, updateQuitHint
         case updateManual, updateFailed, updateInstallFailed, updateChecksumMismatch, updateWrongApp, updateOpenPage
         case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
         case updateOtherInstance, updateUntrusted, updateBadSignature
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
-        case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsView, sessionsViewHelp
+        case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsViewHelp
         case segmentGit, showGit, gitBranch, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
         case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
@@ -680,21 +677,9 @@ import Workspace
     /// «1 файл / 2 файла / 5 файлов»; en has one/other only (few = many there).
     static func fileCount(_ n: Int) -> String { count(n, .fileCountOne, .fileCountFew, .fileCountMany) }
     static var statusShowChanges: String { s(.statusShowChanges) }
-    // Window status bar: «1 работает», «3 ждут внимания», «1 ошибка», «2 панели» (ru one/few/many; en one/other)
-    static func workingCount(_ n: Int) -> String { count(n, .workingOne, .workingFew, .workingMany) }
-    /// The bell's number (permission + question + failed), so a failure «ждёт внимания» too.
-    static func inboxCount(_ n: Int) -> String { count(n, .attentionOne, .attentionFew, .attentionMany) }
-    static func failedCount(_ n: Int) -> String { count(n, .failedOne, .failedFew, .failedMany) }
-    static func limitedCount(_ n: Int) -> String { count(n, .limitedOne, .limitedFew, .limitedMany) }
-    static func paneCount(_ n: Int) -> String { count(n, .paneOne, .paneFew, .paneMany) }
     static var thisMac: String { s(.thisMac) }
     static var notifySectionEvents: String { s(.notifySectionEvents) }
     static var notifySectionSystem: String { s(.notifySectionSystem) }
-    static var statusMachineHelp: String { s(.statusMachineHelp) }
-    static var statusNextWorkingHelp: String { s(.statusNextWorkingHelp) }
-    static var statusNextWaitingHelp: String { s(.statusNextWaitingHelp) }
-    static var statusFailedHelp: String { s(.statusFailedHelp) }
-    static var statusPanesHelp: String { s(.statusPanesHelp) }
     // Session rows (redesign v1): «ждёт · 1 агент», «работает · 2 субагента», «нет агентов · 1 вкладка»
     private static func count(_ n: Int, _ one: Key, _ few: Key, _ many: Key) -> String {
         // Russian has three forms by the last digits; English only «1» vs the rest (21 results, not 21 result).
@@ -712,7 +697,6 @@ import Workspace
     static var noAgents: String { s(.noAgents) }
     /// The row's short state word: «ждёт», not the tab's «ждёт ответа».
     static func rowStatus(_ state: AgentState) -> String { state == .waiting ? s(.rowWaiting) : statusLabel(state) }
-    static var sessionsView: String { s(.sessionsView) }
     static var sessionsViewHelp: String { s(.sessionsViewHelp) }
     static var showFiles: String { s(.showFiles) }
     static var segmentFiles: String { s(.segmentFiles) }
@@ -961,6 +945,7 @@ import Workspace
         case .commandPalette: s(.cmdCommandPalette)
         case .attentionFilter: s(.cmdAttentionOnly)
         case .nextAttention: s(.cmdNextAttention)
+        case .nextWorking: s(.cmdNextWorking)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
         case .tab(let n): "\(n)"

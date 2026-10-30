@@ -59,7 +59,7 @@ final class TaskColumnController: NSViewController {
             v.addSubview(sub)
         }
         NSLayoutConstraint.activate([
-            tabBar.topAnchor.constraint(equalTo: v.topAnchor),
+            tabBar.topAnchor.constraint(equalTo: v.topAnchor, constant: Theme.Height.barToolbar),
             tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
@@ -67,7 +67,7 @@ final class TaskColumnController: NSViewController {
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
-            sessions.topAnchor.constraint(equalTo: v.topAnchor),
+            sessions.topAnchor.constraint(equalTo: v.topAnchor, constant: Theme.Height.barToolbar),
             sessions.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             sessions.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             sessions.bottomAnchor.constraint(equalTo: v.bottomAnchor),
@@ -78,19 +78,18 @@ final class TaskColumnController: NSViewController {
     }
 }
 
-/// Window content (redesign v1 §1): one titlebar across the window, the three columns, the status bar at the bottom.
+/// Window content (design system §3.1): the three columns full height, the toolbar over their top 52 (the sidebar's
+/// head with the traffic lights left of the chat column).
 final class WindowRootController: NSViewController {
     private let split: NSSplitViewController
     let titleBar: NSHostingView<WindowTitleBar>
     let metrics: TitleBarMetrics
-    private let statusBar: NSHostingView<WindowStatusBar>
 
     init(app: AppState, split: NSSplitViewController) {
         self.split = split
         let metrics = TitleBarMetrics()
         self.metrics = metrics
         titleBar = NSHostingView(rootView: WindowTitleBar(app: app, metrics: metrics, inboxAction: { _, _, _ in }, toggleSidebar: {}))
-        statusBar = NSHostingView(rootView: WindowStatusBar(app: app))
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -100,31 +99,42 @@ final class WindowRootController: NSViewController {
         let v = NSView()
         addChild(split)
         titleBar.sizingOptions = []
-        statusBar.sizingOptions = []
-        for sub in [titleBar, split.view, statusBar] as [NSView] {
+        for sub in [split.view, titleBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
         NSLayoutConstraint.activate([
+            split.view.topAnchor.constraint(equalTo: v.topAnchor),
+            split.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            split.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            split.view.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             titleBar.topAnchor.constraint(equalTo: v.topAnchor),
             titleBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             titleBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            titleBar.heightAnchor.constraint(equalToConstant: Theme.titleBarHeight),
-            split.view.topAnchor.constraint(equalTo: titleBar.bottomAnchor),
-            split.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            split.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            split.view.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
-            statusBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            statusBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            statusBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: Theme.statusBarHeight),
+            titleBar.heightAnchor.constraint(equalToConstant: Theme.Height.barToolbar),
         ])
         view = v
+        // The toolbar's content follows the chat column's edge, also while the sidebar is dragged or animates.
+        if split.splitViewItems.count > 1 {
+            let column = split.splitViewItems[1].viewController.view
+            column.postsFrameChangedNotifications = true
+            NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: column, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateContentX() }
+            }
+        }
+    }
+
+    private func updateContentX() {
+        guard split.splitViewItems.count > 1 else { return }
+        let column = split.splitViewItems[1].viewController.view
+        let x = column.convert(column.bounds, to: view).minX
+        if metrics.contentX != x { metrics.contentX = x }
     }
 
     override func viewDidLayout() {
         super.viewDidLayout()
         metrics.update(from: view.window)
+        updateContentX()
     }
 
     override func viewDidAppear() {
@@ -136,6 +146,7 @@ final class WindowRootController: NSViewController {
             }
         }
         metrics.update(from: view.window)
+        updateContentX()
     }
 }
 
@@ -196,7 +207,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.toolbar = nil
+        // An empty unified toolbar puts the traffic lights at x 20, centre y 26: inside the sidebar's 52 head (§3.1).
+        window.toolbar = NSToolbar(identifier: "HangarMain")
+        window.toolbarStyle = .unified
         window.isMovableByWindowBackground = false
         window.backgroundColor = Theme.bg0
         window.appearance = NSAppearance(named: .darkAqua)
@@ -613,6 +626,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .commandPalette: togglePalette(commands: true)
         case .sessions: app.toggleSessionsView()
         case .findInFiles: app.showSearch()
+        case .nextWorking: app.selectNextWorking()
         case .nextAttention:
             // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }

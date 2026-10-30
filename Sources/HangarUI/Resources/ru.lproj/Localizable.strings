@@ -401,28 +401,9 @@
 "cmdLimits" = "Лимиты подписок";
 "cmdAttentionOnly" = "Только ждущие";
 "thisMac" = "Этот Mac";
-"workingOne" = "%d работает";
-"workingFew" = "%d работают";
-"workingMany" = "%d работают";
-"attentionOne" = "%d ждёт внимания";
-"attentionFew" = "%d ждут внимания";
-"attentionMany" = "%d ждут внимания";
-"failedOne" = "%d ошибка";
-"failedFew" = "%d ошибки";
-"failedMany" = "%d ошибок";
-"limitedOne" = "%d на лимите";
-"limitedFew" = "%d на лимите";
-"limitedMany" = "%d на лимите";
-"paneOne" = "%d панель";
-"paneFew" = "%d панели";
-"paneMany" = "%d панелей";
 "notifySectionEvents" = "События";
 "notifySectionSystem" = "Dock и система";
-"statusMachineHelp" = "Машина, на которой идёт чат";
-"statusNextWorkingHelp" = "Следующий работающий чат";
-"statusNextWaitingHelp" = "Следующий агент проекта, который ждёт ответа";
-"statusFailedHelp" = "Показать чат с ошибкой";
-"statusPanesHelp" = "Панели во вкладке";
+"cmdNextWorking" = "Следующий работающий чат";
 "agentCountOne" = "%d агент";
 "agentCountFew" = "%d агента";
 "agentCountMany" = "%d агентов";
@@ -434,7 +415,6 @@
 "tabCountMany" = "%d вкладок";
 "noAgents" = "нет агентов";
 "rowWaiting" = "ждёт";
-"sessionsView" = "История";
 "sessionsViewHelp" = "История";
 "segmentGit" = "Git";
 "showGit" = "Показать Git";
@@ -589,7 +569,6 @@
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";
 
 /* In-app updates (#86) */
-"updateAvailable" = "Доступна %@";
 "updateTo" = "Обновить до %@";
 "updateAvailableHelp" = "Новая версия Hangar: что нового и установка";
 "updateSheetTitle" = "Доступна версия %@";

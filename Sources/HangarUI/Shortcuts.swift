@@ -5,6 +5,8 @@ public enum Shortcut: Equatable, CaseIterable {
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
+    /// Palette only, no key (design system §6: what the status bar's «N работает» did); not in `allCases`, the key table.
+    case nextWorking
 
     public static var allCases: [Shortcut] {
         [.newTask, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
@@ -52,6 +54,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .sessions: (.command, 16, "Y")  // as Safari's History; free in Ghostty
         case .findInFiles: ([.command, .shift], 3, "F")  // as in VS Code
         case .nextAttention: ([.command, .option], 0, "A")  // the next leaf in the inbox's order
+        case .nextWorking: ([], .max, "")
         }
     }
 

@@ -2,7 +2,7 @@ import Testing
 @testable import HangarUI
 
 @MainActor @Suite struct KeepAwakeLookTests {
-    /// The setting lives in Settings → Уведомления; the status bar shows ☕ only while sleep is actually held.
+    /// The setting lives in Settings → Уведомления; the toolbar shows «не спать» only while sleep is actually held.
     @Test func indicatorOnlyWhileHolding() {
         #expect(showsKeepAwake(enabled: true, held: true))
         #expect(!showsKeepAwake(enabled: true, held: false))

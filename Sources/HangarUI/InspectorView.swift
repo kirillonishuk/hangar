@@ -2,13 +2,14 @@ import Git
 import SwiftUI
 
 /// Right column (decision #44): segment Files / Changes N / Git (git only) / Search (#91), the lazy file tree or the changes list.
-/// Top: the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
+/// Top: under the window toolbar (§3.1), the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
     let app: AppState
     private var model: InspectorModel { app.inspector }
 
     var body: some View {
         VStack(spacing: 0) {
+            Color.clear.frame(height: Theme.Height.barToolbar)
             header
             if let text = app.inspectorNotice {
                 notice(text)

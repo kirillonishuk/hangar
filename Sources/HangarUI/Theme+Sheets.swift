@@ -5,8 +5,6 @@ extension Theme {
     /// Confirmations (archive, delete, remove): narrower; their switch label takes most of the row.
     public static let confirmSheetWidth: CGFloat = 480
     public static let cardLabelWide: CGFloat = 300
-    /// Destructive button: `failed` at this strength under `failedText`.
-    public static let destructiveFillOpacity: Double = 0.18
     /// Card row content height = a field's: a segment, a picker, a `SheetButton` or a field fits, so every row is as tall.
     public static let cardRowMinHeight: CGFloat = Theme.Input.height
     /// Between footer / inline buttons, and between a title and its subtitle.
@@ -24,11 +22,6 @@ extension Theme {
     public static let sheetButtonHoverBrightness: Double = 0.06
 }
 
-extension Theme.ui {
-    /// Icon menus on the sheet background (`hover` is darker than `sheet`).
-    static var sheetHover: Color { hoverStrong }
-}
-
 extension Theme {
     /// Settings window (System Settings style): a category list on the left, the page on the right; resizable.
     public static let settingsSize = NSSize(width: 970, height: 600)
@@ -44,7 +37,6 @@ extension Theme {
     /// Settings' status line preview (#105): one terminal row, faint text at half the foreground as Ghostty draws it.
     public static let statuslinePreviewHeight: CGFloat = 30
     public static let statuslinePreviewPaddingH: CGFloat = 10
-    public static let statuslineFaint: Double = 0.5
     public static let statuslineBarHeavy: CGFloat = 2
     /// Where a dragged part's chip lands (#110).
     public static let statuslineDropLine: CGFloat = 2
@@ -73,5 +65,4 @@ extension Theme {
     /// Integration status pill: 20 high, 8 side padding, fill of its colour at 15 %.
     public static let pillHeight: CGFloat = 20
     public static let pillPaddingH: CGFloat = 8
-    public static let pillFillOpacity: Double = 0.15
 }

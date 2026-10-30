@@ -235,9 +235,9 @@ struct DiffView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Theme.ui.panel)
+            .background(Theme.ui.bg0)
         } else {
-            Theme.ui.panel
+            Theme.ui.bg0
         }
     }
 
@@ -255,7 +255,7 @@ struct DiffView: View {
         HStack(spacing: Theme.Diff.headerGap) {
             HStack(spacing: Theme.iconGap) {
                 FileIconView(name: (path as NSString).lastPathComponent)
-                Text(verbatim: path).foregroundStyle(Theme.ui.textStrong).fontWeight(.semibold)
+                Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.head)
             }
             // A commit's file (Git tab): which commit, as the details show its hash.
@@ -274,7 +274,7 @@ struct DiffView: View {
         .padding(.horizontal, Theme.Diff.headerPaddingH)
         // The slot of the editor's file-tab row: switching editor ↔ diff doesn't move the code.
         .frame(height: Theme.Editor.headerHeight)
-        .background(Theme.ui.bg)
+        .background(Theme.ui.bg0)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
@@ -299,7 +299,7 @@ struct DiffView: View {
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.Diff.navButtonRadius))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : Theme.Input.disabledOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .help(help)
     }
 

@@ -252,10 +252,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     @objc private func applyTheme() {
-        zone.layer?.backgroundColor = Theme.accent.withAlphaComponent(Theme.paneDropFillOpacity).cgColor
+        zone.layer?.backgroundColor = Theme.accent.withAlphaComponent(Theme.Opacity.fill).cgColor
         zone.layer?.borderColor = Theme.accent.cgColor
         dim.layer?.backgroundColor = Theme.paneDropScrim.cgColor
-        label.textColor = Theme.textStrong
+        label.textColor = Theme.text0
     }
 
     /// `pane` in the superview's coordinates.
@@ -299,10 +299,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.activeSegment.cgColor
-        layer?.borderColor = Theme.sheetBorder.cgColor
-        layer?.shadowColor = Theme.bg.cgColor
-        label.textColor = Theme.textStrong
+        layer?.backgroundColor = Theme.hover2.cgColor
+        layer?.borderColor = Theme.line2.cgColor
+        layer?.shadowColor = Theme.bg0.cgColor
+        label.textColor = Theme.text0
         icon.contentTintColor = Theme.text2
     }
 
@@ -328,7 +328,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         icon.frame = NSRect(x: pad, y: (h - s) / 2, width: s, height: s)
         label.frame = NSRect(x: pad + s + Theme.iconGap, y: (h - label.frame.height) / 2,
                              width: w - pad * 2 - s - Theme.iconGap, height: label.frame.height)
-        alphaValue = allowed ? Theme.paneDragGhostOpacity : Theme.paneDragGhostBlockedOpacity
+        alphaValue = allowed ? 1 : Theme.Opacity.inactive
         isHidden = false
     }
 }

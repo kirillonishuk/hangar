@@ -24,7 +24,7 @@ struct InspectorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.ui.inspector)
+        .background(Theme.ui.bg1)
         .ignoresSafeArea()
     }
 
@@ -55,9 +55,9 @@ struct InspectorView: View {
             segmentItem(L10n.segmentSearch, .search, help: L10n.help(L10n.findInFiles, .findInFiles))
         }
         .padding(Theme.segmentPadding)
-        // As the settings segment: on `bg` a `panel` track alone would be invisible.
+        // As the settings segment: on `bg1` a track alone would be invisible.
         .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).stroke(Theme.ui.control, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
         .animation(Motion.ease(Theme.selectionFade), value: model.segment)
     }
 
@@ -90,11 +90,11 @@ private struct SegmentItem: View {
             if let badge { SegmentBadge(text: badge, on: on) }
         }
         .font(Theme.Typography.secondary.font())
-        .foregroundStyle(on ? Theme.ui.textStrong : lit ? Theme.ui.text : Theme.ui.text2)
+        .foregroundStyle(on ? Theme.ui.text0 : lit ? Theme.ui.text1 : Theme.ui.text2)
         .padding(.vertical, Theme.segmentItemPaddingV)
         .padding(.horizontal, Theme.segmentBadgeGap)
         .frame(minWidth: reserveBadge ? Self.reserved(title) : 0, maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.moreBg : lit ? Theme.ui.segmentHover : .clear))
+        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.hover2 : lit ? Theme.ui.hover : .clear))
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .pointingHand(!on)
@@ -117,13 +117,12 @@ private struct SegmentBadge: View {
     var body: some View {
         Text(verbatim: text)
             .font(Theme.Typography.caption.font().monospacedDigit())
-            .foregroundStyle(on ? Theme.ui.text : Theme.ui.text2)
+            .foregroundStyle(Theme.ui.text3)
             .lineLimit(1)
             .fixedSize()
             .frame(minWidth: Self.width("0") - Theme.segmentBadgePaddingH * 2)
             .padding(.horizontal, Theme.segmentBadgePaddingH)
             .frame(height: Theme.segmentBadgeHeight)
-            .background(Capsule().fill(Theme.ui.text3.opacity(on ? Theme.segmentBadgeOnOpacity : Theme.segmentBadgeOpacity)))
     }
 
     /// Width of a badge with `digits` (at least round: as tall as wide).
@@ -263,7 +262,7 @@ private struct FileRow: View {
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)
                     .font(Theme.Typography.body.font())
-                    .foregroundStyle(Theme.ui.textRow)
+                    .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: Theme.railInset)
@@ -361,7 +360,7 @@ private struct ChangeRow: View {
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
                         .font(Theme.Typography.body.font())
-                        .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+                        .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !dir.isEmpty {

@@ -44,8 +44,6 @@ extension Theme {
         static let guideWidth: CGFloat = 1
         static let outlineWidth: CGFloat = 1.5
         static let outlineRadius: CGFloat = 3
-        /// Everything but the hovered row's tokens.
-        static let dimOpacity: Double = 0.25
         static let headerHeight: CGFloat = 34
 
         // Color list

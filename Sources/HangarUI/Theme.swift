@@ -58,8 +58,7 @@ public enum Theme {
     public static let statusDot: CGFloat = 8
     /// `waiting` halo: ring of `waiting` at 25%.
     public static let haloWidth: CGFloat = 3
-    public static let haloOpacity = 0.25
-    /// Rail monogram's corner dot and its `sidebar` border.
+    /// Rail monogram's corner dot and its `bg1` border.
     public static let railDot: CGFloat = 7
     public static let railDotBorder: CGFloat = 1.5
     /// Rail dot sticks out of the monogram's top-right corner by this much.
@@ -80,14 +79,7 @@ public enum Theme {
     public static let dragThreshold: CGFloat = 4
     /// Dragging a tab/pane over a pane: each edge's drop zone, as a share of that side (DESIGN «Сплиты»).
     public static let paneDropZone: CGFloat = 0.25
-    /// The highlighted half a dropped pane will take: `accent` fill at this opacity, `accent` outline.
-    public static let paneDropFillOpacity: CGFloat = 0.18
     public static let paneDropLineWidth: CGFloat = 2
-    /// The rest of the target pane: black at this opacity (`paneDropScrim`; a theme's `bg` is as dark as its terminal).
-    public static let paneDropDimOpacity: CGFloat = 0.45
-    /// The chip following the pointer (icon + name): faded where nothing can be dropped.
-    public static let paneDragGhostOpacity: CGFloat = 0.95
-    public static let paneDragGhostBlockedOpacity: CGFloat = 0.45
     public static let paneDragGhostHeight: CGFloat = 28
     public static let paneDragGhostPaddingH: CGFloat = 10
     public static let paneDragGhostMaxWidth: CGFloat = 260
@@ -129,14 +121,12 @@ public enum Theme {
     public static let projectTileRadius: CGFloat = 6
     public static let railItemRadius: CGFloat = 6
     public static let railInset: CGFloat = 4
-    public static let closeOpacity: Double = 0.4
     public static let paneHeaderPaddingH: CGFloat = 12
     /// A split pane's header strip: constant, so the terminal never jumps when its buttons show.
     public static let paneHeaderHeight: CGFloat = 24
     public static let paneHeaderIcon: CGFloat = 12
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = 2
-    public static let inactiveOpacity: Double = 0.38
     /// Row / toast / header actions (Controls.swift, controls-v2 B′): 22 high, radius 6, `secondary`, glyph 12.
     enum Control {
         static let height: CGFloat = 22
@@ -148,7 +138,6 @@ public enum Theme {
         static let hoverBrightness = 0.06
         static let pressedBrightness = -0.06
     }
-    public static let disabledButtonOpacity: Double = 0.45
 
     /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
     public static let sheetWidth: CGFloat = 620
@@ -161,14 +150,12 @@ public enum Theme {
     public static let sheetNameTop: CGFloat = 8
     public static let sheetGap: CGFloat = 12
     public static let sheetFooterPaddingV: CGFloat = 14
-    public static let pressedOpacity: Double = 0.8
     public static let fieldRadius: CGFloat = 7
     public static let fieldPaddingH: CGFloat = 11
     public static let buttonRadius: CGFloat = 7
     public static let buttonPaddingV: CGFloat = 5
     public static let buttonPaddingH: CGFloat = 14
     public static let focusRing: CGFloat = 3
-    public static let focusRingOpacity: Double = 0.18
     public static let settingsTopOffset: CGFloat = 80
     public static let cardRadius: CGFloat = 8
     public static let cardRowPaddingV: CGFloat = 9
@@ -179,22 +166,16 @@ public enum Theme {
     public static let segmentRadius: CGFloat = 7
     public static let segmentPadding: CGFloat = 2
     public static let segmentItemRadius: CGFloat = 5
-    /// Share of `textStrong` mixed into `field` for an inactive segment under the pointer.
-    public static let segmentHoverMix = 0.07
     public static let segmentItemPaddingV: CGFloat = 3
     public static let segmentItemPaddingH: CGFloat = 11
     /// The Changes count in the inspector segment: a capsule of `text3` (22 %, 30 % on the active part), label gap.
     public static let segmentBadgeHeight: CGFloat = 16
     public static let segmentBadgePaddingH: CGFloat = 5
     public static let segmentBadgeGap: CGFloat = 4
-    public static let segmentBadgeOpacity = 0.22
-    public static let segmentBadgeOnOpacity = 0.30
 
     // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
     /// One label column in every sheet: «Команда после создания» (~165 at `sheetRow`, ru) on one line.
     public static let cardLabelWidth: CGFloat = 168
-    /// Branch rows without worktree.
-    public static let dimmedRowOpacity: Double = 0.38
     /// git stderr shown under the card.
     public static let errorMaxLines = 6
     public static let pickRadius: CGFloat = 6
@@ -232,7 +213,6 @@ extension Theme {
         public static var warn: Color { ui.waiting }
         public static var full: Color { ui.failed }
         public static var fullText: Color { Color(nsColor: Theme.failedText) }
-        public static let badgeOpacity = 0.15
 
         public static func color(_ level: UsageLevel) -> Color {
             switch level {
@@ -327,7 +307,6 @@ extension Theme {
         public static var addMarker: Color { badgeA }
         public static var delMarker: Color { badgeD }
         public static var hunk: Color { ui.accentText }
-        public static var hunkBg: Color { ui.accentText.opacity(0.07) }
         public static var badgeM: Color { ui.of(Theme.palette.gitM) }
         public static var badgeA: Color { ui.of(Theme.palette.gitA) }
         public static var badgeD: Color { ui.of(Theme.palette.gitD) }
@@ -348,10 +327,8 @@ extension Theme {
         public static let headerPaddingH: CGFloat = 14
         public static let headerGap: CGFloat = 12
         public static let hunkPaddingV: CGFloat = 2
-        /// The clicked line: `selection` over its add/del background.
-        public static let selectedOpacity: Double = 0.7
 
-        /// Syntax colors: muted on `bg`, readable over the add/del tints; plain text stays `text`.
+        /// Syntax colors: muted on `bg0`, readable over the add/del tints; plain text stays `text1`.
         static func syntax(_ kind: SyntaxKind) -> Color { c(syntaxHex(kind)) }
 
         /// Also the Monaco theme's token colors (`MonacoTheme`).

@@ -45,7 +45,7 @@ struct ConnectHostSheet: View {
                 .buttonStyle(SheetButton(primary: true))
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(valid == nil)
-                .opacity(valid == nil ? Theme.disabledButtonOpacity : 1)
+                .opacity(valid == nil ? Theme.Opacity.inactive : 1)
         }
     }
 

@@ -47,7 +47,7 @@ extension SettingsView {
             .padding(.top, divider ? Theme.cardRowPaddingV : 0)
             .padding(.bottom, Theme.cardRowPaddingV)
             .padding(.horizontal, Theme.cardRowPaddingH)
-            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(divider ? 1 : 0) }
+            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1).opacity(divider ? 1 : 0) }
     }
 
     private func segmentTitle(_ s: StatuslineSegment) -> String {
@@ -69,7 +69,7 @@ extension SettingsView {
         }
         let path = (note.host.map { $0 + ":" } ?? "") + tildePath(note.path)
         return HStack(spacing: Theme.pickGap) {
-            Text(verbatim: note.name).foregroundStyle(Theme.ui.text).lineLimit(1).layoutPriority(2)
+            Text(verbatim: note.name).foregroundStyle(Theme.ui.text1).lineLimit(1).layoutPriority(2)
             Text(verbatim: path)
                 .font(Theme.Typography.monoSmall.font())
                 .foregroundStyle(Theme.ui.text3)
@@ -110,8 +110,8 @@ struct StatuslinePreview: View {
         .padding(.horizontal, Theme.statuslinePreviewPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statuslinePreviewHeight, alignment: .leading)
         .clipped()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.of(Theme.palette.termBg)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.of(Theme.palette.bg0)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(mode == .hangar ? L10n.statuslinePreview : L10n.statuslineUserPreview)
     }
@@ -166,8 +166,8 @@ func statuslinePieces(_ line: String) -> [StatuslinePiece] {
 
 @MainActor func statuslineColor(_ tone: AnsiSpan.Tone) -> Color {
     switch tone {
-    case .normal: Theme.ui.text
-    case .dim: Theme.ui.text.opacity(Theme.statuslineFaint)
+    case .normal: Theme.ui.text1
+    case .dim: Theme.ui.text3
     case .yellow: Theme.ui.of(Hex(Theme.palette.ansi[3]))
     case .red: Theme.ui.of(Hex(Theme.palette.ansi[1]))
     }
@@ -364,19 +364,19 @@ struct SegmentChip: View {
     var body: some View {
         Button(action: toggle) {
             Text(verbatim: title)
-                .foregroundStyle(on ? Theme.ui.textStrong : hover || dragging ? Theme.ui.text : Theme.ui.text3)
+                .foregroundStyle(on ? Theme.ui.text0 : hover || dragging ? Theme.ui.text1 : Theme.ui.text3)
                 .padding(.vertical, Theme.segmentItemPaddingV)
                 .padding(.horizontal, Theme.segmentItemPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                    .fill(on ? Theme.ui.control : hover || dragging ? Theme.ui.hover : .clear))
+                    .fill(on ? Theme.ui.hover2 : hover || dragging ? Theme.ui.hover : .clear))
                 .overlay(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                    .stroke(dragging ? Theme.ui.accent : Theme.ui.control, lineWidth: 1))
+                    .stroke(dragging ? Theme.ui.accent : Theme.ui.line2, lineWidth: 1))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .fixedSize()
         .offset(x: dx)
-        .opacity(enabled ? 1 : Theme.disabledButtonOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .chipCursor(enabled: enabled, grabbing: dragging)
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)

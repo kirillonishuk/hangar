@@ -11,8 +11,6 @@ extension Theme {
         public static let radius: CGFloat = 7
         public static let border: CGFloat = 1
         public static let focusRing: CGFloat = 3
-        public static let focusRingOpacity: Double = 0.18
-        public static let disabledOpacity: Double = 0.38
         /// Search glyph before the text, and the gap after it.
         public static let iconSize: CGFloat = 14
         public static let iconGap: CGFloat = 6
@@ -29,15 +27,15 @@ extension Theme {
 
 extension Theme.ui {
     static var inputBackground: Color { field }
-    static var inputText: Color { sheetText }
+    static var inputText: Color { text0 }
     static var inputPlaceholder: Color { text3 }
-    static var inputBorder: Color { control }
+    static var inputBorder: Color { line2 }
     static var inputFocus: Color { accent }
     static var inputError: Color { failed }
 }
 
-/// `field` fill, 1 pt `control` border, radius 7, height 28, side padding 9, `sheetRow` text; focused → `accent` border
-/// + 3 pt ring, invalid → `failed`, disabled → .38. Placeholder drawn here in `text3` (a prompt's colour is lost under
+/// `field` fill, 1 pt `line2` border, radius 7, height 28, side padding 9, `sheetRow` text; focused → `accent` border
+/// + 3 pt ring, invalid → `failed`, disabled → .4. Placeholder drawn here in `text3` (a prompt's colour is lost under
 /// `foregroundStyle`). `inline` (rename in a row) keeps the row's font and height and grows outwards instead.
 struct InputField: ViewModifier {
     var focused: Bool
@@ -65,10 +63,10 @@ struct InputField: ViewModifier {
             .background(shape.fill(Theme.ui.inputBackground))
             .overlay(shape.strokeBorder(edge, lineWidth: Theme.Input.border))
             .background(RoundedRectangle(cornerRadius: Theme.Input.radius + Theme.Input.focusRing)
-                .fill(edge.opacity(focused && !inline ? Theme.Input.focusRingOpacity : 0))
+                .fill(edge.opacity(focused && !inline ? Theme.Opacity.ring : 0))
                 .padding(-Theme.Input.focusRing))
             .padding(.horizontal, inline ? -Theme.Input.inlinePaddingH : 0)
-            .opacity(enabled ? 1 : Theme.Input.disabledOpacity)
+            .opacity(enabled ? 1 : Theme.Opacity.inactive)
             .textCursor()
             .animation(Motion.ease(Theme.hoverFade), value: focused)
     }

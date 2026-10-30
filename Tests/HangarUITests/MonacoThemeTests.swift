@@ -48,7 +48,7 @@ import Workspace
         ]
         for (key, hex) in ui { #expect(colors[key] == hex, "\(key)") }
         // Widgets stay Hangar's.
-        #expect(colors["editorWidget.background"] == ThemePalette.of(app).sheet.css)
+        #expect(colors["editorWidget.background"] == ThemePalette.of(app).bg2.css)
     }
 
     /// Every syntax group colors some token, every other color lands in Monaco's colors.
@@ -82,7 +82,7 @@ import Workspace
     @Test func customOnDarkPlusFollowsTheAppTheme() throws {
         let navy = try json(theme(.custom, base: .darkPlus, custom: [.string: "#d69d85"], app: .navy)).colors
         let dark = try json(theme(.custom, base: .darkPlus, custom: [.string: "#d69d85"], app: .darkPlus)).colors
-        #expect(navy["editor.background"] == ThemePalette.navy.editorBg.css)
+        #expect(navy["editor.background"] == ThemePalette.navy.bg0.css)
         #expect(navy["editor.background"] != dark["editor.background"])
         #expect(navy["editor.lineHighlightBackground"] == ThemePalette.navy.edLine.css)
     }
@@ -159,7 +159,7 @@ import Workspace
         }
         // Graphite's editor is its own warm grey with Dark+ syntax.
         c.theme = .graphite
-        #expect(EditorTheme(c).hex(.background) == EditorHex.of(ThemePalette.graphite.editorBg))
+        #expect(EditorTheme(c).hex(.background) == EditorHex.of(ThemePalette.graphite.bg0))
         #expect(EditorTheme(c).hex(.keyword) == "#569cd6")
     }
 

@@ -205,6 +205,21 @@ extension MainWindowController {
             case "leaf": debugLeafTarget(n)
             default: nil
             }
+            if parts[0] == "menu", f.first == "snap", f.count > 1, let first = app.orderedTasks.first {
+                // menu snap <png>: the first task's «⋯» menu drawn offscreen (an inactive app's menu closes at once).
+                // The first item highlighted, as under the pointer.
+                let panel = PopoverMenuPanel(entries: actionMenu(for: .task(first.id), ctx: ctx))
+                panel.menuState.highlighted = menuStep(panel.entries, from: nil, by: 1)
+                guard let view = panel.contentView else { return }
+                view.frame.size = view.fittingSize
+                DispatchQueue.main.async {
+                    guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: f[1]))
+                    _ = panel
+                }
+                return
+            }
             if parts[0] == "hover" {
                 app.debugHover = target
             } else if let target, let frame = window?.frame {

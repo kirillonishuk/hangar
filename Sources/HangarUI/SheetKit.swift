@@ -13,7 +13,7 @@ struct SheetHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
             Text(verbatim: title)
                 .font(Theme.Typography.title.font(.semibold))
-                .foregroundStyle(Theme.ui.sheetText)
+                .foregroundStyle(Theme.ui.text0)
             if let subtitle {
                 Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text3)
                     .lineLimit(1).truncationMode(.middle)
@@ -69,7 +69,7 @@ struct CardSection<Content: View>: View {
     }
 }
 
-/// On/off switch (themes-v1.html `.sw`): `primary` track when on, `control` when off; the whole switch is the button.
+/// On/off switch (themes-v1.html `.sw`): `accent` track when on, `hover2` when off; the whole switch is the button.
 struct CardSwitch: View {
     let on: Bool
     let toggle: (Bool) -> Void
@@ -88,8 +88,8 @@ struct CardSwitch: View {
         let knob = Theme.switchHeight - 2 * Theme.switchInset
         Button { toggle(!on) } label: {
             ZStack(alignment: on ? .trailing : .leading) {
-                Capsule().fill(on ? Theme.ui.primary : Theme.ui.control)
-                Circle().fill(on ? Theme.ui.primaryText : Theme.ui.text2)
+                Capsule().fill(on ? Theme.ui.accent : Theme.ui.hover2)
+                Circle().fill(on ? Theme.ui.onAccent : Theme.ui.text2)
                     .frame(width: knob, height: knob)
                     .padding(.horizontal, Theme.switchInset)
             }
@@ -97,7 +97,7 @@ struct CardSwitch: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .opacity(enabled ? 1 : Theme.disabledButtonOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled)
         .animation(Motion.ease(Theme.selectionFade), value: on)
         .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
@@ -116,19 +116,19 @@ struct Pill: View {
             .lineLimit(1)
             .padding(.horizontal, Theme.pillPaddingH)
             .frame(height: Theme.pillHeight)
-            .background(Capsule().fill(color.opacity(Theme.pillFillOpacity)))
+            .background(Capsule().fill(color.opacity(Theme.Opacity.fill)))
             .fixedSize()
     }
 }
 
 extension View {
-    /// The sheet frame: side paddings, one width for every sheet, `sheet` background, one-line rows.
+    /// The sheet frame: side paddings, one width for every sheet, `bg2` background, one-line rows.
     func sheetFrame(width: CGFloat = Theme.sheetWidth) -> some View {
         padding(.horizontal, Theme.sheetPaddingH)
             .frame(width: width)
             .font(Theme.Typography.body.font())
             .lineLimit(1)
-            .background(Theme.ui.sheet)
+            .background(Theme.ui.bg2)
     }
 }
 
@@ -203,7 +203,7 @@ extension NSWindow {
                                    done: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) -> NSWindow {
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.sheet
+        sheet.backgroundColor = Theme.bg2
         sheet.appearance = appearance
         let end: (NSApplication.ModalResponse) -> Void = { [weak self, weak sheet] response in
             guard let self, let sheet, sheet.sheetParent === self else { return }

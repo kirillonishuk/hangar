@@ -1,10 +1,10 @@
 import SwiftUI
 
-// One control language (controls-v2.html, B′ «Мягкие заливки», decision #106): a filled `primary` button for the one
-// main action of a row or toast; `button` fill for the rest; modes are Git-filter chips; header actions stay unfilled
+// One control language (controls-v2.html, B′ «Мягкие заливки», decision #106): a filled `accent` button for the one
+// main action of a row or toast; `hover2` fill for the rest; modes are Git-filter chips; header actions stay unfilled
 // until hovered; links stay `accentText`; hints are `text3` and never clickable. Keys go only into tooltips.
 
-/// Row / toast action, 22 high: `primary` for the row's one main action, otherwise `button` → `moreBg` under the
+/// Row / toast action, 22 high: `accent` for the row's one main action, otherwise `hover2` → `buttonHover` under the
 /// pointer; pressed darker, disabled .38, hand only while enabled. `destructive` (a trash icon): `failedText` when hovered.
 struct ActionButtonStyle: ButtonStyle {
     var primary = false
@@ -26,22 +26,22 @@ struct ActionButtonStyle: ButtonStyle {
             let lit = hover && enabled
             label
                 .font(Theme.Typography.secondary.font())
-                .foregroundStyle(primary ? Theme.ui.primaryText : lit && destructive ? Theme.ui.failedText : lit ? Theme.ui.textStrong : Theme.ui.text)
+                .foregroundStyle(primary ? Theme.ui.onAccent : lit && destructive ? Theme.ui.failedText : lit ? Theme.ui.text0 : Theme.ui.text1)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Control.paddingH)
                 .frame(height: Theme.Control.height)
                 .background(RoundedRectangle(cornerRadius: Theme.Control.radius)
-                    .fill(primary ? Theme.ui.primary : lit || pressed ? Theme.ui.moreBg : Theme.ui.button)
+                    .fill(primary ? Theme.ui.accent : lit || pressed ? Theme.ui.buttonHover : Theme.ui.hover2)
                     .brightness(pressed ? Theme.Control.pressedBrightness : primary && lit ? Theme.Control.hoverBrightness : 0))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.Control.radius))
-                .opacity(enabled ? 1 : Theme.inactiveOpacity)
+                .opacity(enabled ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled)
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }
     }
 }
 
-/// A big choice button (Claude / Codex / Терминал in an empty session or a chooser pane): `button` → `moreBg`, radius 7;
+/// A big choice button (Claude / Codex / Терминал in an empty session or a chooser pane): `hover2` → `buttonHover`, radius 7;
 /// the label brings its own padding.
 struct ChoiceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -56,7 +56,7 @@ struct ChoiceButtonStyle: ButtonStyle {
         var body: some View {
             label
                 .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                    .fill(hover || pressed ? Theme.ui.moreBg : Theme.ui.button)
+                    .fill(hover || pressed ? Theme.ui.buttonHover : Theme.ui.hover2)
                     .brightness(pressed ? Theme.Control.pressedBrightness : 0))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
                 .pointingHand()
@@ -78,8 +78,8 @@ struct ActionLabel: View {
     }
 }
 
-/// Section-header action («Очистить», «Обновить», status-bar counters): no fill at rest, `hoverStrong` under the
-/// pointer, text `text2` → `textStrong`.
+/// Section-header action («Очистить», «Обновить», status-bar counters): no fill at rest, `hover2` under the
+/// pointer, text `text2` → `text0`.
 struct HeaderActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         Body(label: configuration.label, pressed: configuration.isPressed)
@@ -94,14 +94,14 @@ struct HeaderActionStyle: ButtonStyle {
         var body: some View {
             let lit = hover && enabled
             label
-                .foregroundStyle(lit ? Theme.ui.textStrong : Theme.ui.text2)
+                .foregroundStyle(lit ? Theme.ui.text0 : Theme.ui.text2)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Control.headerPaddingH)
                 .frame(height: Theme.Control.height)
                 .background(RoundedRectangle(cornerRadius: Theme.Control.radius)
-                    .fill(lit || pressed ? Theme.ui.hoverStrong : .clear))
+                    .fill(lit || pressed ? Theme.ui.hover2 : .clear))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.Control.radius))
-                .opacity(enabled ? 1 : Theme.inactiveOpacity)
+                .opacity(enabled ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled)
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }
@@ -135,19 +135,17 @@ struct ModeChip: View {
             .padding(.horizontal, Theme.GitTab.chipLeading)
             .frame(height: Theme.GitTab.chipHeight)
             .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(fill))
-            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
-                .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : Theme.inactiveOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled && (toggles || !on))
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private var lit: Bool { hover && enabled && !on }
-    private var tint: Color { on ? Theme.ui.accentText : lit ? Theme.ui.text : Theme.ui.text2 }
-    private var fill: Color { on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : lit ? Theme.ui.hover : .clear }
+    private var tint: Color { on ? Theme.ui.accentText : lit ? Theme.ui.text1 : Theme.ui.text2 }
+    private var fill: Color { on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : lit ? Theme.ui.hover : .clear }
 }

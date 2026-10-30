@@ -66,8 +66,8 @@ struct SidebarView: View {
             .clipped()
         }
         .font(Theme.Typography.body.font())
-        .environment(\.hoverPalette, .sidebar)
-        .background(Theme.ui.sidebar)
+        .environment(\.hoverPalette, .focus)
+        .background(Theme.ui.bg1)
         .ignoresSafeArea()
     }
 
@@ -96,7 +96,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
                 IconView(icon: .add, tint: Theme.ui.accentText)
             } expanded: {
-                Text(L10n.newTask).foregroundStyle(Theme.ui.textRow)
+                Text(L10n.newTask).foregroundStyle(Theme.ui.text1)
             } rail: { EmptyView() }
         }
         .padding(.top, Theme.newTaskTop)
@@ -110,7 +110,7 @@ struct SidebarView: View {
                 IconView(icon: .history, active: app.sessionsViewVisible)
             } expanded: {
                 Text(L10n.sessionsView)
-                    .foregroundStyle(app.sessionsViewVisible ? Theme.ui.selectionText : Theme.ui.textRow)
+                    .foregroundStyle(app.sessionsViewVisible ? Theme.ui.onAccent : Theme.ui.text1)
             } rail: { EmptyView() }
         }
         .help(L10n.help(L10n.sessionsViewHelp, .sessions))
@@ -138,7 +138,7 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot)
+                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     if app.renaming == target {
@@ -148,7 +148,7 @@ struct SidebarView: View {
                     }
                     Text(app.project(task.projectId)?.name ?? "").lineLimit(1)
                         .font(Theme.Typography.secondary.font())
-                        .foregroundStyle(Theme.ui.text3)
+                        .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
@@ -157,7 +157,7 @@ struct SidebarView: View {
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
-            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+            .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
@@ -193,7 +193,7 @@ struct SidebarView: View {
                         // The same corner dot as a rail monogram's: visible in both modes, nothing moves.
                         Circle().fill(Theme.ui.waiting)
                             .frame(width: Theme.railDot, height: Theme.railDot)
-                            .background(Circle().fill(Theme.ui.sidebar).padding(-Theme.railDotBorder))
+                            .background(Circle().fill(Theme.ui.bg1).padding(-Theme.railDotBorder))
                             .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
                             .opacity(info?.needsAttention == true ? 1 : 0)
                     }
@@ -201,7 +201,7 @@ struct SidebarView: View {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: host).lineLimit(1).truncationMode(.middle)
                         .font(Theme.Typography.body.font())
-                        .foregroundStyle(Theme.ui.textRow)
+                        .foregroundStyle(Theme.ui.text1)
                     Spacer(minLength: 0)
                     if known {
                         Text(hostStatusLabel(info)).lineLimit(1)
@@ -231,7 +231,7 @@ struct SidebarView: View {
                      MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
         return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot)
+                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
@@ -247,7 +247,7 @@ struct SidebarView: View {
                 RailTile(text: monogram(host), state: dot, selected: selected)
             }
             .font(Theme.Typography.body.font())
-            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+            .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(name, dot))
@@ -384,7 +384,7 @@ struct SidebarView: View {
                         if renaming {
                             RenameField(app: app, target: target)
                         } else {
-                            Text(project.name).foregroundStyle(Theme.ui.textStrong).lineLimit(1)
+                            Text(project.name).foregroundStyle(Theme.ui.text0).lineLimit(1)
                         }
                     }
                     .font(Theme.Typography.body.font(.semibold))
@@ -440,12 +440,12 @@ struct SidebarView: View {
                     .overlay(alignment: .topTrailing) {
                         // Folded: its sessions are hidden in the rail too, so the tile carries their most urgent dot.
                         if let folded {
-                            StatusDot(state: folded.state, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
+                            StatusDot(state: folded.state, size: Theme.railDot, border: Theme.ui.bg1, borderWidth: Theme.railDotBorder)
                                 .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
                         }
                     }
             }
-            .opacity(exists ? 1 : Theme.inactiveOpacity)
+            .opacity(exists ? 1 : Theme.Opacity.inactive)
         }
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
@@ -510,7 +510,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, height: Theme.sessionRowHeight, indent: Theme.sessionIndent, trailing: Theme.sessionRowTrailing,
                       railReplacesMarker: true,
                       markerDY: Theme.sessionRowPaddingV + Theme.sessionNameLine / 2 - Theme.sessionRowHeight / 2) {
-                StatusDot(state: dot)
+                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
             } expanded: {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: Theme.rowSlotGap) {
@@ -537,8 +537,8 @@ struct SidebarView: View {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
             .font(Theme.Typography.body.font())
-            .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
-            .opacity(offline ? Theme.inactiveOpacity : 1)
+            .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
+            .opacity(offline ? Theme.Opacity.inactive : 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
@@ -550,7 +550,7 @@ struct SidebarView: View {
     /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
     private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
         HStack(spacing: 0) {
-            RowActionButton(icon: .pin, tint: task.pinned ? Theme.ui.textStrong : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
+            RowActionButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
                 app.setPinned(task.id, !task.pinned)
             }
             PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
@@ -582,7 +582,7 @@ struct SidebarView: View {
         }
         .padding(.top, Theme.bottomBarTop)
         .padding(.bottom, Theme.bottomBarBottom)
-        .background(Theme.ui.bottomBar)
+        .background(Theme.ui.bg1)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 }

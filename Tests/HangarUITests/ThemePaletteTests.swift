@@ -7,99 +7,89 @@ import Testing
 import Workspace
 @testable import HangarUI
 
-/// App themes (themes-v1.html): every token of the mockup in every theme, AA contrast, live switching.
+/// App themes: every theme fills every colour role (design-system spec §2.7) at the contrast the spec asks for; the
+/// size tokens keep their rules; live switching.
 @MainActor @Suite(.serialized) struct ThemePaletteTests {
-    /// `key:'value'` pairs of one theme's `t:{…}` and its `ansi:[…]` in the approved mockup.
-    private static func mockup(_ id: String) throws -> (tokens: [String: String], ansi: [String]) {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("docs/superpowers/mockups/themes-v1.html")
-        let html = try String(contentsOf: url, encoding: .utf8)
-        let start = try #require(html.range(of: "{ id:'\(id)'"))
-        let rest = html[start.upperBound...]
-        let t = try #require(rest.range(of: "t:{")), tEnd = try #require(rest[t.upperBound...].range(of: "},"))
-        var tokens: [String: String] = [:]
-        for pair in rest[t.upperBound..<tEnd.lowerBound].matches(of: /(\w+):'([^']+)'/) {
-            tokens[String(pair.output.1)] = String(pair.output.2)
-        }
-        let a = try #require(rest.range(of: "ansi:[")), aEnd = try #require(rest[a.upperBound...].range(of: "]"))
-        let ansi = rest[a.upperBound..<aEnd.lowerBound].split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "' ")) }
-        return (tokens, ansi)
-    }
+    /// Editor chrome, git graph rails and the Claude logo: stored next to the roles, not roles themselves.
+    private static let nonRoles: Set = ["edGutter", "edGutterActive", "edLine", "edSel", "edIndent", "lane1", "lane2", "lane3", "claude"]
 
-    @Test(arguments: AppTheme.allCases) func paletteHasEveryMockupToken(_ theme: AppTheme) throws {
-        let (tokens, ansi) = try Self.mockup(theme.rawValue)
-        let palette = ThemePalette.of(theme)
-        let ours = Dictionary(uniqueKeysWithValues: Mirror(reflecting: palette).children.compactMap { child -> (String, String)? in
-            guard let label = child.label, let hex = child.value as? Hex else { return nil }
-            return (label, hex.css)
-        })
-        #expect(tokens.count > 50)
-        #expect(Set(ours.keys) == Set(tokens.keys))
-        for (key, value) in tokens { #expect(ours[key] == value.lowercased(), "\(theme.rawValue).\(key)") }
-        #expect(palette.ansi.map { Hex($0).css } == ansi.map { $0.lowercased() })
-        #expect(palette.ansi.count == 16)
-    }
-
-    /// text1 / text2 stay AA (4.5 : 1) on every surface they sit on; button and menu text too.
-    @Test(arguments: AppTheme.allCases) func textPassesAA(_ theme: AppTheme) {
+    /// Every theme fills every role: opaque except the diff tints, 16 ANSI colours; every stored colour is a role or
+    /// one of `nonRoles`, so a new colour can't bypass the role list.
+    @Test(arguments: AppTheme.allCases) func paletteFillsEveryRole(_ theme: AppTheme) {
         let p = ThemePalette.of(theme)
-        for text in [p.tx, p.tx2] {
-            for surface in [p.bg, p.sidebar, p.selected, p.panel, p.sheet, p.sbHover, p.tabInactive] {
-                #expect(contrastRatio(text.rgb, surface.rgb) >= 4.5, "\(theme.rawValue) \(text.css) on \(surface.css)")
-            }
-        }
-        #expect(contrastRatio(p.primaryText.rgb, p.primary.rgb) >= 4.5)
-        #expect(contrastRatio(p.menuHoverText.rgb, p.menuHover.rgb) >= 4.5)
-        #expect(contrastRatio(p.failedText.rgb, p.sidebar.rgb) >= 4.5)
-        #expect(contrastRatio(p.tx3.rgb, p.sidebar.rgb) >= 3)
-    }
-
-    /// Every theme fills every colour role of the design system (spec §2.7): opaque except the diff tints, 16 ANSI.
-    @Test(arguments: AppTheme.allCases) func paletteFillsEveryRole(_ theme: AppTheme) throws {
-        let p = ThemePalette.of(theme)
-        let names = p.roles.map(\.key)
-        #expect(Set(names) == Set(try Self.specRoles()))
-        #expect(names.count == Set(names).count)
+        #expect(p.roles.map(\.key) == ThemePalette.roleNames)
+        #expect(ThemePalette.roleNames.count == Set(ThemePalette.roleNames).count)
         for (name, hex) in p.roles where !name.hasPrefix("diff") { #expect(hex.alpha == 1, "\(theme.rawValue).\(name)") }
+        let stored = Mirror(reflecting: p).children.compactMap { $0.value is Hex ? $0.label : nil }
+        #expect(Set(stored) == Set(ThemePalette.roleNames).union(Self.nonRoles))
         #expect(p.ansi.count == 16)
-        // Roles the palette already had under another name stay aliases until stage 4 (spec §8): nothing moves.
-        #expect(p.bg0 == p.bg && p.text0 == p.strong && p.text1 == p.tx && p.hover2 == p.hoverStrong)
     }
 
-    /// The role names of the §2.7 table, `ansi` and `editor*` aside.
-    private static func specRoles() throws -> [String] {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("docs/superpowers/specs/2026-10-30-design-system.md")
-        let md = try String(contentsOf: url, encoding: .utf8)
-        let start = try #require(md.range(of: "### 2.7")), end = try #require(md[start.upperBound...].range(of: "\n### "))
-        return md[start.upperBound..<end.lowerBound].split(separator: "\n").filter { $0.hasPrefix("| `") }.flatMap { row in
-            row.split(separator: "|")[0].matches(of: /`(\w+)`/).map { String($0.output.1) }
-        }
-    }
-
-    /// The contrast the design system requires (spec §2.7). Pairs that fail with today's values are listed and must
-    /// keep failing until stage 4 gives the roles their §2.7 values (then the list goes).
+    /// The contrast the design system requires (spec §2.7), plus `failedText` on the chrome and popovers.
     @Test(arguments: AppTheme.allCases) func rolesMeetSpecContrast(_ theme: AppTheme) {
         let p = ThemePalette.of(theme)
-        var failing: [String] = []
-        func need(_ fg: Hex, _ fgName: String, on bg: Hex, _ bgName: String, _ ratio: Double) {
-            if contrastRatio(fg.rgb, bg.rgb) < ratio { failing.append("\(fgName)/\(bgName)") }
+        func need(_ fg: Hex, on bg: Hex, _ ratio: Double, _ what: String) {
+            #expect(contrastRatio(fg.rgb, bg.rgb) >= ratio, "\(theme.rawValue) \(what): \(fg.css) on \(bg.css)")
         }
         for (t, tn) in [(p.text1, "text1"), (p.text2, "text2")] {
-            for (s, sn) in [(p.bg0, "bg0"), (p.bg1, "bg1"), (p.bg2, "bg2"), (p.selected, "selected")] { need(t, tn, on: s, sn, 4.5) }
+            for (s, sn) in [(p.bg0, "bg0"), (p.bg1, "bg1"), (p.bg2, "bg2"), (p.selected, "selected")] { need(t, on: s, 4.5, "\(tn)/\(sn)") }
         }
-        need(p.onAccent, "onAccent", on: p.selectedFocus, "selectedFocus", 4.5)
-        need(p.onAccent, "onAccent", on: p.accent, "accent", 4.5)
-        need(p.text3, "text3", on: p.bg1, "bg1", 3)
-        // shortcut: today's `accent` is the light focus blue / amber under white text; stage 4 sets the §2.7 accent.
-        let known: [AppTheme: [String]] = [.navy: ["onAccent/accent"], .graphite: ["onAccent/accent"]]
-        #expect(failing == known[theme, default: []], "\(theme.rawValue)")
+        need(p.onAccent, on: p.selectedFocus, 4.5, "onAccent/selectedFocus")
+        need(p.onAccent, on: p.accent, 4.5, "onAccent/accent")
+        need(p.text3, on: p.bg1, 3, "text3/bg1")
+        need(p.text3, on: p.bg2, 3, "text3/bg2")
+        for s in [p.bg1, p.bg2] { need(p.failedText, on: s, 4.5, "failedText") }
     }
 
-    /// Size tokens sit on the 4 pt grid (spec §2.1); the icon gap is the one exception.
+    /// §2.7's construction: `hover2` = `selected`; `bg1` one step above `bg0`, `bg2` one more; hover reads on `bg0`/`bg1`.
+    @Test(arguments: AppTheme.allCases) func rolesFollowTheConstruction(_ theme: AppTheme) {
+        let p = ThemePalette.of(theme)
+        func lum(_ h: Hex) -> Double { contrastRatio(h.rgb, 0x000000) }
+        #expect(p.hover2 == p.selected)
+        #expect(lum(p.bg0) < lum(p.bg1) && lum(p.bg1) < lum(p.bg2))
+        #expect(lum(p.bg1) < lum(p.hover) && lum(p.hover) < lum(p.hover2))
+    }
+
+    /// §2.1: every spacing is on the 4 pt grid, from 4 to 32; the icon gap is the one exception.
     @Test func spacingIsOnTheGrid() {
         let space = [Theme.Space.s1, Theme.Space.s2, Theme.Space.s3, Theme.Space.s4, Theme.Space.s5, Theme.Space.s6, Theme.Space.s8]
-        #expect(space == [4, 8, 12, 16, 20, 24, 32])
+        #expect(space.allSatisfy { $0.truncatingRemainder(dividingBy: 4) == 0 })
+        #expect(space == space.sorted() && Set(space).count == space.count)
+        #expect(space.first == 4 && space.last == 32)
+        #expect(Theme.Space.iconGap.truncatingRemainder(dividingBy: 4) != 0)
+    }
+
+    /// §2.3: control < popover < window; the segment item nests in its track (control + 1) minus the padding 2.
+    @Test func radiiNest() {
+        #expect(Theme.Radius.control < Theme.Radius.popover && Theme.Radius.popover < Theme.Radius.window)
+        #expect(Theme.Radius.segmentItem == Theme.Radius.control + 1 - 2)
+    }
+
+    /// §2.4: controls fit their rows and bars, the tab is centred in its strip, a card row is a regular control + 6 / 6;
+    /// every height is even, so centred content sits on whole points.
+    @Test func heightsFit() {
+        let H = Theme.Height.self
+        let all = [H.controlRegular, H.controlSmall, H.rowSidebar, H.rowList, H.rowLarge, H.barToolbar, H.barTabs, H.tab, H.barPane, H.cardRow]
+        #expect(all.allSatisfy { $0.truncatingRemainder(dividingBy: 2) == 0 })
+        #expect(H.controlSmall < H.controlRegular)
+        #expect(H.controlSmall <= H.rowList && H.rowList <= H.rowSidebar && H.rowSidebar <= H.rowLarge)
+        #expect(H.controlRegular <= H.rowSidebar && H.controlRegular <= H.barPane && H.controlRegular < H.barToolbar)
+        #expect(H.tab < H.barTabs && (H.barTabs - H.tab).truncatingRemainder(dividingBy: 2) == 0)
+        #expect(H.cardRow == H.controlRegular + 2 * 6)
+    }
+
+    /// §2.5: toolbar > row > inline icons, each fitting the control it sits in; dots below the inline icon.
+    @Test func iconsFit() {
+        let I = Theme.Icon.self
+        #expect(I.toolbar > I.row && I.row > I.inline)
+        #expect(I.toolbar < Theme.Height.controlRegular && I.row < Theme.Height.rowList && I.inline < Theme.Height.controlSmall)
+        #expect(I.tabDot < I.statusDot && I.statusDot < I.inline)
+        #expect([I.toolbar, I.row, I.inline, I.statusDot, I.tabDot].allSatisfy { $0.truncatingRemainder(dividingBy: 2) == 0 })
+    }
+
+    /// §2.7: the only four opacities.
+    @Test func fourOpacities() {
+        #expect([Theme.Opacity.inactive, Theme.Opacity.fill, Theme.Opacity.ring, Theme.Opacity.scrim] == [0.4, 0.15, 0.25, 0.35])
         #expect(Theme.Typography.body.nsFont().pointSize == 13)
         #expect(Theme.Typography.mono.nsFont(.semibold).isFixedPitch)
     }
@@ -117,8 +107,8 @@ import Workspace
         withObservationTracking { _ = holder.theme } onChange: { flag.fired = true }
         holder.theme = .graphite
         #expect(flag.fired)
-        #expect(cssHex(Theme.bg) == ThemePalette.of(Theme.current).bg.css)
-        #expect(Theme.ui.bg == Color(nsColor: Theme.ns(ThemePalette.of(Theme.current).bg)))
+        #expect(cssHex(Theme.bg0) == ThemePalette.of(Theme.current).bg0.css)
+        #expect(Theme.ui.bg0 == Color(nsColor: Theme.ns(ThemePalette.of(Theme.current).bg0)))
     }
 
     @Test func terminalColorsFollowTheTheme() {
@@ -126,7 +116,7 @@ import Workspace
         #expect(c.background == "232220")
         #expect(c.palette.count == 16)
         #expect(c.palette[1] == "f0605a")
-        #expect(c.cursor == "e8853d")
+        #expect(c.cursor == "f0975a")
         #expect(Theme.terminalColors(of: .of(.navy)).background == "121826")
     }
 }

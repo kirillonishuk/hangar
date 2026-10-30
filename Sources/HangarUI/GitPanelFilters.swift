@@ -52,8 +52,8 @@ struct GitFilterChips: View {
                 }
                 .padding(Theme.GitTab.popoverPadding)
                 .frame(width: Theme.GitTab.popoverWidth)
-                .background(Theme.ui.sheet)
-                .environment(\.hoverPalette, .sidebar)
+                .background(Theme.ui.bg2)
+                .environment(\.hoverPalette, .raised)
             }
     }
 }
@@ -93,12 +93,12 @@ private struct GitChip: View {
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 
-    private var tint: Color { on ? Theme.ui.accentText : open || hover ? Theme.ui.text : Theme.ui.text2 }
+    private var tint: Color { on ? Theme.ui.accentText : open || hover ? Theme.ui.text1 : Theme.ui.text2 }
     private var fill: Color {
-        on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : open || hover ? Theme.ui.hover : .clear
+        on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : open || hover ? Theme.ui.hover : .clear
     }
     private var border: Color {
-        on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : open ? Theme.ui.control : .clear
+        open && !on ? Theme.ui.line2 : .clear
     }
 }
 
@@ -114,12 +114,12 @@ private struct GitMenuItem: View {
         Button(action: action) {
             HStack(spacing: Theme.GitTab.rowGap) {
                 Group {
-                    if checked { IconView(icon: .checkServer, size: Theme.GitTab.searchIcon, tint: Theme.ui.accent) } else { Color.clear }
+                    if checked { IconView(icon: .checkServer, size: Theme.GitTab.searchIcon, tint: Theme.ui.accentText) } else { Color.clear }
                 }
                 .frame(width: Theme.GitTab.menuCheck)
                 Text(verbatim: title)
                     .font((mono ? Theme.Typography.mono : Theme.Typography.body).font())
-                    .foregroundStyle(Theme.ui.text)
+                    .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: Theme.GitTab.rowGap)
@@ -137,7 +137,7 @@ private struct GitMenuItem: View {
 
 private struct GitMenuSeparator: View {
     var body: some View {
-        Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).padding(.vertical, Theme.GitTab.popoverPadding)
+        Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.vertical, Theme.GitTab.popoverPadding)
     }
 }
 
@@ -264,7 +264,7 @@ private struct GitPathMenu: View {
                     Button { pick(e.path) } label: {
                         HStack(spacing: Theme.GitTab.rowGap) {
                             FileIconView(name: e.name, isDir: e.isDir)
-                            Text(verbatim: e.path).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
+                            Text(verbatim: e.path).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
                                 .lineLimit(1).truncationMode(.head)
                             Spacer(minLength: 0)
                         }

@@ -19,12 +19,11 @@ extension Theme {
     /// Status line: the worktree ⎇ before it 12 `text3`, 4 from the text.
     public static let rowStatusIcon: CGFloat = 12
     public static let rowStatusGap: CGFloat = 4
-    /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `bg` at 35 %; numbers 6 apart.
+    /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `diffBadgeFill`; numbers 6 apart.
     public static let diffBadgeHeight: CGFloat = 20
     public static let diffBadgePaddingH: CGFloat = 6
     public static let diffBadgeRadius: CGFloat = 6
     public static let diffBadgeGap: CGFloat = 6
-    public static let diffBadgeFillOpacity = 0.35
     /// Gap between the name and the badge slot.
     public static let rowSlotGap: CGFloat = 6
     /// Inline row action: 24×24, icon 16, radius 6, no gap between actions; fades 120 ms (`hoverFade`).
@@ -58,7 +57,7 @@ extension Theme {
     public static let menuItemPaddingTrailing: CGFloat = 10
     public static let menuItemRadius: CGFloat = 6
     public static let menuIconGap: CGFloat = 10
-    /// Separator: 1 `lineSheet`, 6 above/below, 2 at the sides. Header: 28, 12 `text3`.
+    /// Separator: 1 `line2`, 6 above/below, 2 at the sides. Header: 28, 12 `text3`.
     public static let menuSeparatorPaddingV: CGFloat = 6
     public static let menuSeparatorPaddingH: CGFloat = 2
     public static let menuHeaderHeight: CGFloat = 28
@@ -67,12 +66,9 @@ extension Theme {
 }
 
 extension Theme.ui {
-    /// Inline action under the pointer: white at 7 % (reads on every dark theme).
-    public static let rowActionHover = Color.white.opacity(0.07)
-    /// Badge fill (`bg` at 35 %); its border is `line2`.
-    public static var diffBadgeFill: Color { bg.opacity(Theme.diffBadgeFillOpacity) }
-    /// Destructive menu item text/icon (= `failed` text), its key at 60 %, its hover (`failed` at 14 %).
+    /// Badge fill: `bg0` dimming the row under it; its border is `line2`.
+    public static var diffBadgeFill: Color { bg0.opacity(Theme.Opacity.scrim) }
+    /// Destructive menu item text, icon and key (= `failedText`); its hover (`failed` as a fill).
     public static var danger: Color { failedText }
-    public static var dangerShortcut: Color { failedText.opacity(0.6) }
-    public static var dangerHover: Color { failed.opacity(0.14) }
+    public static var dangerHover: Color { failed.opacity(Theme.Opacity.fill) }
 }

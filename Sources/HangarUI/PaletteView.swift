@@ -135,13 +135,13 @@ struct PaletteView: View {
                               onCancel: close)
                 .padding(.vertical, Theme.paletteQueryPaddingV)
                 .padding(.horizontal, Theme.palettePaddingH)
-            Rectangle().fill(Theme.ui.lineSheet).frame(height: 1)
+            Rectangle().fill(Theme.ui.line2).frame(height: 1)
             list.frame(height: Theme.paletteListHeight)
         }
         .frame(width: Theme.paletteWidth)
-        .background(Theme.ui.sheet)
+        .background(Theme.ui.bg2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.paletteRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.paletteRadius).strokeBorder(Theme.ui.controlBorderStrong, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.paletteRadius).strokeBorder(Theme.ui.line2, lineWidth: 1))
     }
 
     @ViewBuilder private var list: some View {
@@ -185,17 +185,18 @@ struct PaletteView: View {
             if !item.subtitle.isEmpty {
                 Text(item.subtitle)
                     .font((item.kind == .file ? Theme.Typography.mono : Theme.Typography.secondary).font())
-                    .foregroundStyle(Theme.ui.text3)
+                    .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
                     .truncationMode(.head)
                     .layoutPriority(-1)
             }
             Spacer(minLength: 0)
-            trailing(item)
+            trailing(item, on: on)
         }
         .lineLimit(1)
         .padding(.horizontal, Theme.palettePaddingH - Theme.paletteRowInset)
         .frame(height: Theme.paletteRowHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.paletteRowRadius).fill(on ? Theme.ui.selection : .clear))
+        .environment(\.rowSelectedText, on ? Theme.ui.onAccent : nil)
+        .background(RoundedRectangle(cornerRadius: Theme.paletteRowRadius).fill(on ? Theme.ui.selectedFocus : .clear))
         .padding(.horizontal, Theme.paletteRowInset)
         .contentShape(Rectangle())
         .onHover { if $0 { model.highlight = item.id } }
@@ -211,14 +212,14 @@ struct PaletteView: View {
         for (i, ch) in item.title.enumerated() {
             var part = AttributedString(String(ch))
             if hits.contains(i) {
-                part.foregroundColor = Theme.ui.textStrong
+                part.foregroundColor = on ? Theme.ui.onAccent : Theme.ui.text0
                 part.font = Theme.Typography.body.font(.semibold)
             }
             s += part
         }
         return Text(s)
             .font(Theme.Typography.body.font())
-            .foregroundStyle(on ? Theme.ui.selectionText : Theme.ui.text)
+            .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text1)
             .truncationMode(.tail)
     }
 
@@ -232,7 +233,7 @@ struct PaletteView: View {
     }
 
     /// Task: `⎇ branch` and the SSH host; command: its key.
-    @ViewBuilder private func trailing(_ item: PaletteItem) -> some View {
+    @ViewBuilder private func trailing(_ item: PaletteItem, on: Bool) -> some View {
         switch item.target {
         case .task(let id):
             let task = app.state.tasks.first { $0.id == id }
@@ -250,7 +251,7 @@ struct PaletteView: View {
                     }
                 }
             }
-            .foregroundStyle(Theme.ui.text3)
+            .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
         case .command(let sc): ShortcutHint(text: sc.label)
         case .file: EmptyView()
         }

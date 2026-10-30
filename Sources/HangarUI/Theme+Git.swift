@@ -25,7 +25,7 @@ extension Theme {
         static let sectionButton: CGFloat = 24
         static let sectionIcon: CGFloat = 13
 
-        /// Log: row height, graph column, lane spacing and the first lane's x, dot radius and its `bg` ring, merge ring.
+        /// Log: row height, graph column, lane spacing and the first lane's x, dot radius and its `bg1` ring, merge ring.
         static let logRow: CGFloat = 28
         static let laneStep: CGFloat = 12
         static let laneX0: CGFloat = 10
@@ -44,17 +44,11 @@ extension Theme {
         static let subjectMin: CGFloat = 72
         /// The `⇅` of a branch whose remote twin is at the same commit.
         static let refMarkGap: CGFloat = 3
-        static let refMarkOpacity = 0.7
 
         /// Ref pill: height, side padding, radius; own branch `accent` 14 %, remote `text2` 14 %, others their lane 16 %.
         static let refHeight: CGFloat = 18
         static let refPaddingH: CGFloat = 5
         static let refRadius: CGFloat = 4
-        static let refOwnOpacity = 0.14
-        static let refRemoteOpacity = 0.14
-        static let refOtherOpacity = 0.16
-        /// Search hits in subjects: `waiting` 28 %.
-        static let markOpacity = 0.28
 
         /// Small glyphs (back chevron, tick); the search field itself is `Theme.Input`.
         static let searchIcon: CGFloat = 14
@@ -69,8 +63,6 @@ extension Theme {
         static let chipMaxWidth: CGFloat = 132
         /// The Branch chip keeps one width: setting another filter must not move it (the others truncate instead).
         static let branchChipWidth: CGFloat = 112
-        static let chipOnOpacity = 0.14
-        static let chipBorderOpacity = 0.25
         static let chipsMargin: CGFloat = 8
 
         /// Filter popovers: as the «⋯» menu (width, padding, item height, radius, separator margins).

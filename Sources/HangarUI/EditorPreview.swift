@@ -252,7 +252,7 @@ struct EditorPreview: View {
             }
         }
         .foregroundStyle(Theme.ui.editor(t.hex(color)))
-        .opacity(lit ? 1 : S.dimOpacity)
+        .opacity(lit ? 1 : Theme.Opacity.inactive)
         .overlay { if model.hovered == color { outline() } }
         .contentShape(Rectangle())
         .onTapGesture { model.open(color, anchor: "gutter-\(line.id)") }
@@ -305,7 +305,7 @@ struct EditorPreview: View {
                 .italic(color == .comment && t.italicComments)
                 .fixedSize()
                 .frame(height: S.previewLineHeight)
-                .opacity(lit ? 1 : S.dimOpacity)
+                .opacity(lit ? 1 : Theme.Opacity.inactive)
                 .background { if let markColor { Theme.ui.editor(t.hex(markColor)) } }
                 .overlay { if let markColor, model.hovered == markColor { outline() } }
                 .contentShape(Rectangle())
@@ -321,7 +321,7 @@ struct EditorPreview: View {
         return ZStack(alignment: .bottomLeading) {
             switch options.cursorStyle {
             case .line: c.frame(width: S.cursorWidth, height: S.previewLineHeight)
-            case .block: c.opacity(0.6).frame(width: cw, height: S.previewLineHeight)
+            case .block: c.opacity(Theme.Opacity.inactive).frame(width: cw, height: S.previewLineHeight)
             case .underline: c.frame(width: cw, height: S.cursorWidth)
             }
         }

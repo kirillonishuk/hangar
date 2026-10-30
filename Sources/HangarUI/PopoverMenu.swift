@@ -218,7 +218,7 @@ struct PopoverMenuView: View {
                 switch entries[i] {
                 case .item(let item): row(item, index: i)
                 case .separator:
-                    Rectangle().fill(Theme.ui.lineSheet).frame(height: 1)
+                    Rectangle().fill(Theme.ui.line2).frame(height: 1)
                         .padding(.vertical, Theme.menuSeparatorPaddingV)
                         .padding(.horizontal, Theme.menuSeparatorPaddingH)
                 case .header(let text):
@@ -232,18 +232,18 @@ struct PopoverMenuView: View {
         }
         .padding(Theme.menuPadding)
         .frame(width: Theme.menuWidth)
-        .background(shape.fill(Theme.ui.sheet))
-        .overlay(shape.strokeBorder(Theme.ui.controlBorderStrong, lineWidth: 1))
+        .background(shape.fill(Theme.ui.bg2))
+        .overlay(shape.strokeBorder(Theme.ui.line2, lineWidth: 1))
         .clipShape(shape)
         .environment(\.colorScheme, .dark)
     }
 
     private func row(_ item: PopoverMenuItem, index: Int) -> some View {
         let on = state.highlighted == index && item.enabled
-        let text = item.destructive ? Theme.ui.danger : on ? Theme.ui.menuHoverText : Theme.ui.text
+        let text = item.destructive ? Theme.ui.danger : on ? Theme.ui.onAccent : Theme.ui.text1
         return HStack(spacing: Theme.menuIconGap) {
             if let icon = item.icon {
-                IconView(icon: icon, tint: item.destructive ? Theme.ui.danger : on ? Theme.ui.menuHoverText : Theme.ui.text2)
+                IconView(icon: icon, tint: item.destructive ? Theme.ui.danger : on ? Theme.ui.onAccent : Theme.ui.text2)
             }
             Text(verbatim: item.title).lineLimit(1)
                 .font(Theme.Typography.body.font())
@@ -252,15 +252,15 @@ struct PopoverMenuView: View {
             if let key = item.shortcut {
                 Text(verbatim: key)
                     .font(Theme.Typography.secondary.font())
-                    .foregroundStyle(item.destructive ? Theme.ui.dangerShortcut : on ? Theme.ui.menuHoverText : Theme.ui.text3)
+                    .foregroundStyle(item.destructive ? Theme.ui.danger : on ? Theme.ui.onAccent : Theme.ui.text3)
             }
         }
         .padding(.leading, Theme.menuItemPaddingLeading)
         .padding(.trailing, Theme.menuItemPaddingTrailing)
         .frame(height: Theme.menuItemHeight)
         .background(RoundedRectangle(cornerRadius: Theme.menuItemRadius)
-            .fill(on ? (item.destructive ? Theme.ui.dangerHover : Theme.ui.menuHover) : .clear))
-        .opacity(item.enabled ? 1 : Theme.inactiveOpacity)
+            .fill(on ? (item.destructive ? Theme.ui.dangerHover : Theme.ui.selectedFocus) : .clear))
+        .opacity(item.enabled ? 1 : Theme.Opacity.inactive)
         .contentShape(Rectangle())
         .onHover { inside in
             if inside, item.enabled { state.highlighted = index } else if state.highlighted == index { state.highlighted = nil }
@@ -332,7 +332,7 @@ extension View {
     }
 }
 
-/// «⋯» (or another icon) that opens the custom menu under itself: 24×24, icon 16, radius 6, `rowActionHover` under the pointer.
+/// «⋯» (or another icon) that opens the custom menu under itself: 24×24, icon 16, radius 6, `hover2` under the pointer.
 struct PopoverMenuButton: View {
     var icon: Icon = .more
     var help = L10n.more
@@ -355,9 +355,9 @@ struct RowActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            IconView(icon: icon, tint: tint ?? (hover ? Theme.ui.textStrong : Theme.ui.text2))
+            IconView(icon: icon, tint: tint ?? (hover ? Theme.ui.text0 : Theme.ui.text2))
                 .frame(width: Theme.rowActionSize, height: Theme.rowActionSize)
-                .background(RoundedRectangle(cornerRadius: Theme.rowActionRadius).fill(hover ? Theme.ui.rowActionHover : .clear))
+                .background(RoundedRectangle(cornerRadius: Theme.rowActionRadius).fill(hover ? Theme.ui.hover2 : .clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

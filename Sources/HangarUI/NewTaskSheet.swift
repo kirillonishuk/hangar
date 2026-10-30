@@ -62,7 +62,7 @@ struct NewTaskSheet: View {
                 Spacer(minLength: Theme.cardRowGap)
                 fetchStatus
             }
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            .opacity(model.worktree ? 1 : Theme.Opacity.inactive)
             .disabled(!model.worktree)
             CardRow(label: L10n.newBranch) {
                 if model.worktree {
@@ -76,16 +76,16 @@ struct NewTaskSheet: View {
                     }
                 } else {
                     Text("—").font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
             }
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            .opacity(model.worktree ? 1 : Theme.Opacity.inactive)
             // Always there (no jump when the lockfile is read); a suggestion stays off until turned on.
             CardRow(label: L10n.afterCreate) {
                 if let command = model.setupCommand {
                     Text(verbatim: command).font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                         .truncationMode(.middle)
                         .help(command)
                     Spacer(minLength: Theme.cardRowGap)
@@ -93,12 +93,12 @@ struct NewTaskSheet: View {
                         .disabled(!model.worktree || model.creating)
                 } else {
                     Text("—").font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
             }
             .help(model.setupSuggested ? L10n.afterCreateSuggestedHelp : "")
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            .opacity(model.worktree ? 1 : Theme.Opacity.inactive)
         }
         .sheetCard()
     }
@@ -181,7 +181,7 @@ struct NewTaskSheet: View {
         Button(L10n.createWithoutFetch) { create(skipFetch: true) }
             .buttonStyle(SheetButton(primary: false))
             .disabled(!model.canCreate)
-            .opacity(model.canCreate ? 1 : Theme.disabledButtonOpacity)
+            .opacity(model.canCreate ? 1 : Theme.Opacity.inactive)
     }
 
     // MARK: Footer
@@ -199,7 +199,7 @@ struct NewTaskSheet: View {
             .buttonStyle(SheetButton(primary: true))
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!model.canCreate)
-            .opacity(model.canCreate || model.creating ? 1 : Theme.disabledButtonOpacity)
+            .opacity(model.canCreate || model.creating ? 1 : Theme.Opacity.inactive)
         }
     }
 
@@ -229,7 +229,7 @@ struct NewTaskSheet: View {
     }
 }
 
-/// Sheet / settings button: `primary` fill or `button` (→ `moreBg` under the pointer, as every secondary action);
+/// Sheet / settings button: `accent` fill or `hover2` (→ `buttonHover` under the pointer, as every secondary action);
 /// `destructive` — `failedText` on `failed` 18 % (white on red fails AA); lighter on hover (120 ms), hand only while enabled.
 struct SheetButton: ButtonStyle {
     let primary: Bool
@@ -249,15 +249,15 @@ struct SheetButton: ButtonStyle {
 
         var body: some View {
             label
-                .foregroundStyle(destructive ? Theme.ui.failedText : primary ? Theme.ui.primaryText : Theme.ui.sheetText)
+                .foregroundStyle(destructive ? Theme.ui.failedText : primary ? Theme.ui.onAccent : Theme.ui.text0)
                 .padding(.vertical, Theme.buttonPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                    .fill(destructive ? Theme.ui.failed.opacity(Theme.destructiveFillOpacity) : primary ? Theme.ui.primary
-                          : hover && enabled ? Theme.ui.moreBg : Theme.ui.button)
-                    .brightness(hover && enabled && (primary || destructive) ? Theme.sheetButtonHoverBrightness : 0))
+                    .fill(destructive ? Theme.ui.failed.opacity(Theme.Opacity.fill) : primary ? Theme.ui.accent
+                          : hover && enabled ? Theme.ui.buttonHover : Theme.ui.hover2)
+                    .brightness(pressed ? -Theme.sheetButtonHoverBrightness
+                                : hover && enabled && (primary || destructive) ? Theme.sheetButtonHoverBrightness : 0))
                 .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
-                .opacity(pressed ? Theme.pressedOpacity : 1)
                 .pointingHand(enabled)
                 .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }

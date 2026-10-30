@@ -147,12 +147,10 @@ private struct SearchToggle: View {
         Button { on.toggle() } label: {
             label
                 .font(Theme.Typography.monoSmall.font(.semibold))
-                .foregroundStyle(on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
+                .foregroundStyle(on ? Theme.ui.accentText : hover ? Theme.ui.text1 : Theme.ui.text2)
                 .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
                 .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-                .overlay(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
+                    .fill(on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : hover ? Theme.ui.hover : .clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -172,14 +170,12 @@ private struct SearchFiltersToggle: View {
 
     var body: some View {
         Button { on.toggle() } label: {
-            IconView(icon: .filter, size: Theme.Control.icon, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
+            IconView(icon: .filter, size: Theme.Control.icon, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text1 : Theme.ui.text2)
                 .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
                 .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-                .overlay(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
+                    .fill(on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : hover ? Theme.ui.hover : .clear))
                 .overlay(alignment: .topTrailing) {
-                    Circle().fill(Theme.ui.accent)
+                    Circle().fill(Theme.ui.accentText)
                         .frame(width: Theme.SearchTab.filterDot, height: Theme.SearchTab.filterDot)
                         .opacity(active ? 1 : 0)
                 }
@@ -223,7 +219,7 @@ private struct SearchFileHeader: View {
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
                         .font(Theme.Typography.body.font())
-                        .foregroundStyle(Theme.ui.textRow)
+                        .foregroundStyle(Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !dir.isEmpty {
@@ -274,8 +270,8 @@ private struct SearchHitRow: View {
         for r in hit.ranges where r.lowerBound >= at && r.upperBound <= u.count {
             out += AttributedString(String(decoding: u[at..<r.lowerBound], as: UTF16.self))
             var m = AttributedString(String(decoding: u[r], as: UTF16.self))
-            m.backgroundColor = Theme.ui.waiting.opacity(Theme.GitTab.markOpacity)
-            m.foregroundColor = Theme.ui.textStrong
+            m.backgroundColor = Theme.ui.waiting.opacity(Theme.Opacity.fill)
+            m.foregroundColor = Theme.ui.text0
             out += m
             at = r.upperBound
         }

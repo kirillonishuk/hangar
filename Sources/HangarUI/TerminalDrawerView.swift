@@ -41,7 +41,7 @@ import Workspace
 
 /// The drawer's top bar: terminal icon, "TERMINAL", chevron. The whole bar is clickable.
 @MainActor final class DrawerBarView: NSView {
-    private let fill = HoverFill { Theme.hoverStrong }
+    private let fill = HoverFill { Theme.hover2 }
     private let icon = NSImageView()
     private let label = NSTextField(labelWithString: "")
     private let chevron = NSImageView()
@@ -61,7 +61,7 @@ import Workspace
     }
 
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.bottomBar.cgColor
+        layer?.backgroundColor = Theme.bg1.cgColor
         icon.contentTintColor = Theme.text2
         label.textColor = Theme.text2
         chevron.contentTintColor = Theme.text3
@@ -155,7 +155,7 @@ import Workspace
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.panel.cgColor
+        layer?.backgroundColor = Theme.bg0.cgColor
         topLine.layer?.backgroundColor = Theme.line.cgColor
     }
 

@@ -64,7 +64,7 @@ struct UndoToastView: View {
             Text(message).foregroundStyle(Theme.ui.text1)
                 .font(Theme.Typography.body.font())
                 .padding(.horizontal, Theme.toastPaddingH)
-                .frame(height: Theme.Control.height)
+                .frame(height: Theme.Height.controlSmall)
                 .padding(.vertical, Theme.toastPaddingV)
                 .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.bg2))
                 .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.line2, lineWidth: 1))
@@ -74,7 +74,7 @@ struct UndoToastView: View {
                 Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
                 // A secondary action (controls-v2 B′): a button, not a blue word that reads as a link.
                 Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
-                    .buttonStyle(ActionButtonStyle())
+                    .buttonStyle(.hangar(.secondary, .small))
                     .help(L10n.undoArchive)
             }
             .font(Theme.Typography.body.font())

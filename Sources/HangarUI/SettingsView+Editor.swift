@@ -49,12 +49,11 @@ extension SettingsView {
             : changes > 0 ? L10n.f(.edHintCustom, changes, base) : L10n.f(.edHintCustomSame, base)
         return VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
             HStack(spacing: Theme.cardRowGap) {
-                Segment(selection: follows, options: [(true, L10n.s(.edAsTheme)), (false, L10n.s(.edCustom))]) { ed.follow($0) }
+                Segmented(selection: follows, options: [(true, L10n.s(.edAsTheme)), (false, L10n.s(.edCustom))]) { ed.follow($0) }
                 Spacer(minLength: 0)
                 if changes > 0 {
                     Button { ed.reset(nil) } label: { ActionLabel(title: L10n.s(.edResetAll), icon: .restore) }
-                        .buttonStyle(HeaderActionStyle())
-                        .font(Theme.Typography.secondary.font())
+                        .buttonStyle(.hangar(.plain, .small))
                         .fixedSize()
                 }
             }
@@ -104,8 +103,7 @@ extension SettingsView {
     private func previewCard(_ ed: EditorSettingsModel) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Segment(selection: ed.sample, options: EditorPreviewSample.allCases.map { ($0, $0.title) }) { ed.sample = $0 }
-                    .font(Theme.Typography.secondary.font())
+                Segmented(selection: ed.sample, options: EditorPreviewSample.allCases.map { ($0, $0.title) }) { ed.sample = $0 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)
@@ -144,8 +142,7 @@ extension SettingsView {
                 .help(L10n.s(.edLineHeightTip))
                 if !auto {
                     Button(L10n.s(.edAuto)) { resetOption("editor_line_height") { $0.lineHeight = 0 } }
-                        .buttonStyle(HeaderActionStyle())
-                        .font(Theme.Typography.secondary.font())
+                        .buttonStyle(.hangar(.plain, .small))
                         .fixedSize()
                         .help(L10n.s(.edLineHeightTip))
                 }
@@ -160,7 +157,7 @@ extension SettingsView {
     private var editorIndent: some View {
         CardSection(title: L10n.s(.edIndentSection)) {
             row(L10n.s(.edTabSize), first: true) {
-                Segment(selection: options.tabSize, options: [(2, "2"), (4, "4"), (8, "8")]) { n in
+                Segmented(selection: options.tabSize, options: [(2, "2"), (4, "4"), (8, "8")]) { n in
                     setOption("editor_tab_size", String(n)) { $0.tabSize = n }
                 }
             }
@@ -169,7 +166,7 @@ extension SettingsView {
                     .help(L10n.s(.edDetectTip))
             }
             row(L10n.s(.edWrap)) {
-                Segment(selection: options.wordWrap, options: [(false, L10n.s(.edWrapOff)), (true, L10n.s(.edWrapOn))]) { on in
+                Segmented(selection: options.wordWrap, options: [(false, L10n.s(.edWrapOff)), (true, L10n.s(.edWrapOn))]) { on in
                     setOption("editor_word_wrap", on ? "on" : "off") { $0.wordWrap = on }
                 }
             }
@@ -316,7 +313,7 @@ private struct AppThemeTile: View {
         }
         .buttonStyle(.plain)
         .pointingHand(!selected)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .onHover { h in hover = h }
         .accessibilityLabel(Self.name(theme))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
@@ -360,9 +357,7 @@ private struct EditorColorList: View {
     private func header(_ section: EditorColorSection, first: Bool) -> some View {
         let open = model.expanded.contains(section)
         return Button {
-            withAnimation(Motion.ease(Theme.selectionFade)) {
-                if open { model.expanded.remove(section) } else { model.expanded.insert(section) }
-            }
+            if open { model.expanded.remove(section) } else { model.expanded.insert(section) }
         } label: {
             HStack(spacing: Theme.pickGap) {
                 IconView(icon: open ? .chevronDown : .chevronRight, size: Theme.pickChevronSize, tint: Theme.ui.text3)
@@ -400,7 +395,7 @@ private struct EditorColorList: View {
             Text(verbatim: brackets ? L10n.s(.edcBrackets) : color.title).foregroundStyle(Theme.ui.text1).lineLimit(1)
             Spacer(minLength: Theme.cardRowGap)
             if hovered, !changed.isEmpty {
-                RowActionButton(icon: .restore, help: L10n.f(.edResetTo, EditorSettingsModel.name(theme.base))) {
+                IconButton(icon: .restore, help: L10n.f(.edResetTo, EditorSettingsModel.name(theme.base))) {
                     for c in changed { model.reset(c) }
                 }
             } else if !brackets {
@@ -434,60 +429,55 @@ private struct SettingsStepper: View {
     let step: (Int) -> Void
 
     var body: some View {
+        // The segment's track, with small icon-sized buttons.
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control + 1)
         HStack(spacing: 0) {
-            Button("−") { step(-1) }.buttonStyle(HeaderActionStyle()).disabled(!canDown).help(L10n.s(.edSmaller))
+            Button("−") { step(-1) }.buttonStyle(IconButtonStyle()).disabled(!canDown).help(L10n.s(.edSmaller))
             Text(verbatim: value).font(Theme.Typography.mono.font()).foregroundStyle(Theme.ui.text1)
                 .frame(minWidth: Theme.EditorSettings.stepperValueWidth)
-            Button("+") { step(1) }.buttonStyle(HeaderActionStyle()).disabled(!canUp).help(L10n.s(.edLarger))
+            Button("+") { step(1) }.buttonStyle(IconButtonStyle()).disabled(!canUp).help(L10n.s(.edLarger))
         }
         .font(Theme.Typography.body.font())
-        .padding(Theme.segmentPadding)
+        .padding(Theme.Control.segmentPadding)
         .fixedSize()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
+        .background(shape.fill(Theme.ui.field))
+        .overlay(shape.strokeBorder(Theme.ui.line2))
     }
 }
 
-/// A drop-down for choices too wide for a segment at the window's minimum width: the value in a field with ▾, the
-/// options in Hangar's menu.
+/// A drop-down for choices too wide for a segment at the window's minimum width: a `.regular` popup button, the
+/// options in the one menu, the current one checked.
 struct PickMenu<Value: Equatable>: View {
     let selection: Value
     let options: [(Value, String)]
     let choose: (Value) -> Void
-    @State private var anchor = MenuAnchor()
 
     var body: some View {
-        PickField(title: options.first { $0.0 == selection }?.1 ?? "") {
-            PopoverMenu.show(options.map { value, title in
-                .item(PopoverMenuItem(title: title, icon: value == selection ? .check : nil) { if value != selection { choose(value) } })
-            }, below: anchor.view)
+        PopupButton(title: options.first { $0.0 == selection }?.1 ?? "", size: .regular) {
+            PopoverMenuContent(options.map { value, title in
+                .item(PopoverMenuItem(title: title, checked: value == selection) { if value != selection { choose(value) } })
+            })
         }
-        .background(MenuAnchorView(anchor: anchor))
+        .fixedSize()
     }
 }
 
-/// The font: SF Mono (system) and the installed monospaced families, in a native menu (it scrolls when there are many).
+/// The font: SF Mono (system) and the installed monospaced families; the menu scrolls and finds by name.
 private struct FontPicker: View {
     let family: String?
     let choose: (String?) -> Void
-    @State private var anchor = MenuAnchor()
 
     var body: some View {
-        PickField(title: family ?? L10n.s(.edSystemFont)) {
-            guard let view = anchor.view else { return }
-            let menu = NSMenu()
-            let target = FontMenuTarget(choose)
-            FontMenuTarget.shown = target  // menu items hold their target weakly
-            for (title, value) in [(L10n.s(.edSystemFont), nil as String?)] + Self.families().map({ ($0, $0 as String?) }) {
-                let item = NSMenuItem(title: title, action: #selector(FontMenuTarget.pick(_:)), keyEquivalent: "")
-                item.target = target
-                item.representedObject = value
-                item.state = value == family ? .on : .off
-                menu.addItem(item)
+        PopupButton(title: family ?? L10n.s(.edSystemFont), size: .regular) {
+            let all = [(L10n.s(.edSystemFont), nil as String?)] + Self.families().map { ($0, $0 as String?) }
+            return PopoverMenuContent(search: .init(placeholder: L10n.s(.edFont), highlightFirst: true)) { query in
+                let q = query.trimmingCharacters(in: .whitespaces)
+                return all.filter { q.isEmpty || $0.0.localizedCaseInsensitiveContains(q) }.map { title, value in
+                    .item(PopoverMenuItem(title: title, checked: value == family) { choose(value) })
+                }
             }
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 4), in: view)
         }
-        .background(MenuAnchorView(anchor: anchor))
+        .fixedSize()
     }
 
     /// Fixed-pitch families a CSS font list can name as is (hidden `.`-families left out).
@@ -495,41 +485,5 @@ private struct FontPicker: View {
         let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []
         let families = Set(names.compactMap { NSFont(name: $0, size: 12)?.familyName })
         return families.filter { !$0.hasPrefix(".") && HangarConfig.isValidFontFamily($0) }.sorted()
-    }
-}
-
-private final class FontMenuTarget: NSObject {
-    @MainActor static var shown: FontMenuTarget?
-    let choose: (String?) -> Void
-    init(_ choose: @escaping (String?) -> Void) { self.choose = choose }
-    @objc func pick(_ item: NSMenuItem) { choose(item.representedObject as? String) }
-}
-
-/// The drop-down's face (the branch picker's field): the value and ▾.
-private struct PickField: View {
-    let title: String
-    let open: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        Button(action: open) {
-            HStack(spacing: Theme.pickGap) {
-                Text(verbatim: title)
-                    .font(Theme.Typography.secondary.font())
-                    .foregroundStyle(Theme.ui.text0)
-                    .lineLimit(1)
-                IconView(icon: .chevronDown, size: Theme.pickChevronSize, tint: Theme.ui.text2)
-            }
-            .padding(.vertical, Theme.pickPaddingV)
-            .padding(.horizontal, Theme.pickPaddingH)
-            .background(RoundedRectangle(cornerRadius: Theme.pickRadius).fill(Theme.ui.field))
-            .overlay(RoundedRectangle(cornerRadius: Theme.pickRadius)
-                .stroke(hover ? Theme.ui.accent : Theme.ui.line2, lineWidth: 1))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .fixedSize()
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 }

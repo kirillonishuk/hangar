@@ -9,7 +9,7 @@ extension SettingsView {
         let integration = app.integrations
         let mode = app.config.statusline
         FunctionRow(title: L10n.intStatuslineTitle, subtitle: L10n.intStatuslineSub) {
-            Segment(selection: mode, options: [(.hangar, L10n.statuslineHangar), (.user, L10n.statuslineUser)],
+            Segmented(selection: mode, options: [(.hangar, L10n.statuslineHangar), (.user, L10n.statuslineUser)],
                     disabled: integration.userStatusline == nil && mode != .user ? [.user] : []) { m in
                 save { try app.setStatuslineMode(m) }
             }
@@ -350,36 +350,23 @@ private struct ChipFlow: Layout {
 /// The chips' row space: a dragged chip moves itself, so its own space would feed back.
 private let chipSpace = "statuslineChips"
 
-/// A segment's on/off chip: on like a chosen `Segment` item, off only outlined; any number on at once. A button (click,
-/// Tab + Space); while dragged it follows the pointer sideways with an accent outline.
+/// A segment's on/off chip (a `Chip`): any number on at once. A button (click, Tab + Space); while dragged it follows
+/// the pointer sideways with an `accent` edge.
 struct SegmentChip: View {
     let title: String
     let on: Bool
     var dragging = false
     var dx: CGFloat = 0
     let toggle: () -> Void
-    @State private var hover = false
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
-        Button(action: toggle) {
-            Text(verbatim: title)
-                .foregroundStyle(on ? Theme.ui.text0 : hover || dragging ? Theme.ui.text1 : Theme.ui.text3)
-                .padding(.vertical, Theme.segmentItemPaddingV)
-                .padding(.horizontal, Theme.segmentItemPaddingH)
-                .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                    .fill(on ? Theme.ui.hover2 : hover || dragging ? Theme.ui.hover : .clear))
-                .overlay(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                    .stroke(dragging ? Theme.ui.accent : Theme.ui.line2, lineWidth: 1))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .fixedSize()
-        .offset(x: dx)
-        .opacity(enabled ? 1 : Theme.Opacity.inactive)
-        .chipCursor(enabled: enabled, grabbing: dragging)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        Button(action: toggle) { Text(verbatim: title) }
+            .buttonStyle(ChipStyle(on: on, outlined: dragging, hand: false))
+            .fixedSize()
+            .offset(x: dx)
+            .chipCursor(enabled: enabled, grabbing: dragging)
+            .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 }
 

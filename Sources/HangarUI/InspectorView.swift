@@ -38,98 +38,18 @@ struct InspectorView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
-    /// Equal parts (Changes at least its label and badge), so a changing count never moves the labels; a plain folder
+    /// Equal parts (Changes at least its label and count), so a changing count never moves the labels; a plain folder
     /// has only Files and Search.
     private var segment: some View {
-        HStack(spacing: 0) {
-            segmentItem(L10n.segmentFiles, .files, help: L10n.help(L10n.showFiles, .inspectorFiles))
-            if model.isGit {
-                let count = model.changes?.files.count ?? 0
-                SegmentItem(title: L10n.segmentChangesTitle, badge: segmentBadge(count), reserveBadge: true, on: model.segment == .changes) {
-                    model.segment = .changes
-                }
-                .help(L10n.help(L10n.statusShowChanges, .inspectorChanges))
-                .accessibilityLabel(L10n.segmentChanges(count))
-                segmentItem(L10n.segmentGit, .git, help: L10n.help(L10n.showGit, .inspectorGit))
-            }
-            segmentItem(L10n.segmentSearch, .search, help: L10n.help(L10n.findInFiles, .findInFiles))
+        let count = model.changes?.files.count ?? 0
+        var options = [SegmentOption(value: InspectorModel.Segment.files, title: L10n.segmentFiles, help: L10n.help(L10n.showFiles, .inspectorFiles))]
+        if model.isGit {
+            options.append(SegmentOption(value: .changes, title: L10n.segmentChangesTitle, badge: segmentBadge(count), reserveBadge: true,
+                                         help: L10n.help(L10n.statusShowChanges, .inspectorChanges), accessibilityLabel: L10n.segmentChanges(count)))
+            options.append(SegmentOption(value: .git, title: L10n.segmentGit, help: L10n.help(L10n.showGit, .inspectorGit)))
         }
-        .padding(Theme.segmentPadding)
-        // As the settings segment: on `bg1` a track alone would be invisible.
-        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.inspectorSegmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
-        .animation(Motion.ease(Theme.selectionFade), value: model.segment)
-    }
-
-    private func segmentItem(_ title: String, _ value: InspectorModel.Segment, help: String) -> some View {
-        SegmentItem(title: title, on: model.segment == value) { model.segment = value }.help(help)
-    }
-}
-
-/// The Changes count as a segment badge: none at 0, «99+» past 99.
-func segmentBadge(_ count: Int) -> String? {
-    count <= 0 ? nil : count > 99 ? "99+" : String(count)
-}
-
-/// One part of the Files / Changes / Git / Search segment; an inactive one lights up on hover.
-private struct SegmentItem: View {
-    let title: String
-    var badge: String? = nil
-    /// Keeps the badge's room even without one, so a count appearing or growing never resizes the parts.
-    var reserveBadge = false
-    let on: Bool
-    let action: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        let lit = hover && !on
-        HStack(spacing: Theme.segmentBadgeGap) {
-            Text(title)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if let badge { SegmentBadge(text: badge, on: on) }
-        }
-        .font(Theme.Typography.secondary.font())
-        .foregroundStyle(on ? Theme.ui.text0 : lit ? Theme.ui.text1 : Theme.ui.text2)
-        .padding(.vertical, Theme.segmentItemPaddingV)
-        .padding(.horizontal, Theme.segmentBadgeGap)
-        .frame(minWidth: reserveBadge ? Self.reserved(title) : 0, maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: Theme.inspectorSegmentItemRadius).fill(on ? Theme.ui.hover2 : lit ? Theme.ui.hover : .clear))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: action)
-        .pointingHand(!on)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-    }
-
-    /// Label + gap + a two-digit badge + side paddings («99+» may grow it a little).
-    private static func reserved(_ title: String) -> CGFloat {
-        let label = ceil((title as NSString).size(withAttributes: [.font: Theme.Typography.secondary.nsFont()]).width)
-        return label + Theme.segmentBadgeGap * 3 + SegmentBadge.width("00")
-    }
-}
-
-/// The count after a segment label: a small muted pill, digits in fixed width.
-private struct SegmentBadge: View {
-    let text: String
-    let on: Bool
-
-    var body: some View {
-        Text(verbatim: text)
-            .font(Theme.Typography.caption.font().monospacedDigit())
-            .foregroundStyle(Theme.ui.text3)
-            .lineLimit(1)
-            .fixedSize()
-            .frame(minWidth: Self.width("0") - Theme.segmentBadgePaddingH * 2)
-            .padding(.horizontal, Theme.segmentBadgePaddingH)
-            .frame(height: Theme.segmentBadgeHeight)
-    }
-
-    /// Width of a badge with `digits` (at least round: as tall as wide).
-    static func width(_ digits: String) -> CGFloat {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: Theme.Typography.caption.size, weight: .regular)
-        let text = ceil((digits as NSString).size(withAttributes: [.font: font]).width)
-        return max(text + Theme.segmentBadgePaddingH * 2, Theme.segmentBadgeHeight)
+        options.append(SegmentOption(value: .search, title: L10n.segmentSearch, help: L10n.help(L10n.findInFiles, .findInFiles)))
+        return Segmented(selection: model.segment, options: options, equal: true) { model.segment = $0 }
     }
 }
 
@@ -315,10 +235,10 @@ private struct ChangesList: View {
         let base: String? = if case .base(let b) = model.changes?.mode { b } else { model.baseName }
         let hasBase = base != nil && model.changes?.baseMissing != true
         return HStack(spacing: Theme.GitTab.chipGap) {
-            ModeChip(title: L10n.changesHintUncommitted, on: model.changes != nil && !onBase) { model.toggleMode() }
+            Chip(title: L10n.changesHintUncommitted, on: model.changes != nil && !onBase) { model.toggleMode() }
                 .fixedSize()
                 .help(L10n.changesHintToUncommitted)
-            ModeChip(title: base ?? L10n.changesBaseNone, icon: .branch, mono: base != nil, on: onBase, enabled: hasBase) { model.toggleMode() }
+            Chip(title: base ?? L10n.changesBaseNone, icon: .branch, mono: base != nil, on: onBase, enabled: hasBase) { model.toggleMode() }
                 .help(hasBase ? L10n.changesHintToBase(base ?? "") : base.map(L10n.baseMissing) ?? L10n.baseMissingUnknown)
             Spacer(minLength: 0)
         }

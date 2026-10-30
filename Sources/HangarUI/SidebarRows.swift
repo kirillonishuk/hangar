@@ -77,7 +77,7 @@ struct SectionHeader: View {
                     .accessibilityAddTraits(filterOn ? .isSelected : [])
                 }
                 if let plus {
-                    RowActionButton(icon: .add, tint: Theme.ui.text3, help: plusHelp, action: plus)
+                    IconButton(icon: .add, tint: Theme.ui.text3, help: plusHelp, action: plus)
                         .opacity(hover || plusAlwaysVisible ? 1 : 0)
                 }
             }
@@ -141,7 +141,6 @@ struct RailTile: View {
                 StatusDot(state: state, size: Theme.railDot, border: Theme.ui.bg1, borderWidth: Theme.railDotBorder)
                     .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
             }
-            .animation(Motion.ease(Theme.selectionFade), value: selected)
     }
 }
 
@@ -191,7 +190,7 @@ struct FilledRowStyle: ButtonStyle {
                 }
                 .contentShape(Rectangle())
                 .pointingHand()
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+                .onHover { h in hover = h }
         }
     }
 }
@@ -312,46 +311,5 @@ struct SessionStatusLine: View {
         case .waiting: Theme.ui.waiting
         case .failed: Theme.ui.failedText
         }
-    }
-}
-
-struct MenuItemsView: View {
-    let items: [MenuEntry]
-
-    var body: some View {
-        ForEach(items, id: \.title) { item in
-            Button { item.action() } label: {
-                Label { Text(verbatim: item.title) } icon: { Image(nsImage: item.icon.image) }
-            }
-            .disabled(!item.enabled)
-        }
-    }
-}
-
-/// The `…` menu of sidebar rows and the Settings row (also the tab bar `+` and the host ▾): hover fill and pointing hand.
-/// `size` fixes a square hit box; otherwise `padding` surrounds the icon.
-struct MoreButton<Items: View>: View {
-    var icon: Icon = .more
-    var radius = Theme.railItemRadius
-    var padding = Theme.railInset
-    var size: CGFloat?
-    var help = L10n.more
-    @ViewBuilder var items: Items
-    @Environment(\.hoverPalette) private var palette
-    @State private var hover = false
-
-    var body: some View {
-        Menu { items } label: { Image(nsImage: icon.image).renderingMode(.template) }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .frame(width: size, height: size)
-            .padding(size == nil ? padding : 0)
-            .background(RoundedRectangle(cornerRadius: radius)
-                .fill(palette.fill(selected: false, pressed: false, hover: hover, interactive: true)))
-            .contentShape(Rectangle())
-            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-            .pointingHand()
-            .help(help)
     }
 }

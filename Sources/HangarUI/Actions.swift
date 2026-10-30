@@ -311,32 +311,6 @@ func editorName(_ command: String) -> String {
     }
 }
 
-/// Shows the key in the menu (the key itself is handled by the window's key monitor, by keyCode).
-struct MenuShortcutHint: ViewModifier {
-    let shortcut: Shortcut?
-
-    func body(content: Content) -> some View {
-        if let key = shortcut?.menuKey { content.keyboardShortcut(key.0, modifiers: key.1) } else { content }
-    }
-}
-
-extension Shortcut {
-    var menuKey: (KeyEquivalent, EventModifiers)? {
-        switch self {
-        case .rename: (KeyEquivalent(Character(UnicodeScalar(NSF2FunctionKey)!)), [])
-        case .archiveTask: ("w", [.command, .shift])
-        case .splitRight: ("d", .command)
-        case .splitDown: ("d", [.command, .shift])
-        case .closeTab: ("w", .command)
-        case .toggleDrawer: ("j", .command)
-        case .newTab: ("t", .command)
-        case .revealInFinder: ("r", [.command, .option])
-        case .copyPath: ("c", [.command, .option])
-        default: nil
-        }
-    }
-}
-
 enum CloseRoute: Equatable { case tab, pane(UUID) }
 
 /// ⌘W in the tab area (after `drawerRoute`): a split tab loses its focused pane (`focused`: the pane holding the keyboard,

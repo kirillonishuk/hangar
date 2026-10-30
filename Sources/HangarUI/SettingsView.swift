@@ -125,12 +125,12 @@ struct SettingsView: View {
     private var general: some View {
         CardSection {
             row(L10n.languageTitle, first: true) {
-                Segment(selection: app.language, options: [
+                Segmented(selection: app.language, options: [
                     (.system, L10n.languageSystem), (.ru, L10n.languageRu), (.en, L10n.languageEn),
                 ]) { lang in save { try app.setLanguage(lang) } }
             }
             row(L10n.defaultAgent) {
-                Segment(selection: app.config.defaultAgent, options: [(.claude, "claude"), (.codex, "codex")]) { kind in
+                Segmented(selection: app.config.defaultAgent, options: [(.claude, "claude"), (.codex, "codex")]) { kind in
                     save { try app.setConfig("default_agent", kind.rawValue) { $0.defaultAgent = kind } }
                 }
             }
@@ -176,7 +176,7 @@ struct SettingsView: View {
         case .busy: EmptyView()
         case nil:
             Button(L10n.checkNow) { updates.checkNow() }
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .fixedSize()
                 .disabled(updates.feed == nil || updates.phase == .checking)
         }
@@ -184,7 +184,7 @@ struct SettingsView: View {
 
     private func installButton(_ title: String, _ updates: UpdateModel) -> some View {
         Button(title) { updates.install() }
-            .buttonStyle(SheetButton(primary: true))
+            .buttonStyle(.hangar(.primary))
             .fixedSize()
     }
 
@@ -233,7 +233,7 @@ struct SettingsView: View {
             Spacer(minLength: Theme.cardRowGap)
             if let package, lsp.owned.contains(package), job == nil {
                 Button(L10n.lspRemove) { lsp.remove(package) }
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .fixedSize()
             }
         case (_, .missing):
@@ -256,13 +256,13 @@ struct SettingsView: View {
             lspDetail(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
             Spacer(minLength: Theme.cardRowGap)
             Button(L10n.cancel) { lsp.cancel(package) }
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .fixedSize()
         case .failed(let why)?:
             lspDetail(why, color: Theme.ui.failedText, mono: false)
             Spacer(minLength: Theme.cardRowGap)
             Button(L10n.lspRetry) { lsp.install(package) }
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .fixedSize()
         case nil:
             Pill(text: L10n.lspNotInstalled, color: Theme.ui.waiting)
@@ -272,7 +272,7 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.ui.text3)
             } else {
                 Button(L10n.lspDownload) { lsp.install(package) }
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .fixedSize()
                     .help(L10n.lspDownloadTip(package.rawValue, tildePath(lsp.env.dir)))
             }
@@ -398,7 +398,7 @@ struct SettingsView: View {
                     Text(verbatim: state.text).foregroundStyle(state.denied ? Theme.ui.failedText : Theme.ui.text2)
                     if state.denied, let url = notificationSettingsURL(bundleId: Bundle.main.bundleIdentifier ?? "") {
                         Button(L10n.openSystemSettings) { NSWorkspace.shared.open(url) }
-                            .buttonStyle(SheetButton(primary: false))
+                            .buttonStyle(.hangar(.secondary))
                             .fixedSize()
                     }
                 }
@@ -440,7 +440,7 @@ struct SettingsView: View {
                 .help(path)
             Spacer(minLength: Theme.cardRowGap)
             Button(L10n.showInFinder) { NSWorkspace.shared.activateFileViewerSelecting([app.configURL]) }
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .fixedSize()
         }
     }
@@ -476,7 +476,7 @@ private struct SettingsSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .pointingHand(!on)
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hovered = h ? category : (hovered == category ? nil : hovered) } }
+                .onHover { h in hovered = h ? category : (hovered == category ? nil : hovered) }
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
             Spacer(minLength: 0)
@@ -485,46 +485,6 @@ private struct SettingsSidebar: View {
         .frame(width: Theme.settingsSidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Theme.ui.bg1)
-    }
-}
-
-/// Segmented control in the token colors (`field` track with a `line2` border, `hover2` active segment): only for real choices.
-struct Segment<Value: Equatable>: View {
-    let selection: Value
-    let options: [(Value, String)]
-    /// Shown but not choosable (with the control's tooltip saying why).
-    var disabled: [Value] = []
-    let choose: (Value) -> Void
-    @State private var hovered: Int?
-
-    var body: some View {
-        HStack(spacing: Theme.segmentPadding) {
-            ForEach(options.indices, id: \.self) { i in
-                let (value, title) = options[i]
-                let on = value == selection
-                let off = disabled.contains(value)
-                Button { if !on { choose(value) } } label: {
-                    Text(title)
-                        .foregroundStyle(on ? Theme.ui.text0 : hovered == i ? Theme.ui.text1 : Theme.ui.text2)
-                        .padding(.vertical, Theme.segmentItemPaddingV)
-                        .padding(.horizontal, Theme.segmentItemPaddingH)
-                        .background(RoundedRectangle(cornerRadius: Theme.segmentItemRadius)
-                            .fill(on ? Theme.ui.hover2 : hovered == i ? Theme.ui.hover : .clear))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(off)
-                .opacity(off ? Theme.Opacity.inactive : 1)
-                .pointingHand(!on && !off)
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hovered = h ? i : (hovered == i ? nil : hovered) } }
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
-        }
-        .padding(Theme.segmentPadding)
-        .fixedSize()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.field))
-        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
-        .animation(Motion.ease(Theme.selectionFade), value: options.firstIndex { $0.0 == selection })
     }
 }
 

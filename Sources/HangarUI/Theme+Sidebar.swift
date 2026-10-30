@@ -26,13 +26,12 @@ extension Theme {
     public static let diffBadgeGap: CGFloat = 6
     /// Gap between the name and the badge slot.
     public static let rowSlotGap: CGFloat = 6
-    /// Inline row action: 24×24, icon 16, radius 6, no gap between actions; fades 120 ms (`hoverFade`).
-    public static let rowActionSize: CGFloat = 24
-    public static let rowActionRadius: CGFloat = 6
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
     public static let projectRowTrailing: CGFloat = 12
     /// Session row: name and badge end 8 inside the highlight (16 from the sidebar's edge); the actions overhang it by 4.
     public static let sessionRowTrailing: CGFloat = 16
+    /// Inline row actions are small icon buttons; they overhang the row's edge by `rowActionsOverhang`.
+    public static let rowActionSize: CGFloat = Theme.Height.controlSmall
     public static let rowActionsOverhang: CGFloat = 4
     /// Section header (`.sec`): 28 high, 8 above, text at x 20, buttons 12 from the edge and 2 apart; filter ring 1.5.
     public static let sectionHeaderHeight: CGFloat = 28
@@ -48,19 +47,12 @@ extension Theme {
     public static let bottomBarTop: CGFloat = 6
     public static let bottomBarBottom: CGFloat = 8
 
-    /// Custom «⋯» menu: 256 wide, radius 10, padding 6; items 30 (8 left / 10 right, radius 6, icon 16 + 10).
+    /// `PopoverMenu` (spec §3.12): 256 wide (a branch list 320), padding 6, items `row.list` 24; a long list scrolls
+    /// past 12 items.
     public static let menuWidth: CGFloat = 256
-    public static let menuRadius: CGFloat = 10
+    public static let menuWidthWide: CGFloat = 320
     public static let menuPadding: CGFloat = 6
-    public static let menuItemHeight: CGFloat = 30
-    public static let menuItemPaddingLeading: CGFloat = 8
-    public static let menuItemPaddingTrailing: CGFloat = 10
-    public static let menuItemRadius: CGFloat = 6
-    public static let menuIconGap: CGFloat = 10
-    /// Separator: 1 `line2`, 6 above/below, 2 at the sides. Header: 28, 12 `text3`.
-    public static let menuSeparatorPaddingV: CGFloat = 6
-    public static let menuSeparatorPaddingH: CGFloat = 2
-    public static let menuHeaderHeight: CGFloat = 28
+    public static let menuListMaxRows = 12
     /// The menu opens this far below its button (left edges aligned).
     public static let menuAnchorGap: CGFloat = 4
 }

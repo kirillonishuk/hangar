@@ -424,7 +424,7 @@ struct SidebarView: View {
                     HStack(spacing: 0) {
                         PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
                         if exists {
-                            RowActionButton(icon: .add, help: L10n.newTaskIn(project.name)) { ctx.newTask(project.id) }
+                            IconButton(icon: .add, help: L10n.newTaskIn(project.name)) { ctx.newTask(project.id) }
                         }
                     }
                     .opacity(hover && !renaming ? 1 : 0)
@@ -483,7 +483,7 @@ struct SidebarView: View {
             }
             .padding(.horizontal, Theme.rowStatusGap)
         }
-        .buttonStyle(HoverButtonStyle(radius: Theme.rowActionRadius))
+        .buttonStyle(HoverButtonStyle(radius: Theme.Radius.control))
     }
 
     // MARK: Sessions
@@ -550,14 +550,13 @@ struct SidebarView: View {
     /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
     private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
         HStack(spacing: 0) {
-            RowActionButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
+            IconButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
                 app.setPinned(task.id, !task.pinned)
             }
             PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
         }
         .opacity(shown ? 1 : 0)
         .allowsHitTesting(shown)
-        .animation(Motion.ease(Theme.hoverFade), value: shown)
     }
 
     // MARK: Bottom bar

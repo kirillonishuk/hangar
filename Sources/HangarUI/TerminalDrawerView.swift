@@ -4,13 +4,13 @@ import Exec
 import GhosttyBridge
 import Workspace
 
-/// Background of a clickable AppKit bar (TERMINAL, ↩ relaunch): `lit` while the pointer is over it, 120 ms fade.
+/// Background of a clickable AppKit bar (TERMINAL, ↩ relaunch): `lit` while the pointer is over it, instantly.
 @MainActor final class HoverFill: NSView {
     /// Read on each hover, so it follows the theme.
     private let lit: () -> NSColor
     private var inside = false
     /// Off: stays clear (the bar is not clickable right now).
-    var enabled = true { didSet { if enabled != oldValue { apply(animated: false) } } }
+    var enabled = true { didSet { if enabled != oldValue { apply() } } }
 
     init(lit: @escaping () -> NSColor) {
         self.lit = lit
@@ -22,19 +22,12 @@ import Workspace
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }  // clicks belong to the bar
-    override func mouseEntered(with event: NSEvent) { inside = true; apply(animated: true) }
-    override func mouseExited(with event: NSEvent) { inside = false; apply(animated: true) }
+    override func mouseEntered(with event: NSEvent) { inside = true; apply() }
+    override func mouseExited(with event: NSEvent) { inside = false; apply() }
 
-    private func apply(animated: Bool) {
+    private func apply() {
         guard let layer else { return }
         let color = (inside && enabled ? lit() : .clear).cgColor
-        if animated, !Motion.reduced {
-            let fade = CABasicAnimation(keyPath: "backgroundColor")
-            fade.fromValue = layer.presentation()?.backgroundColor ?? layer.backgroundColor
-            fade.toValue = color
-            fade.duration = Theme.hoverFade
-            layer.add(fade, forKey: "hover")
-        }
         layer.backgroundColor = color
     }
 }

@@ -23,13 +23,13 @@ struct UpdateSheet: View {
                 .padding(.top, Theme.sheetMessageTop)
             SheetFooter(hint: "") {
                 Button(L10n.updateSkip) { model.skip(); onClose() }
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .disabled(busy || model.phase == .ready)
                 Button(L10n.updateLater) { model.later(); onClose() }
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .keyboardShortcut(.cancelAction)
                 Button(model.phase == .ready ? L10n.updateRestart : L10n.updateInstall) { model.install() }
-                    .buttonStyle(SheetButton(primary: true))
+                    .buttonStyle(.hangar(.primary))
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(busy || offer == nil)
             }

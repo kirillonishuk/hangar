@@ -39,13 +39,12 @@ struct ConnectHostSheet: View {
     private var footer: some View {
         SheetFooter {
             Button(L10n.cancel, action: onCancel)
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .keyboardShortcut(.cancelAction)
             Button(L10n.connect, action: connect)
-                .buttonStyle(SheetButton(primary: true))
+                .buttonStyle(.hangar(.primary))
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(valid == nil)
-                .opacity(valid == nil ? Theme.Opacity.inactive : 1)
         }
     }
 

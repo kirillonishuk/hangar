@@ -69,41 +69,6 @@ struct CardSection<Content: View>: View {
     }
 }
 
-/// On/off switch (themes-v1.html `.sw`): `accent` track when on, `hover2` when off; the whole switch is the button.
-struct CardSwitch: View {
-    let on: Bool
-    let toggle: (Bool) -> Void
-    @Environment(\.isEnabled) private var enabled
-
-    init(on: Bool, toggle: @escaping (Bool) -> Void) {
-        self.on = on
-        self.toggle = toggle
-    }
-
-    init(isOn: Binding<Bool>) {
-        self.init(on: isOn.wrappedValue) { isOn.wrappedValue = $0 }
-    }
-
-    var body: some View {
-        let knob = Theme.switchHeight - 2 * Theme.switchInset
-        Button { toggle(!on) } label: {
-            ZStack(alignment: on ? .trailing : .leading) {
-                Capsule().fill(on ? Theme.ui.accent : Theme.ui.hover2)
-                Circle().fill(on ? Theme.ui.onAccent : Theme.ui.text2)
-                    .frame(width: knob, height: knob)
-                    .padding(.horizontal, Theme.switchInset)
-            }
-            .frame(width: Theme.switchWidth, height: Theme.switchHeight)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .opacity(enabled ? 1 : Theme.Opacity.inactive)
-        .pointingHand(enabled)
-        .animation(Motion.ease(Theme.selectionFade), value: on)
-        .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
-    }
-}
-
 /// Status pill: a word in its colour on that colour at 15 % (green done, amber to-do, red only for errors).
 struct Pill: View {
     let text: String
@@ -158,29 +123,24 @@ struct ConfirmSheet: View {
                     .padding(.top, Theme.sheetNameTop)
             }
             if let checkbox {
-                CardSection {
-                    CardRow(label: checkbox, labelWidth: Theme.cardLabelWide, first: true) {
-                        Spacer(minLength: 0)
-                        CardSwitch(isOn: $checked)
-                    }
-                }
-                .padding(.top, Theme.sheetGap)
+                Checkbox(checkbox, isOn: $checked)
+                    .padding(.top, Theme.sheetGap)
             }
             SheetFooter {
                 if let onCancel {
                     Button(L10n.cancel, action: onCancel)
-                        .buttonStyle(SheetButton(primary: false))
+                        .buttonStyle(.hangar(.secondary))
                         .keyboardShortcut(.cancelAction)
                     if let other {
                         Button(other, action: onOther)
-                            .buttonStyle(SheetButton(primary: false))
+                            .buttonStyle(.hangar(.secondary))
                     }
                     Button(button) { onConfirm(checked) }
-                        .buttonStyle(SheetButton(primary: true, destructive: destructive))
+                        .buttonStyle(.hangar(destructive ? .destructive : .primary))
                         .keyboardShortcut(.return, modifiers: .command)
                 } else {
                     Button(button) { onConfirm(false) }
-                        .buttonStyle(SheetButton(primary: true))
+                        .buttonStyle(.hangar(.primary))
                         .keyboardShortcut(.defaultAction)
                         // A notice: Esc closes it too (the invisible button only carries the shortcut).
                         .background {

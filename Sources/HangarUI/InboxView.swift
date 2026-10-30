@@ -97,7 +97,7 @@ struct InboxPopover: View {
                     Text(L10n.inboxRecentDone).foregroundStyle(Theme.ui.text3)
                     Spacer(minLength: Theme.Inbox.rowGap)
                     Button(L10n.inboxClear) { app.clearDone() }
-                        .buttonStyle(HeaderActionStyle())
+                        .buttonStyle(.hangar(.plain, .small))
                         .fixedSize()
                 }
                 .font(Theme.Typography.caption.font())
@@ -204,7 +204,7 @@ private struct InboxButton: View {
 
     var body: some View {
         Button(title, action: action)
-            .buttonStyle(ActionButtonStyle(primary: primary))
+            .buttonStyle(.hangar(primary ? .primary : .secondary, .small))
             .fixedSize()
     }
 }

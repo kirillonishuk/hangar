@@ -56,6 +56,14 @@ import Workspace
     var highlighted: PaletteItem? { sections.lazy.flatMap(\.items).first { $0.id == self.highlight } }
 }
 
+/// ↑/↓ over the visible rows (all sections as one list), clamped at the ends; an unknown or nil highlight lands on
+/// the first row.
+func movedHighlight(_ current: String?, by delta: Int, in ids: [String]) -> String? {
+    guard !ids.isEmpty else { return nil }
+    guard let current, let i = ids.firstIndex(of: current) else { return ids[0] }
+    return ids[min(max(i + delta, 0), ids.count - 1)]
+}
+
 /// Borderless panels refuse key status by default; the search field needs it.
 final class PalettePanel: NSPanel {
     override var canBecomeKey: Bool { true }

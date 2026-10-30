@@ -120,11 +120,12 @@ enum MonacoTheme {
             "--sheet": h(p.bg2),
             "--button-font": "\(e.buttonFont)px", "--bar-h": "\(e.barHeight)px", "--bar-font": "\(e.barFont)px",
             "--radius": "\(e.radius)px",
-            "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
-            "--menu-item-h": "\(Theme.menuItemHeight)px", "--menu-item-pl": "\(Theme.menuItemPaddingLeading)px",
-            "--menu-item-pr": "\(Theme.menuItemPaddingTrailing)px", "--menu-item-r": "\(Theme.menuItemRadius)px",
+            // The page's menus copy `PopoverMenu` (spec §3.12).
+            "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.Radius.popover)px", "--menu-pad": "\(Theme.menuPadding)px",
+            "--menu-item-h": "\(Theme.Height.rowList)px", "--menu-item-pl": "\(Theme.Space.s2)px",
+            "--menu-item-pr": "\(Theme.Space.s2)px", "--menu-item-r": "\(Theme.Radius.control)px",
             "--menu-font": "\(Theme.Typography.body.size)px", "--menu-key-font": "\(Theme.Typography.secondary.size)px",
-            "--menu-sep-v": "\(Theme.menuSeparatorPaddingV)px", "--menu-sep-h": "\(Theme.menuSeparatorPaddingH)px",
+            "--menu-sep-v": "\(Theme.menuPadding)px", "--menu-sep-h": "0px",
             "--menu-hover": h(p.selectedFocus), "--menu-hover-text": h(p.onAccent), "--menu-border": h(p.line2),
             "--line-sheet": h(p.line2), "--inactive": "\(Theme.Opacity.inactive)",
         ]

@@ -217,7 +217,7 @@ struct LimitsPopover: View {
                     // A header action: unfilled until hovered, so it doesn't read as the `text3` hint beside it.
                     ActionLabel(title: L10n.refresh, icon: .refresh)
                 }
-                .buttonStyle(HeaderActionStyle())
+                .buttonStyle(.hangar(.plain, .small))
                 .help(L10n.refreshLimitsHelp)
             }
             .font(Theme.Typography.caption.font())

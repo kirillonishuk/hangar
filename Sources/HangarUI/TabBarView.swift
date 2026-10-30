@@ -138,7 +138,7 @@ struct TabBarView: View {
             .frame(maxHeight: .infinity, alignment: .bottom)
             .onChange(of: width, initial: true) { _, w in
                 room = w
-                reveal(animated: false)
+                reveal()
             }
             .onChange(of: geo.frame(in: .global).minX + Theme.tabTitleLeading, initial: true) { stripMinX = $1 }
         }
@@ -147,7 +147,7 @@ struct TabBarView: View {
         .background(Theme.ui.bg1)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         .ignoresSafeArea()
-        .onChange(of: activeKey) { reveal(animated: true) }
+        .onChange(of: activeKey) { reveal() }
     }
 
     // MARK: Layout
@@ -184,7 +184,7 @@ struct TabBarView: View {
     }
 
     /// Scrolls the active tab into view; another task starts from the left.
-    private func reveal(animated: Bool) {
+    private func reveal() {
         guard let task = app.selectedTask, room > 0 else { return }
         let switched = shownTask != task.id
         shownTask = task.id
@@ -193,7 +193,7 @@ struct TabBarView: View {
         let from = switched ? 0 : TabStrip.clamp(scroll, viewport: l.viewport, content: l.content)
         let target = TabStrip.reveal(index: i, widths: l.widths, offset: from, viewport: l.viewport)
         guard target != scroll else { return }
-        if animated && !switched { withAnimation(Motion.ease(Theme.selectionFade)) { scroll = target } } else { scroll = target }
+        scroll = target
     }
 
     // MARK: Strip
@@ -223,8 +223,6 @@ struct TabBarView: View {
                     .onDisappear { app.tabFrames[tab.id] = nil }
                     // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
                     .offset(x: shifts?[i] ?? paneSlot.map { i >= $0 ? gap : 0 } ?? 0)
-                    .animation(Motion.ease(Theme.selectionFade), value: slot?.index)
-                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
                     .opacity(drag?.tab == tab.id ? Theme.Opacity.inactive : 1)
                     .shadow(color: Theme.ui.bg0.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
@@ -234,7 +232,6 @@ struct TabBarView: View {
             if let diff, let w = l.widths.last {
                 DiffTabItem(app: app, tab: diff, width: w)
                     .offset(x: paneSlot == nil ? 0 : gap)
-                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
             }
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -260,11 +257,9 @@ struct TabBarView: View {
             if let from, let slot {
                 slotOutline(width: tabWidths[from])
                     .offset(x: TabStrip.slotX(widths: tabWidths, from: from, to: slot.index))
-                    .animation(Motion.ease(Theme.selectionFade), value: slot.index)
             } else if let paneSlot {
                 slotOutline(width: Theme.tabMinWidth)
                     .offset(x: tabWidths.prefix(paneSlot).reduce(0) { $0 + $1 + Theme.tabGap })
-                    .animation(Motion.ease(Theme.selectionFade), value: paneSlot)
             }
         }
         .offset(x: -offset)
@@ -293,7 +288,6 @@ struct TabBarView: View {
                        startPoint: edge == .leading ? .leading : .trailing, endPoint: edge == .leading ? .trailing : .leading)
             .frame(width: Theme.tabFadeWidth)
             .opacity(visible ? 1 : 0)
-            .animation(Motion.ease(Theme.hoverFade), value: visible)
             .allowsHitTesting(false)
     }
 
@@ -349,59 +343,34 @@ struct TabBarView: View {
 
     // MARK: Controls
 
-    /// Every tab of the task (icon with its status dot, title); shown only while the bar overflows.
+    /// Every tab of the task (icon with its status dot, title; the active one checked); shown only while the bar overflows.
     private func overflowMenu(_ task: HangarTask) -> some View {
-        let diff = app.diffTabs[task.id]
-        return MoreButton(icon: .chevronDown, radius: Theme.tabRadius, size: Theme.tabBarButton, help: L10n.allTabsHelp) {
-            ForEach(task.tabs) { tab in
+        PopoverMenuButton(icon: .chevronDown, size: .regular, help: L10n.allTabsHelp) {
+            let diff = app.diffTabs[task.id]
+            var entries: [PopoverMenuEntry] = task.tabs.map { tab in
                 let state = app.displayState(of: tab)
                 let icon = tab.root.leaves.first.map { Icon.of($0.kind) } ?? .shell
-                Toggle(isOn: Binding(get: { tab.id == task.activeTabId && diff?.active != true }, set: { _ in app.activate(tabId: tab.id) })) {
-                    Label { Text(verbatim: app.tabLabel(tab)) } icon: {
-                        Image(nsImage: Self.menuIcon(icon, dot: app.showsDot(tab, state: state) ? state : nil))
-                    }
-                }
+                return .item(PopoverMenuItem(title: app.tabLabel(tab), icon: icon, checked: tab.id == task.activeTabId && diff?.active != true,
+                                             dot: app.showsDot(tab, state: state) ? state : nil) { app.activate(tabId: tab.id) })
             }
             if let diff {
-                Toggle(isOn: Binding(get: { diff.active }, set: { _ in app.activateDiff() })) {
-                    Label { Text(verbatim: (diff.path as NSString).lastPathComponent) } icon: { Image(nsImage: Icon.diff.image) }
-                }
+                entries.append(.item(PopoverMenuItem(title: (diff.path as NSString).lastPathComponent, icon: .diff, checked: diff.active) {
+                    app.activateDiff()
+                }))
             }
+            return entries
         }
         .padding(.bottom, Theme.railInset)
     }
 
-    /// Menu icon with the tab's status dot at its lower right (menus drop SwiftUI colors, so it's drawn in).
-    private static func menuIcon(_ icon: Icon, dot: AgentState?) -> NSImage {
-        guard let dot else { return icon.image }
-        let s = Theme.iconSize, d = Theme.statusDot
-        let color = NSColor(Theme.ui.status(dot))
-        return NSImage(size: NSSize(width: s, height: s), flipped: false) { r in
-            icon.image.draw(in: r)
-            if !icon.isBrand {
-                Theme.text1.set()
-                r.fill(using: .sourceAtop)
-            }
-            color.setFill()
-            NSBezierPath(ovalIn: NSRect(x: s - d, y: 0, width: d, height: d)).fill()
-            return true
-        }
-    }
-
     /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell. As tall as a tab and on its baseline.
     private func addMenu(shellOnly: Bool) -> some View {
-        MoreButton(icon: .add, radius: Theme.tabRadius, size: Theme.tabBarButton, help: L10n.help(L10n.newTabHelp, .newTab)) {
-            if !shellOnly {
-                item("Claude", .claude)
-                item("Codex", .codex)
+        PopoverMenuButton(icon: .add, size: .regular, help: L10n.help(L10n.newTabHelp, .newTab)) {
+            let kinds: [(String, LeafKind)] = (shellOnly ? [] : [("Claude", .claude), ("Codex", .codex)]) + [("Shell", .shell)]
+            return kinds.map { title, kind in
+                .item(PopoverMenuItem(title: title, icon: Icon.of(kind), shortcut: kind == .shell ? Shortcut.newTab.label : nil) { app.addTab(kind) })
             }
-            item("Shell", .shell)
         }
-    }
-
-    private func item(_ title: String, _ kind: LeafKind) -> some View {
-        Button { app.addTab(kind) } label: { Label { Text(title) } icon: { Image(nsImage: Icon.of(kind).image) } }
-            .modifier(MenuShortcutHint(shortcut: kind == .shell ? .newTab : nil))
     }
 }
 
@@ -465,7 +434,7 @@ private struct TabCloseButton: View {
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
         .environment(\.hoverPalette, .raised)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .onHover { h in hover = h }
         .opacity(hover || dirty ? 1 : tabHover ? Theme.Opacity.inactive : 0)
         // The hover box grows into the tab's padding, so the tab keeps its size.
         .padding(.vertical, -Theme.tabCloseInset)
@@ -588,8 +557,7 @@ struct TabItem: View {
         .help(L10n.help(app.tabHelpTitle(tab, taskId: taskId), (1...9).contains(number) ? .tab(number) : nil)
               + (app.isHostShellTask(taskId) ? "\n" + L10n.plainSSHHint : ""))
         .pointingHand(app.renaming != target && !dragging)  // a drag keeps its closed hand (PaneDragController)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .animation(Motion.ease(Theme.selectionFade), value: active)
+        .onHover { h in hover = h }
     }
 }
 
@@ -616,7 +584,6 @@ private struct DiffTabItem: View {
         .onTapGesture { app.activateDiff() }
         .pointingHand()
         .help(tab.path)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .animation(Motion.ease(Theme.selectionFade), value: tab.active)
+        .onHover { h in hover = h }
     }
 }

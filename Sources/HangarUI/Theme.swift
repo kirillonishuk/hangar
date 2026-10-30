@@ -34,8 +34,6 @@ public enum Theme {
     public static let inspectorMax: CGFloat = 420
     public static let treeIndent: CGFloat = 12
     public static let fileRowPaddingV: CGFloat = 3
-    public static let inspectorSegmentRadius: CGFloat = 6
-    public static let inspectorSegmentItemRadius: CGFloat = 4
     public static let inspectorSegmentPaddingH: CGFloat = 10
     /// Changes / Search rows show a folder only with at least this much room.
     public static let rowFolderMin: CGFloat = 48
@@ -102,8 +100,6 @@ public enum Theme {
     public static let sectionGap: CGFloat = 10
     public static let footerRowHeight: CGFloat = 28
     public static let sidebarAnimation: Double = 0.18
-    public static let hoverFade: Double = 0.12
-    public static let selectionFade: Double = 0.15
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
     public static let projectTileSize: CGFloat = 24
@@ -127,17 +123,6 @@ public enum Theme {
     public static let paneHeaderIcon: CGFloat = 12
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = 2
-    /// Row / toast / header actions (Controls.swift, controls-v2 B′): 22 high, radius 6, `secondary`, glyph 12.
-    enum Control {
-        static let height: CGFloat = 22
-        static let radius: CGFloat = 6
-        static let icon: CGFloat = 12
-        static let iconGap: CGFloat = 5
-        static let paddingH: CGFloat = 8
-        static let headerPaddingH: CGFloat = 6
-        static let hoverBrightness = 0.06
-        static let pressedBrightness = -0.06
-    }
 
     /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
     public static let sheetWidth: CGFloat = 620
@@ -152,8 +137,6 @@ public enum Theme {
     public static let sheetFooterPaddingV: CGFloat = 14
     public static let fieldRadius: CGFloat = 7
     public static let fieldPaddingH: CGFloat = 11
-    public static let buttonRadius: CGFloat = 7
-    public static let buttonPaddingV: CGFloat = 5
     public static let buttonPaddingH: CGFloat = 14
     public static let focusRing: CGFloat = 3
     public static let settingsTopOffset: CGFloat = 80
@@ -164,35 +147,17 @@ public enum Theme {
     public static let fieldTextInset: CGFloat = 4
     public static let cardRowGap: CGFloat = 10
     public static let segmentRadius: CGFloat = 7
-    public static let segmentPadding: CGFloat = 2
-    public static let segmentItemRadius: CGFloat = 5
-    public static let segmentItemPaddingV: CGFloat = 3
-    public static let segmentItemPaddingH: CGFloat = 11
-    /// The Changes count in the inspector segment: a capsule of `text3` (22 %, 30 % on the active part), label gap.
-    public static let segmentBadgeHeight: CGFloat = 16
-    public static let segmentBadgePaddingH: CGFloat = 5
-    public static let segmentBadgeGap: CGFloat = 4
 
     // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
     /// One label column in every sheet: «Команда после создания» (~165 at `sheetRow`, ru) on one line.
     public static let cardLabelWidth: CGFloat = 168
     /// git stderr shown under the card.
     public static let errorMaxLines = 6
-    public static let pickRadius: CGFloat = 6
     public static let pickPaddingV: CGFloat = 3
-    public static let pickPaddingH: CGFloat = 8
     public static let pickGap: CGFloat = 6
     public static let pickChevronSize: CGFloat = 10
     /// ↻ next to «обновлено …».
     public static let sheetIconButtonSize: CGFloat = 22
-    // Branch picker dropdown
-    public static let dropdownWidth: CGFloat = 340
-    public static let dropdownRadius: CGFloat = 9
-    public static let dropdownPaddingH: CGFloat = 11
-    public static let dropdownSearchPaddingV: CGFloat = 8
-    public static let dropdownRowHeight: CGFloat = 26
-    public static let dropdownSectionHeight: CGFloat = 22
-    public static let dropdownListMaxHeight: CGFloat = 260
     // SSH hosts and the server sheet
     public static let hostIconSize: CGFloat = 13
     /// «Claude Code на сервере»: wider than the card's usual 110, so the label stays on one line.

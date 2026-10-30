@@ -53,11 +53,7 @@ extension Theme {
         /// Small glyphs (back chevron, tick); the search field itself is `Theme.Input`.
         static let searchIcon: CGFloat = 14
 
-        /// Filter chips: height, paddings 8 / 6, radius, gap; active = `accent` 14 % with an `accent` 25 % border.
-        static let chipHeight: CGFloat = 24
         static let chipLeading: CGFloat = 8
-        static let chipTrailing: CGFloat = 6
-        static let chipRadius: CGFloat = 6
         static let chipGap: CGFloat = 6
         static let chipIcon: CGFloat = 12
         static let chipMaxWidth: CGFloat = 132
@@ -65,12 +61,7 @@ extension Theme {
         static let branchChipWidth: CGFloat = 112
         static let chipsMargin: CGFloat = 8
 
-        /// Filter popovers: as the «⋯» menu (width, padding, item height, radius, separator margins).
-        static let popoverWidth: CGFloat = 224
-        static let popoverPadding: CGFloat = 6
-        static let menuItem: CGFloat = 30
-        static let menuItemRadius: CGFloat = 6
-        static let menuCheck: CGFloat = 16
+        /// Path picks in the Path filter menu.
         static let popoverListMax = 8
 
         /// Details under the log: the divider's grip, default share, the least either side keeps.
@@ -94,9 +85,7 @@ extension Theme {
 
     /// Search tab (#91): fields are `Theme.Input` (#93), toggles inside the query field, file groups.
     enum SearchTab {
-        /// Aa / .* / ab toggles: box, radius, label size; on = `accent` 14 % with an `accent` 25 % border (as filter chips).
         static let toggle: CGFloat = 20
-        static let toggleRadius: CGFloat = 4
         static let toggleGap: CGFloat = 2
         /// The accent dot on «…» while an include / exclude glob is set.
         static let filterDot: CGFloat = 6

@@ -203,9 +203,19 @@ import Workspace
 
     /// StopFailure rate_limit before any statusline data: the sidebar says 100 %, not a red «0%».
     @Test func reachedLimitWithoutWindowsShowsFull() {
-        #expect(limitBlockPercent(AgentUsage(windows: [], plan: nil, limitReached: true, updatedAt: t0)) == 100)
-        #expect(limitBlockPercent(AgentUsage(windows: [], plan: nil, updatedAt: t0)) == 0)
-        let w = UsageWindow(kind: .weekly, usedPercent: 40, resetsAt: nil, updatedAt: t0)
-        #expect(limitBlockPercent(AgentUsage(windows: [w], plan: nil, updatedAt: t0)) == 40)
+        let reached = AgentUsage(windows: [], plan: nil, limitReached: true, updatedAt: t0)
+        #expect(LimitSlot.figure(.session, reached) == 100 && LimitSlot.level(.weekly, reached) == .full)
+        #expect(LimitSlot.figure(.session, AgentUsage(windows: [], plan: nil, updatedAt: t0)) == nil)
+    }
+
+    /// Only the weekly figure came: the 5-hour row is still there, as «—» (sidebar) / «нет данных» (popover).
+    @Test func bothMainWindowsAlwaysShown() {
+        let week = UsageWindow(kind: .weekly, usedPercent: 24, resetsAt: nil, updatedAt: t0)
+        let opus = UsageWindow(kind: .weeklyModel("opus"), usedPercent: 50, resetsAt: nil, updatedAt: t0)
+        let u = AgentUsage(windows: [opus, week], plan: nil, updatedAt: t0)
+        #expect(LimitSlot.figure(.session, u) == nil && LimitSlot.figure(.weekly, u) == 24)
+        let rows = LimitSlot.rows(u)
+        #expect(rows.map(\.kind) == [.session, .weekly, .weeklyModel("opus")])
+        #expect(rows.map { $0.window?.usedPercent } == [nil, 24, 50])
     }
 }

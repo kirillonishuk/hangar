@@ -116,18 +116,29 @@ struct RailTileStyle: Equatable {
     init(selected: Bool) {
         self = selected
             ? RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.text0)
-            : RailTileStyle(fill: Theme.ui.hover, border: Theme.ui.line2, text: Theme.ui.text1)
+            : RailTileStyle(fill: Theme.ui.hover2, border: .clear, text: Theme.ui.text1)
+    }
+
+    /// A project: outlined, no fill — calmer than its chats' filled tiles.
+    static var project: RailTileStyle { RailTileStyle(fill: .clear, border: Theme.ui.line2, text: Theme.ui.text3) }
+
+    /// What the corner dot's ring blends into: the rail square's fill under the tile's corner.
+    static func ring(selected: Bool, hover: Bool) -> Color {
+        HoverPalette.standard.background(selected: selected, hover: hover, base: Theme.ui.bg1)
     }
 }
 
-/// Rail task tile: 22×22 monogram centred in the rail, status dot in its top-right corner (icons-sidebar.html `.mono`).
+/// Rail tile: 20×20 monogram centred in the rail, status dot on its top-right corner ringed in what is under it
+/// (icons-sidebar.html `.mono`). Chats are filled, projects outlined (`RailTileStyle.project`).
 struct RailTile: View {
     let text: String
-    let state: AgentState
+    let state: AgentState?
     let selected: Bool
+    var hover = false
+    var style: RailTileStyle?
 
     var body: some View {
-        let style = RailTileStyle(selected: selected)
+        let style = self.style ?? RailTileStyle(selected: selected)
         let shape = RoundedRectangle(cornerRadius: Theme.Radius.control)
         Text(text)
             .font(Theme.Typography.caption.font(.semibold))
@@ -138,8 +149,11 @@ struct RailTile: View {
             .background(shape.fill(style.fill))
             .overlay(shape.strokeBorder(style.border, lineWidth: Theme.railTileBorderWidth))
             .overlay(alignment: .topTrailing) {
-                StatusDot(state: state, size: Theme.railDot, border: Theme.ui.bg1, borderWidth: Theme.railDotBorder)
-                    .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+                if let state {
+                    StatusDot(state: state, size: Theme.railDot, border: RailTileStyle.ring(selected: selected, hover: hover),
+                              borderWidth: Theme.railDotBorder)
+                        .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
+                }
             }
     }
 }

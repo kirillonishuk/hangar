@@ -80,6 +80,13 @@ extension AppState {
     /// Settings → «Строка состояния Claude»: saved, then every reachable project follows (overrides added or removed).
     func setStatuslineMode(_ mode: StatuslineMode) throws {
         try setConfig("statusline", mode.rawValue) { $0.statusline = mode }
+        // «Ваша» with «Лимиты» off takes Hangar's wrapper out of Claude's settings (#111): in the queue, before the
+        // projects follow (their sync reads the CLI from those settings).
+        enqueueStatusline { [weak self] in
+            guard let self else { return }
+            await applyLocal(.claude)
+            for host in config.integrationHosts where remote.hosts[host]?.state == .connected { await applyHost(host) }
+        }
         syncAllStatuslines()
     }
 
@@ -159,7 +166,7 @@ extension AppState {
         let hangar: () -> Bool = { [weak self] in !revert && self?.config.statusline == .hangar }
         var notes: [StatuslineNote] = []
         if let host {
-            // A DEBUG run without a fake ssh never writes on a server (as `upgradeRemote`).
+            // A DEBUG run without a fake ssh never writes on a server (as `integrateHost`).
             guard autoUpgradeRemote, remote.hosts[host]?.state == .connected else { return }
             let m = ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
             notes = await m.syncProjectStatuslines(dirs, hangar: hangar)

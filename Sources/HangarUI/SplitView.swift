@@ -139,12 +139,14 @@ final class FillView: NSView {
     private(set) var isDetached = false
     /// The launch that met `.notConnected`, made again by `resumeIfWaiting` once the host is up.
     private var waiting: LaunchContext?
-    var isWaitingForHost: Bool { waiting != nil }
+    var isWaitingForHost: Bool { waiting != nil && !waitingForConsent }
+    /// The launch waits for the integration sheet's answer (#111), made again by `integrationAnswered`.
+    private(set) var waitingForConsent = false
     /// Set with `host`: the bar text when the host is not on its way (given up, disconnected, retry paused) — then the
     /// waiting bar offers «Переподключиться»; nil while it is connecting.
     var reconnectText: () -> String? = { nil }
     var onReconnect: (() -> Void)?
-    var canReconnect: Bool { waiting != nil && reconnectText() != nil }
+    var canReconnect: Bool { waiting != nil && !waitingForConsent && reconnectText() != nil }
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
@@ -251,6 +253,7 @@ final class FillView: NSView {
         guard let make else { return false }
         do {
             waiting = nil
+            waitingForConsent = false
             missingFolder = nil
             let (spec, mode) = try make(context)
             self.mode = mode
@@ -260,6 +263,11 @@ final class FillView: NSView {
         } catch LaunchError.missingCwd(let path) {
             missingFolder = context
             setBar("\(L10n.folderMissing(path)) · \(L10n.relaunchHint)")
+        } catch LaunchError.awaitingConsent {
+            waiting = context
+            waitingForConsent = true
+            barText = { L10n.awaitingIntegrationAnswer }
+            refreshText()
         } catch LaunchError.notConnected(let host) {
             waiting = context
             // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
@@ -514,6 +522,10 @@ final class FillView: NSView {
         app.onHostConnected = { [weak self] host in
             guard let self else { return }
             hostConnected(host: host, leaves: Array(leafViews.values) + drawer.leaves)
+        }
+        app.onIntegrationAnswered = { [weak self] in
+            guard let self else { return }
+            for view in Array(leafViews.values) + drawer.leaves where view.waitingForConsent { view.resumeIfWaiting() }
         }
         app.onHostChange = { [weak self] host in
             guard let self else { return }

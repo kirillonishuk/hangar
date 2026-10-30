@@ -318,4 +318,28 @@ import Testing
         #expect(c.sounds["done"] == "")
         #expect(c.sounds["permission"] == "default")
     }
+
+    /// Integration keys (#111): absent = undecided, functions on by default; hosts as plain lists; written lists parse back.
+    @Test func integrationKeys() throws {
+        let d = try HangarConfig.parse("")
+        #expect(d.claudeIntegration == nil && d.codexIntegration == nil)
+        #expect(d.claudeHooks && d.claudeLimits && d.claudeMCP && d.codexNotify && d.codexMCP)
+        #expect(d.integrationHosts.isEmpty && d.integrationHostsSkipped.isEmpty)
+        let c = try HangarConfig.parse("""
+        claude_integration = true
+        claude_hooks = false
+        claude_limits = false
+        claude_mcp = false
+        codex_integration = false
+        codex_notify = false
+        codex_mcp = false
+        integration_hosts = ["devbox", "gpu-box"]
+        integration_hosts_skipped = ["lab-01"]
+        """)
+        #expect(c.claudeIntegration == true && c.codexIntegration == false)
+        #expect(!c.claudeHooks && !c.claudeLimits && !c.claudeMCP && !c.codexNotify && !c.codexMCP)
+        #expect(c.integrationHosts == ["devbox", "gpu-box"] && c.integrationHostsSkipped == ["lab-01"])
+        let text = HangarConfig.updating("", key: "integration_hosts", literal: HangarConfig.listLiteral(["a", "b.c"]))
+        #expect(try HangarConfig.parse(text).integrationHosts == ["a", "b.c"])
+    }
 }

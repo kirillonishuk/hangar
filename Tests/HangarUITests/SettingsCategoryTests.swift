@@ -30,13 +30,4 @@ import Workspace
         // ru «Уведомления о лимитах» is the longest; the column is not wider than it needs.
         #expect(width - (labels.map(settingsLabelTextWidth).max() ?? 0) < 2)
     }
-
-    /// Integration status pill: green when installed, amber for a to-do, red only for errors.
-    @Test func integrationPills() {
-        #expect(integrationPill(.installed).color == Theme.ui.done)
-        #expect(integrationPill(.installedStatuslineByUser).color == Theme.ui.done)
-        #expect(integrationPill(.notInstalled).color == Theme.ui.waiting)
-        #expect(integrationPill(.outdated).color == Theme.ui.waiting)
-        #expect(integrationPill(.notInstalled).text == L10n.pillMissing)
-    }
 }

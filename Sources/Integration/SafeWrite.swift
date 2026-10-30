@@ -1,6 +1,12 @@
 import CryptoKit
 import Foundation
 
+/// A write that happened; `backup` = the copy of the old bytes (nil: the file was new).
+public struct FileWrite: Equatable, Sendable {
+    public var backup: URL?
+    public init(backup: URL?) { self.backup = backup }
+}
+
 /// File contents, or nil when it does not exist.
 public func readUserFile(_ url: URL) throws -> String? {
     do {

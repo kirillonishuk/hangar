@@ -234,6 +234,31 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
+    /// Integrations by function (#111): marks, MCP, the questions waiting.
+    let integrations = IntegrationStatus()
+    /// The bundled `Contents/Helpers/hangar` the agents are pointed at; nil = nothing is written or asked (tests, `swift run`).
+    @ObservationIgnored public var integrationCLI: String?
+    /// Claude's `.claude.json` (MCP); nil = from `CLAUDE_CONFIG_DIR` or home. DEBUG runs pin it (main.swift).
+    @ObservationIgnored public var claudeJSONURL: URL?
+    @ObservationIgnored var integrationPathsCache: (claude: URL, codex: URL, claudeJSON: URL)?
+    /// The agent's executable on this Mac (login shell, `agentExecutable`); injectable for tests.
+    @ObservationIgnored lazy var findAgentCLI: (MCPAgent) async -> String? = { [weak self, userShell] agent in
+        let command = await MainActor.run { self?.config.agentCommands[agent == .claude ? .claude : .codex] } ?? agent.rawValue
+        let name = agentExecutable(command, agent: agent)
+        #if DEBUG
+        // Verification runs never start the real agents' `mcp add`: only an absolute `[agents]` command (a fake) is used.
+        guard name.hasPrefix("/") else { return nil }
+        #endif
+        return await resolveCommand(name, runner: .local, shell: userShell)
+    }
+    /// Runs the agents' `mcp add` / `mcp remove`; tests use a fake.
+    @ObservationIgnored var mcpRunner: Runner = .local
+    /// A sheet is asked for (the main window shows `integrations.ask`).
+    @ObservationIgnored var onIntegrationAsk: (() -> Void)?
+    /// An answer (or a host's decision) came: tabs waiting for it start.
+    @ObservationIgnored var onIntegrationAnswered: (() -> Void)?
+    /// An answer couldn't be saved: the main window says why.
+    @ObservationIgnored var onIntegrationError: ((String) -> Void)?
     /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (#96); DEBUG: only with a fake ssh.
     @ObservationIgnored public var autoUpgradeRemote = true
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
@@ -441,6 +466,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
         // Tabs and the drawer alike get the task's port (#60).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
+        if integrationGate(leaf.kind, host: nil) { throw LaunchError.awaitingConsent }
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
         if let host = hostShellHost(ofLeaf: leaf.id) {
             // state.json is editable: a host that is not safe on an ssh command line never launches.
@@ -452,6 +478,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
                 Task { await remote.connect(host) }
                 throw LaunchError.notConnected(host: host)
             }
+            // Connected: a new host's connect decides (its sheet or an older install) before its agents start.
+            if integrationGate(leaf.kind, host: host) { throw LaunchError.awaitingConsent }
             return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target,
                                      restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }

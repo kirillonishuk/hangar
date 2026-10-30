@@ -53,8 +53,12 @@ import Workspace
             }
             model.externalEditor = model.app.config.externalEditor ?? ""
         }
-        let integration = model.integration
-        Task { await integration.refresh() }
+        // Back in Settings: the agents' files are read again (MCP: a read; a write only if something is off).
+        let app = model.app
+        Task {
+            await app.syncMCP()
+            app.readStatusline()
+        }
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -73,16 +77,11 @@ import Workspace
     var error: String?
     /// The draft whose save failed on close (the user has seen the error).
     private var refusedDraft: String?
-    let integration: IntegrationModel
     let lsp: LspServersModel
     let editorTheme: EditorSettingsModel
-    /// Shown in the consent sheet; nothing is written until it is confirmed.
-    var pendingPlan: IntegrationPlan?
 
     init(app: AppState) {
         self.app = app
-        integration = IntegrationModel(claudeSettings: app.claudeSettingsURL, codexConfig: app.codexConfigURL,
-                                       cli: hangarCLIPath(bundle: .main), findCodex: app.findCodex, findDirs: app.findAgentDirs)
         var env = LspServersModel.Env(dir: app.lspDir, path: { [weak app] in await app?.loginShellPath() },
                                       projectRoot: { [weak app] in app?.localSessionRoot }, toolchain: xcrunFind,
                                       changed: { [weak app] in app?.languages.lspServersChanged() })
@@ -96,35 +95,6 @@ import Workspace
         lsp = LspServersModel(env: env)
         editorTheme = EditorSettingsModel(app: app)
         editorTheme.save = { [weak self] change in self?.save(change) }
-    }
-
-    func review(_ target: IntegrationTarget, install: Bool) {
-        integration.message = nil
-        integration.error = nil
-        pendingPlan = integration.plan(target, install: install)
-    }
-
-    func confirmPlan() {
-        guard let plan = pendingPlan else { return }
-        guard plan.target == .claude, !plan.install else { pendingPlan = integration.confirm(plan); return }
-        // Uninstall: Hangar's project overrides go first, while their CLI is still known (#105).
-        Task {
-            await app.revertProjectStatuslines(host: nil)
-            guard pendingPlan == plan else { return }
-            pendingPlan = integration.confirm(plan)
-        }
-    }
-
-    func cancelPlan() {
-        pendingPlan = nil
-        integration.error = nil
-    }
-
-    func copy(_ command: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
-        error = nil
-        integration.message = L10n.commandCopied
     }
 
     /// False when saving the draft fails: the window stays open with the error; closing again with the same draft closes.

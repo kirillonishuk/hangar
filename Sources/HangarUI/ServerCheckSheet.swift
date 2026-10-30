@@ -4,7 +4,7 @@ import GhosttyBridge
 import Integration
 import SwiftUI
 
-/// «Сервер <host>» (580): the check report, the agents' integrations on the server, the install plan with its exact
+/// «Сервер <host>» (580): the check report, the install plan with its exact
 /// commands and, after «Установить», the install terminal. Opened from the host row; embedded in «Удалённый проект».
 struct ServerCheckSheet: View {
     @Bindable var model: ServerCheckModel
@@ -82,19 +82,11 @@ struct ServerCheckView: View {
                 if let report = model.report { content(report) }
             }
         }
-        .sheet(isPresented: Binding(get: { model.pendingPlan != nil }, set: { if !$0 { model.cancelPlan() } })) {
-            if let plan = model.pendingPlan {
-                IntegrationSheet(plan: plan, error: model.integrationError,
-                                 onApply: { Task { await model.confirmPlan() } }, onCancel: model.cancelPlan)
-                    .lineLimit(nil)  // the presenting sheet's one-line rule must not cut the diff
-            }
-        }
     }
 
     @ViewBuilder private func content(_ r: ServerReport) -> some View {
         let report = VStack(alignment: .leading, spacing: 0) {
             tools(r)
-            integrations(r).padding(.top, Theme.sheetGap)
             warnings(r)
             planBlock.padding(.top, Theme.sheetGap)
             if case .failed(let message) = model.phase { errorText(message).padding(.top, Theme.sheetMessageTop) }
@@ -161,60 +153,13 @@ struct ServerCheckView: View {
         }
     }
 
-    // MARK: Integrations
-
-    private func integrations(_ r: ServerReport) -> some View {
-        CardSection(title: L10n.settingsIntegrations) {
-            CardRow(label: L10n.remoteIntegration("Claude Code"), labelWidth: Theme.remoteIntegrationLabelWidth, first: true) {
-                integrationValue(.claude, r)
-            }
-            CardRow(label: L10n.remoteIntegration("Codex"), labelWidth: Theme.remoteIntegrationLabelWidth) {
-                integrationValue(.codex, r)
-            }
-        }
-    }
-
-    @ViewBuilder private func integrationValue(_ target: IntegrationTarget, _ r: ServerReport) -> some View {
-        let status = integrationStatus(target, r)
-        Pill(text: status.text, color: status.color)
-        Spacer(minLength: Theme.cardRowGap)
-        if let action = status.action {
-            // Hooks call hangar-remote: first the plan below has to put it on the server.
-            let ready = !r.remoteOutdated(current: hangarRemoteVersion) && model.phase == .ready
-            Button(action.title) { Task { await model.review(target, install: action.install) } }
-                .buttonStyle(SheetButton(primary: false))
-                .fixedSize()
-                .disabled(!ready)
-                .opacity(ready ? 1 : Theme.disabledButtonOpacity)
-                // A dimmed button said nothing about why.
-                .help(r.remoteOutdated(current: hangarRemoteVersion) ? L10n.integrationNeedsRemote : "")
-        }
-    }
-
-    private func integrationStatus(_ target: IntegrationTarget, _ r: ServerReport) -> (text: String, color: Color, action: (title: String, install: Bool)?) {
-        let state = target == .claude ? model.claude : model.codex
-        guard let state else {
-            // Two returns, not a ternary: Swift 6.4 (Xcode 27.1) crashes type-checking the ternary of tuples with nil.
-            if target == .codex && r.tools[.codex] == nil { return (L10n.codexNotFound, Theme.ui.text3, nil) }
-            return ("—", Theme.ui.text3, nil)
-        }
-        let pill = integrationPill(state)
-        return switch state {
-        case .installed, .installedStatuslineByUser: (pill.text, pill.color, (L10n.removeEllipsis, false))
-        case .outdated: (pill.text, pill.color, (L10n.updateEllipsis, true))
-        case .notInstalled: (pill.text, pill.color, (L10n.installEllipsis, true))
-        }
-    }
-
     // MARK: Warnings, plan
 
     @ViewBuilder private func warnings(_ r: ServerReport) -> some View {
         let lines = (r.socketClient == nil ? [L10n.noStatusClient] : []) + (model.forwarding ? [] : [L10n.forwardFailed])
-        if !lines.isEmpty || model.integrationError != nil && model.pendingPlan == nil || model.message != nil {
+        if !lines.isEmpty {
             VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 ForEach(lines, id: \.self) { Text($0).foregroundStyle(Theme.ui.waiting) }
-                if model.pendingPlan == nil, let error = model.integrationError { Text(verbatim: error).foregroundStyle(Theme.ui.failed) }
-                if let message = model.message { Text(verbatim: message).foregroundStyle(Theme.ui.text2) }
             }
             .font(.system(size: Theme.fontSize.tab))
             .lineLimit(2)

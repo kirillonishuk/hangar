@@ -362,6 +362,7 @@ struct SettingsView: View {
         return HStack(spacing: Theme.Space.s1) {
             Text(verbatim: current.isEmpty ? L10n.soundNone : L10n.soundDefault)
                 .foregroundStyle(Theme.ui.text3)
+                .fixedSize()
             PopoverMenuButton(icon: .chevronDown, help: L10n.soundTitle) {
                 [("", L10n.soundNone), ("default", L10n.soundDefault)].map { value, title in
                     .item(PopoverMenuItem(title: title, icon: (current.isEmpty ? "" : "default") == value ? .check : nil) {

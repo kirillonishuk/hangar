@@ -11,6 +11,8 @@ import SwiftUI
     /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).
     @ObservationIgnored var onUndo: (UUID) -> Void = { _ in }
     @ObservationIgnored private var hide: DispatchWorkItem?
+    /// The pointer is over the toast: no hide is scheduled until it leaves.
+    @ObservationIgnored private var held = false
     @ObservationIgnored private let delay: TimeInterval
     /// Runs the hide item after the delay (tests run it by hand).
     @ObservationIgnored private let schedule: (TimeInterval, DispatchWorkItem) -> Void
@@ -36,14 +38,17 @@ import SwiftUI
         arm()
     }
 
-    /// The pointer over the toast keeps it (§3.15); leaving restarts the full delay.
+    /// The pointer over the toast keeps it (§3.15), also across a newer toast; leaving restarts the full delay.
     func hold(_ on: Bool) {
+        held = on
         guard taskId != nil || message != nil else { return }
         if on { hide?.cancel(); hide = nil } else { arm() }
     }
 
     private func arm() {
         hide?.cancel()
+        hide = nil
+        guard !held else { return }
         let item = DispatchWorkItem { [weak self] in self?.dismiss() }
         hide = item
         schedule(delay, item)
@@ -52,6 +57,7 @@ import SwiftUI
     func dismiss() {
         hide?.cancel()
         hide = nil
+        held = false  // the view goes away under the pointer: no hover-exit comes
         taskId = nil
         message = nil
     }

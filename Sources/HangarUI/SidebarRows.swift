@@ -156,45 +156,6 @@ struct ShortcutHint: View {
     }
 }
 
-/// Empty-state buttons: `hover2` fill hugging the label. With `width` the box follows the visible sidebar width (content is laid out wider and clipped in rail mode),
-/// `inset` from the sidebar's edge.
-struct FilledRowStyle: ButtonStyle {
-    var width: CGFloat?
-    var inset = Theme.railInset
-    var radius = Theme.railItemRadius
-
-    func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, pressed: configuration.isPressed, width: width, inset: inset, radius: radius)
-    }
-
-    private struct Body<Label: View>: View {
-        let label: Label
-        let pressed: Bool
-        let width: CGFloat?
-        let inset: CGFloat
-        let radius: CGFloat
-        @State private var hover = false
-
-        var body: some View {
-            label
-                .background(alignment: .leading) {
-                    let shape = RoundedRectangle(cornerRadius: radius)
-                    let box = Group {
-                        shape.fill(Theme.ui.hover2).brightness(pressed ? -0.03 : hover ? 0.04 : 0)
-                    }
-                    if let width {
-                        box.frame(width: max(0, width)).padding(.leading, inset)
-                    } else {
-                        box
-                    }
-                }
-                .contentShape(Rectangle())
-                .pointingHand()
-                .onHover { h in hover = h }
-        }
-    }
-}
-
 /// One item of a small fixed menu (host row, «+ проект»): shown as an NSMenu at the pointer on click, and as
 /// SwiftUI items in the context / `…` menus.
 struct MenuEntry {

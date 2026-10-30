@@ -49,11 +49,11 @@ struct SettingsRow<Detail: View, Value: View>: View {
                     .foregroundStyle(Theme.ui.text3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .opacity(enabled ? 1 : Theme.Opacity.inactive)  // its controls dim themselves
+            .layoutPriority(1)  // the label never truncates: a field shrinks to its minimum first
+            Spacer(minLength: 0)
             HStack(spacing: Theme.Space.s2) { value }
                 .lineLimit(1)
-                .layoutPriority(1)  // the control keeps its size; a long label truncates first
         }
         .font(Theme.Typography.body.font())
         .frame(maxWidth: .infinity, minHeight: Theme.Height.cardRow - 2 * Theme.settingsRowPaddingV, alignment: .leading)

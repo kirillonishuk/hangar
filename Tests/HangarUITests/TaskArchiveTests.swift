@@ -384,5 +384,13 @@ import TestSupport
         #expect(undo.taskId == nil)
         undo.hold(false)  // nothing shown: no new timer
         #expect(items.count == 2)
+        // A newer toast while held arms nothing; leaving does.
+        undo.show(id)
+        #expect(items.count == 3)
+        undo.hold(true)
+        undo.show(message: "x")
+        #expect(items.count == 3)
+        undo.hold(false)
+        #expect(items.count == 4 && !items[3].isCancelled)
     }
 }

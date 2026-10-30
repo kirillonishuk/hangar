@@ -51,6 +51,7 @@ final class TaskColumnController: NSViewController {
     override func loadView() {
         let v = NSView()
         tabBar.sizingOptions = []
+        tabBar.safeAreaRegions = []  // laid out by hand under the toolbar, like the toolbar itself
         toast.sizingOptions = [.intrinsicContentSize]
         sessions.sizingOptions = []
         sessions.isHidden = true
@@ -103,6 +104,9 @@ final class WindowRootController: NSViewController {
         let v = NSView()
         addChild(split)
         titleBar.sizingOptions = []
+        // The bar is placed by hand (52 from the top, centred on the lights): a titlebar safe area the window reports
+        // differently on another Mac (screen, toolbar, macOS version) must not move it.
+        titleBar.safeAreaRegions = []
         for sub in [split.view, titleBar] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
@@ -231,6 +235,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
         let sidebarHost = NSHostingController(rootView: AnyView(EmptyView()))
         sidebarHost.sizingOptions = []
+        sidebarHost.safeAreaRegions = []  // full height under the toolbar, whatever titlebar inset the window reports
         // Plain item: a `sidebar` item on macOS 26 floats over the content (Liquid Glass), not a full-height column.
         sidebarItem = NSSplitViewItem(viewController: sidebarHost)
         sidebarItem.canCollapse = false
@@ -240,6 +245,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         split.addSplitViewItem(content)
         let inspectorHost = NSHostingController(rootView: InspectorView(app: app))
         inspectorHost.sizingOptions = []
+        inspectorHost.safeAreaRegions = []
         inspectorItem = NSSplitViewItem(viewController: inspectorHost)
         inspectorItem.canCollapse = true
         inspectorItem.minimumThickness = Theme.inspectorMin

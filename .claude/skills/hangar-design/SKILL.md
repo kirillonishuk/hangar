@@ -1,9 +1,9 @@
 ---
 name: hangar-design
-description: DRAFT — Hangar design system v2 (direction B, macOS-native) — tokens (spacing, type, radii, heights, icons, color roles, states, motion), component specs, Russian copy and glossary, primary vs secondary weighting. Use before designing, mocking up or changing any UI under Sources/HangarUI or docs/superpowers/mockups.
+description: Hangar design system v2 (direction B, macOS-native) — tokens (spacing, type, radii, heights, icons, color roles, states, motion), component specs, Russian copy and glossary, primary vs secondary weighting. Use before designing, mocking up or changing any UI under Sources/HangarUI or docs/superpowers/mockups.
 ---
 
-# Hangar design (DRAFT — не применять, пока владелец не утвердит; до тех пор — `docs/design/DESIGN.md`)
+# Hangar design (утверждено владельцем 30.10, решение #112)
 
 Источник правды — `docs/superpowers/specs/2026-10-30-design-system.md` (токены §2, компоненты §3, тексты §4, главное/второстепенное §5, бывшая строка состояния §6, миграция `Theme` §7, порядок внедрения §8). Макет — `docs/superpowers/mockups/design-system-v2.html`. Ниже — сжатая выжимка; если расходится со спекой, права спека.
 

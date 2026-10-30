@@ -182,9 +182,9 @@ table.t td.n{font-family:var(--mono);color:#e3e7ef;white-space:nowrap}
 
 /* themes: one set of ROLES, two value sets */
 .navy{--bg0:#121826;--bg1:#182030;--bg2:#1f2738;--field:#121826;--hover:#202a3b;--hover2:#2b3446;--sel:#2b3446;--selF:#2a6fd6;--line:#232c3d;--line2:#2f3a4d;--btn:#2b3446;
-  --t0:#ffffff;--t1:#e3e7ef;--t2:#9ba4b7;--t3:#6b7489;--acc:#3d8eea;--accT:#5fb0ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#ffb340;--done:#73c991;--fail:#f14c4c;--failT:#ff6b61;--idle:#5f687a;--gA:#73c991;--gM:#e2c08d;--gD:#f07a6e}
+  --t0:#ffffff;--t1:#e3e7ef;--t2:#9ba4b7;--t3:#6b7489;--acc:#2a6fd6;--accT:#5fb0ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#ffb340;--done:#73c991;--fail:#f14c4c;--failT:#ff6b61;--idle:#5f687a;--gA:#73c991;--gM:#e2c08d;--gD:#f07a6e}
 .dplus{--bg0:#1e1e1e;--bg1:#252526;--bg2:#2c2c2d;--field:#1e1e1e;--hover:#2a2d2e;--hover2:#37373d;--sel:#37373d;--selF:#0e639c;--line:#303030;--line2:#3c3c3c;--btn:#3a3d41;
-  --t0:#ffffff;--t1:#cccccc;--t2:#a3a3a3;--t3:#7a7a7a;--acc:#0e7ad1;--accT:#3794ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#e8a33d;--done:#89d185;--fail:#f14c4c;--failT:#f48771;--idle:#6e6e6e;--gA:#73c991;--gM:#e2c08d;--gD:#f48771}
+  --t0:#ffffff;--t1:#cccccc;--t2:#a3a3a3;--t3:#7a7a7a;--acc:#0e639c;--accT:#3794ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#e8a33d;--done:#89d185;--fail:#f14c4c;--failT:#f48771;--idle:#6e6e6e;--gA:#73c991;--gM:#e2c08d;--gD:#f48771}
 .solo .page>*{display:none!important}.solo .page>.shown{display:block!important}.solo .page{padding:20px;width:auto}
 </style></head>
 <body>
@@ -366,8 +366,8 @@ function settings(th){
    <div class="crow"><span class="l">Версия <span class="ver">0.8.0</span><small>Последняя проверка — сегодня в 09:14</small></span><span class="btn">Проверить сейчас</span></div></div>
  </div></div></div>`;}
 
-const ROLES={navy:{bg0:'#121826',bg1:'#182030',bg2:'#1f2738',field:'#121826',hover:'#202a3b',hover2:'#2b3446',sel:'#2b3446',selFocus:'#2a6fd6',line:'#232c3d',line2:'#2f3a4d',text0:'#ffffff',text1:'#e3e7ef',text2:'#9ba4b7',text3:'#6b7489',accent:'#3d8eea',accentText:'#5fb0ff',working:'#4fc1ff',waiting:'#ffb340',done:'#73c991',failed:'#f14c4c'},
- dplus:{bg0:'#1e1e1e',bg1:'#252526',bg2:'#2c2c2d',field:'#1e1e1e',hover:'#2a2d2e',hover2:'#37373d',sel:'#37373d',selFocus:'#0e639c',line:'#303030',line2:'#3c3c3c',text0:'#ffffff',text1:'#cccccc',text2:'#a3a3a3',text3:'#7a7a7a',accent:'#0e7ad1',accentText:'#3794ff',working:'#4fc1ff',waiting:'#e8a33d',done:'#89d185',failed:'#f14c4c'}};
+const ROLES={navy:{bg0:'#121826',bg1:'#182030',bg2:'#1f2738',field:'#121826',hover:'#202a3b',hover2:'#2b3446',sel:'#2b3446',selFocus:'#2a6fd6',line:'#232c3d',line2:'#2f3a4d',text0:'#ffffff',text1:'#e3e7ef',text2:'#9ba4b7',text3:'#6b7489',accent:'#2a6fd6',accentText:'#5fb0ff',working:'#4fc1ff',waiting:'#ffb340',done:'#73c991',failed:'#f14c4c'},
+ dplus:{bg0:'#1e1e1e',bg1:'#252526',bg2:'#2c2c2d',field:'#1e1e1e',hover:'#2a2d2e',hover2:'#37373d',sel:'#37373d',selFocus:'#0e639c',line:'#303030',line2:'#3c3c3c',text0:'#ffffff',text1:'#cccccc',text2:'#a3a3a3',text3:'#7a7a7a',accent:'#0e639c',accentText:'#3794ff',working:'#4fc1ff',waiting:'#e8a33d',done:'#89d185',failed:'#f14c4c'}};
 for(const k in ROLES){const r=ROLES[k],keys=Object.keys(r),half=Math.ceil(keys.length/2);
  const cell=x=>x?`<td><span class="sw" style="background:${r[x]}"></span>${x}</td><td class="n">${r[x]}</td>`:'<td></td><td></td>';
  let h='<table class="t">';for(let i=0;i<half;i++)h+=`<tr>${cell(keys[i])}${cell(keys[i+half])}</tr>`;document.getElementById('sw-'+k).innerHTML=h+'</table>';}

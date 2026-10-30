@@ -111,6 +111,40 @@ public struct ThemePalette: Sendable {
                0x5f687a, 0xff6b61, 0x8fe0ab, 0xf5d58a, 0x6cb0ff, 0xd7a2e6, 0x7fd6ff, 0xffffff])
 }
 
+/// Colour roles of the design system (design-system spec §2.7). Roles that the palette already stores under the same
+/// name (`field`, `hover`, `selected`, `line`, `accent`, `accentText`, statuses, git, diff, limits, `ansi`, editor) are
+/// those fields. The rest are aliases of the current fields (§7) so nothing changes on screen yet; stage 4 of §8 gives
+/// them the §2.7 values and moves the call sites.
+extension ThemePalette {
+    /// Content: terminal, editor, History.
+    var bg0: Hex { bg }
+    /// Chrome: toolbar, both sidebars, tabs, pane headers, cards.
+    var bg1: Hex { sidebar }
+    /// Popovers, menus, sheets, toasts.
+    var bg2: Hex { sheet }
+    /// Pressed; the active tab and segment; a toggled-on icon button.
+    var hover2: Hex { hoverStrong }
+    /// The selected row while its list has focus; the menu item under the pointer.
+    var selectedFocus: Hex { menuHover }
+    /// Text on `accent` and `selectedFocus`.
+    var onAccent: Hex { menuHoverText }
+    /// Borders of controls, popovers, sheets (`Theme.ui.line2` was already `control`).
+    var line2: Hex { control }
+    var text0: Hex { strong }
+    var text1: Hex { tx }
+    var text2: Hex { tx2 }
+    var text3: Hex { tx3 }
+
+    /// Every role in §2.7 order (`ansi` and the editor set aside), for tests and stage-by-stage checks.
+    var roles: KeyValuePairs<String, Hex> {
+        ["bg0": bg0, "bg1": bg1, "bg2": bg2, "field": field, "hover": hover, "hover2": hover2, "selected": selected,
+         "selectedFocus": selectedFocus, "line": line, "line2": line2, "text0": text0, "text1": text1, "text2": text2,
+         "text3": text3, "accent": accent, "accentText": accentText, "onAccent": onAccent, "working": working,
+         "waiting": waiting, "done": done, "failed": failed, "failedText": failedText, "idle": idle, "gitA": gitA,
+         "gitM": gitM, "gitD": gitD, "diffAdd": diffAdd, "diffDel": diffDel, "limOk": limOk, "limTrack": limTrack]
+    }
+}
+
 /// WCAG 2.x contrast ratio of two opaque sRGB colours (1…21).
 func contrastRatio(_ a: UInt32, _ b: UInt32) -> Double {
     func luminance(_ c: UInt32) -> Double {

@@ -156,6 +156,33 @@ import TestSupport
         #expect(watch.watcher == nil)
     }
 
+    /// Branch switching on the server (#114): its HEAD, refused with changes, done once clean; the decoy is untouched.
+    @Test func remoteBranchSwitch() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h)
+        let before = Self.snapshot(h.root + "/mac")
+        let task = h.app.state.tasks.first { $0.id == s.task }!
+        h.app.requestHead(task)
+        await h.app.branchModel.idle(s.task)
+        #expect(h.app.head(of: task) == .branch("main"))
+        let choices = try await h.app.branchChoices(of: task)
+        #expect(choices.uncommitted == 2)
+        #expect(Set(choices.local.map(\.name)) == ["main", "old"])
+        let old = Branch(name: "old", isRemote: false, lastCommit: .now)
+        #expect(await h.app.switchBranch(of: task, to: old) == h.app.branchMessage(.dirty(files: 2), projectId: s.project))
+        try await RemoteHostsTests.offMain {
+            try Self.git(["checkout", "-q", "--", "a.txt"], in: s.server)
+            try FileManager.default.removeItem(atPath: s.server + "/new.txt")
+        }
+        #expect(await h.app.switchBranch(of: task, to: old) == nil)
+        await h.app.branchModel.idle(s.task)
+        #expect(h.app.head(of: task) == .branch("old"))
+        #expect(await h.app.createBranch(of: task, name: "fix/x", from: "main") == nil)
+        await h.app.branchModel.idle(s.task)
+        #expect(h.app.head(of: task) == .branch("fix/x"))
+        #expect(Self.snapshot(h.root + "/mac") == before)
+    }
+
     @Test func remoteWorktreeCreate() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)

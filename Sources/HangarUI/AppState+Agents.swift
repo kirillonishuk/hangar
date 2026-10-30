@@ -122,6 +122,7 @@ extension AppState {
             if t.to == .done {
                 onLeafDone?(t.leaf)
                 refreshBadge(ofLeaf: t.leaf)
+                refreshHead(ofLeaf: t.leaf)
             }
         }
     }

@@ -16,6 +16,10 @@ import Workspace
     var windowVisible: () -> Bool = { false }
     /// Bumped on every change of what is watched: a git-dir lookup that finishes late is dropped.
     private var generation = 0
+    /// The selected local chat's git-dir, for its HEAD only (the branch button, #114): runs with the inspector hidden too.
+    private var headWatcher: FileWatcher?
+    private var headTask: UUID?
+    private var headGeneration = 0
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     init(app: AppState, window: NSWindow) {
@@ -53,6 +57,7 @@ import Workspace
 
     /// Call after any change of the inspector flag, the selection or the window state; cheap when nothing changed.
     func update() {
+        updateHeadWatch()
         // The Git tab loads only while the inspector itself is on screen (a shown diff tab alone keeps the watch, not it).
         defer { app.gitPanel.setOnScreen(current != nil && app.state.inspectorVisible) }
         let task = app.selectedTask
@@ -121,8 +126,38 @@ import Workspace
         current = nil
     }
 
+    /// While the window is visible: the selected local chat's HEAD file (git-dir events, nothing else counts).
+    /// A remote chat has no FSEvents: its HEAD reloads on key, `done` and the host connecting.
+    private func updateHeadWatch() {
+        let task = app.selectedTask
+        guard windowVisible(), let task, app.project(task.projectId)?.host == nil, let root = app.path(of: .task(task.id)) else {
+            stopHeadWatch()
+            return
+        }
+        if headTask == task.id { return }
+        stopHeadWatch()
+        headTask = task.id
+        let id = task.id
+        if app.branchModel.requested.contains(id) { app.refreshHead(taskId: id) } else { app.requestHead(task) }
+        let gen = headGeneration
+        Task { [weak self] in
+            guard let gitDir = try? await Git(repo: root).gitDir(), let self, gen == self.headGeneration else { return }
+            let head = realPath(gitDir) + "/HEAD"
+            self.headWatcher = FileWatcher(paths: [realPath(gitDir)], onChange: { [weak self] _ in self?.app.refreshHead(taskId: id) },
+                                           classify: { events in events.contains { $0.path == head } ? .status : [] })
+        }
+    }
+
+    private func stopHeadWatch() {
+        headGeneration += 1
+        headWatcher?.stop()
+        headWatcher = nil
+        headTask = nil
+    }
+
     /// Back from another app or window: a remote task's files may have changed meanwhile.
     private func becameKey() {
+        app.refreshHeads()
         if current?.remote == true {
             app.inspector.refresh(.all)
             app.gitPanel.refresh()

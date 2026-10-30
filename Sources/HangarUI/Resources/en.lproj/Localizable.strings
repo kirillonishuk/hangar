@@ -131,6 +131,11 @@
 "branchRequired" = "Enter a branch name";
 "branchInvalid" = "Invalid branch name";
 "branchExists" = "Branch “%@” already exists";
+"branchDirty" = "There are uncommitted changes (%@).";
+"branchDirtyHint" = "You can switch after a commit or stash.";
+"branchDirtyNewHint" = "A new branch takes the changes along.";
+"branchCheckedOutInChat" = "Branch “%1$@” is open in chat “%2$@”: a branch can’t be checked out in two folders at once.";
+"branchCheckedOutAt" = "Branch “%1$@” is open in another folder: %2$@";
 "fetchFailed" = "git fetch failed";
 "createWithoutFetch" = "Create without fetch";
 "fetchCancelled" = "fetch cancelled";

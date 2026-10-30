@@ -52,11 +52,23 @@ private func commands(_ text: String) throws -> [String] {
         let installed = try claudeInstall(user, cli: cli)
         let downloads = "/Users/me/Downloads/Hangar.app/Contents/Helpers/hangar"
         let o = localOwnership(cli: downloads, exists: { $0 == cli })
-        #expect(try claudeApply(installed, cli: downloads, hooks: true, statusline: true, ours: o) == nil)
-        #expect(try claudeApply(installed, cli: downloads, hooks: false, statusline: false, ours: o) == nil)
+        #expect(throws: IntegrationError.otherCopy) { try claudeApply(installed, cli: downloads, hooks: true, statusline: true, ours: o) }
+        #expect(throws: IntegrationError.otherCopy) { try claudeApply(installed, cli: downloads, hooks: false, statusline: false, ours: o) }
         // The /Applications copy is gone: the entries move to this one.
         let gone = localOwnership(cli: downloads, exists: { _ in false })
         #expect(try claudeApply(installed, cli: downloads, hooks: true, statusline: true, ours: gone) == claudeInstall(user, cli: downloads))
+    }
+
+    /// Two live copies outside `/Applications/Hangar.app` never claim each other's entries (no tug of war);
+    /// the preferred copy claims a live other one, and anyone claims a helper that is gone.
+    @Test func ownershipBetweenCopies() {
+        let a = "/Applications/Hangar 2.app/Contents/Helpers/hangar", b = "/Users/me/Hangar.app/Contents/Helpers/hangar"
+        #expect(!localOwnership(cli: a, exists: { _ in true })(b))
+        #expect(!localOwnership(cli: b, exists: { _ in true })(a))
+        #expect(localOwnership(cli: b, exists: { _ in false })(a))
+        #expect(localOwnership(cli: cli, exists: { _ in true })(b))
+        #expect(!localOwnership(cli: b, exists: { _ in true })(cli))
+        #expect(!localOwnership(cli: cli, exists: { _ in false })("/usr/local/bin/hangar"))
     }
 
     @Test func hooksOffRemovesOnlyHangarsExactEntries() throws {
@@ -101,8 +113,8 @@ private func commands(_ text: String) throws -> [String] {
         let downloads = "/Users/me/Downloads/Hangar.app/Contents/Helpers/hangar"
         let o = localOwnership(cli: downloads, exists: { $0 == cli })
         let installed = try codexInstall(nil, cli: cli)
-        #expect(try codexApply(installed, cli: downloads, notify: true, ours: o) == nil)
-        #expect(try codexApply(installed, cli: downloads, notify: false, ours: o) == nil)
+        #expect(throws: IntegrationError.otherCopy) { try codexApply(installed, cli: downloads, notify: true, ours: o) }
+        #expect(throws: IntegrationError.otherCopy) { try codexApply(installed, cli: downloads, notify: false, ours: o) }
     }
 
     @Test func remoteNotifyIsHangars() throws {

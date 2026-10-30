@@ -60,6 +60,14 @@ struct AgentChoice: Equatable {
 
     func answered(_ ask: IntegrationAsk) { asks.removeAll { $0 == ask } }
 
+    /// An answer whose config write failed: it holds for this run, so the tab isn't asked again in a loop.
+    @ObservationIgnored var sessionAnswer: [MCPAgent: Bool] = [:]
+    /// Hosts whose connect is being decided (`integrateHost` runs once per host at a time).
+    @ObservationIgnored var deciding: Set<String> = []
+    /// One apply / MCP sync per agent at a time; a request meanwhile runs it once more after it.
+    @ObservationIgnored var jobs: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var rerun: Set<String> = []
+
     static let mac = ""
 }
 
@@ -71,6 +79,13 @@ extension LeafKind {
         default: nil
         }
     }
+}
+
+/// What `mcp add` runs: the `[agents]` command's first word when it is the agent itself (`/opt/bin/claude --flag`);
+/// a wrapper (`npx …`, `env …`) is not asked to `mcp add`, the plain agent name is looked up instead.
+func agentExecutable(_ command: String, agent: MCPAgent) -> String {
+    guard let first = shellWords(command)?.first, (first as NSString).lastPathComponent == agent.rawValue else { return agent.rawValue }
+    return first
 }
 
 /// Keys a v0.8 install maps to «on» (#111): Hangar's hooks / notify found in the agent's file, never decided before.
@@ -151,12 +166,35 @@ extension AppState {
         return path
     }
 
+    /// Runs `work` for `key` alone: while one runs, a new request is folded into one more run after it (which reads
+    /// the config afresh), so a fast toggle never leaves two writers on the same file and always ends on the last choice.
+    @discardableResult
+    func serialized(_ key: String, _ work: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        if let running = integrations.jobs[key] {
+            integrations.rerun.insert(key)
+            return running
+        }
+        let task = Task { @MainActor [weak self] in
+            repeat {
+                self?.integrations.rerun.remove(key)
+                await work()
+            } while self?.integrations.rerun.contains(key) == true
+            self?.integrations.jobs[key] = nil
+        }
+        integrations.jobs[key] = task
+        return task
+    }
+
     /// The Mac's file for `agent` brought to the config: its functions in, the rest of Hangar's entries out.
+    /// Hooks don't depend on finding the agent's CLI (an alias or a wrapper still runs them).
     func applyLocal(_ agent: MCPAgent) async {
+        await serialized("local-" + agent.rawValue) { [weak self] in await self?.applyLocalNow(agent) }.value
+    }
+
+    private func applyLocalNow(_ agent: MCPAgent) async {
         defer { readStatusline() }
-        guard let cli = integrationCLI, !installBlocked(cli: cli), let on = config.integration(agent) else { return }
-        guard await agentCLIPath(agent) != nil else { integrations.marks[agent, default: [:]][IntegrationStatus.mac] = .noAgent; return }
         let files = await integrationFiles()
+        guard let cli = integrationCLI, !installBlocked(cli: cli), let on = config.integration(agent) else { return }
         let ours = localOwnership(cli: cli)
         let mark: MachineMark
         do {
@@ -186,22 +224,26 @@ extension AppState {
     /// Hangar's MCP server in each agent's user config, through the agent's CLI; deciding is a read of its file.
     func syncMCP(_ only: MCPAgent? = nil) async {
         for agent in [MCPAgent.claude, .codex] where only == nil || only == agent {
-            guard let cli = integrationCLI, !installBlocked(cli: cli) else { integrations.mcp[agent] = .unavailable; continue }
-            guard let agentCLI = await agentCLIPath(agent) else { integrations.mcp[agent] = .noCLI; continue }
-            let entry = await mcpEntry(agent, cli: cli)
-            var status = MCPStatus.entry(entry)
-            for argv in mcpCommands(agent, mcpAction(entry, enabled: config.mcp(agent)), agentCLI: agentCLI, cli: cli) {
-                let r = (try? await mcpRunner.run(loginShellArgv(argv, shell: userShell), NSHomeDirectory()))
-                    ?? RunResult(status: -1, stdout: "", stderr: "")
-                uiLog.info("mcp \(argv.dropFirst().prefix(3).joined(separator: " "), privacy: .public): \(r.status)")
-                guard r.status == 0 else {
-                    status = .failed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))
-                    break
-                }
-                status = .entry(await mcpEntry(agent, cli: cli))
-            }
-            integrations.mcp[agent] = status
+            await serialized("mcp-" + agent.rawValue) { [weak self] in await self?.syncMCPNow(agent) }.value
         }
+    }
+
+    private func syncMCPNow(_ agent: MCPAgent) async {
+        guard let cli = integrationCLI, !installBlocked(cli: cli) else { integrations.mcp[agent] = .unavailable; return }
+        guard let agentCLI = await agentCLIPath(agent) else { integrations.mcp[agent] = .noCLI; return }
+        let entry = await mcpEntry(agent, cli: cli)
+        var status = MCPStatus.entry(entry)
+        for argv in mcpCommands(agent, mcpAction(entry, enabled: config.mcp(agent)), agentCLI: agentCLI, cli: cli) {
+            let r = (try? await mcpRunner.run(loginShellArgv(argv, shell: userShell), NSHomeDirectory()))
+                ?? RunResult(status: -1, stdout: "", stderr: "")
+            uiLog.info("mcp \(argv.dropFirst().prefix(3).joined(separator: " "), privacy: .public): \(r.status)")
+            guard r.status == 0 else {
+                status = .failed(lastLine(r.stderr) ?? L10n.exitStatus(r.status))
+                break
+            }
+            status = .entry(await mcpEntry(agent, cli: cli))
+        }
+        integrations.mcp[agent] = status
     }
 
     private func mcpEntry(_ agent: MCPAgent, cli: String) async -> MCPEntry {
@@ -230,7 +272,9 @@ extension AppState {
     /// Connect (R7, #96, #111): an older `hangar-remote` first; then a decided host follows the config, an undecided one
     /// with an older Hangar's entries joins silently, else its sheet. Off in DEBUG runs without a fake ssh (main.swift).
     func integrateHost(_ host: String) async {
-        guard autoUpgradeRemote else { return }
+        guard autoUpgradeRemote, !integrations.deciding.contains(host) else { return }
+        integrations.deciding.insert(host)
+        defer { integrations.deciding.remove(host) }
         let m = ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
         _ = await m.autoUpgradeRemoteScript()
         defer { onIntegrationAnswered?() }
@@ -248,9 +292,19 @@ extension AppState {
 
     /// The host's files brought to the config, `hangar-remote` installed first if it is not there.
     func applyHost(_ host: String, _ given: ServerCheckModel? = nil) async {
+        await serialized("host-" + host) { [weak self] in await self?.applyHostNow(host, given) }.value
+    }
+
+    private func applyHostNow(_ host: String, _ given: ServerCheckModel?) async {
         guard autoUpgradeRemote, remote.hosts[host]?.state == .connected else { return }
         let m = given ?? ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
-        await m.ensureRemoteScript()
+        // Hooks that call a missing `hangar-remote` would fail on every event: nothing is written without it.
+        guard await m.ensureRemoteScript() else {
+            for agent in [MCPAgent.claude, .codex] where config.integration(agent) != nil {
+                integrations.marks[agent, default: [:]][host] = .failed(L10n.intRemoteMissing)
+            }
+            return
+        }
         for agent in [MCPAgent.claude, .codex] {
             guard let on = config.integration(agent) else { continue }
             let mark = await m.applyAgent(agent, hooks: on && (agent == .claude ? config.claudeHooks : config.codexNotify),
@@ -281,13 +335,16 @@ extension AppState {
     /// Whether a leaf of `kind` waits for an answer before it starts (its sheet is asked for here).
     func integrationGate(_ kind: LeafKind, host: String?) -> Bool {
         guard integrationReady, let agent = kind.integrationAgent else { return false }
-        guard let on = config.integration(agent) else {
+        guard let on = config.integration(agent) ?? integrations.sessionAnswer[agent] else {
             requestIntegration(.agent(agent))
             return true
         }
-        // A new host: its connect decides (silently for an older install, else its sheet) and then lets it go.
+        // A new host: its connect decides (silently for an older install, else its sheet) and then lets it go. Turned on
+        // after that connect, nothing would decide: the gate starts the decision itself (once; it asks or lets go).
         guard let host, on, autoUpgradeRemote else { return false }
-        return !config.integrationHosts.contains(host) && !config.integrationHostsSkipped.contains(host)
+        guard !config.integrationHosts.contains(host), !config.integrationHostsSkipped.contains(host) else { return false }
+        if !integrations.deciding.contains(host), integrations.ask != .host(host) { Task { await integrateHost(host) } }
+        return true
     }
 
     func requestIntegration(_ ask: IntegrationAsk) {
@@ -326,10 +383,20 @@ extension AppState {
                 }
             }
         } catch {
+            // The answer holds for this run (no loop of the same sheet); the user sees why it isn't remembered.
             uiLog.error("integration answer: \(String(describing: error), privacy: .public)")
+            integrations.sessionAnswer[agent] = connect
+            onIntegrationError?(L10n.saveFailed(error.localizedDescription))
         }
-        if connect {
-            await applyLocal(agent)
+        // The Mac's hooks are in place before its waiting tabs go; hosts follow in the background (their tabs wait for
+        // their own connect anyway).
+        if connect, config.integration(agent) == true { await applyLocal(agent) }
+        integrations.answered(.agent(agent))
+        onIntegrationAnswered?()
+        if integrations.ask != nil { onIntegrationAsk?() }
+        guard connect, config.integration(agent) == true else { return }
+        Task { [weak self] in
+            guard let self else { return }
             for host in connectedProjectHosts where !config.integrationHostsSkipped.contains(host) {
                 if !config.integrationHosts.contains(host) { setHostDecision(host, connect: true) }
                 await applyHost(host)
@@ -337,9 +404,6 @@ extension AppState {
             await syncMCP(agent)
             syncAllStatuslines()
         }
-        integrations.answered(.agent(agent))
-        onIntegrationAnswered?()
-        if integrations.ask != nil { onIntegrationAsk?() }
     }
 
     /// The host's sheet answered: «Подключить» writes it, «Не на этом хосте» remembers that. Its tabs go either way.

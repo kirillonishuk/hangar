@@ -80,8 +80,14 @@ extension AppState {
     /// Settings → «Строка состояния Claude»: saved, then every reachable project follows (overrides added or removed).
     func setStatuslineMode(_ mode: StatuslineMode) throws {
         try setConfig("statusline", mode.rawValue) { $0.statusline = mode }
-        // «Ваша» with «Лимиты» off takes Hangar's wrapper out of Claude's settings (#111); then the projects follow.
-        Task { await reapply(.claude) }
+        // «Ваша» with «Лимиты» off takes Hangar's wrapper out of Claude's settings (#111): in the queue, before the
+        // projects follow (their sync reads the CLI from those settings).
+        enqueueStatusline { [weak self] in
+            guard let self else { return }
+            await applyLocal(.claude)
+            for host in config.integrationHosts where remote.hosts[host]?.state == .connected { await applyHost(host) }
+        }
+        syncAllStatuslines()
     }
 
     /// This Mac and every connected host with projects, in the queue's order.

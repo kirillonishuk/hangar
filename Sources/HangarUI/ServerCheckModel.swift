@@ -188,18 +188,21 @@ printf '%s\n' "$b"
     }
 
     /// `hangar-remote` (what the hooks call) when the server has none: the install's own upload step, nothing else.
-    func ensureRemoteScript() async {
+    /// False when the server still has none afterwards (the upload failed): then nothing may point at it.
+    func ensureRemoteScript() async -> Bool {
         if report == nil { report = remote.hosts[host]?.report }
-        guard let r = report, r.remoteVersion == nil,
-              let step = installPlan(r, remoteVersion: hangarRemoteVersion, optional: []).steps.first(where: { !$0.inTerminal }) else { return }
+        guard let r = report else { return false }
+        guard r.remoteVersion == nil else { return true }
+        guard let step = installPlan(r, remoteVersion: hangarRemoteVersion, optional: []).steps.first(where: { !$0.inTerminal }) else { return false }
         let w = await run(step, Data(hangarRemoteScript.utf8))
         guard w.status == 0 else {
             uiLog.error("hangar-remote install on \(self.host, privacy: .public) failed: \(w.status) \(lastLine(w.stderr) ?? "", privacy: .public)")
-            return
+            return false
         }
         uiLog.info("hangar-remote installed on \(self.host, privacy: .public)")
         await remote.recheck(host)
         report = remote.hosts[host]?.report ?? report
+        return report?.remoteVersion != nil
     }
 
     /// The new text of the agent's file on the server for these functions; nil = nothing to change.

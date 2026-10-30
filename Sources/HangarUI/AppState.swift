@@ -241,10 +241,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Claude's `.claude.json` (MCP); nil = from `CLAUDE_CONFIG_DIR` or home. DEBUG runs pin it (main.swift).
     @ObservationIgnored public var claudeJSONURL: URL?
     @ObservationIgnored var integrationPathsCache: (claude: URL, codex: URL, claudeJSON: URL)?
-    /// The agent's executable on this Mac (login shell, the `[agents]` command's first word); injectable for tests.
+    /// The agent's executable on this Mac (login shell, `agentExecutable`); injectable for tests.
     @ObservationIgnored lazy var findAgentCLI: (MCPAgent) async -> String? = { [weak self, userShell] agent in
         let command = await MainActor.run { self?.config.agentCommands[agent == .claude ? .claude : .codex] } ?? agent.rawValue
-        let name = shellWords(command)?.first ?? agent.rawValue
+        let name = agentExecutable(command, agent: agent)
         #if DEBUG
         // Verification runs never start the real agents' `mcp add`: only an absolute `[agents]` command (a fake) is used.
         guard name.hasPrefix("/") else { return nil }
@@ -257,6 +257,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onIntegrationAsk: (() -> Void)?
     /// An answer (or a host's decision) came: tabs waiting for it start.
     @ObservationIgnored var onIntegrationAnswered: (() -> Void)?
+    /// An answer couldn't be saved: the main window says why.
+    @ObservationIgnored var onIntegrationError: ((String) -> Void)?
     /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (#96); DEBUG: only with a fake ssh.
     @ObservationIgnored public var autoUpgradeRemote = true
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.

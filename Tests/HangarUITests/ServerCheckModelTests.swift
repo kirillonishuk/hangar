@@ -249,6 +249,19 @@ import TestSupport
         #expect(!FileManager.default.fileExists(atPath: h.root + "/.claude"))
     }
 
+    /// The upload of `hangar-remote` fails: no hooks pointing at a missing script, the host shows the error.
+    @Test func noRemoteScriptNoHooks() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try claudeOn(h)
+        h.app.setHostDecision("dev", connect: false)  // the connect itself writes nothing; the apply below runs by hand
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 1, stdout: "", stderr: "disk full") }
+        await h.app.applyHost("dev", m)
+        #expect(h.app.integrations.marks[.claude]?["dev"] == .failed(L10n.intRemoteMissing))
+        #expect(!FileManager.default.fileExists(atPath: h.home + "/.claude/settings.json"))
+    }
+
     @Test func skippedHostIsLeftAlone() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await stub(h, "claude")

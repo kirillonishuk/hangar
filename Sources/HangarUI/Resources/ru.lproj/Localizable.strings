@@ -852,3 +852,5 @@
 "intAgentOffHelp" = "Выключено: записи Hangar этого агента снимаются на Mac и хостах. MCP — своим переключателем.";
 "intMCPNote" = "MCP включается вместе с приложением на этом Mac — через CLI агента, только своя запись «hangar».";
 "awaitingIntegrationAnswer" = "Ждёт ответа: подключить Hangar?";
+"intOtherCopy" = "записи Hangar здесь принадлежат другой копии приложения";
+"intRemoteMissing" = "не удалось установить hangar-remote — хуки не записаны";

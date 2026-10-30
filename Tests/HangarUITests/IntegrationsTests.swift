@@ -213,6 +213,49 @@ private final class FakeAgents: @unchecked Sendable {
         #expect(app.integrationHostList == ["dev"])
     }
 
+    @Test func agentExecutableSkipsWrappers() {
+        #expect(agentExecutable("/opt/bin/claude --model opus", agent: .claude) == "/opt/bin/claude")
+        #expect(agentExecutable("npx @anthropic-ai/claude-code", agent: .claude) == "claude")
+        #expect(agentExecutable("env FOO=1 codex", agent: .codex) == "codex")
+        #expect(agentExecutable("claude", agent: .claude) == "claude")
+    }
+
+    /// An answer that can't be saved holds for this run: no loop of the same sheet; the error is shown.
+    @Test func unsavedAnswerIsNotAskedAgain() async throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try makeApp()
+        // The config's folder becomes a file: every save fails.
+        try FileManager.default.removeItem(at: configURL)
+        try FileManager.default.createDirectory(at: configURL, withIntermediateDirectories: true)
+        var shown: String?
+        app.onIntegrationError = { shown = $0 }
+        #expect(app.integrationGate(.claude, host: nil))
+        await app.answerAgent(.claude, connect: false, choice: AgentChoice())
+        #expect(shown != nil)
+        #expect(!app.integrationGate(.claude, host: nil))
+        #expect(app.integrations.ask == nil)
+    }
+
+    /// One run at a time per key: requests before it starts share it, a request while it runs gets one more run.
+    @Test func serializedFoldsRequests() async throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try makeApp()
+        var runs = 0
+        var again: (() -> Void)?
+        let work: @MainActor () async -> Void = {
+            runs += 1
+            if runs == 1 { again?(); again?() }  // two requests while the first run is going on
+            await Task.yield()
+        }
+        again = { _ = app.serialized("k", work) }
+        let first = app.serialized("k", work)
+        _ = app.serialized("k", work)
+        await first.value
+        #expect(runs == 2)
+        await app.serialized("k", work).value
+        #expect(runs == 3)
+    }
+
     @Test func cliPathPrefersHelpers() throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let app = dir.appendingPathComponent("X.app")

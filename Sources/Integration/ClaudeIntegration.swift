@@ -180,15 +180,19 @@ let claudeHooksRetired: [(event: String, matcher: String?, kind: String)] = [
     ("StopFailure", "rate_limit", "stop-failure"),
 ]
 
+/// The one install the app's own updater and the DMG point at: it wins over any other copy.
+public let canonicalHelper = "/Applications/Hangar.app/Contents/Helpers/hangar"
+
 /// Which CLI paths in a user's file are this Hangar's own (#111): the current helper, or another `Hangar.app` helper
-/// path left by a moved or re-installed app. A copy outside `/Applications` never claims entries that lead into an
-/// existing `/Applications/Hangar.app` (two copies would otherwise pull the entries back and forth at every launch).
+/// that no longer exists (the app moved or was re-installed elsewhere: its entries move here). A helper of another
+/// copy that still exists stays that copy's, unless this one is `/Applications/Hangar.app` (the one preferred copy):
+/// so two copies never pull the entries back and forth at every launch.
 public func localOwnership(cli: String, exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) })
     -> @Sendable (String) -> Bool {
     { path in
         if path == cli { return true }
         guard path.hasSuffix("/Contents/Helpers/hangar") else { return false }
-        return cli.hasPrefix("/Applications/") || !path.hasPrefix("/Applications/") || !exists(path)
+        return cli == canonicalHelper || !exists(path)
     }
 }
 
@@ -209,7 +213,7 @@ private func hangarCLI(of c: String) -> String? {
 /// with a CLI `ours` accepts (an older path is moved to `cli`); compound commands, user-changed matchers and the user's
 /// handlers stay (#96). Missing hooks are appended to their events; the obsolete ones (`claudeHooksRetired`) go; an
 /// unwanted function's entries are removed (the wrapped status line is restored). An entry of another Hangar copy
-/// (a CLI `ours` refuses) leaves the whole file alone. nil = nothing to write.
+/// (a CLI `ours` refuses) leaves the whole file alone (`.otherCopy`). nil = nothing to write.
 public func claudeApply(_ text: String?, cli: String, hooks: Bool, statusline: Bool,
                         ours: (String) -> Bool) throws(IntegrationError) -> String? {
     let original = try rootObject(text)
@@ -232,7 +236,7 @@ public func claudeApply(_ text: String?, cli: String, hooks: Bool, statusline: B
     }
     var foreign = false
     eachCommand { c in if let x = hangarCLI(of: c), !ours(x) { foreign = true } }
-    guard !foreign else { return nil }
+    if foreign { throw .otherCopy }
 
     func matcher(_ g: [JSONMember]) -> String { if case .string(let m)? = g["matcher"] { m } else { "" } }
     let current = Set(claudeHooks.map { "\($0.event)|\($0.matcher ?? "")|\($0.kind)" })

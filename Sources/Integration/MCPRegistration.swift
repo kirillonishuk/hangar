@@ -56,7 +56,7 @@ public func codexMCPEntry(_ toml: String?, cli: String, ours: (String) -> Bool) 
     guard let toml else { return .absent }
     guard let f = codexHangarServer(toml) else { return .unreadable }
     guard f.found else { return .absent }
-    return classify(command: f.command, args: f.args, envEmpty: f.envEmpty, cli: cli, ours: ours)
+    return f.extra ? .foreign : classify(command: f.command, args: f.args, envEmpty: f.envEmpty, cli: cli, ours: ours)
 }
 
 public func mcpAction(_ entry: MCPEntry, enabled: Bool) -> MCPAction {
@@ -91,7 +91,17 @@ public func mcpCommands(_ agent: MCPAgent, _ action: MCPAction, agentCLI: String
 /// An executable's path as the user's login shell finds it (`command -v`), like `resolveCodex`; nil = not there.
 public func resolveCommand(_ name: String, runner: Runner, shell: String) async -> String? {
     guard let r = try? await runner.run([shell, "-l", "-i", "-c", "command -v \(shellQuote(name))"], NSHomeDirectory()), r.status == 0 else { return nil }
-    return r.stdout.split(whereSeparator: \.isNewline).map(String.init).last { $0.hasPrefix("/") }
+    return commandPath(r.stdout)
+}
+
+/// The path in `command -v` output: a plain path, or the target of `alias name='/path/…'` (zsh prints `name=…`).
+/// An alias to anything but an absolute path (`npx …`) is no executable to run: nil.
+func commandPath(_ output: String) -> String? {
+    guard let line = output.split(whereSeparator: \.isNewline).map(String.init).last(where: { !$0.isEmpty }) else { return nil }
+    if line.hasPrefix("/") { return line }
+    guard let eq = line.firstIndex(of: "="), let words = shellWords(String(line[line.index(after: eq)...])),
+          words.count == 1, words[0].hasPrefix("/") else { return nil }
+    return words[0]
 }
 
 /// Runs argv through the login shell: its PATH (node for `claude`) and `CLAUDE_CONFIG_DIR` / `CODEX_HOME`.
@@ -101,7 +111,11 @@ public func loginShellArgv(_ argv: [String], shell: String) -> [String] {
 
 // MARK: Reading Codex's TOML
 
-private struct HangarServer { var found = false; var command: String?; var args: [String]?; var envEmpty = true }
+private struct HangarServer {
+    var found = false, command: String?, args: [String]?, envEmpty = true
+    /// A key Hangar never writes (`enabled`, `cwd`, timeouts…): someone else's entry, or ours edited by hand.
+    var extra = false
+}
 
 private enum Lite { case string(String), strings([String]), table([(String, Lite)]), other }
 
@@ -111,9 +125,10 @@ private func codexHangarServer(_ toml: String) -> HangarServer? {
     var table: [String] = []
     var lines = toml.components(separatedBy: "\n")[...]
     while let raw = lines.popFirst() {
-        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if line.isEmpty || line.hasPrefix("#") { continue }
         if line.hasPrefix("[") {
+            line = withoutComment(line)
             let array = line.hasPrefix("[[")
             guard let close = line.range(of: array ? "]]" : "]", options: .backwards),
                   let path = keyPath(line[line.index(line.startIndex, offsetBy: array ? 2 : 1)..<close.lowerBound]) else { return nil }
@@ -137,7 +152,7 @@ private func codexHangarServer(_ toml: String) -> HangarServer? {
         switch full.count {
         case 2: if case .table(let members) = parsed { apply(members, to: &out) } else { out.command = nil; out.args = nil; out.envEmpty = false }
         case 3: apply([(full[2], parsed)], to: &out)
-        default: if full[2] == "env" { out.envEmpty = false }
+        default: if full[2] == "env" { out.envEmpty = false } else { out.extra = true }
         }
     }
     return out
@@ -151,9 +166,21 @@ private func apply(_ members: [(String, Lite)], to out: inout HangarServer) {
         case ("env", .table(let t)): out.envEmpty = t.isEmpty
         case ("env", _): out.envEmpty = false
         case ("command", _), ("args", _): out.command = nil; out.args = nil
-        default: break
+        default: out.extra = true
         }
     }
+}
+
+/// A header line without its trailing `# comment` (a `#` inside a quoted key stays).
+private func withoutComment(_ s: String) -> String {
+    var quote: Character?
+    for i in s.indices {
+        let c = s[i]
+        if let q = quote { if c == q { quote = nil } } else if c == "\"" || c == "'" { quote = c } else if c == "#" {
+            return s[..<i].trimmingCharacters(in: .whitespaces)
+        }
+    }
+    return s
 }
 
 /// `a.b."c d"` → ["a", "b", "c d"]; nil for a malformed key.

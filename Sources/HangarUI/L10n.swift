@@ -171,11 +171,13 @@ import Workspace
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
         // Integrations by function (#111)
-        case intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, awaitingIntegrationAnswer
+        case intOtherCopy, intRemoteMissing, intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, awaitingIntegrationAnswer
     }
 
 
     // Integrations by function (#111)
+    static var intOtherCopy: String { s(.intOtherCopy) }
+    static var intRemoteMissing: String { s(.intRemoteMissing) }
     static var intHooksTitle: String { s(.intHooksTitle) }
     static var intHooksClaudeSub: String { s(.intHooksClaudeSub) }
     static var intHooksCodexSub: String { s(.intHooksCodexSub) }

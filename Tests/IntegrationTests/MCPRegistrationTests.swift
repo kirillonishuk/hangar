@@ -51,6 +51,11 @@ private func claudeJSON(_ hangar: String) -> String {
         let multi = "notes = \"\"\"\n[mcp_servers.hangar]\ncommand = \"evil\"\n\"\"\"\n" + table
         #expect(codexMCPEntry(multi, cli: cli, ours: ours) == .current)
         #expect(codexMCPEntry("[mcp_servers.hangar\n", cli: cli, ours: ours) == .unreadable)
+        // A key Hangar never writes: not ours to rewrite.
+        #expect(codexMCPEntry(table.replacingOccurrences(of: "args = [\"mcp\"]\n", with: "args = [\"mcp\"]\nenabled = false\n"), cli: cli, ours: ours) == .foreign)
+        #expect(codexMCPEntry("[mcp_servers]\nhangar = { command = \"\(cli)\", args = [\"mcp\"], cwd = \"/x\" }\n", cli: cli, ours: ours) == .foreign)
+        // A comment after the header (with a bracket in it) is not part of it.
+        #expect(codexMCPEntry("[mcp_servers.hangar] # see [docs]\ncommand = \"\(cli)\"\nargs = [\"mcp\"]\n", cli: cli, ours: ours) == .current)
     }
 
     @Test func actions() {
@@ -71,6 +76,14 @@ private func claudeJSON(_ hangar: String) -> String {
         #expect(mcpCommands(.codex, .readd, agentCLI: "/b/codex", cli: cli) == [["/b/codex", "mcp", "add", "hangar", "--", cli, "mcp"]])
         #expect(mcpCommands(.codex, .remove, agentCLI: "/b/codex", cli: cli) == [["/b/codex", "mcp", "remove", "hangar"]])
         #expect(mcpCommands(.claude, .none, agentCLI: "/b/claude", cli: cli).isEmpty)
+    }
+
+    @Test func commandPathReadsAliases() {
+        #expect(commandPath("/usr/local/bin/claude\n") == "/usr/local/bin/claude")
+        #expect(commandPath("noise\nalias claude='/Users/me/.claude/local/claude'\n") == "/Users/me/.claude/local/claude")
+        #expect(commandPath("claude=/opt/claude\n") == "/opt/claude")
+        #expect(commandPath("alias claude='npx @anthropic-ai/claude-code'\n") == nil)
+        #expect(commandPath("claude\n") == nil)
     }
 
     @Test func claudeJSONFollowsConfigDir() {

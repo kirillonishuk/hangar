@@ -202,7 +202,7 @@ private func userHandlers(_ text: String) throws -> [String] {
 
 @Test func applyLeavesAnotherCopysEntriesAlone() throws {
     // Hooks of a CLI this copy does not own (another Hangar): a mixed set would fire twice, so nothing is written.
-    #expect(try claudeUpgrade(oldInstall, cli: "/New/hangar") == nil)
+    #expect(throws: IntegrationError.otherCopy) { try claudeUpgrade(oldInstall, cli: "/New/hangar") }
 }
 
 @Test func applyRejectsUnparsable() {

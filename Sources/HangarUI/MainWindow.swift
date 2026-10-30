@@ -279,6 +279,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         column.terminalArea.onAddProject = { [weak self] in self?.chooseProjectKind() }
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
+        app.onIntegrationError = { [weak self] text in
+            self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }
+        }
+        // A restored tab may have asked while the window was being built: shown once it is up.
+        DispatchQueue.main.async { [weak self] in self?.presentIntegrationAsk() }
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()

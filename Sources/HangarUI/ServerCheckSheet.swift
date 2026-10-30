@@ -4,18 +4,20 @@ import GhosttyBridge
 import Integration
 import SwiftUI
 
-/// «Сервер <host>» (580): the check report, the install plan with its exact
+/// «Сервер <host>» (520): the check report, the install plan with its exact
 /// commands and, after «Установить», the install terminal. Opened from the host row; embedded in «Удалённый проект».
 struct ServerCheckSheet: View {
     @Bindable var model: ServerCheckModel
     /// The window's content height: the sheet stays inside it.
     let windowHeight: CGFloat
     let onClose: () -> Void
+    @State private var chrome = SheetChrome()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.serverTitle(model.host))
-            ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
+            ServerCheckView(model: model, embedded: false, maxHeight: chrome.budget(windowHeight))
+                .measuredPart($chrome)
                 .padding(.top, Theme.sheetNameTop)
             // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
             SheetFooter(hintHidden: model.phase == .installing) {
@@ -35,7 +37,27 @@ struct ServerCheckSheet: View {
                 }
             }
         }
+        .measuredSheet($chrome)
         .sheetFrame()
+    }
+}
+
+/// The sheet's own parts around the server report (header, card, footer, margins), measured rather than guessed: the
+/// report may take the window's height minus them, so the sheet never outgrows its window whatever the rows' layout.
+struct SheetChrome: Equatable {
+    var sheet: CGFloat = 0
+    var part: CGFloat = 0
+    func budget(_ windowHeight: CGFloat) -> CGFloat { windowHeight - max(0, sheet - part) }
+}
+
+extension View {
+    /// The whole sheet's height, for `SheetChrome`.
+    func measuredSheet(_ chrome: Binding<SheetChrome>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chrome.wrappedValue.sheet = $0 }
+    }
+    /// The report's height inside it, for `SheetChrome`.
+    func measuredPart(_ chrome: Binding<SheetChrome>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chrome.wrappedValue.part = $0 }
     }
 }
 

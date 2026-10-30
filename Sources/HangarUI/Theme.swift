@@ -121,9 +121,7 @@ public enum Theme {
     // SSH hosts and the server sheet
     public static let installTerminalHeight: CGFloat = 260
     public static let reportRowPaddingV: CGFloat = settingsRowPaddingV
-    /// Heights of the sheets' other parts (title, host card, footer, margins) and the smallest report before it scrolls.
-    public static let remoteSheetChrome: CGFloat = 250
-    public static let serverSheetChrome: CGFloat = 140
+    /// The smallest server report before it scrolls (the rest of the sheet is measured: `SheetChrome`).
     public static let serverReportMinHeight: CGFloat = 160
 }
 

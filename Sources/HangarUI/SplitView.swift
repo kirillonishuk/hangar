@@ -190,7 +190,7 @@ final class FillView: NSView {
     #endif
 
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.panel.cgColor
+        layer?.backgroundColor = Theme.bg0.cgColor
         bar.textColor = Theme.text2
         for line in [headerLine, barLine] { line.layer?.backgroundColor = Theme.line.cgColor }
     }
@@ -563,7 +563,7 @@ final class FillView: NSView {
 
     /// Also redraws the split dividers (`HangarSplitView.dividerColor`) of every tab.
     @objc private func applyTheme() {
-        layer?.backgroundColor = Theme.panel.cgColor
+        layer?.backgroundColor = Theme.bg0.cgColor
         placeholder.textColor = Theme.text3
         func redraw(_ view: NSView) { view.needsDisplay = true; view.subviews.forEach(redraw) }
         redraw(self)

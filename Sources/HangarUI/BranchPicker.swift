@@ -58,14 +58,14 @@ struct BranchPicker: View {
                 IconView(icon: .branch, size: Theme.smallIconSize)
                 Text(selection ?? defaultOption ?? "—")
                     .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                    .foregroundStyle(Theme.ui.sheetText)
+                    .foregroundStyle(Theme.ui.text0)
                 IconView(icon: .chevronDown, size: Theme.pickChevronSize)
             }
             .padding(.vertical, Theme.pickPaddingV)
             .padding(.horizontal, Theme.pickPaddingH)
             .background(RoundedRectangle(cornerRadius: Theme.pickRadius).fill(Theme.ui.field))
             .overlay(RoundedRectangle(cornerRadius: Theme.pickRadius)
-                .stroke(open ? Theme.ui.accent : Theme.ui.controlBorderStrong, lineWidth: 1))
+                .stroke(open ? Theme.ui.accent : Theme.ui.line2, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -114,7 +114,7 @@ struct BranchListView: View {
                 .padding(.vertical, Theme.dropdownSearchPaddingV)
                 .padding(.horizontal, Theme.dropdownPaddingH)
             if !ids.isEmpty {
-                Rectangle().fill(Theme.ui.controlBorderStrong).frame(height: 1)
+                Rectangle().fill(Theme.ui.line2).frame(height: 1)
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
@@ -129,7 +129,7 @@ struct BranchListView: View {
             }
         }
         .frame(width: Theme.dropdownWidth)
-        .background(Theme.ui.sheet)
+        .background(Theme.ui.bg2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.dropdownRadius))
         .onAppear { highlight = ids.contains(selection ?? Self.defaultId) ? (selection ?? Self.defaultId) : ids.first }
         .onChange(of: query) { highlight = self.ids(self.items).first }
@@ -159,17 +159,17 @@ struct BranchListView: View {
         return HStack(spacing: Theme.dropdownItemGap) {
             Text(title)
                 .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                .foregroundStyle(on ? Theme.ui.selectionText : Theme.ui.text)
+                .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
             if let meta {
-                Text(metaText(meta)).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
+                Text(metaText(meta)).font(.system(size: Theme.fontSize.counter)).foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
             }
         }
         .lineLimit(1)
         .padding(.horizontal, Theme.dropdownPaddingH)
         .frame(height: Theme.dropdownRowHeight)
-        .background(on ? Theme.ui.selection : .clear)
+        .background(on ? Theme.ui.selectedFocus : .clear)
         .contentShape(Rectangle())
         .onHover { if $0 { highlight = id } }
         .onTapGesture { choose(id) }
@@ -207,7 +207,7 @@ struct PickerSearchField: NSViewRepresentable {
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = font
-        field.textColor = Theme.sheetText  // = Theme.ui.inputText
+        field.textColor = Theme.text0  // = Theme.ui.inputText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
             .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),  // = inputPlaceholder, prose (never mono)
         ])
@@ -256,7 +256,7 @@ struct PickerSearchField: NSViewRepresentable {
                 window.makeFirstResponder(self)
                 // Focus selects all: a preset «>» (⇧⌘P) would be replaced by the first typed letter, leaving commands.
                 self.currentEditor()?.selectedRange = NSRange(location: (self.stringValue as NSString).length, length: 0)
-                (self.currentEditor() as? NSTextView)?.insertionPointColor = Theme.accent  // not the system accent
+                (self.currentEditor() as? NSTextView)?.insertionPointColor = Theme.accentText  // not the system accent
             }
         }
     }

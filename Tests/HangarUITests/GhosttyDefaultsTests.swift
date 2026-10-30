@@ -27,8 +27,8 @@ import Testing
         #expect(GhosttyApp.configFileName("overrides", pid: 42) != GhosttyApp.configFileName("defaults", pid: 42))
     }
 
-    @Test func cursorIsTheAccentAndTextTheThemes() {
-        #expect(Theme.terminalColors().cursor == String(cssHex(Theme.accent).dropFirst()))
+    @Test func cursorIsTheAccentTextAndTextTheThemes() {
+        #expect(Theme.terminalColors().cursor == String(cssHex(Theme.accentText).dropFirst()))
         #expect(Theme.terminalColors(of: .of(.navy)).foreground == "e3e7ef")
     }
 }

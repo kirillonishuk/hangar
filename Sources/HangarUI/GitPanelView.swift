@@ -51,7 +51,7 @@ struct GitPanelView: View {
     private func divider(_ room: CGFloat) -> some View {
         Rectangle().fill(Theme.ui.line).frame(height: 1)
             .overlay {
-                RoundedRectangle(cornerRadius: Theme.GitTab.gripHeight / 2).fill(Theme.ui.control)
+                RoundedRectangle(cornerRadius: Theme.GitTab.gripHeight / 2).fill(Theme.ui.line2)
                     .frame(width: Theme.GitTab.gripWidth, height: Theme.GitTab.gripHeight)
             }
             .frame(height: Theme.GitTab.dividerHit)
@@ -121,7 +121,7 @@ struct GitIconButton: View {
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.GitTab.rowRadius))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.5)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .help(help)
     }
 }

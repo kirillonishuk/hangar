@@ -70,7 +70,7 @@ struct WindowTitleBar: View {
         }
         .frame(maxWidth: .infinity, minHeight: Theme.titleBarHeight, maxHeight: Theme.titleBarHeight)
         .background(WindowDragArea())
-        .background(Theme.ui.titlebar)
+        .background(Theme.ui.bg1)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         .ignoresSafeArea()
     }
@@ -82,7 +82,7 @@ struct WindowTitleBar: View {
                     Text(verbatim: project).foregroundStyle(Theme.ui.text2)
                     Text(verbatim: "·").foregroundStyle(Theme.ui.text3)
                 }
-                Text(verbatim: t.session).fontWeight(.medium).foregroundStyle(Theme.ui.textStrong)
+                Text(verbatim: t.session).fontWeight(.medium).foregroundStyle(Theme.ui.text0)
                 if let branch = t.branch {
                     HStack(spacing: Theme.railInset) {
                         IconView(icon: .branch, size: Theme.titleBranchIcon)

@@ -87,7 +87,7 @@ struct EditorSwatch: View {
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Theme.ui.controlBorderStrong, lineWidth: 1))
+        .overlay(shape.strokeBorder(Theme.ui.line2, lineWidth: 1))
     }
 }
 
@@ -116,7 +116,7 @@ struct EditorColorPopover: View {
                 EditorSwatch(hex: hex, size: S.popoverSwatch)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: color.title).font(.system(size: Theme.fontSize.sheetRow, weight: .semibold))
-                        .foregroundStyle(Theme.ui.textStrong)
+                        .foregroundStyle(Theme.ui.text0)
                     if let sample = color.sample {
                         Text(verbatim: sample).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
                     }
@@ -174,7 +174,7 @@ struct EditorColorPopover: View {
         }
         .padding(S.popoverPadding)
         .frame(width: S.popoverWidth, alignment: .leading)
-        .background(Theme.ui.sheet)
+        .background(Theme.ui.bg2)
         .onAppear { sync(hex) }
         .onChange(of: hex) { _, new in if !focused { sync(new) } }
     }
@@ -206,8 +206,8 @@ struct EditorColorPopover: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(LinearGradient(gradient: gradient, startPoint: .leading, endPoint: .trailing))
                     .frame(height: S.barHeight)
-                Circle().strokeBorder(Color.white, lineWidth: S.knobBorder)
-                    .background(Circle().fill(Color.black.opacity(0.25)))
+                Circle().strokeBorder(Theme.ui.text0, lineWidth: S.knobBorder)
+                    .background(Circle().fill(Theme.ui.bg0.opacity(Theme.Opacity.ring)))
                     .frame(width: S.knob, height: S.knob)
                     .offset(x: max(0, min(w - S.knob, value * w - S.knob / 2)))
             }

@@ -14,33 +14,34 @@ public struct Hex: Hashable, Sendable, ExpressibleByIntegerLiteral {
     var b: Int { Int(rgb & 0xff) }
     /// `rrggbb`, for Ghostty.
     var bare: String { String(format: "%06x", rgb) }
-    /// As written in themes-v1.html: `#rrggbb`, or `rgba(r,g,b,.aa)` when translucent.
+    /// `#rrggbb`, or `rgba(r,g,b,.aa)` when translucent.
     var css: String {
         guard alpha < 1 else { return "#" + bare }
         return "rgba(\(r),\(g),\(b),\(String(format: "%.2f", alpha).dropFirst()))"
     }
 }
 
-/// The colour tokens of one app theme; names and values are those of themes-v1.html (its `THEMES[].t`, `ansi`).
-/// Sizes and spacing don't depend on the theme and stay in `Theme`.
+/// The colour roles of one app theme (design-system spec §2.7); every theme fills every role. Sizes and spacing don't
+/// depend on the theme and stay in `Theme`.
 public struct ThemePalette: Sendable {
-    // Surfaces
-    var bg, titlebar, sidebar, panel, status, bottomBar, tabStrip, tabActive, tabInactive: Hex
-    // States
-    var hover, sbHover, hoverStrong, selected, menuHover, menuHoverText, moreBg: Hex
-    // Lines and controls
-    var line, lineSheet, control, controlStrong, winBorder, sheet, field, button: Hex
-    // Text: text1, textStrong, text2, text3
-    var tx, strong, tx2, tx3: Hex
-    // Accent
-    var accent, accentText, primary, primaryText: Hex
-    // Statuses and limits
-    var working, waiting, done, failed, failedText, idle, limOk, limTrack: Hex
-    // Git and diff
-    var gitM, gitA, gitD, diffAdd, diffDel: Hex
-    // Editor chrome (the syntax is Dark+ in every theme) and terminal
-    var editorBg, edGutter, edGutterActive, edLine, edSel, edIndent, termBg: Hex
-    // Git graph rails; the Claude logo colour
+    /// Content (terminal, editor, History) · chrome (toolbar, both sidebars, tabs, pane headers, cards) · popovers,
+    /// menus, sheets, toasts · input fields and segment tracks.
+    var bg0, bg1, bg2, field: Hex
+    /// Hover · pressed, the active tab and segment · the selected row out of focus · the selected row in focus and the
+    /// menu item under the pointer (text `onAccent`).
+    var hover, hover2, selected, selectedFocus: Hex
+    /// Separators · borders of controls, popovers and sheets.
+    var line, line2: Hex
+    /// Headings and the selected · main · secondary and icons · meta.
+    var text0, text1, text2, text3: Hex
+    /// The primary button, focus, a switched-on toggle · accent as text (links, chips, the terminal cursor) · text on
+    /// `accent` and `selectedFocus`.
+    var accent, accentText, onAccent: Hex
+    var working, waiting, done, failed, failedText, idle: Hex
+    var gitA, gitM, gitD, diffAdd, diffDel, limOk, limTrack: Hex
+    /// Editor chrome (the syntax is Dark+ in every theme; its background is `bg0`).
+    var edGutter, edGutterActive, edLine, edSel, edIndent: Hex
+    /// Git graph rails; the Claude logo colour.
     var lane1, lane2, lane3, claude: Hex
     /// Terminal ANSI 0–7 normal, 8–15 bright; used when the user's Ghostty config sets no palette.
     var ansi: [UInt32]
@@ -53,89 +54,59 @@ public struct ThemePalette: Sendable {
         }
     }
 
-    /// A: VS Code Dark+ greys; `tx2` a touch lighter than VS Code's for AA on `selected`.
+    /// VS Code Dark+ greys.
     static let darkPlus = ThemePalette(
-        bg: 0x1e1e1e, titlebar: 0x252526, sidebar: 0x252526, panel: 0x252526, status: 0x252526, bottomBar: 0x252526,
-        tabStrip: 0x252526, tabActive: 0x1e1e1e, tabInactive: 0x2d2d2d,
-        hover: 0x2a2d2e, sbHover: 0x2a2d2e, hoverStrong: 0x37373d, selected: 0x37373d, menuHover: 0x04395e,
-        menuHoverText: 0xffffff, moreBg: 0x45494e,
-        line: 0x333333, lineSheet: 0x3c3c3c, control: 0x3c3c3c, controlStrong: 0x454545, winBorder: 0x3c3c3c,
-        sheet: 0x252526, field: 0x313131, button: 0x3a3d41,
-        tx: 0xcccccc, strong: 0xffffff, tx2: 0xa3a3a3, tx3: 0x6e6e6e,
-        accent: 0x007acc, accentText: 0x3794ff, primary: 0x0e639c, primaryText: 0xffffff,
+        bg0: 0x1e1e1e, bg1: 0x252526, bg2: 0x2c2c2d, field: 0x1e1e1e,
+        hover: 0x2a2d2e, hover2: 0x37373d, selected: 0x37373d, selectedFocus: 0x0e639c,
+        line: 0x303030, line2: 0x3c3c3c,
+        text0: 0xffffff, text1: 0xcccccc, text2: 0xa3a3a3, text3: 0x7a7a7a,
+        accent: 0x0e639c, accentText: 0x3794ff, onAccent: 0xffffff,
         working: 0x4fc1ff, waiting: 0xe8a33d, done: 0x89d185, failed: 0xf14c4c, failedText: 0xf48771, idle: 0x6e6e6e,
+        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf48771, diffAdd: Hex(0x9bb955, 0.20), diffDel: Hex(0xff0000, 0.20),
         limOk: 0x3794ff, limTrack: 0x3c3c3c,
-        gitM: 0xe2c08d, gitA: 0x73c991, gitD: 0xf48771, diffAdd: Hex(0x9bb955, 0.20), diffDel: Hex(0xff0000, 0.20),
-        editorBg: 0x1e1e1e, edGutter: 0x858585, edGutterActive: 0xc6c6c6, edLine: 0x2a2a2a, edSel: 0x264f78,
-        edIndent: 0x404040, termBg: 0x1e1e1e,
+        edGutter: 0x858585, edGutterActive: 0xc6c6c6, edLine: 0x2a2a2a, edSel: 0x264f78, edIndent: 0x404040,
         lane1: 0x3794ff, lane2: 0xc586c0, lane3: 0x73c991, claude: 0xd97757,
         ansi: [0x000000, 0xcd3131, 0x0dbc79, 0xe5e510, 0x2472c8, 0xbc3fbc, 0x11a8cd, 0xe5e5e5,
                0x666666, 0xf14c4c, 0x23d18b, 0xf5f543, 0x3b8eea, 0xd670d6, 0x29b8db, 0xffffff])
 
-    /// B: warm grey with an amber accent; «ждёт» is yellow and the primary button has dark text (white fails AA).
+    /// Warm grey with an amber accent, dark enough for white text; «ждёт» is yellow.
     static let graphite = ThemePalette(
-        bg: 0x232220, titlebar: 0x1f1e1c, sidebar: 0x292826, panel: 0x252422, status: 0x1f1e1c, bottomBar: 0x262523,
-        tabStrip: 0x1f1e1c, tabActive: 0x2b2a27, tabInactive: 0x1f1e1c,
-        hover: 0x2e2d2a, sbHover: 0x34332f, hoverStrong: 0x3a3834, selected: 0x3d3b37, menuHover: 0x3d3b37,
-        menuHoverText: 0xfbf8f3, moreBg: 0x4a4743,
-        line: 0x363430, lineSheet: 0x3b3935, control: 0x3d3b37, controlStrong: 0x4a4743, winBorder: 0x3d3b37,
-        sheet: 0x2c2b28, field: 0x1f1e1c, button: 0x3a3834,
-        tx: 0xe6e2dc, strong: 0xfbf8f3, tx2: 0xaea79e, tx3: 0x77726b,
-        accent: 0xe8853d, accentText: 0xf0975a, primary: 0xe8853d, primaryText: 0x1c1b19,
+        bg0: 0x232220, bg1: 0x292826, bg2: 0x302f2c, field: 0x1f1e1c,
+        hover: 0x2e2d2a, hover2: 0x3a3834, selected: 0x3a3834, selectedFocus: 0x7d4a24,
+        line: 0x363430, line2: 0x3d3b37,
+        text0: 0xfbf8f3, text1: 0xe6e2dc, text2: 0xaea79e, text3: 0x77726b,
+        accent: 0xb35d22, accentText: 0xf0975a, onAccent: 0xffffff,
         working: 0x6cb0f0, waiting: 0xf0c048, done: 0x8fcf7f, failed: 0xf0605a, failedText: 0xff8a80, idle: 0x77726b,
+        gitA: 0x8fcf7f, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x8fcf7f, 0.14), diffDel: Hex(0xf0605a, 0.15),
         limOk: 0x6cb0f0, limTrack: 0x3d3b37,
-        gitM: 0xe2c08d, gitA: 0x8fcf7f, gitD: 0xf07a6e, diffAdd: Hex(0x8fcf7f, 0.14), diffDel: Hex(0xf0605a, 0.15),
-        editorBg: 0x232220, edGutter: 0x77726b, edGutterActive: 0xcfc9c0, edLine: 0x2b2a27, edSel: 0x2f4a68,
-        edIndent: 0x3b3935, termBg: 0x232220,
+        edGutter: 0x77726b, edGutterActive: 0xcfc9c0, edLine: 0x2b2a27, edSel: 0x2f4a68, edIndent: 0x3b3935,
         lane1: 0xe8853d, lane2: 0x6cb0f0, lane3: 0x8fcf7f, claude: 0xd97757,
         ansi: [0x2b2a27, 0xf0605a, 0x8fcf7f, 0xf0c048, 0x6cb0f0, 0xd391d8, 0x5fc4c4, 0xd9d4cc,
                0x77726b, 0xff8a80, 0xa8e09a, 0xffd77a, 0x8fc4ff, 0xe3aee6, 0x86dada, 0xfbf8f3])
 
-    /// C: the former navy, brought in line with Dark+; AA fixes for `tx2`, `tx3` and the primary button.
+    /// Navy, brought in line with Dark+.
     static let navy = ThemePalette(
-        bg: 0x121826, titlebar: 0x121826, sidebar: 0x1d2534, panel: 0x121826, status: 0x121826, bottomBar: 0x1b2231,
-        tabStrip: 0x121826, tabActive: 0x1c2433, tabInactive: 0x121826,
-        hover: 0x1a2130, sbHover: 0x273044, hoverStrong: 0x2b3444, selected: 0x2e3749, menuHover: 0x273044,
-        menuHoverText: 0xffffff, moreBg: 0x3a4456,
-        line: 0x222b3b, lineSheet: 0x2b3444, control: 0x2b3444, controlStrong: 0x3a4456, winBorder: 0x2b3446,
-        sheet: 0x1d2534, field: 0x121826, button: 0x2b3444,
-        tx: 0xe3e7ef, strong: 0xffffff, tx2: 0x9ba4b7, tx3: 0x687185,
-        accent: 0x4ea1f3, accentText: 0x5fb0ff, primary: 0x2a6fd6, primaryText: 0xffffff,
+        bg0: 0x121826, bg1: 0x182030, bg2: 0x1f2738, field: 0x121826,
+        hover: 0x202a3b, hover2: 0x2b3446, selected: 0x2b3446, selectedFocus: 0x2a6fd6,
+        line: 0x232c3d, line2: 0x2f3a4d,
+        text0: 0xffffff, text1: 0xe3e7ef, text2: 0x9ba4b7, text3: 0x6b7489,
+        accent: 0x2a6fd6, accentText: 0x5fb0ff, onAccent: 0xffffff,
         working: 0x4fc1ff, waiting: 0xffb340, done: 0x73c991, failed: 0xf14c4c, failedText: 0xff6b61, idle: 0x5f687a,
+        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x73c991, 0.13), diffDel: Hex(0xf14c4c, 0.15),
         limOk: 0x5b8def, limTrack: 0x2b3444,
-        gitM: 0xe2c08d, gitA: 0x73c991, gitD: 0xf07a6e, diffAdd: Hex(0x73c991, 0.13), diffDel: Hex(0xf14c4c, 0.15),
-        editorBg: 0x121826, edGutter: 0x5f687a, edGutterActive: 0xc6cbd6, edLine: 0x19202e, edSel: 0x264f78,
-        edIndent: 0x262f40, termBg: 0x121826,
+        edGutter: 0x5f687a, edGutterActive: 0xc6cbd6, edLine: 0x19202e, edSel: 0x264f78, edIndent: 0x262f40,
         lane1: 0x4ea1f3, lane2: 0xc586c0, lane3: 0x73c991, claude: 0xd97757,
         ansi: [0x1d2534, 0xf14c4c, 0x73c991, 0xe5c07b, 0x3794ff, 0xc586c0, 0x4fc1ff, 0xd4d9e3,
                0x5f687a, 0xff6b61, 0x8fe0ab, 0xf5d58a, 0x6cb0ff, 0xd7a2e6, 0x7fd6ff, 0xffffff])
-}
 
-/// Colour roles of the design system (design-system spec §2.7). Roles that the palette already stores under the same
-/// name (`field`, `hover`, `selected`, `line`, `accent`, `accentText`, statuses, git, diff, limits, `ansi`, editor) are
-/// those fields. The rest are aliases of the current fields (§7) so nothing changes on screen yet; stage 4 of §8 gives
-/// them the §2.7 values and moves the call sites.
-extension ThemePalette {
-    /// Content: terminal, editor, History.
-    var bg0: Hex { bg }
-    /// Chrome: toolbar, both sidebars, tabs, pane headers, cards.
-    var bg1: Hex { sidebar }
-    /// Popovers, menus, sheets, toasts.
-    var bg2: Hex { sheet }
-    /// Pressed; the active tab and segment; a toggled-on icon button.
-    var hover2: Hex { hoverStrong }
-    /// The selected row while its list has focus; the menu item under the pointer.
-    var selectedFocus: Hex { menuHover }
-    /// Text on `accent` and `selectedFocus`.
-    var onAccent: Hex { menuHoverText }
-    /// Borders of controls, popovers, sheets (`Theme.ui.line2` was already `control`).
-    var line2: Hex { control }
-    var text0: Hex { strong }
-    var text1: Hex { tx }
-    var text2: Hex { tx2 }
-    var text3: Hex { tx3 }
+    /// The role names of spec §2.7 (`ansi` and the editor set aside); the spec table documents them, this list is
+    /// what the tests hold every theme to.
+    static let roleNames = ["bg0", "bg1", "bg2", "field", "hover", "hover2", "selected", "selectedFocus", "line", "line2",
+                            "text0", "text1", "text2", "text3", "accent", "accentText", "onAccent", "working", "waiting",
+                            "done", "failed", "failedText", "idle", "gitA", "gitM", "gitD", "diffAdd", "diffDel", "limOk",
+                            "limTrack"]
 
-    /// Every role in §2.7 order (`ansi` and the editor set aside), for tests and stage-by-stage checks.
+    /// Every role by name, in `roleNames` order.
     var roles: KeyValuePairs<String, Hex> {
         ["bg0": bg0, "bg1": bg1, "bg2": bg2, "field": field, "hover": hover, "hover2": hover2, "selected": selected,
          "selectedFocus": selectedFocus, "line": line, "line2": line2, "text0": text0, "text1": text1, "text2": text2,

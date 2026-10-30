@@ -104,7 +104,7 @@ private struct LimitBadge: View {
             .foregroundStyle(Theme.Limit.textColor(level))
             .padding(.horizontal, Theme.Limit.badgePaddingH)
             .padding(.vertical, Theme.Limit.badgePaddingV)
-            .background(Capsule().fill(Theme.Limit.color(level).opacity(Theme.Limit.badgeOpacity)))
+            .background(Capsule().fill(Theme.Limit.color(level).opacity(Theme.Opacity.fill)))
     }
 }
 
@@ -203,7 +203,7 @@ struct LimitsPopover: View {
         let rows = app.limitRows
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.agent) { i, row in
-                if i > 0 { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).padding(.horizontal, -Theme.Limit.popoverPaddingH) }
+                if i > 0 { Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.horizontal, -Theme.Limit.popoverPaddingH) }
                 agent(row.agent, row.usage)
                     .padding(.vertical, Theme.Limit.itemGap / 2)
             }
@@ -227,13 +227,13 @@ struct LimitsPopover: View {
         .padding(.vertical, Theme.Limit.popoverPaddingV)
         .padding(.horizontal, Theme.Limit.popoverPaddingH)
         .frame(width: Theme.Limit.popoverWidth)
-        .presentationBackground(Theme.ui.sheet)
+        .presentationBackground(Theme.ui.bg2)
     }
 
     private func agent(_ agent: UsageAgent, _ u: AgentUsage) -> some View {
         VStack(alignment: .leading, spacing: Theme.Limit.itemGap) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Limit.rowGap) {
-                Text(agentName(agent)).font(.system(size: Theme.Limit.agentFont, weight: .bold)).foregroundStyle(Theme.ui.textStrong)
+                Text(agentName(agent)).font(.system(size: Theme.Limit.agentFont, weight: .bold)).foregroundStyle(Theme.ui.text0)
                 if let plan = u.plan { Text(plan).foregroundStyle(Theme.ui.text2) }
                 Spacer(minLength: 0)
                 Text(L10n.updatedAgo(ageLabel(since: u.updatedAt, now: app.usageClock)))
@@ -252,7 +252,7 @@ struct LimitsPopover: View {
     private func window(_ w: UsageWindow, agent: UsageAgent, level: UsageLevel) -> some View {
         VStack(alignment: .leading, spacing: Theme.railInset) {
             HStack(spacing: Theme.Limit.rowGap) {
-                Text(limitWindowTitle(w.kind, agent: agent)).fontWeight(.medium).foregroundStyle(Theme.ui.text)
+                Text(limitWindowTitle(w.kind, agent: agent)).fontWeight(.medium).foregroundStyle(Theme.ui.text1)
                 Spacer(minLength: 0)
                 if level > .ok { LimitBadge(level: level) }
                 Text(percentText(w.usedPercent)).monospacedDigit().foregroundStyle(Theme.ui.text2)

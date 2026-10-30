@@ -66,7 +66,7 @@ struct KindChoiceButtons: View {
                     HStack(spacing: Theme.iconGap) {
                         Image(nsImage: Icon.of(kind).image)
                         if labels {
-                            Text(title(kind)).foregroundStyle(Theme.ui.textStrong).lineLimit(1)
+                            Text(title(kind)).foregroundStyle(Theme.ui.text0).lineLimit(1)
                         }
                     }
                     .padding(.vertical, Theme.tabPaddingV)
@@ -74,7 +74,7 @@ struct KindChoiceButtons: View {
                 }
                 .buttonStyle(ChoiceButtonStyle())
                 .focusable(false)  // a click must not leave the keyboard in the button: ↩ / Esc belong to the pane
-                .opacity(off ? Theme.inactiveOpacity : 1)
+                .opacity(off ? Theme.Opacity.inactive : 1)
                 .help(off && kind == .editor ? L10n.paneEditorCap : kind == .shell ? "\(title(kind)) — \(shellHint)" : labels ? "" : title(kind))
                 // VoiceOver: a dimmed (not enabled) button with the reason, as `.disabled` would read.
                 .accessibilityRepresentation {

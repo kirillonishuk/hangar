@@ -4,34 +4,35 @@ import Testing
 
 @Suite struct SidebarPolishTests {
     @Test func hoverFillOnlyOnActionableRows() {
-        let p = HoverPalette.sidebar
-        #expect(p.fill(selected: false, pressed: false, hover: true, interactive: true) == Theme.ui.sidebarHover)
-        #expect(p.fill(selected: false, pressed: true, hover: true, interactive: true) == Theme.ui.sidebarPressed)
+        let p = HoverPalette.focus
+        #expect(p.fill(selected: false, pressed: false, hover: true, interactive: true) == Theme.ui.hover)
+        #expect(p.fill(selected: false, pressed: true, hover: true, interactive: true) == Theme.ui.hover2)
         // Section headers and other rows without an action: no hover/press fill.
         #expect(p.fill(selected: false, pressed: false, hover: true, interactive: false) == .clear)
         #expect(p.fill(selected: false, pressed: true, hover: true, interactive: false) == .clear)
-        #expect(p.fill(selected: true, pressed: false, hover: false, interactive: true) == Theme.ui.selection)
+        #expect(p.fill(selected: true, pressed: false, hover: false, interactive: true) == Theme.ui.selectedFocus)
+        #expect(HoverPalette.standard.fill(selected: true, pressed: false, hover: false, interactive: true) == Theme.ui.selected)
         #expect(HoverPalette.standard.fill(selected: false, pressed: false, hover: true, interactive: true) == Theme.ui.hover)
     }
 
     /// The trailing-actions fade matches what the row shows underneath.
     @Test func rowBackgroundUnderOverlay() {
-        let p = HoverPalette.sidebar
-        #expect(p.background(selected: false, hover: false, base: Theme.ui.sidebar) == Theme.ui.sidebar)
-        #expect(p.background(selected: false, hover: true, base: Theme.ui.sidebar) == Theme.ui.sidebarHover)
-        #expect(p.background(selected: true, hover: true, base: Theme.ui.sidebar) == Theme.ui.selection)
+        let p = HoverPalette.focus
+        #expect(p.background(selected: false, hover: false, base: Theme.ui.bg1) == Theme.ui.bg1)
+        #expect(p.background(selected: false, hover: true, base: Theme.ui.bg1) == Theme.ui.hover)
+        #expect(p.background(selected: true, hover: true, base: Theme.ui.bg1) == Theme.ui.selectedFocus)
     }
 
     @Test func sidebarHoverIsLighterThanSidebar() {
         func luminance(_ c: NSColor) -> CGFloat { c.redComponent + c.greenComponent + c.blueComponent }
-        #expect(luminance(Theme.sidebarHover) > luminance(Theme.sidebar))
-        #expect(luminance(Theme.sidebarHover) < luminance(Theme.selection))
-        #expect(luminance(Theme.sidebarPressed) < luminance(Theme.sidebar))
+        #expect(luminance(Theme.hover) > luminance(Theme.bg1))
+        #expect(luminance(Theme.hover) < luminance(Theme.selected))
+        #expect(luminance(Theme.hover2) > luminance(Theme.hover))
     }
 
     @Test func railTileStyleFollowsSelection() {
-        #expect(RailTileStyle(selected: false) == RailTileStyle(fill: Theme.ui.railTile, border: Theme.ui.railTileBorder, text: Theme.ui.textRow))
-        #expect(RailTileStyle(selected: true) == RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.selectionText))
+        #expect(RailTileStyle(selected: false) == RailTileStyle(fill: Theme.ui.hover, border: Theme.ui.line2, text: Theme.ui.text1))
+        #expect(RailTileStyle(selected: true) == RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.text0))
     }
 
     /// Brand logos are embedded path data: they exist without any bundle and are not a symbol fallback.

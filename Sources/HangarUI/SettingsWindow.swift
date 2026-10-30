@@ -14,7 +14,7 @@ import Workspace
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Theme.settingsSize),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = Theme.sheet
+        window.backgroundColor = Theme.bg2
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
         window.minSize = Theme.settingsMinSize
@@ -41,7 +41,7 @@ import Workspace
 
     func updateTitle() { window?.title = L10n.settings }
 
-    @objc private func applyTheme() { window?.backgroundColor = Theme.sheet }
+    @objc private func applyTheme() { window?.backgroundColor = Theme.bg2 }
 
     func present(over parent: NSWindow?) {
         guard let window else { return }

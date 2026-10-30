@@ -198,7 +198,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.titleVisibility = .hidden
         window.toolbar = nil
         window.isMovableByWindowBackground = false
-        window.backgroundColor = Theme.bg
+        window.backgroundColor = Theme.bg0
         window.appearance = NSAppearance(named: .darkAqua)
         window.minSize = Theme.windowMinSize
 
@@ -313,8 +313,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// Theme switch: the window colours set once, and a redraw of AppKit-drawn parts (split dividers); SwiftUI redraws itself.
     @objc private func applyTheme() {
         guard let window else { return }
-        window.backgroundColor = Theme.bg
-        window.attachedSheet?.backgroundColor = Theme.sheet
+        window.backgroundColor = Theme.bg0
+        window.attachedSheet?.backgroundColor = Theme.bg2
         func redraw(_ view: NSView) { view.needsDisplay = true; view.subviews.forEach(redraw) }
         window.contentView.map(redraw)
     }
@@ -880,7 +880,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.sheet
+        sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
         let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id))
         let load = Task { await model.load() }
@@ -970,7 +970,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func makeSheet(over window: NSWindow) -> NSWindow {
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.sheet
+        sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
         return sheet
     }
@@ -1058,7 +1058,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.sheet
+        sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }

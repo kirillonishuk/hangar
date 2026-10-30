@@ -26,14 +26,14 @@ import Workspace
         #expect(monacoMimeType("a.bin") == "application/octet-stream")
     }
 
-    /// Dark+ and Hangar take the app theme's editor chrome (themes-v1.html); Hangar's syntax is the diff's muted one (#53).
+    /// Dark+ and Hangar take the app theme's editor chrome; Hangar's syntax is the diff's muted one (#53).
     @Test(arguments: AppTheme.allCases) func themeUsesHangarTokens(_ app: AppTheme) throws {
         let p = ThemePalette.of(app)
         for palette in [EditorPalette.darkPlus, .hangar] {
             let t = EditorTheme(palette: palette, customBase: .darkModern, custom: [:], app: app)
             let theme = try #require(MonacoTheme.json(t)["colors"] as? [String: String])
-            #expect(theme["editor.background"] == p.editorBg.css)
-            #expect(theme["editorCursor.foreground"] == p.accent.css)
+            #expect(theme["editor.background"] == p.bg0.css)
+            #expect(theme["editorCursor.foreground"] == p.accentText.css)
             #expect(theme["editorLineNumber.foreground"] == p.edGutter.css)
             #expect(theme["editorLineNumber.activeForeground"] == p.edGutterActive.css)
             #expect(theme["editor.lineHighlightBackground"] == p.edLine.css)
@@ -50,7 +50,7 @@ import Workspace
             MonacoTheme.json(EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: app))["rules"] as? [[String: String]]
         }
         #expect(rules(.navy) == rules(.graphite))
-        #expect(MonacoTheme.css(.of(.graphite))["--primary-text"] == "#1c1b19")
+        #expect(MonacoTheme.css(.of(.graphite))["--primary-text"] == "#ffffff")
     }
 
     @Test func hangarSyntaxRules() throws {

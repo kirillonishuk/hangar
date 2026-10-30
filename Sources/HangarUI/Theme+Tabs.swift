@@ -29,18 +29,11 @@ extension Theme {
     public static let tabFadeWidth: CGFloat = 24
     /// A mouse wheel notch (line) scrolls the bar this far.
     public static let tabWheelLine: CGFloat = 16
-    /// The active tab's accent line along its top edge, following the rounded corners.
-    public static let tabActiveLine: CGFloat = 2
     /// Every tab (plain, file, preview, diff, renaming) is this tall: the active one never stands out by a pixel.
     public static let tabHeight: CGFloat = 28
     /// While dragging a tab this close to the bar's edge, each move scrolls the bar by `tabDragScrollStep`.
     public static let tabDragScrollEdge: CGFloat = 32
     public static let tabDragScrollStep: CGFloat = 12
-    /// The tab being dragged is dimmed to this.
-    public static let tabDragOpacity: Double = 0.6
     /// Reorder: the slot the neighbours open for the dragged tab — `accent` outline over an `accent` tint.
     public static let tabDropSlotLineWidth: CGFloat = 2
-    public static let tabDropSlotFillOpacity: Double = 0.15
-    /// Diff lines: hover overlay of `hover` at this strength (over the add/del tint).
-    public static let diffHoverOpacity: Double = 0.5
 }

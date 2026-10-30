@@ -32,7 +32,7 @@ struct GitBranchesBlock: View {
                     IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.text2)
                     Text(verbatim: headTitle)
                         .font(.system(size: Theme.GitTab.mono, design: .monospaced))
-                        .foregroundStyle(Theme.ui.text)
+                        .foregroundStyle(Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 0)
@@ -103,8 +103,8 @@ private struct GitBranchRow: View {
 
     @ViewBuilder private var icon: some View {
         switch row.kind {
-        case .head: IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.accent)
-        case .branch: IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: row.branch?.isHead == true ? Theme.ui.accent : Theme.ui.text2)
+        case .head: IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.accentText)
+        case .branch: IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: row.branch?.isHead == true ? Theme.ui.accentText : Theme.ui.text2)
         case .folder: FileIconView(name: row.title, isDir: true, expanded: row.expanded)
         case .section: EmptyView()
         }
@@ -112,12 +112,12 @@ private struct GitBranchRow: View {
 
     @ViewBuilder private var title: some View {
         if row.kind == .head {
-            Text(verbatim: "HEAD").font(.system(size: Theme.fontSize.row)).foregroundStyle(Theme.ui.textRow)
+            Text(verbatim: "HEAD").font(.system(size: Theme.fontSize.row)).foregroundStyle(Theme.ui.text1)
             GitRefPill(ref: CommitRef(kind: .head, name: row.title), lane: 0, head: nil)
         } else {
             Text(verbatim: row.title)
                 .font(.system(size: Theme.fontSize.row, design: row.kind == .branch ? .monospaced : .default))
-                .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+                .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text1)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }

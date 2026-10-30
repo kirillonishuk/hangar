@@ -115,8 +115,8 @@ struct RailTileStyle: Equatable {
 
     init(selected: Bool) {
         self = selected
-            ? RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.selectionText)
-            : RailTileStyle(fill: Theme.ui.railTile, border: Theme.ui.railTileBorder, text: Theme.ui.textRow)
+            ? RailTileStyle(fill: Theme.ui.railTileSelected, border: Theme.ui.railTileSelectedBorder, text: Theme.ui.text0)
+            : RailTileStyle(fill: Theme.ui.hover, border: Theme.ui.line2, text: Theme.ui.text1)
     }
 }
 
@@ -138,7 +138,7 @@ struct RailTile: View {
             .background(shape.fill(style.fill))
             .overlay(shape.strokeBorder(style.border, lineWidth: Theme.railTileBorderWidth))
             .overlay(alignment: .topTrailing) {
-                StatusDot(state: state, size: Theme.railDot, border: Theme.ui.sidebar, borderWidth: Theme.railDotBorder)
+                StatusDot(state: state, size: Theme.railDot, border: Theme.ui.bg1, borderWidth: Theme.railDotBorder)
                     .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
             }
             .animation(Motion.ease(Theme.selectionFade), value: selected)
@@ -148,15 +148,16 @@ struct RailTile: View {
 /// Key hint at a row's end («⌘N», «⌘0», «⇧⌘N»: `Shortcut.label`): one size and color everywhere.
 struct ShortcutHint: View {
     let text: String
+    @Environment(\.rowSelectedText) private var onSelected
 
     var body: some View {
         Text(verbatim: text)
             .font(.system(size: Theme.fontSize.footer).monospacedDigit())
-            .foregroundStyle(Theme.ui.text3)
+            .foregroundStyle(onSelected ?? Theme.ui.text3)
     }
 }
 
-/// Empty-state buttons: `hoverStrong` fill hugging the label. With `width` the box follows the visible sidebar width (content is laid out wider and clipped in rail mode),
+/// Empty-state buttons: `hover2` fill hugging the label. With `width` the box follows the visible sidebar width (content is laid out wider and clipped in rail mode),
 /// `inset` from the sidebar's edge.
 struct FilledRowStyle: ButtonStyle {
     var width: CGFloat?
@@ -180,7 +181,7 @@ struct FilledRowStyle: ButtonStyle {
                 .background(alignment: .leading) {
                     let shape = RoundedRectangle(cornerRadius: radius)
                     let box = Group {
-                        shape.fill(Theme.ui.hoverStrong).brightness(pressed ? -0.03 : hover ? 0.04 : 0)
+                        shape.fill(Theme.ui.hover2).brightness(pressed ? -0.03 : hover ? 0.04 : 0)
                     }
                     if let width {
                         box.frame(width: max(0, width)).padding(.leading, inset)
@@ -211,7 +212,7 @@ struct EmptyStateView: View {
             Button(action: addProject) {
                 HStack(spacing: Theme.iconGap) {
                     IconView(icon: .add, active: true)
-                    Text(L10n.addProject).foregroundStyle(Theme.ui.textStrong)
+                    Text(L10n.addProject).foregroundStyle(Theme.ui.text0)
                 }
                 .padding(.vertical, Theme.tabPaddingV)
                 .padding(.horizontal, Theme.buttonPaddingH)
@@ -286,6 +287,7 @@ struct SessionStatusLine: View {
     let worktree: Bool
     /// Notifications of the session are off: a crossed-out bell after the text.
     var muted = false
+    @Environment(\.rowSelectedText) private var onSelected
 
     var body: some View {
         HStack(spacing: Theme.rowStatusGap) {
@@ -299,12 +301,13 @@ struct SessionStatusLine: View {
             if muted { IconView(icon: .bellSlash, size: Theme.rowStatusIcon, tint: Theme.ui.text3).help(L10n.mutedSessionHelp) }
         }
         .font(.system(size: Theme.rowStatusFont))
-        .foregroundStyle(Theme.ui.text2)
+        .foregroundStyle(onSelected ?? Theme.ui.text2)
         .frame(height: Theme.sessionStatusLine)
     }
 
     private var headColor: Color {
-        switch status.tone {
+        if let onSelected { return onSelected }
+        return switch status.tone {
         case .normal: Theme.ui.text2
         case .waiting: Theme.ui.waiting
         case .failed: Theme.ui.failedText

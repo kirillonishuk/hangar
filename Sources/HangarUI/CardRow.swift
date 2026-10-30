@@ -24,13 +24,13 @@ struct CardRow<Value: View>: View {
         .frame(maxWidth: .infinity, minHeight: compact ? 0 : Theme.cardRowMinHeight, alignment: .leading)
         .padding(.vertical, compact ? Theme.reportRowPaddingV : Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1).opacity(first ? 0 : 1) }
     }
 }
 
 extension View {
     /// The card around `CardRow`s.
     func sheetCard() -> some View {
-        overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.lineSheet, lineWidth: 1))
+        overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).stroke(Theme.ui.line2, lineWidth: 1))
     }
 }

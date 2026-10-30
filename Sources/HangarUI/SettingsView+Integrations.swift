@@ -30,7 +30,7 @@ extension SettingsView {
             HStack(spacing: Theme.sheetButtonGap) {
                 IconView(icon: agent == .claude ? .claude : .codex, size: Theme.integrationTitleIcon)
                 Text(verbatim: agentTitle(agent))
-                    .font(.system(size: Theme.integrationAgentTitle, weight: .semibold)).foregroundStyle(Theme.ui.textStrong)
+                    .font(.system(size: Theme.integrationAgentTitle, weight: .semibold)).foregroundStyle(Theme.ui.text0)
                 Spacer(minLength: 0)
                 if found != .some(nil) {
                     CardSwitch(on: on) { v in
@@ -46,11 +46,11 @@ extension SettingsView {
                     notFoundRow(agent)
                 } else {
                     VStack(spacing: 0) { functionRows(agent) }
-                        .opacity(on ? 1 : Theme.inactiveOpacity)
+                        .opacity(on ? 1 : Theme.Opacity.inactive)
                         .disabled(!on)
                     mcpRow(agent)
                     WhereRow(label: L10n.intWhereInstalled, items: whereItems(agent))
-                        .opacity(on ? 1 : Theme.inactiveOpacity)
+                        .opacity(on ? 1 : Theme.Opacity.inactive)
                 }
             }
             .sheetCard()

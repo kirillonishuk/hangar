@@ -172,7 +172,7 @@ struct RemoteProjectSheet: View {
             Button(L10n.cancel, action: onCancel)
                 .buttonStyle(SheetButton(primary: false))
                 .disabled(model.server?.phase == .installing)
-                .opacity(model.server?.phase == .installing ? Theme.disabledButtonOpacity : 1)
+                .opacity(model.server?.phase == .installing ? Theme.Opacity.inactive : 1)
                 // Esc belongs to the install terminal while it runs.
                 .keyboardShortcut(model.server?.phase == .installing ? nil : .cancelAction)
             let enabled = model.canAdd || model.canConnect
@@ -184,7 +184,7 @@ struct RemoteProjectSheet: View {
             .buttonStyle(SheetButton(primary: true))
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!enabled)
-            .opacity(enabled || model.phase == .connecting ? 1 : Theme.disabledButtonOpacity)
+            .opacity(enabled || model.phase == .connecting ? 1 : Theme.Opacity.inactive)
         }
     }
 
@@ -206,6 +206,6 @@ struct HostMenu: View {
         MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: L10n.hostsMenuHelp) {
             ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
         }
-        .environment(\.hoverPalette, .sheet)
+        .environment(\.hoverPalette, .raised)
     }
 }

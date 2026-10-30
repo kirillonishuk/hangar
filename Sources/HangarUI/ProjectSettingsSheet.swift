@@ -105,7 +105,7 @@ struct ProjectSettingsSheet: View {
                     .buttonStyle(SheetButton(primary: true))
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(!canSave)
-                    .opacity(canSave ? 1 : Theme.disabledButtonOpacity)
+                    .opacity(canSave ? 1 : Theme.Opacity.inactive)
             }
             .padding(.top, Theme.sheetGap)
         }

@@ -27,7 +27,7 @@ struct SessionsView: View {
             Rectangle().fill(Theme.ui.line).frame(height: 1)
             if let p = model.placeholder { placeholder(p) } else { list }
         }
-        .background(Theme.ui.bg)
+        .background(Theme.ui.bg0)
         .task(id: reloadKey) { await model.reload() }
         .onAppear {
             model.clearPointer()
@@ -47,7 +47,7 @@ struct SessionsView: View {
         HStack(spacing: Theme.historyHeaderGap) {
             Text(L10n.sessionsTitle)
                 .font(.system(size: Theme.historyTitleSize, weight: .semibold))
-                .foregroundStyle(Theme.ui.textStrong)
+                .foregroundStyle(Theme.ui.text0)
                 .fixedSize()
             // Only remote projects make a scope worth choosing.
             if !app.sessionsHosts.isEmpty { SessionsScopeSegment(app: app, scope: model.scope).fixedSize() }
@@ -158,7 +158,7 @@ struct SessionsView: View {
                     Text(L10n.sessionsLoading).foregroundStyle(Theme.ui.text3)
                 }
             case .offline(let host):
-                Text(L10n.sessionsOffline(host)).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                Text(L10n.sessionsOffline(host)).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text1)
                 Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
                 Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(ActionButtonStyle(primary: true))
             case .empty:
@@ -166,7 +166,7 @@ struct SessionsView: View {
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
-                    .font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                    .font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text1)
                 Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(ActionButtonStyle())
             }
         }
@@ -218,7 +218,7 @@ struct SessionsScopeSegment: View {
         .padding(Theme.historyScopePadding)
         .frame(height: Theme.historyScopeHeight)
         .background(Theme.ui.field, in: RoundedRectangle(cornerRadius: Theme.historyScopeRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.historyScopeRadius).strokeBorder(Theme.ui.control))
+        .overlay(RoundedRectangle(cornerRadius: Theme.historyScopeRadius).strokeBorder(Theme.ui.line2))
     }
 
     private func connected(_ host: String) -> Bool { app.remote.hosts[host]?.state == .connected }
@@ -248,7 +248,7 @@ private struct SessionsScopeLabel: View {
     @State private var hover = false
 
     var body: some View {
-        let tint = on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2
+        let tint = on ? Theme.ui.accentText : hover ? Theme.ui.text1 : Theme.ui.text2
         HStack(spacing: Theme.historyColumnGap) {
             if let icon {
                 IconView(icon: icon, size: Theme.historyScopeIcon, tint: tint)
@@ -266,16 +266,14 @@ private struct SessionsScopeLabel: View {
         .padding(.horizontal, Theme.historyScopeItemPaddingH)
         .frame(height: Theme.historyScopeItemHeight)
         .background(RoundedRectangle(cornerRadius: Theme.historyScopeItemRadius)
-            .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-        .overlay(RoundedRectangle(cornerRadius: Theme.historyScopeItemRadius)
-            .strokeBorder(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear))
+            .fill(on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : hover ? Theme.ui.hover : .clear))
         .contentShape(Rectangle())
         .pointingHand()
         .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
 }
 
-/// «Проект: shop ×»: the chosen-chip look (`accent` 14 % + border, `accentText`); a click anywhere on it removes it.
+/// «Проект: shop ×»: the chosen-chip look (`accentText` on `accent` as a fill); a click anywhere on it removes it.
 private struct SessionsProjectChip: View {
     let title: String
     let remove: () -> Void
@@ -285,14 +283,12 @@ private struct SessionsProjectChip: View {
         Button(action: remove) {
             HStack(spacing: Theme.Control.iconGap) {
                 Text(verbatim: title).font(.system(size: Theme.fontSize.footer)).lineLimit(1).truncationMode(.middle)
-                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: hover ? Theme.ui.textStrong : Theme.ui.accentText)
+                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: hover ? Theme.ui.text0 : Theme.ui.accentText)
             }
             .foregroundStyle(Theme.ui.accentText)
             .padding(.horizontal, Theme.GitTab.chipLeading)
             .frame(height: Theme.GitTab.chipHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
-                .stroke(Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(Theme.ui.accent.opacity(Theme.Opacity.fill)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

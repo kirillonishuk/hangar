@@ -177,7 +177,7 @@ struct EditorTheme: Equatable {
         }
         if palette == .hangar {
             func muted(_ kind: SyntaxKind) -> String { "#" + String(format: "%06x", Theme.Diff.syntaxHex(kind)) }
-            let tx = EditorHex.of(p.tx)
+            let tx = EditorHex.of(p.text1)
             let syntax: [EditorColor: String] = [
                 .keyword: muted(.keyword), .control: muted(.keyword), .string: muted(.string), .escape: muted(.string),
                 .regexp: muted(.string), .comment: muted(.comment), .number: muted(.number), .constant: muted(.number),
@@ -186,10 +186,10 @@ struct EditorTheme: Equatable {
             c.merge(syntax) { $1 }
         }
         let ui: [EditorColor: String] = [
-            .background: EditorHex.of(p.editorBg), .line: EditorHex.of(p.edLine), .selection: EditorHex.of(p.edSel),
+            .background: EditorHex.of(p.bg0), .line: EditorHex.of(p.edLine), .selection: EditorHex.of(p.edSel),
             .find: EditorHex.of(p.waiting, alpha: 0.35), .gutter: EditorHex.of(p.edGutter), .gutterActive: EditorHex.of(p.edGutterActive),
-            .cursor: EditorHex.of(p.accent), .indent: EditorHex.of(p.edIndent), .indentActive: EditorHex.of(p.controlStrong),
-            .whitespace: EditorHex.of(p.control), .diffAddedLine: EditorHex.of(p.diffAdd), .diffRemovedLine: EditorHex.of(p.diffDel),
+            .cursor: EditorHex.of(p.accentText), .indent: EditorHex.of(p.edIndent), .indentActive: EditorHex.of(p.line2),
+            .whitespace: EditorHex.of(p.line2), .diffAddedLine: EditorHex.of(p.diffAdd), .diffRemovedLine: EditorHex.of(p.diffDel),
             // Changed chars: a light step over the row tint, not a saturated slab.
             .diffAddedText: EditorHex.of(p.gitA, alpha: 0.12), .diffRemovedText: EditorHex.of(p.gitD, alpha: 0.12),
         ]

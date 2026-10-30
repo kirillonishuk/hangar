@@ -15,7 +15,7 @@ struct FunctionRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: Theme.cardRowGap) {
             VStack(alignment: .leading, spacing: Theme.integrationSubGap) {
-                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text1)
                 Text(verbatim: subtitle).font(.system(size: Theme.fontSize.tab)).foregroundStyle(subtitleColor)
                     .lineLimit(1).truncationMode(.tail).help(subtitle)
             }
@@ -28,7 +28,7 @@ struct FunctionRow<Trailing: View>: View {
         .frame(maxWidth: .infinity, minHeight: Theme.cardRowMinHeight, alignment: .leading)
         .padding(.vertical, Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1).opacity(first ? 0 : 1) }
     }
 }
 
@@ -42,7 +42,7 @@ struct TagPill: View {
             .foregroundStyle(Theme.ui.text3)
             .padding(.horizontal, Theme.integrationTagPaddingH)
             .frame(height: Theme.integrationTagHeight)
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
             .fixedSize()
     }
 }
@@ -74,7 +74,7 @@ struct WhereRow: View {
         .lineLimit(1)
         .padding(.vertical, Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1) }
     }
 
     @ViewBuilder private func entry(_ item: WhereItem) -> some View {
@@ -88,7 +88,7 @@ struct WhereRow: View {
     private func label(_ item: WhereItem) -> some View {
         HStack(spacing: Theme.sheetLineGap + 2) {
             IconView(icon: item.icon, size: Theme.integrationWhereIcon, tint: Theme.ui.text2)
-            Text(verbatim: item.name).foregroundStyle(Theme.ui.text)
+            Text(verbatim: item.name).foregroundStyle(Theme.ui.text1)
             mark(item.mark)
         }
         .help(item.help)
@@ -104,7 +104,7 @@ struct WhereRow: View {
             Text(verbatim: t).foregroundStyle(Theme.ui.text3)
         case .link(let t):
             Circle().fill(Theme.ui.waiting).frame(width: Theme.statusDot, height: Theme.statusDot)
-            Text(verbatim: t).foregroundStyle(Theme.ui.accent)
+            Text(verbatim: t).foregroundStyle(Theme.ui.accentText)
         }
     }
 }
@@ -158,7 +158,7 @@ struct ChangesView: View {
                     .padding(.vertical, Theme.sheetLineGap)
                     .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
                     .clipShape(RoundedRectangle(cornerRadius: Theme.fieldRadius))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
                 }
             }
             if !changes.isEmpty {
@@ -182,7 +182,7 @@ struct ChangesView: View {
         }
     }
 
-    private func row(_ sign: String, _ value: String, marker: Color, text: Color = Theme.ui.text, background: Color) -> some View {
+    private func row(_ sign: String, _ value: String, marker: Color, text: Color = Theme.ui.text1, background: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text(verbatim: sign).foregroundStyle(marker).frame(width: Theme.Diff.markerWidth, alignment: .leading)
             Text(verbatim: value).foregroundStyle(text).fixedSize(horizontal: false, vertical: true)
@@ -204,7 +204,7 @@ private struct AskHeader: View {
         VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
             HStack(spacing: Theme.sheetButtonGap) {
                 IconView(icon: icon, size: Theme.integrationTitleIcon, tint: Theme.ui.text2)
-                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold)).foregroundStyle(Theme.ui.sheetText)
+                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold)).foregroundStyle(Theme.ui.text0)
             }
             Text(verbatim: subtitle).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
                 .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
@@ -224,7 +224,7 @@ private struct AskFooter: View {
     var body: some View {
         HStack(spacing: Theme.sheetButtonGap) {
             Button(shown ? L10n.intHideChanges : L10n.intWhatChanges, action: onChanges)
-                .buttonStyle(.plain).foregroundStyle(Theme.ui.accent).pointingHand()
+                .buttonStyle(.plain).foregroundStyle(Theme.ui.accentText).pointingHand()
             Spacer(minLength: 0)
             Button(skip) { onAnswer(false) }
                 .buttonStyle(SheetButton(primary: false))
@@ -325,14 +325,14 @@ struct IntegrationHostSheet: View {
     private func line(icon: Icon, title: String, detail: String, first: Bool) -> some View {
         HStack(spacing: Theme.sheetButtonGap) {
             IconView(icon: icon, size: Theme.integrationTitleIcon, tint: Theme.ui.text2)
-            Text(verbatim: title).foregroundStyle(Theme.ui.text)
+            Text(verbatim: title).foregroundStyle(Theme.ui.text1)
             Spacer(minLength: Theme.cardRowGap)
             Text(verbatim: detail).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3).truncationMode(.middle)
         }
         .frame(maxWidth: .infinity, minHeight: Theme.cardRowMinHeight, alignment: .leading)
         .padding(.vertical, Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1).opacity(first ? 0 : 1) }
     }
 }
 

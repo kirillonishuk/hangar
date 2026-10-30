@@ -10,18 +10,24 @@ struct InspectorView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: Theme.Height.barToolbar)
-            header
-            if let text = app.inspectorNotice {
+            // No chat: nothing to inspect, and the centre already says what to do (§3.19, #106).
+            if app.selectedTask == nil {
+                Spacer(minLength: 0)
+            } else if let text = app.inspectorNotice {
+                header
                 EmptyNote(text: text)
                 Spacer(minLength: 0)
-            } else if model.segment == .changes && model.isGit {
-                ChangesList(app: app, model: model)
-            } else if model.segment == .git && model.isGit {
-                GitPanelView(app: app)
-            } else if model.segment == .search {
-                SearchPanel(app: app)
             } else {
-                FilesList(app: app, model: model)
+                header
+                if model.segment == .changes && model.isGit {
+                    ChangesList(app: app, model: model)
+                } else if model.segment == .git && model.isGit {
+                    GitPanelView(app: app)
+                } else if model.segment == .search {
+                    SearchPanel(app: app)
+                } else {
+                    FilesList(app: app, model: model)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -229,18 +235,21 @@ private struct ChangesList: View {
         }
     }
 
-    /// The list's header: two mode chips, the chosen one lit (controls-v2 B′); ⌥B switches, the key is in the tooltip.
-    /// Always there (empty while loading), so the rows never move; without a base the second chip is dimmed.
+    /// The list's header: the mode segment «Не в коммите · Вся ветка» (§3.7, §3.9); ⌥B switches, the key and the base
+    /// are in the tooltips. Always there, so the rows never move; without a base «Вся ветка» is dimmed.
     private var modeLine: some View {
-        let onBase = if case .base = model.changes?.mode { true } else { false }
+        let onBase: Bool = if let mode = model.changes?.mode { if case .base = mode { true } else { false } } else { model.modeChoice == .base }
         let base: String? = if case .base(let b) = model.changes?.mode { b } else { model.baseName }
         let hasBase = base != nil && model.changes?.baseMissing != true
-        return HStack(spacing: Theme.GitTab.chipGap) {
-            Chip(title: L10n.changesHintUncommitted, on: model.changes != nil && !onBase) { model.toggleMode() }
-                .fixedSize()
-                .help(L10n.changesHintToUncommitted)
-            Chip(title: base ?? L10n.changesBaseNone, icon: .branch, mono: base != nil, on: onBase, enabled: hasBase) { model.toggleMode() }
-                .help(hasBase ? L10n.changesHintToBase(base ?? "") : base.map(L10n.baseMissing) ?? L10n.baseMissingUnknown)
+        return HStack(spacing: 0) {
+            // Without a base «Вся ветка» is dimmed: never shown as the chosen one (also while the list loads).
+            Segmented(selection: onBase && hasBase ? InspectorModel.ModeChoice.base : .uncommitted, options: [
+                SegmentOption(value: .uncommitted, title: L10n.changesHintUncommitted, help: L10n.changesHintToUncommitted),
+                SegmentOption(value: .base, title: L10n.changesWholeBranch,
+                              help: hasBase ? L10n.changesHintToBase(base ?? "") : base.map(L10n.baseMissing) ?? L10n.baseMissingUnknown),
+            ], disabled: hasBase ? [] : [.base]) { choice in
+                if choice != model.modeChoice { model.toggleMode() }
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.rowPaddingH)
@@ -294,10 +303,11 @@ private struct ChangeRow: View {
                             .clipped()
                     }
                 }
-                Text(verbatim: file.added.map { "+\($0)" } ?? "")
+                // A zero side is noise («+3 −0»): only what changed.
+                Text(verbatim: file.added.flatMap { $0 > 0 ? "+\($0)" : nil } ?? "")
                     .foregroundStyle(Theme.Diff.badgeA)
                     .frame(width: columns.added, alignment: .trailing)
-                Text(verbatim: file.deleted.map { "−\($0)" } ?? "")
+                Text(verbatim: file.deleted.flatMap { $0 > 0 ? "−\($0)" : nil } ?? "")
                     .foregroundStyle(Theme.Diff.badgeD)
                     .frame(width: columns.deleted, alignment: .trailing)
                 changeBadge(file.change)

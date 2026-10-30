@@ -16,11 +16,8 @@ extension SettingsView {
                     }
                 }
             }
-            Text(verbatim: L10n.editor)
-                .font(Theme.Typography.title.font(.semibold))
-                .foregroundStyle(Theme.ui.text0)
-                .padding(.top, Theme.EditorSettings.subsectionGap)
-            editorThemeCard(ed)
+            // A group header like «Тема» and «Цвета» (§3.18), not a second page title.
+            CardSection(title: L10n.editor, card: false) { editorThemeCard(ed) }
             editorColors(ed)
             editorFont
             editorIndent

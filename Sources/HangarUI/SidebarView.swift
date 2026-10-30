@@ -487,10 +487,12 @@ struct SidebarView: View {
                             Text(task.name).lineLimit(1).truncationMode(.tail)
                         }
                     }
-                    .padding(.trailing, showActions ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
-                    .layoutPriority(1)  // the name first; the branch takes what is left, up to its 92
                     Spacer(minLength: 0)
-                    rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                    // One slot for the row end and, on hover, the pin and «⋯» over it: the name never moves.
+                    ZStack(alignment: .trailing) {
+                        Color.clear.frame(width: Self.rowEndSlot(rowEndWidth(task, state: dot)), height: 1)
+                        rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                    }
                 }
                 .overlay(alignment: .trailing) {
                     taskActions(task, target: target, shown: showActions)
@@ -527,14 +529,36 @@ struct SidebarView: View {
                     .font(Theme.Typography.monoSmall.font())
                     .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: Theme.rowBranchMax, alignment: .trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .truncationMode(.middle)
+                    // A fixed width: the branch keeps its place, a long chat name truncates instead.
+                    .frame(width: Self.branchWidth(branch), alignment: .trailing)
             }
         }
     }
 
-    /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
+    /// The row end's constant width: its own (branch, state word) but at least the pin and «⋯» shown over it on
+    /// hover (less the gap before it), so hovering never moves the name.
+    static func rowEndSlot(_ own: CGFloat?) -> CGFloat {
+        max(own ?? 0, 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang - Theme.rowEndGap)
+    }
+
+    /// The width `rowEnd` takes: the state word or the branch; nil when it shows nothing.
+    private func rowEndWidth(_ task: HangarTask, state: AgentState) -> CGFloat? {
+        switch state {
+        case .waiting, .failed, .limit:
+            ceil((L10n.rowStatus(state) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
+        case .working, .done, .idle:
+            (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
+        }
+    }
+
+    /// The branch's width in a row: its own, up to `rowBranchMax` (§3.3).
+    static func branchWidth(_ branch: String) -> CGFloat {
+        let font = Theme.Typography.monoSmall.nsFont()
+        return min(ceil((branch as NSString).size(withAttributes: [.font: font]).width), Theme.rowBranchMax)
+    }
+
+    /// Pin and «⋯» (shown on hover, no animation); the pin is white while pinned.
     private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
         HStack(spacing: 0) {
             IconButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {

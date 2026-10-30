@@ -86,11 +86,21 @@ enum TabStrip {
         Swift.min(Swift.max(offset, 0), Swift.max(content - viewport, 0))
     }
 
-    /// The least scroll that shows the tab whole and clear of the edge fades.
+    /// Which tabs lie wholly inside the scrolled viewport: an overflowing bar draws only those (a half tab at an edge
+    /// reads as a cut name; the «⌄» menu lists every tab). Visibility only, so nothing moves.
+    static func whole(widths: [CGFloat], offset: CGFloat, viewport: CGFloat) -> [Bool] {
+        var x: CGFloat = 0
+        return widths.map { w in
+            defer { x += w + Theme.tabGap }
+            return x >= offset - 0.5 && x + w <= offset + viewport + 0.5
+        }
+    }
+
+    /// The least scroll that shows the tab whole, a margin away from the edge.
     static func reveal(index: Int, widths: [CGFloat], offset: CGFloat, viewport: CGFloat) -> CGFloat {
         let all = content(widths)
         guard widths.indices.contains(index) else { return clamp(offset, viewport: viewport, content: all) }
-        let start = widths.prefix(index).reduce(0) { $0 + $1 + Theme.tabGap }, end = start + widths[index], m = Theme.tabFadeWidth
+        let start = widths.prefix(index).reduce(0) { $0 + $1 + Theme.tabGap }, end = start + widths[index], m = Theme.tabRevealMargin
         let target = start - m < offset ? start - m : end + m > offset + viewport ? end + m - viewport : offset
         return clamp(target, viewport: viewport, content: all)
     }
@@ -144,8 +154,9 @@ struct TabBarView: View {
         }
         .frame(height: Theme.Height.barTabs)
         .background(WindowDragArea())
-        .background(Theme.ui.bg1)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+        // No chat: no strip (§3.19) — the bar takes the empty state's colour and loses its line.
+        .background(app.selectedTask == nil ? Theme.ui.bg0 : Theme.ui.bg1)
+        .overlay(alignment: .bottom) { if app.selectedTask != nil { Rectangle().fill(Theme.ui.line).frame(height: 1) } }
         .ignoresSafeArea()
         .onChange(of: activeKey) { reveal() }
     }
@@ -158,10 +169,11 @@ struct TabBarView: View {
         return (chrome + text).rounded(.up)
     }
 
-    private static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
-        let base = Theme.Typography.secondary.nsFont()
-        let font = italic ? NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask) : base
-        return (text as NSString).size(withAttributes: [.font: font]).width
+    /// In the tabs' own font (`body`, §3.4), so a short title is never cut.
+    static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
+        let base = Theme.Typography.body.nsFont()
+        let font = italic ? NSFont(descriptor: base.fontDescriptor.withSymbolicTraits(.italic), size: base.pointSize) ?? base : base
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private func layout(_ task: HangarTask, width: CGFloat) -> TabStrip.Layout {
@@ -171,7 +183,7 @@ struct TabBarView: View {
         }
         var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
         if let diff = app.diffTabs[task.id] {
-            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent + " ↔", italic: true)))
+            natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true)))
             whole.append(true)
         }
         return TabStrip.layout(natural: natural, whole: whole, width: width)
@@ -211,6 +223,7 @@ struct TabBarView: View {
         let paneSlot: Int? = if drag == nil, case .tabBar(let i)? = app.paneDropTarget { i } else { nil }
         let gap = Theme.tabMinWidth + Theme.tabGap
         let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.Height.controlRegular - l.viewport))
+        let shown = l.overflow ? TabStrip.whole(widths: l.widths, offset: offset, viewport: l.viewport) : l.widths.map { _ in true }
         HStack(spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
@@ -224,7 +237,8 @@ struct TabBarView: View {
                     // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
                     .offset(x: shifts?[i] ?? paneSlot.map { i >= $0 ? gap : 0 } ?? 0)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
-                    .opacity(drag?.tab == tab.id ? Theme.Opacity.inactive : 1)
+                    .opacity(drag?.tab == tab.id ? Theme.Opacity.inactive : shown[i] ? 1 : 0)
+                    .allowsHitTesting(shown[i] || drag?.tab == tab.id)
                     .shadow(color: Theme.ui.bg0.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
                             radius: Theme.paneDragGhostShadowRadius)
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
@@ -232,6 +246,8 @@ struct TabBarView: View {
             if let diff, let w = l.widths.last {
                 DiffTabItem(app: app, tab: diff, width: w)
                     .offset(x: paneSlot == nil ? 0 : gap)
+                    .opacity(shown.last == true ? 1 : 0)
+                    .allowsHitTesting(shown.last == true)
             }
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -266,8 +282,6 @@ struct TabBarView: View {
         .frame(width: l.viewport + extra, alignment: .leading)
         .clipped()
         .contentShape(Rectangle())
-        .overlay(alignment: .leading) { fade(.leading, visible: offset > 0) }
-        .overlay(alignment: .trailing) { fade(.trailing, visible: offset < l.content - l.viewport) }
         .background(WheelCatcher(enabled: l.overflow) { delta in
             scroll = TabStrip.clamp(TabStrip.clamp(scroll, viewport: l.viewport, content: l.content) - delta, viewport: l.viewport, content: l.content)
         })
@@ -281,14 +295,6 @@ struct TabBarView: View {
         return shape.fill(Theme.ui.accent.opacity(Theme.Opacity.fill))
             .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
             .frame(width: width)
-    }
-
-    private func fade(_ edge: HorizontalEdge, visible: Bool) -> some View {
-        LinearGradient(colors: [Theme.ui.bg1, Theme.ui.bg1.opacity(0)],
-                       startPoint: edge == .leading ? .leading : .trailing, endPoint: edge == .leading ? .trailing : .leading)
-            .frame(width: Theme.tabFadeWidth)
-            .opacity(visible ? 1 : 0)
-            .allowsHitTesting(false)
     }
 
     // MARK: Drag
@@ -569,7 +575,7 @@ private struct DiffTabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             IconView(icon: .diff, active: tab.active, size: Theme.Icon.row).padding(.trailing, Theme.Space.iconGap)
-            Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: (tab.path as NSString).lastPathComponent).italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(Theme.Typography.body.font())

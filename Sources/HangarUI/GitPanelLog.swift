@@ -61,21 +61,23 @@ struct GitLogRow: View, Equatable {
                         }
                         if chips.more > 0 { GitMoreRefs(count: chips.more) }
                     }
-                    .layoutPriority(1)
                 }
                 subject
                     .font(Theme.Typography.body.font())
                     .foregroundStyle(selected ? Theme.ui.text0 : commit.parents.count > 1 ? Theme.ui.text2 : Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(minWidth: Theme.GitTab.subjectMin, maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: min(Theme.GitTab.subjectMin, subjectWidth), maxWidth: subjectWidth, alignment: .leading)
+                    // The subject whole first, the chips in what is left (down to `refMinWidth`), any rest to the date.
+                    .layoutPriority(1)
                 Text(gitShortDate(commit.date, now: now))
                     .font(Theme.Typography.mono.font())
                     .foregroundStyle(selected ? Theme.ui.text2 : Theme.ui.text3)
                     .lineLimit(1)
                     .fixedSize()
-                    .frame(minWidth: GitRefPill.dateColumn, alignment: .trailing)
-                    .layoutPriority(2)
+                    // Last served: its column always (lower priorities keep their minimum), plus whatever is left.
+                    .frame(minWidth: GitRefPill.dateColumn, maxWidth: .infinity, alignment: .trailing)
+                    .layoutPriority(-1)
             }
             .padding(.trailing, Theme.GitTab.chipLeading)
             .frame(height: Theme.GitTab.logRow)
@@ -87,6 +89,11 @@ struct GitLogRow: View, Equatable {
             })]
         }
         .help(tooltip)
+    }
+
+    /// The subject's own width in the row's font.
+    private var subjectWidth: CGFloat {
+        ceil((commit.subject as NSString).size(withAttributes: [.font: Theme.Typography.body.nsFont()]).width)
     }
 
     /// Search hits marked in `waiting` 28 % (a hash search finds the commit, not text).

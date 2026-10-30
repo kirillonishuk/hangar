@@ -7,7 +7,7 @@ import Workspace
 /// size, round caps and joins; only the agents keep their brand logos. No glyph data outside this file.
 enum Icon: CaseIterable {
     case sidebarLeft, sidebarRight, add, project, branch, sshHost, mac, editor, shell, diff, keepAwake, limits, settings
-    case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronRight, more
+    case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronLeft, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
     case search
@@ -56,6 +56,7 @@ enum Icon: CaseIterable {
              .line(p(8, 9.25), p(8, 13.25))]
         case .chevronDown: [.line(p(4.5, 6.25), p(8, 9.75), p(11.5, 6.25))]
         case .chevronUp: [.line(p(4.5, 9.75), p(8, 6.25), p(11.5, 9.75))]
+        case .chevronLeft: [.line(p(9.75, 4.5), p(6.25, 8), p(9.75, 11.5))]
         case .chevronRight: [.line(p(6.25, 4.5), p(9.75, 8), p(6.25, 11.5))]
         case .more: [.dot(p(3.5, 8)), .dot(p(8, 8)), .dot(p(12.5, 8))]
         case .rename:

@@ -16,8 +16,9 @@ struct FunctionRow<Trailing: View>: View {
         HStack(spacing: Theme.cardRowGap) {
             VStack(alignment: .leading, spacing: Theme.integrationSubGap) {
                 Text(verbatim: title).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
+                // Wraps at a narrow window: settings labels never truncate (§3.18).
                 Text(verbatim: subtitle).font(Theme.Typography.secondary.font()).foregroundStyle(subtitleColor)
-                    .lineLimit(1).truncationMode(.tail).help(subtitle)
+                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
             }
             .layoutPriority(1)
             if let tag { TagPill(text: tag).help(tagHelp ?? "") }
@@ -32,7 +33,7 @@ struct FunctionRow<Trailing: View>: View {
     }
 }
 
-/// «этот Mac»: an outlined `text3` tag.
+/// «этот Mac»: a badge (§3.13), `text3` on its .15 fill.
 struct TagPill: View {
     let text: String
 
@@ -42,7 +43,7 @@ struct TagPill: View {
             .foregroundStyle(Theme.ui.text3)
             .padding(.horizontal, Theme.integrationTagPaddingH)
             .frame(height: Theme.integrationTagHeight)
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(Theme.ui.text3.opacity(Theme.Opacity.fill)))
             .fixedSize()
     }
 }

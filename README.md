@@ -4,7 +4,7 @@
 
 # Hangar
 
-A native macOS app for running Claude Code and Codex in terminal tabs, one session per task, with Git, diffs and an editor alongside.
+A native macOS app for running Claude Code and Codex in terminal tabs, one chat per task, with Git, diffs and an editor alongside.
 
 [![Release](https://img.shields.io/github/v/release/kirillonishuk/hangar?sort=semver&filter=v*&color=4c8dff)](https://github.com/kirillonishuk/hangar/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/kirillonishuk/hangar/ci.yml?label=CI)](https://github.com/kirillonishuk/hangar/actions/workflows/ci.yml)
@@ -12,23 +12,25 @@ A native macOS app for running Claude Code and Codex in terminal tabs, one sessi
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f)](LICENSE)
 
 <a href="docs/assets/hangar-demo.mp4">
-  <img src="docs/assets/hangar-demo.gif" width="900" alt="Hangar demo: an agent works in a session, then the Git tab, a diff, go to definition and the Sessions view">
+  <img src="docs/assets/hangar-demo.gif" width="900" alt="Hangar demo: an agent works in a chat, then the Git tab, a diff, go to definition and History">
 </a>
 
 </div>
 
 ## Features
 
-- Projects contain sessions, sessions contain tabs and splits. A session can use its own git worktree and branch.
+- Projects contain chats, chats contain tabs and splits. A chat works in the project folder or in a separate copy (its own git worktree and branch).
 - Terminal tabs are [libghostty](https://github.com/ghostty-org/ghostty) surfaces and use your Ghostty config.
-- Agent status (working, waiting, done, error) from Claude Code and Codex hooks, shown in the sidebar and Dock, with notifications.
+- Agent status (working, waiting, done, error) from Claude Code and Codex hooks: a dot in the sidebar, a word when a chat needs you, the bell's inbox, the Dock and notifications.
+- The toolbar shows each chat's live branch; its branch switcher switches to a local or remote branch or creates a new one, and refuses when uncommitted changes or ignored files would be lost.
 - Claude and Codex subscription usage limits in the sidebar.
-- Inspector: file tree, changes against the base branch or uncommitted, Git branches and history.
+- Inspector: files, changes (not committed or the whole branch), Git branches and history, search in files.
 - Monaco editor and diff view (side by side or inline). TypeScript/JavaScript go to definition, references, hover, rename and diagnostics via the project's `tsserver`.
-- Sessions view (⌘Y): closed sessions and past Claude/Codex conversations, searchable and resumable.
+- History (⌘Y): archived chats and past Claude/Codex conversations, searchable and resumable.
 - Quick open (⌘P) and command palette (⇧⌘P).
 - Remote projects over SSH; tabs run in `tmux` on the host and survive disconnects.
-- Sessions, tabs, splits and agent conversations are restored after restart.
+- Chats, tabs, splits and agent conversations are restored after restart.
+- Integrations (Settings → Integrations): agent hooks, usage limits, Claude's status line and the Hangar MCP server, each shown as a diff and installed only after you confirm.
 - `hangar` CLI and MCP server.
 - UI language: English or Russian (follows the system by default).
 
@@ -36,12 +38,12 @@ A native macOS app for running Claude Code and Codex in terminal tabs, one sessi
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/main.png" alt="Sessions in the sidebar, an agent transcript, the Git tab"><br><sub>Sessions and the Git tab</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/main.png" alt="Chats in the sidebar, an agent transcript, the Git tab"><br><sub>Chats and the Git tab</sub></td>
     <td width="50%"><img src="docs/assets/screenshots/editor.png" alt="Monaco editor with TypeScript hover"><br><sub>Go to definition (tsserver)</sub></td>
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/diff.png" alt="Side-by-side diff"><br><sub>Diff</sub></td>
-    <td><img src="docs/assets/screenshots/sessions.png" alt="Sessions view"><br><sub>Sessions view</sub></td>
+    <td><img src="docs/assets/screenshots/sessions.png" alt="History"><br><sub>History</sub></td>
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/palette.png" alt="Quick open"><br><sub>Quick open</sub></td>
@@ -64,9 +66,9 @@ Requires macOS 14 or later on Apple silicon (Intel Macs are not supported: the a
    xattr -dr com.apple.quarantine /Applications/Hangar.app
    ```
 
-Hangar checks GitHub Releases once a day and offers updates in the status bar: one click downloads the DMG, verifies its SHA-256 and replaces the app in place (Settings → General → Check for updates).
+Hangar checks GitHub Releases once a day and offers an update with an «Update to X» button in the toolbar: one click downloads the DMG, verifies its SHA-256 and replaces the app in place (Settings → General → Check for updates).
 
-Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) separately. For agent status, install the hooks from Settings; Hangar shows the change to `~/.claude` / `~/.codex` and applies it only after you confirm.
+Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) separately. Before the first agent runs, Hangar offers to connect to it (hooks for status, limits, Claude's status line, MCP); it shows the change to `~/.claude` / `~/.codex` and applies it only after you confirm. The same switches live in Settings → Integrations.
 
 ## Build from source
 
@@ -93,6 +95,8 @@ hangar sessions create --project acme-web --name discount-codes --worktree --pro
 hangar tabs read --tab <id> --lines 40
 hangar doctor
 ```
+
+A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`): those names are the API and stay.
 
 `hangar mcp` runs an MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
 

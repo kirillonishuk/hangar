@@ -96,11 +96,11 @@ struct StatuslinePreview: View {
                 Color.clear.frame(height: Theme.statuslinePreviewHeight)
                     .overlay(alignment: .leading) { StatuslineCells(line: line) }
                     .clipped()
-                    .mask(HStack(spacing: 0) {
-                        Color.black
-                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    // The end fades into the preview's own background (a mask didn't show in every render path).
+                    .overlay(alignment: .trailing) {
+                        LinearGradient(colors: [Theme.ui.bg0.opacity(0), Theme.ui.bg0], startPoint: .leading, endPoint: .trailing)
                             .frame(width: Theme.statuslinePreviewFade)
-                    })
+                    }
             } else {
                 Text(verbatim: own ?? L10n.statuslineUserPreview).foregroundStyle(Theme.ui.text3)
                     .lineLimit(1).truncationMode(.tail)

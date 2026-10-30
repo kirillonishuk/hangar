@@ -252,64 +252,51 @@ struct DiffView: View {
     }
 
     private func header(_ path: String, commit: String?, _ content: DiffContent) -> some View {
-        HStack(spacing: Theme.Diff.headerGap) {
-            HStack(spacing: Theme.Space.iconGap) {
-                FileIconView(name: (path as NSString).lastPathComponent)
-                Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.semibold)
-                    .lineLimit(1).truncationMode(.head)
-            }
-            // A commit's file (Git tab): which commit, as the details show its hash.
-            if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accentText) }
-            // No «+N −M» here: the Changes (or commit) row beside it already shows the counts.
-            Spacer(minLength: 0)
-            if content.isText {
-                changeNav
-                HStack(spacing: Theme.GitTab.chipGap) {
-                    modeButton(L10n.diffSideBySide, inline: false)
-                    modeButton(L10n.diffInline, inline: true)
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.Diff.headerGap) {
+                HStack(spacing: Theme.Space.iconGap) {
+                    FileIconView(name: (path as NSString).lastPathComponent)
+                    Text(verbatim: path).foregroundStyle(Theme.ui.text2)
+                        .lineLimit(1).truncationMode(.head)
+                }
+                // A commit's file (Git tab): which commit, as the details show its hash.
+                if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accentText) }
+                // No «+N −M» here: the Changes (or commit) row beside it already shows the counts.
+                Spacer(minLength: 0)
+                if content.isText {
+                    changeNav
+                    Segmented(selection: app.state.diffInline,
+                              options: [(false, L10n.diffSideBySide), (true, L10n.diffInline)]) { inline in
+                        app.perform { $0.diffInline = inline }
+                        editor.setInline(inline)
+                    }
                 }
             }
+            .font(Theme.Typography.mono.font())
+            .padding(.horizontal, Theme.Diff.headerPaddingH)
+            // The editor's pane header (§3.5): the same 28 with its line, so editor ↔ diff doesn't move the code.
+            .frame(height: Theme.Height.barPane - 1)
+            Rectangle().fill(Theme.ui.line).frame(height: 1)
         }
-        .font(Theme.Typography.mono.font())
-        .padding(.horizontal, Theme.Diff.headerPaddingH)
-        // The slot of the editor's file-tab row: switching editor ↔ diff doesn't move the code.
-        .frame(height: Theme.Editor.headerHeight)
         .background(Theme.ui.bg0)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
     /// «2 из 5» with ↑ ↓ (F7 / ⇧F7); the counter's slot is always there, so nothing shifts while the diff computes.
     private var changeNav: some View {
         let counter = editor.changes
-        return HStack(spacing: Theme.Diff.headerGap / 2) {
+        return HStack(spacing: 0) {
             Text(verbatim: counter.text ?? "").foregroundStyle(Theme.ui.text2).monospacedDigit()
                 .frame(minWidth: Theme.Diff.counterWidth, alignment: .trailing)
+                .padding(.trailing, Theme.Space.s1)
             navButton(.chevronUp, help: L10n.diffPrevChange + " — " + DiffChangeKey.prev, next: false)
             navButton(.chevronDown, help: L10n.diffNextChange + " — " + DiffChangeKey.next, next: true)
         }
-        .padding(.trailing, Theme.Diff.headerGap)
     }
 
+    /// A plain icon button (§3.20): 14 in `control.small`, no border.
     private func navButton(_ icon: Icon, help: String, next: Bool) -> some View {
-        let enabled = editor.changes.canStep
-        return Button { editor.goChange(next: next) } label: {
-            IconView(icon: icon, size: Theme.Icon.inline, tint: Theme.ui.text2)
-                .frame(width: Theme.Diff.navButtonWidth, height: Theme.Diff.navButtonHeight)
-                .overlay(RoundedRectangle(cornerRadius: Theme.Diff.navButtonRadius).strokeBorder(Theme.ui.line, lineWidth: 1))
-        }
-        .buttonStyle(HoverButtonStyle(radius: Theme.Diff.navButtonRadius))
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : Theme.Opacity.inactive)
-        .help(help)
-    }
-
-    /// Side by side / inline as mode chips; the choice persists (`WorkspaceState.diffInline`).
-    private func modeButton(_ title: String, inline: Bool) -> some View {
-        Chip(title: title, on: app.state.diffInline == inline) {
-            app.perform { $0.diffInline = inline }
-            editor.setInline(inline)
-        }
-        .fixedSize()
+        IconButton(icon: icon, help: help) { editor.goChange(next: next) }
+            .disabled(!editor.changes.canStep)
     }
 }
 

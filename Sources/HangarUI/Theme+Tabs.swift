@@ -22,8 +22,8 @@ extension Theme {
     public static let tabMaxWidth: CGFloat = 200
     /// A file (or diff) tab is as wide as its whole name, up to this; past it the name truncates in the middle.
     public static let fileTabMaxWidth: CGFloat = 2 * tabMaxWidth
-    /// Fade over the clipped edges of a scrolled bar; a revealed tab also clears it.
-    public static let tabFadeWidth: CGFloat = 24
+    /// A scrolled-to tab stops this far from the bar's edge (an overflowing bar draws only whole tabs).
+    public static let tabRevealMargin: CGFloat = 24
     /// A mouse wheel notch (line) scrolls the bar this far.
     public static let tabWheelLine: CGFloat = 16
     /// While dragging a tab this close to the bar's edge, each move scrolls the bar by `tabDragScrollStep`.

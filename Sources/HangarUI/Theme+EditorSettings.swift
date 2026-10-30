@@ -17,8 +17,6 @@ extension Theme {
         static let tileLineHeight: CGFloat = 12
         static let tileCodePadding: CGFloat = 7
         static let tileCodePaddingV: CGFloat = 6
-        /// Room above «Редактор», the page's second heading: it starts a part of its own.
-        static let subsectionGap: CGFloat = Space.s1
         /// The editor theme's hint keeps two lines of room: switching doesn't move the page.
         static let hintLines = 2
 

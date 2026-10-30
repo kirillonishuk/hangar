@@ -11,10 +11,11 @@ public func killSessionArgs(_ leaf: UUID) -> [String] { ["tmux", "-L", "hangar",
 /// A remote tab: `ssh -t` through the host's master into the leaf's tmux session (or straight into the agent without tmux).
 /// Exit codes: the agent's own (255 → 254), 254 for a missing folder, 255 = the session did not end (lost or detached).
 public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget,
-                             restoring: Bool, initialPrompt: String?, port: Int? = nil) -> LaunchSpec {
+                             restoring: Bool, initialPrompt: String?, port: Int? = nil, unlinkedNote: String = "") -> LaunchSpec {
     // The server's PATH finds the agents; local `[agents]` are paths on this Mac.
     let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, shell: #""$SHELL""#,
-                           restoring: restoring, initialPrompt: initialPrompt)
+                           restoring: restoring, initialPrompt: initialPrompt, hookCLI: remoteHookCLI,
+                           transcriptCheck: (#""$SHELL""#, unlinkedNote))
     return LaunchSpec(command: remoteTabCommand(target: target, tabId: tabId, leafId: leaf.id, cwd: leaf.cwd, agentCommand: cmd, port: port),
                       cwd: NSHomeDirectory(), env: [:])
 }

@@ -117,7 +117,7 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
 
     @Test func sessionSwitchOnlyFromSessionStartClearCompactResume() {
         let leaf = status(.done, hooks: true, session: "main")
-        for source in ["clear", "compact", "resume"] {
+        for source in ["clear", "compact", "resume", "fork"] {
             let s = fold(leaf, .hook(.sessionStart, session: "next", notificationType: nil, source: source))
             #expect(s.sessionId == "next", "\(source)")
         }
@@ -125,6 +125,66 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
             #expect(fold(leaf, .hook(.sessionStart, session: "next", notificationType: nil, source: source)) == leaf)
         }
         #expect(fold(leaf, .hook(.prompt, session: "next", notificationType: nil, source: "clear")) == leaf)
+    }
+
+    private func pidHook(_ kind: HookKind, _ session: String, _ pid: Int32?, source: String? = nil) -> AgentSignal {
+        .hook(kind, session: session, notificationType: nil, source: source, detail: HookDetail(agentPid: pid))
+    }
+
+    /// #119: the tab's own agent (its `--settings` hooks carry a pid) takes over the id from its first hook; its events
+    /// only track the conversation, whatever the source (/resume, fork, a prompt after a lost SessionStart).
+    @Test func tabAgentPidOwnsTheSession() {
+        var s = status(.done, hooks: true, session: "main")
+        s = fold(s, pidHook(.sessionStart, "main", 7, source: "startup"))
+        #expect(s.agentPid == 7 && s.state == .done)
+        for (kind, id, source) in [(HookKind.sessionStart, "picked", "resume"), (.sessionStart, "forked", "fork"), (.prompt, "lost", nil)] {
+            s = fold(s, pidHook(kind, id, 7, source: source))
+            #expect(s.sessionId == id && s.state == .done, "\(id)")
+        }
+        // Another pid with Hangar's hooks (a teammate) and pid-less copies with another id: nested, not the tab's.
+        #expect(fold(s, pidHook(.sessionStart, "teammate", 8, source: "startup")) == s)
+        #expect(!acceptsHook(s, kind: .sessionStart, session: "nested", source: "resume", agent: .claude))
+        #expect(fold(s, pidHook(.prompt, "nested", nil)) == s)
+        // A relaunch is a new process: its first pid owns the leaf again.
+        s = fold(s, .relaunched)
+        #expect(s.agentPid == nil && fold(s, pidHook(.sessionStart, "x", 9)).agentPid == 9)
+    }
+
+    /// `CLAUDE_CODE_SHELL_PREFIX`: each hook runs under another wrapper pid. Hangar's marked SessionStart moves the pid
+    /// (after /clear the installed hooks' events with the new id are the tab's, not frozen out); other kinds don't.
+    @Test func markedSessionStartMovesThePid() {
+        var s = fold(LeafStatus(), pidHook(.sessionStart, "main", 7, source: "startup"))
+        let marked = { (kind: HookKind, id: String, pid: Int32, source: String?) in
+            AgentSignal.hook(kind, session: id, notificationType: nil, source: source, detail: HookDetail(agentPid: pid, tabAgent: true))
+        }
+        #expect(fold(s, marked(.prompt, "other", 8, nil)) == s)
+        s = fold(s, marked(.sessionStart, "cleared", 9, "clear"))
+        #expect(s.agentPid == 9 && s.sessionId == "cleared")
+        #expect(fold(s, .hook(.stop, session: "cleared", notificationType: nil)).state == .done)
+        // Unmarked (a teammate's own pid hooks of an older build) still can't move it.
+        #expect(fold(s, pidHook(.sessionStart, "x", 10, source: "startup")) == s)
+        // A background session claude starts with the tab's `--settings` (marked, own pid, `startup`) never takes the tab.
+        #expect(fold(s, marked(.sessionStart, "child", 11, "startup")) == s)
+        #expect(!fromTabAgent(s, kind: .sessionStart, session: "child", source: "startup", detail: HookDetail(agentPid: 11, tabAgent: true)))
+        // The same conversation under another wrapper pid (a startup re-reporting the leaf's id) is still the tab.
+        #expect(fold(s, marked(.sessionStart, "cleared", 12, "startup")).agentPid == 12)
+    }
+
+    /// An older `hangar-remote` (no pids): the first SessionStart after a launch and the switches set the id, nothing else.
+    @Test func legacyHostTakesFirstSessionStart() {
+        #expect(legacyTakesId(LeafStatus(), kind: .sessionStart, session: "spare", source: "startup", agentPid: nil))
+        let running = status(.idle, session: "spare")
+        #expect(!legacyTakesId(running, kind: .sessionStart, session: "nested", source: "startup", agentPid: nil))
+        #expect(legacyTakesId(running, kind: .sessionStart, session: "next", source: "clear", agentPid: nil))
+        #expect(!legacyTakesId(LeafStatus(), kind: .prompt, session: "x", source: nil, agentPid: nil))
+        #expect(!legacyTakesId(LeafStatus(), kind: .sessionStart, session: "x", source: "startup", agentPid: 7))
+    }
+
+    /// Before any pid, the id the leaf was launched with filters a nested agent's first events.
+    @Test func knownIdFiltersBeforeFirstHook() {
+        #expect(!acceptsHook(LeafStatus(), kind: .prompt, session: "nested", source: nil, agent: .claude, known: "own"))
+        #expect(acceptsHook(LeafStatus(), kind: .prompt, session: "own", source: nil, agent: .claude, known: "own"))
+        #expect(acceptsHook(LeafStatus(), kind: .prompt, session: "x", source: nil, detail: HookDetail(agentPid: 7), agent: .claude, known: "own"))
     }
 
     @Test func codexNotifyNotFiltered() {

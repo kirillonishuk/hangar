@@ -21,6 +21,8 @@ import Workspace
     var promptOpen = false
     /// What the chat will be called (decision #116); «Чат N» against the project's chats now (another window may add one).
     var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames()) }
+    /// The chat gets «Чат N» and waits for its agent's first prompt for a name (#116).
+    var chatNameIsAuto: Bool { isNumberedChatName(name: name, message: message) }
     /// The project folder's HEAD, for «В папке проекта»; nil until loaded or outside git.
     private(set) var head: Head?
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.

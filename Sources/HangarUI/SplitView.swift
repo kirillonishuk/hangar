@@ -257,7 +257,7 @@ final class FillView: NSView {
             missingFolder = nil
             let (spec, mode) = try make(context)
             self.mode = mode
-            setBar(nil)
+            setBar(mode.unlinked ? L10n.conversationNotLinked : nil)
             launch(spec)
             return true
         } catch LaunchError.missingCwd(let path) {

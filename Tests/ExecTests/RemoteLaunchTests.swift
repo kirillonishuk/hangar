@@ -116,7 +116,10 @@ import TestSupport
         #expect(words.contains(f.home + "/.hangar/run/" + name + ".exit"))
         #expect(words.contains(tab.uuidString) && words.contains(leaf.id.uuidString))
         #expect(words.contains(f.home + "/.hangar/hangar.sock"))
-        #expect(words.contains("claude 'fix it'"))
+        // The server's claude gets Hangar's own hooks through `hangar-remote` (#119), quoted as one argument.
+        let settings = " --settings " + shellQuote(tabAgentSettings(hookCLI: remoteHookCLI))
+        #expect(words.contains("claude\(settings) 'fix it'"))
+        #expect(tabAgentSettings(hookCLI: remoteHookCLI).contains(#"h=\"$HOME/.hangar/bin/hangar-remote\"; [ -x \"$h\" ]"#))
 
         // Resume by id; the Mac's [agents] path never reaches the server.
         let resumed = Leaf(kind: .claude, cwd: "/srv", agentSessionId: "abc")
@@ -129,7 +132,7 @@ import TestSupport
         let remote = remoteLaunchSpec(for: resumed, tabId: tab, target: f.target(tmux: true), restoring: true, initialPrompt: nil)
         #expect(!remote.command.contains("/Users/me"))
         _ = try await runProcess("/bin/sh", ["-c", remote.command], cwd: "/", env: f.env)
-        #expect(f.read("remote").contains("claude --resume abc"))
+        #expect(f.read("remote").contains("claude\(settings) --resume abc"))
 
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }

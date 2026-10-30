@@ -12,7 +12,8 @@ public enum LoadResult: Equatable, Sendable {
 /// corrupt files (and a dangling symlink) moved to `state.json.bak`. Main-actor isolated; no timers (a sleeping Task only while a save is pending).
 @MainActor
 public final class StateStore {
-    private let directory: URL
+    /// The state folder: its socket and backups live next to `state.json`.
+    public let directory: URL
     private let debounce: Duration
     /// The debounced save waiting to run; nil when none (test seam: tests await it).
     private(set) var pending: Task<Void, Never>?

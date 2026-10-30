@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped whenever the script below changes; the host check compares it with the installed copy's second line.
-public let hangarRemoteVersion = 5
+public let hangarRemoteVersion = 6
 
 /// `~/.hangar/bin/hangar-remote` on an ssh host: the same argv as `hangar event` / `hangar statusline`.
 /// No JSON in sh: a header line plus the raw payload bytes; the Mac parses them (RemoteMessage).
@@ -67,9 +67,13 @@ case $cmd in
     last=
     for a in "$@"; do last=$a; done
     session=
+    pid=
+    ta=
     while [ $# -gt 0 ]; do
       case $1 in
         --session) [ $# -ge 2 ] || break; session=$(printf %s "$2" | tr -cd 'A-Za-z0-9._-'); shift 2 ;;
+        --agent-pid) [ $# -ge 2 ] || break; pid=$(printf %s "$2" | tr -cd 0-9); [ ${#pid} -le 10 ] || pid=; shift 2 ;;
+        --tab-agent) ta=1; shift ;;
         --then) shift; break ;;
         *) shift ;;
       esac
@@ -86,6 +90,8 @@ case $cmd in
       esac
       s=
       [ -n "$session" ] && s=",\"session\":\"$session\""
+      [ -n "$pid" ] && s="$s,\"agentPid\":$pid"
+      [ -n "$ta" ] && s="$s,\"tabAgent\":true"
       deliver "{\"v\":1,\"type\":\"hook\",\"tab\":\"$HANGAR_TAB_ID\",\"leaf\":\"$HANGAR_LEAF_ID\",\"kind\":\"$kind\"$s" >/dev/null
     fi
     # The original notify command still runs outside Hangar or without the app.

@@ -108,6 +108,26 @@ import AgentStatus
         #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .sessionStart, session: "s1", source: "clear"))
     }
 
+    /// UserPromptSubmit's `prompt` is the event's message (an auto-named chat's name, #116), bounded like the rest.
+    @Test func promptText() {
+        let stdin = Data(#"{"session_id":"s1","prompt":"fix the bug","message":"x"}"#.utf8)
+        #expect(eventMessage(kind: "prompt", args: [], env: env, stdin: stdin)?.message == "fix the bug")
+        #expect(eventMessage(kind: "stop", args: [], env: env, stdin: stdin)?.message == "x")
+    }
+
+    /// `--agent-pid "$PPID"` from Hangar's own `--settings` hooks (#119): digits only; never read past `--then`.
+    @Test func agentPidFlag() {
+        let stdin = Data(#"{"session_id":"s1","source":"resume"}"#.utf8)
+        #expect(eventMessage(kind: "session-start", args: ["--agent-pid", "4242"], env: env, stdin: stdin)?.agentPid == 4242)
+        #expect(eventMessage(kind: "session-start", args: ["--tab-agent", "--agent-pid", "1"], env: env, stdin: stdin)?.tabAgent == true)
+        #expect(eventMessage(kind: "session-start", args: ["--agent-pid", "1"], env: env, stdin: stdin)?.tabAgent == nil)
+        for bad in ["", "-1", "0", "12x", "99999999999", "$PPID"] {
+            #expect(eventMessage(kind: "session-start", args: ["--agent-pid", bad], env: env, stdin: stdin)?.agentPid == nil, "\(bad)")
+        }
+        #expect(eventMessage(kind: "prompt", args: [], env: env, stdin: stdin)?.agentPid == nil)
+        #expect(eventMessage(kind: "codex-notify", args: ["--then", "x", "--agent-pid", "5", Self.codexPayload], env: env, stdin: nil)?.agentPid == nil)
+    }
+
     @Test func eventEdgeCases() {
         #expect(eventMessage(kind: "boom", args: [], env: env, stdin: nil) == nil)
         #expect(eventMessage(kind: "stop", args: [], env: ["HANGAR_TAB_ID": tab.uuidString], stdin: nil) == nil)

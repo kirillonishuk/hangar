@@ -37,7 +37,7 @@ import Workspace
         #expect(!app.isRestored(leafId: UUID()))
     }
 
-    /// One task in "/a" (and optionally "/b") with the given extra leaves as separate tabs.
+    /// One task with the given leaves as separate tabs.
     private func state(_ leaves: [Leaf]) -> (WorkspaceState, [UUID]) {
         var s = WorkspaceState()
         let p = s.addProject(name: "p", path: "/tmp")
@@ -46,118 +46,94 @@ import Workspace
         return (s, leaves.map(\.id))
     }
 
-    @Test func twoClaudeSameCwdOnlyFirstContinues() {
-        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a")])
-        let set = resumeSet(for: s)
-        #expect(set.contains(ids[0]))
-        #expect(!set.contains(ids[1]))
-    }
-
-    /// ↩ after a clean exit relaunches with `--continue`: without a session id only the folder's first leaf may.
-    @Test func relaunchSecondClaudeSameCwdStartsFresh() throws {
-        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
-        let app = app(s)
-        let previous = LaunchMode(restoring: false, initialPrompt: nil)
-        let tabs = app.state.tasks[0].tabs
-        let second = try app.spec(for: tabs[1].root.leaves[0], tabId: tabs[1].id, context: .relaunch(previous: previous, exitCode: 0))
-        #expect(!second.1.restoring)
-        let first = try app.spec(for: tabs[0].root.leaves[0], tabId: tabs[0].id, context: .relaunch(previous: previous, exitCode: 0))
-        #expect(first.1.restoring)
-    }
-
-    /// "/a/" and "/a" are one folder: one `--continue` slot.
-    @Test func trailingSlashIsSameCwd() {
-        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a/"), Leaf(kind: .claude, cwd: "/a")])
-        let set = resumeSet(for: s)
-        #expect(set.contains(ids[0]) && !set.contains(ids[1]))
-    }
-
-    @Test func differentCwdsBothContinue() {
-        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/b")])
-        #expect(resumeSet(for: s) == Set(ids))
-    }
-
-    /// `--continue` picks the latest chat of a cwd on one machine: the same path on another host is another chat.
-    @Test func samePathOnDifferentHostsBothContinue() {
-        var s = WorkspaceState()
-        let a = s.addRemoteProject(name: "a", host: "dev1", path: "/srv/app")
-        let b = s.addRemoteProject(name: "b", host: "dev2", path: "/srv/app")
-        let l = s.addProject(name: "l", path: "/srv/app")
-        var ids: [UUID] = []
-        for p in [a, b, l] {
-            let t = s.addTask(projectId: p, name: "t")
-            let leaf = Leaf(kind: .claude, cwd: "/srv/app")
-            s.tasks[s.tasks.firstIndex { $0.id == t }!].tabs = [Tab(title: "claude", root: .leaf(leaf), focusedLeafId: leaf.id)]
-            ids.append(leaf.id)
-        }
-        #expect(resumeSet(for: s) == Set(ids))
-    }
-
-    /// #89: `--continue` next to a leaf with a known id would most likely attach to that leaf's conversation.
-    @Test func sessionIdAlwaysResumesAndTakesTheContinueSlot() {
-        let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"),
-                              Leaf(kind: .claude, cwd: "/a/", agentSessionId: "y"), Leaf(kind: .claude, cwd: "/b"),
-                              Leaf(kind: .codex, cwd: "/a")])
-        let set = resumeSet(for: s)
-        #expect(set.contains(ids[1]) && set.contains(ids[2]))
-        #expect(!set.contains(ids[0]))
-        #expect(set.contains(ids[3]) && set.contains(ids[4]))  // another folder, another agent: their own slots
-    }
-
-    /// The slot is per folder across sessions: a leaf with an id in another live session blocks it too.
-    @Test func sessionIdInAnotherTaskBlocksContinue() {
-        var s = WorkspaceState()
-        let p = s.addProject(name: "p", path: "/tmp")
-        s.addTask(projectId: p, name: "one")
-        s.addTask(projectId: p, name: "two")
-        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")
-        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
-        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(b), focusedLeafId: b.id)]
-        #expect(resumeSet(for: s) == [b.id])
-    }
-
-    /// Two leaves without ids: the first continues; once its hooks give it an id, ↩ on the second still starts fresh
-    /// (before #89 the second became "first without an id" and `--continue`d the first one's conversation).
-    @Test func relaunchAfterNeighbourGotIdStartsFresh() throws {
-        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
-        let app = app(s)
-        let tabs = app.state.tasks[0].tabs
-        app.perform { $0.setAgentSessionId(leafId: tabs[0].root.leaves[0].id, "s1") }
-        let previous = LaunchMode(restoring: true, initialPrompt: nil)
-        let second = try app.spec(for: tabs[1].root.leaves[0], tabId: tabs[1].id, context: .relaunch(previous: previous, exitCode: 0))
-        #expect(!second.1.restoring)
-        #expect(!second.0.command.contains("--continue"))
-        let first = try app.spec(for: tabs[0].root.leaves[0], tabId: tabs[0].id, context: .relaunch(previous: previous, exitCode: 0))
-        #expect(first.1.restoring && first.0.command.contains("--resume s1"))
-    }
-
-    @Test func codexSameRule() {
-        let (s, ids) = state([Leaf(kind: .codex, cwd: "/a"), Leaf(kind: .codex, cwd: "/a"),
-                              Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .shell, cwd: "/a"), Leaf(kind: .shell, cwd: "/a")])
-        let set = resumeSet(for: s)
-        #expect(set.contains(ids[0]) && !set.contains(ids[1]))  // claude in the same cwd is a separate (kind, cwd) key
-        #expect(set.contains(ids[2]))
-        #expect(set.contains(ids[3]) && set.contains(ids[4]))
-    }
-
-    @Test func archivedTaskDoesNotTakeContinueSlot() {
-        var s = WorkspaceState()
-        let p = s.addProject(name: "p", path: "/tmp")
-        let old = s.addTask(projectId: p, name: "old")
-        s.addTask(projectId: p, name: "live")
-        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a")
-        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
-        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(b), focusedLeafId: b.id)]
-        s.archiveTask(id: old)
-        let set = resumeSet(for: s)
-        #expect(set.contains(b.id))
-        #expect(!set.contains(a.id))
-    }
-
     private func app(_ s: WorkspaceState) -> AppState {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-restore-\(UUID())")
         return AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(),
                         configURL: dir.appendingPathComponent("c.toml"))
+    }
+
+    private func launch(_ app: AppState, tab i: Int, _ context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
+        let tab = app.state.tasks[0].tabs[i]
+        return try app.spec(for: tab.root.leaves[0], tabId: tab.id, context: context)
+    }
+
+    private func storedId(_ app: AppState, tab i: Int) -> String? { app.state.tasks[0].tabs[i].root.leaves[0].agentSessionId }
+
+    /// #119: two chats in one folder without ids never pick a conversation by recency (`--continue` took the folder's
+    /// latest one: another tab's or a terminal's). Each starts its own conversation under an id stored at once.
+    @Test func noIdNeverRestoresByRecency() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
+        let app = app(s)
+        let first = try launch(app, tab: 0, .restored), second = try launch(app, tab: 1, .restored)
+        for (spec, mode) in [first, second] {
+            #expect(!mode.restoring)
+            #expect(!spec.command.contains("--continue") && !spec.command.contains("--resume"))
+        }
+        let a = try #require(storedId(app, tab: 0)), b = try #require(storedId(app, tab: 1))
+        #expect(a != b && UUID(uuidString: a) != nil && UUID(uuidString: b) != nil)
+        #expect(first.0.command.contains("--session-id \(a)") && second.0.command.contains("--session-id \(b)"))
+    }
+
+    /// A known id resumes only that conversation, whatever the neighbours have; ↩ after a clean exit too.
+    @Test func knownIdResumesItsOwnConversation() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1"), Leaf(kind: .claude, cwd: "/tmp")])
+        let app = app(s)
+        let own = try launch(app, tab: 0, .restored)
+        #expect(own.1.restoring && own.0.command.contains("--resume s1"))
+        let clean = try launch(app, tab: 0, .relaunch(previous: own.1, exitCode: 0))
+        #expect(clean.1.restoring && clean.0.command.contains("--resume s1"))
+        #expect(storedId(app, tab: 0) == "s1")
+        // The neighbour without an id starts its own conversation, never `s1` by recency.
+        let other = try launch(app, tab: 1, .relaunch(previous: own.1, exitCode: 0))
+        #expect(!other.1.restoring && !other.0.command.contains("s1") && storedId(app, tab: 1) != "s1")
+    }
+
+    /// A resumed chat that ended with an error comes back as itself on ↩: its id is never replaced.
+    @Test func errorExitResumesTheSameId() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])
+        let app = app(s)
+        let again = try launch(app, tab: 0, .relaunch(previous: LaunchMode(restoring: true, initialPrompt: nil), exitCode: 1))
+        #expect(again.1.restoring && again.0.command.contains("--resume s1") && storedId(app, tab: 0) == "s1")
+    }
+
+    /// On this Mac the transcript decides: recorded here → resume; never written → started under the same id; recorded in
+    /// another folder (claude would not find it from here) → a new id, stored, and the note.
+    @Test func localTranscriptDecides() throws {
+        let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp", agentSessionId: id)])
+        let app = app(s)
+        let cfg = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-cfg-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: cfg) }
+        app.claudeSettingsURL = cfg.appendingPathComponent("settings.json")
+        let start = try launch(app, tab: 0, .restored)
+        #expect(!start.1.restoring && !start.1.unlinked && start.0.command.contains("--session-id \(id)") && storedId(app, tab: 0) == id)
+        let folder = cfg.appendingPathComponent("projects/-tmp")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try #"{"cwd":"/tmp"}"#.write(to: folder.appendingPathComponent(id + ".jsonl"), atomically: true, encoding: .utf8)
+        let resume = try launch(app, tab: 0, .restored)
+        #expect(resume.1.restoring && resume.0.command.contains("--resume \(id)"))
+        try #"{"cwd":"/somewhere/else"}"#.write(to: folder.appendingPathComponent(id + ".jsonl"), atomically: true, encoding: .utf8)
+        let foreign = try launch(app, tab: 0, .restored)
+        let new = try #require(storedId(app, tab: 0))
+        #expect(!foreign.1.restoring && foreign.1.unlinked && new != id && foreign.0.command.contains("--session-id \(new)"))
+    }
+
+    /// A tab saved without an id (before #119) starts anew and says where its conversation is.
+    @Test func unlinkedTabSaysSo() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])
+        let app = app(s)
+        #expect(try launch(app, tab: 0, .restored).1.unlinked)
+        #expect(try !launch(app, tab: 1, .restored).1.unlinked)
+        #expect(try !launch(app, tab: 0, .created(prompt: nil)).1.unlinked)
+    }
+
+    /// Codex has no `--session-id`: its id comes from `notify`; without one it starts anew, never `resume --last`.
+    @Test func codexWithoutIdStartsFresh() throws {
+        let (s, _) = state([Leaf(kind: .codex, cwd: "/tmp"), Leaf(kind: .codex, cwd: "/tmp", agentSessionId: "t1")])
+        let app = app(s)
+        let none = try launch(app, tab: 0, .restored), known = try launch(app, tab: 1, .restored)
+        #expect(!none.1.restoring && !none.0.command.contains("resume") && storedId(app, tab: 0) == nil)
+        #expect(known.1.restoring && known.0.command.contains("codex resume t1"))
     }
 
     @Test func createdUsesPromptOnce() {
@@ -173,47 +149,32 @@ import Workspace
     @Test func restoredLeavesGetRestoredContext() {
         let (s, ids) = state([Leaf(kind: .claude, cwd: "/a"), Leaf(kind: .claude, cwd: "/a")])
         let app = app(s)
-        #expect(app.launchContext(for: ids[0]) == .restored(inResumeSet: true))
-        #expect(app.launchContext(for: ids[1]) == .restored(inResumeSet: false))
+        #expect(app.launchContext(for: ids[0]) == .restored)
+        #expect(app.launchContext(for: ids[1]) == .restored)
         #expect(app.launchContext(for: UUID()) == .created(prompt: nil))
     }
 
-    @Test func unarchiveResumesAgents() {
+    @Test func unarchiveRestoresItsLeaves() {
         var s = WorkspaceState()
         let p = s.addProject(name: "p", path: "/tmp")
         let old = s.addTask(projectId: p, name: "old")
         s.addTask(projectId: p, name: "live")
-        let a = Leaf(kind: .claude, cwd: "/a"), b = Leaf(kind: .claude, cwd: "/a")
-        let c = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x"), live = Leaf(kind: .claude, cwd: "/a")
-        s.tasks[0].tabs = [a, b, c].map { Tab(title: "claude", root: .leaf($0), focusedLeafId: $0.id) }
-        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(live), focusedLeafId: live.id)]
+        let a = Leaf(kind: .claude, cwd: "/a"), c = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")
+        s.tasks[0].tabs = [a, c].map { Tab(title: "claude", root: .leaf($0), focusedLeafId: $0.id) }
         s.archiveTask(id: old)
         let app = app(s)
         #expect(app.launchContext(for: a.id) == .created(prompt: nil))  // archived at startup: not restored
         app.restore(taskId: old)
-        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: false))  // c's known id takes the folder's slot (#89)
-        #expect(app.launchContext(for: b.id) == .restored(inResumeSet: false))
-        #expect(app.launchContext(for: c.id) == .restored(inResumeSet: true))
-        #expect(app.launchContext(for: live.id) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: a.id) == .restored && app.launchContext(for: c.id) == .restored)
+        #expect(app.isRestored(leafId: a.id))
     }
 
-    /// Unarchive judges the task against live neighbours: a live leaf with an id in the folder takes the slot (#89),
-    /// so the restored flag agrees with what `spec(for:)` launches.
-    @Test func unarchiveSeesLiveNeighboursIds() throws {
-        var s = WorkspaceState()
-        let p = s.addProject(name: "p", path: "/tmp")
-        let old = s.addTask(projectId: p, name: "old")
-        s.addTask(projectId: p, name: "live")
-        let a = Leaf(kind: .claude, cwd: "/tmp"), live = Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "x")
-        s.tasks[0].tabs = [Tab(title: "claude", root: .leaf(a), focusedLeafId: a.id)]
-        s.tasks[1].tabs = [Tab(title: "claude", root: .leaf(live), focusedLeafId: live.id)]
-        s.archiveTask(id: old)
-        let app = app(s)
-        app.restore(taskId: old)
-        #expect(app.launchContext(for: a.id) == .restored(inResumeSet: false))
-        #expect(!app.isRestored(leafId: a.id))
-        let tab = app.state.tasks[0].tabs[0]
-        #expect(try !app.spec(for: a, tabId: tab.id, context: .restored(inResumeSet: false)).1.restoring)
+    /// The state folder of a test (or debug) store is where its socket, and so the backups, live: never the real one.
+    @Test func socketFollowsTheStore() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-restore-\(UUID())")
+        let app = AppState(state: WorkspaceState(), store: StateStore(directory: dir), config: HangarConfig(),
+                           configURL: dir.appendingPathComponent("c.toml"))
+        #expect(app.socketPath == dir.appendingPathComponent("hangar.sock").path)
     }
 
     /// A restored (or freshly split) tree keeps its saved ratios: NSSplitView's own layout pass must not

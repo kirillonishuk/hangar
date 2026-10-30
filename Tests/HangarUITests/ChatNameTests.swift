@@ -1,5 +1,7 @@
+import Foundation
 import Testing
 @testable import HangarUI
+import Workspace
 
 /// The chat's name when «Название» is left empty (decision #116).
 @MainActor @Suite struct ChatNameTests {
@@ -53,5 +55,21 @@ import Testing
         #expect(chatName(name: "", message: "", existing: ["Чат 1", "Чат 2"]) == "Чат 3")
         L10n.language = .en
         #expect(chatName(name: "", message: "", existing: ["Chat 1"]) == "Chat 2")
+    }
+
+    /// Only the «Чат N» fallback waits for the agent's first prompt (#116); a typed name or a visible message line doesn't.
+    @Test func numberedNameIsAuto() {
+        #expect(isNumberedChatName(name: " ", message: "\n```\n"))
+        #expect(!isNumberedChatName(name: "fix", message: ""))
+        #expect(!isNumberedChatName(name: "", message: "Почини логин"))
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: "/tmp")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-chatname-\(UUID())")
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.createTask(projectId: p, name: "Чат 1", firstMessage: "", mode: .mainFolder, autoNamed: true)
+        app.createTask(projectId: p, name: "mine", firstMessage: "", mode: .mainFolder)
+        #expect(app.state.tasks.map(\.autoNamed) == [true, false])
+        let decoded = try? JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(app.state))
+        #expect(decoded?.tasks.map(\.autoNamed) == [true, false])
     }
 }

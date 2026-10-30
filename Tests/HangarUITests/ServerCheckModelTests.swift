@@ -301,8 +301,13 @@ import TestSupport
         let h = try await Harness(); defer { h.cleanup() }
         let old = "#!/bin/sh\n# hangar-remote \(hangarRemoteVersion - 1)\nexit 0\n"
         let path = try installScript(h, old)
+        // The host's tabs start only once the new script (with pids, #119) is in place.
+        var scriptAtStart: String?
+        h.app.onHostConnected = { _ in scriptAtStart = try? String(contentsOfFile: path, encoding: .utf8) }
         #expect(await h.remote.connect("dev") == .connected)
         #expect(await waitUntil { (try? String(contentsOfFile: path, encoding: .utf8)) == hangarRemoteScript })
+        #expect(await waitUntil { scriptAtStart != nil })
+        #expect(scriptAtStart == hangarRemoteScript)
         #expect(await waitUntil { h.remote.hosts["dev"]?.report?.remoteVersion == hangarRemoteVersion })
         let attrs = try FileManager.default.attributesOfItem(atPath: path)
         #expect((attrs[.posixPermissions] as? NSNumber)?.intValue == 0o700)

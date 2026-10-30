@@ -294,6 +294,13 @@ extension AppState {
         return integrations.marks[agent]?[host] ?? .offline
     }
 
+    /// An older `hangar-remote` replaced (only with an install there, and not in DEBUG runs without a fake ssh).
+    func upgradeRemoteScript(_ host: String) async {
+        guard autoUpgradeRemote else { return }  // the model itself returns at once when the installed one is current
+        _ = await ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
+            .autoUpgradeRemoteScript()
+    }
+
     /// Connect (R7, #96, #111): an older `hangar-remote` first; then a decided host follows the config, an undecided one
     /// with an older Hangar's entries joins silently, else its sheet. Off in DEBUG runs without a fake ssh (main.swift).
     func integrateHost(_ host: String) async {

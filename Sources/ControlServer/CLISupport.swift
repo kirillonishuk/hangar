@@ -32,18 +32,28 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         m.notificationType = object["notification_type"] as? String
         m.source = object["source"] as? String
         // Bounded here, before encoding: a long answer or command must not push the line past ControlServer.maxLine.
-        m.message = ((object["message"] as? String) ?? (object["last_assistant_message"] as? String)).map { String($0.prefix(500)) }
+        // UserPromptSubmit's `prompt`: an auto-named chat takes its name from it (#116).
+        let text = kind == .prompt ? object["prompt"] : object["message"] ?? object["last_assistant_message"]
+        m.message = (text as? String).map { String($0.prefix(500)) }
         if kind == .permissionRequest {
             m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
         }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
-    if let i = args.firstIndex(of: "--session"), i < (args.firstIndex(of: "--then") ?? args.endIndex),
-       i + 1 < args.count {
-        m.session = validSessionId(args[i + 1])
+    let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]
+    if let i = own.firstIndex(of: "--session"), i + 1 < own.endIndex {
+        m.session = validSessionId(own[i + 1])
     }
+    if let i = own.firstIndex(of: "--agent-pid"), i + 1 < own.endIndex { m.agentPid = agentPid(own[i + 1]) }
+    if own.contains("--tab-agent") { m.tabAgent = true }
     return m
+}
+
+/// `--agent-pid` (the hook shell's `$PPID`): digits only, a positive Int32; anything else is no pid.
+func agentPid(_ s: String) -> Int32? {
+    guard (1...10).contains(s.utf8.count), s.utf8.allSatisfy({ $0 >= 0x30 && $0 <= 0x39 }), let n = Int32(s), n > 0 else { return nil }
+    return n
 }
 
 /// The user's original `notify` argv: everything between `--then` and the trailing JSON payload.

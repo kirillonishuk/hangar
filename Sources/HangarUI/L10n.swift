@@ -79,7 +79,7 @@ import Workspace
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, escCancel, cancel, create, configNotApplied
-        case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
+        case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached, conversationNotLinked
         case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
@@ -353,6 +353,7 @@ import Workspace
     static func hostOffline(_ host: String) -> String { f(.hostOffline, host) }
     static var remoteNoGit: String { s(.remoteNoGit) }
     static var sessionDetached: String { s(.sessionDetached) }
+    static var conversationNotLinked: String { s(.conversationNotLinked) }
     static var more: String { s(.more) }
     static var settings: String { s(.settings) }
     static var settingsHelp: String { s(.settingsHelp) }

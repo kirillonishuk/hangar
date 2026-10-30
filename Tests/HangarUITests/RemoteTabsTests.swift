@@ -92,8 +92,8 @@ import TestSupport
         view.childExited(255)
         hostConnected(host: "dev", leaves: [view])
         #expect(log.contexts.last == .reattach(previous: LaunchMode(restoring: false, initialPrompt: "fix it")))
-        // Not restoring: the harness's "dev" task already has a claude leaf in /srv/app, which alone may `--continue` (#62).
-        #expect(log.modes.last == LaunchMode(restoring: false, initialPrompt: nil))
+        // A gone session resumes the tab's own conversation: its id was given at birth (#119).
+        #expect(log.modes.last == LaunchMode(restoring: true, initialPrompt: nil))
         #expect(!view.isDetached)
         // The status survives the reconnect (no `.relaunched` reset).
         #expect(h.app.state(ofLeaf: l.id) == .working)

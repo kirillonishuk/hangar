@@ -461,6 +461,7 @@
 "gitResizeHelp" = "Перетащите, чтобы изменить высоту";
 "gitAheadBehind" = "↑%d впереди, ↓%d позади %@";
 "gitClearFilter" = "Сбросить фильтр";
+"opensMenu" = "Открывает меню";
 "gitFound" = "%d";
 "gitFoundMore" = "%d+";
 "sessionsTitle" = "Сессии";

@@ -255,18 +255,18 @@ struct IntegrationAgentSheet: View {
             AskHeader(icon: agent == .claude ? .claude : .codex, title: L10n.intSheetTitle(agentTitle(agent)), subtitle: L10n.intSheetSubtitle)
             VStack(spacing: 0) {
                 FunctionRow(title: L10n.intHooksTitle, subtitle: agent == .claude ? L10n.intHooksClaudeSub : L10n.intHooksCodexSub, first: true) {
-                    Checkbox(on: choice.hooks) { choice.hooks = $0; refresh() }
+                    Checkbox(L10n.intHooksTitle, showsLabel: false, on: choice.hooks) { choice.hooks = $0; refresh() }
                 }
                 if agent == .claude {
                     FunctionRow(title: L10n.intLimitsTitle, subtitle: L10n.intLimitsSub) {
-                        Checkbox(on: choice.limits) { choice.limits = $0; refresh() }
+                        Checkbox(L10n.intLimitsTitle, showsLabel: false, on: choice.limits) { choice.limits = $0; refresh() }
                     }
                     FunctionRow(title: L10n.intStatuslineSheetTitle, subtitle: L10n.intStatuslineSheetSub) {
-                        Checkbox(on: choice.statusline) { choice.statusline = $0; refresh() }
+                        Checkbox(L10n.intStatuslineSheetTitle, showsLabel: false, on: choice.statusline) { choice.statusline = $0; refresh() }
                     }
                 }
                 FunctionRow(title: L10n.integrationMCP, subtitle: L10n.intMCPSheetSub, tag: L10n.intThisMacTag, tagHelp: L10n.intThisMacTagHelp) {
-                    Checkbox(on: choice.mcp) { choice.mcp = $0; refresh() }
+                    Checkbox(L10n.integrationMCP, showsLabel: false, on: choice.mcp) { choice.mcp = $0; refresh() }
                 }
                 WhereRow(label: L10n.intWhereTo, items: whereItems())
             }

@@ -53,7 +53,7 @@ struct NewTaskSheet: View {
             CardRow(label: L10n.worktreeLabel, first: true) {
                 Text(worktreeHint).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: Theme.cardRowGap)
-                Checkbox(isOn: $model.worktree)
+                Checkbox(L10n.worktreeLabel, showsLabel: false, isOn: $model.worktree)
                     .disabled(model.availability != .ready || model.creating)
             }
             CardRow(label: L10n.fromBranch) {
@@ -62,8 +62,7 @@ struct NewTaskSheet: View {
                 Spacer(minLength: Theme.cardRowGap)
                 fetchStatus
             }
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
-            .disabled(!model.worktree)
+            .disabled(!model.worktree)  // the label and the picker dim themselves (no double fade)
             CardRow(label: L10n.newBranch) {
                 if model.worktree {
                     TextField("", text: $model.branch)
@@ -89,7 +88,7 @@ struct NewTaskSheet: View {
                         .truncationMode(.middle)
                         .help(command)
                     Spacer(minLength: Theme.cardRowGap)
-                    Checkbox(isOn: $model.runSetup)
+                    Checkbox(L10n.afterCreate, showsLabel: false, isOn: $model.runSetup)
                         .disabled(!model.worktree || model.creating)
                 } else {
                     Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))

@@ -216,7 +216,7 @@ struct ServerCheckView: View {
             Text(L10n.optionalToolsLabel).foregroundStyle(Theme.ui.text3)
             ForEach(model.missingOptional, id: \.self) { tool in
                 HStack(spacing: Theme.inlineGap) {
-                    Checkbox(isOn: Binding(get: { model.optional.contains(tool) },
+                    Checkbox(tool.rawValue, showsLabel: false, isOn: Binding(get: { model.optional.contains(tool) },
                                              set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } }))
                     Text(verbatim: tool.rawValue).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)

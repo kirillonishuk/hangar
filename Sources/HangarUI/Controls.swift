@@ -295,35 +295,61 @@ struct PopupButton: View {
 
     var body: some View {
         Group {
-            let open = { PopoverMenu.show(menu(), below: anchor.view) }
-            if size == .small {
-                Button(action: open) { label }.buttonStyle(ChipStyle(on: on))
+            if size == .small, let clear {
+                setChip(clear)
+            } else if size == .small {
+                Button(action: open) { label(chevron: true) }.buttonStyle(ChipStyle(on: on)).modifier(PopupAccessibility(title: title, help: help))
             } else {
-                Button(action: open) { label }.buttonStyle(FieldStyle())
+                Button(action: open) { label(chevron: true) }.buttonStyle(FieldStyle()).modifier(PopupAccessibility(title: title, help: help))
             }
         }
         .background(MenuAnchorView(anchor: anchor))
-        .help(help ?? title)
-        .accessibilityLabel(help ?? title)
-        .accessibilityValue(title)
     }
 
-    private var label: some View {
+    private func open() { PopoverMenu.show(menu(), below: anchor.view) }
+
+    private func label(chevron: Bool) -> some View {
         HStack(spacing: Theme.Space.iconGap) {
             if let icon { IconView(icon: icon, size: Theme.Icon.inline, tint: on ? Theme.ui.accentText : Theme.ui.text2) }
             Text(verbatim: title)
                 .font(mono ? Theme.Typography.mono.font() : size.type.font())
                 .truncationMode(.middle)
-            if let clear {
-                IconView(icon: .close, size: Theme.Icon.inline, tint: Theme.ui.accentText)
-                    .contentShape(Rectangle())
-                    .highPriorityGesture(TapGesture().onEnded(clear))
-                    .help(L10n.gitClearFilter)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel(L10n.gitClearFilter)
-            } else {
-                IconView(icon: .chevronDown, size: Theme.Icon.inline, tint: on ? Theme.ui.accentText : Theme.ui.text2)
-            }
+            if chevron { IconView(icon: .chevronDown, size: Theme.Icon.inline, tint: on ? Theme.ui.accentText : Theme.ui.text2) }
+        }
+    }
+
+    /// A set filter: the value opens the menu, the × beside it is its own button (pointer, Tab, VoiceOver).
+    private func setChip(_ clear: @escaping () -> Void) -> some View {
+        HStack(spacing: Theme.Space.iconGap) {
+            Button(action: open) { label(chevron: false) }
+                .buttonStyle(.plain)
+                .modifier(PopupAccessibility(title: title, help: help))
+            Button(action: clear) { IconView(icon: .close, size: Theme.Icon.inline, tint: Theme.ui.accentText).contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .help(L10n.gitClearFilter)
+                .accessibilityLabel(L10n.gitClearFilter)
+        }
+        .font(Theme.Typography.secondary.font())
+        .foregroundStyle(Theme.ui.accentText)
+        .lineLimit(1)
+        .padding(.horizontal, Theme.Space.s2)
+        .frame(height: Theme.Height.controlSmall)
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(Theme.ui.accent.opacity(Theme.Control.fillOpacity)))
+        .pointingHand()
+    }
+
+    /// Read as a pop-up: the name (its tooltip, else the value), the value when it differs, «opens a menu».
+    private struct PopupAccessibility: ViewModifier {
+        let title: String
+        let help: String?
+
+        func body(content: Content) -> some View {
+            content
+                .help(help ?? title)
+                .accessibilityLabel(help ?? title)
+                .accessibilityValue(help == nil ? "" : title)
+                .accessibilityHint(L10n.opensMenu)
+                .accessibilityAddTraits(.isButton)
         }
     }
 
@@ -482,21 +508,23 @@ func segmentBadge(_ count: Int) -> String? {
 // MARK: Checkbox, switch
 
 /// Checkbox (§3.11, sheets): 14, radius 4; on — `accent` with an `onAccent` tick; off — `field` with a `line2` edge.
-/// The label (if any) is part of the click.
+/// `label` is always its accessible name; `showsLabel` false when the row already shows it (a card row's title).
 struct Checkbox: View {
-    var label: String?
+    let label: String
+    var showsLabel = true
     let on: Bool
     let toggle: (Bool) -> Void
     @Environment(\.isEnabled) private var enabled
 
-    init(_ label: String? = nil, on: Bool, toggle: @escaping (Bool) -> Void) {
+    init(_ label: String, showsLabel: Bool = true, on: Bool, toggle: @escaping (Bool) -> Void) {
         self.label = label
+        self.showsLabel = showsLabel
         self.on = on
         self.toggle = toggle
     }
 
-    init(_ label: String? = nil, isOn: Binding<Bool>) {
-        self.init(label, on: isOn.wrappedValue) { isOn.wrappedValue = $0 }
+    init(_ label: String, showsLabel: Bool = true, isOn: Binding<Bool>) {
+        self.init(label, showsLabel: showsLabel, on: isOn.wrappedValue) { isOn.wrappedValue = $0 }
     }
 
     var body: some View {
@@ -509,15 +537,16 @@ struct Checkbox: View {
                     if on { IconView(icon: .check, size: Theme.Icon.inline, tint: Theme.ui.onAccent) }
                 }
                 .frame(width: Theme.Control.checkbox, height: Theme.Control.checkbox)
-                if let label { Text(verbatim: label).foregroundStyle(Theme.ui.text1) }
+                if showsLabel { Text(verbatim: label).foregroundStyle(Theme.ui.text1) }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
         .pointingHand(enabled)
-        .accessibilityLabel(label ?? "")
+        .accessibilityLabel(label)
         .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
+        .accessibilityAddTraits(.isToggle)
     }
 }
 

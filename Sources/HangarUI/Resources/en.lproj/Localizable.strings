@@ -461,6 +461,7 @@
 "gitResizeHelp" = "Drag to resize";
 "gitAheadBehind" = "↑%d ahead, ↓%d behind %@";
 "gitClearFilter" = "Clear filter";
+"opensMenu" = "Opens a menu";
 "gitFound" = "%d";
 "gitFoundMore" = "%d+";
 "sessionsTitle" = "Sessions";

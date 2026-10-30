@@ -154,7 +154,7 @@ import Workspace
         case segmentGit, showGit, gitBranch, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
         case gitCommits, gitCopyHash, gitParents, gitNoCommits, gitNothingFound, gitYesterday, gitTodayAt, gitYesterdayAt
-        case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore
+        case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore, opensMenu
         case sessionsNoMatch, sessionsTitle, sessionsYesterday, sessionsSearch, sessionsAll, sessionsGo, sessionsMarkerOpen
         case sessionsMessages, sessionsLoading, sessionsOffline, sessionsUntitled, sessionsTabOne, sessionsTabFew, sessionsTabMany
         case sessionsMore, sessionsMarkerArchived, sessionsMarkerHistory, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
@@ -772,6 +772,7 @@ import Workspace
         f(.gitAheadBehind, Int32(clamping: ahead), Int32(clamping: behind), upstream)
     }
     static var gitClearFilter: String { s(.gitClearFilter) }
+    static var opensMenu: String { s(.opensMenu) }
     /// The search field's count: «3», or «200+» while more pages exist.
     static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab

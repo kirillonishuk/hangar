@@ -10,6 +10,7 @@ struct CardRow<Value: View>: View {
     var labelWidth = Theme.cardLabelWidth
     var first = false
     @ViewBuilder var value: Value
+    @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         HStack(spacing: Theme.cardRowGap) {
@@ -18,6 +19,7 @@ struct CardRow<Value: View>: View {
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1)
                 .frame(width: labelWidth, alignment: .leading)
+                .opacity(enabled ? 1 : Theme.Control.disabledOpacity)  // its controls dim themselves
             HStack(spacing: Theme.pickGap) { value }
         }
         .lineLimit(1)

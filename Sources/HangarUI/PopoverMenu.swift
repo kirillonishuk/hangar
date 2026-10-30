@@ -42,8 +42,6 @@ struct PopoverMenuItem {
         self.action = action
     }
 
-    /// Takes the icon slot (all items of a menu keep the slot when one does).
-    var hasLeading: Bool { icon != nil || checked || file != nil }
 }
 
 enum PopoverMenuEntry: Equatable {
@@ -157,6 +155,31 @@ func menuInitialHighlight(_ entries: [PopoverMenuEntry], highlightFirst: Bool, p
     return menuStep(entries, from: nil, by: 1)
 }
 
+/// The columns and height a menu's entries need, worked out once per open / text change (not per hover).
+struct PopoverMenuLayout: Equatable {
+    /// A column of checks before the icons: some item is checked and items have their own icons («все вкладки»,
+    /// a path pick). Without icons the check takes the icon's place.
+    var checkColumn = false
+    var iconColumn = false
+    /// The list's natural height (items and headers `row.list`, separators 1 + 6 + 6), before the scroll cap.
+    var height: CGFloat = 0
+
+    init(_ entries: [PopoverMenuEntry]) {
+        let icons = entries.contains { $0.item.map { $0.icon != nil || $0.file != nil } == true }
+        let checks = entries.contains { $0.item?.checked == true }
+        checkColumn = checks && icons
+        iconColumn = icons || checks
+        height = entries.reduce(0) { sum, e in
+            if case .separator = e { return sum + 1 + 2 * Theme.menuPadding }
+            return sum + Theme.Height.rowList
+        }
+    }
+
+    init() {}
+
+    static let maxHeight = CGFloat(Theme.menuListMaxRows) * Theme.Height.rowList
+}
+
 // MARK: Panel
 
 /// The one menu (spec §3.12), one at a time: a borderless key panel; ↑/↓, ↩, Esc; closes on a pick, Esc or losing key
@@ -235,6 +258,37 @@ func menuInitialHighlight(_ entries: [PopoverMenuEntry], highlightFirst: Bool, p
 @MainActor @Observable final class PopoverMenuState {
     var highlighted: Int?
     var query = ""
+    /// The entries for `query`, built once per change (and again when the data they read changes).
+    private(set) var entries: [PopoverMenuEntry] = []
+    private(set) var layout = PopoverMenuLayout()
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var content: PopoverMenuContent?
+    /// After each rebuild (the panel refits itself).
+    @ObservationIgnored var changed: () -> Void = {}
+
+    /// Rebuilds the entries, watching what they read (authors arriving, a branch list) to rebuild once more.
+    func refresh(_ content: PopoverMenuContent) {
+        self.content = content
+        rebuild()
+    }
+
+    private func rebuild() {
+        guard let content else { return }
+        generation += 1
+        let mine = generation
+        let entries = withObservationTracking { content.entries(query) } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.generation == mine else { return }
+                    self.rebuild()
+                }
+            }
+        }
+        self.entries = entries
+        layout = PopoverMenuLayout(entries)
+        if let h = highlighted, !entries.indices.contains(h) || entries[h].item?.enabled != true { highlighted = nil }
+        changed()
+    }
 }
 
 final class PopoverMenuPanel: NSPanel {
@@ -250,17 +304,18 @@ final class PopoverMenuPanel: NSPanel {
         level = .popUpMenu
         isReleasedWhenClosed = false
         hidesOnDeactivate = true
+        menuState.query = content.search?.text ?? ""
+        menuState.refresh(content)
         if let search = content.search {
-            menuState.query = search.text
-            menuState.highlighted = menuInitialHighlight(content.entries(search.text), highlightFirst: search.highlightFirst, preferChecked: true)
+            menuState.highlighted = menuInitialHighlight(entries, highlightFirst: search.highlightFirst, preferChecked: true)
         }
-        let host = MenuHostingView(rootView: PopoverMenuView(content: content, state: menuState, panel: self))
+        let host = NSHostingView(rootView: PopoverMenuView(content: content, state: menuState, panel: self))
         host.sizingOptions = [.intrinsicContentSize]
-        host.resized = { [weak self] in self?.fitContent() }
         contentView = host
+        menuState.changed = { [weak self] in self?.fitContent() }
     }
 
-    var entries: [PopoverMenuEntry] { content.entries(menuState.query) }
+    var entries: [PopoverMenuEntry] { menuState.entries }
 
     override var canBecomeKey: Bool { true }
 
@@ -269,11 +324,14 @@ final class PopoverMenuPanel: NSPanel {
         PopoverMenu.panelResigned(self)
     }
 
-    /// A search menu's list grows and shrinks as you type: the top edge stays where it opened.
+    /// The list grows and shrinks with the text: the top edge stays where it opened. Measured only when the entries
+    /// change, never on hover.
     private func fitContent() {
-        guard let size = contentView?.fittingSize, size != frame.size else { return }
-        setFrame(NSRect(x: frame.minX, y: frame.maxY - size.height, width: size.width, height: size.height), display: true)
-        invalidateShadow()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let size = self.contentView?.fittingSize, size != self.frame.size else { return }
+            self.setFrame(NSRect(x: self.frame.minX, y: self.frame.maxY - size.height, width: size.width, height: size.height), display: true)
+            self.invalidateShadow()
+        }
     }
 
     func move(_ step: Int) { menuState.highlighted = menuStep(entries, from: menuState.highlighted, by: step) }
@@ -288,6 +346,7 @@ final class PopoverMenuPanel: NSPanel {
 
     func queryChanged() {
         guard let search = content.search else { return }
+        menuState.refresh(content)
         menuState.highlighted = menuInitialHighlight(entries, highlightFirst: search.highlightFirst, preferChecked: false)
     }
 
@@ -304,17 +363,6 @@ final class PopoverMenuPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { PopoverMenu.close() }
 }
 
-/// Tells the panel when the SwiftUI content changes size.
-private final class MenuHostingView<Content: View>: NSHostingView<Content> {
-    var resized: (() -> Void)?
-
-    override func invalidateIntrinsicContentSize() {
-        super.invalidateIntrinsicContentSize()
-        let resized = resized
-        DispatchQueue.main.async { resized?() }
-    }
-}
-
 /// `bg2`, a `line2` edge, `radius.popover`, padding 6; items 24 (`row.list`, padding 8, radius 6, icon 14, `body`),
 /// the key `secondary` `text3` on the right; under the pointer or the keys `selectedFocus` + `onAccent`; a group
 /// header 24 `caption` 600 `text3`; separators `line2` with 6 around.
@@ -325,8 +373,8 @@ struct PopoverMenuView: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Radius.popover)
-        let entries = content.entries(state.query)
-        let leading = entries.contains { $0.item?.hasLeading == true }
+        let entries = state.entries
+        let layout = state.layout
         VStack(spacing: 0) {
             if let search = content.search {
                 PickerSearchField(text: Binding(get: { state.query }, set: { state.query = $0; panel?.queryChanged() }),
@@ -338,14 +386,17 @@ struct PopoverMenuView: View {
             if !entries.isEmpty {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical) {
-                        VStack(spacing: 0) {
-                            ForEach(entries.indices, id: \.self) { i in entry(entries[i], index: i, leading: leading).id(i) }
+                        // Lazy: a thousand branches build only the rows on screen.
+                        LazyVStack(spacing: 0) {
+                            ForEach(entries.indices, id: \.self) { i in entry(entries[i], index: i, layout: layout).id(i) }
                         }
                     }
-                    .frame(maxHeight: CGFloat(Theme.menuListMaxRows) * Theme.Height.rowList)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: min(layout.height, PopoverMenuLayout.maxHeight))
                     .scrollIndicators(.automatic)
-                    .onChange(of: state.highlighted) { _, i in if let i { proxy.scrollTo(i) } }
+                    // On open the checked / highlighted item is in view; then the keys keep theirs in view.
+                    .onChange(of: state.highlighted, initial: true) { _, i in
+                        if let i { proxy.scrollTo(i) } else if let c = entries.firstIndex(where: { $0.item?.checked == true }) { proxy.scrollTo(c) }
+                    }
                 }
             }
         }
@@ -357,9 +408,9 @@ struct PopoverMenuView: View {
         .environment(\.colorScheme, .dark)
     }
 
-    @ViewBuilder private func entry(_ entry: PopoverMenuEntry, index: Int, leading: Bool) -> some View {
+    @ViewBuilder private func entry(_ entry: PopoverMenuEntry, index: Int, layout: PopoverMenuLayout) -> some View {
         switch entry {
-        case .item(let item): row(item, index: index, leading: leading)
+        case .item(let item): row(item, index: index, layout: layout)
         case .separator:
             Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.vertical, Theme.menuPadding)
         case .header(let text):
@@ -371,25 +422,28 @@ struct PopoverMenuView: View {
         }
     }
 
-    private func row(_ item: PopoverMenuItem, index: Int, leading: Bool) -> some View {
+    private func row(_ item: PopoverMenuItem, index: Int, layout: PopoverMenuLayout) -> some View {
         let on = state.highlighted == index && item.enabled
         let text = item.destructive ? Theme.ui.failedText : on ? Theme.ui.onAccent : Theme.ui.text1
         let side = item.destructive ? Theme.ui.failedText : on ? Theme.ui.onAccent : Theme.ui.text3
         let icon = item.destructive ? Theme.ui.failedText : on ? Theme.ui.onAccent : Theme.ui.text2
         return HStack(spacing: Theme.Space.s2) {
-            if leading {
-                ZStack {
-                    Color.clear  // keeps the slot when the item has no icon
-                    if let file = item.file, !item.checked {
+            if layout.checkColumn {
+                slot { if item.checked { IconView(icon: .check, size: Theme.Icon.row, tint: icon) } }
+            }
+            if layout.iconColumn {
+                slot {
+                    if item.checked && !layout.checkColumn {
+                        IconView(icon: .check, size: Theme.Icon.row, tint: icon)
+                    } else if let file = item.file {
                         FileIconView(name: file.name, isDir: file.isDir).frame(width: Theme.Icon.row, height: Theme.Icon.row)
-                    } else if let glyph = item.checked ? Icon.check : item.icon {
+                    } else if let glyph = item.icon {
                         IconView(icon: glyph, size: Theme.Icon.row, tint: icon)
                             .overlay(alignment: .bottomTrailing) {
                                 if let dot = item.dot { StatusDot(state: dot, size: Theme.Icon.tabDot) }
                             }
                     }
                 }
-                .frame(width: Theme.Icon.row, height: Theme.Icon.row)
             }
             Text(verbatim: item.title).lineLimit(1).truncationMode(.middle)
                 .font(item.mono ? Theme.Typography.mono.font() : Theme.Typography.body.font())
@@ -415,6 +469,11 @@ struct PopoverMenuView: View {
         .help(item.help ?? "")
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(item.checked ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// A 14 pt column that keeps its width when empty.
+    private func slot<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+        ZStack { Color.clear; content() }.frame(width: Theme.Icon.row, height: Theme.Icon.row)
     }
 }
 

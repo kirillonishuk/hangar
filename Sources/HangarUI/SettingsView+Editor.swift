@@ -104,7 +104,6 @@ extension SettingsView {
         VStack(spacing: 0) {
             HStack {
                 Segmented(selection: ed.sample, options: EditorPreviewSample.allCases.map { ($0, $0.title) }) { ed.sample = $0 }
-                    .font(.system(size: Theme.fontSize.segment))
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)

@@ -17,6 +17,7 @@ struct ChooserView: View {
     @MainActor static func hosted(app: AppState, leafId: UUID, focus: @escaping () -> Void) -> NSView {
         let view = NSHostingView(rootView: ChooserView(app: app, leafId: leafId, focus: focus))
         view.sizingOptions = []
+        view.safeAreaRegions = []  // placed by the terminal area, not by the window's titlebar inset
         return view
     }
 

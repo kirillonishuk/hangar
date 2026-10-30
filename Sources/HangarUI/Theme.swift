@@ -158,8 +158,8 @@ extension Theme {
         public static let blockBar: CGFloat = 4
         public static let barGap: CGFloat = 3
         public static let percentWidth: CGFloat = 34
-        /// «5 ч» / «нед» before each sidebar bar.
-        public static let windowLabelWidth: CGFloat = 26
+        /// «5 ч» / «нед» («5h» / «week») before each sidebar bar: fits the longest, so both bars start together.
+        public static let windowLabelWidth: CGFloat = 30
         public static let rowGap: CGFloat = Space.s2
         public static let rowPaddingV: CGFloat = Space.s1
         public static let rowPaddingH: CGFloat = Space.s3

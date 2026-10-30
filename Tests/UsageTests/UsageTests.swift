@@ -79,8 +79,36 @@ private func win(_ p: Double, resets: Double? = 1_760_005_000, kind: WindowKind 
     let w = b.view(.claude, now: now)?.windows ?? []
     #expect(w.map(\.kind) == [.weekly, .session])  // the passed per-model window is gone
     #expect(w.map(\.usedPercent) == [26, 6])
-    // Its reset passed and still no figure: the 5-hour row stays, at 0.
-    #expect(b.view(.claude, now: Date(timeIntervalSince1970: 1_760_005_001))?.windows.last?.usedPercent == 0)
+}
+
+/// Kept after its reset: stored as 0, so the limit it held clears with the next tick.
+@Test func keptWindowPastItsResetIsZeroAndClearsTheLimit() {
+    var b = UsageBoard()
+    _ = b.update(.claude, windows: [win(97), win(50, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: now)
+    _ = b.markLimitReached(.claude, now: now)
+    let later = Date(timeIntervalSince1970: 1_760_005_001)
+    _ = b.update(.claude, windows: [win(51, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: later)
+    let u = b.view(.claude, now: later)
+    #expect(u?.windows.first { $0.kind == .session }?.usedPercent == 0)
+    #expect(u?.limitReached == false)
+}
+
+/// No reset time: how old the figure is can't be told, so it isn't carried over.
+@Test func keptWindowWithoutResetTimeIsDropped() {
+    var b = UsageBoard()
+    _ = b.update(.claude, windows: [win(6, resets: nil), win(25, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: now)
+    _ = b.update(.claude, windows: [win(26, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: now)
+    #expect(b.view(.claude, now: now)?.windows.map(\.kind) == [.weekly])
+}
+
+/// A stale window (reset passed) with the highest stored figure must not give the limit a past reset time.
+@Test func limitResetIgnoresStaleWindows() {
+    var b = UsageBoard()
+    _ = b.update(.claude, windows: [win(99), win(60, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: now)
+    let later = Date(timeIntervalSince1970: 1_760_005_001)
+    _ = b.markLimitReached(.claude, now: later)
+    #expect(b.view(.claude, now: later)?.limitResetsAt == Date(timeIntervalSince1970: 1_760_900_000))
+    #expect(b.view(.claude, now: later)?.limitReached == true)
 }
 
 @Test func noDataHidesAgent() {

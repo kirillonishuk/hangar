@@ -90,13 +90,7 @@ public struct UsageBoard: Equatable, Sendable {
 
     public mutating func update(_ agent: UsageAgent, windows: [UsageWindow], plan: String?, now: Date) -> [UsageAlert] {
         var s = states[agent] ?? State(usage: AgentUsage(windows: [], plan: nil, updatedAt: now))
-        // A tick without a window (Claude Code leaves out one it has no figure for) keeps the last known one, so the
-        // 5-hour row doesn't vanish; a passed reset shows 0 (`view`). Per-model windows go once their reset passed.
-        let kept = s.usage.windows.filter { old in
-            !windows.contains { $0.kind == old.kind }
-                && (old.kind == .session || old.kind == .weekly || (old.resetsAt ?? .distantPast) > now)
-        }
-        s.usage.windows = windows + kept
+        s.usage.windows = windows + keptWindows(s.usage.windows, missingFrom: windows, now: now)
         if let plan { s.usage.plan = plan }
         s.usage.updatedAt = now
         var alerts: [UsageAlert] = []
@@ -117,11 +111,27 @@ public struct UsageBoard: Equatable, Sendable {
         return alerts
     }
 
+    /// A tick without a window (Claude Code leaves out one it has no figure for) keeps the last known one, so the
+    /// 5-hour row doesn't vanish: as it was until its reset, 0 after it. Without a reset time its age is unknown, so
+    /// it goes; per-model windows go once their reset passed.
+    func keptWindows(_ old: [UsageWindow], missingFrom tick: [UsageWindow], now: Date) -> [UsageWindow] {
+        old.compactMap { w in
+            guard !tick.contains(where: { $0.kind == w.kind }), let r = w.resetsAt else { return nil }
+            if r > now { return w }
+            guard w.kind == .session || w.kind == .weekly else { return nil }
+            var reset = w
+            reset.usedPercent = 0
+            return reset
+        }
+    }
+
     public mutating func markLimitReached(_ agent: UsageAgent, now: Date) -> [UsageAlert] {
         var s = states[agent] ?? State(usage: AgentUsage(windows: [], plan: nil, updatedAt: now))
         if let r = s.usage.limitResetsAt, r <= now { s.limitAlerted = false }
         s.usage.limitReached = true
-        s.usage.limitResetsAt = s.usage.windows.max { $0.usedPercent < $1.usedPercent }?.resetsAt
+        // A window whose reset already passed is not what the limit waits for.
+        s.usage.limitResetsAt = s.usage.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
+            .max { $0.usedPercent < $1.usedPercent }?.resetsAt
         s.usage.updatedAt = now
         defer { states[agent] = s }
         guard !s.limitAlerted else { return [] }

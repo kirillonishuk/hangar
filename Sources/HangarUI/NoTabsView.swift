@@ -17,6 +17,7 @@ struct NoTabsView: View {
     @MainActor static func hosted(app: AppState) -> NSView {
         let view = NSHostingView(rootView: NoTabsView(app: app))
         view.sizingOptions = []
+        view.safeAreaRegions = []  // placed by the terminal area, not by the window's titlebar inset
         return view
     }
 

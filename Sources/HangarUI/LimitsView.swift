@@ -170,8 +170,8 @@ struct LimitsBlock: View {
         return HStack(spacing: Theme.Space.s1) {
             Text(kind == .session ? L10n.limitSessionShort : L10n.limitWeekShort)
                 .foregroundStyle(Theme.ui.text3)
-                .lineLimit(1)
-                .frame(width: Theme.Limit.windowLabelWidth, alignment: .leading)
+                .fixedSize()  // never «we…»: a longer word only shortens the bar
+                .frame(minWidth: Theme.Limit.windowLabelWidth, alignment: .leading)
             LimitBar(percent: percent, level: level, height: Theme.Limit.blockBar)
             Text(percent.map(percentText) ?? "—")
                 .monospacedDigit()

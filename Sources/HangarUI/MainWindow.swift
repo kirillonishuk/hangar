@@ -54,6 +54,8 @@ final class TaskColumnController: NSViewController {
         tabBar.safeAreaRegions = []  // laid out by hand under the toolbar, like the toolbar itself
         toast.sizingOptions = [.intrinsicContentSize]
         sessions.sizingOptions = []
+        sessions.safeAreaRegions = []  // starts right under the toolbar, inside the titlebar's safe area on macOS 26
+        toast.safeAreaRegions = []
         sessions.isHidden = true
         for sub in [tabBar, terminalArea, sessions, toast] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false

@@ -487,10 +487,12 @@ struct SidebarView: View {
                             Text(task.name).lineLimit(1).truncationMode(.tail)
                         }
                     }
-                    // The row end keeps its place under the actions (opacity 0): the name gives up only what it doesn't cover.
-                    .padding(.trailing, showActions ? Self.nameHoverPad(endWidth: rowEndWidth(task, state: dot)) : 0)
                     Spacer(minLength: 0)
-                    rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                    // One slot for the row end and, on hover, the pin and «⋯» over it: the name never moves.
+                    ZStack(alignment: .trailing) {
+                        Color.clear.frame(width: Self.rowEndSlot(rowEndWidth(task, state: dot)), height: 1)
+                        rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                    }
                 }
                 .overlay(alignment: .trailing) {
                     taskActions(task, target: target, shown: showActions)
@@ -534,12 +536,10 @@ struct SidebarView: View {
         }
     }
 
-    /// What the name gives up on hover so the pin and «⋯» never cover it: the actions' width less the row end's
-    /// (still laid out, invisible) and its gap; no row end — the whole width.
-    static func nameHoverPad(endWidth: CGFloat?) -> CGFloat {
-        let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
-        guard let endWidth else { return actions }
-        return max(0, actions - endWidth - Theme.rowEndGap)
+    /// The row end's constant width: its own (branch, state word) but at least the pin and «⋯» shown over it on
+    /// hover (less the gap before it), so hovering never moves the name.
+    static func rowEndSlot(_ own: CGFloat?) -> CGFloat {
+        max(own ?? 0, 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang - Theme.rowEndGap)
     }
 
     /// The width `rowEnd` takes: the state word or the branch; nil when it shows nothing.

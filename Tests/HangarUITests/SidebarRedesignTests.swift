@@ -18,12 +18,16 @@ import Workspace
         #expect(SidebarView.branchWidth("feat/oauth") > SidebarView.branchWidth("main"))
     }
 
-    /// Hover: a branch at least as wide as the pin and «⋯» leaves the name as it is; a short one or none gives way.
-    @Test func hoverPadOnlyWhatActionsCover() {
+    /// Hover shifts nothing: the row end's slot is constant and always holds the pin and «⋯» (they start where the
+    /// slot's gap ends), for a short branch, a long one, a state word or none yet.
+    @Test func rowEndSlotHoldsActions() {
         let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
-        #expect(SidebarView.nameHoverPad(endWidth: Theme.rowBranchMax) == 0)
-        #expect(SidebarView.nameHoverPad(endWidth: nil) == actions)
-        #expect(SidebarView.nameHoverPad(endWidth: 20) == actions - 20 - Theme.rowEndGap)
+        for own: CGFloat? in [nil, 0, SidebarView.branchWidth("main"), Theme.rowBranchMax] {
+            let slot = SidebarView.rowEndSlot(own)
+            #expect(slot + Theme.rowEndGap >= actions)  // name's edge stays left of the actions: zero shift on hover
+            #expect(slot >= own ?? 0)
+        }
+        #expect(SidebarView.rowEndSlot(Theme.rowBranchMax) == Theme.rowBranchMax)
     }
 
     // MARK: Plurals and status text

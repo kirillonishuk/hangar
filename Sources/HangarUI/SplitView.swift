@@ -118,7 +118,7 @@ final class FillView: NSView {
     /// Builds the spec of one launch; each relaunch asks again with `.relaunch(previous:exitCode:)`.
     private var make: ((LaunchContext) throws -> (LaunchSpec, LaunchMode))?
     private var mode: LaunchMode?
-    /// Holds the `PaneHeader` once the leaf is in a split (`installHeader`); always present, content goes below it.
+    /// Holds the `PaneHeader` once the leaf is in a split or is an editor (`installHeader`); content goes below it.
     private let header = FillView()
     private let headerLine = NSView()
     private let bar = NSTextField(labelWithString: "")
@@ -448,7 +448,7 @@ final class FillView: NSView {
         }
         var bottom = bounds.height
         if !bar.isHidden {
-            let h = Theme.statusBarHeight
+            let h = Theme.Height.barPane
             bottom -= h
             barLine.frame = NSRect(x: 0, y: bottom, width: bounds.width, height: 1)
             barFill.frame = NSRect(x: 0, y: bottom, width: bounds.width, height: h)
@@ -853,14 +853,16 @@ final class FillView: NSView {
         if case .split = tab.root { isSplit = true } else { isSplit = false }
         for leaf in tab.root.leaves {
             guard let view = leafViews[leaf.id] else { continue }
-            if isSplit {
+            // An editor always has one: its language server and «Миникарта» live there (§3.5).
+            let header = isSplit || leaf.kind == .editor
+            if header {
                 view.installHeader {
                     PaneHeader.hosted(app: app, ctx: { [weak self, app] in self?.actionContext ?? ActionContext(app: app) }, leafId: leaf.id) {
                         [weak self] in self?.focus(leafId: leaf.id)
                     }
                 }
             }
-            view.showsHeader = isSplit
+            view.showsHeader = header
         }
         structure[tab.id] = signature(tab.root)
     }
@@ -908,7 +910,7 @@ final class FillView: NSView {
         }
     }
 
-    /// The file tab on screen for the status bar's tsserver item: the active tab's focused editor, else its first.
+    /// The file tab on screen for the editor header's tsserver item: the active tab's focused editor, else its first.
     var shownEditor: EditorPane? {
         guard let tab = activeTab else { return nil }
         return leafViews[tab.focusedLeafId]?.editor ?? tab.root.leaves.lazy.compactMap { self.leafViews[$0.id]?.editor }.first

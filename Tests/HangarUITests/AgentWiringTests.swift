@@ -260,15 +260,15 @@ import Workspace
         #expect(alerts.count == before + 1)
     }
 
-    /// The window status bar counts what the rows show: agents on a full limit are «на лимите», neither working nor errors.
-    @Test func statusBarCountsTheLimitApart() {
+    /// The rows show what the agents do: agents on a full limit are «на лимите», neither working nor errors.
+    @Test func limitedAgentsShowTheLimit() {
         let app = makeApp([.claude, .claude, .codex])
         app.perform { $0.selectedTaskId = $0.tasks[0].id }
         for n in 0...2 { event(app, tab: n, .prompt) }
         app.handle(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "five_hour", usedPercent: 100, resetsAt: nil)])))
         #expect(app.usage.level(.claude, now: app.usageClock) == .full)
         #expect(app.displayState(ofLeaf: leaf(app, 1).id, kind: .claude) == .limit)
-        #expect(app.statusBar.counts == StatusCounts(working: 1, limited: 2))
+        #expect(app.displayState(ofLeaf: leaf(app, 2).id, kind: .codex) == .working)
     }
 
     /// StopFailure (rate_limit) is «лимит»; a crashed agent stays an error.
@@ -281,26 +281,24 @@ import Workspace
         #expect(app.state(ofLeaf: leaf(app, 1).id) == .failed)
     }
 
-    /// «● 1 ошибка»: a shell's exit (ssh 255 on disconnect) is not counted; a click shows the failing agent's session and the inbox.
-    @Test func errorCounterCountsAgentsAndRevealsTheFailure() throws {
-        let app = makeApp([.shell, .claude])
-        app.perform { $0.selectedTaskId = $0.tasks[0].id }
-        app.signal(.exited(code: 255), leaf: leaf(app, 0).id)
-        #expect(app.state(ofLeaf: leaf(app, 0).id) == .failed)  // the tab keeps its red dot
-        #expect(app.statusBar.counts.failed == 0)
-        app.signal(.exited(code: 1), leaf: leaf(app, 1).id)
-        #expect(app.statusBar.counts.failed == 1)
-        var other = UUID()
+    /// «Следующий работающий чат» (palette): the project's next chat with a working agent, wrapping; none — stays.
+    @Test func nextWorkingChatGoesToTheNextWorkingOne() {
+        let app = makeApp([.claude])
+        var second = UUID(), third = UUID()
         app.perform { s in
-            other = s.addTask(projectId: s.tasks[0].projectId, name: "other")
-            s.addTab(taskId: other, kind: .shell)
-            s.select(taskId: other)
+            second = s.addTask(projectId: s.tasks[0].projectId, name: "second")
+            s.addTab(taskId: second, kind: .shell)
+            third = s.addTask(projectId: s.tasks[0].projectId, name: "third")
+            s.addTab(taskId: third, kind: .shell)
+            s.select(taskId: second)
         }
-        #expect(app.statusBar.counts.failed == 1)  // the project's sessions are counted
-        app.revealFailed()
-        let task = try #require(app.selectedTask)
-        #expect(task.id == app.state.tasks[0].id && task.activeTabId == app.state.tasks[0].tabs[1].id)
-        #expect(app.inboxShown)
+        app.selectNextWorking()
+        #expect(app.state.selectedTaskId == second)  // nobody works
+        event(app, tab: 0, .prompt)
+        app.selectNextWorking()
+        #expect(app.state.selectedTaskId == app.state.tasks[0].id)
+        app.selectNextWorking()
+        #expect(app.state.selectedTaskId == app.state.tasks[0].id)  // the only working one: stays
     }
 
     /// The limit is over (its reset passed): the leaf that stopped on it is no longer «лимит».

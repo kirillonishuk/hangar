@@ -87,7 +87,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
     @ObservationIgnored var onHostConnected: ((String) -> Void)?
-    /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the status bar), by editor leaf (#83).
+    /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the editor header), by editor leaf (#83).
     var editorDirty: Set<UUID> = []
     var editorLanguage: [UUID: LanguageStatus] = [:]
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
@@ -122,14 +122,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.
-    let sessionBadges = SessionBadges()
     /// Live HEAD of each chat (#114).
     let branchModel = BranchModel()
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
-    /// Debug hook: `new` / `sessions` — that top sidebar row drawn as hovered.
-    var debugHoverRow: String?
     /// Debug hook: a tab drag fed to the tab strip as its gesture would (tab, x translation, pointer; nil pointer = end).
     /// An inactive window drops synthetic clicks, so `mouse` can't start one.
     @ObservationIgnored var debugTabDrag: ((UUID, CGFloat, CGPoint?) -> Void)?
@@ -299,7 +296,6 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
         inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
         inspector.onStatusLoad = { [weak self] id in
-            self?.refreshBadge(taskId: id)
             self?.refreshHead(taskId: id)
         }
         search.launcher = { [weak self] q, target, column in await self?.searchLaunch(q, target, gitColumn: column) }
@@ -430,6 +426,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func tabHelpTitle(_ tab: Tab, taskId: UUID) -> String {
         guard case .leaf(let leaf) = tab.root, leaf.kind == .editor, let file = leaf.openFile,
               tab.customTitle == nil else { return tabLabel(tab) }
+        return pathInChat(file, taskId: taskId)
+    }
+
+    /// The file's path from the chat's folder (outside it: the whole path).
+    func pathInChat(_ file: String, taskId: UUID) -> String {
         let root = path(of: .task(taskId)).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         return root.flatMap { file.hasPrefix($0) ? String(file.dropFirst($0.count)) : nil } ?? file
     }
@@ -687,6 +688,17 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         select(taskId: tasks[next].id)
     }
 
+    /// The palette's «Следующий работающий чат»: the selected chat's project's next chat with a working agent
+    /// (after the selected one, wrapping).
+    func selectNextWorking() {
+        guard let task = selectedTask else { return }
+        let tasks = state.tasks(in: task.projectId)
+        let working = Set(tasks.filter { t in
+            (t.tabs.flatMap(\.root.leaves) + [t.drawer.leaf].compactMap { $0 }).contains { displayState(ofLeaf: $0.id, kind: $0.kind) == .working }
+        }.map(\.id))
+        if let next = nextWorking(tasks.map(\.id), working: working, after: task.id), next != task.id { select(taskId: next) }
+    }
+
     func closeLeaf(_ leafId: UUID) {
         guard let loc = location(ofLeaf: leafId) else { return }
         perform { $0.closeLeaf(taskId: loc.task, tabId: loc.tab, leafId: leafId) }
@@ -883,4 +895,10 @@ func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
 func tabIndex(number n: Int, count: Int) -> Int? {
     let i = n == 9 ? count - 1 : n - 1
     return (0..<count).contains(i) ? i : nil
+}
+
+/// The first id after `after` (wrapping) that is in `working`.
+func nextWorking(_ ids: [UUID], working: Set<UUID>, after: UUID?) -> UUID? {
+    let start = after.flatMap { ids.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
+    return (0..<ids.count).lazy.map { ids[(start + $0) % ids.count] }.first { working.contains($0) }
 }

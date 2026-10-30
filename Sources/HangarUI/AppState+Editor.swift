@@ -26,7 +26,7 @@ extension AppState {
 }
 
 extension AppState {
-    /// The status bar's tsserver item: restart (or look for TypeScript again) for the file tab's file.
+    /// The editor header's tsserver item: restart (or look for TypeScript again) for the file tab's file.
     func restartLanguage(leafId: UUID) {
         guard let path = editorLeaf(leafId)?.openFile else { return }
         languages.restart(path, host: remoteLeafHost(leafId))

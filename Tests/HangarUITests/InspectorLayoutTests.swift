@@ -6,8 +6,8 @@ import Testing
 @MainActor @Suite struct InspectorLayoutTests {
     @Test func widthClamped() {
         #expect(clampInspectorWidth(1000) == 420)
-        #expect(clampInspectorWidth(100) == 300)
-        #expect(clampInspectorWidth(340) == 340)
+        #expect(clampInspectorWidth(100) == 280)
+        #expect(clampInspectorWidth(320) == 320)
     }
 
     @Test func inspectorStrings() {

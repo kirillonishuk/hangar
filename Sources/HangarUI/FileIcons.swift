@@ -112,14 +112,15 @@ struct FileIconView: View {
     let name: String
     var isDir = false
     var expanded = false
+    var size = Theme.iconSize
 
     var body: some View {
         if let image = FileIconImages.image(name: name, isDir: isDir, expanded: expanded) {
-            Image(nsImage: image).renderingMode(.original).resizable().frame(width: Theme.iconSize, height: Theme.iconSize)
+            Image(nsImage: image).renderingMode(.original).resizable().frame(width: size, height: size)
         } else if isDir {
-            IconView(icon: .project)
+            IconView(icon: .project, size: size)
         } else {
-            Color.clear.frame(width: Theme.iconSize, height: Theme.iconSize)
+            Color.clear.frame(width: size, height: size)
         }
     }
 }

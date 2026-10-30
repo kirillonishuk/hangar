@@ -1,3 +1,4 @@
+import AgentStatus
 import SwiftUI
 import Workspace
 
@@ -46,14 +47,13 @@ struct SidebarView: View {
             // Row highlights keep their inset from the visible edges, also while laid out wider than shown.
             let inset = collapsed ? Theme.railInset : Theme.rowInset
             VStack(spacing: 0) {
-                Color.clear.frame(height: Theme.sidebarTopGap)
-                newTaskRow
-                sessionsRow
+                // The toolbar's sidebar head (traffic lights, the toggle) is drawn over this.
+                Color.clear.frame(height: Theme.Height.barToolbar)
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
                         if !app.state.attentionOnly { pinnedSection }
-                        hostsSection
                         projectsSection
+                        hostsSection
                     }
                     .padding(.bottom, Theme.sectionGap)
                 }
@@ -78,42 +78,6 @@ struct SidebarView: View {
         #else
         false
         #endif
-    }
-
-    // MARK: Top
-
-    private func forcedHoverRow(_ name: String) -> Bool {
-        #if DEBUG
-        app.debugHoverRow == name
-        #else
-        false
-        #endif
-    }
-
-    /// A plain row like «Сессии»; only the `+` is accent. The shortcut lives in the tooltip.
-    private var newTaskRow: some View {
-        HoverRow(action: { ctx.newTask(nil) }, forceHover: forcedHoverRow("new")) { _ in
-            GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
-                IconView(icon: .add, tint: Theme.ui.accentText)
-            } expanded: {
-                Text(L10n.newTask).foregroundStyle(Theme.ui.text1)
-            } rail: { EmptyView() }
-        }
-        .padding(.top, Theme.newTaskTop)
-        .help(L10n.help(L10n.newTaskHelp, .newTask))
-    }
-
-    /// «Сессии»: the history of sessions, closed ones included (the АРХИВ section's successor).
-    private var sessionsRow: some View {
-        HoverRow(selected: app.sessionsViewVisible, action: { app.showSessionsView() }, forceHover: forcedHoverRow("sessions")) { _ in
-            GutterRow(collapsed: collapsed, trailing: Theme.rowEndTrailing) {
-                IconView(icon: .history, active: app.sessionsViewVisible)
-            } expanded: {
-                Text(L10n.sessionsView)
-                    .foregroundStyle(app.sessionsViewVisible ? Theme.ui.onAccent : Theme.ui.text1)
-            } rail: { EmptyView() }
-        }
-        .help(L10n.help(L10n.sessionsViewHelp, .sessions))
     }
 
     // MARK: Pinned
@@ -188,7 +152,7 @@ struct SidebarView: View {
         let known = app.sshHosts.contains(host)
         return HoverRow(action: { if known { popUpMenu(items) } else { app.showHostShell(host) } }) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing) {
-                IconView(icon: .sshHost, size: Theme.hostIconSize)
+                IconView(icon: .sshHost, size: Theme.Icon.toolbar)
                     .overlay(alignment: .topTrailing) {
                         // The same corner dot as a rail monogram's: visible in both modes, nothing moves.
                         Circle().fill(Theme.ui.waiting)
@@ -205,7 +169,7 @@ struct SidebarView: View {
                     Spacer(minLength: 0)
                     if known {
                         Text(hostStatusLabel(info)).lineLimit(1)
-                            .font(Theme.Typography.secondary.font())
+                            .font(Theme.Typography.caption.font())
                             .foregroundStyle(Theme.ui.text3)
                             .opacity(hover ? 0 : 1)
                     }
@@ -308,10 +272,10 @@ struct SidebarView: View {
         case .task(let id):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return nil }
             let ids = app.groupTasks(task.projectId).map(\.id)
-            return (ids, ids.map { _ in Theme.sessionRowHeight })
+            return (ids, ids.map { _ in Theme.Height.rowSidebar })
         case .project:
             let heights = app.state.projects.map { p in
-                Theme.railRowHeight + Theme.sessionRowHeight * CGFloat(p.collapsed ? 0 : app.groupTasks(p.id).count)
+                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count))
                     + (!p.collapsed && showsArchivedHint(p) ? Theme.archivedHintHeight : 0)
             }
             return (app.state.projects.map(\.id), heights)
@@ -361,7 +325,8 @@ struct SidebarView: View {
         })
     }
 
-    /// Group header, 32: chevron in the gutter, name 13.5 semibold; «⋯» and «+» on hover, on the highlight itself.
+    /// Project, 28 (§3.3): folder 16, name `body`; folded — its chats' most urgent dot and a chevron at the end;
+    /// «⋯» and «+» on hover, on the highlight itself.
     private func projectRow(_ project: Project) -> some View {
         // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
         let exists = app.isAvailable(project)
@@ -377,21 +342,21 @@ struct SidebarView: View {
                         onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd,
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                IconView(icon: project.collapsed ? .chevronRight : .chevronDown, tint: Theme.ui.text3)
+                IconView(icon: .project, size: Theme.Icon.toolbar)
             } expanded: {
                 HStack(spacing: 0) {
                     Group {
                         if renaming {
                             RenameField(app: app, target: target)
                         } else {
-                            Text(project.name).foregroundStyle(Theme.ui.text0).lineLimit(1)
+                            Text(project.name).foregroundStyle(Theme.ui.text1).lineLimit(1)
                         }
                     }
-                    .font(Theme.Typography.body.font(.semibold))
+                    .font(Theme.Typography.body.font())
                     // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
                     if let host = project.host, !renaming {
                         HStack(spacing: Theme.railInset) {
-                            IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
+                            IconView(icon: .sshHost, size: Theme.Icon.inline, tint: Theme.ui.text3)
                             Text(verbatim: host).lineLimit(1).truncationMode(.middle)
                                 .font(Theme.Typography.secondary.font())
                                 .foregroundStyle(Theme.ui.text3)
@@ -417,6 +382,11 @@ struct SidebarView: View {
                         .opacity(hover ? 0 : 1)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(L10n.statusLabel(folded.state))
+                    }
+                    if project.collapsed {
+                        IconView(icon: .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text3)
+                            .padding(.leading, Theme.rowEndGap)
+                            .opacity(hover ? 0 : 1)
                     }
                 }
                 .padding(.trailing, hover ? 2 * Theme.rowActionSize : 0)
@@ -470,7 +440,7 @@ struct SidebarView: View {
                 .disabled(!app.isAvailable(project))
         }
         .font(Theme.Typography.secondary.font())
-        .padding(.leading, Theme.gutterTextX + Theme.sessionIndent - Theme.rowStatusGap)
+        .padding(.leading, Theme.chatTextX + Theme.chatIndent - Theme.rowStatusGap)
         .padding(.trailing, Theme.sessionRowTrailing)
         .frame(maxWidth: .infinity, minHeight: Theme.archivedHintHeight, maxHeight: Theme.archivedHintHeight, alignment: .leading)
     }
@@ -488,14 +458,12 @@ struct SidebarView: View {
 
     // MARK: Sessions
 
-    /// Two lines, 44: name with the `+N −M` badge, then the status («ждёт · 1 агент»). On hover pin and «⋯»
-    /// fade in where the badge was (it fades out): no box of their own, nothing moves.
+    /// One line, 28 (§3.3): dot, name, and at the end what needs action — «ждёт ответа», «ошибка», «на лимите» —
+    /// else the live branch (`mono` 11 `text3`). On hover pin and «⋯» take the end's place: nothing moves.
     private func taskRow(_ task: HangarTask) -> some View {
-        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «История» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
-        let badge = app.diffBadge(of: task)
-        let worktree = if case .worktree = task.mode { true } else { false }
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         let handlers = app.state.attentionOnly ? nil : dragHandlers(target)
@@ -507,31 +475,26 @@ struct SidebarView: View {
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd,
                         forceHover: forcedHover(target)) { hover in
             let showActions = hover && app.renaming != target
-            GutterRow(collapsed: collapsed, height: Theme.sessionRowHeight, indent: Theme.sessionIndent, trailing: Theme.sessionRowTrailing,
-                      railReplacesMarker: true,
-                      markerDY: Theme.sessionRowPaddingV + Theme.sessionNameLine / 2 - Theme.sessionRowHeight / 2) {
+            GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent, trailing: Theme.sessionRowTrailing,
+                      railReplacesMarker: true) {
                 StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
             } expanded: {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: Theme.rowSlotGap) {
-                        Group {
-                            if app.renaming == target {
-                                RenameField(app: app, target: target)
-                            } else {
-                                Text(task.name).lineLimit(1).truncationMode(.tail)
-                            }
+                HStack(spacing: Theme.rowEndGap) {
+                    Group {
+                        if app.renaming == target {
+                            RenameField(app: app, target: target)
+                        } else {
+                            Text(task.name).lineLimit(1).truncationMode(.tail)
                         }
-                        // Without a badge the actions cover the name's end: it truncates earlier instead.
-                        .padding(.trailing, showActions && badge == nil ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
-                        Spacer(minLength: 0)
-                        if let badge { DiffBadgeView(badge: badge).opacity(showActions ? 0 : 1) }
                     }
-                    .frame(height: Theme.sessionNameLine)
-                    .overlay(alignment: .trailing) {
-                        taskActions(task, target: target, shown: showActions)
-                            .offset(x: Theme.rowActionsOverhang)
-                    }
-                    SessionStatusLine(status: app.sessionStatus(of: task), worktree: worktree, muted: task.muted)
+                    .padding(.trailing, showActions ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
+                    .layoutPriority(1)  // the name first; the branch takes what is left, up to its 92
+                    Spacer(minLength: 0)
+                    rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                }
+                .overlay(alignment: .trailing) {
+                    taskActions(task, target: target, shown: showActions)
+                        .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
@@ -542,9 +505,33 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
-        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task).text)
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        .onAppear { app.requestBadge(task) }
+        .onAppear { app.requestHead(task) }
+        // A window focus reloads only the rows on screen (BranchModel).
+        .onDisappear { app.hideHead(task) }
+    }
+
+    /// The row's end: the state word when it needs action, else the branch (nothing until it is known).
+    @ViewBuilder private func rowEnd(_ task: HangarTask, state: AgentState, selected: Bool) -> some View {
+        switch state {
+        case .waiting, .failed, .limit:
+            Text(L10n.rowStatus(state))
+                .font(Theme.Typography.caption.font())
+                .foregroundStyle(selected ? Theme.ui.onAccent : state == .failed ? Theme.ui.failedText : Theme.ui.waiting)
+                .lineLimit(1)
+                .fixedSize()
+        case .working, .done, .idle:
+            if let branch = app.head(of: task)?.title ?? task.branch {
+                Text(verbatim: branch)
+                    .font(Theme.Typography.monoSmall.font())
+                    .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: Theme.rowBranchMax, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
@@ -559,30 +546,39 @@ struct SidebarView: View {
         .allowsHitTesting(shown)
     }
 
-    // MARK: Bottom bar
+    // MARK: Footer
 
+    /// Limits (when any agent has data), then the footer 44 (§3.3): «Новый чат», «История» (lit while shown) and
+    /// «Настройки» as icons, their names and keys in the tooltips; stacked in the rail.
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            // No data for any agent → no block (and no rail tile).
             if !app.limitRows.isEmpty {
                 if collapsed { LimitsRailTile(app: app) } else { LimitsBlock(app: app) }
             }
-            // «Добавить проект» lives only at ПРОЕКТЫ «+» (redesign v1): Settings has no «⋯».
-            HoverRow(action: ctx.openSettings) { _ in
-                GutterRow(collapsed: collapsed, height: Theme.railRowHeight, trailing: Theme.rowEndTrailing) {
-                    IconView(icon: .settings)
-                } expanded: {
-                    Text(L10n.settings)
-                        .font(Theme.Typography.body.font())
-                        .foregroundStyle(Theme.ui.text2)
-                } rail: { EmptyView() }
+            Group {
+                if collapsed {
+                    VStack(spacing: Theme.Space.s1) { footerButtons(spacer: false) }
+                        .padding(.vertical, Theme.Space.s2)
+                        .frame(width: Theme.sidebarRailWidth)
+                } else {
+                    HStack(spacing: Theme.Space.s1) { footerButtons(spacer: true) }
+                        .padding(.horizontal, Theme.Space.s3)
+                        .frame(height: Theme.sidebarFooterHeight)
+                }
             }
-            .help(L10n.help(L10n.settingsHelp, .settings))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         }
-        .padding(.top, Theme.bottomBarTop)
-        .padding(.bottom, Theme.bottomBarBottom)
         .background(Theme.ui.bg1)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+    }
+
+    @ViewBuilder private func footerButtons(spacer: Bool) -> some View {
+        IconButton(icon: .add, size: .regular, help: L10n.help(L10n.newTaskHelp, .newTask)) { ctx.newTask(nil) }
+        IconButton(icon: .history, size: .regular, on: app.sessionsViewVisible, help: L10n.help(L10n.sessionsViewHelp, .sessions)) {
+            app.showSessionsView()
+        }
+        if spacer { Spacer(minLength: 0) }
+        IconButton(icon: .settings, size: .regular, help: L10n.help(L10n.settingsHelp, .settings), action: ctx.openSettings)
     }
 }
 

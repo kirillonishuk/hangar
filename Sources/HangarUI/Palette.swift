@@ -107,7 +107,7 @@ let paletteFileCap = 5000
 var paletteCommands: [Shortcut] {
     [.newTask, .addProject, .newTab, .closeTab, .splitRight, .splitDown, .archiveTask, .rename,
      .prevTask, .nextTask, .prevTab, .nextTab, .toggleSidebar, .toggleInspector, .inspectorFiles, .inspectorChanges, .inspectorGit, .findInFiles,
-     .toggleDrawer, .limits, .revealInFinder, .copyPath, .attentionFilter, .nextAttention, .sessions, .settings]
+     .toggleDrawer, .limits, .revealInFinder, .copyPath, .attentionFilter, .nextAttention, .nextWorking, .sessions, .settings]
 }
 
 /// Files of the inspector's already loaded tree, shallow first, at most `cap` (no disk access).

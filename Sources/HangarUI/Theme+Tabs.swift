@@ -29,7 +29,7 @@ extension Theme {
     /// A mouse wheel notch (line) scrolls the bar this far.
     public static let tabWheelLine: CGFloat = 16
     /// Every tab (plain, file, preview, diff, renaming) is this tall: the active one never stands out by a pixel.
-    public static let tabHeight: CGFloat = 28
+    public static let tabHeight: CGFloat = Height.tab
     /// While dragging a tab this close to the bar's edge, each move scrolls the bar by `tabDragScrollStep`.
     public static let tabDragScrollEdge: CGFloat = 32
     public static let tabDragScrollStep: CGFloat = 12

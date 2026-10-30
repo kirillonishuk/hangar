@@ -131,6 +131,13 @@
 "branchRequired" = "Введите имя ветки";
 "branchInvalid" = "Недопустимое имя ветки";
 "branchExists" = "Ветка «%@» уже существует";
+"branchDirty" = "Есть незакоммиченные изменения (%@).";
+"branchDirtyHint" = "Переключиться можно после коммита или stash.";
+"branchDirtyNewHint" = "Новая ветка возьмёт изменения с собой.";
+"branchCheckedOutInChat" = "Ветка «%1$@» открыта в чате «%2$@»: одна ветка не может быть в двух папках сразу.";
+"branchCheckedOutAt" = "Ветка «%1$@» открыта в другой папке: %2$@";
+"branchIgnoredOverwrite" = "Ветка хранит файлы, которые здесь игнорируются, — git молча заменит их: %@. Перенесите их и попробуйте снова.";
+"branchOperationInProgress" = "Не закончен git %@: завершите или отмените его, затем переключайтесь.";
 "fetchFailed" = "git fetch не удался";
 "createWithoutFetch" = "Создать без fetch";
 "fetchCancelled" = "fetch отменён";

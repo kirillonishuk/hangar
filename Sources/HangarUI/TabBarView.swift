@@ -144,7 +144,7 @@ struct TabBarView: View {
         }
         .frame(height: Theme.tabBarHeight)
         .background(WindowDragArea())
-        .background(Theme.ui.tabStrip)
+        .background(Theme.ui.bg1)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         .ignoresSafeArea()
         .onChange(of: activeKey) { reveal() }
@@ -224,8 +224,8 @@ struct TabBarView: View {
                     // Neighbours part to open the slot; the dragged tab itself tracks the pointer, unanimated.
                     .offset(x: shifts?[i] ?? paneSlot.map { i >= $0 ? gap : 0 } ?? 0)
                     .offset(x: drag?.tab == tab.id ? dragDX ?? 0 : 0)
-                    .opacity(drag?.tab == tab.id ? Theme.tabDragOpacity : 1)
-                    .shadow(color: Theme.ui.bg.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
+                    .opacity(drag?.tab == tab.id ? Theme.Opacity.inactive : 1)
+                    .shadow(color: Theme.ui.bg0.opacity(drag?.tab == tab.id && !paneMode ? Theme.paneDragGhostShadowOpacity : 0),
                             radius: Theme.paneDragGhostShadowRadius)
                     .zIndex(drag?.tab == tab.id ? 1 : 0)
             }
@@ -278,13 +278,13 @@ struct TabBarView: View {
     /// Where a dragged tab or pane will land: an `accent` outline.
     private func slotOutline(width: CGFloat) -> some View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
-        return shape.fill(Theme.ui.accent.opacity(Theme.tabDropSlotFillOpacity))
+        return shape.fill(Theme.ui.accent.opacity(Theme.Opacity.fill))
             .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
             .frame(width: width)
     }
 
     private func fade(_ edge: HorizontalEdge, visible: Bool) -> some View {
-        LinearGradient(colors: [Theme.ui.tabStrip, Theme.ui.tabStrip.opacity(0)],
+        LinearGradient(colors: [Theme.ui.bg1, Theme.ui.bg1.opacity(0)],
                        startPoint: edge == .leading ? .leading : .trailing, endPoint: edge == .leading ? .trailing : .leading)
             .frame(width: Theme.tabFadeWidth)
             .opacity(visible ? 1 : 0)
@@ -427,15 +427,15 @@ private struct TabCloseButton: View {
         Button(action: action) {
             ZStack {
                 IconView(icon: .close, active: active || hover, size: Theme.smallIconSize).opacity(dirty && !hover ? 0 : 1)
-                Circle().fill(active ? Theme.ui.textStrong : Theme.ui.text2).frame(width: Theme.statusDot, height: Theme.statusDot)
+                Circle().fill(active ? Theme.ui.text0 : Theme.ui.text2).frame(width: Theme.statusDot, height: Theme.statusDot)
                     .opacity(dirty && !hover ? 1 : 0)
             }
             .padding(Theme.tabCloseInset)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
-        .environment(\.hoverPalette, .strong)
+        .environment(\.hoverPalette, .raised)
         .onHover { h in hover = h }
-        .opacity(hover || dirty ? 1 : tabHover ? Theme.closeOpacity : 0)
+        .opacity(hover || dirty ? 1 : tabHover ? Theme.Opacity.inactive : 0)
         // The hover box grows into the tab's padding, so the tab keeps its size.
         .padding(.vertical, -Theme.tabCloseInset)
         .padding(.leading, Theme.rowEndGap - Theme.tabCloseInset)
@@ -444,19 +444,14 @@ private struct TabCloseButton: View {
     }
 }
 
-/// Active tab: `tabActive` fill and a 2 pt `accent` line on top (DESIGN «Полоса вкладок»); others: `tabInactive`, `hover` under the pointer.
+/// Active tab: `hover2` (spec §3.4); others: no fill on the `bg1` strip, `hover` under the pointer.
 private struct TabBackground: View {
     let active: Bool
     let hover: Bool
 
     var body: some View {
-        let shape = UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
-        // The line is the accent shape showing above the fill: even along the top and round at the corners, not a clipped bar.
-        shape.fill(Theme.ui.accent.opacity(active ? 1 : 0))
-            .overlay(alignment: .bottom) {
-                shape.fill(active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive)
-                    .padding(.top, active ? Theme.tabActiveLine : 0)
-            }
+        UnevenRoundedRectangle(topLeadingRadius: Theme.tabRadius, topTrailingRadius: Theme.tabRadius)
+            .fill(active ? Theme.ui.hover2 : hover ? Theme.ui.hover : .clear)
     }
 }
 
@@ -501,7 +496,7 @@ struct TabItem: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if app.showsDot(tab, state: dot) {
-                    StatusDot(state: dot, size: Theme.railDot, border: active ? Theme.ui.activeSegment : hover ? Theme.ui.hover : Theme.ui.tabInactive,
+                    StatusDot(state: dot, size: Theme.railDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
                               borderWidth: Theme.railDotBorder)
                         .offset(x: Theme.tabDotOffset, y: Theme.tabDotOffset)
                         .help(app.statusText(dot, leaves: tab.root.leaves))
@@ -521,7 +516,7 @@ struct TabItem: View {
             }
         }
         .font(Theme.Typography.secondary.font())
-        .foregroundStyle(active ? Theme.ui.textStrong : Theme.ui.text2)
+        .foregroundStyle(active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
         .frame(width: width, height: Theme.tabHeight)
@@ -580,7 +575,7 @@ private struct DiffTabItem: View {
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
         .font(Theme.Typography.secondary.font())
-        .foregroundStyle(tab.active ? Theme.ui.textStrong : Theme.ui.text2)
+        .foregroundStyle(tab.active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
         .frame(width: width, height: Theme.tabHeight)

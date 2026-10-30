@@ -13,8 +13,8 @@ extension Theme {
         public static let radius: CGFloat = Theme.Radius.control
         public static let border: CGFloat = 1
         public static let focusRing: CGFloat = Theme.Control.ringWidth
-        public static let focusRingOpacity: Double = Theme.Control.ringOpacity
-        public static let disabledOpacity: Double = Theme.Control.disabledOpacity
+        public static let focusRingOpacity: Double = Theme.Opacity.ring
+        public static let disabledOpacity: Double = Theme.Opacity.inactive
         /// Search glyph before the text, and the gap after it.
         public static let iconSize: CGFloat = Theme.Icon.row
         public static let iconGap: CGFloat = Theme.Space.iconGap
@@ -28,7 +28,7 @@ extension Theme {
 
 extension Theme.ui {
     static var inputBackground: Color { field }
-    static var inputText: Color { text1 }
+    static var inputText: Color { text0 }
     static var inputPlaceholder: Color { text3 }
     static var inputBorder: Color { line2 }
     static var inputFocus: Color { accent }
@@ -64,10 +64,10 @@ struct InputField: ViewModifier {
             .background(shape.fill(Theme.ui.inputBackground))
             .overlay(shape.strokeBorder(edge, lineWidth: Theme.Input.border))
             .background(RoundedRectangle(cornerRadius: Theme.Input.radius + Theme.Input.focusRing)
-                .fill(edge.opacity(focused && !inline ? Theme.Input.focusRingOpacity : 0))
+                .fill(edge.opacity(focused && !inline ? Theme.Opacity.ring : 0))
                 .padding(-Theme.Input.focusRing))
             .padding(.horizontal, inline ? -Theme.Input.inlinePaddingH : 0)
-            .opacity(enabled ? 1 : Theme.Input.disabledOpacity)
+            .opacity(enabled ? 1 : Theme.Opacity.inactive)
             .textCursor()
     }
 

@@ -92,7 +92,7 @@ struct ContinueList: View {
         let title = c.title ?? L10n.sessionsUntitled
         return HStack(spacing: Theme.historyRowGap) {
             IconView(icon: c.agent == .claude ? .claude : .codex)
-            Text(title).foregroundStyle(Theme.ui.text).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
+            Text(title).foregroundStyle(Theme.ui.text1).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
             Text(relativeTime(c.lastActivity)).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3).lineLimit(1).fixedSize()
         }
         .font(Theme.Typography.body.font())

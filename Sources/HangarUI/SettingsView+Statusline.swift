@@ -47,7 +47,7 @@ extension SettingsView {
             .padding(.top, divider ? Theme.cardRowPaddingV : 0)
             .padding(.bottom, Theme.cardRowPaddingV)
             .padding(.horizontal, Theme.cardRowPaddingH)
-            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(divider ? 1 : 0) }
+            .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1).opacity(divider ? 1 : 0) }
     }
 
     private func segmentTitle(_ s: StatuslineSegment) -> String {
@@ -69,7 +69,7 @@ extension SettingsView {
         }
         let path = (note.host.map { $0 + ":" } ?? "") + tildePath(note.path)
         return HStack(spacing: Theme.pickGap) {
-            Text(verbatim: note.name).foregroundStyle(Theme.ui.text).lineLimit(1).layoutPriority(2)
+            Text(verbatim: note.name).foregroundStyle(Theme.ui.text1).lineLimit(1).layoutPriority(2)
             Text(verbatim: path)
                 .font(Theme.Typography.monoSmall.font())
                 .foregroundStyle(Theme.ui.text3)
@@ -110,8 +110,8 @@ struct StatuslinePreview: View {
         .padding(.horizontal, Theme.statuslinePreviewPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statuslinePreviewHeight, alignment: .leading)
         .clipped()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.of(Theme.palette.termBg)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.control, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.of(Theme.palette.bg0)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(mode == .hangar ? L10n.statuslinePreview : L10n.statuslineUserPreview)
     }
@@ -166,8 +166,8 @@ func statuslinePieces(_ line: String) -> [StatuslinePiece] {
 
 @MainActor func statuslineColor(_ tone: AnsiSpan.Tone) -> Color {
     switch tone {
-    case .normal: Theme.ui.text
-    case .dim: Theme.ui.text.opacity(Theme.statuslineFaint)
+    case .normal: Theme.ui.text1
+    case .dim: Theme.ui.text3
     case .yellow: Theme.ui.of(Hex(Theme.palette.ansi[3]))
     case .red: Theme.ui.of(Hex(Theme.palette.ansi[1]))
     }

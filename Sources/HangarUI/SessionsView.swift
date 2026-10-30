@@ -28,7 +28,7 @@ struct SessionsView: View {
             Rectangle().fill(Theme.ui.line).frame(height: 1)
             if let p = model.placeholder { placeholder(p) } else { list }
         }
-        .background(Theme.ui.bg)
+        .background(Theme.ui.bg0)
         .task(id: reloadKey) { await model.reload() }
         .onAppear {
             model.clearPointer()
@@ -48,7 +48,7 @@ struct SessionsView: View {
         HStack(spacing: Theme.historyHeaderGap) {
             Text(L10n.sessionsTitle)
                 .font(Theme.Typography.title.font(.semibold))
-                .foregroundStyle(Theme.ui.textStrong)
+                .foregroundStyle(Theme.ui.text0)
                 .fixedSize()
             // Only remote projects make a scope worth choosing.
             if !app.sessionsHosts.isEmpty { SessionsScopeSegment(app: app, scope: model.scope).fixedSize() }
@@ -157,7 +157,7 @@ struct SessionsView: View {
                     Text(L10n.sessionsLoading).foregroundStyle(Theme.ui.text3)
                 }
             case .offline(let host):
-                Text(L10n.sessionsOffline(host)).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
+                Text(L10n.sessionsOffline(host)).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
                 Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
                 Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary, .small))
             case .empty:
@@ -165,7 +165,7 @@ struct SessionsView: View {
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
-                    .font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
+                    .font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
                 Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(.hangar(.secondary, .small))
             }
         }

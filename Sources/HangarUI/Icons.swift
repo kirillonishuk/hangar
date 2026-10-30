@@ -153,7 +153,7 @@ enum Icon: CaseIterable {
     private var brand: (data: String, tint: NSColor)? {
         switch self {
         case .claude: (BrandLogo.claude, Theme.claudeBrand)
-        case .codex: (BrandLogo.openai, Theme.textStrong)
+        case .codex: (BrandLogo.openai, Theme.text0)
         default: nil
         }
     }
@@ -200,12 +200,12 @@ enum Icon: CaseIterable {
         return image
     }
 
-    static func color(active: Bool) -> NSColor { active ? Theme.textStrong : Theme.text2 }
+    static func color(active: Bool) -> NSColor { active ? Theme.text0 : Theme.text2 }
 
     private struct CacheKey: Hashable {
         let icon: Icon
         let size: CGFloat
-        /// Brand logos are pre-tinted (Codex in `textStrong`): one per theme.
+        /// Brand logos are pre-tinted (Codex in `text0`): one per theme.
         let theme: AppTheme?
     }
 
@@ -288,12 +288,13 @@ enum Stroke: Equatable {
     }
 }
 
-/// SwiftUI icon: template image tinted `text2`, or `textStrong` when active/selected.
+/// SwiftUI icon: template image tinted `text2`, or `text0` when active/selected (`onAccent` in a `selectedFocus` row).
 struct IconView: View {
     let icon: Icon
     var active = false
     var size = Theme.iconSize
     var tint: Color?
+    @Environment(\.rowSelectedText) private var onSelected
 
     var body: some View {
         // Glyphs are drawn at `size` (no scaling, the stroke stays 1.5 pt).
@@ -302,7 +303,7 @@ struct IconView: View {
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
-            .foregroundStyle(tint ?? (active ? Theme.ui.textStrong : Theme.ui.text2))
+            .foregroundStyle(onSelected ?? tint ?? (active ? Theme.ui.text0 : Theme.ui.text2))
     }
 }
 
@@ -323,7 +324,7 @@ struct StatusDot: View {
             }
             .background {
                 if state == .waiting {
-                    Circle().fill(Theme.ui.waiting.opacity(Theme.haloOpacity)).padding(-(borderWidth + Theme.haloWidth))
+                    Circle().fill(Theme.ui.waiting.opacity(Theme.Opacity.ring)).padding(-(borderWidth + Theme.haloWidth))
                 }
             }
             .scaleEffect(scale)
@@ -342,20 +343,24 @@ struct StatusDot: View {
     }
 }
 
-/// Hover/pressed fills for the surface a control sits on: `standard` on `bg`, `sidebar` on `sidebar`/`sheet`
-/// (there `hover` would be darker than the background).
+/// Hover / pressed / selected fills for the surface a control sits on: `standard` on `bg0`/`bg1`; `focus` where the
+/// selected row is the one in focus (the sidebar, menus: `selectedFocus`, text `onAccent`); `raised` on `bg2` and `hover2`,
+/// where `hover` would be darker than the surface. Computed: the colours follow a theme switch.
 struct HoverPalette: Sendable {
     let hover: Color
     let pressed: Color
+    let selected: Color
+    /// Text and icons on `selected` when it isn't a quiet fill (`onAccent` on `selectedFocus`).
+    var selectedText: Color?
 
-    static let standard = HoverPalette(hover: Theme.ui.hover, pressed: Theme.ui.pressed)
-    static let sidebar = HoverPalette(hover: Theme.ui.sidebarHover, pressed: Theme.ui.sidebarPressed)
-    static let sheet = HoverPalette(hover: Theme.ui.sheetHover, pressed: Theme.ui.pressed)
-    static let strong = HoverPalette(hover: Theme.ui.hoverStrong, pressed: Theme.ui.pressed)
+    static var standard: HoverPalette { HoverPalette(hover: Theme.ui.hover, pressed: Theme.ui.hover2, selected: Theme.ui.selected) }
+    static var focus: HoverPalette { HoverPalette(hover: Theme.ui.hover, pressed: Theme.ui.hover2, selected: Theme.ui.selectedFocus,
+                                                  selectedText: Theme.ui.onAccent) }
+    static var raised: HoverPalette { HoverPalette(hover: Theme.ui.buttonHover, pressed: Theme.ui.hover2, selected: Theme.ui.selected) }
 
     /// Rows without an action (section headers, …) get no hover/press fill.
     func fill(selected: Bool, pressed: Bool, hover: Bool, interactive: Bool) -> Color {
-        if selected { return Theme.ui.selection }
+        if selected { return self.selected }
         guard interactive else { return .clear }
         if pressed { return self.pressed }
         return hover ? self.hover : .clear
@@ -363,7 +368,7 @@ struct HoverPalette: Sendable {
 
     /// The opaque color a row shows (its fill over `base`), for overlays that must blend into it.
     func background(selected: Bool, hover: Bool, base: Color) -> Color {
-        selected ? Theme.ui.selection : hover ? self.hover : base
+        selected ? self.selected : hover ? self.hover : base
     }
 }
 
@@ -377,6 +382,8 @@ struct RowHighlight: Sendable {
 extension EnvironmentValues {
     @Entry var hoverPalette = HoverPalette.standard
     @Entry var rowHighlight = RowHighlight()
+    /// Inside a selected `HoverRow` on `selectedFocus`: every text and icon of the row takes this colour.
+    @Entry var rowSelectedText: Color?
 }
 
 /// Rows, tabs and small buttons: hover (lighter, 120 ms fade), pressed slightly darker, selection fades in 150 ms.
@@ -431,6 +438,7 @@ struct HoverRow<Content: View>: View {
     var body: some View {
         let hover = self.hover || forceHover
         content(hover)
+            .environment(\.rowSelectedText, selected ? palette.selectedText : nil)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .background(RoundedRectangle(cornerRadius: highlight.radius)

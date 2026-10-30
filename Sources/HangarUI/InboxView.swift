@@ -83,7 +83,7 @@ struct InboxPopover: View {
         .padding(.vertical, Theme.Inbox.popoverPaddingV)
         .padding(.horizontal, Theme.Inbox.popoverPaddingH)
         .frame(width: Theme.Inbox.popoverWidth)
-        .presentationBackground(Theme.ui.sheet)
+        .presentationBackground(Theme.ui.bg2)
     }
 
     private func list(_ urgent: [AttentionItem], _ done: [AttentionItem]) -> some View {
@@ -91,7 +91,7 @@ struct InboxPopover: View {
             ForEach(urgent) { InboxRow(app: app, item: $0, act: act) }
             if !done.isEmpty {
                 if !urgent.isEmpty {
-                    Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).padding(.horizontal, -Theme.Inbox.popoverPaddingH)
+                    Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.horizontal, -Theme.Inbox.popoverPaddingH)
                 }
                 HStack {
                     Text(L10n.inboxRecentDone).foregroundStyle(Theme.ui.text3)
@@ -141,7 +141,7 @@ private struct InboxRow: View {
                         HStack(spacing: Theme.railInset) {
                             Text(verbatim: n.body)
                                 .font(Theme.Typography.body.font())
-                                .foregroundStyle(Theme.ui.text)
+                                .foregroundStyle(Theme.ui.text1)
                                 .truncationMode(.tail)
                             Spacer(minLength: Theme.Inbox.rowGap)
                             buttons(n, hover: hover)
@@ -176,7 +176,7 @@ private struct InboxRow: View {
     }
 
     /// The banner's buttons under the same conditions (`notice(for:)`'s category): «Разрешить» is the row's one
-    /// filled `primary` action; done rows get «Убрать» only under the pointer (controls-v2 B′).
+    /// filled `accent` action; done rows get «Убрать» only under the pointer (controls-v2 B′).
     @ViewBuilder private func buttons(_ n: AgentNotice, hover: Bool) -> some View {
         switch n.category {
         case .permissionAllow:

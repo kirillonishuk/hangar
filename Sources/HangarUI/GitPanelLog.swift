@@ -52,7 +52,7 @@ struct GitLogRow: View, Equatable {
         let chips = refChips(commit.refs, limit: Theme.GitTab.maxRefs)
         GitRow(selected: selected, action: action) {
             HStack(spacing: Theme.GitTab.rowGap) {
-                GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selection : Theme.ui.inspector)
+                GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selected : Theme.ui.bg1)
                     .frame(width: graphWidth(graph), height: Theme.GitTab.logRow)
                 if !chips.shown.isEmpty {
                     HStack(spacing: Theme.GitTab.refGap) {
@@ -65,7 +65,7 @@ struct GitLogRow: View, Equatable {
                 }
                 subject
                     .font(Theme.Typography.body.font())
-                    .foregroundStyle(selected ? Theme.ui.textStrong : commit.parents.count > 1 ? Theme.ui.text2 : Theme.ui.text)
+                    .foregroundStyle(selected ? Theme.ui.text0 : commit.parents.count > 1 ? Theme.ui.text2 : Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(minWidth: Theme.GitTab.subjectMin, maxWidth: .infinity, alignment: .leading)
@@ -95,8 +95,8 @@ struct GitLogRow: View, Equatable {
         var s = AttributedString(commit.subject)
         var from = s.startIndex
         while from < s.endIndex, let r = s[from...].range(of: mark, options: [.caseInsensitive, .diacriticInsensitive]) {
-            s[r].backgroundColor = Theme.ui.waiting.opacity(Theme.GitTab.markOpacity)
-            s[r].foregroundColor = Theme.ui.textStrong
+            s[r].backgroundColor = Theme.ui.waiting.opacity(Theme.Opacity.fill)
+            s[r].foregroundColor = Theme.ui.text0
             from = r.upperBound
         }
         return Text(s)
@@ -121,16 +121,16 @@ struct GitRefPill: View {
     var body: some View {
         let tint: Color, opacity: Double
         switch ref.kind {
-        case .head: (tint, opacity) = (Theme.ui.accentText, Theme.GitTab.refOwnOpacity)
-        case .branch where ref.isHead || ref.name == head: (tint, opacity) = (Theme.ui.accentText, Theme.GitTab.refOwnOpacity)
-        case .remote: (tint, opacity) = (Theme.ui.text2, Theme.GitTab.refRemoteOpacity)
-        case .branch, .tag: (tint, opacity) = (Theme.GitTab.lane(lane), Theme.GitTab.refOtherOpacity)
+        case .head: (tint, opacity) = (Theme.ui.accentText, Theme.Opacity.fill)
+        case .branch where ref.isHead || ref.name == head: (tint, opacity) = (Theme.ui.accentText, Theme.Opacity.fill)
+        case .remote: (tint, opacity) = (Theme.ui.text2, Theme.Opacity.fill)
+        case .branch, .tag: (tint, opacity) = (Theme.GitTab.lane(lane), Theme.Opacity.fill)
         }
         return HStack(spacing: Theme.GitTab.refMarkGap) {
             Text(verbatim: ref.name)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            if twin != nil { Text(verbatim: Self.syncedMark).opacity(Theme.GitTab.refMarkOpacity).fixedSize() }
+            if twin != nil { Text(verbatim: Self.syncedMark).fixedSize() }
         }
         .font(Theme.Typography.mono.font())
         .foregroundStyle(tint)
@@ -169,7 +169,7 @@ struct GitMoreRefs: View {
             .foregroundStyle(Theme.ui.text2)
             .padding(.horizontal, Theme.GitTab.refPaddingH)
             .frame(height: Theme.GitTab.refHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(Theme.ui.text2.opacity(Theme.GitTab.refRemoteOpacity)))
+            .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(Theme.ui.text2.opacity(Theme.Opacity.fill)))
             .fixedSize()
     }
 }

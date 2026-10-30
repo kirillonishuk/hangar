@@ -75,16 +75,16 @@ struct NewTaskSheet: View {
                     }
                 } else {
                     Text("—").font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
             }
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            .opacity(model.worktree ? 1 : Theme.Opacity.inactive)
             // Always there (no jump when the lockfile is read); a suggestion stays off until turned on.
             CardRow(label: L10n.afterCreate) {
                 if let command = model.setupCommand {
                     Text(verbatim: command).font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                         .truncationMode(.middle)
                         .help(command)
                     Spacer(minLength: Theme.cardRowGap)
@@ -92,12 +92,12 @@ struct NewTaskSheet: View {
                         .disabled(!model.worktree || model.creating)
                 } else {
                     Text("—").font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
             }
             .help(model.setupSuggested ? L10n.afterCreateSuggestedHelp : "")
-            .opacity(model.worktree ? 1 : Theme.dimmedRowOpacity)
+            .opacity(model.worktree ? 1 : Theme.Opacity.inactive)
         }
         .sheetCard()
     }

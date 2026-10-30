@@ -15,7 +15,7 @@ struct SessionsGroupHeader: View {
             HStack(alignment: .lastTextBaseline, spacing: Theme.historyGroupGap) {
                 IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.historyGroupIcon, tint: Theme.ui.text3)
                     .alignmentGuide(.lastTextBaseline) { $0[.bottom] - Theme.historyGroupBottom / 3 }
-                Text(verbatim: group.name).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.text)
+                Text(verbatim: group.name).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                 if showHost, let host = group.host {
                     HStack(spacing: Theme.historyColumnGap - 1) {
@@ -39,7 +39,7 @@ struct SessionsGroupHeader: View {
 }
 
 /// A row: agent (or terminal) icon · title · where (folder / ⎇ and branch, mono) · state word · time. Under the pointer
-/// the state and time give way to the actions (B′: one `primary`, the trash beside «Восстановить»); nothing moves.
+/// the state and time give way to the actions (B′: one `accent`, the trash beside «Восстановить»); nothing moves.
 struct SessionsRow: View {
     let app: AppState
     let model: SessionsModel
@@ -63,10 +63,10 @@ struct SessionsRow: View {
                 .opacity(active ? 0 : 1)
         }
         .font(Theme.Typography.body.font())
-        .foregroundStyle(Theme.ui.text)
+        .foregroundStyle(Theme.ui.text1)
         .padding(.horizontal, Theme.historyRowPaddingH)
         .frame(height: Theme.historyRowHeight)
-        .background(selected ? Theme.ui.selection : hovered ? Theme.ui.hover : .clear,
+        .background(selected ? Theme.ui.selected : hovered ? Theme.ui.hover : .clear,
                     in: RoundedRectangle(cornerRadius: Theme.historyRowRadius))
         .overlay(alignment: .trailing) {
             HStack(spacing: Theme.historyActionGap) { actions }
@@ -121,7 +121,7 @@ struct SessionsRow: View {
             switch item.state {
             case .open:
                 if case .conversation(let r) = item, case .open(_, let leaf, _) = r.place { StatusDot(state: app.state(ofLeaf: leaf)) }
-                Text(L10n.sessionsMarkerOpen).foregroundStyle(Theme.ui.text)
+                Text(L10n.sessionsMarkerOpen).foregroundStyle(Theme.ui.text1)
             case .archived:
                 IconView(icon: .archive, size: Theme.historyStateIcon, tint: Theme.ui.text3)
                 Text(L10n.sessionsMarkerArchived).foregroundStyle(Theme.ui.text3)

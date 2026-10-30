@@ -87,4 +87,16 @@ extension Theme {
         public static let statusDot: CGFloat = 8
         public static let tabDot: CGFloat = 6
     }
+
+    /// §2.7: the only four opacities of colours.
+    public enum Opacity {
+        /// Inactive (disabled) elements.
+        public static let inactive: CGFloat = 0.4
+        /// A role colour as a fill: badges, chips, pills, the destructive hover.
+        public static let fill: CGFloat = 0.15
+        /// The focus ring.
+        public static let ring: CGFloat = 0.25
+        /// The dimming under a sheet or a drop.
+        public static let scrim: CGFloat = 0.35
+    }
 }

@@ -96,7 +96,7 @@ struct PickerSearchField: NSViewRepresentable {
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = font
-        field.textColor = Theme.sheetText  // = Theme.ui.inputText
+        field.textColor = Theme.text0  // = Theme.ui.inputText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
             .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),  // = inputPlaceholder, prose (never mono)
         ])
@@ -145,7 +145,7 @@ struct PickerSearchField: NSViewRepresentable {
                 window.makeFirstResponder(self)
                 // Focus selects all: a preset «>» (⇧⌘P) would be replaced by the first typed letter, leaving commands.
                 self.currentEditor()?.selectedRange = NSRange(location: (self.stringValue as NSString).length, length: 0)
-                (self.currentEditor() as? NSTextView)?.insertionPointColor = Theme.accent  // not the system accent
+                (self.currentEditor() as? NSTextView)?.insertionPointColor = Theme.accentText  // not the system accent
             }
         }
     }

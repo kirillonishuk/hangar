@@ -230,7 +230,7 @@ struct WindowStatusBar: View {
         .lineLimit(1)
         .padding(.horizontal, Theme.statusBarPaddingH - Theme.statusItemPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statusBarHeight, maxHeight: Theme.statusBarHeight)
-        .background(Theme.ui.statusBar)
+        .background(Theme.ui.bg1)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
 
@@ -257,7 +257,7 @@ private struct StatusButton<Label: View>: View {
             HStack(spacing: Theme.inlineGap) { label }
                 .foregroundStyle(on ? Theme.ui.accentText : tint ?? Theme.ui.text2)
                 .modifier(StatusItem())
-                .background(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : .clear,
+                .background(on ? Theme.ui.accent.opacity(Theme.Opacity.fill) : .clear,
                             in: RoundedRectangle(cornerRadius: Theme.statusItemRadius))
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.statusItemRadius))

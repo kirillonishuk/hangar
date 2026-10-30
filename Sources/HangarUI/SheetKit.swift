@@ -13,7 +13,7 @@ struct SheetHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
             Text(verbatim: title)
                 .font(Theme.Typography.title.font(.semibold))
-                .foregroundStyle(Theme.ui.sheetText)
+                .foregroundStyle(Theme.ui.text0)
             if let subtitle {
                 Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text3)
                     .lineLimit(1).truncationMode(.middle)
@@ -81,19 +81,19 @@ struct Pill: View {
             .lineLimit(1)
             .padding(.horizontal, Theme.pillPaddingH)
             .frame(height: Theme.pillHeight)
-            .background(Capsule().fill(color.opacity(Theme.pillFillOpacity)))
+            .background(Capsule().fill(color.opacity(Theme.Opacity.fill)))
             .fixedSize()
     }
 }
 
 extension View {
-    /// The sheet frame: side paddings, one width for every sheet, `sheet` background, one-line rows.
+    /// The sheet frame: side paddings, one width for every sheet, `bg2` background, one-line rows.
     func sheetFrame(width: CGFloat = Theme.sheetWidth) -> some View {
         padding(.horizontal, Theme.sheetPaddingH)
             .frame(width: width)
             .font(Theme.Typography.body.font())
             .lineLimit(1)
-            .background(Theme.ui.sheet)
+            .background(Theme.ui.bg2)
     }
 }
 
@@ -163,7 +163,7 @@ extension NSWindow {
                                    done: @escaping (NSApplication.ModalResponse) -> Void = { _ in }) -> NSWindow {
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.sheet
+        sheet.backgroundColor = Theme.bg2
         sheet.appearance = appearance
         let end: (NSApplication.ModalResponse) -> Void = { [weak self, weak sheet] response in
             guard let self, let sheet, sheet.sheetParent === self else { return }

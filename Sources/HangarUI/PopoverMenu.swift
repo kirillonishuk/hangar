@@ -458,8 +458,8 @@ struct PopoverMenuView: View {
         .padding(.horizontal, Theme.Space.s2)
         .frame(height: Theme.Height.rowList)
         .background(RoundedRectangle(cornerRadius: Theme.Radius.control)
-            .fill(on ? (item.destructive ? Theme.ui.failed.opacity(Theme.Control.fillOpacity) : Theme.ui.selectedFocus) : .clear))
-        .opacity(item.enabled ? 1 : Theme.Control.disabledOpacity)
+            .fill(on ? (item.destructive ? Theme.ui.failed.opacity(Theme.Opacity.fill) : Theme.ui.selectedFocus) : .clear))
+        .opacity(item.enabled ? 1 : Theme.Opacity.inactive)
         .contentShape(Rectangle())
         .onHover { inside in
             if inside, item.enabled { state.highlighted = index } else if state.highlighted == index { state.highlighted = nil }

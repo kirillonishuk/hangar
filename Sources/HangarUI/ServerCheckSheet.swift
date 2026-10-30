@@ -104,7 +104,7 @@ struct ServerCheckView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: Theme.installTerminalHeight)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.fieldRadius))
-                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
                 .padding(.top, Theme.sheetGap)
         }
     }
@@ -196,7 +196,7 @@ struct ServerCheckView: View {
                 .padding(.vertical, Theme.planPaddingV)
                 .padding(.horizontal, Theme.fieldPaddingH)
                 .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
-                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
             }
             if !model.plan.manual.isEmpty {
                 Text(verbatim: L10n.installManual(model.plan.manual.map(\.rawValue).joined(separator: ", ")))
@@ -219,7 +219,7 @@ struct ServerCheckView: View {
                     Checkbox(tool.rawValue, showsLabel: false, isOn: Binding(get: { model.optional.contains(tool) },
                                              set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } }))
                     Text(verbatim: tool.rawValue).font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.sheetText)
+                        .foregroundStyle(Theme.ui.text0)
                 }
                 .disabled(model.phase == .installing)
             }

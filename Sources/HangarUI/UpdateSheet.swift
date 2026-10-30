@@ -46,7 +46,7 @@ struct UpdateSheet: View {
             ForEach(lines.indices, id: \.self) { i in
                 Text(inline(lines[i].text))
                     .font(Theme.Typography.body.font(lines[i].heading ? .semibold : .regular))
-                    .foregroundStyle(lines[i].heading ? Theme.ui.textStrong : Theme.ui.text2)
+                    .foregroundStyle(lines[i].heading ? Theme.ui.text0 : Theme.ui.text2)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -59,7 +59,7 @@ struct UpdateSheet: View {
             .frame(height: Theme.updateNotesHeight)
         .background(RoundedRectangle(cornerRadius: Theme.fieldRadius).fill(Theme.ui.field))
         .clipShape(RoundedRectangle(cornerRadius: Theme.fieldRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.control, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius).stroke(Theme.ui.line2, lineWidth: 1))
     }
 
     /// Bold, code and links of a line; plain text if it isn't valid Markdown.
@@ -105,15 +105,15 @@ struct UpdateSheet: View {
     }
 }
 
-/// A thin determinate bar: `control` track, `primary` fill.
+/// A thin determinate bar: `line2` track, `accent` fill.
 private struct ProgressLine: View {
     let value: Double
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.ui.control)
-                Capsule().fill(Theme.ui.primary).frame(width: geo.size.width * min(max(value, 0), 1))
+                Capsule().fill(Theme.ui.line2)
+                Capsule().fill(Theme.ui.accent).frame(width: geo.size.width * min(max(value, 0), 1))
             }
         }
         .frame(height: Theme.updateProgressHeight)

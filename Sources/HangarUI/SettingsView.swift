@@ -75,7 +75,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
                         Text(verbatim: model.category.title)
                             .font(Theme.Typography.title.font(.semibold))
-                            .foregroundStyle(Theme.ui.textStrong)
+                            .foregroundStyle(Theme.ui.text0)
                         page
                     }
                     .padding(Theme.settingsPagePadding)
@@ -92,7 +92,7 @@ struct SettingsView: View {
         // value overflowed the window at its minimum and cut 14 pt off the page's top and bottom.
         .frame(minWidth: Theme.settingsMinSize.width)
         .font(Theme.Typography.body.font())
-        .background(Theme.ui.sheet)
+        .background(Theme.ui.bg0)
     }
 
     @ViewBuilder private var page: some View {
@@ -116,7 +116,7 @@ struct SettingsView: View {
                 .padding(.horizontal, Theme.settingsPagePadding)
                 .padding(.vertical, Theme.sheetFooterPaddingV)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1) }
+                .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1) }
         }
     }
 
@@ -331,7 +331,7 @@ struct SettingsView: View {
                 }
                 .help(L10n.notifyWhenActiveHelp)
             }
-            .opacity(on ? 1 : Theme.inactiveOpacity)
+            .opacity(on ? 1 : Theme.Opacity.inactive)
             .disabled(!on)
             CardSection(title: L10n.notifySectionSystem) {
                 row(L10n.dockBadgeTitle, first: true) {
@@ -452,7 +452,7 @@ struct SettingsView: View {
     }
 }
 
-/// The category list: icon + title, `selection` fill on the chosen one, `sbHover` under the pointer.
+/// The category list: icon + title, `selectedFocus` fill and `onAccent` on the chosen one, `hover` under the pointer.
 private struct SettingsSidebar: View {
     @Binding var selection: SettingsCategory
     @State private var hovered: SettingsCategory?
@@ -463,15 +463,15 @@ private struct SettingsSidebar: View {
                 let on = category == selection
                 Button { selection = category } label: {
                     HStack(spacing: Theme.iconGap) {
-                        IconView(icon: category.icon, tint: on ? Theme.ui.textStrong : Theme.ui.text2)
+                        IconView(icon: category.icon, tint: on ? Theme.ui.onAccent : Theme.ui.text2)
                         Text(verbatim: category.title).lineLimit(1)
-                            .foregroundStyle(on ? Theme.ui.textStrong : Theme.ui.text)
+                            .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text1)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, Theme.settingsSidebarPadding)
                     .frame(height: Theme.settingsNavRowHeight)
                     .background(RoundedRectangle(cornerRadius: Theme.settingsNavRadius)
-                        .fill(on ? Theme.ui.selection : hovered == category ? Theme.ui.sidebarHover : .clear))
+                        .fill(on ? Theme.ui.selectedFocus : hovered == category ? Theme.ui.hover : .clear))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -484,7 +484,7 @@ private struct SettingsSidebar: View {
         .padding(Theme.settingsSidebarPadding)
         .frame(width: Theme.settingsSidebarWidth)
         .frame(maxHeight: .infinity)
-        .background(Theme.ui.sidebar)
+        .background(Theme.ui.bg1)
     }
 }
 

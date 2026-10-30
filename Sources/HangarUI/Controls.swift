@@ -7,14 +7,9 @@ import SwiftUI
 // colours are roles; hover and selection are instant (§2.9), the hand only over what a click would do.
 
 extension Theme {
-    /// State values of the controls (§2.7 opacities, §2.8 states, §3.8 ±6 %).
+    /// State values of the controls (§2.8 states, §3.8 ±6 %); opacities are `Theme.Opacity`.
     enum Control {
-        /// Disabled control, reason in its tooltip.
-        static let disabledOpacity = 0.4
-        /// A role colour as a fill: chip «on», a destructive button under the pointer, a badge.
-        static let fillOpacity = 0.15
-        /// Keyboard focus ring around the `accent` edge.
-        static let ringOpacity = 0.25
+        /// Keyboard focus ring around the `accent` edge (at `Theme.Opacity.ring`).
         static let ringWidth: CGFloat = 3
         static let hoverBrightness = 0.06
         static let pressedBrightness = -0.06
@@ -82,7 +77,7 @@ struct HangarButton: ButtonStyle {
                 .frame(height: size.height)
                 .background(shape.fill(fill(lit)).brightness(brightness(lit)))
                 .contentShape(shape)
-                .opacity(enabled || busy ? 1 : Theme.Control.disabledOpacity)
+                .opacity(enabled || busy ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled)
                 .onHover { hover = $0 }
         }
@@ -101,7 +96,7 @@ struct HangarButton: ButtonStyle {
             case .primary: Theme.ui.accent
             case .secondary: Theme.ui.hover2
             case .plain: pressed ? Theme.ui.hover2 : lit ? Theme.ui.hover : .clear
-            case .destructive: lit || pressed ? Theme.ui.failed.opacity(Theme.Control.fillOpacity) : Theme.ui.hover2
+            case .destructive: lit || pressed ? Theme.ui.failed.opacity(Theme.Opacity.fill) : Theme.ui.hover2
             }
         }
 
@@ -201,7 +196,7 @@ struct IconButtonStyle: ButtonStyle {
                 .frame(width: size.height, height: size.height)
                 .background(shape.fill(pressed || on ? Theme.ui.hover2 : lit ? Theme.ui.hover : .clear))
                 .contentShape(shape)
-                .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+                .opacity(enabled ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled)
                 .onHover { hover = $0 }
         }
@@ -240,11 +235,11 @@ struct ChipStyle: ButtonStyle {
                 .padding(.horizontal, style.square ? 0 : Theme.Space.s2)
                 .frame(minWidth: style.square ? Theme.Height.controlSmall : nil)
                 .frame(height: Theme.Height.controlSmall)
-                .background(shape.fill(style.on ? Theme.ui.accent.opacity(Theme.Control.fillOpacity)
+                .background(shape.fill(style.on ? Theme.ui.accent.opacity(Theme.Opacity.fill)
                                        : pressed && enabled ? Theme.ui.hover2 : lit ? Theme.ui.hover : .clear))
                 .overlay(shape.strokeBorder(style.outlined ? Theme.ui.accent : .clear))
                 .contentShape(shape)
-                .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+                .opacity(enabled ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled && style.hand)
                 .onHover { hover = $0 }
         }
@@ -334,7 +329,7 @@ struct PopupButton: View {
         .lineLimit(1)
         .padding(.horizontal, Theme.Space.s2)
         .frame(height: Theme.Height.controlSmall)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(Theme.ui.accent.opacity(Theme.Control.fillOpacity)))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(Theme.ui.accent.opacity(Theme.Opacity.fill)))
         .pointingHand()
     }
 
@@ -374,7 +369,7 @@ struct PopupButton: View {
                     .brightness(pressed ? Theme.Control.pressedBrightness : hover && enabled ? Theme.Control.hoverBrightness : 0))
                 .overlay(shape.strokeBorder(Theme.ui.line2))
                 .contentShape(shape)
-                .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+                .opacity(enabled ? 1 : Theme.Opacity.inactive)
                 .pointingHand(enabled)
                 .onHover { hover = $0 }
         }
@@ -484,7 +479,7 @@ private struct SegmentPart<Value: Hashable>: View {
         .buttonStyle(.plain)
         .background(MenuAnchorView(anchor: anchor))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled && (!on || option.menu != nil))
         .onHover { hover = $0 }
         .help(option.help ?? "")
@@ -542,7 +537,7 @@ struct Checkbox: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled)
         .accessibilityLabel(label)
         .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
@@ -579,7 +574,7 @@ struct CardSwitch: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .opacity(enabled ? 1 : Theme.Control.disabledOpacity)
+        .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled)
         .accessibilityValue(on ? L10n.toggleOn : L10n.toggleOff)
     }

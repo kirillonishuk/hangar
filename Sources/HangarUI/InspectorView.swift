@@ -24,7 +24,7 @@ struct InspectorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.ui.inspector)
+        .background(Theme.ui.bg1)
         .ignoresSafeArea()
     }
 
@@ -182,7 +182,7 @@ private struct FileRow: View {
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)
                     .font(Theme.Typography.body.font())
-                    .foregroundStyle(Theme.ui.textRow)
+                    .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: Theme.railInset)
@@ -280,7 +280,7 @@ private struct ChangeRow: View {
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
                         .font(Theme.Typography.body.font())
-                        .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
+                        .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !dir.isEmpty {

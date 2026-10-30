@@ -19,12 +19,11 @@ extension Theme {
     /// Status line: the worktree ⎇ before it 12 `text3`, 4 from the text.
     public static let rowStatusIcon: CGFloat = 12
     public static let rowStatusGap: CGFloat = 4
-    /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `bg` at 35 %; numbers 6 apart.
+    /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `diffBadgeFill`; numbers 6 apart.
     public static let diffBadgeHeight: CGFloat = 20
     public static let diffBadgePaddingH: CGFloat = 6
     public static let diffBadgeRadius: CGFloat = 6
     public static let diffBadgeGap: CGFloat = 6
-    public static let diffBadgeFillOpacity = 0.35
     /// Gap between the name and the badge slot.
     public static let rowSlotGap: CGFloat = 6
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
@@ -59,6 +58,9 @@ extension Theme {
 }
 
 extension Theme.ui {
-    /// Badge fill (`bg` at 35 %); its border is `line2`.
-    public static var diffBadgeFill: Color { bg.opacity(Theme.diffBadgeFillOpacity) }
+    /// Badge fill: `bg0` dimming the row under it; its border is `line2`.
+    public static var diffBadgeFill: Color { bg0.opacity(Theme.Opacity.scrim) }
+    /// Destructive menu item text, icon and key (= `failedText`); its hover (`failed` as a fill).
+    public static var danger: Color { failedText }
+    public static var dangerHover: Color { failed.opacity(Theme.Opacity.fill) }
 }

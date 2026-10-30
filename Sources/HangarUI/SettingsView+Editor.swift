@@ -18,7 +18,7 @@ extension SettingsView {
             }
             Text(verbatim: L10n.editor)
                 .font(Theme.Typography.title.font(.semibold))
-                .foregroundStyle(Theme.ui.textStrong)
+                .foregroundStyle(Theme.ui.text0)
                 .padding(.top, Theme.EditorSettings.subsectionGap)
             editorThemeCard(ed)
             editorColors(ed)
@@ -93,7 +93,7 @@ extension SettingsView {
                     } else {
                         previewCard(ed)
                             .padding(.bottom, Theme.settingsHeaderGap)
-                            .background(Theme.ui.sheet)
+                            .background(Theme.ui.bg2)
                     }
                 }
             }
@@ -108,7 +108,7 @@ extension SettingsView {
             }
             .padding(.horizontal, Theme.cardRowPaddingH)
             .frame(height: Theme.EditorSettings.headerHeight)
-            Rectangle().fill(Theme.ui.lineSheet).frame(height: 1)
+            Rectangle().fill(Theme.ui.line2).frame(height: 1)
             EditorPreview(model: ed, options: options)
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
@@ -272,17 +272,17 @@ private struct AppThemeTile: View {
         Button { if !selected { choose() } } label: {
             VStack(spacing: Theme.settingsHeaderGap) {
                 VStack(spacing: 0) {
-                    Theme.ui.of(p.titlebar).frame(height: S.tileTitlebar)
+                    Theme.ui.of(p.bg1).frame(height: S.tileTitlebar)
                     HStack(spacing: 0) {
                         VStack(alignment: .leading, spacing: S.tileSidebarGap) {
                             Capsule().fill(Theme.ui.of(p.accent)).frame(height: S.tileSidebarBar)
-                            Capsule().fill(Theme.ui.of(p.tx3)).frame(width: S.tileSidebarShort, height: S.tileSidebarBar)
-                            Capsule().fill(Theme.ui.of(p.tx3)).frame(height: S.tileSidebarBar)
+                            Capsule().fill(Theme.ui.of(p.text3)).frame(width: S.tileSidebarShort, height: S.tileSidebarBar)
+                            Capsule().fill(Theme.ui.of(p.text3)).frame(height: S.tileSidebarBar)
                         }
                         .padding(S.tileSidebarPadding)
                         .frame(width: Theme.themeTileStrip, alignment: .topLeading)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .background(Theme.ui.of(p.sidebar))
+                        .background(Theme.ui.of(p.bg1))
                         VStack(alignment: .leading, spacing: 0) {
                             ForEach(Self.code.indices, id: \.self) { i in
                                 Self.code[i].reduce(Text(verbatim: "")) { text, part in
@@ -303,10 +303,10 @@ private struct AppThemeTile: View {
                 }
                 .frame(height: S.tileHeight)
                 .clipShape(shape)
-                .overlay(shape.strokeBorder(selected ? Theme.ui.accent : hover ? Theme.ui.controlBorderStrong : Theme.ui.control,
+                .overlay(shape.strokeBorder(selected ? Theme.ui.accent : hover ? Theme.ui.text3 : Theme.ui.line2,
                                             lineWidth: selected ? Theme.themeTileBorder : 1))
                 Text(verbatim: Self.name(theme)).lineLimit(1)
-                    .foregroundStyle(selected ? Theme.ui.textStrong : Theme.ui.text2)
+                    .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text2)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -370,7 +370,7 @@ private struct EditorColorList: View {
         }
         .buttonStyle(.plain)
         .pointingHand()
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.lineSheet).frame(height: 1).opacity(first ? 0 : 1) }
+        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1).opacity(first ? 0 : 1) }
         .accessibilityAddTraits(open ? .isSelected : [])
     }
 
@@ -392,7 +392,7 @@ private struct EditorColorList: View {
                         .help(brackets ? c.title : "")
                 }
             }
-            Text(verbatim: brackets ? L10n.s(.edcBrackets) : color.title).foregroundStyle(Theme.ui.text).lineLimit(1)
+            Text(verbatim: brackets ? L10n.s(.edcBrackets) : color.title).foregroundStyle(Theme.ui.text1).lineLimit(1)
             Spacer(minLength: Theme.cardRowGap)
             if hovered, !changed.isEmpty {
                 IconButton(icon: .restore, help: L10n.f(.edResetTo, EditorSettingsModel.name(theme.base))) {

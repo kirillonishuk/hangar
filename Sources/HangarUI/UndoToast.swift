@@ -61,17 +61,17 @@ struct UndoToastView: View {
 
     var body: some View {
         if let message = undo.message {
-            Text(message).foregroundStyle(Theme.ui.text)
+            Text(message).foregroundStyle(Theme.ui.text1)
                 .font(Theme.Typography.body.font())
                 .padding(.horizontal, Theme.toastPaddingH)
                 .frame(height: Theme.Height.controlSmall)
                 .padding(.vertical, Theme.toastPaddingV)
-                .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.sheet))
-                .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.sheetBorder, lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.bg2))
+                .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.line2, lineWidth: 1))
                 .fixedSize()
         } else if undo.taskId != nil {
             HStack(spacing: Theme.toastGap) {
-                Text(L10n.taskArchived).foregroundStyle(Theme.ui.text)
+                Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
                 // A secondary action (controls-v2 B′): a button, not a blue word that reads as a link.
                 Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
                     .buttonStyle(.hangar(.secondary, .small))
@@ -81,8 +81,8 @@ struct UndoToastView: View {
             .padding(.leading, Theme.toastPaddingH)
             .padding(.trailing, Theme.toastPaddingV)
             .padding(.vertical, Theme.toastPaddingV)
-            .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.sheet))
-            .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.sheetBorder, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.bg2))
+            .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.line2, lineWidth: 1))
             .fixedSize()
             .accessibilityElement(children: .contain)
         }

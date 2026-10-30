@@ -35,8 +35,8 @@
 "usingDefaults" = "Используются значения по умолчанию.";
 "launchFailed" = "Не удалось запустить: %@";
 "terminalCreateFailed" = "Не удалось создать терминал. Enter — повторить";
-"exited" = "Завершён";
-"exitedWithCode" = "Завершён (код %d)";
+"exited" = "Процесс завершён";
+"exitedWithCode" = "Процесс завершён с кодом %d";
 "relaunchHint" = "Enter — перезапустить";
 "hostNotConnected" = "Нет соединения с %@ · подключение…";
 "hostOffline" = "Нет соединения с %@";

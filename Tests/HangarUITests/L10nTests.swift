@@ -106,7 +106,7 @@ import Workspace
     @Test func pluralizedExitCode() {
         defer { L10n.language = .system }
         L10n.language = .ru
-        #expect(L10n.exitedWithCode(3) == "Завершён (код 3)")
+        #expect(L10n.exitedWithCode(3) == "Процесс завершён с кодом 3")
         #expect(L10n.sectionPinned == "Закреплённые")
         L10n.language = .en
         #expect(L10n.exitedWithCode(3) == "Exited (code 3)")

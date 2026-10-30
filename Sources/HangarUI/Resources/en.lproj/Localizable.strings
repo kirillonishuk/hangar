@@ -139,7 +139,7 @@
 "worktreeOnHint" = "own folder and branch (worktree)";
 "worktreeOffHint" = "work in the project folder";
 "fromBranch" = "From branch";
-"newBranch" = "Copy branch";
+"newBranch" = "Branch name";
 "fromName" = "from the name";
 "refreshHelp" = "Refresh branches (git fetch)";
 "searchBranches" = "search branches";
@@ -359,9 +359,9 @@
 "worktreeRootHint" = "All copies of this project go here: %@/<branch>";
 "worktreeCopy" = "Bring into the copy";
 "worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";
-"setupCommand" = "Copy setup";
+"setupCommand" = "Setup after copy";
 "setupCommandHelp" = "Runs at the new copy's top in a terminal tab after the files are brought in. Blank = none; the lockfile's command (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) is only suggested";
-"setupCommandSuggested" = "Copy setup is a lockfile suggestion: it doesn't run until you save it";
+"setupCommandSuggested" = "Setup after copy is a lockfile suggestion: it doesn't run until you save it";
 "afterCreate" = "Set up the copy";
 "afterCreateSuggestedHelp" = "Suggested from the lockfile. Turn on to run it in a terminal tab of the new copy; it is then saved to the project";
 "copyingEntry" = "Copying %@…";

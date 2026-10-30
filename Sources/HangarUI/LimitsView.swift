@@ -135,7 +135,7 @@ struct LimitsBlock: View {
         VStack(spacing: Theme.railInset) {
             ForEach(app.limitRows, id: \.agent) { row in
                 Button { app.limitsClicked() } label: { line(row.agent, row.usage) }
-                    .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
+                    .buttonStyle(HoverButtonStyle(radius: Theme.Radius.control))
                     .help(L10n.help(L10n.limitsHelp, .limits))
             }
         }
@@ -181,14 +181,14 @@ struct LimitsRailTile: View {
     var body: some View {
         let worst = app.limitRows.compactMap { app.usage.level($0.agent, now: app.usageClock) }.max() ?? .ok
         HoverRow(action: { app.limitsClicked() }) { _ in
-            GutterRow(collapsed: true, height: Theme.footerRowHeight) {
+            GutterRow(collapsed: true, height: Theme.Height.rowSidebar) {
                 IconView(icon: .limits, tint: Theme.Limit.color(worst))
             } expanded: { EmptyView() } rail: { EmptyView() }
         }
         .help(L10n.help(L10n.limitsHelp, .limits))
         .accessibilityLabel(L10n.limitsHelp)
         .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }),
-                 attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: Theme.sidebarRailWidth, height: Theme.footerRowHeight))),
+                 attachmentAnchor: .rect(.rect(CGRect(x: 0, y: 0, width: Theme.sidebarRailWidth, height: Theme.Height.rowSidebar))),
                  arrowEdge: .trailing) {
             LimitsPopover(app: app)
         }

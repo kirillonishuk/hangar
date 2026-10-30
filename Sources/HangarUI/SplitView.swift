@@ -441,7 +441,7 @@ final class FillView: NSView {
         let px = Theme.paneHeaderPaddingH
         var top: CGFloat = 0
         if showsHeader {
-            let h = Theme.paneHeaderHeight
+            let h = Theme.Height.barPane
             header.frame = NSRect(x: 0, y: 0, width: bounds.width, height: h - 1)
             headerLine.frame = NSRect(x: 0, y: h - 1, width: bounds.width, height: 1)
             top = h

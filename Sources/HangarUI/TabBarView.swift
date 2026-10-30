@@ -46,7 +46,7 @@ enum TabStrip {
     /// on the tab's icon, so it takes no title room.)
     /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, #83).
     static func layout(natural: [CGFloat], whole: [Bool] = [], width: CGFloat) -> Layout {
-        let control = Theme.tabGap + Theme.tabBarButton
+        let control = Theme.tabGap + Theme.Height.controlRegular
         let floors = natural.indices.map { i in
             let least = Theme.tabMinWidth
             return whole.indices.contains(i) && whole[i] ? Swift.max(least, Swift.min(natural[i], Theme.fileTabMaxWidth)) : least
@@ -142,7 +142,7 @@ struct TabBarView: View {
             }
             .onChange(of: geo.frame(in: .global).minX + Theme.tabTitleLeading, initial: true) { stripMinX = $1 }
         }
-        .frame(height: Theme.tabBarHeight)
+        .frame(height: Theme.Height.barTabs)
         .background(WindowDragArea())
         .background(Theme.ui.bg1)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
@@ -154,7 +154,7 @@ struct TabBarView: View {
 
     /// Natural width of a tab: paddings, icon (the status dot is its badge), title, `×` (kept in place while hidden).
     private static func natural(text: CGFloat) -> CGFloat {
-        let chrome = 2 * Theme.tabPaddingH + Theme.Icon.row + Theme.iconGap + Theme.rowEndGap + Theme.smallIconSize
+        let chrome = 2 * Theme.tabPaddingH + Theme.Icon.row + Theme.Space.iconGap + Theme.rowEndGap + Theme.smallIconSize
         return (chrome + text).rounded(.up)
     }
 
@@ -210,7 +210,7 @@ struct TabBarView: View {
         // A pane header over the bar (`PaneDragController`): the tabs part at its slot as for a reorder.
         let paneSlot: Int? = if drag == nil, case .tabBar(let i)? = app.paneDropTarget { i } else { nil }
         let gap = Theme.tabMinWidth + Theme.tabGap
-        let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.tabBarButton - l.viewport))
+        let extra = paneSlot == nil || l.overflow ? 0 : Swift.max(0, Swift.min(gap, width - Theme.tabGap - Theme.Height.controlRegular - l.viewport))
         HStack(spacing: Theme.tabGap) {
             ForEach(Array(task.tabs.enumerated()), id: \.element.id) { i, tab in
                 TabItem(ctx: ctx, taskId: task.id, tab: tab, number: i < 8 ? i + 1 : i == task.tabs.count - 1 ? 9 : 0, active: tab.id == task.activeTabId && diff?.active != true,
@@ -277,7 +277,7 @@ struct TabBarView: View {
 
     /// Where a dragged tab or pane will land: an `accent` outline.
     private func slotOutline(width: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.tabRadius)
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control)
         return shape.fill(Theme.ui.accent.opacity(Theme.Opacity.fill))
             .overlay(shape.strokeBorder(Theme.ui.accent, lineWidth: Theme.tabDropSlotLineWidth))
             .frame(width: width)
@@ -426,7 +426,7 @@ private struct TabCloseButton: View {
         Button(action: action) {
             ZStack {
                 IconView(icon: .close, active: active || hover, size: Theme.smallIconSize).opacity(dirty && !hover ? 0 : 1)
-                Circle().fill(active ? Theme.ui.text0 : Theme.ui.text2).frame(width: Theme.statusDot, height: Theme.statusDot)
+                Circle().fill(active ? Theme.ui.text0 : Theme.ui.text2).frame(width: Theme.Icon.statusDot, height: Theme.Icon.statusDot)
                     .opacity(dirty && !hover ? 1 : 0)
             }
             .padding(Theme.tabCloseInset)
@@ -449,7 +449,7 @@ private struct TabBackground: View {
     let hover: Bool
 
     var body: some View {
-        RoundedRectangle(cornerRadius: Theme.tabRadius)
+        RoundedRectangle(cornerRadius: Theme.Radius.control)
             .fill(active ? Theme.ui.hover2 : hover ? Theme.ui.hover : .clear)
     }
 }
@@ -501,7 +501,7 @@ struct TabItem: View {
                         .help(app.statusText(dot, leaves: tab.root.leaves))
                 }
             }
-            .padding(.trailing, Theme.iconGap)
+            .padding(.trailing, Theme.Space.iconGap)
             if app.renaming == target {
                 RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)
             } else {
@@ -518,7 +518,7 @@ struct TabItem: View {
         .foregroundStyle(active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width, height: Theme.tabHeight)
+        .frame(width: width, height: Theme.Height.tab)
         .background(TabBackground(active: active, hover: hover))
         .contentShape(Rectangle())
         // One tap handler: a separate count-2 gesture would delay every single click.
@@ -569,7 +569,7 @@ private struct DiffTabItem: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            IconView(icon: .diff, active: tab.active, size: Theme.Icon.row).padding(.trailing, Theme.iconGap)
+            IconView(icon: .diff, active: tab.active, size: Theme.Icon.row).padding(.trailing, Theme.Space.iconGap)
             Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
@@ -577,7 +577,7 @@ private struct DiffTabItem: View {
         .foregroundStyle(tab.active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
-        .frame(width: width, height: Theme.tabHeight)
+        .frame(width: width, height: Theme.Height.tab)
         .background(TabBackground(active: tab.active, hover: hover))
         .contentShape(Rectangle())
         .onTapGesture { app.activateDiff() }

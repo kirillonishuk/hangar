@@ -116,7 +116,7 @@ struct SidebarView: View {
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
-                .padding(.trailing, hover ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
+                .padding(.trailing, hover ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
                 .overlay(alignment: .trailing) { taskActions(task, target: target, shown: hover && app.renaming != target) }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
@@ -201,7 +201,7 @@ struct SidebarView: View {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
                 }
-                .padding(.trailing, hover ? Theme.rowActionSize : 0)
+                .padding(.trailing, hover ? Theme.Height.controlSmall : 0)
                 .overlay(alignment: .trailing) {
                     PopoverMenuButton { popoverEntries(items) }
                         .opacity(hover ? 1 : 0)
@@ -241,7 +241,7 @@ struct SidebarView: View {
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(1)
                 .padding(.leading, Theme.sectionHeaderX)
-                .frame(maxWidth: .infinity, minHeight: Theme.railRowHeight, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: Theme.Height.rowSidebar, alignment: .leading)
                 .opacity(collapsed ? 0 : 1)
         }
         ForEach(filtering ? groups.map(\.project) : app.state.projects) { project in
@@ -389,7 +389,7 @@ struct SidebarView: View {
                             .opacity(hover ? 0 : 1)
                     }
                 }
-                .padding(.trailing, hover ? 2 * Theme.rowActionSize : 0)
+                .padding(.trailing, hover ? 2 * Theme.Height.controlSmall : 0)
                 .overlay(alignment: .trailing) {
                     HStack(spacing: 0) {
                         PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
@@ -406,7 +406,7 @@ struct SidebarView: View {
                     .font(Theme.Typography.caption.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
                     .frame(width: Theme.projectTileSize, height: Theme.projectTileSize)
-                    .overlay(RoundedRectangle(cornerRadius: Theme.projectTileRadius).stroke(Theme.ui.text3, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).stroke(Theme.ui.text3, lineWidth: 1))
                     .overlay(alignment: .topTrailing) {
                         // Folded: its sessions are hidden in the rail too, so the tile carries their most urgent dot.
                         if let folded {
@@ -487,7 +487,7 @@ struct SidebarView: View {
                             Text(task.name).lineLimit(1).truncationMode(.tail)
                         }
                     }
-                    .padding(.trailing, showActions ? 2 * Theme.rowActionSize - Theme.rowActionsOverhang : 0)
+                    .padding(.trailing, showActions ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
                     .layoutPriority(1)  // the name first; the branch takes what is left, up to its 92
                     Spacer(minLength: 0)
                     rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)

@@ -62,7 +62,7 @@ final class TaskColumnController: NSViewController {
             tabBar.topAnchor.constraint(equalTo: v.topAnchor, constant: Theme.Height.barToolbar),
             tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
+            tabBar.heightAnchor.constraint(equalToConstant: Theme.Height.barTabs),
             terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -72,7 +72,7 @@ final class TaskColumnController: NSViewController {
             sessions.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             sessions.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
-            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
+            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.Height.barPane + Theme.toastBottom)),  // above the TERMINAL bar
         ])
         view = v
     }

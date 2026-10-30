@@ -110,7 +110,7 @@ struct StatuslinePreview: View {
         .padding(.horizontal, Theme.statuslinePreviewPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.statuslinePreviewHeight, alignment: .leading)
         .clipped()
-        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.of(Theme.palette.bg0)))
+        .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.bg0))
         .overlay(RoundedRectangle(cornerRadius: Theme.segmentRadius).stroke(Theme.ui.line2, lineWidth: 1))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(mode == .hangar ? L10n.statuslinePreview : L10n.statuslineUserPreview)

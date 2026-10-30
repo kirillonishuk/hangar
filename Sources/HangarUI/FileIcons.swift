@@ -89,7 +89,7 @@ struct FileIconTheme: Sendable {
     ]
 }
 
-/// Rasterised-on-demand SVGs at `Theme.iconSize`; only rows that are built (LazyVStack) ask, so hidden rows cost nothing.
+/// Rasterised-on-demand SVGs at `Theme.Icon.toolbar`; only rows that are built (LazyVStack) ask, so hidden rows cost nothing.
 @MainActor enum FileIconImages {
     /// Per icon id, misses included; bounded by the theme's ~800 ids.
     private static var cache: [String: NSImage?] = [:]
@@ -100,7 +100,7 @@ struct FileIconTheme: Sendable {
         if let hit = cache[id] { return hit }
         // NSImage reads SVG on macOS 14+; a broken or missing file stays nil → generic glyph.
         let image = theme.url(id).flatMap(NSImage.init(contentsOf:)).flatMap { $0.isValid ? $0 : nil }
-        image?.size = NSSize(width: Theme.iconSize, height: Theme.iconSize)
+        image?.size = NSSize(width: Theme.Icon.toolbar, height: Theme.Icon.toolbar)
         cache[id] = image
         return image
     }
@@ -112,7 +112,7 @@ struct FileIconView: View {
     let name: String
     var isDir = false
     var expanded = false
-    var size = Theme.iconSize
+    var size = Theme.Icon.toolbar
 
     var body: some View {
         if let image = FileIconImages.image(name: name, isDir: isDir, expanded: expanded) {

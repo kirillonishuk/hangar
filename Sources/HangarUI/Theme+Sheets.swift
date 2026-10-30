@@ -7,14 +7,14 @@ extension Theme {
     /// Card row content height = a field's: a segment, a picker, a button or a field fits, so every row is as tall.
     public static let cardRowMinHeight: CGFloat = Theme.Input.height
     /// Between footer / inline buttons, and between a title and its subtitle.
-    public static let sheetButtonGap: CGFloat = 8
+    public static let sheetButtonGap: CGFloat = Space.s2
     /// Above the messages (errors, hints, warnings) under a card.
-    public static let sheetMessageTop: CGFloat = 8
+    public static let sheetMessageTop: CGFloat = Space.s2
     /// Between stacked lines of one value or message block.
-    public static let sheetLineGap: CGFloat = 4
+    public static let sheetLineGap: CGFloat = Space.s1
     /// Install-plan command box.
-    public static let planPaddingV: CGFloat = 8
-    public static let planCommandGap: CGFloat = 8
+    public static let planPaddingV: CGFloat = Space.s2
+    public static let planCommandGap: CGFloat = Space.s2
 }
 
 extension Theme {
@@ -40,9 +40,9 @@ extension Theme {
     public static let statuslineDropLine: CGFloat = 2
     /// A preview line wider than the card fades out over its last points instead of being cut.
     public static let statuslinePreviewFade: CGFloat = 16
-    public static let settingsHeaderGap: CGFloat = 8
+    public static let settingsHeaderGap: CGFloat = Space.s2
     /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
-    public static let themeTileGap: CGFloat = 12
+    public static let themeTileGap: CGFloat = Space.s3
     public static let themeTileRadius: CGFloat = 8
     public static let themeTileBorder: CGFloat = 2
     public static let themeTileStrip: CGFloat = 22
@@ -50,10 +50,10 @@ extension Theme {
     public static let integrationTitleIcon: CGFloat = 18
     public static let integrationSubGap: CGFloat = 2
     public static let integrationWhereGap: CGFloat = 14
-    public static let integrationWhereIcon: CGFloat = 14
+    public static let integrationWhereIcon: CGFloat = Icon.row
     public static let integrationTagPaddingH: CGFloat = 6
     public static let integrationTagHeight: CGFloat = 18
     /// Integration status pill: 20 high, 8 side padding, fill of its colour at 15 %.
     public static let pillHeight: CGFloat = 20
-    public static let pillPaddingH: CGFloat = 8
+    public static let pillPaddingH: CGFloat = Space.s2
 }

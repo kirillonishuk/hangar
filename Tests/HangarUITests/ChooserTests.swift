@@ -46,7 +46,7 @@ import Workspace
         #expect(continueFit(CGSize(width: 1000, height: 800)) == (Theme.continueRows, Theme.continueWidth))
         let short = continueFit(CGSize(width: 580, height: 260))
         #expect(short.rows > 0 && short.rows < Theme.continueRows)
-        let top = 260 / 2 - Theme.continueRowHeight / 2 - Theme.sheetGap - CGFloat(short.rows + 1) * Theme.continueRowHeight
+        let top = 260 / 2 - Theme.Height.rowLarge / 2 - Theme.sheetGap - CGFloat(short.rows + 1) * Theme.Height.rowLarge
         #expect(top >= 0)
         #expect(continueFit(CGSize(width: 580, height: 100)).rows == 0)
         #expect(continueFit(CGSize(width: 300, height: 800)).width == 300 - 2 * Theme.sheetGap)

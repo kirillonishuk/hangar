@@ -253,7 +253,7 @@ struct DiffView: View {
 
     private func header(_ path: String, commit: String?, _ content: DiffContent) -> some View {
         HStack(spacing: Theme.Diff.headerGap) {
-            HStack(spacing: Theme.iconGap) {
+            HStack(spacing: Theme.Space.iconGap) {
                 FileIconView(name: (path as NSString).lastPathComponent)
                 Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.head)

@@ -18,14 +18,14 @@ extension Theme {
         static let tileCodePadding: CGFloat = 7
         static let tileCodePaddingV: CGFloat = 6
         /// Room above «Редактор», the page's second heading: it starts a part of its own.
-        static let subsectionGap: CGFloat = 4
+        static let subsectionGap: CGFloat = Space.s1
         /// The editor theme's hint keeps two lines of room: switching doesn't move the page.
         static let hintLines = 2
 
         /// Preview beside the list from this page width (the 970 pt default window: 731), stacked above it below.
         static let besidePageWidth: CGFloat = 712
         static let besidePreviewWidth: CGFloat = 400
-        static let besideGap: CGFloat = 12
+        static let besideGap: CGFloat = Space.s3
 
         // Preview: an editor-like box, as tall as its longest sample (no jump between TypeScript / JSON / Diff).
         static let previewFont: CGFloat = 12
@@ -34,7 +34,7 @@ extension Theme {
         /// At the window's minimum the preview shows 6 lines; the page keeps `previewReserve` for the rest.
         static let previewMinLines = 6
         static let previewReserve: CGFloat = 300
-        static let previewPaddingV: CGFloat = 8
+        static let previewPaddingV: CGFloat = Space.s2
         static let previewPaddingH: CGFloat = 10
         static let previewGutter: CGFloat = 26
         static let previewDiffGutter: CGFloat = 22
@@ -42,6 +42,8 @@ extension Theme {
         static let previewCodeGap: CGFloat = 14
         static let cursorWidth: CGFloat = 2
         static let guideWidth: CGFloat = 1
+        /// The current line drawn as a frame (an editor theme without a line fill), as Monaco does.
+        static let lineBorder: CGFloat = 2
         static let outlineWidth: CGFloat = 1.5
         static let outlineRadius: CGFloat = 3
         static let headerHeight: CGFloat = 34
@@ -50,15 +52,17 @@ extension Theme {
         static let rowHeight: CGFloat = 28
         static let swatch: CGFloat = 14
         static let swatchRadius: CGFloat = 3
-        static let swatchGap: CGFloat = 4
+        static let swatchGap: CGFloat = Space.s1
         static let modifiedDot: CGFloat = 5
         static let dotSlot: CGFloat = 10
         static let groupHeight: CGFloat = 30
 
         // Color popover (NSPopover)
         static let popoverWidth: CGFloat = 284
-        static let popoverPadding: CGFloat = 12
+        static let popoverPadding: CGFloat = Space.s3
         static let popoverGap: CGFloat = 10
+        /// Between the colour's name and its sample.
+        static let titleGap: CGFloat = 2
         static let popoverSwatch: CGFloat = 30
         static let barHeight: CGFloat = 12
         static let knob: CGFloat = 16

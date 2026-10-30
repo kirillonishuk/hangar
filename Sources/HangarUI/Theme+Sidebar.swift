@@ -14,19 +14,19 @@ extension Theme {
     /// «Все чаты в архиве» hint under a project: three 20-high lines (note, «Открыть историю ⌘Y», «+ Новый чат») + 4 below.
     public static let archivedHintLine: CGFloat = 20
     public static let archivedHintHeight: CGFloat = 3 * archivedHintLine + 4
-    public static let rowStatusGap: CGFloat = 4
+    public static let rowStatusGap: CGFloat = Space.s1
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
-    public static let projectRowTrailing: CGFloat = 12
+    public static let projectRowTrailing: CGFloat = Space.s3
     /// Session row: name and badge end 8 inside the highlight (16 from the sidebar's edge); the actions overhang it by 4.
-    public static let sessionRowTrailing: CGFloat = 16
+    public static let sessionRowTrailing: CGFloat = Space.s4
     /// Inline row actions are small icon buttons; they overhang the row's edge by `rowActionsOverhang`.
     public static let rowActionSize: CGFloat = Theme.Height.controlSmall
-    public static let rowActionsOverhang: CGFloat = 4
+    public static let rowActionsOverhang: CGFloat = Space.s1
     /// Section header (`.sec`): 28 high, 8 above, text at x 20, buttons 12 from the edge and 2 apart; filter ring 1.5.
     public static let sectionHeaderHeight: CGFloat = 28
-    public static let sectionHeaderTop: CGFloat = 8
-    public static let sectionHeaderX: CGFloat = 20
-    public static let sectionHeaderTrailing: CGFloat = 12
+    public static let sectionHeaderTop: CGFloat = Space.s2
+    public static let sectionHeaderX: CGFloat = Space.s5
+    public static let sectionHeaderTrailing: CGFloat = Space.s3
     public static let sectionActionGap: CGFloat = 2
     public static let sectionFilterRing: CGFloat = 1.5
     /// Footer (§3.3): 44 high, icon buttons 28 at 12 from the edges, 4 apart; in the rail they stack, 8 above and below.
@@ -39,11 +39,5 @@ extension Theme {
     public static let menuPadding: CGFloat = 6
     public static let menuListMaxRows = 12
     /// The menu opens this far below its button (left edges aligned).
-    public static let menuAnchorGap: CGFloat = 4
-}
-
-extension Theme.ui {
-    /// Destructive menu item text, icon and key (= `failedText`); its hover (`failed` as a fill).
-    public static var danger: Color { failedText }
-    public static var dangerHover: Color { failed.opacity(Theme.Opacity.fill) }
+    public static let menuAnchorGap: CGFloat = Space.s1
 }

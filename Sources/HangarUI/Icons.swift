@@ -160,8 +160,8 @@ enum Icon: CaseIterable {
 
     var isBrand: Bool { brand != nil }
 
-    /// For menus and AppKit views: the glyph at `Theme.iconSize`.
-    var image: NSImage { image(size: Theme.iconSize) }
+    /// For menus and AppKit views: the glyph at `Theme.Icon.toolbar`.
+    var image: NSImage { image(size: Theme.Icon.toolbar) }
 
     /// Glyphs are template images (tinted by the caller), drawn natively at `size` so the stroke stays 1.5 pt;
     /// brand logos come pre-tinted. Cached per icon and size.
@@ -292,7 +292,7 @@ enum Stroke: Equatable {
 struct IconView: View {
     let icon: Icon
     var active = false
-    var size = Theme.iconSize
+    var size = Theme.Icon.toolbar
     var tint: Color?
     @Environment(\.rowSelectedText) private var onSelected
 
@@ -310,7 +310,7 @@ struct IconView: View {
 /// Status dot; `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
     var state: AgentState = .idle
-    var size = Theme.statusDot
+    var size = Theme.Icon.statusDot
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0

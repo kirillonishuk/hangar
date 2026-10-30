@@ -63,7 +63,7 @@ struct KindChoiceButtons: View {
                 let off = disabled.contains(kind)
                 // Not `.disabled`: a disabled button shows no tooltip, and the cap needs one.
                 Button { if off { NSSound.beep() } else { action(kind) } } label: {
-                    HStack(spacing: Theme.iconGap) {
+                    HStack(spacing: Theme.Space.iconGap) {
                         Image(nsImage: Icon.of(kind).image)
                         if labels {
                             Text(title(kind)).foregroundStyle(Theme.ui.text0).lineLimit(1)

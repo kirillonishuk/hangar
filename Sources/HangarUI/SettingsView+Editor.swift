@@ -427,7 +427,7 @@ private struct SettingsStepper: View {
 
     var body: some View {
         // The segment's track, with small icon-sized buttons.
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control + 1)
+        let shape = RoundedRectangle(cornerRadius: Theme.Control.segmentTrackRadius)
         HStack(spacing: 0) {
             Button("−") { step(-1) }.buttonStyle(IconButtonStyle()).disabled(!canDown).help(L10n.s(.edSmaller))
             Text(verbatim: value).font(Theme.Typography.mono.font()).foregroundStyle(Theme.ui.text1)

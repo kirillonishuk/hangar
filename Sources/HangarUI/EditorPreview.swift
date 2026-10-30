@@ -229,7 +229,7 @@ struct EditorPreview: View {
             if let lineColor { Theme.ui.editor(t.hex(lineColor)) }
             else if showLine {
                 if t.lineFilled { Theme.ui.editor(t.hex(.line)) }
-                else { Rectangle().strokeBorder(Theme.ui.editor(t.hex(.line)), lineWidth: 2) }
+                else { Rectangle().strokeBorder(Theme.ui.editor(t.hex(.line)), lineWidth: S.lineBorder) }
             }
         }
         .overlay {

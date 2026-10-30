@@ -78,7 +78,7 @@ import Testing
 
     @MainActor @Test func imagesLoadAndFallBack() throws {
         let image = try #require(FileIconImages.image(name: "package.json", isDir: false))
-        #expect(image.size == NSSize(width: Theme.iconSize, height: Theme.iconSize))
+        #expect(image.size == NSSize(width: Theme.Icon.toolbar, height: Theme.Icon.toolbar))
         #expect(image.isValid)
         #expect(FileIconImages.image(name: "src", isDir: true, expanded: true) != nil)
     }

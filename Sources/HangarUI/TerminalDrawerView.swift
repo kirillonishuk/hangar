@@ -74,10 +74,10 @@ import Workspace
         super.layout()
         fill.frame = bounds
         let px = Theme.paneHeaderPaddingH
-        let icon = Theme.iconSize
+        let icon = Theme.Icon.toolbar
         self.icon.frame = NSRect(x: px, y: (bounds.height - icon) / 2, width: icon, height: icon)
         let th = ceil(label.intrinsicContentSize.height)
-        let lx = px + icon + Theme.iconGap
+        let lx = px + icon + Theme.Space.iconGap
         label.frame = NSRect(x: lx, y: (bounds.height - th) / 2, width: max(0, bounds.width - lx - 2 * px - Theme.smallIconSize), height: th)
         let c = Theme.smallIconSize
         chevron.frame = NSRect(x: bounds.width - px - c, y: (bounds.height - c) / 2, width: c, height: c)
@@ -174,7 +174,7 @@ import Workspace
     func totalHeight(available: CGFloat) -> CGFloat {
         self.available = available
         guard let task else { return 0 }
-        return min(available, Theme.drawerBarHeight + (task.drawer.visible ? panelHeight : 0))
+        return min(available, Theme.Height.barPane + (task.drawer.visible ? panelHeight : 0))
     }
 
     private func commitDrag() {
@@ -267,7 +267,7 @@ import Workspace
 
     override func layout() {
         super.layout()
-        let barH = Theme.drawerBarHeight
+        let barH = Theme.Height.barPane
         bar.frame = NSRect(x: 0, y: 0, width: bounds.width, height: barH)
         topLine.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
         handle.frame = NSRect(x: 0, y: 0, width: bounds.width, height: Theme.drawerGrabHeight)

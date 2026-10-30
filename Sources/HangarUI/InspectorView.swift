@@ -34,7 +34,7 @@ struct InspectorView: View {
             if app.inspectorNotice == nil { segment }
         }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
-        .frame(maxWidth: .infinity, minHeight: Theme.tabBarHeight, maxHeight: Theme.tabBarHeight)
+        .frame(maxWidth: .infinity, minHeight: Theme.Height.barTabs, maxHeight: Theme.Height.barTabs)
         .background(WindowDragArea())
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }

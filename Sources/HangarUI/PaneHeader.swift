@@ -44,10 +44,10 @@ struct PaneHeader: View {
         let shown = split && (hovered || focused) && !renaming
         return HStack(spacing: 0) {
             HStack(spacing: 0) {
-                IconView(icon: .of(leaf.kind), size: Theme.paneHeaderIcon, tint: focused ? Theme.ui.text2 : Theme.ui.text3).padding(.trailing, Theme.iconGap)
+                IconView(icon: .of(leaf.kind), size: Theme.Icon.inline, tint: focused ? Theme.ui.text2 : Theme.ui.text3).padding(.trailing, Theme.Space.iconGap)
                 // As tabs (`showsDot`): agents always, other panes only while something is going on.
                 if state != .idle || leaf.kind == .claude || leaf.kind == .codex {
-                    StatusDot(state: state).padding(.trailing, Theme.iconGap).help(app.statusText(state, leaves: [leaf]))
+                    StatusDot(state: state).padding(.trailing, Theme.Space.iconGap).help(app.statusText(state, leaves: [leaf]))
                 }
                 if renaming {
                     RenameField(app: app, target: target).frame(maxWidth: Theme.tabRenameWidth)

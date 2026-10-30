@@ -15,6 +15,8 @@ extension Theme {
         static let pressedBrightness = -0.06
         /// Segment: track padding; the chosen item's shadow `0 1 2 .3`.
         static let segmentPadding: CGFloat = 2
+        /// The track's corners are concentric with the chosen item's: its radius + the padding.
+        static let segmentTrackRadius: CGFloat = Theme.Radius.segmentItem + segmentPadding
         static let segmentShadowOpacity = 0.3
         static let segmentShadowRadius: CGFloat = 1
         static let segmentShadowY: CGFloat = 1
@@ -424,7 +426,7 @@ struct Segmented<Value: Hashable>: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control + 1)
+        let shape = RoundedRectangle(cornerRadius: Theme.Control.segmentTrackRadius)
         HStack(spacing: 0) {
             ForEach(options.indices, id: \.self) { i in
                 let o = options[i]

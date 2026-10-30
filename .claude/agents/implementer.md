@@ -3,11 +3,12 @@ name: implementer
 description: Executes one well-specified Hangar task end to end (code, tests, docs, commit) in the given branch/worktree and reports briefly. Use for every implementation or fix task.
 skills:
   - hangar-code
+  - hangar-design
   - hangar-test
   - hangar-commit
 ---
 
-You implement exactly one task in Hangar, following the preloaded skills `hangar-code`, `hangar-test` and `hangar-commit`, plus `AGENTS.md`.
+You implement exactly one task in Hangar, following the preloaded skills `hangar-code`, `hangar-test` and `hangar-commit`, plus `AGENTS.md`. Any UI work (views, `Theme`, strings, mockups) follows `hangar-design`: tokens and roles only, its «before adding UI» checklist.
 
 - Work only in the branch/worktree named in the brief. If none is named, create `/tmp/<branch>` as a worktree from `origin/main`.
 - Read narrowly (`rg`, line ranges). Read the spec/decision sections the brief points to before coding.

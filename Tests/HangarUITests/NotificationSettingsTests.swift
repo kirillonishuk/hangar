@@ -21,15 +21,6 @@ import Workspace
 
     private func configText() -> String { (try? String(contentsOf: dir.appendingPathComponent("config.toml"), encoding: .utf8)) ?? "" }
 
-    @Test func notificationPageLabels() {
-        let keys = SettingsCategory.notifications.labelKeys
-        for key in [L10n.Key.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .notifyDoneTitle,
-                    .limitNotificationsTitle, .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle,
-                    .keepAwakeShort, .notificationPermissionTitle] {
-            #expect(keys.contains(key), "\(key)")
-        }
-    }
-
     @Test func reasonSwitchWritesConfig() throws {
         let (app, _, _) = try makeApp()
         defer { try? FileManager.default.removeItem(at: dir) }

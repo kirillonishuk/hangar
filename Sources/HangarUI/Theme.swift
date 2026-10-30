@@ -202,7 +202,7 @@ extension Theme {
     public enum Inbox {
         /// The toolbar bell's counter (§3.13): a `failed` circle 14 high.
         public static let badge: CGFloat = 14
-        public static let popoverWidth: CGFloat = 400
+        public static let popoverWidth: CGFloat = 380
         public static let popoverPaddingV: CGFloat = 8
         public static let popoverPaddingH: CGFloat = 8
         public static let rowPaddingV: CGFloat = 6

@@ -18,17 +18,20 @@ extension Theme {
 }
 
 extension Theme {
-    /// Settings window (System Settings style): a category list on the left, the page on the right; resizable.
+    /// Settings window (spec §3.18): the category list (216, `bg1`) on the left, the page on the right; resizable (#109).
     public static let settingsSize = NSSize(width: 970, height: 600)
     public static let settingsMinSize = NSSize(width: 680, height: 440)
-    public static let settingsSidebarWidth: CGFloat = 190
-    public static let settingsSidebarPadding: CGFloat = 10
-    public static let settingsNavRowHeight: CGFloat = 30
-    public static let settingsNavRadius: CGFloat = 6
-    public static let settingsNavGap: CGFloat = 2
-    /// The page: margins, its title, gaps between sections and under a section header.
-    public static let settingsPagePadding: CGFloat = 24
-    public static let settingsSectionGap: CGFloat = 20
+    public static let settingsSidebarWidth: CGFloat = 216
+    /// The page: its 52 header (`title`, the traffic lights' bar), then the cards with margins 20 / 24.
+    public static let settingsHeaderHeight: CGFloat = Height.barToolbar
+    public static let settingsPagePaddingV: CGFloat = Space.s5
+    public static let settingsPagePaddingH: CGFloat = Space.s6
+    /// A text field in a card row is at most this wide.
+    public static let settingsFieldWidth: CGFloat = 260
+    /// Between cards; a group header above a card adds its own 12 / 4.
+    public static let settingsSectionGap: CGFloat = Space.s3
+    /// A card row: `cardRow` = `controlRegular` + 6 / 6.
+    public static let settingsRowPaddingV: CGFloat = (Height.cardRow - Height.controlRegular) / 2
     /// Settings' status line preview (#105): one terminal row, faint text at half the foreground as Ghostty draws it.
     public static let statuslinePreviewHeight: CGFloat = 30
     public static let statuslinePreviewPaddingH: CGFloat = 10
@@ -38,9 +41,6 @@ extension Theme {
     /// A preview line wider than the card fades out over its last points instead of being cut.
     public static let statuslinePreviewFade: CGFloat = 16
     public static let settingsHeaderGap: CGFloat = 8
-    /// The label column is measured from the longest label of the language (+ slack); never wider than the max.
-    public static let settingsLabelSlack: CGFloat = 1
-    public static let settingsLabelMax: CGFloat = 220
     /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
     public static let themeTileGap: CGFloat = 12
     public static let themeTileRadius: CGFloat = 8

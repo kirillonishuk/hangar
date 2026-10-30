@@ -43,7 +43,7 @@ struct GitDetailsView: View {
                 .padding(.leading, -ControlSize.small.paddingH)
             } else {
                 Text(L10n.gitCommit)
-                    .font(Theme.Typography.secondary.font(.semibold))
+                    .font(Theme.Typography.caption.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
             }
             Spacer(minLength: 0)
@@ -79,7 +79,7 @@ struct GitDetailsView: View {
     @ViewBuilder private func files(_ d: CommitDetails) -> some View {
         let total = commitFileTotals(d.files)
         HStack(spacing: Theme.GitTab.blockGap) {
-            Text(L10n.fileCount(d.files.count)).font(Theme.Typography.secondary.font(.semibold)).foregroundStyle(Theme.ui.text3)
+            Text(L10n.fileCount(d.files.count)).font(Theme.Typography.caption.font(.semibold)).foregroundStyle(Theme.ui.text3)
             Spacer(minLength: 0)
             GitNumbers(added: total.added, deleted: total.deleted)
         }

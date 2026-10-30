@@ -368,4 +368,29 @@ import TestSupport
         undo.undo(undo.onUndo)
         #expect(restored == [id])
     }
+
+    /// The pointer over the toast holds it (§3.15): the pending hide is cancelled; leaving arms a fresh one.
+    @Test func toastHoverHolds() {
+        var items: [DispatchWorkItem] = []
+        let undo = ArchiveUndo(delay: 5) { _, item in items.append(item) }
+        let id = UUID()
+        undo.show(id)
+        undo.hold(true)
+        #expect(items.count == 1 && items[0].isCancelled)
+        #expect(undo.taskId == id)
+        undo.hold(false)
+        #expect(items.count == 2 && !items[1].isCancelled)
+        items[1].perform()
+        #expect(undo.taskId == nil)
+        undo.hold(false)  // nothing shown: no new timer
+        #expect(items.count == 2)
+        // A newer toast while held arms nothing; leaving does.
+        undo.show(id)
+        #expect(items.count == 3)
+        undo.hold(true)
+        undo.show(message: "x")
+        #expect(items.count == 3)
+        undo.hold(false)
+        #expect(items.count == 4 && !items[3].isCancelled)
+    }
 }

@@ -9,6 +9,7 @@ let lines = try! String(contentsOfFile: dir + "/index.txt", encoding: .utf8).spl
 let t0 = Double(lines[0][0])!
 let frames: [(Double, String)] = lines.map { (Double($0[0])! - t0, dir + "/" + $0[1]) }
 let hold = 2.0
+let backdrop = CGColor(srgbRed: 0.05, green: 0.07, blue: 0.09, alpha: 1)  // GitHub's dark page
 func cg(_ p: String) -> CGImage { let s = CGImageSourceCreateWithURL(URL(fileURLWithPath: p) as CFURL, nil)!; return CGImageSourceCreateImageAtIndex(s, 0, nil)! }
 
 // MP4: real capture timestamps as presentation times.
@@ -29,6 +30,7 @@ func buffer(_ img: CGImage) -> CVPixelBuffer {
     let ctx = CGContext(data: CVPixelBufferGetBaseAddress(b), width: W, height: H, bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(b),
                         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)!
     ctx.interpolationQuality = .high
+    ctx.setFillColor(backdrop); ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))  // the window's rounded corners are transparent
     ctx.draw(img, in: CGRect(x: 0, y: 0, width: W, height: H))
     CVPixelBufferUnlockBaseAddress(b, []); return b
 }
@@ -54,6 +56,7 @@ for (i, (t, p)) in frames.enumerated() {
     let ctx = CGContext(data: nil, width: gifW, height: gh, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
                         bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
     ctx.interpolationQuality = .high
+    ctx.setFillColor(backdrop); ctx.fill(CGRect(x: 0, y: 0, width: gifW, height: gh))
     ctx.draw(cg(p), in: CGRect(x: 0, y: 0, width: gifW, height: gh))
     let delay = max(0.02, (next - t * 1).rounded(toPlaces: 2))
     CGImageDestinationAddImage(dest, ctx.makeImage()!, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: next - t,

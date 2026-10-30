@@ -35,4 +35,4 @@ Never run a release build or `/Applications/Hangar.app`; never `swift run` witho
 - Dialing real ssh hosts from tests or debug runs.
 
 ## README media
-`scripts/readme-media/{shots,video,social}.sh` (usage in `common.sh`): fixture world under `/tmp/hg-media`, output in `/tmp/hg-media-out`; copy into `docs/assets/` only after the owner has looked. Needs Screen Recording permission for the terminal.
+`scripts/readme-media/{shots,video,social}.sh` (usage in `common.sh`): fixture world under `/tmp/hg-media`, output in `/tmp/hg-media-out`; copy into `docs/assets/` only after the owner has looked. Needs Screen Recording permission for the terminal. Built from `.build-native/debug` (the window gets the real SDK's chrome, see above; `BIN=` for another dir); PNGs are quantized with `ffmpeg`. The window comes to the front only while capturing or recording.

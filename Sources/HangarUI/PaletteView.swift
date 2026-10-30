@@ -248,13 +248,13 @@ struct PaletteView: View {
             HStack(spacing: Theme.paletteGap) {
                 if let branch = task?.branch {
                     HStack(spacing: Theme.paletteIconGap) {
-                        IconView(icon: .branch, size: Theme.worktreeEndIcon)
+                        IconView(icon: .branch, size: Theme.Icon.inline)
                         Text(branch).font(Theme.Typography.mono.font()).truncationMode(.middle)
                     }
                 }
                 if let host = task.flatMap({ app.project($0.projectId)?.host }) {
                     HStack(spacing: Theme.paletteIconGap) {
-                        IconView(icon: .sshHost, size: Theme.worktreeEndIcon)
+                        IconView(icon: .sshHost, size: Theme.Icon.inline)
                         Text(host).font(Theme.Typography.secondary.font())
                     }
                 }

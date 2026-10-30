@@ -148,7 +148,7 @@ struct GitSearchField: View {
                         .foregroundStyle(Theme.ui.text3)
                 }
                 Button { model.query.text = "" } label: {
-                    IconView(icon: .close, size: Theme.smallIconSize, tint: Theme.ui.text3)
+                    IconView(icon: .close, size: Theme.Icon.inline, tint: Theme.ui.text3)
                 }
                 .buttonStyle(.plain)
                 .pointingHand()

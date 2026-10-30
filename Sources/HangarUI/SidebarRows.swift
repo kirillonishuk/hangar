@@ -7,7 +7,7 @@ import SwiftUI
 /// collapsing only cross-fades the labels, so nothing moves (only the sidebar width animates).
 struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     let collapsed: Bool
-    var height = Theme.railRowHeight
+    var height = Theme.Height.rowSidebar
     var textX = Theme.gutterTextX
     /// Nested rows (sessions under their project): marker and text shift right; the rail content stays centred.
     var indent: CGFloat = 0
@@ -23,8 +23,8 @@ struct GutterRow<Marker: View, Expanded: View, Rail: View>: View {
     var body: some View {
         ZStack(alignment: .leading) {
             marker
-                .frame(width: Theme.iconSize, height: Theme.iconSize)
-                .offset(x: Theme.gutterMarkerX - Theme.iconSize / 2 + indent, y: markerDY)
+                .frame(width: Theme.Icon.toolbar, height: Theme.Icon.toolbar)
+                .offset(x: Theme.gutterMarkerX - Theme.Icon.toolbar / 2 + indent, y: markerDY)
                 .opacity(railReplacesMarker && collapsed ? 0 : 1)
             // Centred in the rail, like the project tile.
             rail
@@ -65,8 +65,8 @@ struct SectionHeader: View {
                         // Off: a `text3` ring; on: a filled `waiting` dot (redesign-v1.html `.att`).
                         Circle().strokeBorder(filterOn ? Theme.ui.waiting : Theme.ui.text3, lineWidth: Theme.sectionFilterRing)
                             .background(Circle().fill(filterOn ? Theme.ui.waiting : .clear))
-                            .frame(width: Theme.statusDot, height: Theme.statusDot)
-                            .frame(width: Theme.rowActionSize, height: Theme.rowActionSize)
+                            .frame(width: Theme.Icon.statusDot, height: Theme.Icon.statusDot)
+                            .frame(width: Theme.Height.controlSmall, height: Theme.Height.controlSmall)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -85,7 +85,7 @@ struct SectionHeader: View {
             .foregroundStyle(Theme.ui.text3)
             .padding(.leading, Theme.sectionHeaderX)
             .padding(.trailing, Theme.sectionHeaderTrailing)
-            .frame(height: collapsed ? Theme.railHeaderHeight : Theme.sectionHeaderHeight)
+            .frame(height: collapsed ? Theme.railHeaderHeight : Theme.Height.barPane)
             .clipped()
             .opacity(collapsed ? 0 : 1)
             .overlay(alignment: .leading) {
@@ -128,7 +128,7 @@ struct RailTile: View {
 
     var body: some View {
         let style = RailTileStyle(selected: selected)
-        let shape = RoundedRectangle(cornerRadius: Theme.projectTileRadius)
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control)
         Text(text)
             .font(Theme.Typography.caption.font(.semibold))
             .foregroundStyle(style.text)

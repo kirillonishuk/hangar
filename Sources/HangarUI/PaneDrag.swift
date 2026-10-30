@@ -281,7 +281,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         super.init(frame: frame)
         isHidden = true
         wantsLayer = true
-        layer?.cornerRadius = Theme.tabRadius
+        layer?.cornerRadius = Theme.Radius.control
         layer?.borderWidth = 1
         layer?.shadowRadius = Theme.paneDragGhostShadowRadius
         layer?.shadowOpacity = Float(Theme.paneDragGhostShadowOpacity)
@@ -322,12 +322,12 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         icon.image = kind.image
         label.stringValue = title
         label.sizeToFit()
-        let pad = Theme.paneDragGhostPaddingH, s = Theme.iconSize, h = Theme.paneDragGhostHeight
-        let w = min(Theme.paneDragGhostMaxWidth, pad + s + Theme.iconGap + label.frame.width + pad)
+        let pad = Theme.paneDragGhostPaddingH, s = Theme.Icon.toolbar, h = Theme.paneDragGhostHeight
+        let w = min(Theme.paneDragGhostMaxWidth, pad + s + Theme.Space.iconGap + label.frame.width + pad)
         frame = Self.placement(NSSize(width: w, height: h), pointer: p, in: superview?.bounds ?? .infinite)
         icon.frame = NSRect(x: pad, y: (h - s) / 2, width: s, height: s)
-        label.frame = NSRect(x: pad + s + Theme.iconGap, y: (h - label.frame.height) / 2,
-                             width: w - pad * 2 - s - Theme.iconGap, height: label.frame.height)
+        label.frame = NSRect(x: pad + s + Theme.Space.iconGap, y: (h - label.frame.height) / 2,
+                             width: w - pad * 2 - s - Theme.Space.iconGap, height: label.frame.height)
         alphaValue = allowed ? 1 : Theme.Opacity.inactive
         isHidden = false
     }

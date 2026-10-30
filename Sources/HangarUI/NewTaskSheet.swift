@@ -37,7 +37,7 @@ struct NewTaskSheet: View {
             .padding([.horizontal, .bottom], Theme.Space.s5)
             footer
         }
-        .frame(width: Theme.chatSheetWidth)
+        .frame(width: Theme.sheetWidth)
         .font(Theme.Typography.body.font())
         .lineLimit(1)
         .background(Theme.ui.bg2)

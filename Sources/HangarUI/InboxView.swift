@@ -136,7 +136,7 @@ private struct InboxRow: View {
                 .padding(.vertical, Theme.Inbox.rowPaddingV)
                 .padding(.horizontal, Theme.Inbox.rowPaddingH)
             }
-            .environment(\.rowHighlight, RowHighlight(radius: Theme.railItemRadius))
+            .environment(\.rowHighlight, RowHighlight(radius: Theme.Radius.control))
             .help(n.title)
             if replying {
                 TextField("", text: $reply)

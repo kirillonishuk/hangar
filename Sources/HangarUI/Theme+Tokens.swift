@@ -88,6 +88,12 @@ extension Theme {
         public static let tabDot: CGFloat = 6
     }
 
+    /// §3.13: a badge (limit, ref chip, tag) is 16 high with 6 at the sides, `radius.control`, `caption`.
+    public enum Badge {
+        public static let height: CGFloat = 16
+        public static let paddingH: CGFloat = 6
+    }
+
     /// §2.7: the only four opacities of colours.
     public enum Opacity {
         /// Inactive (disabled) elements.

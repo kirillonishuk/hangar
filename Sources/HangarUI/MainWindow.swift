@@ -62,7 +62,7 @@ final class TaskColumnController: NSViewController {
             tabBar.topAnchor.constraint(equalTo: v.topAnchor, constant: Theme.Height.barToolbar),
             tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            tabBar.heightAnchor.constraint(equalToConstant: Theme.tabBarHeight),
+            tabBar.heightAnchor.constraint(equalToConstant: Theme.Height.barTabs),
             terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -72,7 +72,7 @@ final class TaskColumnController: NSViewController {
             sessions.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             sessions.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
-            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.drawerBarHeight + Theme.toastBottom)),  // above the TERMINAL bar
+            toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.Height.barPane + Theme.toastBottom)),  // above the TERMINAL bar
         ])
         view = v
     }
@@ -903,7 +903,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.chatSheetWidth, height: Theme.sheetPlaceholderHeight),
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance

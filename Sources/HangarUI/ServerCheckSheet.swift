@@ -4,21 +4,22 @@ import GhosttyBridge
 import Integration
 import SwiftUI
 
-/// «Сервер <host>» (580): the check report, the install plan with its exact
+/// «Сервер <host>» (520): the check report, the install plan with its exact
 /// commands and, after «Установить», the install terminal. Opened from the host row; embedded in «Удалённый проект».
 struct ServerCheckSheet: View {
     @Bindable var model: ServerCheckModel
     /// The window's content height: the sheet stays inside it.
     let windowHeight: CGFloat
     let onClose: () -> Void
+    @State private var chrome = SheetChrome()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.serverTitle(model.host))
-            ServerCheckView(model: model, embedded: false, maxHeight: windowHeight - Theme.serverSheetChrome)
+            ServerCheckView(model: model, embedded: false, maxHeight: chrome.budget(windowHeight))
+                .measuredPart($chrome)
                 .padding(.top, Theme.sheetNameTop)
-            // Esc goes to the install terminal while it runs: the hint would promise a cancel that isn't there.
-            SheetFooter(hintHidden: model.phase == .installing) {
+            SheetFooter {
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
                     .buttonStyle(.hangar(.secondary))
@@ -35,7 +36,43 @@ struct ServerCheckSheet: View {
                 }
             }
         }
+        .measuredSheet($chrome)
         .sheetFrame()
+    }
+}
+
+/// The sheet's own parts around the server report (header, card, footer, margins), measured rather than guessed: the
+/// report may take the window's height minus them, so the sheet never outgrows its window whatever the rows' layout.
+/// Until both heights are known the report gets only its minimum (the sheet grows into the window, never past it);
+/// the last good value stays while the report is gone, so its return doesn't start from a stale or empty measurement.
+struct SheetChrome: Equatable {
+    private(set) var sheet: CGFloat = 0
+    private(set) var part: CGFloat?
+    private(set) var chrome: CGFloat?
+
+    func budget(_ windowHeight: CGFloat) -> CGFloat {
+        guard let chrome else { return Theme.serverReportMinHeight }
+        return max(Theme.serverReportMinHeight, windowHeight - chrome)
+    }
+
+    mutating func sheetMeasured(_ height: CGFloat) { sheet = height; update() }
+    mutating func partMeasured(_ height: CGFloat?) { part = height; update() }
+
+    private mutating func update() {
+        guard let part, part > 0, sheet > part else { return }
+        chrome = sheet - part
+    }
+}
+
+extension View {
+    /// The whole sheet's height, for `SheetChrome`.
+    func measuredSheet(_ chrome: Binding<SheetChrome>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chrome.wrappedValue.sheetMeasured($0) }
+    }
+    /// The report's height inside it, for `SheetChrome`; forgotten when the report goes away.
+    func measuredPart(_ chrome: Binding<SheetChrome>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chrome.wrappedValue.partMeasured($0) }
+            .onDisappear { chrome.wrappedValue.partMeasured(nil) }
     }
 }
 

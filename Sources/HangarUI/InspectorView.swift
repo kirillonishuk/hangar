@@ -34,7 +34,7 @@ struct InspectorView: View {
             if app.inspectorNotice == nil { segment }
         }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
-        .frame(maxWidth: .infinity, minHeight: Theme.tabBarHeight, maxHeight: Theme.tabBarHeight)
+        .frame(maxWidth: .infinity, minHeight: Theme.Height.barTabs, maxHeight: Theme.Height.barTabs)
         .background(WindowDragArea())
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
     }
@@ -176,9 +176,9 @@ private struct FileRow: View {
             HStack(spacing: Theme.railInset) {
                 // Files keep the chevron's slot, so names of one level line up.
                 if row.entry.isDir {
-                    IconView(icon: row.expanded ? .chevronDown : .chevronRight, size: Theme.smallIconSize)
+                    IconView(icon: row.expanded ? .chevronDown : .chevronRight, size: Theme.Icon.inline)
                 } else {
-                    Color.clear.frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
+                    Color.clear.frame(width: Theme.Icon.inline, height: Theme.Icon.inline)
                 }
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)

@@ -34,6 +34,8 @@ description: Hangar design system v2 (direction B, macOS-native) — tokens (spa
 | Прозрачности | .4 неактивно · .15 заливка цветом роли · .25 кольцо фокуса · .35 затемнение |
 | Движение | мгновенно; сайдбар 180 мс; «ждёт» — один пульс; Reduce Motion — ничего |
 
+Имена в Swift (`Theme+Tokens.swift`): `Theme.Space.s1…s8`, `Space.iconGap` · `Theme.Typography.title/body/secondary/caption/mono/monoSmall` → `.font(.semibold)` / `.nsFont()` · `Theme.Radius.control/segmentItem/popover/window` · `Theme.Height.controlRegular/controlSmall/rowSidebar/rowList/rowLarge/barToolbar/barTabs/tab/barPane/cardRow` · `Theme.Icon.toolbar/row/inline/statusDot/tabDot` · `Theme.Badge.height/paddingH` · `Theme.Opacity.inactive/fill/ring/scrim`. Роли — `Theme.<роль>` (NSColor) и `Theme.ui.<роль>` (SwiftUI). Старых алиасов нет; числа вне токенов и разрешённые файлы — спека §7.1, литералы ловит тест-растяжка `DesignTokenGuardTests` (не доказательство — смотри и сам).
+
 Роли цвета (каждая тема заполняет все): `bg0` контент · `bg1` хром (тулбар, оба сайдбара, вкладки, карточки) · `bg2` всплывающее · `field` · `hover` · `hover2` (нажатие, активная вкладка/сегмент) · `selected` · `selectedFocus` + `onAccent` · `line` `line2` · `text0` `text1` `text2` `text3` · `accent` `accentText` · `working` `waiting` `done` `failed` `failedText` `idle` · `gitA` `gitM` `gitD` · `diffAdd` `diffDel` · `limOk` `limTrack` · `ansi`, `editor*`.
 
 Состояния: наведение `hover` · нажатие `hover2` · выбрано в фокусе `selectedFocus`/`onAccent`, вне фокуса `selected` · фокус — рамка + кольцо `accent` 3 pt .25 · ошибка поля — рамка `failed` + текст `failedText` под полем · неактивно .4 + причина в тултипе.
@@ -57,7 +59,7 @@ description: Hangar design system v2 (direction B, macOS-native) — tokens (spa
 ## Перед тем как добавить UI
 1. Нужен ли элемент вообще? Не видна ли эта информация уже рядом?
 2. Какой уровень важности (спека §5)? Второстепенное — иконкой.
-3. Есть ли готовый компонент (`Controls.swift`, `PopoverMenu`, `InputField`, `SheetKit`)? Используй его, не новый.
+3. Есть ли готовый компонент? Кнопки `.buttonStyle(.hangar(…))`, `IconButton`, `Chip`, `PopupButton`, `Segmented`, `Checkbox`, `CardSwitch` (`Controls.swift`), меню `PopoverMenu`, поле `inputField` (`InputField.swift`), строка карточки `CardRow`, лист `SheetKit`. Используй его, не новый.
 4. Все размеры, цвета, шрифты — токены и роли; новая константа в `Theme` только если её нет в спеке, и тогда — правка спеки.
 5. Текст — по словарю и правилам; ru и en в `Localizable.strings`.
 6. Проверка: Navy, Dark+, Графит; ru и en; минимальная ширина окна; без сдвигов при наведении/выборе; Reduce Motion; клавиатура (Tab, Esc, ↩).

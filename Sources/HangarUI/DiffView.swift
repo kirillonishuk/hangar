@@ -253,7 +253,7 @@ struct DiffView: View {
 
     private func header(_ path: String, commit: String?, _ content: DiffContent) -> some View {
         HStack(spacing: Theme.Diff.headerGap) {
-            HStack(spacing: Theme.iconGap) {
+            HStack(spacing: Theme.Space.iconGap) {
                 FileIconView(name: (path as NSString).lastPathComponent)
                 Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.head)
@@ -293,7 +293,7 @@ struct DiffView: View {
     private func navButton(_ icon: Icon, help: String, next: Bool) -> some View {
         let enabled = editor.changes.canStep
         return Button { editor.goChange(next: next) } label: {
-            IconView(icon: icon, size: Theme.smallIconSize, tint: Theme.ui.text2)
+            IconView(icon: icon, size: Theme.Icon.inline, tint: Theme.ui.text2)
                 .frame(width: Theme.Diff.navButtonWidth, height: Theme.Diff.navButtonHeight)
                 .overlay(RoundedRectangle(cornerRadius: Theme.Diff.navButtonRadius).strokeBorder(Theme.ui.line, lineWidth: 1))
         }

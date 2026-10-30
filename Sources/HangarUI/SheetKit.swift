@@ -4,7 +4,7 @@ import SwiftUI
 /// The parts every settings-like screen shares (the settings window and the sheets): header, sections of cards,
 /// switch, status pill, footer, and the sheet frame itself (DESIGN.md «Лист», «Окно настроек»).
 
-/// Sheet title (`sheetTitle` semibold) with an optional `text3` subtitle (the project, the host).
+/// Sheet title (`title` 600) with an optional `body` `text2` context (the project, the host), §3.14.
 struct SheetHeader: View {
     let title: String
     var subtitle: String?
@@ -15,7 +15,7 @@ struct SheetHeader: View {
                 .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.text0)
             if let subtitle {
-                Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text2)
                     .lineLimit(1).truncationMode(.middle)
                     .help(subtitle)
             }
@@ -25,18 +25,12 @@ struct SheetHeader: View {
     }
 }
 
-/// Footer: a `text3` hint on the left, the buttons on the right (cancel first, the primary last).
+/// Footer: the buttons on the right (cancel first, the primary last); no «Esc — отмена» (§3.14).
 struct SheetFooter<Buttons: View>: View {
-    var hint: String = L10n.escCancel
-    /// Hidden but kept (no jump), e.g. while Esc belongs to an install terminal.
-    var hintHidden = false
     @ViewBuilder var buttons: Buttons
 
     var body: some View {
         HStack(spacing: Theme.sheetButtonGap) {
-            Text(verbatim: hint).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
-                .lineLimit(1).truncationMode(.middle)
-                .opacity(hintHidden ? 0 : 1)
             Spacer(minLength: 0)
             buttons
         }
@@ -155,7 +149,7 @@ struct ConfirmSheet: View {
             }
             .padding(.top, Theme.sheetGap)
         }
-        .sheetFrame(width: Theme.confirmSheetWidth)
+        .sheetFrame()
     }
 }
 

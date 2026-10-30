@@ -111,7 +111,7 @@ private struct SearchQueryField: View {
                 .onExitCommand { if model.text.isEmpty { focused = false } else { model.text = "" } }
             if !model.text.isEmpty {
                 Button { model.text = "" } label: {
-                    IconView(icon: .close, size: Theme.smallIconSize, tint: Theme.ui.text3)
+                    IconView(icon: .close, size: Theme.Icon.inline, tint: Theme.ui.text3)
                 }
                 .buttonStyle(.plain)
                 .pointingHand()
@@ -197,7 +197,7 @@ private struct SearchFileHeader: View {
         let dir = (file.path as NSString).deletingLastPathComponent
         HoverRow(action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
-                IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.smallIconSize)
+                IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.Icon.inline)
                 FileIconView(name: name)
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)

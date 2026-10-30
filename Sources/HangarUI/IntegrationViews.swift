@@ -86,7 +86,7 @@ struct WhereRow: View {
     }
 
     private func label(_ item: WhereItem) -> some View {
-        HStack(spacing: Theme.sheetLineGap + 2) {
+        HStack(spacing: Theme.Space.iconGap) {
             IconView(icon: item.icon, size: Theme.integrationWhereIcon, tint: Theme.ui.text2)
             Text(verbatim: item.name).foregroundStyle(Theme.ui.text1)
             mark(item.mark)
@@ -100,10 +100,10 @@ struct WhereRow: View {
         case .none: EmptyView()
         case .note(let t): Text(verbatim: t).foregroundStyle(Theme.ui.text3)
         case .dot(let color, let t):
-            Circle().fill(color).frame(width: Theme.statusDot, height: Theme.statusDot)
+            Circle().fill(color).frame(width: Theme.Icon.statusDot, height: Theme.Icon.statusDot)
             Text(verbatim: t).foregroundStyle(Theme.ui.text3)
         case .link(let t):
-            Circle().fill(Theme.ui.waiting).frame(width: Theme.statusDot, height: Theme.statusDot)
+            Circle().fill(Theme.ui.waiting).frame(width: Theme.Icon.statusDot, height: Theme.Icon.statusDot)
             Text(verbatim: t).foregroundStyle(Theme.ui.accentText)
         }
     }

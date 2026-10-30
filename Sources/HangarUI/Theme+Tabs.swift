@@ -13,23 +13,19 @@ extension Theme {
     /// 16 above the chat area's bottom: the hosting view's margin for the shadow is counted in.
     public static let toastBottom: CGFloat = Space.s4 - toastShadow.radius
 
-    /// Tab `×`: its hover box reaches this far around the 10 pt icon (into the tab's padding), corner radius.
-    public static let tabCloseInset: CGFloat = 3
-    public static let tabCloseRadius: CGFloat = 4
+    /// Tab `×`: its hover box reaches this far around the 12 pt icon (into the tab's padding), corner radius.
+    public static let tabCloseInset: CGFloat = Space.s1
+    public static let tabCloseRadius: CGFloat = Radius.control
     /// Tab widths (decision #69): a crowded bar shrinks tabs to `tabMinWidth` (icon, a few letters, `×`),
     /// then scrolls; a roomy one stops them at `tabMaxWidth`.
     public static let tabMinWidth: CGFloat = 110
     public static let tabMaxWidth: CGFloat = 200
     /// A file (or diff) tab is as wide as its whole name, up to this; past it the name truncates in the middle.
     public static let fileTabMaxWidth: CGFloat = 2 * tabMaxWidth
-    /// Square hit box of the bar's `+` and overflow chevron (16 pt icon + 6 pt padding).
-    public static let tabBarButton: CGFloat = 28
     /// Fade over the clipped edges of a scrolled bar; a revealed tab also clears it.
     public static let tabFadeWidth: CGFloat = 24
     /// A mouse wheel notch (line) scrolls the bar this far.
     public static let tabWheelLine: CGFloat = 16
-    /// Every tab (plain, file, preview, diff, renaming) is this tall: the active one never stands out by a pixel.
-    public static let tabHeight: CGFloat = Height.tab
     /// While dragging a tab this close to the bar's edge, each move scrolls the bar by `tabDragScrollStep`.
     public static let tabDragScrollEdge: CGFloat = 32
     public static let tabDragScrollStep: CGFloat = 12

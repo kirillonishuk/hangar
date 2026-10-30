@@ -93,7 +93,7 @@ func remoteRealPath(_ path: String, home: String, runner: Runner) async -> Strin
     return real
 }
 
-/// Sheet (580, new-task-v4): title, one card (Хост with the ssh-config drop-down, Путь mono), the connection state,
+/// Sheet (520): title, one card (Хост with the ssh-config drop-down, Путь mono), the connection state,
 /// then the embedded server report. One primary button: «Подключиться», then «Добавить».
 struct RemoteProjectSheet: View {
     @Bindable var model: RemoteProjectModel
@@ -104,6 +104,7 @@ struct RemoteProjectSheet: View {
 
     @FocusState private var focus: Field?
     private enum Field { case host, path }
+    @State private var chrome = SheetChrome()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -112,11 +113,13 @@ struct RemoteProjectSheet: View {
             card.padding(.top, Theme.sheetNameTop)
             status
             if let server = model.server {
-                ServerCheckView(model: server, embedded: true, maxHeight: windowHeight - Theme.remoteSheetChrome)
+                ServerCheckView(model: server, embedded: true, maxHeight: chrome.budget(windowHeight))
+                    .measuredPart($chrome)
                     .padding(.top, Theme.sheetGap)
             }
             footer
         }
+        .measuredSheet($chrome)
         .sheetFrame()
         .onAppear { focus = .host }
     }
@@ -167,7 +170,7 @@ struct RemoteProjectSheet: View {
 
     private var footer: some View {
         // Esc goes to the install terminal while it runs (as in «Сервер»).
-        SheetFooter(hintHidden: model.server?.phase == .installing) {
+        SheetFooter {
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
             Button(L10n.cancel, action: onCancel)
                 .buttonStyle(.hangar(.secondary))

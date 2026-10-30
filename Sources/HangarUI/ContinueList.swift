@@ -51,7 +51,7 @@ extension AppState {
 /// «Продолжить» rows that fit above buttons centred in an area `size` (`extra`: lines stacked above the list), at most
 /// `Theme.continueRows`, and the list's width: in a short or narrow pane it must not cover the pane header or overflow.
 func continueFit(_ size: CGSize, extra: Int = 0) -> (rows: Int, width: CGFloat) {
-    let row = Theme.continueRowHeight
+    let row = Theme.Height.rowLarge
     let above = size.height / 2 - row / 2 - Theme.sheetGap  // the buttons are about one row tall, centred
     let rows = Int((above / row).rounded(.down)) - 1 - extra  // the «Продолжить» title takes a row
     return (min(max(rows, 0), Theme.continueRows), max(0, min(Theme.continueWidth, size.width - 2 * Theme.sheetGap)))
@@ -97,7 +97,7 @@ struct ContinueList: View {
         }
         .font(Theme.Typography.body.font())
         .padding(.horizontal, Theme.historyRowPaddingH)
-        .frame(height: Theme.continueRowHeight)
+        .frame(height: Theme.Height.rowLarge)
         .background(hovered == key ? Theme.ui.hover : .clear, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
         .contentShape(Rectangle())
         .onTapGesture { resume(c) }

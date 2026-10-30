@@ -9,32 +9,27 @@ public enum Theme {
     // Fonts: `Theme.Typography` (Theme+Tokens.swift).
 
     // Sizes
-    /// Sidebar 256 (200–320), inspector 320 (280–420): design system §2.4.
-    public static let sidebarWidth: CGFloat = 256
+    /// Sidebar 256 (200–320), inspector 320 (280–420): design system §2.4; the defaults live in `WorkspaceState`.
     public static let sidebarMin: CGFloat = 200
     public static let sidebarMax: CGFloat = 320
-    public static let tabBarHeight: CGFloat = Height.barTabs
     public static let windowSize = NSSize(width: 1200, height: 760)
     public static let windowMinSize = NSSize(width: 800, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
-    /// Right sidebar (DESIGN.md «Раскладка»): default width, drag limits; tree level indent, file row padding (~22 high).
-    public static let inspectorWidth: CGFloat = 320
+    /// Right sidebar drag limits; tree level indent, file row padding (~22 high).
     public static let inspectorMin: CGFloat = 280
     public static let inspectorMax: CGFloat = 420
-    public static let treeIndent: CGFloat = 12
-    public static let fileRowPaddingV: CGFloat = 3
-    public static let inspectorSegmentPaddingH: CGFloat = 10
+    public static let treeIndent: CGFloat = Space.s3
+    public static let fileRowPaddingV: CGFloat = Space.s1
+    public static let inspectorSegmentPaddingH: CGFloat = Space.s3
     /// Changes / Search rows show a folder only with at least this much room.
     public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
-    /// Bottom terminal drawer: bar height, grab strip on its top edge, height limits, open/close animation.
-    public static let drawerBarHeight: CGFloat = 28
+    /// Bottom terminal drawer (bar `Height.barPane`): grab strip on its top edge, height limit, open/close animation.
     public static let drawerGrabHeight: CGFloat = 5
     public static let drawerMaxFraction: CGFloat = 0.7
     public static let drawerAnimation: Double = 0.18
 
-    public static let statusDot: CGFloat = 8
     /// `waiting` halo: ring of `waiting` at 25%.
     public static let haloWidth: CGFloat = 3
     /// Rail monogram's corner dot and its `bg1` border.
@@ -44,12 +39,9 @@ public enum Theme {
     public static let railDotOffset: CGFloat = 3.5
     /// A tab's status dot sits on its icon's bottom-right corner, this far out.
     public static let tabDotOffset: CGFloat = 3
-    public static let worktreeEndIcon: CGFloat = 12
-    public static let rowPaddingH: CGFloat = 14
-    public static let tabPaddingV: CGFloat = 6
+    public static let rowPaddingH: CGFloat = Space.s3
     public static let tabPaddingH: CGFloat = Space.s3
     public static let tabGap: CGFloat = Space.s1
-    public static let tabRadius: CGFloat = 6
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
     /// Insertion line while dragging sidebar rows (`accent`); the tab bar opens a slot instead (`tabDropSlot*`).
@@ -59,27 +51,22 @@ public enum Theme {
     /// Dragging a tab/pane over a pane: each edge's drop zone, as a share of that side (DESIGN «Сплиты»).
     public static let paneDropZone: CGFloat = 0.25
     public static let paneDropLineWidth: CGFloat = 2
-    public static let paneDragGhostHeight: CGFloat = 28
-    public static let paneDragGhostPaddingH: CGFloat = 10
+    public static let paneDragGhostHeight: CGFloat = Height.tab
+    public static let paneDragGhostPaddingH: CGFloat = Space.s3
     public static let paneDragGhostMaxWidth: CGFloat = 260
     /// From the pointer to the chip's top-left corner.
-    public static let paneDragGhostOffset: CGFloat = 12
+    public static let paneDragGhostOffset: CGFloat = Space.s3
     public static let paneDragGhostShadowRadius: CGFloat = 10
     public static let paneDragGhostShadowOpacity: CGFloat = 0.5
-    public static let tabTitleLeading: CGFloat = 8
+    public static let tabTitleLeading: CGFloat = Space.s2
     public static let tabTitleTrailing: CGFloat = Space.s2
-    public static let railRowHeight: CGFloat = Height.rowSidebar
     /// Icons v2 (decision #56): drawn on a 16 grid with a 1.5 pt line at every size.
-    public static let iconSize: CGFloat = 16
     public static let iconGrid: CGFloat = 16
     public static let iconStroke: CGFloat = 1.5
-    public static let iconGap: CGFloat = 6
-    public static let smallIconSize: CGFloat = 10
     /// Row markers sit on the rail's centre line in both modes (icons-sidebar.html `.g`), so the rail's icons line up with its tiles.
     public static let gutterMarkerX: CGFloat = sidebarRailWidth / 2
     public static let gutterTextX: CGFloat = gutterMarkerX + Icon.toolbar / 2 + Space.s2
-    public static let sectionGap: CGFloat = 10
-    public static let footerRowHeight: CGFloat = 28
+    public static let sectionGap: CGFloat = Space.s2
     public static let sidebarAnimation: Double = 0.18
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
@@ -92,63 +79,49 @@ public enum Theme {
     public static let railHeaderLine: CGFloat = 24
     public static let railHeaderLineWidth: CGFloat = 1
     /// Gap between inline parts of a row (name · project, icon · host).
-    public static let inlineGap: CGFloat = 6
+    public static let inlineGap: CGFloat = Space.iconGap
     /// Least gap between a row's text and its trailing buttons.
-    public static let rowEndGap: CGFloat = 8
-    public static let projectTileRadius: CGFloat = 6
-    public static let railItemRadius: CGFloat = 6
-    public static let railInset: CGFloat = 4
-    public static let paneHeaderPaddingH: CGFloat = 12
-    /// A pane header (split pane, editor): constant, so the content never jumps when its buttons show.
-    public static let paneHeaderHeight: CGFloat = Height.barPane
-    public static let paneHeaderIcon: CGFloat = 12
+    public static let rowEndGap: CGFloat = Space.s2
+    public static let railInset: CGFloat = Space.s1
+    public static let paneHeaderPaddingH: CGFloat = Space.s3
     /// Gap between the header's «⇱» and «×».
-    public static let paneHeaderButtonGap: CGFloat = 2
+    public static let paneHeaderButtonGap: CGFloat = Space.s1
 
-    /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
-    public static let sheetWidth: CGFloat = 620
-    /// Design-system sheet width (§3.14), so far «Новый чат»; the other sheets move to it in stage 11.
-    public static let chatSheetWidth: CGFloat = 520
+    /// Every sheet (§3.14: new chat, project settings, remote project, server, integration, update): one width.
+    public static let sheetWidth: CGFloat = 520
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
-    public static let sheetPaddingH: CGFloat = 18
-    public static let sheetRadius: CGFloat = 12
-    public static let sheetHeaderTop: CGFloat = 14
-    public static let sheetHeaderBottom: CGFloat = 4
-    public static let sheetNameTop: CGFloat = 8
-    public static let sheetGap: CGFloat = 12
-    public static let sheetFooterPaddingV: CGFloat = 14
-    public static let fieldRadius: CGFloat = 7
-    public static let fieldPaddingH: CGFloat = 11
-    public static let buttonPaddingH: CGFloat = 14
-    public static let focusRing: CGFloat = 3
+    public static let sheetPaddingH: CGFloat = Space.s5
+    public static let sheetHeaderTop: CGFloat = Space.s5
+    public static let sheetHeaderBottom: CGFloat = Space.s1
+    public static let sheetNameTop: CGFloat = Space.s2
+    public static let sheetGap: CGFloat = Space.s3
+    public static let sheetFooterPaddingV: CGFloat = Space.s3
+    public static let fieldRadius: CGFloat = Radius.control
+    public static let fieldPaddingH: CGFloat = Space.s2
+    public static let buttonPaddingH: CGFloat = Space.s3
+    public static let focusRing: CGFloat = Control.ringWidth
     public static let settingsTopOffset: CGFloat = 80
-    public static let cardRadius: CGFloat = 8
-    public static let cardRowPaddingV: CGFloat = 9
-    public static let cardRowPaddingH: CGFloat = 12
+    public static let cardRadius: CGFloat = Radius.popover
+    public static let cardRowPaddingV: CGFloat = settingsRowPaddingV
+    public static let cardRowPaddingH: CGFloat = Space.s3
     /// Both sides of an `NSTextField`'s line fragment padding (2 + 2): text width inside a plain field.
     public static let fieldTextInset: CGFloat = 4
-    public static let cardRowGap: CGFloat = 10
-    public static let segmentRadius: CGFloat = 7
+    public static let cardRowGap: CGFloat = Space.s3
+    public static let segmentRadius: CGFloat = Radius.control
 
     // New-task sheet card (new-task-v4 `.r .lbl`, `.dimrow`, `.pick`, `.dd`)
-    /// One label column in every sheet: «Команда после создания» (~165 at `sheetRow`, ru) on one line.
-    public static let cardLabelWidth: CGFloat = 168
+    /// The server check's report rows: a tool's name column (a table, not a form; spec §7.1).
+    public static let reportLabelWidth: CGFloat = 168
     /// git stderr shown under the card.
     public static let errorMaxLines = 6
-    public static let pickPaddingV: CGFloat = 3
-    public static let pickGap: CGFloat = 6
-    public static let pickChevronSize: CGFloat = 10
-    /// ↻ next to «обновлено …».
-    public static let sheetIconButtonSize: CGFloat = 22
+    public static let pickPaddingV: CGFloat = Space.s1
+    public static let pickGap: CGFloat = Space.iconGap
+    public static let pickChevronSize: CGFloat = Icon.inline
     // SSH hosts and the server sheet
-    /// «Claude Code на сервере»: wider than the card's usual 110, so the label stays on one line.
-    public static let remoteIntegrationLabelWidth: CGFloat = 200
     public static let installTerminalHeight: CGFloat = 260
-    public static let reportRowPaddingV: CGFloat = 6
-    /// Heights of the sheets' other parts (title, host card, footer, margins) and the smallest report before it scrolls.
-    public static let remoteSheetChrome: CGFloat = 250
-    public static let serverSheetChrome: CGFloat = 140
+    public static let reportRowPaddingV: CGFloat = settingsRowPaddingV
+    /// The smallest server report before it scrolls (the rest of the sheet is measured: `SheetChrome`).
     public static let serverReportMinHeight: CGFloat = 160
 }
 
@@ -184,18 +157,16 @@ extension Theme {
         public static let blockBar: CGFloat = 4
         public static let barGap: CGFloat = 3
         public static let percentWidth: CGFloat = 34
-        public static let rowGap: CGFloat = 8
-        public static let rowPaddingV: CGFloat = 5
-        public static let rowPaddingH: CGFloat = 6
-        public static let blockPaddingV: CGFloat = 8
-        public static let blockPaddingH: CGFloat = 10
+        public static let rowGap: CGFloat = Space.s2
+        public static let rowPaddingV: CGFloat = Space.s1
+        public static let rowPaddingH: CGFloat = Space.s3
+        public static let blockPaddingV: CGFloat = Space.s2
+        public static let blockPaddingH: CGFloat = Space.s2
         public static let popoverWidth: CGFloat = 330
-        public static let popoverPaddingV: CGFloat = 14
-        public static let popoverPaddingH: CGFloat = 16
+        public static let popoverPaddingV: CGFloat = Space.s3
+        public static let popoverPaddingH: CGFloat = Space.s4
         public static let popoverBar: CGFloat = 6
-        public static let itemGap: CGFloat = 12
-        public static let badgePaddingH: CGFloat = 7
-        public static let badgePaddingV: CGFloat = 1
+        public static let itemGap: CGFloat = Space.s3
     }
 
     /// «Входящие»: the titlebar bell and its popover (look of the limits popover).
@@ -203,14 +174,14 @@ extension Theme {
         /// The toolbar bell's counter (§3.13): a `failed` circle 14 high.
         public static let badge: CGFloat = 14
         public static let popoverWidth: CGFloat = 380
-        public static let popoverPaddingV: CGFloat = 8
-        public static let popoverPaddingH: CGFloat = 8
-        public static let rowPaddingV: CGFloat = 6
-        public static let rowPaddingH: CGFloat = 8
-        public static let rowGap: CGFloat = 8
-        public static let lineGap: CGFloat = 3
-        public static let buttonHeight: CGFloat = 22
-        public static let sectionPaddingTop: CGFloat = 8
+        public static let popoverPaddingV: CGFloat = Space.s2
+        public static let popoverPaddingH: CGFloat = Space.s2
+        public static let rowPaddingV: CGFloat = Space.s2
+        public static let rowPaddingH: CGFloat = Space.s3
+        public static let rowGap: CGFloat = Space.s2
+        public static let lineGap: CGFloat = Space.s1
+        public static let buttonHeight: CGFloat = Height.controlSmall
+        public static let sectionPaddingTop: CGFloat = Space.s2
         /// More rows than this scroll inside `listHeight`.
         public static let scrollAfter = 7
         public static let listHeight: CGFloat = 440
@@ -218,7 +189,7 @@ extension Theme {
         /// «Проект › сессия · время» line; the reason icon centres on it.
         public static let firstLine: CGFloat = 16
 
-        public static let reasonIcon: CGFloat = 14
+        public static let reasonIcon: CGFloat = Icon.row
 
         /// Blocking reasons in accent, errors red, limit in the limit colour, done muted.
         public static func reasonTint(_ reason: AttentionReason) -> Color {
@@ -235,38 +206,31 @@ extension Theme {
 extension Theme {
     /// Diff in the integration consent sheet (DESIGN.md «Git и diff»).
     public enum Diff {
-        private static func c(_ hex: UInt32, _ opacity: Double = 1) -> Color {
-            Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255,
-                  blue: Double(hex & 0xff) / 255, opacity: opacity)
-        }
         public static var add: Color { ui.of(Theme.palette.diffAdd) }
         public static var del: Color { ui.of(Theme.palette.diffDel) }
         public static var addMarker: Color { badgeA }
         public static var delMarker: Color { badgeD }
         public static var hunk: Color { ui.accentText }
-        public static var badgeM: Color { ui.of(Theme.palette.gitM) }
-        public static var badgeA: Color { ui.of(Theme.palette.gitA) }
-        public static var badgeD: Color { ui.of(Theme.palette.gitD) }
-        /// Line number column.
-        public static let gutter: CGFloat = 34
+        public static var badgeM: Color { ui.gitM }
+        public static var badgeA: Color { ui.gitA }
+        public static var badgeD: Color { ui.gitD }
         /// Line height ≈ 1.6.
         public static let linePaddingV: CGFloat = 3
         public static let maxHeight: CGFloat = 360
         public static let markerWidth: CGFloat = 16
-        public static let paddingH: CGFloat = 8
+        public static let paddingH: CGFloat = Space.s2
         /// Diff tab: the path header and hunk headers (mockup `.dh` 6×14, gap 12; `.hunk` 2×14).
-        public static let headerPaddingV: CGFloat = 6
+        public static let headerPaddingV: CGFloat = Space.s2
         /// Header's previous / next change buttons.
-        public static let navButtonWidth: CGFloat = 24
+        public static let navButtonWidth: CGFloat = Height.controlSmall
         public static let counterWidth: CGFloat = 48
-        public static let navButtonHeight: CGFloat = 22
-        public static let navButtonRadius: CGFloat = 5
-        public static let headerPaddingH: CGFloat = 14
-        public static let headerGap: CGFloat = 12
-        public static let hunkPaddingV: CGFloat = 2
+        public static let navButtonHeight: CGFloat = Height.controlSmall
+        public static let navButtonRadius: CGFloat = Radius.control
+        public static let headerPaddingH: CGFloat = Space.s3
+        public static let headerGap: CGFloat = Space.s3
 
         /// Syntax colors: muted on `bg0`, readable over the add/del tints; plain text stays `text1`.
-        static func syntax(_ kind: SyntaxKind) -> Color { c(syntaxHex(kind)) }
+        static func syntax(_ kind: SyntaxKind) -> Color { ui.of(Hex(syntaxHex(kind))) }
 
         /// Also the Monaco theme's token colors (`MonacoTheme`).
         static func syntaxHex(_ kind: SyntaxKind) -> UInt32 {
@@ -293,18 +257,18 @@ extension Theme {
 extension Theme {
     // ⌘P / ⇧⌘P palette (VS Code bindings, Pane/Raycast look: one floating card over the window)
     public static let paletteWidth: CGFloat = 580
-    public static let paletteRadius: CGFloat = 12
+    public static let paletteRadius: CGFloat = Radius.window
     /// The card's top edge, as a fraction of the window height from its top.
     public static let paletteTopFraction: CGFloat = 0.16
-    public static let paletteQueryPaddingV: CGFloat = 14
-    public static let palettePaddingH: CGFloat = 18
-    public static let paletteRowHeight: CGFloat = 36
-    public static let paletteRowInset: CGFloat = 6
-    public static let paletteRowRadius: CGFloat = 7
-    public static let paletteSectionHeight: CGFloat = 28
-    public static let paletteMarker: CGFloat = 20
-    public static let paletteGap: CGFloat = 10
-    public static let paletteIconGap: CGFloat = 4
+    public static let paletteQueryPaddingV: CGFloat = Space.s3
+    public static let palettePaddingH: CGFloat = Space.s5
+    public static let paletteRowHeight: CGFloat = Height.rowLarge
+    public static let paletteRowInset: CGFloat = Space.s2
+    public static let paletteRowRadius: CGFloat = Radius.control
+    public static let paletteSectionHeight: CGFloat = Height.barPane
+    public static let paletteMarker: CGFloat = Space.s5
+    public static let paletteGap: CGFloat = Space.s2
+    public static let paletteIconGap: CGFloat = Space.s1
     /// Fixed list height: the card never changes size while typing (no jumps).
     public static let paletteListHeight: CGFloat = 384
     public static let paletteFadeIn: Double = 0.12

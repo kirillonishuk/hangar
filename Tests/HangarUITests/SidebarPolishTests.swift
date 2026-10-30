@@ -41,7 +41,7 @@ import Testing
             #expect(icon.isBrand)
             let image = icon.image
             #expect(!image.isTemplate)
-            #expect(image.size == NSSize(width: Theme.iconSize, height: Theme.iconSize))
+            #expect(image.size == NSSize(width: Theme.Icon.toolbar, height: Theme.Icon.toolbar))
             #expect(BrandLogo.path(icon == .claude ? BrandLogo.claude : BrandLogo.openai).bounds.width > 20)
         }
         #expect(!Icon.shell.isBrand)

@@ -6,7 +6,7 @@ import Testing
 @Suite struct TabStripTests {
     let lo = Theme.tabMinWidth, hi = Theme.tabMaxWidth, gap = Theme.tabGap
     /// `+` with its gap; the overflow chevron takes the same again.
-    let control = Theme.tabGap + Theme.tabBarButton
+    let control = Theme.tabGap + Theme.Height.controlRegular
 
     private func total(_ w: [CGFloat]) -> CGFloat { w.reduce(0, +) + gap * CGFloat(max(w.count - 1, 0)) }
 

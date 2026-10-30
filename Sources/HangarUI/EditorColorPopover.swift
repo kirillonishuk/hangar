@@ -114,7 +114,7 @@ struct EditorColorPopover: View {
         return VStack(alignment: .leading, spacing: S.popoverGap) {
             HStack(spacing: S.popoverGap) {
                 EditorSwatch(hex: hex, size: S.popoverSwatch)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: S.titleGap) {
                     Text(verbatim: color.title).font(Theme.Typography.body.font(.semibold))
                         .foregroundStyle(Theme.ui.text0)
                     if let sample = color.sample {

@@ -160,14 +160,14 @@ import Workspace
         }
     }
 
-    /// The tsserver status item (status bar) was clicked.
+    /// The tsserver status item (editor header) was clicked.
     func restartLanguage() {
         guard let path = app.editorLeaf(leafId)?.openFile else { return }
         app.languages.restart(path, host: remoteHost)
     }
 
     /// A session sending to this tab's model on its page now; opened TS/JS files go to tsserver, whose status goes to
-    /// the status bar. Once replaced (a new load, a move to the other page) it says nothing more.
+    /// the editor header. Once replaced (a new load, a move to the other page) it says nothing more.
     private func makeSession(io: EditorIO, limits: EditorLimits) -> EditorSession {
         generation += 1
         let index = page, gen = generation, page = host.page(page), doc = leafId

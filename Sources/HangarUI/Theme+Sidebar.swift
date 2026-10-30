@@ -3,29 +3,18 @@ import SwiftUI
 
 /// Sidebar and popover-menu tokens of redesign v1 (redesign-v1.html §2, §3, §9); Theme.swift holds the rest.
 extension Theme {
-    /// Row highlight (hover, selection) inset from the sidebar edges and its radius; the marker stays at x 20.
-    public static let rowInset: CGFloat = 8
-    public static let rowRadius: CGFloat = 8
-    /// Two-line session row: name line 20 + status line 16, 4 above and below.
-    public static let sessionRowHeight: CGFloat = 44
-    public static let sessionNameLine: CGFloat = 20
-    public static let sessionStatusLine: CGFloat = 16
-    public static let sessionRowPaddingV: CGFloat = 4
-    /// A project's session rows are nested: dot and name move right until the dot's left edge meets the project name (x 34).
-    public static let sessionIndent: CGFloat = gutterTextX - gutterMarkerX + statusDot / 2
-    /// «Все сессии в архиве» hint under a project: three 20-high lines (note, «Открыть сессии ⌘Y», «+ Новая сессия») + 4 below.
+    /// Row highlight (hover, selection) inset from the sidebar edges and its radius (§3.3: inset 8, `radius.control`).
+    public static let rowInset: CGFloat = Space.s2
+    public static let rowRadius: CGFloat = Radius.control
+    /// A chat row (§3.3): the dot 32 in from the highlight's edge (centre x 44), its name 8 after the dot.
+    public static let chatIndent: CGFloat = rowInset + Space.s8 + Icon.statusDot / 2 - gutterMarkerX
+    public static let chatTextX: CGFloat = gutterMarkerX + Icon.statusDot / 2 + Space.s2
+    /// The branch at a chat row's end: `mono` 11 up to this wide, truncated at its end.
+    public static let rowBranchMax: CGFloat = 92
+    /// «Все чаты в архиве» hint under a project: three 20-high lines (note, «Открыть историю ⌘Y», «+ Новый чат») + 4 below.
     public static let archivedHintLine: CGFloat = 20
     public static let archivedHintHeight: CGFloat = 3 * archivedHintLine + 4
-    /// Status line: the worktree ⎇ before it 12 `text3`, 4 from the text.
-    public static let rowStatusIcon: CGFloat = 12
     public static let rowStatusGap: CGFloat = 4
-    /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `diffBadgeFill`; numbers 6 apart.
-    public static let diffBadgeHeight: CGFloat = 20
-    public static let diffBadgePaddingH: CGFloat = 6
-    public static let diffBadgeRadius: CGFloat = 6
-    public static let diffBadgeGap: CGFloat = 6
-    /// Gap between the name and the badge slot.
-    public static let rowSlotGap: CGFloat = 6
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
     public static let projectRowTrailing: CGFloat = 12
     /// Session row: name and badge end 8 inside the highlight (16 from the sidebar's edge); the actions overhang it by 4.
@@ -40,12 +29,8 @@ extension Theme {
     public static let sectionHeaderTrailing: CGFloat = 12
     public static let sectionActionGap: CGFloat = 2
     public static let sectionFilterRing: CGFloat = 1.5
-    /// Host row's state and the nav rows' counters/keys end 10 inside the highlight.
-    public static let rowEndTrailing: CGFloat = 18
-    /// «Новая сессия»: 8 above, 0 below. Bottom group: 6 above, 8 below.
-    public static let newTaskTop: CGFloat = 8
-    public static let bottomBarTop: CGFloat = 6
-    public static let bottomBarBottom: CGFloat = 8
+    /// Footer (§3.3): 44 high, icon buttons 28 at 12 from the edges, 4 apart; in the rail they stack, 8 above and below.
+    public static let sidebarFooterHeight: CGFloat = 44
 
     /// `PopoverMenu` (spec §3.12): 256 wide (a branch list 320), padding 6, items `row.list` 24; a long list scrolls
     /// past 12 items.
@@ -58,8 +43,6 @@ extension Theme {
 }
 
 extension Theme.ui {
-    /// Badge fill: `bg0` dimming the row under it; its border is `line2`.
-    public static var diffBadgeFill: Color { bg0.opacity(Theme.Opacity.scrim) }
     /// Destructive menu item text, icon and key (= `failedText`); its hover (`failed` as a fill).
     public static var danger: Color { failedText }
     public static var dangerHover: Color { failed.opacity(Theme.Opacity.fill) }

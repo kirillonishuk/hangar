@@ -19,13 +19,13 @@ import Workspace
         return app
     }
 
-    @Test func bellCountAndTint() {
-        #expect(inboxBell([item(.permission)]) == (count: 1, tint: BellTint.accent))
-        #expect(inboxBell([item(.question), item(.failed)]) == (count: 2, tint: BellTint.accent))
-        #expect(inboxBell([item(.failed)]) == (count: 1, tint: BellTint.failed))
-        #expect(inboxBell([item(.done)]) == (count: 0, tint: BellTint.muted))
-        #expect(inboxBell([item(.limit), item(.done)]) == (count: 0, tint: BellTint.muted))
-        #expect(inboxBell([]) == (count: 0, tint: BellTint.muted))
+    /// The toolbar bell's number (the Dock's): permission + question + failed; done and limit don't count.
+    @Test func bellCount() {
+        #expect(attentionCount([item(.permission)]) == 1)
+        #expect(attentionCount([item(.question), item(.failed)]) == 2)
+        #expect(attentionCount([item(.done)]) == 0)
+        #expect(attentionCount([item(.limit), item(.done)]) == 0)
+        #expect(attentionCount([]) == 0)
     }
 
     @Test func reasonIconsDiffer() {
@@ -65,15 +65,6 @@ import Workspace
         #expect(app.inboxShown)
         app.inboxClicked()
         #expect(!app.inboxShown)
-    }
-
-    @Test func statusCounterOpensInbox() {
-        let app = makeApp()
-        app.uptime = { 100 }
-        let before = app.state.attentionOnly
-        app.inboxClicked()  // WindowStatusBar's «ждут» button action
-        #expect(app.inboxShown)
-        #expect(app.state.attentionOnly == before)
     }
 
     @Test func emptyInboxStillOpens() {

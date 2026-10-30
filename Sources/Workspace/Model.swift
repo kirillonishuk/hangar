@@ -364,7 +364,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
-                sidebarWidth: Double = 240, sidebarCollapsed: Bool = false, inspectorWidth: Double = 340,
+                sidebarWidth: Double = 256, sidebarCollapsed: Bool = false, inspectorWidth: Double = 320,
                 hostShells: [HostShell] = [], attentionOnly: Bool = false) {
         self.projects = projects
         self.hostShells = hostShells
@@ -389,9 +389,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   tasks: try c.decode([HangarTask].self, forKey: .tasks),
                   selectedTaskId: try c.decodeIfPresent(UUID.self, forKey: .selectedTaskId),
                   inspectorVisible: try c.decode(Bool.self, forKey: .inspectorVisible),
-                  sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 240,
+                  sidebarWidth: try c.decodeIfPresent(Double.self, forKey: .sidebarWidth) ?? 256,
                   sidebarCollapsed: try c.decodeIfPresent(Bool.self, forKey: .sidebarCollapsed) ?? false,
-                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 340,
+                  inspectorWidth: try c.decodeIfPresent(Double.self, forKey: .inspectorWidth) ?? 320,
                   hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false

@@ -4,7 +4,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Window titlebar «Проект · Сессия ⎇ ветка» and the window status bar (redesign v1 §1, §6, §7).
+/// The window toolbar (design system §3.1): the chat's title over its project, where its parts go; the editor header's language.
 @MainActor @Suite struct WindowChromeTests {
     private func state() -> (WorkspaceState, project: UUID, task: UUID) {
         var s = WorkspaceState()
@@ -16,20 +16,23 @@ import Workspace
 
     // MARK: Title
 
-    @Test func titleIsProjectSessionAndBranch() {
+    @Test func titleIsTheChatOverItsProject() {
         let (s, _, _) = state()
-        let title = windowTitle(s)
-        #expect(title == WindowTitle(project: "acme-web", session: "redesign-v1", branch: "feat/redesign-v1"))
-        #expect(title?.text == "acme-web · redesign-v1 ⎇ feat/redesign-v1")
+        #expect(windowTitle(s) == WindowTitle(title: "redesign-v1", subtitle: "acme-web"))
     }
 
-    @Test func mainFolderSessionHasNoBranchAndNoSelectionHasNoTitle() {
-        var s = WorkspaceState()
-        let p = s.addProject(name: "api", path: "/a")
-        s.selectedTaskId = s.addTask(projectId: p, name: "fix")
-        #expect(windowTitle(s)?.text == "api · fix")
+    @Test func noSelectionHasNoTitle() {
+        var (s, _, _) = state()
         s.selectedTaskId = nil
         #expect(windowTitle(s) == nil)
+    }
+
+    /// A remote chat's project is «devbox · api» (what the status bar's machine said).
+    @Test func remoteChatSubtitleHasTheServer() {
+        var s = WorkspaceState()
+        let p = s.addRemoteProject(name: "api", host: "devbox", path: "/srv/api")
+        s.selectedTaskId = s.addTask(projectId: p, name: "deploy")
+        #expect(windowTitle(s) == WindowTitle(title: "deploy", subtitle: "devbox · api"))
     }
 
     @Test func hostTerminalTitleIsTheHost() {
@@ -37,130 +40,17 @@ import Workspace
         L10n.language = .en
         var s = WorkspaceState()
         s.selectedTaskId = s.openHostShell(host: "devbox").task
-        #expect(windowTitle(s)?.text == "devbox · terminal")
+        #expect(windowTitle(s) == WindowTitle(title: "devbox · terminal"))
     }
 
-    // MARK: Status bar counts
+    // MARK: Layout
 
-    @Test func countsAgentsNotSubagents() {
-        defer { L10n.language = .system }
-        let c = StatusCounts([(.working, 2), (.working, 1), (.waiting, 0), (.waiting, 0), (.waiting, 0), (.failed, 0), (.done, 0), (.idle, 0)])
-        #expect(c == StatusCounts(working: 2, waiting: 3, failed: 1, subagents: 3))
-        // On the limit: its own count, neither working nor an error.
-        #expect(StatusCounts([(.limit, 0), (.limit, 0), (.failed, 0)]) == StatusCounts(failed: 1, limited: 2))
-        var line = StatusBarLine()
-        line.counts = c
-        L10n.language = .ru
-        #expect(line.workingText == "2 работают")
-        #expect(line.workingHelp == "Следующий работающий чат · 3 субагента")
-        line.counts.subagents = 0
-        #expect(line.workingHelp == "Следующий работающий чат")
-        L10n.language = .en
-        line.counts.subagents = 1
-        #expect(line.workingHelp == "Next working chat · 1 subagent")
-    }
-
-    /// «ждёт внимания» counts the project's asking agents only: a failure is an error, not «ждёт» (the bell has both).
-    @Test func waitingCounterLabel() {
-        defer { L10n.language = .system }
-        var line = StatusBarLine()
-        #expect(line.waitingText == nil)
-        line.counts = StatusCounts([(.waiting, 0), (.failed, 0)])
-        L10n.language = .ru
-        #expect(line.waitingText == "1 ждёт внимания")
-        #expect(line.failedText == "1 ошибка")
-        line.counts.waiting = 3
-        #expect(line.waitingText == "3 ждут внимания")
-        L10n.language = .en
-        #expect(line.waitingText == "3 need attention")
-    }
-
-    @Test func localLineCountsTheSelectedProjectOnly() {
-        defer { L10n.language = .system }
-        var (s, p, t) = state()
-        let tab = s.addTab(taskId: t, kind: .claude)
-        let other = s.addTask(projectId: p, name: "fix-login")
-        _ = s.addTab(taskId: other, kind: .claude)
-        let elsewhere = s.addProject(name: "web", path: "/w")
-        let far = s.addTask(projectId: elsewhere, name: "far")
-        _ = s.addTab(taskId: far, kind: .claude)
-        let leaf = s.tasks.first { $0.id == t }!.tabs.first { $0.id == tab }!.focusedLeafId
-        let line = statusBarLine(s, summary: { $0.id == leaf ? (.working, 0) : (.idle, 0) }, language: { _ in nil })
-        // «far» (another project) is not counted.
-        #expect(line.counts == StatusCounts(working: 1, failed: 0))
-        L10n.language = .ru
-        // The project is in the title; one pane and its process are on the tab: none of them repeat here.
-        #expect(line.left == ["Этот Mac"])
-        #expect(line.workingText == "1 работает")
-        #expect(line.failedText == nil)
-        #expect(line.right == nil)
-        L10n.language = .en
-        #expect(line.left == ["This Mac"])
-        #expect(line.workingText == "1 working")
-    }
-
-    @Test func remoteLineShowsTheHostAndSplitPanes() {
-        defer { L10n.language = .system }
-        var s = WorkspaceState()
-        let p = s.addRemoteProject(name: "api", host: "devbox", path: "/srv/api")
-        let t = s.addTask(projectId: p, name: "deploy")
-        s.selectedTaskId = t
-        let tab = s.addTab(taskId: t, kind: .shell)
-        let task = s.tasks.first { $0.id == t }!
-        let first = task.tabs[0].focusedLeafId
-        let second = s.split(taskId: t, tabId: tab, leafId: first, axis: .horizontal, kind: .claude)
-        let line = statusBarLine(s, summary: { $0.id == second ? (.working, 1) : (.failed, 0) }, language: { _ in nil })
-        L10n.language = .ru
-        #expect(line.remote)
-        #expect(line.left == ["devbox"])
-        #expect(line.workingText == "1 работает")
-        #expect(line.counts.subagents == 1)
-        #expect(line.failedText == nil)  // the shell's exit keeps just its dot
-        #expect(line.right == "2 панели")
-        L10n.language = .en
-        #expect(line.right == "2 panes")
-    }
-
-    /// A shell's or host terminal's non-zero exit (ssh 255 on disconnect) is not an error here; an agent's failure is.
-    @Test func onlyAgentFailuresAreErrors() {
-        defer { L10n.language = .system }
-        var s = WorkspaceState()
-        s.selectedTaskId = s.openHostShell(host: "devbox").task
-        #expect(statusBarLine(s, summary: { _ in (.failed, 0) }, language: { _ in nil }).counts.failed == 0)
-        var (project, _, t) = state()
-        _ = project.addTab(taskId: t, kind: .shell)
-        let agent = project.addTab(taskId: t, kind: .claude)
-        s = project
-        let claude = s.tasks.first { $0.id == t }!.tabs.first { $0.id == agent }!.focusedLeafId
-        let line = statusBarLine(s, summary: { _ in (.failed, 0) }, language: { _ in nil })
-        #expect(line.counts.failed == 1 && line.failedLeaves == [claude])
-        L10n.language = .ru
-        #expect(line.failedText == "1 ошибка")
-        L10n.language = .en
-        #expect(line.failedText == "1 error")
-    }
-
-    @Test func noSessionLeavesOnlyThisMac() {
-        defer { L10n.language = .system }
-        L10n.language = .ru
-        let line = statusBarLine(WorkspaceState(), summary: { _ in (.working, 0) }, language: { _ in "Swift" })
-        #expect(line.left == ["Этот Mac"])
-        #expect(line.counts == StatusCounts())
-        #expect(line.workingText == nil && line.waitingText == nil)
-        #expect(line.right == nil)
-    }
-
-    @Test func russianPlurals() {
-        defer { L10n.language = .system }
-        L10n.language = .ru
-        #expect([1, 2, 5, 21].map(L10n.workingCount) == ["1 работает", "2 работают", "5 работают", "21 работает"])
-        #expect([1, 3, 5, 11].map(L10n.inboxCount) == ["1 ждёт внимания", "3 ждут внимания", "5 ждут внимания", "11 ждут внимания"])
-        #expect([1, 2, 5].map(L10n.failedCount) == ["1 ошибка", "2 ошибки", "5 ошибок"])
-        #expect([1, 2, 5].map(L10n.limitedCount) == ["1 на лимите", "2 на лимите", "5 на лимите"])
-        L10n.language = .en
-        #expect([1, 2].map(L10n.limitedCount) == ["1 at limit", "2 at limit"])
-        L10n.language = .ru
-        #expect([1, 2, 5].map(L10n.paneCount) == ["1 панель", "2 панели", "5 панелей"])
+    /// Expanded: the toggle 16 inside the sidebar's edge, the title 16 after the column's; collapsed to the rail,
+    /// both move clear of the traffic lights; full screen (no lights): the toggle stays in the rail.
+    @Test func toolbarPartsClearTheSidebarAndTheLights() {
+        #expect(toolbarLayout(contentX: 257, lightsMaxX: 79) == (toggleX: 213, titleX: 273))
+        #expect(toolbarLayout(contentX: 45, lightsMaxX: 79) == (toggleX: 91, titleX: 135))
+        #expect(toolbarLayout(contentX: 45, lightsMaxX: nil) == (toggleX: 8, titleX: 61))
     }
 
     @Test func fileCountPlurals() {
@@ -182,7 +72,7 @@ import Workspace
         #expect(nextWorking([a, b, c], working: [], after: a) == nil)
     }
 
-    /// The status bar's right label for an editor: the active file's language, else nothing (the tab says «Редактор»).
+    /// The editor header's language when no language server reports: TS/JS and the LSP languages, else nothing.
     @Test func editorProcessLabel() {
         defer { L10n.language = .system }
         L10n.language = .ru

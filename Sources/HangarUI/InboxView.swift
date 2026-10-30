@@ -1,17 +1,6 @@
 import AgentStatus
 import SwiftUI
 
-/// The bell's colour: something blocks an agent (accent), only errors (failed), nothing to count (muted).
-enum BellTint: Equatable { case accent, failed, muted }
-
-/// The number is the Dock's (permission + question + failed).
-func inboxBell(_ items: [AttentionItem]) -> (count: Int, tint: BellTint) {
-    let count = attentionCount(items)
-    guard count > 0 else { return (0, .muted) }
-    let blocked = items.contains { $0.attention.reason == .permission || $0.attention.reason == .question }
-    return (count, blocked ? .accent : .failed)
-}
-
 /// «< 1 мин», «3 мин», «2 ч»: from `since` to the clock taken when the inbox opened (no ticking).
 @MainActor func waitingTime(since: Date, now: Date) -> String {
     let minutes = Int(now.timeIntervalSince(since) / 60)
@@ -32,34 +21,6 @@ func inboxIcon(_ reason: AttentionReason) -> Icon {
 
 /// A row's action: the leaf, the request it was shown for, what was pressed.
 typealias InboxAction = (UUID, UUID?, NoticeAction) -> Void
-
-/// Titlebar bell left of the inspector toggle; the count sits in reserved space, so the bell never moves.
-struct InboxBell: View {
-    let app: AppState
-    let act: InboxAction
-
-    var body: some View {
-        let bell = inboxBell(app.attentionItems)
-        let tint = Theme.Inbox.tint(bell.tint)
-        Button { app.inboxClicked() } label: {
-            HStack(spacing: Theme.Inbox.bellGap) {
-                IconView(icon: .bell, tint: tint)
-                Text(verbatim: bell.count > 99 ? "99+" : bell.count > 0 ? "\(bell.count)" : "")
-                    .font(Theme.Typography.caption.font(.semibold).monospacedDigit())
-                    .foregroundStyle(tint)
-                    .frame(width: Theme.Inbox.countWidth, alignment: .leading)
-            }
-            .padding(.leading, Theme.Inbox.bellPaddingH)
-            .frame(height: Theme.titleButtonSize)
-        }
-        .buttonStyle(HoverButtonStyle(radius: Theme.railItemRadius))
-        .help(L10n.inbox)
-        .accessibilityLabel(bell.count > 0 ? "\(L10n.inbox), \(bell.count)" : L10n.inbox)
-        .popover(isPresented: Binding(get: { app.inboxShown }, set: { app.setInboxShown($0) }), arrowEdge: .bottom) {
-            InboxPopover(app: app, act: act)
-        }
-    }
-}
 
 /// Urgent first, then «Недавно готово» (newest first) with «Очистить»; empty — «Никто не ждёт».
 struct InboxPopover: View {

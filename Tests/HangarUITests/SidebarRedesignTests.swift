@@ -83,36 +83,6 @@ import Workspace
         #expect(status == SessionStatus(head: "простой", tail: "2 агента", tone: .normal))
     }
 
-    // MARK: Diff badge
-
-    @Test func diffBadgeFormatting() {
-        #expect(DiffBadge(DiffStat(files: 3, added: 541, deleted: 88)) == DiffBadge(added: "+541", deleted: "−88"))
-        #expect(DiffBadge(DiffStat(files: 1, added: 12, deleted: 0)) == DiffBadge(added: "+12", deleted: "−0"))
-        // No changes, or not loaded: no badge.
-        #expect(DiffBadge(DiffStat(files: 0, added: 0, deleted: 0)) == nil)
-        #expect(DiffBadge(nil) == nil)
-        // A binary-only change still shows (0 lines but a file).
-        #expect(DiffBadge(DiffStat(files: 1, added: 0, deleted: 0)) == DiffBadge(added: "+0", deleted: "−0"))
-    }
-
-    @Test func badgeCacheLoadsOnceAndReloadsOnRefresh() async {
-        let cache = SessionBadges()
-        let id = UUID()
-        var calls = 0
-        let load: SessionBadges.Load = { calls += 1; return DiffStat(files: 1, added: calls, deleted: 0) }
-        cache.request(id, load: load)
-        cache.request(id, load: load)
-        await cache.idle(id)
-        #expect(calls == 1)
-        #expect(cache.stats[id]?.added == 1)
-        // A refresh of a never-shown session loads nothing.
-        cache.refresh(UUID(), load: load)
-        cache.refresh(id, load: load)
-        await cache.idle(id)
-        #expect(calls == 2)
-        #expect(cache.stats[id]?.added == 2)
-    }
-
     // MARK: Menu model
 
     @Test func sessionMenuEntries() throws {

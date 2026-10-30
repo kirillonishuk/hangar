@@ -59,17 +59,16 @@ import Workspace
         L10n.language = .ru
         #expect(L10n.command(.newTab) == "Новая вкладка")
         #expect(L10n.command(.limits) == "Лимиты подписок")
+        #expect(L10n.command(.nextWorking) == "Следующий работающий чат")
     }
 
-    /// One word for the failed state: the tab tooltip / session row and the status bar both say «error» / «ошибка».
+    /// One word for the failed state: the tab tooltip and the chat row both say «error» / «ошибка».
     @Test func failedStateIsAnError() {
         defer { L10n.language = .system }
         L10n.language = .en
         #expect(L10n.statusLabel(.failed) == "error")
-        #expect(L10n.failedCount(1) == "1 error")
         L10n.language = .ru
         #expect(L10n.statusLabel(.failed) == "ошибка")
-        #expect(L10n.failedCount(1) == "1 ошибка")
     }
 
     @Test func clipboardPromptIsLocalized() {

@@ -22,7 +22,7 @@ public enum LaunchError: Error, Equatable {
 /// `hookCLI`: this app's `hangar`, for the hooks every claude tab gets on its command line (#119); nil — none.
 public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socketPath: String,
                        userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil,
-                       hookCLI: String? = nil) throws -> LaunchSpec {
+                       hookCLI: String? = nil, unlinkedNote: String = "") throws -> LaunchSpec {
     var isDir: ObjCBool = false
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
@@ -32,7 +32,7 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let shell = shellQuote(posixShell(userShell))
     let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue },
                              shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt,
-                             hookCLI: hookCLI.map(shellQuote))
+                             hookCLI: hookCLI.map(shellQuote), loginShell: shellQuote(userShell), unlinkedNote: unlinkedNote)
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
     env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#60)
@@ -67,7 +67,8 @@ public func posixShell(_ userShell: String) -> String {
 /// given by the caller); a conversation never written (nothing was said: no transcript) starts under that same id instead.
 /// `hookCLI`: a shell word for `hangar` / `hangar-remote`; claude then gets Hangar's own hooks via `--settings`.
 public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: String,
-                         restoring: Bool, initialPrompt: String?, hookCLI: String? = nil) -> String {
+                         restoring: Bool, initialPrompt: String?, hookCLI: String? = nil,
+                         loginShell: String = #""${SHELL:-/bin/sh}""#, unlinkedNote: String = "") -> String {
     // state.json is editable: an id that is not valid never reaches argv.
     let id = validSessionId(leaf.agentSessionId)
     switch leaf.kind {
@@ -83,9 +84,11 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
         let uuid = id.flatMap { UUID(uuidString: $0) == nil ? nil : $0 }
         if restoring, let id {
             guard let uuid else { return "\(claude) --resume \(shellQuote(id))" }
-            // Decided before the start by the transcript (any project folder: ids are unique), so a resumed chat that
-            // ends with an error is never followed by another start. `sh -c` keeps it POSIX under fish on a server.
-            return "sh -c \(shellQuote(resumeOrStartScript)) sh \(uuid) \(claude)"
+            // Decided before the start by the transcript, so a resumed chat that ends with an error is never followed by
+            // another start. `sh -c` keeps the choice POSIX under fish on a server; claude itself runs in the user's login
+            // shell, so an alias or function for it works as in a new tab.
+            let spare = UUID().uuidString.lowercased()
+            return "sh -c \(shellQuote(resumeOrStartScript)) sh \(uuid) \(spare) \(shellQuote(unlinkedNote)) \(loginShell) \(shellQuote(claude))"
         }
         return withPrompt(claude + (uuid.map { " --session-id \($0)" } ?? ""), initialPrompt)
     case .codex:
@@ -107,8 +110,11 @@ public func tabAgentSettings(hookCLI: String) -> String {
     return String(decoding: data, as: UTF8.self)
 }
 
-/// `$1` the id, the rest the claude command: `--resume` if its transcript exists, else a new conversation under that id.
-let resumeOrStartScript = #"id=$1; shift; for f in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$id".jsonl; do [ -e "$f" ] && exec "$@" --resume "$id"; done; exec "$@" --session-id "$id""#
+/// `$1` id, `$2` a spare id, `$3` note, `$4` login shell, `$5` the claude command. The id's transcript (any project folder:
+/// ids are unique) recorded in this folder → `--resume`; none (nothing was said) → a new conversation under that id;
+/// recorded elsewhere (claude would not find it from here, every time) → the note and a new conversation under the spare id,
+/// which the tab's own SessionStart hook then stores.
+let resumeOrStartScript = #"id=$1 spare=$2 note=$3 sh=$4 c=$5; for f in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$id".jsonl; do [ -e "$f" ] || continue; if grep -qF "\"cwd\":\"$PWD\"" "$f" || grep -qF "\"cwd\":\"$(pwd -P)\"" "$f"; then exec "$sh" -l -i -c "$c --resume $id"; fi; [ -z "$note" ] || printf '%s\n' "$note"; exec "$sh" -l -i -c "$c --session-id $spare"; done; exec "$sh" -l -i -c "$c --session-id $id""#
 
 /// The hooks' CLI on a server (`hangar-remote`, installed by the server check).
 public let remoteHookCLI = #""$HOME/.hangar/bin/hangar-remote""#

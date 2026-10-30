@@ -106,28 +106,40 @@ import Workspace
     @Test func claudeSessionIdAtBirth() throws {
         let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
         #expect(try inner(spec(leaf(.claude, id: id), prompt: "fix")) == "claude --session-id \(id) fix")
-        #expect(try inner(spec(leaf(.claude, id: id), restoring: true))
-                == "sh -c \(shellQuote(resumeOrStartScript)) sh \(id) claude")
+        let restore = try inner(spec(leaf(.claude, id: id), restoring: true))
+        #expect(restore.hasPrefix("sh -c \(shellQuote(resumeOrStartScript)) sh \(id) ") && restore.hasSuffix(" \(shellQuote("/bin/zsh")) \(shellQuote("claude"))"))
     }
 
-    /// The restore command resumes only a conversation with a transcript (in any project folder of the config dir); a chat
-    /// never written starts under its id; a resumed chat ending with an error is not followed by a second start.
+    /// The restore command resumes only a conversation whose transcript was recorded in this folder; a chat never written
+    /// starts under its id; one recorded in another folder (claude would never find it from here) starts under a new id
+    /// with the note. Claude runs through the login shell (aliases, functions); a resumed chat ending with an error is not
+    /// followed by a second start.
     @Test func resumeOrStartChoosesByTranscript() throws {
-        let dir = NSTemporaryDirectory() + "hg-resume-\(UUID())"
+        let dir = (NSTemporaryDirectory() as NSString).resolvingSymlinksInPath + "/hg-resume-\(UUID())"
         defer { try? FileManager.default.removeItem(atPath: dir) }
-        try FileManager.default.createDirectory(atPath: dir + "/cfg/projects/-other-folder", withIntermediateDirectories: true)
-        let fake = dir + "/claude"
-        try writeScript("#!/bin/sh\necho \"$@\" >> '\(dir)/argv'\nexit 3\n", to: fake)
+        try FileManager.default.createDirectory(atPath: dir + "/cfg/projects/-any-folder", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: dir + "/work dir", withIntermediateDirectories: true)
+        // The "login shell": records the command it was asked to run, exits like a claude that failed.
+        let login = dir + "/login"
+        try writeScript("#!/bin/sh\nprintf '%s\\n' \"$4\" >> '\(dir)/ran'\nexit 3\n", to: login)
         let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
-        let line = agentCommand(for: leaf(.claude, id: id), agent: { _ in shellQuote(fake) }, shell: "sh", restoring: true, initialPrompt: nil)
-        func run() throws -> (status: Int32, argv: String) {
-            try? FileManager.default.removeItem(atPath: dir + "/argv")
-            let r = try sh("CLAUDE_CONFIG_DIR=\(shellQuote(dir + "/cfg")) && export CLAUDE_CONFIG_DIR && \(line)")
-            return (r.status, (try? String(contentsOfFile: dir + "/argv", encoding: .utf8)) ?? "")
+        let line = agentCommand(for: leaf(.claude, id: id), agent: { _ in "claude" }, shell: "sh", restoring: true, initialPrompt: nil,
+                                loginShell: shellQuote(login), unlinkedNote: "open it from History")
+        func run() throws -> (status: Int32, ran: String, out: String) {
+            try? FileManager.default.removeItem(atPath: dir + "/ran")
+            let r = try sh("cd \(shellQuote(dir + "/work dir")) && CLAUDE_CONFIG_DIR=\(shellQuote(dir + "/cfg")) && export CLAUDE_CONFIG_DIR && \(line)")
+            return (r.status, (try? String(contentsOfFile: dir + "/ran", encoding: .utf8)) ?? "", r.out)
         }
-        #expect(try run() == (3, "--session-id \(id)\n"))
-        FileManager.default.createFile(atPath: dir + "/cfg/projects/-other-folder/\(id).jsonl", contents: Data())
-        #expect(try run() == (3, "--resume \(id)\n"))
+        let none = try run()
+        #expect(none.status == 3 && none.ran == "claude --session-id \(id)\n" && none.out.isEmpty)
+        let transcript = dir + "/cfg/projects/-any-folder/\(id).jsonl"
+        try #"{"type":"user","cwd":"/elsewhere"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
+        let foreign = try run()
+        #expect(foreign.status == 3 && foreign.out == "open it from History\n")
+        #expect(foreign.ran.hasPrefix("claude --session-id ") && !foreign.ran.contains(id))
+        try #"{"type":"user","cwd":"\#(dir)/work dir"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
+        let own = try run()
+        #expect(own.status == 3 && own.ran == "claude --resume \(id)\n" && own.out.isEmpty)
     }
 
     /// Hangar's own hooks ride on every claude command line, quoted as one argument; nothing else gets them.

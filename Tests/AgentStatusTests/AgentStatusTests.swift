@@ -163,6 +163,11 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
         #expect(fold(s, .hook(.stop, session: "cleared", notificationType: nil)).state == .done)
         // Unmarked (a teammate's own pid hooks of an older build) still can't move it.
         #expect(fold(s, pidHook(.sessionStart, "x", 10, source: "startup")) == s)
+        // A background session claude starts with the tab's `--settings` (marked, own pid, `startup`) never takes the tab.
+        #expect(fold(s, marked(.sessionStart, "child", 11, "startup")) == s)
+        #expect(!fromTabAgent(s, kind: .sessionStart, session: "child", source: "startup", detail: HookDetail(agentPid: 11, tabAgent: true)))
+        // The same conversation under another wrapper pid (a startup re-reporting the leaf's id) is still the tab.
+        #expect(fold(s, marked(.sessionStart, "cleared", 12, "startup")).agentPid == 12)
     }
 
     /// Before any pid, the id the leaf was launched with filters a nested agent's first events.

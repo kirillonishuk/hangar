@@ -25,7 +25,7 @@ extension AppState {
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
             // The stored id (what restore resumes) moves only with the tab's own agent (#119); codex reports only its own turns.
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
-            let own = e.kind == .codexNotify || fromTabAgent(status, kind: e.kind, detail: detail)
+            let own = e.kind == .codexNotify || fromTabAgent(status, kind: e.kind, session: e.session, source: e.source, detail: detail)
             if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }

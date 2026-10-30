@@ -360,7 +360,7 @@ import Workspace
         }
         #expect(try row(idA).place == .none)  // its folder's sessions are closed, but none of them holds it
         await m.perform(m.action(for: try row(idA)), ctx: ActionContext(app: w.app))
-        #expect(try firstCommand(idA).hasSuffix("sh \(idA) claude"))  // resumes it by its transcript (#119)
+        #expect(try firstCommand(idA).contains("sh \(idA) "))  // resumes it by its transcript (#119)
         #expect(w.app.state.tasks.filter(\.archived).count == 3)  // nothing restored
 
         w.app.showSessionsView()
@@ -370,7 +370,7 @@ import Workspace
         #expect(m.action(for: try row(idA)) == .focus(leaf: aLeaf))
         #expect(try row(idB).place == .none)  // not into A's session: one of its own
         await m.perform(m.action(for: try row(idB)), ctx: ActionContext(app: w.app))
-        #expect(try firstCommand(idB).hasSuffix("sh \(idB) claude"))  // resumes it by its transcript (#119)
+        #expect(try firstCommand(idB).contains("sh \(idB) "))  // resumes it by its transcript (#119)
         #expect(w.app.selectedTask?.id != a.id && w.app.selectedTask?.name == "JS-14485")
         #expect(w.app.state.tasks.first { $0.id == a.id }?.tabs.count == 1)  // A untouched
         let leaves = w.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).compactMap(\.agentSessionId)

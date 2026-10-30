@@ -494,11 +494,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             // Connected: a new host's connect decides (its sheet or an older install) before its agents start.
             if integrationGate(leaf.kind, host: host) { throw LaunchError.awaitingConsent }
             return (remoteLaunchSpec(for: leaf, tabId: tabId, target: target,
-                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
+                                     restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port,
+                                     unlinkedNote: L10n.conversationNotLinked), mode)
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
                                   userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port,
-                                  hookCLI: tabHookCLI)
+                                  hookCLI: tabHookCLI, unlinkedNote: L10n.conversationNotLinked)
         return (spec, mode)
     }
 

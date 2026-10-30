@@ -58,11 +58,15 @@ func ownsSessionId(_ kind: HookKind, agent: SessionAgent?) -> Bool {
 
 /// The hook ran in the tab's own agent: it carries the pid Hangar's `--settings` hooks pass, and it is the launch's first
 /// such pid or that same one (#119). Nested agents (`claude -p` from a tool, a teammate) never pass both. A SessionStart
-/// marked `--tab-agent` moves the pid: under `CLAUDE_CODE_SHELL_PREFIX` every hook runs under another wrapper process,
-/// and a frozen id would make the installed hooks' events after /clear look nested.
-public func fromTabAgent(_ status: LeafStatus, kind: HookKind, detail: HookDetail) -> Bool {
+/// marked `--tab-agent` of a switch (/clear, compact, /resume) or of the leaf's own id moves the pid: under
+/// `CLAUDE_CODE_SHELL_PREFIX` every hook runs under another wrapper process, and a frozen id would make the installed
+/// hooks' events after /clear look nested. Never a `startup` with another id: claude forwards `--settings` to the
+/// background sessions it starts, which inherit the tab's HANGAR_* too.
+public func fromTabAgent(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, detail: HookDetail) -> Bool {
     guard let agentPid = detail.agentPid else { return false }
-    return status.agentPid == nil || status.agentPid == agentPid || detail.tabAgent && kind == .sessionStart
+    if status.agentPid == nil || status.agentPid == agentPid { return true }
+    guard detail.tabAgent, kind == .sessionStart else { return false }
+    return ["clear", "compact", "resume"].contains(source) || session != nil && session == status.sessionId
 }
 
 /// The tab's own agent's `--settings` hooks only track its conversation (/resume, /clear, compact, fork, a lost SessionStart);
@@ -73,7 +77,7 @@ public func fromTabAgent(_ status: LeafStatus, kind: HookKind, detail: HookDetai
 public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, detail: HookDetail = .init(),
                         agent: SessionAgent?, known: String? = nil) -> Bool {
     guard kind != .codexNotify, ownsSessionId(kind, agent: agent) else { return true }
-    if fromTabAgent(status, kind: kind, detail: detail) { return true }
+    if fromTabAgent(status, kind: kind, session: session, source: source, detail: detail) { return true }
     guard let id = validSessionId(session), let current = status.sessionId ?? known, id != current else { return true }
     return status.agentPid == nil && kind == .sessionStart && ["clear", "compact", "resume", "fork"].contains(source)
 }
@@ -88,7 +92,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
     switch signal {
     case let .hook(kind, session, type, source, detail):
         guard acceptsHook(status, kind: kind, session: session, source: source, detail: detail, agent: agent) else { return status }
-        if kind != .codexNotify, ownsSessionId(kind, agent: agent), fromTabAgent(status, kind: kind, detail: detail) {
+        if kind != .codexNotify, ownsSessionId(kind, agent: agent), fromTabAgent(status, kind: kind, session: session, source: source, detail: detail) {
             s.agentPid = detail.agentPid
             if let id = validSessionId(session) { s.sessionId = id }
             return s

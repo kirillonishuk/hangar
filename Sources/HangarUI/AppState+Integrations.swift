@@ -62,6 +62,13 @@ struct AgentChoice: Equatable {
 
     /// An answer whose config write failed: it holds for this run, so the tab isn't asked again in a loop.
     @ObservationIgnored var sessionAnswer: [MCPAgent: Bool] = [:]
+    /// The same for a host's answer (connect / skip) whose config write failed.
+    @ObservationIgnored var sessionHosts: [String: Bool] = [:]
+    /// Set by the launcher until the launch's v0.8 migration has read the agents' files: agent tabs wait silently (no
+    /// sheet for an installed user), then the gate is asked again.
+    var migrationPending = false
+    /// The asks queued behind the shown one too (a host's question may wait behind an agent's).
+    func asked(_ ask: IntegrationAsk) -> Bool { asks.contains(ask) }
     /// Hosts whose connect is being decided (`integrateHost` runs once per host at a time).
     @ObservationIgnored var deciding: Set<String> = []
     /// One apply / MCP sync per agent at a time; a request meanwhile runs it once more after it.
@@ -110,6 +117,19 @@ extension HangarConfig {
 /// Integrations by function (#111): one consent, then Hangar keeps its own entries current on this Mac and every agreed
 /// host, silently (backups, Hangar's entries only, #96); MCP registered through the agents' own CLIs on this Mac.
 extension AppState {
+    /// The launcher holds agent tabs until `integrateAtLaunch` has migrated an older install (tests never set it).
+    public func holdIntegrationUntilLaunch() { integrations.migrationPending = true }
+
+    /// The agent's decision: the config's, else an answer of this run that couldn't be saved.
+    func integrationOn(_ agent: MCPAgent) -> Bool? { config.integration(agent) ?? integrations.sessionAnswer[agent] }
+
+    /// The host's decision (true = agreed, false = «Не на этом хосте»), else nil.
+    func hostDecision(_ host: String) -> Bool? {
+        if config.integrationHosts.contains(host) { return true }
+        if config.integrationHostsSkipped.contains(host) { return false }
+        return integrations.sessionHosts[host]
+    }
+
     /// A helper to point the agents at, from an installed app: else nothing is written and nothing asked.
     var integrationReady: Bool { integrationCLI.map { !installBlocked(cli: $0) } ?? false }
 
@@ -136,6 +156,11 @@ extension AppState {
         }
         await applyLocal(.claude)
         await applyLocal(.codex)
+        if integrations.migrationPending {
+            // The waiting tabs ask the gate again, with the hooks already current: an installed user gets no sheet.
+            integrations.migrationPending = false
+            onIntegrationAnswered?()
+        }
         await syncMCP()
         await syncProjectStatuslines(host: nil)
     }
@@ -194,7 +219,7 @@ extension AppState {
     private func applyLocalNow(_ agent: MCPAgent) async {
         defer { readStatusline() }
         let files = await integrationFiles()
-        guard let cli = integrationCLI, !installBlocked(cli: cli), let on = config.integration(agent) else { return }
+        guard let cli = integrationCLI, !installBlocked(cli: cli), let on = integrationOn(agent) else { return }
         let ours = localOwnership(cli: cli)
         let mark: MachineMark
         do {
@@ -263,8 +288,8 @@ extension AppState {
 
     /// A host's mark: from this run's apply, else what its decision and connection say.
     func hostMark(_ agent: MCPAgent, _ host: String) -> MachineMark {
-        if config.integrationHostsSkipped.contains(host) { return .skipped }
-        guard config.integrationHosts.contains(host) else { return .undecided }
+        guard let decided = hostDecision(host) else { return .undecided }
+        if !decided { return .skipped }
         if remote.hosts[host]?.state != .connected { return .offline }
         return integrations.marks[agent]?[host] ?? .offline
     }
@@ -277,16 +302,17 @@ extension AppState {
         defer { integrations.deciding.remove(host) }
         let m = ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
         _ = await m.autoUpgradeRemoteScript()
-        defer { onIntegrationAnswered?() }
-        if !config.integrationHosts.contains(host), !config.integrationHostsSkipped.contains(host) {
-            guard config.claudeIntegration == true || config.codexIntegration == true else { return }
+        if hostDecision(host) == nil {
+            // Nothing on: the host's tabs don't wait (the gate lets them go), nothing to decide.
+            guard integrationOn(.claude) == true || integrationOn(.codex) == true else { return }
             guard await m.hasHangarIntegration() else {
-                requestIntegration(.host(host))
+                requestIntegration(.host(host))  // its answer lets the tabs go
                 return
             }
             setHostDecision(host, connect: true)
+            onIntegrationAnswered?()
         }
-        if config.integrationHosts.contains(host) { await applyHost(host, m) }
+        if hostDecision(host) == true { await applyHost(host, m) }
         await syncProjectStatuslines(host: host)
     }
 
@@ -300,13 +326,13 @@ extension AppState {
         let m = given ?? ServerCheckModel(host: host, remote: remote, run: ServerCheckModel.sshRun(remote: remote, host: host))
         // Hooks that call a missing `hangar-remote` would fail on every event: nothing is written without it.
         guard await m.ensureRemoteScript() else {
-            for agent in [MCPAgent.claude, .codex] where config.integration(agent) != nil {
+            for agent in [MCPAgent.claude, .codex] where integrationOn(agent) != nil {
                 integrations.marks[agent, default: [:]][host] = .failed(L10n.intRemoteMissing)
             }
             return
         }
         for agent in [MCPAgent.claude, .codex] {
-            guard let on = config.integration(agent) else { continue }
+            guard let on = integrationOn(agent) else { continue }
             let mark = await m.applyAgent(agent, hooks: on && (agent == .claude ? config.claudeHooks : config.codexNotify),
                                           statusline: on && config.wantsStatuslineWrapper)
             if case .done(nil, nil) = mark, case .done? = integrations.marks[agent]?[host] { continue }
@@ -326,7 +352,9 @@ extension AppState {
                 $0.integrationHostsSkipped = skipped
             }
         } catch {
+            // Held for this run: the host isn't asked (or decided) again in a loop.
             uiLog.error("integration hosts: \(String(describing: error), privacy: .public)")
+            integrations.sessionHosts[host] = connect
         }
     }
 
@@ -335,15 +363,17 @@ extension AppState {
     /// Whether a leaf of `kind` waits for an answer before it starts (its sheet is asked for here).
     func integrationGate(_ kind: LeafKind, host: String?) -> Bool {
         guard integrationReady, let agent = kind.integrationAgent else { return false }
-        guard let on = config.integration(agent) ?? integrations.sessionAnswer[agent] else {
+        // The launch hasn't read the agents' files yet: an older install may turn out «on» — wait without asking.
+        if integrations.migrationPending { return true }
+        guard let on = integrationOn(agent) else {
             requestIntegration(.agent(agent))
             return true
         }
         // A new host: its connect decides (silently for an older install, else its sheet) and then lets it go. Turned on
         // after that connect, nothing would decide: the gate starts the decision itself (once; it asks or lets go).
         guard let host, on, autoUpgradeRemote else { return false }
-        guard !config.integrationHosts.contains(host), !config.integrationHostsSkipped.contains(host) else { return false }
-        if !integrations.deciding.contains(host), integrations.ask != .host(host) { Task { await integrateHost(host) } }
+        guard hostDecision(host) == nil else { return false }
+        if !integrations.deciding.contains(host), !integrations.asked(.host(host)) { Task { await integrateHost(host) } }
         return true
     }
 
@@ -390,15 +420,15 @@ extension AppState {
         }
         // The Mac's hooks are in place before its waiting tabs go; hosts follow in the background (their tabs wait for
         // their own connect anyway).
-        if connect, config.integration(agent) == true { await applyLocal(agent) }
+        if connect { await applyLocal(agent) }
         integrations.answered(.agent(agent))
         onIntegrationAnswered?()
         if integrations.ask != nil { onIntegrationAsk?() }
-        guard connect, config.integration(agent) == true else { return }
+        guard connect else { return }
         Task { [weak self] in
             guard let self else { return }
-            for host in connectedProjectHosts where !config.integrationHostsSkipped.contains(host) {
-                if !config.integrationHosts.contains(host) { setHostDecision(host, connect: true) }
+            for host in connectedProjectHosts where hostDecision(host) != false {
+                if hostDecision(host) == nil { setHostDecision(host, connect: true) }
                 await applyHost(host)
             }
             await syncMCP(agent)

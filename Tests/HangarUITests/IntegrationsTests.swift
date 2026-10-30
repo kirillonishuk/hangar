@@ -1,6 +1,7 @@
 import Exec
 import Foundation
 import Integration
+import TestSupport
 import Testing
 import Workspace
 @testable import HangarUI
@@ -211,6 +212,57 @@ private final class FakeAgents: @unchecked Sendable {
         let saved = try HangarConfig.parse(read(configURL) ?? "")
         #expect(saved.integrationHosts == ["dev"] && saved.integrationHostsSkipped.isEmpty)
         #expect(app.integrationHostList == ["dev"])
+    }
+
+    /// A restored claude tab reaches the gate before the launch read the agent's files: it waits without a sheet, and
+    /// an older install found by the migration lets it go — never «Не сейчас» for an installed user.
+    @Test func restoredTabWaitsForMigration() async throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try makeApp()
+        try write(try claudeInstall(nil, cli: cli), claudeURL)
+        app.holdIntegrationUntilLaunch()
+        var answered = 0
+        app.onIntegrationAnswered = { answered += 1 }
+        #expect(app.integrationGate(.claude, host: nil))
+        #expect(app.integrations.ask == nil)
+        await app.integrateAtLaunch()
+        #expect(answered == 1)
+        #expect(app.config.claudeIntegration == true)
+        #expect(!app.integrationGate(.claude, host: nil))
+        #expect(app.integrations.ask == nil)
+        // Not installed: after the launch the same gate asks.
+        #expect(app.integrationGate(.codex, host: nil))
+        #expect(app.integrations.ask == .agent(.codex))
+    }
+
+    /// An undecided host's tab starts the host's decision itself (here: no older install → its sheet).
+    @Test func undecidedHostDecidesItself() async throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try makeApp("claude_integration = true\n")
+        #expect(app.integrationGate(.claude, host: "dev"))
+        #expect(await waitUntil { app.integrations.asked(.host("dev")) })
+    }
+
+    /// A host's question queued behind an agent's: the gate neither re-decides the host nor lets tabs loop.
+    @Test func queuedHostQuestionIsNotRedecided() async throws {
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = try makeApp("claude_integration = true\n")
+        var answered = 0
+        app.onIntegrationAnswered = { answered += 1 }
+        app.requestIntegration(.agent(.codex))
+        app.requestIntegration(.host("dev"))
+        for _ in 0..<5 {
+            #expect(app.integrationGate(.claude, host: "dev"))
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(answered == 0)
+        #expect(app.integrations.deciding.isEmpty)
+        // A host decision that can't be saved holds for this run: the tab goes, no loop.
+        try FileManager.default.removeItem(at: configURL)
+        try FileManager.default.createDirectory(at: configURL, withIntermediateDirectories: true)
+        app.setHostDecision("dev", connect: false)
+        #expect(app.hostDecision("dev") == false)
+        #expect(!app.integrationGate(.claude, host: "dev"))
     }
 
     @Test func agentExecutableSkipsWrappers() {

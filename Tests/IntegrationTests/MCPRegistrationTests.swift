@@ -82,6 +82,7 @@ private func claudeJSON(_ hangar: String) -> String {
         #expect(commandPath("/usr/local/bin/claude\n") == "/usr/local/bin/claude")
         #expect(commandPath("noise\nalias claude='/Users/me/.claude/local/claude'\n") == "/Users/me/.claude/local/claude")
         #expect(commandPath("claude=/opt/claude\n") == "/opt/claude")
+        #expect(commandPath("alias claude='~/.claude/local/claude'\n") == NSHomeDirectory() + "/.claude/local/claude")
         #expect(commandPath("alias claude='npx @anthropic-ai/claude-code'\n") == nil)
         #expect(commandPath("claude\n") == nil)
     }

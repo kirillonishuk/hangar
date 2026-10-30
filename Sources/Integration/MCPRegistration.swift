@@ -100,8 +100,9 @@ func commandPath(_ output: String) -> String? {
     guard let line = output.split(whereSeparator: \.isNewline).map(String.init).last(where: { !$0.isEmpty }) else { return nil }
     if line.hasPrefix("/") { return line }
     guard let eq = line.firstIndex(of: "="), let words = shellWords(String(line[line.index(after: eq)...])),
-          words.count == 1, words[0].hasPrefix("/") else { return nil }
-    return words[0]
+          words.count == 1 else { return nil }
+    let path = (words[0] as NSString).expandingTildeInPath  // `alias claude='~/.claude/local/claude'`
+    return path.hasPrefix("/") ? path : nil
 }
 
 /// Runs argv through the login shell: its PATH (node for `claude`) and `CLAUDE_CONFIG_DIR` / `CODEX_HOME`.

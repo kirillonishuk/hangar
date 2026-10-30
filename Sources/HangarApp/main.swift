@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
         let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
         app.integrationCLI = hangarCLIPath(bundle: .main)
+        app.holdIntegrationUntilLaunch()  // restored agent tabs wait for `integrateAtLaunch`'s migration
         Task { await app.sweepTombstones(host: nil) }  // an archive cut short by the last quit
         #if DEBUG
         // Debug runs never touch the real ~/.claude / ~/.codex: overrides, else a throwaway temp copy.

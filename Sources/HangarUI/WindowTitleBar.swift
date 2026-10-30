@@ -114,7 +114,7 @@ struct WindowTitleBar: View {
             .padding(.trailing, Theme.Space.s1)
             .allowsHitTesting(false)
             if let task = app.selectedTask, !app.isHostShellTask(task.id), let branch = app.head(of: task)?.title ?? task.branch {
-                BranchButton(branch: branch)
+                BranchButton(app: app, task: task, branch: branch)
             }
         }
     }
@@ -154,34 +154,61 @@ struct WindowTitleBar: View {
 /// The toolbar's «не спать»: only while the sleep assertion is actually held for working agents.
 func showsKeepAwake(enabled: Bool, held: Bool) -> Bool { enabled && held }
 
-/// The chat's live HEAD (branch, or short hash when detached), `mono` 12 in a 28 box with a `line2` border.
-/// shortcut: shows only; the branch switcher (spec §3.2) opens from here in stage 8b.
+/// The chat's live HEAD (branch, or short hash when detached), `mono` 12 in a 28 box with a `line2` border; opens the
+/// branch switcher (spec §3.2) under itself, with the `accent` border and ring while it is open.
 private struct BranchButton: View {
+    let app: AppState
+    let task: HangarTask
     let branch: String
     @State private var hover = false
+    @State private var open = false
+    @State private var anchor = MenuAnchor()
+
+    private func show() {
+        open = true
+        showBranchSwitcher(app: app, task: task, below: anchor.view) { open = false }
+    }
 
     var body: some View {
-        HStack(spacing: Theme.Space.iconGap) {
-            IconView(icon: .branch, size: Theme.Icon.row)
-            Text(verbatim: branch)
-                .font(Theme.Typography.mono.font())
-                .foregroundStyle(Theme.ui.text1)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            IconView(icon: .chevronDown, size: Theme.Icon.inline)
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.control)
+        Button(action: show) {
+            HStack(spacing: Theme.Space.iconGap) {
+                IconView(icon: .branch, size: Theme.Icon.row)
+                Text(verbatim: branch)
+                    .font(Theme.Typography.mono.font())
+                    .foregroundStyle(Theme.ui.text1)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                IconView(icon: .chevronDown, size: Theme.Icon.inline)
+            }
+            .padding(.leading, Theme.Space.s2)
+            .padding(.trailing, Theme.Space.iconGap)
+            .frame(height: Theme.Height.controlRegular)
+            .background(shape.fill(hover ? Theme.ui.hover : .clear))
+            .overlay(shape.strokeBorder(open ? Theme.ui.accent : Theme.ui.line2, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.control + Theme.Control.ringWidth)
+                .fill(Theme.ui.accent.opacity(open ? Theme.Opacity.ring : 0))
+                .padding(-Theme.Control.ringWidth))
+            .contentShape(Rectangle())
         }
-        .padding(.leading, Theme.Space.s2)
-        .padding(.trailing, Theme.Space.iconGap)
-        .frame(height: Theme.Height.controlRegular)
-        .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(hover ? Theme.ui.hover : .clear))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.ui.line2, lineWidth: 1))
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .background(MenuAnchorView(anchor: anchor))
         .onHover { hover = $0 }
+        .pointingHand()
         .help(L10n.gitBranch)
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(L10n.gitBranch) \(branch)")
+        .accessibilityHint(L10n.branchSwitchHint)
+        #if DEBUG
+        .onAppear { debugBranchOpen = show }
+        .onChange(of: task.id) { debugBranchOpen = show }
+        #endif
     }
 }
+
+#if DEBUG
+/// Debug channel `branchMenu`: as a click on the toolbar's branch button.
+@MainActor var debugBranchOpen: (() -> Void)?
+#endif
 
 /// The bell (§3.1, §3.16): 16 in a 28 box; the count of what waits (permission, question, error — the Dock's number)
 /// is a red 14 badge on its corner. Opens the inbox.

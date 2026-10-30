@@ -20,6 +20,29 @@ import TestSupport
         #expect(!plain.checkColumn && !plain.iconColumn)
     }
 
+    /// While a menu is open its columns don't come and go: filtering out the checked item (a path pick) or every icon
+    /// keeps the names in place; a menu can force the check column off (the branch switcher).
+    @Test func columnsStayWhileOpen() {
+        let content = PopoverMenuContent(search: .init(placeholder: "")) { q in
+            [self.item("any", checked: true), .item(PopoverMenuItem(title: "src/a.ts", file: ("a.ts", false)) {})]
+                .filter { e in q.isEmpty || e.item?.title.contains(q) == true }
+        }
+        let state = PopoverMenuState()
+        state.refresh(content)
+        #expect(state.layout.checkColumn && state.layout.iconColumn)
+        state.query = "src"
+        state.refresh(content)
+        #expect(state.layout.checkColumn && state.layout.iconColumn)
+        state.query = "zzz"
+        state.refresh(content)
+        #expect(state.layout.checkColumn && state.layout.iconColumn)
+        var forced = content
+        forced.checkColumn = false
+        let other = PopoverMenuState()
+        other.refresh(forced)
+        #expect(!other.layout.checkColumn && other.layout.iconColumn)
+    }
+
     @Observable final class Source { var names: [String] = [] }
 
     /// Entries are built once per text change, and again when the data they read arrives (authors loading).

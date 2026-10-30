@@ -219,6 +219,11 @@ extension MainWindowController {
             } else if let target, let frame = window?.frame {
                 PopoverMenu.show(actionMenu(for: target, ctx: ctx), at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
             }
+        case "branchMenu":  // as a click on the toolbar's branch button, kept open over the inactive app; `menuPanel …` drives it
+            PopoverMenu.debugPinned = true
+            debugBranchOpen?()
+            PopoverMenu.panel?.hidesOnDeactivate = false
+            PopoverMenu.panel?.orderFrontRegardless()
         case "menuPanel": debugMenu(parts[0], arg.split(separator: " ", maxSplits: 1).first.map(String.init) ?? "",
                                     arg.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init) ?? "")
         case "gitMenu":  // gitMenu branch|author|date|path: a Git filter chip's menu, 300/160 pt into the window from the right
@@ -741,7 +746,9 @@ extension MainWindowController {
             view.cacheDisplay(in: view.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
             uiLog.info("\(command, privacy: .public) responder=\(panel.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
-        default: PopoverMenu.close()
+        default:
+            PopoverMenu.debugPinned = false
+            PopoverMenu.close()
         }
     }
 }

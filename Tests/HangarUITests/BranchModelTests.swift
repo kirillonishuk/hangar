@@ -30,7 +30,7 @@ import Workspace
     private func load(_ app: AppState, _ ids: UUID...) async {
         for id in ids {
             app.requestHead(task(app, id))
-            await app.branchModel.idle(id)
+            await app.branchModel.idle()
         }
     }
 
@@ -52,8 +52,8 @@ import Workspace
         #expect(dirty == app.branchMessage(.dirty(files: 1), projectId: task(app, a).projectId))
         #expect(await app.createBranch(of: task(app, a), name: "a b") == L10n.branchInvalid)
         #expect(await app.createBranch(of: task(app, a), name: "feat/new") == nil)
-        await app.branchModel.idle(a)
-        await app.branchModel.idle(c)
+        await app.branchModel.idle()
+        await app.branchModel.idle()
         // Chat C shares the folder: it follows.
         #expect(app.head(of: task(app, a)) == .branch("feat/new"))
         #expect(app.head(of: task(app, c)) == .branch("feat/new"))
@@ -69,29 +69,41 @@ import Workspace
         let short = try await t.git("rev-parse", "--short", "HEAD", in: wt)
         try await t.git("checkout", "-q", "--detach", in: wt)
         app.refreshHead(taskId: w)
-        await app.branchModel.idle(w)
+        await app.branchModel.idle()
         #expect(app.head(of: task(app, w)) == .detached(short))
     }
 
-    /// Inspector hidden: a `git switch` in a terminal still reaches the selected chat's branch (HEAD file events).
-    @Test func selectedChatFollowsTerminalSwitch() async throws {
+    /// Inspector hidden or shown, a `git switch` in a terminal reaches the selected chat's branch: hidden through the
+    /// `HEAD` file stream, shown through the inspector's own stream (no second one).
+    @Test(arguments: [false, true]) func selectedChatFollowsTerminalSwitch(inspector: Bool) async throws {
         let (t, app, a, _, _, _) = try await make()
         defer { t.cleanup() }
         _ = NSApplication.shared
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: true)
         let watch = InspectorWatch(app: app, window: window)
         watch.windowVisible = { true }
-        app.perform { $0.inspectorVisible = false }
+        app.perform { $0.inspectorVisible = inspector }
         app.select(taskId: a)
         watch.update()
-        await app.branchModel.idle(a)
+        await app.branchModel.idle()
         #expect(app.head(of: task(app, a)) == .branch("main"))
-        #expect(watch.watcher == nil)
         try await Task.sleep(nanoseconds: 500_000_000)  // the git-dir lookup and the stream start
+        #expect((watch.watcher != nil) == inspector)
+        #expect((watch.headWatcher != nil) == !inspector)
         try await t.git("switch", "-q", "-c", "from-terminal", in: t.repo)
         for _ in 0..<50 where app.head(of: task(app, a)) != .branch("from-terminal") {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         #expect(app.head(of: task(app, a)) == .branch("from-terminal"))
+    }
+
+    @Test func safetyRefusalsAreMessages() async throws {
+        let (t, app, a, _, _, _) = try await make()
+        defer { t.cleanup() }
+        try await t.git("bisect", "start", in: t.repo)
+        let msg = await app.switchBranch(of: task(app, a), to: Branch(name: "other", isRemote: false, lastCommit: .now))
+        #expect(msg == L10n.branchOperationInProgress("bisect"))
+        let files = app.branchMessage(.wouldOverwriteIgnored([".env", "a", "b", "c"]), projectId: task(app, a).projectId)
+        #expect(files.contains(".env, a, b, …"))
     }
 }

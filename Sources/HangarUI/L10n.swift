@@ -103,7 +103,7 @@ import Workspace
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
-        case branchDirty, branchDirtyHint, branchDirtyNewHint, branchCheckedOutInChat, branchCheckedOutAt
+        case branchDirty, branchDirtyHint, branchDirtyNewHint, branchCheckedOutInChat, branchCheckedOutAt, branchIgnoredOverwrite, branchOperationInProgress
         case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
@@ -378,6 +378,9 @@ import Workspace
     static var branchDirtyNewHint: String { s(.branchDirtyNewHint) }
     static func branchCheckedOutInChat(_ branch: String, _ chat: String) -> String { f(.branchCheckedOutInChat, branch, chat) }
     static func branchCheckedOutAt(_ branch: String, _ path: String) -> String { f(.branchCheckedOutAt, branch, path) }
+    static func branchIgnoredOverwrite(_ files: String) -> String { f(.branchIgnoredOverwrite, files) }
+    /// `op` is git's own word: merge, rebase, am, cherry-pick, revert, bisect.
+    static func branchOperationInProgress(_ op: String) -> String { f(.branchOperationInProgress, op) }
     static var fetchFailed: String { s(.fetchFailed) }
     static var createWithoutFetch: String { s(.createWithoutFetch) }
     static var fetchCancelled: String { s(.fetchCancelled) }

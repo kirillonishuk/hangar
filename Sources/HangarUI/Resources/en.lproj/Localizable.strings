@@ -136,6 +136,8 @@
 "branchDirtyNewHint" = "A new branch takes the changes along.";
 "branchCheckedOutInChat" = "Branch “%1$@” is open in chat “%2$@”: a branch can’t be checked out in two folders at once.";
 "branchCheckedOutAt" = "Branch “%1$@” is open in another folder: %2$@";
+"branchIgnoredOverwrite" = "The branch tracks files that are ignored here, and git would silently replace them: %@. Move them away and try again.";
+"branchOperationInProgress" = "A git %@ is not finished: complete or abort it, then switch.";
 "fetchFailed" = "git fetch failed";
 "createWithoutFetch" = "Create without fetch";
 "fetchCancelled" = "fetch cancelled";

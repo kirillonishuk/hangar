@@ -4,40 +4,51 @@ import Workspace
 
 /// Live HEAD of each chat's folder (branch, or short hash when detached) for the branch button and the sidebar
 /// (decision #114). Loaded when a chat first shows; reloaded on the inspector's status loads, the selected chat's
-/// HEAD file events, `done` events, the window becoming key, the host connecting and after a switch — no polling.
-/// One load per chat at a time; a refresh during it reruns once. A failed load keeps the last value.
+/// HEAD file events, `done` events, the host connecting and after a switch — no polling. Coming back to the window
+/// reloads only the selected and on-screen chats, at most every `focusInterval`. One git call per folder
+/// (host + path) at a time, shared by its chats; a refresh during it reruns once. A failed load keeps the last value.
 @MainActor @Observable final class BranchModel {
     typealias Load = @MainActor () async -> Head?
+    static let focusInterval: TimeInterval = 5
 
     private(set) var heads: [UUID: Head] = [:]
+    /// Chats shown at least once: events reload only these.
     @ObservationIgnored private(set) var requested: Set<UUID> = []
-    @ObservationIgnored private var loads: [UUID: Task<Void, Never>] = [:]
-    @ObservationIgnored private var again: Set<UUID> = []
+    /// Chats on screen now (rows report appear / disappear): with the selected one, what a window focus reloads.
+    @ObservationIgnored private(set) var shown: Set<UUID> = []
+    @ObservationIgnored var lastFocusRefresh: Date?
+    @ObservationIgnored private var loads: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var again: [String: (ids: [UUID], load: Load)] = [:]
 
-    /// First show: loads once.
-    func request(_ id: UUID, load: @escaping Load) {
-        guard requested.insert(id).inserted else { return }
-        start(id, load)
+    /// Returns true the first time the chat shows.
+    func show(_ id: UUID) -> Bool {
+        shown.insert(id)
+        return request(id)
     }
 
-    /// Reloads a chat that was shown; others load when they show.
-    func refresh(_ id: UUID, load: @escaping Load) {
-        guard requested.contains(id) else { return }
-        if loads[id] != nil { again.insert(id) } else { start(id, load) }
+    /// Events reload it from now on; true the first time.
+    func request(_ id: UUID) -> Bool { requested.insert(id).inserted }
+
+    func hide(_ id: UUID) { shown.remove(id) }
+
+    /// Loads `folder` once for all `ids`, or once more after the load in flight.
+    func refresh(folder: String, ids: [UUID], load: @escaping Load) {
+        guard !ids.isEmpty else { return }
+        if loads[folder] != nil { again[folder] = (ids, load) } else { start(folder, ids, load) }
     }
 
-    /// Tests: waits for the chat's load (and its rerun).
-    func idle(_ id: UUID) async {
-        while let task = loads[id] { await task.value }
+    /// Tests: waits until nothing loads.
+    func idle() async {
+        while let task = loads.values.first { await task.value }
     }
 
-    private func start(_ id: UUID, _ load: @escaping Load) {
-        loads[id] = Task { [weak self] in
+    private func start(_ folder: String, _ ids: [UUID], _ load: @escaping Load) {
+        loads[folder] = Task { [weak self] in
             let head = await load()
             guard let self else { return }
-            if let head, self.heads[id] != head { self.heads[id] = head }
-            self.loads[id] = nil
-            if self.again.remove(id) != nil { self.start(id, load) }
+            if let head { for id in ids where self.heads[id] != head { self.heads[id] = head } }
+            self.loads[folder] = nil
+            if let next = self.again.removeValue(forKey: folder) { self.start(folder, next.ids, next.load) }
         }
     }
 }
@@ -58,15 +69,24 @@ extension AppState {
     /// The chat's current branch or short hash; nil until loaded (or outside git).
     func head(of task: HangarTask) -> Head? { branchModel.heads[task.id] }
 
-    /// The chat's branch is on screen: its HEAD loads once.
-    func requestHead(_ task: HangarTask) { branchModel.request(task.id, load: headLoad(task.id)) }
+    /// The chat's branch is on screen: its HEAD loads the first time.
+    func requestHead(_ task: HangarTask) {
+        if branchModel.show(task.id) { refreshHead(taskId: task.id) }
+    }
 
-    /// HEAD of this chat's folder may have moved: reloads it and every other chat in the same folder.
+    /// The chat is selected (the toolbar's branch button): its HEAD loads now, whatever was loaded before.
+    func selectedHead(_ task: HangarTask) {
+        _ = branchModel.request(task.id)
+        refreshHead(taskId: task.id)
+    }
+
+    /// Its row left the screen: a window focus no longer reloads it.
+    func hideHead(_ task: HangarTask) { branchModel.hide(task.id) }
+
+    /// HEAD of this chat's folder may have moved: one load for every shown chat in the same folder.
     func refreshHead(taskId: UUID) {
-        guard let task = state.tasks.first(where: { $0.id == taskId }), let path = path(of: .task(taskId)) else { return }
-        for t in state.tasks where t.projectId == task.projectId && !t.archived && self.path(of: .task(t.id)) == path {
-            branchModel.refresh(t.id, load: headLoad(t.id))
-        }
+        guard let folder = headFolder(taskId) else { return }
+        refreshHeads(folders: [folder])
     }
 
     func refreshHead(ofLeaf leaf: UUID) {
@@ -74,14 +94,47 @@ extension AppState {
         if let task { refreshHead(taskId: task.id) }
     }
 
-    /// Back to the window: any HEAD may have moved meanwhile.
-    func refreshHeads() {
-        for t in state.tasks where !t.archived { branchModel.refresh(t.id, load: headLoad(t.id)) }
+    /// Back to the window: the selected and on-screen chats (a remote one only while its host is connected),
+    /// once per folder, at most every `focusInterval`.
+    func refreshHeadsOnFocus(now: Date = Date()) {
+        if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
+        branchModel.lastFocusRefresh = now
+        let ids = branchModel.shown.union(state.selectedTaskId.map { [$0] } ?? [])
+        refreshHeads(folders: Set(ids.compactMap { id in
+            guard let folder = headFolder(id) else { return nil }
+            if let host = folder.host, remote.hosts[host]?.state != .connected { return nil }
+            return folder
+        }))
     }
 
     /// The host is (re)connected: its chats' HEADs load again.
     func refreshHeads(host: String) {
-        for t in state.tasks where !t.archived && project(t.projectId)?.host == host { branchModel.refresh(t.id, load: headLoad(t.id)) }
+        refreshHeads(folders: Set(branchModel.requested.compactMap { id in headFolder(id).flatMap { $0.host == host ? $0 : nil } }))
+    }
+
+    private struct HeadFolder: Hashable {
+        var projectId: UUID
+        var host: String?
+        var path: String
+        var key: String { (host ?? "") + "\0" + path }
+    }
+
+    private func headFolder(_ id: UUID) -> HeadFolder? {
+        guard let task = state.tasks.first(where: { $0.id == id }), !task.archived, let project = project(task.projectId),
+              let path = path(of: .task(id)) else { return nil }
+        return HeadFolder(projectId: project.id, host: project.host, path: path)
+    }
+
+    private func refreshHeads(folders: Set<HeadFolder>) {
+        guard !folders.isEmpty else { return }
+        var ids: [HeadFolder: [UUID]] = [:]
+        for id in branchModel.requested { if let f = headFolder(id), folders.contains(f) { ids[f, default: []].append(id) } }
+        for (folder, chats) in ids {
+            branchModel.refresh(folder: folder.key, ids: chats) { [weak self] in
+                guard let self, let project = self.project(folder.projectId), self.isAvailable(project) else { return nil }
+                return try? await self.git(for: project, repo: folder.path).head()
+            }
+        }
     }
 
     /// The switcher's lists; throws when git can't run (host not connected, not a repository).
@@ -128,6 +181,9 @@ extension AppState {
         case .dirty(let n): L10n.branchDirty(L10n.fileCount(n)) + " " + L10n.branchDirtyHint
         case .checkedOutElsewhere(let branch, let path):
             chatName(at: path, projectId: projectId).map { L10n.branchCheckedOutInChat(branch, $0) } ?? L10n.branchCheckedOutAt(branch, path)
+        case .wouldOverwriteIgnored(let paths):
+            L10n.branchIgnoredOverwrite(paths.prefix(3).joined(separator: ", ") + (paths.count > 3 ? ", …" : ""))
+        case .operationInProgress(let op): L10n.branchOperationInProgress(op)
         case .invalidName: L10n.branchInvalid
         case .alreadyExists(let name): L10n.branchExists(name)
         }
@@ -147,14 +203,5 @@ extension AppState {
         guard let task = state.tasks.first(where: { $0.id == id }), let project = project(task.projectId),
               let path = path(of: .task(id)) else { throw CocoaError(.fileNoSuchFile) }
         return git(for: project, repo: path)
-    }
-
-    private func headLoad(_ id: UUID) -> BranchModel.Load {
-        { [weak self] in
-            guard let self, let task = self.state.tasks.first(where: { $0.id == id }), !task.archived,
-                  let project = self.project(task.projectId), self.isAvailable(project),
-                  let git = try? self.branchGit(id) else { return nil }
-            return try? await git.head()
-        }
     }
 }

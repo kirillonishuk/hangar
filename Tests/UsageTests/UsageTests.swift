@@ -71,6 +71,18 @@ private func win(_ p: Double, resets: Double? = 1_760_005_000, kind: WindowKind 
     #expect(b.level(.codex, now: later) == .ok)
 }
 
+@Test func tickWithoutAWindowKeepsTheLastKnownOne() {
+    var b = UsageBoard()
+    _ = b.update(.claude, windows: [win(6), win(25, resets: 1_760_900_000, kind: .weekly),
+                                    win(40, resets: 1_759_000_000, kind: .weeklyModel("opus"))], plan: nil, now: now)
+    _ = b.update(.claude, windows: [win(26, resets: 1_760_900_000, kind: .weekly)], plan: nil, now: now)
+    let w = b.view(.claude, now: now)?.windows ?? []
+    #expect(w.map(\.kind) == [.weekly, .session])  // the passed per-model window is gone
+    #expect(w.map(\.usedPercent) == [26, 6])
+    // Its reset passed and still no figure: the 5-hour row stays, at 0.
+    #expect(b.view(.claude, now: Date(timeIntervalSince1970: 1_760_005_001))?.windows.last?.usedPercent == 0)
+}
+
 @Test func noDataHidesAgent() {
     let b = UsageBoard()
     #expect(b.view(.codex, now: now) == nil)

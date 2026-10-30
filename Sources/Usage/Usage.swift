@@ -90,7 +90,13 @@ public struct UsageBoard: Equatable, Sendable {
 
     public mutating func update(_ agent: UsageAgent, windows: [UsageWindow], plan: String?, now: Date) -> [UsageAlert] {
         var s = states[agent] ?? State(usage: AgentUsage(windows: [], plan: nil, updatedAt: now))
-        s.usage.windows = windows
+        // A tick without a window (Claude Code leaves out one it has no figure for) keeps the last known one, so the
+        // 5-hour row doesn't vanish; a passed reset shows 0 (`view`). Per-model windows go once their reset passed.
+        let kept = s.usage.windows.filter { old in
+            !windows.contains { $0.kind == old.kind }
+                && (old.kind == .session || old.kind == .weekly || (old.resetsAt ?? .distantPast) > now)
+        }
+        s.usage.windows = windows + kept
         if let plan { s.usage.plan = plan }
         s.usage.updatedAt = now
         var alerts: [UsageAlert] = []
@@ -104,7 +110,7 @@ public struct UsageBoard: Equatable, Sendable {
                 alerts.append(UsageAlert(agent: agent, kind: w.kind, level: l, percent: w.usedPercent))
             }
         }
-        if !windows.isEmpty, windows.allSatisfy({ $0.usedPercent < UsageThreshold.full }) {
+        if !windows.isEmpty, s.usage.windows.allSatisfy({ $0.usedPercent < UsageThreshold.full }) {
             s.usage.limitReached = false; s.usage.limitResetsAt = nil; s.limitAlerted = false
         }
         states[agent] = s

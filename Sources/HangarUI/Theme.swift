@@ -70,12 +70,13 @@ public enum Theme {
     public static let sidebarAnimation: Double = 0.18
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
-    public static let projectTileSize: CGFloat = 24
-    /// Rail task monogram tile, centred in the rail.
-    public static let railTileSize: CGFloat = 22
+    /// Rail tiles (projects and chats): one size, 8 apart in the 28 rows, so their corner dots never reach a neighbour.
+    public static let railTileSize: CGFloat = 20
     public static let railTileBorderWidth: CGFloat = 1
-    /// Rail section header: a short `line` separator in a 12 pt row (icons-sidebar.html `.rail .hd`).
-    public static let railHeaderHeight: CGFloat = 12
+    /// Rail hover / selection: a `row.sidebar` square around the tile, not the whole rail width.
+    public static let railHighlight: CGFloat = Height.rowSidebar
+    /// Rail section header: a short `line` separator in a 16 pt row, clear of the tiles above and below.
+    public static let railHeaderHeight: CGFloat = 16
     public static let railHeaderLine: CGFloat = 24
     public static let railHeaderLineWidth: CGFloat = 1
     /// Gap between inline parts of a row (name · project, icon · host).
@@ -157,6 +158,8 @@ extension Theme {
         public static let blockBar: CGFloat = 4
         public static let barGap: CGFloat = 3
         public static let percentWidth: CGFloat = 34
+        /// «5 ч» / «нед» before each sidebar bar.
+        public static let windowLabelWidth: CGFloat = 26
         public static let rowGap: CGFloat = Space.s2
         public static let rowPaddingV: CGFloat = Space.s1
         public static let rowPaddingH: CGFloat = Space.s3

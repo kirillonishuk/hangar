@@ -159,9 +159,9 @@ extension Theme {
         public static let percentWidth: CGFloat = 34
         public static let rowGap: CGFloat = Space.s2
         public static let rowPaddingV: CGFloat = Space.s1
-        public static let rowPaddingH: CGFloat = Space.s2
+        public static let rowPaddingH: CGFloat = Space.s3
         public static let blockPaddingV: CGFloat = Space.s2
-        public static let blockPaddingH: CGFloat = Space.s3
+        public static let blockPaddingH: CGFloat = Space.s2
         public static let popoverWidth: CGFloat = 330
         public static let popoverPaddingV: CGFloat = Space.s3
         public static let popoverPaddingH: CGFloat = Space.s4
@@ -177,7 +177,7 @@ extension Theme {
         public static let popoverPaddingV: CGFloat = Space.s2
         public static let popoverPaddingH: CGFloat = Space.s2
         public static let rowPaddingV: CGFloat = Space.s2
-        public static let rowPaddingH: CGFloat = Space.s2
+        public static let rowPaddingH: CGFloat = Space.s3
         public static let rowGap: CGFloat = Space.s2
         public static let lineGap: CGFloat = Space.s1
         public static let buttonHeight: CGFloat = Height.controlSmall

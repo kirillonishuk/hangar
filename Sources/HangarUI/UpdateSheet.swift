@@ -21,7 +21,7 @@ struct UpdateSheet: View {
             status(offer)
                 .frame(maxWidth: .infinity, minHeight: Theme.updateStatusHeight, maxHeight: Theme.updateStatusHeight, alignment: .leading)
                 .padding(.top, Theme.sheetMessageTop)
-            SheetFooter(hint: "") {
+            SheetFooter {
                 Button(L10n.updateSkip) { model.skip(); onClose() }
                     .buttonStyle(.hangar(.secondary))
                     .disabled(busy || model.phase == .ready)

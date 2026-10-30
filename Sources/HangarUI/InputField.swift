@@ -15,7 +15,7 @@ extension Theme {
         public static let iconSize: CGFloat = Theme.Icon.row
         public static let iconGap: CGFloat = Theme.Space.iconGap
         /// Inline rename: the box grows this far around the label it replaces (no jump on F2).
-        public static let inlinePaddingH: CGFloat = 4
+        public static let inlinePaddingH: CGFloat = Theme.Space.s1
 
         public static func font(mono: Bool = false) -> Font { (mono ? Theme.Typography.mono : Theme.Typography.body).font() }
         public static func nsFont(mono: Bool = false) -> NSFont { (mono ? Theme.Typography.mono : Theme.Typography.body).nsFont() }

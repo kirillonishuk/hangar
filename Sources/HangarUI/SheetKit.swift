@@ -25,19 +25,12 @@ struct SheetHeader: View {
     }
 }
 
-/// Footer: an optional `text3` hint on the left, the buttons on the right (cancel first, the primary last); no
-/// «Esc — отмена» (§3.14).
+/// Footer: the buttons on the right (cancel first, the primary last); no «Esc — отмена» (§3.14).
 struct SheetFooter<Buttons: View>: View {
-    var hint = ""
-    /// Hidden but kept (no jump), e.g. while Esc belongs to an install terminal.
-    var hintHidden = false
     @ViewBuilder var buttons: Buttons
 
     var body: some View {
         HStack(spacing: Theme.sheetButtonGap) {
-            Text(verbatim: hint).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
-                .lineLimit(1).truncationMode(.middle)
-                .opacity(hintHidden ? 0 : 1)
             Spacer(minLength: 0)
             buttons
         }

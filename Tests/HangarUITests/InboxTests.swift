@@ -28,6 +28,14 @@ import Workspace
         #expect(attentionCount([]) == 0)
     }
 
+    /// «проект › чат · агент»; a text that only repeats the agent's name gives way to the notice's title.
+    @Test func inboxRowLines() {
+        let a = inboxLines(subtitle: "acme › fix", body: "Write: rm -rf build", agent: "claude", title: "Claude просит разрешение")
+        #expect(a.place == "acme › fix · claude" && a.text == "Write: rm -rf build")
+        #expect(inboxLines(subtitle: "acme › fix", body: "claude", agent: "claude", title: "Claude: ошибка").text == "Claude: ошибка")
+        #expect(inboxLines(subtitle: "acme › fix", body: " ", agent: "", title: "T") == (place: "acme › fix", text: "T"))
+    }
+
     @Test func reasonIconsDiffer() {
         let reasons: [AttentionReason] = [.permission, .question, .failed, .limit, .done]
         #expect(Set(reasons.map { "\(inboxIcon($0))" }).count == reasons.count)  // permission and question look different

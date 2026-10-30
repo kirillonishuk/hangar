@@ -14,7 +14,7 @@ struct SessionsHost: View {
     }
 }
 
-/// «Сессии» v2 (#107, sessions-v2.html variant A): title, scope segment and search; the chips; one list by project.
+/// «История» (⌘Y; the v2 list of #107, styled per spec §3.17): title, scope segment and search; the chips; one list by project.
 struct SessionsView: View {
     let app: AppState
     @Bindable var model: SessionsModel
@@ -146,7 +146,7 @@ struct SessionsView: View {
         }
     }
 
-    // MARK: Centered states
+    // MARK: Centered states (§3.19: one phrase `body` `text2`, at most two regular buttons)
 
     private func placeholder(_ p: SessionsPlaceholder) -> some View {
         VStack(spacing: Theme.historyCenterGap) {
@@ -157,16 +157,16 @@ struct SessionsView: View {
                     Text(L10n.sessionsLoading).foregroundStyle(Theme.ui.text3)
                 }
             case .offline(let host):
-                Text(L10n.sessionsOffline(host)).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
-                Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
-                Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary, .small))
+                Text(L10n.sessionsOffline(host)).foregroundStyle(Theme.ui.text2)
+                Text(L10n.sessionsOfflineHint).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
+                Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary))
             case .empty:
-                Text(L10n.sessionsEmpty).foregroundStyle(Theme.ui.text3)
+                Text(L10n.sessionsEmpty).foregroundStyle(Theme.ui.text2)
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
-                    .font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
-                Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(.hangar(.secondary, .small))
+                    .foregroundStyle(Theme.ui.text2)
+                Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(.hangar(.secondary))
             }
         }
         .font(Theme.Typography.body.font())

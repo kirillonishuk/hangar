@@ -12,7 +12,7 @@ struct InspectorView: View {
             Color.clear.frame(height: Theme.Height.barToolbar)
             header
             if let text = app.inspectorNotice {
-                notice(text)
+                EmptyNote(text: text)
                 Spacer(minLength: 0)
             } else if model.segment == .changes && model.isGit {
                 ChangesList(app: app, model: model)
@@ -141,7 +141,7 @@ private struct FilesList: View {
                 notice(L10n.gitFailed(error))
             }
             if model.filesTruncated { notice(L10n.filesTruncated(FileListing.limit)) }
-            if let empty = model.emptyFilesNotice { notice(empty) }
+            if let empty = model.emptyFilesNotice { EmptyNote(text: empty) }
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
@@ -216,7 +216,7 @@ private struct ChangesList: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     if let changes = model.changes {
-                        if changes.files.isEmpty { notice(L10n.noChanges) }
+                        if changes.files.isEmpty { EmptyNote(text: L10n.noChanges) }
                         let columns = ChangeColumns(changes.files)
                         ForEach(changes.files) { file in
                             ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }

@@ -76,10 +76,10 @@ struct ContinueList: View {
         VStack(alignment: .leading, spacing: 0) {
             if !rows.isEmpty {
                 Text(L10n.continueTitle)
-                    .font(Theme.Typography.secondary.font(.semibold))
+                    .font(Theme.Typography.caption.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
                     .padding(.horizontal, Theme.historyRowPaddingH)
-                    .padding(.bottom, Theme.historyGroupBottom)
+                    .padding(.bottom, Theme.Space.s1)
                 ForEach(rows) { row($0) }
             }
         }
@@ -98,7 +98,7 @@ struct ContinueList: View {
         .font(Theme.Typography.body.font())
         .padding(.horizontal, Theme.historyRowPaddingH)
         .frame(height: Theme.continueRowHeight)
-        .background(hovered == key ? Theme.ui.hover : .clear, in: RoundedRectangle(cornerRadius: Theme.historyRowRadius))
+        .background(hovered == key ? Theme.ui.hover : .clear, in: RoundedRectangle(cornerRadius: Theme.Radius.control))
         .contentShape(Rectangle())
         .onTapGesture { resume(c) }
         .onHover { inside in

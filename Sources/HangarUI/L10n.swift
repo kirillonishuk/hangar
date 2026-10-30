@@ -83,7 +83,7 @@ import Workspace
         case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
-        case dropRight, dropLeft, dropUp, dropDown, paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, editor, externalEditor, externalEditorPlaceholder
+        case dropRight, dropLeft, dropUp, dropDown, paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, defaultAgentHint, editor, externalEditor, externalEditorHint, externalEditorPlaceholder, updatesSection, inboxTitle, inboxEmpty, emptyNoProject
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle

@@ -170,8 +170,8 @@ struct ServerCheckView: View {
         VStack(alignment: .leading, spacing: Theme.sheetMessageTop) {
             HStack(spacing: Theme.sheetButtonGap) {
                 Text(L10n.installPlanTitle)
-                    .font(Theme.Typography.secondary.font(.semibold))
-                    .foregroundStyle(Theme.ui.text2)
+                    .font(Theme.Typography.caption.font(.semibold))
+                    .foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
                 if embedded, !model.plan.steps.isEmpty { InstallButton(model: model, primary: false) }
             }

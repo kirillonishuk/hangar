@@ -29,7 +29,7 @@ struct NoTabsView: View {
         KindChoiceButtons(kinds: noTabsChoices(hostShell: task.map { app.isHostShellTask($0.id) } ?? false),
                           shellHint: Shortcut.newTab.label) { app.addTab($0) }
             .aboveCentered {
-                Text(L10n.emptyNoTabs).foregroundStyle(Theme.ui.text3)
+                Text(L10n.emptyNoTabs).foregroundStyle(Theme.ui.text2)  // §3.19
                 // Inserted each time the session turns empty: the list rescans then (the tab just closed is in it).
                 if let task, app.showsNoTabs {
                     ContinueList(app: app, taskId: task.id, fit: fit) { app.openConversation($0) }

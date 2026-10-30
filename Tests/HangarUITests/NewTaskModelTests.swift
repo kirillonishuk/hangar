@@ -45,12 +45,15 @@ import TestSupport
         L10n.language = .ru
         defer { L10n.language = .system }
         let project = Project(name: "p", location: .local(path: t.repo), worktreeByDefault: true)
-        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [], chatNames: ["Чат 1"])
+        var names = ["Чат 1"]
+        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [], chatNames: { names })
         await m.load()
         #expect(m.head == .branch("main"))
         #expect(m.chatName == "Чат 2")
         #expect(m.branch == "chat-2")
         #expect(m.canCreate == true)
+        names.append("Чат 2")  // another window created one meanwhile
+        #expect(m.chatName == "Чат 3")
         m.message = "Почини логин"
         #expect(m.chatName == "Почини логин")
         #expect(m.branch == "pochini-login")

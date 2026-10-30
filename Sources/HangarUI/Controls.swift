@@ -558,11 +558,14 @@ struct Checkbox: View {
 }
 
 /// Radio option (§3.11, sheets): a card — radio 14, title `body` 600, detail `secondary` `text2`; the chosen one has an
-/// `accent` edge on `accent` .08. Dims itself when disabled (once: callers put `.disabled` on it, no opacity).
+/// `accent` edge on `accent` .08. Dims itself when disabled (once: callers put `.disabled` on it, no opacity). Not
+/// focusable itself: its group is the Tab stop and draws the ring through `focused`.
 struct RadioOption: View {
     let title: String
     let detail: AttributedString
     let selected: Bool
+    /// The group has keyboard focus and this is its choice: the focus ring (§2.8) around the card.
+    var focused = false
     let choose: () -> Void
     @Environment(\.isEnabled) private var enabled
 
@@ -587,9 +590,16 @@ struct RadioOption: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(shape.fill(selected ? Theme.ui.accent.opacity(Theme.Control.optionFill) : .clear))
             .overlay(shape.strokeBorder(selected ? Theme.ui.accent : Theme.ui.line2))
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.popover + Theme.Control.ringWidth)
+                    .strokeBorder(Theme.ui.accent.opacity(Theme.Opacity.ring), lineWidth: Theme.Control.ringWidth)
+                    .padding(-Theme.Control.ringWidth)
+                    .opacity(focused ? 1 : 0)
+            }
             .contentShape(shape)
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .opacity(enabled ? 1 : Theme.Opacity.inactive)
         .pointingHand(enabled)
         .accessibilityElement(children: .ignore)

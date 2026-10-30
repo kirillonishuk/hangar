@@ -145,8 +145,8 @@
 "newBranch" = "Ветка копии";
 "whereToWork" = "Где работать";
 "whereFolder" = "В папке проекта";
-"whereFolderBranch" = "Ветка %@. Изменения увидят все чаты проекта.";
-"whereFolderCommit" = "Коммит %@. Изменения увидят все чаты проекта.";
+"whereFolderBranch" = "Ветка";
+"whereFolderCommit" = "Коммит";
 "whereFolderShared" = "Изменения увидят все чаты проекта.";
 "whereCopy" = "В отдельной копии";
 "whereCopyHint" = "Своя папка и ветка (worktree). Не мешает другим чатам.";

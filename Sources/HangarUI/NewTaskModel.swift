@@ -19,8 +19,8 @@ import Workspace
     }
     /// «Задание для …» unfolded (folded by default: the prompt can be written later, in the tab).
     var promptOpen = false
-    /// What the chat will be called (decision #116).
-    var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames) }
+    /// What the chat will be called (decision #116); «Чат N» against the project's chats now (another window may add one).
+    var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames()) }
     /// The project folder's HEAD, for «В папке проекта»; nil until loaded or outside git.
     private(set) var head: Head?
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.
@@ -54,7 +54,7 @@ import Workspace
     private(set) var commandToSave: String?
     let taskBranches: Set<String>
 
-    @ObservationIgnored private let chatNames: [String]
+    @ObservationIgnored private let chatNames: @MainActor () -> [String]
     @ObservationIgnored private let project: Project
     @ObservationIgnored private let git: Git
     @ObservationIgnored private var remotes: [String] = []
@@ -67,7 +67,7 @@ import Workspace
     @ObservationIgnored private var fetchId: UUID?
     @ObservationIgnored private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(project: Project, git: Git, taskBranches: Set<String>, chatNames: [String] = []) {
+    init(project: Project, git: Git, taskBranches: Set<String>, chatNames: @escaping @MainActor () -> [String] = { [] }) {
         self.project = project
         self.chatNames = chatNames
         self.git = git

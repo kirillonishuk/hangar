@@ -882,8 +882,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
+        sheet.autorecalculatesKeyViewLoop = true  // Tab reaches the copy's fields, which appear after the sheet opens
         let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id),
-                                 chatNames: app.state.tasks.filter { $0.projectId == id }.map(\.name))
+                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }

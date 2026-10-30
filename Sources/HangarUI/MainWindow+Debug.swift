@@ -560,6 +560,18 @@ extension MainWindowController {
                                         charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53) {
                 uiLog.info("ntCancel handled=\(sheet.performKeyEquivalent(with: e)) open=\(self.window?.attachedSheet != nil)")
             }
+        case "ntKey":  // ntKey <keyCode> <chars>: a plain key into the sheet (Tab 48, Space 49, → 124, ↩ 36)
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            if let sheet = window?.attachedSheet, let code = f.first.flatMap(UInt16.init) {
+                let arrows: [UInt16: Int] = [123: NSLeftArrowFunctionKey, 124: NSRightArrowFunctionKey, 125: NSDownArrowFunctionKey, 126: NSUpArrowFunctionKey]
+                let chars = arrows[code].flatMap(UnicodeScalar.init).map { String(Character($0)) }
+                    ?? (f.count > 1 ? f[1].replacingOccurrences(of: "\\t", with: "\t").replacingOccurrences(of: "\\r", with: "\r") : "")
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                windowNumber: sheet.windowNumber, context: nil, characters: chars,
+                                                charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { sheet.sendEvent(e) }
+                }
+            }
         case "ntState":  // the sheet's progress and errors
             if let m = newTaskModelForDebug {
                 uiLog.info("nt creating=\(m.creating) progress=\(m.progress ?? "-", privacy: .public) error=\(m.createError ?? "-", privacy: .public)")

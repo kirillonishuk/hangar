@@ -390,9 +390,9 @@ import Workspace
     static var newBranch: String { s(.newBranch) }
     static var whereToWork: String { s(.whereToWork) }
     static var whereFolder: String { s(.whereFolder) }
-    /// «Ветка %@. Изменения увидят все чаты проекта.»
-    static func whereFolderBranch(_ branch: String) -> String { f(.whereFolderBranch, branch) }
-    static func whereFolderCommit(_ hash: String) -> String { f(.whereFolderCommit, hash) }
+    /// «Ветка» / «Коммит» before the folder's mono HEAD: «Ветка `main`. Изменения увидят все чаты проекта.»
+    static var whereFolderBranch: String { s(.whereFolderBranch) }
+    static var whereFolderCommit: String { s(.whereFolderCommit) }
     static var whereFolderShared: String { s(.whereFolderShared) }
     static var whereCopy: String { s(.whereCopy) }
     static var whereCopyHint: String { s(.whereCopyHint) }

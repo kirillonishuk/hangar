@@ -11,6 +11,18 @@ import Testing
         #expect(chatName(name: " ", message: "\n  Почини   редирект после логина \nподробности", existing: []) == "Почини редирект после логина")
     }
 
+    @Test func markdownMarkersAndInvisibleCharsAreDropped() {
+        #expect(chatName(name: "", message: "## Почини логин", existing: []) == "Почини логин")
+        #expect(chatName(name: "", message: "> - * Почини логин", existing: []) == "Почини логин")
+        #expect(chatName(name: "", message: "```swift\nlet x = 1\n```", existing: []) == "let x = 1")
+        #expect(chatName(name: "", message: "\u{200B}\u{FEFF}\n\u{200D}Почини\u{200B} логин", existing: []) == "Почини логин")
+        L10n.language = .ru
+        defer { L10n.language = .system }
+        // Nothing visible: «Чат N».
+        #expect(chatName(name: "", message: "#\n> \n```\n\u{200B}", existing: []) == "Чат 1")
+        #expect(chatName(name: "\u{200B}", message: "", existing: []) == "Чат 1")
+    }
+
     @Test func longMessageIsCutAtAWord() {
         let message = "Добавь поле промокода в корзину и проверь, что скидка считается до налога"
         let name = chatName(name: "", message: message, existing: [])

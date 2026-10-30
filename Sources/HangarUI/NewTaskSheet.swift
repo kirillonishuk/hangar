@@ -13,7 +13,7 @@ struct NewTaskSheet: View {
     let onCancel: () -> Void
 
     @FocusState private var focus: Field?
-    private enum Field { case name, branch, message }
+    private enum Field { case name, place, branch, prompt, message }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,7 +22,7 @@ struct NewTaskSheet: View {
                 labeled(L10n.projectName) {
                     TextField("", text: $model.name)
                         .focused($focus, equals: .name)
-                        .onSubmit { if model.promptOpen { focus = .message } }
+                        .onSubmit(openPrompt)
                         .inputField(focused: focus == .name, placeholder: model.name.isEmpty ? L10n.taskNamePlaceholder : nil)
                         .disabled(model.creating)
                 }
@@ -67,27 +67,61 @@ struct NewTaskSheet: View {
 
     // MARK: Where to work
 
+    /// A radio group: one Tab stop (as a text field, so without Full Keyboard Access too); ←/↑ the folder, →/↓ the
+    /// copy, Space switches; VoiceOver reads it as radio buttons.
     private var whereOptions: some View {
-        HStack(spacing: Theme.Space.s2) {
-            RadioOption(title: L10n.whereFolder, detail: folderDetail, selected: !model.worktree) { model.worktree = false }
-            RadioOption(title: L10n.whereCopy, detail: AttributedString(copyDetail), selected: model.worktree) { model.worktree = true }
+        let grouped = focus == .place
+        return HStack(spacing: Theme.Space.s2) {
+            RadioOption(title: L10n.whereFolder, detail: folderDetail, selected: !model.worktree,
+                        focused: grouped && !model.worktree) { chooseCopy(false) }
+            RadioOption(title: L10n.whereCopy, detail: AttributedString(copyDetail), selected: model.worktree,
+                        focused: grouped && model.worktree) { chooseCopy(true) }
                 .disabled(!copyAvailable)
-                .help(copyAvailable ? "" : copyDetail)
         }
         .fixedSize(horizontal: false, vertical: true)  // both cards as tall as the taller one
         .disabled(model.creating)
+        .focusable(!model.creating, interactions: .edit)
+        .focused($focus, equals: .place)
+        .focusEffectDisabled()
+        .onKeyPress(keys: [.space, .leftArrow, .upArrow, .rightArrow, .downArrow]) { press in
+            switch press.key {
+            case .leftArrow, .upArrow: chooseCopy(false)
+            case .rightArrow, .downArrow: chooseCopy(true)
+            default: chooseCopy(!model.worktree)
+            }
+            return .handled
+        }
+        // SwiftUI's own Tab order skips the copy's fields that appear below after the group took focus.
+        .onKeyPress(keys: [.tab]) { press in
+            focus = press.modifiers.contains(.shift) ? .name : model.worktree ? .branch : .prompt
+            return .handled
+        }
+        .accessibilityRepresentation {
+            Picker(L10n.whereToWork, selection: Binding(get: { model.worktree }, set: { chooseCopy($0) })) {
+                Text(verbatim: L10n.whereFolder).tag(false)
+                Text(verbatim: L10n.whereCopy).tag(true)
+            }
+            .pickerStyle(.radioGroup)
+        }
+    }
+
+    private func chooseCopy(_ on: Bool) {
+        guard !model.creating, !on || copyAvailable else { return }
+        model.worktree = on
     }
 
     /// «Ветка `main`. Изменения увидят все чаты проекта.» — the folder's live HEAD, mono.
     private var folderDetail: AttributedString {
-        let (text, code): (String, String?) = switch model.head {
-        case .branch(let name): (L10n.whereFolderBranch(name), name)
-        case .detached(let hash): (L10n.whereFolderCommit(hash), hash)
-        case nil: (L10n.whereFolderShared, nil)
+        let shared = AttributedString(L10n.whereFolderShared)
+        let word: String, code: String
+        switch model.head {
+        case .branch(let name): (word, code) = (L10n.whereFolderBranch, name)
+        case .detached(let hash): (word, code) = (L10n.whereFolderCommit, hash)
+        case nil: return shared
         }
-        var out = AttributedString(text)
-        if let code, let range = out.range(of: code) { out[range].font = Theme.Typography.mono.font() }
-        return out
+        var mono = AttributedString(code)
+        mono.font = Theme.Typography.mono.font()
+        return AttributedString(word + " ") + mono + AttributedString(". ") + shared
     }
 
     /// Choosable while the repo still loads: `canCreate` waits for it, and a failed load turns the copy off.
@@ -108,7 +142,7 @@ struct NewTaskSheet: View {
             HStack(spacing: Theme.Space.s2) {
                 TextField("", text: $model.branch)
                     .focused($focus, equals: .branch)
-                    .onSubmit { if model.promptOpen { focus = .message } }
+                    .onSubmit(openPrompt)
                     .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
                     .disabled(model.creating)
                 Text(verbatim: L10n.branchFrom).foregroundStyle(Theme.ui.text2)
@@ -202,20 +236,29 @@ struct NewTaskSheet: View {
     /// Folded by default: the prompt can be written later, in the agent's tab.
     private var task: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s2) {
-            Button {
-                model.promptOpen.toggle()
-                focus = model.promptOpen ? .message : .name
-            } label: {
-                HStack(spacing: Theme.Space.iconGap) {
-                    IconView(icon: model.promptOpen ? .chevronDown : .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text2)
-                    Text(verbatim: L10n.taskFor(agentName)).foregroundStyle(Theme.ui.text1)
-                    Text(verbatim: "— " + L10n.taskLater).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
-                }
-                .contentShape(Rectangle())
+            // Not a Button: a Tab stop without Full Keyboard Access too; Space / ↩ fold and unfold.
+            HStack(spacing: Theme.Space.iconGap) {
+                IconView(icon: model.promptOpen ? .chevronDown : .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text2)
+                Text(verbatim: L10n.taskFor(agentName)).foregroundStyle(Theme.ui.text1)
+                Text(verbatim: "— " + L10n.taskLater).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: togglePrompt)
             .pointingHand()
+            .focusable(interactions: .edit)
+            .focused($focus, equals: .prompt)
+            .focusEffectDisabled()
+            .onKeyPress(keys: [.space, .return]) { _ in togglePrompt(); return .handled }
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .strokeBorder(Theme.ui.accent.opacity(Theme.Opacity.ring), lineWidth: Theme.Control.ringWidth)
+                    .padding(-Theme.Space.s1)
+                    .opacity(focus == .prompt ? 1 : 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
             .accessibilityValue(model.promptOpen ? L10n.toggleOn : L10n.toggleOff)
+            .accessibilityAction { togglePrompt() }
             if model.promptOpen {
                 TextField("", text: $model.message, axis: .vertical)
                     .lineLimit(2...8)
@@ -224,6 +267,17 @@ struct NewTaskSheet: View {
                     .disabled(model.creating)
             }
         }
+    }
+
+    private func togglePrompt() {
+        model.promptOpen.toggle()
+        focus = model.promptOpen ? .message : .prompt
+    }
+
+    /// ↩ in «Название» / «Ветка копии»: on to the prompt (unfolded).
+    private func openPrompt() {
+        model.promptOpen = true
+        focus = .message
     }
 
     // MARK: Footer

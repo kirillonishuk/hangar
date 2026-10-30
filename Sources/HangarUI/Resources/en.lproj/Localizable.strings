@@ -145,8 +145,8 @@
 "newBranch" = "Copy branch";
 "whereToWork" = "Where to work";
 "whereFolder" = "In the project folder";
-"whereFolderBranch" = "Branch %@. Every chat of the project sees the changes.";
-"whereFolderCommit" = "Commit %@. Every chat of the project sees the changes.";
+"whereFolderBranch" = "Branch";
+"whereFolderCommit" = "Commit";
 "whereFolderShared" = "Every chat of the project sees the changes.";
 "whereCopy" = "In a separate copy";
 "whereCopyHint" = "Own folder and branch (worktree). Other chats aren’t affected.";

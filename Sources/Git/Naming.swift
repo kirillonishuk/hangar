@@ -46,13 +46,68 @@ public func isBranchName(_ name: String) -> Bool {
 
 /// Default: `<dirname>/<basename>.worktrees/<slug>`; with `root`: `<root>/<slug>`.
 public func worktreePath(projectPath: String, root: String?, branch: String) -> String {
-    let slug = branchSlug(branch)
-    if var root {
-        while root.count > 1, root.hasSuffix("/") { root.removeLast() }
-        return (root == "/" ? "" : root) + "/" + slug
+    let base = root.map(trimmedPath) ?? defaultWorktreeRoot(projectPath: projectPath)
+    return (base == "/" ? "" : base) + "/" + branchSlug(branch)
+}
+
+/// The folder all of a project's copies go to by default: next to it, `<dirname>/<basename>.worktrees`, never inside
+/// (editors watch everything under the project). String-only, no stat or symlink resolution: the path may be on a server.
+/// shortcut: a project at `/` has no "next to"; it gets `/.worktrees`.
+public func defaultWorktreeRoot(projectPath: String) -> String {
+    let p = trimmedPath(projectPath)
+    guard p != "/", let slash = p.lastIndex(of: "/") else { return p == "/" ? "/.worktrees" : p + ".worktrees" }
+    return String(p[..<slash]) + "/" + p[p.index(after: slash)...] + ".worktrees"
+}
+
+/// True if `root` is the project folder or lies inside it: copies there show up in the project's own tree and its
+/// editors' file watchers. `local`: `~` expanded, symlinks resolved (the root may not exist yet) and case ignored on a
+/// case-insensitive volume; a server's path is compared as typed.
+public func worktreeRootInsideProject(_ root: String, project: String, local: Bool = true) -> Bool {
+    func prepared(_ path: String) -> String {
+        let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return local ? lexicalPath(resolvedPath(lexicalPath((p as NSString).expandingTildeInPath))) : lexicalPath(p)
     }
-    var p = projectPath
+    var r = prepared(root), p = prepared(project)
+    guard !r.isEmpty, !p.isEmpty else { return false }
+    if local, !caseSensitiveVolume(p) { r = r.lowercased(); p = p.lowercased() }
+    return r == p || r.hasPrefix(p == "/" ? "/" : p + "/")
+}
+
+/// `.`, `..`, repeated and trailing slashes folded as text (no stat, no symlinks: the path may be on a server or not exist yet).
+/// `..` above `/` stays at `/`; a relative path keeps its leading `..`.
+public func lexicalPath(_ path: String) -> String {
+    let absolute = path.hasPrefix("/")
+    var parts: [Substring] = []
+    for c in path.split(separator: "/") where c != "." {
+        if c == "..", let last = parts.last, last != ".." { parts.removeLast() }
+        else if c == "..", absolute { continue }
+        else { parts.append(c) }
+    }
+    let joined = parts.joined(separator: "/")
+    return absolute ? "/" + joined : (joined.isEmpty ? "." : joined)
+}
+
+private func trimmedPath(_ path: String) -> String {
+    var p = path
     while p.count > 1, p.hasSuffix("/") { p.removeLast() }
-    let url = URL(fileURLWithPath: p, isDirectory: true)  // no stat: the path may be on a server
-    return url.deletingLastPathComponent().path + "/" + url.lastPathComponent + ".worktrees/" + slug
+    return p
+}
+
+/// `realpath` of the longest existing prefix plus the rest as written.
+private func resolvedPath(_ path: String) -> String {
+    guard path.hasPrefix("/") else { return path }
+    var head = trimmedPath(path), tail: [String] = []
+    while head != "/", !FileManager.default.fileExists(atPath: head) {
+        tail.insert((head as NSString).lastPathComponent, at: 0)
+        head = (head as NSString).deletingLastPathComponent
+    }
+    guard let real = realpath(head, nil) else { return path }
+    defer { free(real) }
+    return ([String(cString: real)] + tail).joined(separator: "/").replacingOccurrences(of: "//", with: "/")
+}
+
+private func caseSensitiveVolume(_ path: String) -> Bool {
+    var url = URL(fileURLWithPath: path)
+    while !FileManager.default.fileExists(atPath: url.path), url.path != "/" { url.deleteLastPathComponent() }
+    return (try? url.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]))?.volumeSupportsCaseSensitiveNames ?? true
 }

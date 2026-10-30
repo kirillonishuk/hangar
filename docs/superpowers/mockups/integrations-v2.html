@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Hangar — Интеграции v2</title>
+<!--
+  Настройки → Интеграции, версия 2 (записка: docs/superpowers/specs/2026-10-29-integrations-v2-design.md).
+  Жалобы владельца (2026-10-29): не знают, что интеграции надо ставить в Настройках; после обновления — переустанавливать;
+  MCP «как будто я не должен ставить сам, она вместе с апкой включается»; окно настроек узкое (≈ 970×600 pt).
+  Направление владельца: группы по функциям, а не по машинам; одна функция — везде (этот Mac + каждый ssh-хост);
+  один лист согласия при первом запуске агента; обновления — молча; MCP — сам, при запуске.
+  Язык контролов — B′ (controls-v2.html, #106), правило «без повторов». Темы — Navy и Dark+. Размеры: px = pt 1:1.
+  Рендер одного кадра: integrations-v2.html?only=<id> (id у каждого .frame).
+-->
+<style>
+*{box-sizing:border-box}
+:root{--mono:Menlo,"SF Mono",monospace}
+.t-dp{--bg:#1e1e1e;--titlebar:#252526;--sidebar:#252526;--sheet:#252526;--field:#313131;--hover:#2a2d2e;--sbHover:#2a2d2e;--hoverStrong:#37373d;--selected:#37373d;
+  --moreBg:#45494e;--line:#333333;--lineSheet:#3c3c3c;--control:#3c3c3c;--controlStrong:#454545;--winBorder:#3c3c3c;--button:#3a3d41;--buttonPressed:#2f3135;
+  --tx:#cccccc;--strong:#ffffff;--tx2:#a3a3a3;--tx3:#6e6e6e;--accent:#007acc;--accentText:#3794ff;--primary:#0e639c;--primaryHover:#1177bb;--primaryText:#fff;
+  --done:#89d185;--waiting:#e8a33d;--failed:#f14c4c;--failedText:#f48771;--idle:#6e6e6e;--termBg:#1e1e1e;--ansiY:#e5e510;--ansiR:#f14c4c;
+  --a14:rgba(0,122,204,.14);--a25:rgba(0,122,204,.25);--tip:#2b2b2c;--tipBorder:#4a4a4a}
+.t-navy{--bg:#121826;--titlebar:#121826;--sidebar:#1d2534;--sheet:#1d2534;--field:#121826;--hover:#1a2130;--sbHover:#273044;--hoverStrong:#2b3444;--selected:#2e3749;
+  --moreBg:#3a4456;--line:#222b3b;--lineSheet:#2b3444;--control:#2b3444;--controlStrong:#3a4456;--winBorder:#2b3446;--button:#2b3444;--buttonPressed:#222b3b;
+  --tx:#e3e7ef;--strong:#ffffff;--tx2:#9ba4b7;--tx3:#687185;--accent:#4ea1f3;--accentText:#5fb0ff;--primary:#2a6fd6;--primaryHover:#3a7fe6;--primaryText:#fff;
+  --done:#73c991;--waiting:#ffb340;--failed:#f14c4c;--failedText:#ff6b61;--idle:#5f687a;--termBg:#121826;--ansiY:#e5c07b;--ansiR:#f07a6e;
+  --a14:rgba(78,161,243,.14);--a25:rgba(78,161,243,.25);--tip:#2a3446;--tipBorder:#3a4456}
+
+body{margin:0;background:#0d1119;color:#c3cad8;font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:40px 44px 64px;width:1340px}
+h1{font-size:27px;font-weight:600;color:#fff;margin:0 0 10px;letter-spacing:-.012em}
+h2{font-size:20px;font-weight:600;color:#fff;margin:0 0 6px}
+.lead{max-width:1060px;margin:0;color:#97a1b4;font-size:14.5px}
+.lead b,.sub b,.cap b{color:#e8ecf3;font-weight:500}
+section{margin-top:46px;padding-top:26px;border-top:1px solid #1f2735}
+.sub{color:#97a1b4;font-size:14px;max-width:1120px;margin:0 0 18px}
+.cap{font-size:12.5px;color:#8a93a6;margin-top:10px;line-height:1.5;max-width:1100px}
+.cap code,.sub code,.lead code{font:12px var(--mono);color:#c9d1df}
+.fixes{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #1f2735;border-radius:10px;overflow:hidden;margin-top:22px}
+.fix{padding:12px 14px 14px;border-left:1px solid #1f2735;background:#111723}
+.fix:first-child{border-left:none}
+.fix q{display:block;color:#e6e9ef;font-size:13px;font-style:normal;margin-bottom:6px;quotes:"«" "»"}
+.fix p{margin:0;font-size:12.5px;color:#8a93a6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.removed{margin:0;padding-left:18px;color:#97a1b4;font-size:13.5px;max-width:1100px}
+.removed li{margin:3px 0}.removed s{color:#6c7488}
+svg.i{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+svg.b{fill:currentColor;flex:none;display:block}
+
+/* ===== settings window (970 × 600) ===== */
+.frame{position:relative;width:max-content}
+.win{position:relative;width:970px;height:600px;display:flex;flex-direction:column;border:1px solid var(--winBorder);border-radius:11px;overflow:hidden;background:var(--sheet);color:var(--tx);font-size:13px;box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.wtitle{height:30px;flex:none;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--line);font-size:13px;color:var(--tx2);position:relative}
+.lights{position:absolute;left:12px;top:9px;display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.lights i+i{background:#febc2e}.lights i+i+i{background:#28c840}
+.wbody{flex:1;display:flex;min-height:0}
+.cats{width:190px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);padding:10px}
+.cat{height:30px;display:flex;align-items:center;gap:9px;padding:0 10px;border-radius:6px;color:var(--tx);cursor:pointer;margin-bottom:2px}
+.cat svg{width:15px;height:15px;color:var(--tx2)}
+.cat:hover{background:var(--sbHover)}
+.cat.on{background:var(--selected);color:var(--strong);cursor:default}.cat.on svg{color:var(--strong)}
+.page{flex:1;min-width:0;padding:18px 24px 20px;overflow:hidden;position:relative}
+.page h3{font-size:17px;font-weight:600;color:var(--strong);margin:0 0 12px}
+.sec{margin-bottom:16px}
+.sech{display:flex;align-items:center;gap:8px;height:22px;margin-bottom:6px}
+.sech .ag{width:16px;height:16px}
+.sech .ag.claude{color:#d97757}.sech .ag.codex{color:var(--tx)}
+.sech b{font-size:13.5px;font-weight:600;color:var(--strong)}
+.sech .why{font-size:12px;color:var(--tx3)}
+.sech .sp{flex:1}
+.card{border:1px solid var(--lineSheet);border-radius:8px}
+.card.off .row,.card.off .wide{opacity:.38;pointer-events:none}
+.row{display:flex;align-items:center;gap:10px;min-height:42px;padding:5px 12px;border-top:1px solid var(--lineSheet)}
+.row:first-child{border-top:none}
+.row .lb{width:250px;flex:none;display:flex;flex-direction:column;line-height:1.3}
+.row .lb span{color:var(--tx)}
+.row .lb small{font-size:11.5px;color:var(--tx3);margin-top:2px;white-space:nowrap}
+.row .val{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.row .sp{flex:1}
+.note{font-size:12px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note.warn{color:var(--waiting)}.note.err{color:var(--failedText)}
+.wide{padding:0 12px 9px 12px;display:flex;flex-direction:column;gap:8px}
+.where{display:flex;align-items:center;gap:13px;min-height:34px;padding:0 12px;border-top:1px solid var(--lineSheet);font-size:12px;color:var(--tx2);background:color-mix(in srgb,var(--sheet) 70%,var(--bg))}
+.where>.k{color:var(--tx3);flex:none;margin-right:4px}
+.m{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;position:relative;cursor:default;border-radius:5px;padding:2px 4px;margin:0 -4px}
+.m:hover,.m.h{background:var(--hoverStrong)}
+.m svg{width:13px;height:13px;color:var(--tx3)}
+.m .ok{width:12px;height:12px;color:var(--done)}
+.m .dot{width:7px;height:7px;border-radius:50%;background:var(--idle)}
+.m .dot.w{background:var(--waiting)}.m .dot.f{background:var(--failed)}
+.m em{font-style:normal;color:var(--tx3)}
+.m em.w{color:var(--waiting)}.m em.f{color:var(--failedText)}
+
+/* controls (B′) */
+.swt{all:unset;cursor:pointer;width:30px;height:18px;border-radius:9px;background:var(--control);position:relative;flex:none}
+.swt:after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--tx2);transition:left .12s}
+.swt.on{background:var(--primary)}.swt.on:after{left:14px;background:var(--primaryText)}
+.swt.dis{opacity:.38;cursor:default}
+.seg{display:inline-flex;height:24px;background:var(--field);border:1px solid var(--control);border-radius:6px;padding:1px}
+.seg span{padding:0 10px;display:flex;align-items:center;border-radius:4px;font-size:12px;color:var(--tx2);white-space:nowrap;cursor:pointer}
+.seg span:hover{background:var(--hoverStrong);color:var(--tx)}
+.seg span.on{background:var(--moreBg);color:var(--strong);cursor:default}
+.seg span.dis{opacity:.45;cursor:default}.seg span.dis:hover{background:none;color:var(--tx2)}
+.seg.dis{opacity:.38}
+.bs{all:unset;height:22px;display:inline-flex;align-items:center;gap:5px;padding:0 9px;border-radius:6px;background:var(--button);font-size:12px;color:var(--tx);white-space:nowrap;cursor:pointer;flex:none}
+.bs:hover{background:var(--moreBg);color:var(--strong)}
+.bp{all:unset;height:26px;display:inline-flex;align-items:center;padding:0 14px;border-radius:6px;background:var(--primary);color:var(--primaryText);font-size:13px;cursor:pointer}
+.bp:hover{background:var(--primaryHover)}
+.bq{all:unset;height:26px;display:inline-flex;align-items:center;padding:0 12px;border-radius:6px;background:var(--button);color:var(--tx);font-size:13px;cursor:pointer}
+.bq:hover{background:var(--moreBg);color:var(--strong)}
+.lnk{color:var(--accentText);cursor:pointer;font-size:12.5px}
+.lnk:hover{text-decoration:underline}
+.pill{height:20px;display:inline-flex;align-items:center;padding:0 8px;border-radius:10px;font-size:12px;white-space:nowrap;flex:none}
+.pill.f{color:var(--failedText);background:rgba(241,76,76,.15)}
+.pill.n{color:var(--tx3);background:rgba(128,128,128,.12)}
+.tagm{font-size:11px;color:var(--tx3);border:1px solid var(--control);border-radius:5px;padding:0 5px;height:17px;display:inline-flex;align-items:center;white-space:nowrap}
+
+/* status line preview + segment chips (#105; drag-reorder slot for the parallel PR) */
+.prev{height:30px;display:flex;align-items:center;white-space:pre;padding:0 10px;background:var(--termBg);border:1px solid var(--control);border-radius:6px;font:12px var(--mono);color:var(--tx);white-space:pre;overflow:hidden}
+.prev .f{opacity:.5}.prev .bar{display:inline-block;width:8ch;height:1em;vertical-align:-2px}.prev .y{color:var(--ansiY)}
+.prev.dim{opacity:.38}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sc{height:24px;display:inline-flex;align-items:center;gap:5px;padding:0 8px 0 4px;border-radius:6px;border:1px solid var(--control);font-size:12px;color:var(--tx3);cursor:pointer;white-space:nowrap}
+.sc.on{background:var(--control);color:var(--strong)}
+.sc .gr{width:10px;height:12px;color:var(--tx3);opacity:.7;cursor:grab}
+.chips .hint{font-size:11.5px;color:var(--tx3);margin-left:4px}
+.chips.dim{opacity:.38}
+
+/* tooltip */
+.tip{position:absolute;z-index:5;background:var(--tip);border:1px solid var(--tipBorder);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--tx);box-shadow:0 8px 24px rgba(0,0,0,.4);white-space:nowrap;line-height:1.45}
+.tip small{display:block;color:var(--tx2);font-size:11.5px}
+
+/* ===== main window behind a sheet ===== */
+.mainw{position:relative;width:1080px;height:640px;border:1px solid var(--controlStrong);border-radius:12px;overflow:hidden;background:var(--bg);box-shadow:0 24px 60px rgba(0,0,0,.45);font-size:13px;color:var(--tx)}
+.mainw .tb{height:38px;background:var(--titlebar);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--strong);font-weight:500;position:relative}
+.mainw .tb .lights{top:13px;left:14px}.mainw .tb .lights i{background:#3a4252}
+.mainw .cols{display:flex;height:calc(100% - 38px)}
+.mainw .sd{width:236px;background:var(--sidebar);border-right:1px solid var(--line);padding:12px 8px}
+.mainw .sr{height:30px;border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 10px}
+.mainw .sr.sel{background:var(--selected);color:var(--strong)}
+.mainw .sr svg{width:14px;height:14px;color:var(--tx2)}
+.mainw .sr .ag{width:15px;height:15px;color:#d97757}
+.mainw .ct{flex:1;display:flex;flex-direction:column}
+.mainw .tabs{height:34px;background:var(--titlebar);border-bottom:1px solid var(--line);display:flex;align-items:flex-end;padding-left:8px}
+.mainw .tab{height:34px;display:flex;align-items:center;gap:7px;padding:0 14px;background:var(--bg);border-top:2px solid var(--accent);color:var(--strong);font-size:12.5px}
+.mainw .tab svg{width:14px;height:14px;color:#d97757}
+.mainw .term{flex:1;background:var(--bg);padding:14px 16px;font:12.5px var(--mono);color:var(--tx3)}
+.scrim{position:absolute;inset:38px 0 0 0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:50%;top:38px;transform:translateX(-50%);width:620px;background:var(--sheet);border:1px solid var(--winBorder);border-top:none;border-radius:0 0 10px 10px;box-shadow:0 20px 50px rgba(0,0,0,.5);padding:18px 18px 0}
+.sheet .h{font-size:14.5px;font-weight:600;color:var(--strong);display:flex;align-items:center;gap:8px}
+.sheet .h svg{width:17px;height:17px;color:#d97757}.sheet .h span svg{color:var(--tx2)}
+.sheet .s{font-size:12.5px;color:var(--tx3);margin:4px 0 14px;line-height:1.45}
+.sheet .row .lb{width:240px}
+.sheet .where{background:none}
+.sheet .where>.k{width:auto}
+.sheet .foot{display:flex;align-items:center;gap:8px;height:56px;margin-top:4px}
+.sheet .foot .sp{flex:1}
+.diff{margin-top:10px;border:1px solid var(--control);border-radius:6px;background:var(--termBg);font:11.5px/1.55 var(--mono);padding:6px 0;color:var(--tx2);max-height:132px;overflow:hidden}
+.diff div{padding:0 10px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.diff .a{background:rgba(115,201,145,.13);color:var(--tx)}
+.diff .fh{color:var(--tx3)}
+.list{margin:0;padding:0;list-style:none}
+.list li{display:flex;align-items:center;gap:8px;height:30px;border-top:1px solid var(--lineSheet);padding:0 12px}
+.list li:first-child{border-top:none}
+.list li .ok{width:12px;height:12px;color:var(--done)}
+.list li .ag{width:14px;height:14px}
+.list li svg{width:14px;height:14px;color:var(--tx2)}.list li .ag.claude{color:#d97757}.list li .ag.codex{color:var(--tx)}
+.list li em{font-style:normal;color:var(--tx3);margin-left:auto;font-size:12px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="g-add" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="g-sshHost" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="4.5" rx="2"/><rect x="1.75" y="8.75" width="12.5" height="4.5" rx="2"/><path d="M4.75 5h.01M4.75 11h.01"/></symbol>
+<symbol id="g-mac" viewBox="0 0 16 16"><rect x="2.75" y="3.25" width="10.5" height="7.25" rx="1.5"/><path d="M1.25 12.75h13.5"/></symbol>
+<symbol id="g-chevronDown" viewBox="0 0 16 16"><path d="M4.5 6.25 8 9.75l3.5-3.5"/></symbol>
+<symbol id="g-chevronRight" viewBox="0 0 16 16"><path d="M6.25 4.5 9.75 8l-3.5 3.5"/></symbol>
+<symbol id="g-more" viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01"/></symbol>
+<symbol id="b-claude" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+<symbol id="b-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+<symbol id="g-terminal" viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.75 6.25 6.75 8l-2 1.75M8.75 10h2.5"/></symbol>
+<symbol id="g-project" viewBox="0 0 16 16"><path d="M3.75 2.75h2.6l1.6 1.75h4.3a2 2 0 0 1 2 2v4.75a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2z"/></symbol>
+<symbol id="g-check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></symbol>
+<symbol id="g-grip" viewBox="0 0 10 12"><path d="M3 2.5h.01M7 2.5h.01M3 6h.01M7 6h.01M3 9.5h.01M7 9.5h.01" stroke-width="2.2"/></symbol>
+<symbol id="g-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.25"/><path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.6 3.6l1.05 1.05M11.35 11.35l1.05 1.05M3.6 12.4l1.05-1.05M11.35 4.65l1.05-1.05"/></symbol>
+<symbol id="g-palette" viewBox="0 0 16 16"><path d="M8 1.75a6.25 6.25 0 1 0 0 12.5c.9 0 1.25-.6 1.25-1.2 0-.9-.75-1.1-.75-1.8 0-.6.5-1 1.1-1h1.65a2.75 2.75 0 0 0 3-2.9C14.25 4.2 11.5 1.75 8 1.75z"/><path d="M4.75 7.5h.01M6.5 4.75h.01M9.75 4.75h.01"/></symbol>
+<symbol id="g-code" viewBox="0 0 16 16"><path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/></symbol>
+<symbol id="g-bell" viewBox="0 0 16 16"><path d="M4 11.25V7.5a4 4 0 0 1 8 0v3.75l1.25 1.25H2.75zM6.5 13.75h3"/></symbol>
+<symbol id="g-plug" viewBox="0 0 16 16"><path d="M5.75 1.75v3M10.25 1.75v3M3.75 4.75h8.5v2.5a4.25 4.25 0 0 1-8.5 0zM8 11.5v2.75"/></symbol>
+<symbol id="g-sliders" viewBox="0 0 16 16"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></symbol>
+</defs></svg>
+
+<h1>Интеграции v2: подключить один раз — дальше Hangar сам</h1>
+<p class="lead">Группы по <b>функциям</b>, а не по машинам. Каждая включённая функция действует <b>везде</b>: на этом Mac и на каждом ssh-хосте, включая новые. Согласие — один лист при первом запуске агента. Дальше всё обновляется <b>молча</b>, с копией файла, не трогая чужие хуки. MCP-сервер Hangar регистрируется <b>сам, при запуске</b>. Окно настроек — <b>970×600</b> по умолчанию.</p>
+<div class="fixes">
+  <div class="fix"><q>Не знают, что надо ставить в Настройках</q><p>Лист «Подключить Hangar к Claude Code?» появляется сам при первом запуске Claude или Codex в Hangar.</p></div>
+  <div class="fix"><q>После обновления — переустанавливать</q><p>При запуске и подключении хоста Hangar сам обновляет свои записи, в том числе путь после переноса приложения.</p></div>
+  <div class="fix"><q>MCP я не должен ставить сам</q><p>Никаких «Скопировать»: запись <code>hangar</code> в Claude и Codex создаётся и чинится при запуске. Выключить можно переключателем.</p></div>
+  <div class="fix"><q>Окно узкое</q><p>970×600 по умолчанию, минимум 760×480. Старый запомненный размер один раз сбрасывается.</p></div>
+</div>
+
+<section>
+<h2>Всё включено</h2>
+<p class="sub">Главный переключатель — в заголовке агента. Подпись строки — функция, под ней — что она даёт. «Где установлено» — одна строка внизу карточки, без настроек по машинам. У MCP пометка «этот Mac»: на хостах сокет Hangar принимает только статусы (#47).</p>
+<div class="frame" id="all-navy" data-theme="navy" data-state="all"></div>
+<div style="height:22px"></div>
+<div class="frame" id="all-dp" data-theme="dp" data-state="all"></div>
+<p class="cap"><b>Строка состояния</b> — как в #105: «Hangar — везде» / «Ваша», образец, фишки частей. Ручка ⋮⋮ слева у фишки (подсказка «Перетащите, чтобы поменять порядок» — в тултипе) — место для параллельного PR (перестановка фишек, текст строки только по-английски). Если тот PR войдёт раньше, слот уже готов. Если позже — до него фишки без ручки.</p>
+</section>
+
+<section>
+<h2>Первый запуск: один лист</h2>
+<p class="sub">Появляется <b>перед</b> первым запуском Claude Code в Hangar: хуки должны быть в файле до старта агента, иначе первая сессия идёт без статусов. Вкладка ждёт ответа. Оба ответа запускают агента, и лист больше не появляется. Слева внизу — «Что изменится»: раскрывает точный diff (правило AGENTS.md о согласии на правку файлов пользователя).</p>
+<div class="grid2">
+  <div><div class="frame" id="first-run" data-theme="navy" data-sheet="first"></div>
+  <p class="cap"><b>Подключить</b> — пишет выбранное на этом Mac и на подключённых хостах. Отключённые хосты получат то же при подключении. <b>Не сейчас</b> — ничего не пишет (MCP остаётся: он не спрашивает), выбор потом в Настройках. Для Codex — тот же лист с двумя строками.</p></div>
+  <div><div class="frame" id="first-run-diff" data-theme="navy" data-sheet="first-diff"></div>
+  <p class="cap"><b>«Что изменится» раскрыто.</b> Diff по файлам: <code>~/.claude/settings.json</code> на Mac (и на хостах — тот же вид, файл на хосте). Свёрнутые участки — как в нынешнем листе согласия. Без раскрытия лист остаётся коротким.</p></div>
+</div>
+<div style="height:24px"></div>
+<div class="grid2">
+  <div><div class="frame" id="new-host" data-theme="navy" data-sheet="host"></div>
+  <p class="cap"><b>Новый хост, первое подключение.</b> Без переключателей: выбор общий для всех машин. Лист только перечисляет, что попадёт на хост, и спрашивает «да / не здесь». «Не на этом хосте» запоминается (<code>integration_hosts_skipped</code>). Вернуть можно из строки «Где установлено».</p></div>
+  <div></div>
+</div>
+</section>
+
+<section>
+<h2>Состояния</h2>
+<div class="grid2">
+  <div><div class="frame" id="partial" data-theme="navy" data-state="partial" data-small="1"></div>
+  <p class="cap"><b>Часть выключена.</b> «Лимиты» выкл. — строка Hangar остаётся, но не шлёт <code>rate_limits</code> в приложение (флаг читается при каждом запуске, файл не меняется). MCP Codex выкл. — запись <code>[mcp_servers.hangar]</code> удалена и больше не добавляется. Главный переключатель агента выкл. — строки приглушены (.38), записи Hangar сняты везде, отключённые хосты — при подключении.</p></div>
+  <div><div class="frame" id="offline" data-theme="navy" data-state="offline" data-small="1"></div>
+  <p class="cap"><b>Хост без связи и новый хост.</b> gpu-box: «нет связи», применится при подключении. lab-01: подключён, но согласия ещё не было — «Подключить…» открывает лист хоста. Под курсором devbox — тултип про <b>тихое обновление</b>: когда, что и где копия. На экране отметки нет (#96: только лог), только в тултипе.</p></div>
+</div>
+<div style="height:24px"></div>
+<div class="grid2">
+  <div><div class="frame" id="nocli" data-theme="navy" data-state="nocli" data-small="1"></div>
+  <p class="cap"><b>Агент не найден.</b> Codex не найден в PATH логин-шелла: вместо карточки одна строка, без переключателя. Подключится сам при первом запуске Codex в Hangar (тот же лист). На хосте без codex строка «Где установлено» у Codex — «codex нет».</p></div>
+  <div><div class="frame" id="error" data-theme="navy" data-state="error" data-small="1"></div>
+  <p class="cap"><b>Ошибка записи.</b> <code>settings.json</code> с ошибкой JSON: файл не тронут. Красная плашка у функции, причина, «Показать в Finder» и «Повторить». Посторонняя запись <code>hangar</code> в MCP (не наша команда): не трогаем, пишем «занято другой записью».</p></div>
+</div>
+</section>
+
+<section>
+<h2>Что убирается</h2>
+<ul class="removed">
+  <li><s>Строки «Claude Code / Codex» с плашкой и кнопками «Установить… / Обновить… / Удалить»</s> и лист diff из Настроек: их заменили переключатели функций. Diff живёт в «Что изменится» первого листа.</li>
+  <li><s>Секция «MCP» с командами <code>claude mcp add …</code> / <code>codex mcp add …</code> и «Скопировать»</s> (<code>mcpAddCommands</code>).</li>
+  <li><s>Строки интеграций в листе «Сервер»</s> (установка и удаление на хосте). Остаются инструменты (git, tmux, claude…) и <code>hangar-remote</code>.</li>
+  <li><s>Ограничение «перенос Hangar.app ломает хуки до переустановки» (#43)</s>: при запуске точные записи Hangar переводятся на новый путь.</li>
+  <li><s>Отдельная секция «Строка состояния Claude»</s>: теперь это строка внутри карточки Claude Code.</li>
+</ul>
+</section>
+
+<script>
+const I=(id,cls='i')=>`<svg class="${cls}" viewBox="0 0 16 16"><use href="#${id}"/></svg>`;
+const AG=(a)=>a==='claude'?`<svg class="b ag claude" viewBox="0 0 24 24"><use href="#b-claude"/></svg>`:`<svg class="b ag codex" viewBox="0 0 24 24"><use href="#b-openai"/></svg>`;
+const SW=(on,dis)=>`<span class="swt${on?' on':''}${dis?' dis':''}" role="switch" aria-checked="${on}"></span>`;
+const OK=`<svg class="i ok" viewBox="0 0 16 16"><use href="#g-check"/></svg>`;
+
+function cats(){
+  const c=[['g-gear','Общие'],['g-palette','Оформление'],['g-code','Редактор'],['g-bell','Уведомления'],['g-plug','Интеграции'],['g-sliders','Дополнительно']];
+  return `<div class="cats">${c.map(([i,t])=>`<div class="cat${t==='Интеграции'?' on':''}">${I(i)}${t}</div>`).join('')}</div>`;
+}
+function row(label,hint,val){return `<div class="row"><div class="lb"><span>${label}</span>${hint?`<small>${hint}</small>`:''}</div><div class="val">${val}</div></div>`}
+
+// "Где установлено": one line, no per-machine settings
+function where(items){
+  return `<div class="where"><span class="k">Где установлено</span>${items.join('')}</div>`;
+}
+const mMac=(s='ok')=>`<span class="m">${I('g-mac')}Этот Mac ${s==='ok'?OK:s}</span>`;
+const mHost=(n,s,cls='',tip='')=>`<span class="m ${cls}">${I('g-sshHost')}${n} ${s==='ok'?OK:s}${tip}</span>`;
+
+function bar(p,y){ // 8 cells: filled = 2pt line, rest = 1pt (like Ghostty's box drawing)
+  const c=y?'var(--ansiY)':'var(--tx)';const w=Math.round(p/12.5)*12.5;
+  return `<span class="bar" style="background:linear-gradient(${c},${c}) 0 50%/${w}% 2px no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 50%/100% 1px no-repeat"></span>`;
+}
+function prev(dim){
+  return (`<div class="prev${dim?' dim':''}">Opus 5.5 <span class="f">1M</span><span class="f"> │ </span><span class="f">context</span> ${bar(48)} 48%<span class="f"> │ </span><span class="f">5h</span> ${bar(84,1)} <span class="y">84%</span> <span class="f">1h47m</span><span class="f"> │ </span><span class="f">wk</span> 31%</div>`).replace(/> /g,'>\u00a0').replace(/ </g,'\u00a0<');
+}
+function chips(dim){
+  const s=[['Модель',1],['Контекст',1],['5 ч',1],['Неделя',1],['Ветка',0],['Усилие',0]];
+  return `<div class="chips${dim?' dim':''}">${s.map(([t,on])=>`<span class="sc${on?' on':''}" title="Перетащите, чтобы поменять порядок"><svg class="i gr" viewBox="0 0 10 12"><use href="#g-grip"/></svg>${t}</span>`).join('')}</div>`;
+}
+
+function claudeCard(st){
+  const lim=st!=='partial';
+  const err=st==='error';
+  const status = err
+    ? `<span class="pill f">ошибка</span><span class="sp"></span><button class="bs">Показать в Finder</button><button class="bs">Повторить</button>${SW(true)}`
+    : `<span class="sp"></span>${SW(true)}`;
+  const mcp = err
+    ? `<span class="tagm">этот Mac</span><span class="note warn" title="В ~/.claude.json запись hangar с чужой командой: Hangar её не меняет">имя «hangar» занято другой записью</span><span class="sp"></span>${SW(true)}`
+    : `<span class="tagm">этот Mac</span><span class="sp"></span>${SW(true)}`;
+  let w;
+  if(st==='offline'){
+    const tip=`<div class="tip" style="left:-150px;top:26px">Подключено. Обновлено автоматически сегодня в 14:02<small>копия: devbox:~/.claude/settings.json.hangar-backup-20261029-140211</small></div>`;
+    w=[mMac(),mHost('devbox','ok','h',tip),mHost('gpu-box','<span class="dot"></span><em title="Применится при подключении">нет связи</em>'),mHost('lab-01','<span class="dot w"></span>')+`<span class="lnk" style="margin-left:-8px">Подключить…</span>`];
+  } else if(st==='error'){
+    w=[mMac('<span class="dot f"></span><em class="f">ошибка</em>'),mHost('devbox','ok'),mHost('gpu-box','ok')];
+  } else {
+    w=[mMac(),mHost('devbox','ok'),mHost('gpu-box','ok')];
+  }
+  return `<div class="sec"><div class="sech">${AG('claude')}<b>Claude Code</b><span class="sp"></span>${SW(true)}</div>
+  <div class="card">
+    ${row('Статусы и уведомления',err?'<span style="color:var(--failedText)">settings.json: ошибка JSON, строка 14 — файл не тронут</span>':'работает · ждёт · готово, «Входящие»',status)}
+    ${row('Лимиты','5 ч и неделя: сайдбар и уведомления',`<span class="sp"></span>${SW(lim)}`)}
+    ${row('Строка состояния','внизу терминала Claude',`<div class="seg"><span class="on">Hangar — везде</span><span>Ваша</span></div><span class="sp"></span>`)}
+    <div class="wide">${prev(false)}${chips(false)}</div>
+    ${row('MCP-сервер Hangar','агенты управляют вкладками Hangar',mcp)}
+    ${where(w)}
+  </div></div>`;
+}
+function codexCard(st){
+  if(st==='nocli'){
+    return `<div class="sec"><div class="sech">${AG('codex')}<b>Codex</b><span class="sp"></span></div>
+    <div class="card"><div class="row"><span class="pill n">не найден</span><span class="note">codex нет в PATH логин-шелла (zsh). Подключится при первом запуске Codex в Hangar.</span></div></div></div>`;
+  }
+  const off=st==='partial-off';
+  const mcpOn=st!=='partial';
+  const w = st==='offline'
+    ? [mMac(),mHost('devbox','ok'),mHost('gpu-box','<span class="dot"></span><em>нет связи</em>'),mHost('lab-01','<em>codex нет</em>')]
+    : st==='partial' ? [mMac(),mHost('devbox','ok'),mHost('gpu-box','<em>codex нет</em>')]
+    : [mMac(),mHost('devbox','ok'),mHost('gpu-box','<em>codex нет</em>')];
+  return `<div class="sec"><div class="sech">${AG('codex')}<b>Codex</b><span class="sp"></span>${SW(!off)}</div>
+  <div class="card${off?' off':''}">
+    ${row('Статусы и уведомления','готово, «Входящие»',`<span class="sp"></span>${SW(true)}`)}
+    ${row('MCP-сервер Hangar','агенты управляют вкладками Hangar',`<span class="tagm">этот Mac</span><span class="sp"></span>${SW(mcpOn)}`)}
+    ${where(w)}
+  </div></div>`;
+}
+
+function settings(st){
+  return `<div class="win"><div class="wtitle"><div class="lights"><i></i><i></i><i></i></div>Настройки</div>
+  <div class="wbody">${cats()}<div class="page"><h3>Интеграции</h3>${claudeCard(st)}${codexCard(st)}</div></div></div>`;
+}
+
+function mainBehind(inner){
+  return `<div class="mainw"><div class="tb"><div class="lights"><i></i><i></i><i></i></div>hangar</div>
+  <div class="cols"><div class="sd"><div class="sr">${I('g-project')}hangar</div><div class="sr sel" style="padding-left:28px">${AG('claude')}integrations-v2</div><div class="sr" style="padding-left:28px">${AG('claude')}sessions-v2</div></div>
+  <div class="ct"><div class="tabs"><div class="tab">${AG('claude')}Claude</div></div><div class="term">Запуск Claude Code ждёт ответа…</div></div></div>
+  <div class="scrim"></div>${inner}</div>`;
+}
+function firstSheet(diff){
+  const r=(l,h,on,tag='')=>`<div class="row" style="min-height:44px"><div class="lb"><span>${l}</span><small>${h}</small></div><div class="val">${tag}<span class="sp"></span>${SW(on)}</div></div>`;
+  const d = diff ? `<div class="diff">
+<div class="fh">~/.claude/settings.json</div>
+<div>  "hooks": {</div>
+<div class="a">+   "SessionStart": [{ "hooks": [{ "type": "command", "command": "'/Applications/Hangar.app/…/hangar' event session-start", "timeout": 5 }] }],</div>
+<div class="a">+   "UserPromptSubmit": [{ … "event prompt" … }],</div>
+<div class="fh">    ⋯ ещё 7 событий</div>
+<div class="a">+ "statusLine": { "type": "command", "command": "'/Applications/Hangar.app/…/hangar' statusline --then 'ccline'" }</div>
+<div class="fh">~/.claude.json — через «claude mcp add --scope user hangar»</div>
+</div>` : '';
+  return `<div class="sheet"><div class="h">${AG('claude')}Подключить Hangar к Claude Code?</div>
+  <div class="s">Один раз. Дальше Hangar обновляет свои записи сам, с копией файла. Чужие хуки и настройки не трогает.</div>
+  <div class="card">
+    ${r('Статусы и уведомления','работает · ждёт · готово, «Входящие»',true)}
+    ${r('Лимиты','5 ч и неделя: сайдбар и уведомления',true)}
+    ${r('Строка состояния Hangar','ваша строка сохраняется, вернуть — в Настройках',true)}
+    ${r('MCP-сервер Hangar','уже включён, агенты управляют вкладками',true,'<span class="tagm">этот Mac</span>')}
+    ${where([mMac(''),mHost('devbox',''),mHost('gpu-box','<em>при подключении</em>')]).replace('Где установлено','Куда')}
+  </div>${d}
+  <div class="foot"><span class="lnk">${diff?'Скрыть изменения':'Что изменится'}</span><span class="sp"></span><button class="bq">Не сейчас</button><button class="bp">Подключить</button></div></div>`;
+}
+function hostSheet(){
+  return `<div class="sheet"><div class="h" style="gap:8px"><span style="color:var(--tx2);display:flex">${I('g-sshHost')}</span>Подключить Hangar на lab-01?</div>
+  <div class="s">Первое подключение к этому хосту. Будет то же, что на этом Mac. Выбор меняется в Настройках, для всех машин сразу.</div>
+  <div class="card"><ul class="list">
+    <li>${AG('claude')}Claude Code<em>статусы и уведомления, лимиты, строка состояния</em></li>
+    <li>${AG('codex')}Codex<em>статусы и уведомления</em></li>
+    <li>${I('g-terminal')}hangar-remote 5<em>~/.hangar/bin, передаёт статусы на Mac</em></li>
+  </ul></div>
+  <div class="foot"><span class="lnk">Что изменится</span><span class="sp"></span><button class="bq">Не на этом хосте</button><button class="bp">Подключить</button></div></div>`;
+}
+
+for(const f of document.querySelectorAll('.frame')){
+  const th=f.dataset.theme==='dp'?'t-dp':'t-navy';
+  f.classList.add(th);
+  if(f.dataset.sheet){
+    const s=f.dataset.sheet;
+    f.innerHTML=mainBehind(s==='host'?hostSheet():firstSheet(s==='first-diff'));
+    if(f.closest('.grid2')) f.style.zoom='.59';
+  } else {
+    let st=f.dataset.state;
+    let html=settings(st==='partial'?'partial':st);
+    if(st==='partial') html=html.replace(codexCard('partial'),codexCard('partial'));
+    f.innerHTML=html;
+    if(f.dataset.small) f.style.zoom='.66';
+  }
+}
+// ?only=<id>: one frame at 1:1 for PNG rendering
+const only=new URLSearchParams(location.search).get('only');
+if(only){
+  const f=document.getElementById(only);
+  const defs=document.querySelector('body>svg');document.body.innerHTML='';document.body.appendChild(defs);document.body.style.cssText='margin:0;padding:24px;width:max-content;background:#0d1119';
+  f.style.zoom='1';document.body.appendChild(f);
+}
+</script>
+</body></html>

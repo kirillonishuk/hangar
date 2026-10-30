@@ -119,63 +119,36 @@ import TestSupport
         #expect(m.phase == .failed(L10n.installFailed(1)))
     }
 
-    @Test func remoteIntegrationDiffAndWrite() async throws {
+    /// #111: the agent's file on the server through the checked write; off takes Hangar's entries out; no agent → nothing.
+    @Test func applyAgentWritesAndRemoves() async throws {
         let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
         #expect(await h.remote.connect("dev") == .connected)
         let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
         await m.refresh()
         let cli = h.home + "/.hangar/bin/hangar-remote"
         let settings = h.home + "/.claude/settings.json"
-        #expect(m.claude == .notInstalled)  // no file yet
-        #expect(m.codex == nil)  // codex is not on this server
-
-        let plan = try #require(await m.integrationPlan(.claude, install: true))
-        #expect(plan.original == nil)
-        #expect(plan.updated.contains(shellQuote(cli) + " event prompt"))
-        #expect(plan.displayPath?.hasPrefix("dev:") == true)
-        #expect(plan.displayPath == "dev:" + settings)
-        #expect(await m.applyIntegration(plan))
-        #expect(try String(contentsOfFile: settings, encoding: .utf8) == plan.updated)
-        #expect(m.claude == .installed)
+        // No file yet: created, no backup.
+        #expect(await m.applyAgent(.claude, hooks: true, statusline: true) != .failed(""))
+        let installed = try String(contentsOfFile: settings, encoding: .utf8)
+        #expect(installed.contains(shellQuote(cli) + " event prompt"))
+        #expect(claudeState(installed, cli: cli) == .installed)
+        // Current: nothing written.
+        #expect(await m.applyAgent(.claude, hooks: true, statusline: true) == .done(changed: nil, backup: nil))
+        // Off: Hangar's entries go, after a backup next to the file.
+        guard case .done(_, let backup?) = await m.applyAgent(.claude, hooks: false, statusline: false) else { Issue.record(); return }
+        #expect(backup.hasPrefix("dev:" + h.home + "/.claude/settings.json.hangar-backup-"))
+        #expect(claudeState(try String(contentsOfFile: settings, encoding: .utf8), cli: cli) == .notInstalled)
+        // codex is not on this server: nothing written.
+        #expect(await m.applyAgent(.codex, hooks: true, statusline: true) == .noAgent)
+        #expect(!FileManager.default.fileExists(atPath: h.home + "/.codex/config.toml"))
         // Nothing local was touched.
         #expect(!FileManager.default.fileExists(atPath: h.root + "/.claude"))
-
-        // The file changes between the plan and the write: nothing is written.
-        let removal = try #require(await m.integrationPlan(.claude, install: false))
-        #expect(removal.original == plan.updated)
-        try (plan.updated + "\n").write(toFile: settings, atomically: true, encoding: .utf8)
-        #expect(await m.applyIntegration(removal) == false)
-        #expect(m.integrationError == L10n.fileChanged)
-        #expect(try String(contentsOfFile: settings, encoding: .utf8) == plan.updated + "\n")
-
-        // An existing file gets a backup next to it first.
-        let fresh = try #require(await m.integrationPlan(.claude, install: false))
-        #expect(await m.applyIntegration(fresh))
-        let names = try FileManager.default.contentsOfDirectory(atPath: h.home + "/.claude")
-        let backup = try #require(names.first { $0.hasPrefix("settings.json.hangar-backup-") })
-        #expect(try String(contentsOfFile: h.home + "/.claude/" + backup, encoding: .utf8) == plan.updated + "\n")
-        #expect(try String(contentsOfFile: settings, encoding: .utf8) == fresh.updated)
-        #expect(m.claude == .notInstalled)
-        #expect(m.message?.contains("dev:") == true)
-    }
-
-    @Test func writesTheRawPathItRead() async throws {
-        let h = try await Harness(); defer { h.cleanup() }
-        #expect(await h.remote.connect("dev") == .connected)
-        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
-        await m.refresh()
-        var plan = try #require(await m.integrationPlan(.claude, install: true))
-        // The path as read on the server wins over the URL's normalized one.
-        let raw = h.home + "/raw dir/settings.json"
-        plan.displayPath = "dev:" + raw
-        plan.url = URL(fileURLWithPath: h.home + "/elsewhere/settings.json")
-        #expect(await m.applyIntegration(plan))
-        #expect(FileManager.default.fileExists(atPath: raw))
-        #expect(!FileManager.default.fileExists(atPath: h.home + "/elsewhere/settings.json"))
     }
 
     @Test func symlinkedFileBacksUpNextToTarget() async throws {
         let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
         let fm = FileManager.default
         try fm.createDirectory(atPath: h.home + "/dotfiles", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: h.home + "/.claude", withIntermediateDirectories: true)
@@ -184,10 +157,7 @@ import TestSupport
         #expect(await h.remote.connect("dev") == .connected)
         let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
         await m.refresh()
-        let plan = try #require(await m.integrationPlan(.claude, install: true))
-        #expect(plan.displayPath == "dev:" + h.home + "/.claude/settings.json")
-        #expect(plan.backupDisplayPath == "dev:" + h.home + "/.claude/../dotfiles/settings.json")
-        #expect(await m.applyIntegration(plan))
+        guard case .done(_, _?) = await m.applyAgent(.claude, hooks: true, statusline: true) else { Issue.record(); return }
         #expect(try fm.contentsOfDirectory(atPath: h.home + "/dotfiles").contains { $0.hasPrefix("settings.json.hangar-backup-") })
         let type = try fm.attributesOfItem(atPath: h.home + "/.claude/settings.json")[.type] as? FileAttributeType
         #expect(type == .typeSymbolicLink)
@@ -206,8 +176,15 @@ import TestSupport
         ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasPrefix("settings.json.hangar-backup-") }
     }
 
+    /// The connect of an agreed host (#96, #111): only the missing hooks, after a backup; again: nothing written.
     @Test func connectUpgradesInstalledClaudeHooks() async throws {
         let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try h.app.editConfig({ HangarConfig.updating(HangarConfig.updating($0, key: "claude_integration", literal: "true"),
+                                                     key: "integration_hosts", literal: "[\"dev\"]") }) {
+            $0.claudeIntegration = true
+            $0.integrationHosts = ["dev"]
+        }
         let cli = h.home + "/.hangar/bin/hangar-remote", dir = h.home + "/.claude", settings = dir + "/settings.json"
         let old = try oldInstall(cli: cli)
         #expect(old.contains("rate_limit"))
@@ -215,39 +192,100 @@ import TestSupport
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try old.write(toFile: settings, atomically: true, encoding: .utf8)
 
-        // Connecting upgrades it in the background: only the missing hooks, after a backup.
         #expect(await h.remote.connect("dev") == .connected)
-        let expected = try #require(try claudeUpgrade(old, cli: cli))
+        let expected = try #require(try claudeApply(old, cli: cli, hooks: true, statusline: true, ours: remoteOwnership(cli: cli)))
         #expect(await waitUntil { (try? String(contentsOfFile: settings, encoding: .utf8)) == expected })
         #expect(await waitUntil { backups(dir).count == 1 })
         let backup = try #require(backups(dir).first)
         #expect(try String(contentsOfFile: dir + "/" + backup, encoding: .utf8) == old)
         #expect(claudeState(expected, cli: cli) == .installed)
+        #expect(await waitUntil { h.app.hostMark(.claude, "dev") != .offline })
 
-        // Again: nothing to do, nothing written.
         let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
-        #expect(await m.autoUpgradeClaude() == false)
+        #expect(await m.applyAgent(.claude, hooks: true, statusline: true) == .done(changed: nil, backup: nil))
         #expect(backups(dir).count == 1)
-        await m.refresh()
-        #expect(m.claude == .installed)
-        // Nothing local was touched.
         #expect(!FileManager.default.fileExists(atPath: h.root + "/.claude"))
     }
 
-    @Test func upgradeLeavesUninstalledAndBrokenFilesAlone() async throws {
+    @Test func brokenFileIsLeftAlone() async throws {
         let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
         let cli = h.home + "/.hangar/bin/hangar-remote", dir = h.home + "/.claude", settings = dir + "/settings.json"
         #expect(await h.remote.connect("dev") == .connected)
         let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 0, stdout: "", stderr: "") }
-        #expect(await m.autoUpgradeClaude() == false)  // no file
-        #expect(!FileManager.default.fileExists(atPath: settings))
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        for text in [try claudeUninstall(oldInstall(cli: cli)), String(try oldInstall(cli: cli).dropLast(4))] {
-            try text.write(toFile: settings, atomically: true, encoding: .utf8)
-            #expect(await m.autoUpgradeClaude() == false)
-            #expect(try String(contentsOfFile: settings, encoding: .utf8) == text)
-        }
+        let text = String(try oldInstall(cli: cli).dropLast(4))
+        try text.write(toFile: settings, atomically: true, encoding: .utf8)
+        guard case .failed = await m.applyAgent(.claude, hooks: true, statusline: true) else { Issue.record(); return }
+        #expect(try String(contentsOfFile: settings, encoding: .utf8) == text)
         #expect(backups(dir).isEmpty)
+    }
+
+    private func claudeOn(_ h: Harness) throws {
+        try h.app.editConfig({ HangarConfig.updating($0, key: "claude_integration", literal: "true") }) { $0.claudeIntegration = true }
+    }
+
+    /// #111: a new host with nothing of Hangar's asks first (nothing written); «Подключить» installs `hangar-remote` and the
+    /// hooks and remembers the host; its waiting tabs are let go.
+    @Test func newHostAsksThenConnects() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try claudeOn(h)
+        let settings = h.home + "/.claude/settings.json"
+        var answered = 0
+        h.app.onIntegrationAnswered = { answered += 1 }
+        #expect(await h.remote.connect("dev") == .connected)
+        #expect(await waitUntil { h.app.integrations.ask == .host("dev") })
+        #expect(!FileManager.default.fileExists(atPath: settings))
+        #expect(h.app.hostMark(.claude, "dev") == .undecided)
+
+        await h.app.answerHost("dev", connect: true)
+        #expect(h.app.config.integrationHosts == ["dev"])
+        #expect(try String(contentsOfFile: h.home + "/.hangar/bin/hangar-remote", encoding: .utf8) == hangarRemoteScript)
+        #expect(claudeState(try String(contentsOfFile: settings, encoding: .utf8), cli: h.home + "/.hangar/bin/hangar-remote") == .installed)
+        #expect(h.app.hostMark(.claude, "dev") != .offline)
+        #expect(h.app.integrations.ask == nil)
+        #expect(answered >= 1)
+        #expect(!FileManager.default.fileExists(atPath: h.root + "/.claude"))
+    }
+
+    /// The upload of `hangar-remote` fails: no hooks pointing at a missing script, the host shows the error.
+    @Test func noRemoteScriptNoHooks() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try claudeOn(h)
+        h.app.setHostDecision("dev", connect: false)  // the connect itself writes nothing; the apply below runs by hand
+        #expect(await h.remote.connect("dev") == .connected)
+        let m = ServerCheckModel(host: "dev", remote: h.remote) { _, _ in RunResult(status: 1, stdout: "", stderr: "disk full") }
+        await h.app.applyHost("dev", m)
+        #expect(h.app.integrations.marks[.claude]?["dev"] == .failed(L10n.intRemoteMissing))
+        #expect(!FileManager.default.fileExists(atPath: h.home + "/.claude/settings.json"))
+    }
+
+    @Test func skippedHostIsLeftAlone() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try claudeOn(h)
+        h.app.setHostDecision("dev", connect: false)
+        #expect(await h.remote.connect("dev") == .connected)
+        await h.app.integrateHost("dev")
+        #expect(h.app.integrations.ask == nil)
+        #expect(!FileManager.default.fileExists(atPath: h.home + "/.claude/settings.json"))
+        #expect(h.app.hostMark(.claude, "dev") == .skipped)
+    }
+
+    /// A host an older Hangar set up joins silently and is upgraded.
+    @Test func olderInstallJoinsSilently() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        try await stub(h, "claude")
+        try claudeOn(h)
+        let cli = h.home + "/.hangar/bin/hangar-remote", dir = h.home + "/.claude", settings = dir + "/settings.json"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try oldInstall(cli: cli).write(toFile: settings, atomically: true, encoding: .utf8)
+        #expect(await h.remote.connect("dev") == .connected)
+        #expect(await waitUntil { h.app.config.integrationHosts == ["dev"] })
+        #expect(await waitUntil { claudeState(try? String(contentsOfFile: settings, encoding: .utf8), cli: cli) == .installed })
+        #expect(h.app.integrations.ask == nil)
     }
 
     private func installScript(_ h: Harness, _ text: String) throws -> String {
@@ -299,7 +337,7 @@ import TestSupport
         let hooks = try oldInstall(cli: cli)
         try hooks.write(toFile: settings, atomically: true, encoding: .utf8)
         #expect(await h.remote.connect("dev") == .connected)
-        await h.app.upgradeRemote(host: "dev")
+        await h.app.integrateHost("dev")
         #expect(try String(contentsOfFile: path, encoding: .utf8) == old)
         #expect(try String(contentsOfFile: settings, encoding: .utf8) == hooks)
     }

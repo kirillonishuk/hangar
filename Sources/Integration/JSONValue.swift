@@ -24,6 +24,8 @@ public enum IntegrationError: Error, Equatable {
     case changedOnDisk
     /// The file is not writable: Hangar leaves it as it is.
     case readOnly
+    /// Hangar's entries there belong to another copy of the app (#111): left to it, nothing written.
+    case otherCopy
 }
 
 public func parseJSON(_ text: String) throws(IntegrationError) -> JSONValue {

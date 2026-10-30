@@ -53,6 +53,22 @@ public struct HangarConfig: Equatable, Sendable {
     public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults
     /// Settings' row of chips, the off ones too (`statusline_order`, #110): every segment once, missing ones appended.
     public var statuslineOrder: [StatuslineSegment] = StatuslineSegment.allCases
+    /// Hangar's integration with Claude Code (#111): nil = never decided (the first claude tab asks), false = «Не сейчас» / off.
+    public var claudeIntegration: Bool?
+    /// «Статусы и уведомления»: Hangar's hooks.
+    public var claudeHooks = true
+    /// «Лимиты»: `rate_limits` from the status line reach the app.
+    public var claudeLimits = true
+    /// Hangar's MCP server in Claude's user config, on this Mac; false = removed and never added again.
+    public var claudeMCP = true
+    public var codexIntegration: Bool?
+    /// Codex's `notify`.
+    public var codexNotify = true
+    public var codexMCP = true
+    /// ssh hosts where the integration was agreed to (or found installed by an older Hangar).
+    public var integrationHosts: [String] = []
+    /// «Не на этом хосте».
+    public var integrationHostsSkipped: [String] = []
 
     /// The chips as Settings shows them: `statuslineOrder`'s slots, the on ones refilled in `statuslineSegments`' order,
     /// so a hand-edited `statusline_segments` wins and the off chips keep their places.
@@ -117,11 +133,26 @@ public struct HangarConfig: Equatable, Sendable {
             guard let eq = line.firstIndex(of: "=") else { throw ParseError.syntax(line: n + 1, reason: "expected key = \"value\"") }
             let key = line[..<eq].trimmingCharacters(in: .whitespaces)
             let rawValue = line[line.index(after: eq)...]
-            let flags = ["notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight", "check_updates",
+            if section.isEmpty, ["claude_integration", "codex_integration"].contains(key) {
+                let flag = try boolValue(rawValue, line: n + 1)
+                if key == "claude_integration" { config.claudeIntegration = flag } else { config.codexIntegration = flag }
+                continue
+            }
+            if section.isEmpty, ["integration_hosts", "integration_hosts_skipped"].contains(key) {
+                let hosts = try stringArray(rawValue, line: n + 1)
+                if key == "integration_hosts" { config.integrationHosts = hosts } else { config.integrationHostsSkipped = hosts }
+                continue
+            }
+            let flags = ["claude_hooks", "claude_limits", "claude_mcp", "codex_notify", "codex_mcp", "notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight", "check_updates",
                          "notify_permission", "notify_question", "notify_done", "notify_failed", "notify_when_active", "allow_from_notification", "ssh_terminal_bell"]
             if section.isEmpty, flags.contains(key) {
                 let flag = try boolValue(rawValue, line: n + 1)
                 switch key {
+                case "claude_hooks": config.claudeHooks = flag
+                case "claude_limits": config.claudeLimits = flag
+                case "claude_mcp": config.claudeMCP = flag
+                case "codex_notify": config.codexNotify = flag
+                case "codex_mcp": config.codexMCP = flag
                 case "notifications": config.notifications = flag
                 case "limit_notifications": config.limitNotifications = flag
                 case "dock_badge": config.dockBadge = flag

@@ -159,6 +159,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private(set) var remoteProjectModel: RemoteProjectModel?
     private(set) var serverModel: ServerCheckModel?
     private(set) var remoteProjectAdd: ((String, String) -> Void)?
+    /// The shown integration sheet's buttons and «Что изменится» (the debug channel presses them).
+    var integrationSheetAnswer: ((Bool) -> Void)?
+    var integrationSheetDiff: (() -> Void)?
+    /// The integration sheet up now (one at a time; the next ask shows after it ends).
+    var integrationSheet: NSWindow?
     #if DEBUG
     var newTaskModelForDebug: NewTaskModel? { newTaskModel }
     #endif
@@ -273,6 +278,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         column.terminalArea.onAddProject = { [weak self] in self?.chooseProjectKind() }
+        app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
+        app.onIntegrationError = { [weak self] text in
+            self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }
+        }
+        // A restored tab may have asked while the window was being built: shown once it is up.
+        DispatchQueue.main.async { [weak self] in self?.presentIntegrationAsk() }
         app.languageDidChange = { [weak self] in
             self?.installMainMenu()
             self?.settings.updateTitle()
@@ -1032,7 +1043,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let sheet = makeSheet(over: window)
         let model = ServerCheckModel(host: host, remote: app.remote, run: ServerCheckModel.sshRun(remote: app.remote, host: host))
-        model.beforeClaudeUninstall = { [weak app] in await app?.revertProjectStatuslines(host: host) }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
             window.endSheet(sheet)

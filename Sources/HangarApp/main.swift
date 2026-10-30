@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state: WorkspaceState
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
         let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
+        app.integrationCLI = hangarCLIPath(bundle: .main)
+        app.holdIntegrationUntilLaunch()  // restored agent tabs wait for `integrateAtLaunch`'s migration
         Task { await app.sweepTombstones(host: nil) }  // an archive cut short by the last quit
         #if DEBUG
         // Debug runs never touch the real ~/.claude / ~/.codex: overrides, else a throwaway temp copy.
@@ -71,12 +73,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.claudeSettingsURL = env["HANGAR_CLAUDE_SETTINGS"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude/settings.json")
         app.codexConfigURL = env["HANGAR_CODEX_CONFIG"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("codex/config.toml")
         app.findAgentDirs = nil  // CLAUDE_CONFIG_DIR / CODEX_HOME would lead back to real files
+        app.claudeJSONURL = env["HANGAR_CLAUDE_JSON"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude.json")
+        // A stand-in helper path, so a verification run writes its (temp) agent files like an installed app.
+        if let cli = env["HANGAR_DEBUG_CLI"] { app.integrationCLI = cli }
         if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
         app.autoUpgradeRemote = env["HANGAR_SSH"] != nil  // a real server's files are never written by a debug run
         if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config
         #endif
         app.statuslineSync = true
-        Task { await app.upgradeClaudeHooksAtLaunch() }  // after the DEBUG overrides: never the real file in a debug run
+        Task { await app.integrateAtLaunch() }  // after the DEBUG overrides: never the real files in a debug run
         let wc = MainWindowController(app: app, configWarning: warning)
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)

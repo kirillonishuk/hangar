@@ -12,6 +12,8 @@ public enum LaunchError: Error, Equatable {
     case missingCwd(String)
     /// A remote project's host has no live master yet; the leaf waits for `onConnected`.
     case notConnected(host: String)
+    /// An agent tab waits for the answer to «Подключить Hangar к …?» (#111): its hooks must be in place before it starts.
+    case awaitingConsent
 }
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),

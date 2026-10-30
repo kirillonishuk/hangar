@@ -19,7 +19,7 @@ extension AppState {
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
             Task { await self?.sweepTombstones(host: host) }
-            Task { await self?.upgradeRemote(host: host) }
+            Task { await self?.integrateHost(host) }
         }
         hosts.statusline = statuslineRenderer(configURL: configURL)
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }

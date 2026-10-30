@@ -65,6 +65,14 @@ extension Theme {
     public static let themeTileRadius: CGFloat = 8
     public static let themeTileBorder: CGFloat = 2
     public static let themeTileStrip: CGFloat = 22
+    /// Integrations (#111): the agent's logo by its title, the gap under a row's title, «Где установлено» items.
+    public static let integrationTitleIcon: CGFloat = 18
+    public static let integrationAgentTitle: CGFloat = 15
+    public static let integrationSubGap: CGFloat = 2
+    public static let integrationWhereGap: CGFloat = 14
+    public static let integrationWhereIcon: CGFloat = 14
+    public static let integrationTagPaddingH: CGFloat = 6
+    public static let integrationTagHeight: CGFloat = 18
     /// Integration status pill: 20 high, 8 side padding, fill of its colour at 15 %.
     public static let pillHeight: CGFloat = 20
     public static let pillPaddingH: CGFloat = 8

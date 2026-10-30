@@ -36,7 +36,8 @@ extension AppState {
             break // served by the request router (stage 5), never reaches the hook handler
         case let .usage(u):
             // shortcut: codex limits come from its app-server (Task 11), not the socket
-            guard u.agent == UsageAgent.claude.rawValue else { return }
+            // «Лимиты» off (#111): the status line still runs, its `rate_limits` are not taken.
+            guard u.agent == UsageAgent.claude.rawValue, config.claudeLimits else { return }
             tickUsageClock()
             alert(usage.update(.claude, windows: claudeWindows(u.windows, now: usageClock), plan: nil, now: usageClock))
         }

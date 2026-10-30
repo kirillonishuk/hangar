@@ -164,7 +164,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 - Коды выхода: 0 — успех; 1 — ошибка приложения, Hangar не запущен, таймаут; 2 — ошибка использования или нет `--yes`. С `--json` результат — JSON в stdout, ошибка — `{"error":{"code","message"}}` в stderr.
 - Вывод CLI и MCP — английский (машинный интерфейс, вне `L10n`).
 - Сессии (#73): основное имя — `hangar sessions …`, `--session`, MCP `sessions_list|create|archive|restore` и аргумент `session`. Старые `hangar tasks …`, `--task`, `link task`, MCP `tasks_*` и аргумент `task` принимаются молча (в tools/list их нет). Ключи `--json` (`tasks`, `task`), методы сокета `tasks.*` и ссылки `hangar://task/…` не меняются ради совместимости.
-- MCP подключается командами `claude mcp add --scope user hangar -- '<cli>' mcp` и `codex mcp add hangar -- '<cli>' mcp`; настройки показывают их с кнопкой «Скопировать», конфиги агентов Hangar не правит.
+- MCP регистрируется вместе с приложением на этом Mac — Hangar сам вызывает `claude mcp add --scope user hangar -- '<cli>' mcp` / `codex mcp add hangar -- '<cli>' mcp`, решая по чтению файлов агентов, и трогает только свою запись; переключатель «MCP-сервер Hangar» в Настройках → Интеграции (#111).
 
 ## 8. Ошибки
 

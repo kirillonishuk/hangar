@@ -192,24 +192,31 @@ private func userHandlers(_ text: String) throws -> [String] {
     #expect(try claudeUpgrade(claudeInstall(oldInstall, cli: "/A/hangar"), cli: "/A/hangar") == nil)
 }
 
-@Test func upgradeLeavesNotInstalledAlone() throws {
-    #expect(try claudeUpgrade(nil, cli: "/A/hangar") == nil)
-    #expect(try claudeUpgrade("", cli: "/A/hangar") == nil)
-    #expect(try claudeUpgrade("{}\n", cli: "/A/hangar") == nil)
-    let userOnly = try claudeUninstall(oldInstall)
-    #expect(try claudeUpgrade(userOnly, cli: "/A/hangar") == nil)
-    // Only Hangar's statusLine, hooks removed by the user: not an installed hook set.
-    #expect(try claudeUpgrade(#"{"statusLine": {"type": "command", "command": "/A/hangar statusline"}}"#, cli: "/A/hangar") == nil)
+@Test func applyOffLeavesNotInstalledAlone() throws {
+    func off(_ t: String?) throws -> String? { try claudeApply(t, cli: "/A/hangar", hooks: false, statusline: false, ours: { $0 == "/A/hangar" }) }
+    #expect(try off(nil) == nil)
+    #expect(try off("") == nil)
+    #expect(try off("{}\n") == nil)
+    #expect(try off(claudeUninstall(oldInstall)) == nil)
 }
 
-@Test func upgradeSkipsMovedApp() throws {
-    // Hooks of another CLI path need the consent sheet (it rewrites them); a mixed set would fire twice.
-    #expect(try claudeUpgrade(oldInstall, cli: "/New/hangar") == nil)
+@Test func applyLeavesAnotherCopysEntriesAlone() throws {
+    // Hooks of a CLI this copy does not own (another Hangar): a mixed set would fire twice, so nothing is written.
+    #expect(throws: IntegrationError.otherCopy) { try claudeUpgrade(oldInstall, cli: "/New/hangar") }
 }
 
-@Test func upgradeRejectsUnparsable() {
+@Test func applyRejectsUnparsable() {
     #expect(throws: IntegrationError.self) { try claudeUpgrade("{\"hooks\": ", cli: "/A/hangar") }
     #expect(throws: IntegrationError.self) { try claudeUpgrade("[]", cli: "/A/hangar") }
+}
+
+/// The launch's apply with every Claude function on, for the files of this suite.
+private func claudeUpgrade(_ t: String?, cli: String) throws(IntegrationError) -> String? {
+    try claudeApply(t, cli: cli, hooks: true, statusline: true, ours: { $0 == cli })
+}
+
+private func claudeUpgradeFile(_ url: URL, cli: String, now: Date) throws -> FileWrite? {
+    try claudeApplyFile(url, cli: cli, hooks: true, statusline: true, ours: { $0 == cli }, now: now)
 }
 
 private func tmpDir() throws -> URL {
@@ -225,7 +232,7 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     let url = d.appendingPathComponent("settings.json")
     try oldInstall.write(to: url, atomically: true, encoding: .utf8)
 
-    let backup = try #require(try claudeUpgradeFile(url, cli: "/A/hangar", now: now))
+    let backup = try #require(try claudeUpgradeFile(url, cli: "/A/hangar", now: now)?.backup)
     #expect(backup.lastPathComponent.hasPrefix("settings.json.hangar-backup-"))
     #expect(try String(contentsOf: backup, encoding: .utf8) == oldInstall)
     #expect(try String(contentsOf: url, encoding: .utf8) == claudeUpgrade(oldInstall, cli: "/A/hangar"))
@@ -241,14 +248,7 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     let d = try tmpDir()
     defer { try? FileManager.default.removeItem(at: d) }
     let url = d.appendingPathComponent("settings.json")
-    // Missing file: nothing created.
-    #expect(try claudeUpgradeFile(url, cli: "/A/hangar", now: now) == nil)
-    #expect(!FileManager.default.fileExists(atPath: url.path))
-    // Not installed and unparsable: same bytes, no backup.
-    let userOnly = try claudeUninstall(oldInstall)
-    try userOnly.write(to: url, atomically: true, encoding: .utf8)
-    #expect(try claudeUpgradeFile(url, cli: "/A/hangar", now: now) == nil)
-    #expect(try String(contentsOf: url, encoding: .utf8) == userOnly)
+    // Unparsable: same bytes, no backup.
     let broken = String(oldInstall.dropLast(5))
     try broken.write(to: url, atomically: true, encoding: .utf8)
     #expect(throws: IntegrationError.self) { try claudeUpgradeFile(url, cli: "/A/hangar", now: now) }

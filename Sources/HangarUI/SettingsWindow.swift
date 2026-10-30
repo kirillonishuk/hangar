@@ -4,7 +4,7 @@ import SwiftUI
 import Update
 import Workspace
 
-/// ⌘, / gear in the sidebar: System Settings style — categories on the left, the page's cards on the right.
+/// ⌘, / gear in the sidebar: categories on the left, the page's cards on the right (spec §3.18).
 /// Resizable; the size is remembered (frame autosave).
 @MainActor final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     let model: SettingsModel
@@ -12,9 +12,13 @@ import Workspace
     init(app: AppState) {
         model = SettingsModel(app: app)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Theme.settingsSize),
-                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+                              styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        // §3.18: the traffic lights sit in the 52 bar over the category list; the page's own header carries the title.
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = Theme.bg2
+        window.titleVisibility = .hidden
+        window.toolbar = NSToolbar()
+        window.toolbarStyle = .unified
+        window.backgroundColor = Theme.bg0
         window.appearance = NSAppearance(named: .darkAqua)
         window.isReleasedWhenClosed = false
         window.minSize = Theme.settingsMinSize
@@ -41,7 +45,7 @@ import Workspace
 
     func updateTitle() { window?.title = L10n.settings }
 
-    @objc private func applyTheme() { window?.backgroundColor = Theme.bg2 }
+    @objc private func applyTheme() { window?.backgroundColor = Theme.bg0 }
 
     func present(over parent: NSWindow?) {
         guard let window else { return }

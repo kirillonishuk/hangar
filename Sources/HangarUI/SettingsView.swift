@@ -32,32 +32,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .advanced: .more
         }
     }
-
-    /// The row labels of the page: the label column is measured from them.
-    var labelKeys: [L10n.Key] {
-        switch self {
-        case .general: [.languageTitle, .defaultAgent, .externalEditor, .checkUpdatesTitle, .versionTitle]
-        case .appearance: [.edFont, .edSize, .edLineHeight, .edLigatures, .edTabSize, .edDetect, .edWrap, .edLineHighlight, .edCursor,
-                           .edBlink, .edWhitespace, .edBracketColors, .edBracketGuides, .edIndentGuides, .editorRainbowTitle, .editorTodoTitle]
-        case .notifications:
-            [.notificationsTitle, .notifyPermissionTitle, .notifyQuestionTitle, .notifyFailedTitle, .limitNotificationsTitle, .notifyDoneTitle,
-             .allowFromNotificationTitle, .notifyWhenActiveTitle, .dockBadgeTitle, .sshTerminalBellTitle, .keepAwakeShort, .notificationPermissionTitle]
-        case .integrations: [.integrationClaude, .integrationCodex, .integrationMCP, .statuslineShow]
-        case .advanced: [.configFile, .edFormatOnSave]
-        }
-    }
-}
-
-/// One-line width of a row label at `sheetRow`.
-func settingsLabelTextWidth(_ label: String) -> CGFloat {
-    ceil((label as NSString).size(withAttributes: [.font: Theme.Typography.body.nsFont()]).width)
-}
-
-/// The label column of every page: the longest label of the language, so labels never wrap and all cards line up.
-func settingsLabelWidth(_ lang: Language) -> CGFloat {
-    let widest = SettingsCategory.allCases.flatMap(\.labelKeys)
-        .map { settingsLabelTextWidth(L10n.lookup($0, lang, in: L10n.resources)) }.max() ?? 0
-    return min(widest + Theme.settingsLabelSlack, Theme.settingsLabelMax)
 }
 
 struct SettingsView: View {
@@ -71,19 +45,26 @@ struct SettingsView: View {
             SettingsSidebar(selection: $model.category)
             Rectangle().fill(Theme.ui.line).frame(width: 1)
             VStack(alignment: .leading, spacing: 0) {
+                // The 52 header shares its bar with the traffic lights (a unified toolbar of no items).
+                Text(verbatim: model.category.title)
+                    .font(Theme.Typography.title.font(.semibold))
+                    .foregroundStyle(Theme.ui.text0)
+                    .padding(.horizontal, Theme.settingsPagePaddingH)
+                    .frame(maxWidth: .infinity, minHeight: Theme.settingsHeaderHeight, maxHeight: Theme.settingsHeaderHeight, alignment: .leading)
+                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+                    // Over the page: a scrolled page draws past its clip view (AppKit doesn't clip it) under the header.
+                    .background(Theme.ui.bg0)
+                    .zIndex(1)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
-                        Text(verbatim: model.category.title)
-                            .font(Theme.Typography.title.font(.semibold))
-                            .foregroundStyle(Theme.ui.text0)
-                        page
-                    }
-                    .padding(Theme.settingsPagePadding)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    page
+                        .padding(.vertical, Theme.settingsPagePaddingV)
+                        .padding(.horizontal, Theme.settingsPagePaddingH)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .environment(\.settingsCards, true)
                 }
                 .onGeometryChange(for: CGSize.self) { $0.size } action: {
                     model.editorTheme.pageHeight = $0.height
-                    model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePadding
+                    model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePaddingH
                 }
                 footer
             }
@@ -93,6 +74,7 @@ struct SettingsView: View {
         .frame(minWidth: Theme.settingsMinSize.width)
         .font(Theme.Typography.body.font())
         .background(Theme.ui.bg0)
+        .ignoresSafeArea(.container, edges: .top)
     }
 
     @ViewBuilder private var page: some View {
@@ -113,72 +95,73 @@ struct SettingsView: View {
                 .lineLimit(1).truncationMode(.middle)
                 .help(text)
                 .font(Theme.Typography.secondary.font())
-                .padding(.horizontal, Theme.settingsPagePadding)
-                .padding(.vertical, Theme.sheetFooterPaddingV)
+                .padding(.horizontal, Theme.settingsPagePaddingH)
+                .padding(.vertical, Theme.Space.s3)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1) }
+                .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
         }
     }
 
     // MARK: Pages
 
     private var general: some View {
-        CardSection {
-            row(L10n.languageTitle, first: true) {
-                Segmented(selection: app.language, options: [
-                    (.system, L10n.languageSystem), (.ru, L10n.languageRu), (.en, L10n.languageEn),
-                ]) { lang in save { try app.setLanguage(lang) } }
-            }
-            row(L10n.defaultAgent) {
-                Segmented(selection: app.config.defaultAgent, options: [(.claude, "claude"), (.codex, "codex")]) { kind in
-                    save { try app.setConfig("default_agent", kind.rawValue) { $0.defaultAgent = kind } }
+        VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
+            CardSection {
+                row(L10n.languageTitle, first: true) {
+                    Segmented(selection: app.language, options: [
+                        (.system, L10n.languageSystem), (.ru, L10n.languageRu), (.en, L10n.languageEn),
+                    ]) { lang in save { try app.setLanguage(lang) } }
+                }
+                row(L10n.defaultAgent, hint: L10n.s(.defaultAgentHint)) {
+                    Segmented(selection: app.config.defaultAgent, options: [(.claude, "claude"), (.codex, "codex")]) { kind in
+                        save { try app.setConfig("default_agent", kind.rawValue) { $0.defaultAgent = kind } }
+                    }
+                }
+                row(L10n.externalEditor, hint: L10n.s(.externalEditorHint)) {
+                    TextField("", text: $model.externalEditor)
+                        .focused($editingExternal)
+                        .inputField(focused: editingExternal, mono: true,
+                                    placeholder: model.externalEditor.isEmpty ? L10n.externalEditorPlaceholder : nil)
+                        .onSubmit { model.commitExternalEditor() }
+                        .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
+                        .frame(minWidth: Theme.settingsFieldWidth / 2, maxWidth: Theme.settingsFieldWidth)
                 }
             }
-            row(L10n.externalEditor) {
-                TextField("", text: $model.externalEditor)
-                    .focused($editingExternal)
-                    .inputField(focused: editingExternal, mono: true,
-                                placeholder: model.externalEditor.isEmpty ? L10n.externalEditorPlaceholder : nil)
-                    .onSubmit { model.commitExternalEditor() }
-                    .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
-            }
-            row(L10n.checkUpdatesTitle) {
-                CardSwitch(on: app.config.checkUpdates) { on in
-                    save { try app.setConfig("check_updates", flag: on) { $0.checkUpdates = on } }
-                    if on { app.updates.checkIfDue() }
+            CardSection(title: L10n.s(.updatesSection)) {
+                row(L10n.checkUpdatesTitle, first: true) {
+                    CardSwitch(on: app.config.checkUpdates) { on in
+                        save { try app.setConfig("check_updates", flag: on) { $0.checkUpdates = on } }
+                        if on { app.updates.checkIfDue() }
+                    }
+                    .disabled(app.updates.feed == nil)
                 }
-                .disabled(app.updates.feed == nil)
+                versionRow
             }
-            row(L10n.versionTitle) { versionValue }
         }
     }
 
-    /// The running version, the last check's outcome, «Проверить сейчас» (#86).
-    @ViewBuilder private var versionValue: some View {
+    /// «Версия 0.8.0», the last check's outcome under it, «Проверить сейчас» on the right (#86).
+    private var versionRow: some View {
         let updates = app.updates
         let status = updateStatus(updates)
-        Text(verbatim: updates.current ?? "dev")
-            .font(Theme.Typography.mono.font())
-            .foregroundStyle(Theme.ui.text2)
-            .fixedSize()
-        if let status {
-            Text(verbatim: status.text).foregroundStyle(status.color)
-                .lineLimit(1).truncationMode(.middle)
-                .help(status.text)
-                .layoutPriority(1)  // the download progress stays readable next to the buttons
-        }
-        Spacer(minLength: Theme.cardRowGap)
-        // An update found: «Обновить до X» (the sheet's flow: download, check, the usual quit with its confirmation,
-        // relaunch) takes the place of «Проверить сейчас» — both don't fit the row. While it downloads, only the progress.
-        switch updates.settingsButton {
-        case .install(let version): installButton(L10n.updateTo(version), updates)
-        case .restart: installButton(L10n.updateRestart, updates)
-        case .busy: EmptyView()
-        case nil:
-            Button(L10n.checkNow) { updates.checkNow() }
-                .buttonStyle(.hangar(.secondary))
-                .fixedSize()
-                .disabled(updates.feed == nil || updates.phase == .checking)
+        return SettingsRow(label: L10n.versionTitle) {
+            // One text, so the outcome wraps under the version instead of being cut.
+            (Text(verbatim: updates.current ?? "dev").font(Theme.Typography.monoSmall.font()).foregroundColor(Theme.ui.text2)
+                + Text(verbatim: status.map { "  " + $0.text } ?? "").foregroundColor(status?.color ?? Theme.ui.text3))
+                .help(status?.text ?? "")
+        } value: {
+            // An update found: «Обновить до X» (the sheet's flow: download, check, the usual quit with its confirmation,
+            // relaunch) takes the place of «Проверить сейчас». While it downloads, only the progress.
+            switch updates.settingsButton {
+            case .install(let version): installButton(L10n.updateTo(version), updates)
+            case .restart: installButton(L10n.updateRestart, updates)
+            case .busy: EmptyView()
+            case nil:
+                Button(L10n.checkNow) { updates.checkNow() }
+                    .buttonStyle(.hangar(.secondary))
+                    .fixedSize()
+                    .disabled(updates.feed == nil || updates.phase == .checking)
+            }
         }
     }
 
@@ -206,31 +189,47 @@ struct SettingsView: View {
     }
 
     // Settings → Advanced → language servers (#102, #109): status per language, download / remove Hangar's own copies.
+    // The row: the language, where the server is (or what it needs) under it; the status and the action on the right.
     var languageServers: some View {
         CardSection(title: L10n.lspSection) {
             ForEach(Array(LspServersModel.rows.enumerated()), id: \.element.id) { i, r in
-                row(r.name, first: i == 0) { lspValue(r) }
+                SettingsRow(label: r.name, first: i == 0) { lspDetail(r) } value: { lspValue(r) }
             }
         }
         .task { await model.lsp.refresh() }
     }
 
+    private func lspPackage(_ row: LspServersModel.Row) -> LspPackage? {
+        if case .package(let p) = row.kind { p } else { nil }
+    }
+
+    @ViewBuilder private func lspDetail(_ row: LspServersModel.Row) -> some View {
+        let lsp = model.lsp
+        let package = lspPackage(row)
+        switch (row.kind, lsp.status(row), package.flatMap { lsp.jobs[$0] }) {
+        case (.project, _, _): lspLine(L10n.lspTsDetail, mono: false)
+        case (_, .installed(_, let executable), _): lspLine(tildePath(executable))
+        case (_, .missing, .running(let fraction)?):
+            lspLine(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
+        case (_, .missing, .failed(let why)?): lspLine(why, color: Theme.ui.failedText, mono: false)
+        case (_, .missing, nil):
+            if package == nil { lspLine(L10n.lspXcodeTip, mono: false) }
+            else if let package, package.tool != nil, lsp.tools[package] == nil {
+                lspLine(package == .pyright ? L10n.lspNeedsNode : L10n.lspNeedsGo, mono: false)
+            }
+        default: EmptyView()
+        }
+    }
+
     @ViewBuilder private func lspValue(_ row: LspServersModel.Row) -> some View {
         let lsp = model.lsp
-        let package: LspPackage? = if case .package(let p) = row.kind { p } else { nil }
+        let package = lspPackage(row)
         let job = package.flatMap { lsp.jobs[$0] }
         switch (row.kind, lsp.status(row)) {
-        case (.project, _):
-            Pill(text: L10n.lspFromProject, color: Theme.ui.text2)
-            lspDetail(L10n.lspTsDetail, mono: false)
-            Spacer(minLength: Theme.cardRowGap)
-        case (_, .checking):
-            Pill(text: L10n.pillChecking, color: Theme.ui.text3)
-            Spacer(minLength: Theme.cardRowGap)
+        case (.project, _): Pill(text: L10n.lspFromProject, color: Theme.ui.text2)
+        case (_, .checking): Pill(text: L10n.pillChecking, color: Theme.ui.text3)
         case (_, .installed(let source, let executable)):
             Pill(text: L10n.lspInstalledFrom(lspSource(source)), color: Theme.ui.done).help(executable)
-            lspDetail(tildePath(executable))
-            Spacer(minLength: Theme.cardRowGap)
             if let package, lsp.owned.contains(package), job == nil {
                 Button(L10n.lspRemove) { lsp.remove(package) }
                     .buttonStyle(.hangar(.secondary))
@@ -241,36 +240,26 @@ struct SettingsView: View {
                 lspMissing(package, job)
             } else {
                 Pill(text: L10n.lspNeedsXcode, color: Theme.ui.waiting)
-                lspDetail(L10n.lspXcodeTip, mono: false)
-                Spacer(minLength: Theme.cardRowGap)
             }
         }
     }
 
-    /// A missing downloadable server: its download's progress or error (in place of the pill, so it has room), else
-    /// «Не установлен» and «Скачать» (or what it needs first).
+    /// A missing downloadable server: «Отмена» while it downloads, «Повторить» after an error (the progress or the
+    /// error is the row's line), else «Не установлен» and «Скачать» (unless it needs a tool first).
     @ViewBuilder private func lspMissing(_ package: LspPackage, _ job: LspServersModel.Job?) -> some View {
         let lsp = model.lsp
         switch job {
-        case .running(let fraction)?:
-            lspDetail(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
-            Spacer(minLength: Theme.cardRowGap)
+        case .running?:
             Button(L10n.cancel) { lsp.cancel(package) }
                 .buttonStyle(.hangar(.secondary))
                 .fixedSize()
-        case .failed(let why)?:
-            lspDetail(why, color: Theme.ui.failedText, mono: false)
-            Spacer(minLength: Theme.cardRowGap)
+        case .failed?:
             Button(L10n.lspRetry) { lsp.install(package) }
                 .buttonStyle(.hangar(.secondary))
                 .fixedSize()
         case nil:
             Pill(text: L10n.lspNotInstalled, color: Theme.ui.waiting)
-            Spacer(minLength: Theme.cardRowGap)
-            if package.tool != nil, lsp.tools[package] == nil {
-                Text(verbatim: package == .pyright ? L10n.lspNeedsNode : L10n.lspNeedsGo)
-                    .foregroundStyle(Theme.ui.text3)
-            } else {
+            if package.tool == nil || lsp.tools[package] != nil {
                 Button(L10n.lspDownload) { lsp.install(package) }
                     .buttonStyle(.hangar(.secondary))
                     .fixedSize()
@@ -288,7 +277,7 @@ struct SettingsView: View {
         }
     }
 
-    private func lspDetail(_ text: String, color: Color = Theme.ui.text3, mono: Bool = true) -> some View {
+    private func lspLine(_ text: String, color: Color = Theme.ui.text3, mono: Bool = true) -> some View {
         Text(verbatim: text)
             .font((mono ? Theme.Typography.monoSmall : Theme.Typography.secondary).font())
             .foregroundStyle(color)
@@ -312,46 +301,40 @@ struct SettingsView: View {
             CardSection(title: L10n.notifySectionEvents) {
                 ForEach(Array(notificationReasons.enumerated()), id: \.element) { i, reason in
                     row(reasonTitle(reason), first: i == 0) {
-                        CardSwitch(on: app.notifyEnabled(reason)) { on in save { try app.setNotify(reason, on) } }
-                        Spacer(minLength: Theme.cardRowGap)
                         soundMenu(reason)
+                        CardSwitch(on: app.notifyEnabled(reason)) { on in save { try app.setNotify(reason, on) } }
                     }
                 }
                 // S1 = A: the Allow button exists; off by default, with its risk in the tooltip.
-                row(L10n.allowFromNotificationTitle) {
+                row(L10n.allowFromNotificationTitle, hint: L10n.allowFromNotificationHelp) {
                     CardSwitch(on: app.config.allowFromNotification) { on in
                         save { try app.setConfig("allow_from_notification", flag: on) { $0.allowFromNotification = on } }
                     }
                 }
-                .help(L10n.allowFromNotificationHelp)
-                row(L10n.notifyWhenActiveTitle) {
+                row(L10n.notifyWhenActiveTitle, hint: L10n.notifyWhenActiveHelp) {
                     CardSwitch(on: app.config.notifyWhenActive) { on in
                         save { try app.setConfig("notify_when_active", flag: on) { $0.notifyWhenActive = on } }
                     }
                 }
-                .help(L10n.notifyWhenActiveHelp)
             }
             .opacity(on ? 1 : Theme.Opacity.inactive)
             .disabled(!on)
             CardSection(title: L10n.notifySectionSystem) {
-                row(L10n.dockBadgeTitle, first: true) {
+                row(L10n.dockBadgeTitle, hint: L10n.dockBadgeHelp, first: true) {
                     CardSwitch(on: app.config.dockBadge) { on in
                         save { try app.setConfig("dock_badge", flag: on) { $0.dockBadge = on } }
                     }
                 }
-                .help(L10n.dockBadgeHelp)
-                row(L10n.sshTerminalBellTitle) {
+                row(L10n.sshTerminalBellTitle, hint: L10n.sshTerminalBellHelp) {
                     CardSwitch(on: app.config.sshTerminalBell) { on in
                         save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
                     }
                 }
-                .help(L10n.sshTerminalBellHelp)
-                row(L10n.keepAwakeShort) {
+                row(L10n.keepAwakeShort, hint: L10n.keepAwakeTitle) {
                     CardSwitch(on: app.config.keepAwake) { on in
                         save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                     }
                 }
-                .help(L10n.keepAwakeTitle)
             }
         }
         .task { authorization = await app.notificationAuthorization?() }
@@ -376,7 +359,7 @@ struct SettingsView: View {
     /// S4 = no named system sounds: «Без звука» and «Стандартный» only.
     private func soundMenu(_ reason: AttentionReason) -> some View {
         let current = app.config.sounds[reason.rawValue] ?? "default"
-        return HStack(spacing: Theme.pickGap) {
+        return HStack(spacing: Theme.Space.s1) {
             Text(verbatim: current.isEmpty ? L10n.soundNone : L10n.soundDefault)
                 .foregroundStyle(Theme.ui.text3)
             PopoverMenuButton(icon: .chevronDown, help: L10n.soundTitle) {
@@ -392,21 +375,16 @@ struct SettingsView: View {
     /// macOS's own switch for Hangar's banners; «Открыть системные настройки» when it is off. The urgent-level note (S3 = T-no) sits here.
     private var permissionRow: some View {
         let state = notificationPermission(authorization)
-        return row(L10n.notificationPermissionTitle) {
-            VStack(alignment: .leading, spacing: Theme.pickGap) {
-                HStack(spacing: Theme.cardRowGap) {
-                    Text(verbatim: state.text).foregroundStyle(state.denied ? Theme.ui.failedText : Theme.ui.text2)
-                    if state.denied, let url = notificationSettingsURL(bundleId: Bundle.main.bundleIdentifier ?? "") {
-                        Button(L10n.openSystemSettings) { NSWorkspace.shared.open(url) }
-                            .buttonStyle(.hangar(.secondary))
-                            .fixedSize()
-                    }
-                }
+        return SettingsRow(label: L10n.notificationPermissionTitle) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(verbatim: state.text).foregroundStyle(state.denied ? Theme.ui.failedText : Theme.ui.text2)
                 Text(verbatim: L10n.urgentNotice)
-                    .font(Theme.Typography.secondary.font())
-                    .foregroundStyle(Theme.ui.text3)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } value: {
+            if state.denied, let url = notificationSettingsURL(bundleId: Bundle.main.bundleIdentifier ?? "") {
+                Button(L10n.openSystemSettings) { NSWorkspace.shared.open(url) }
+                    .buttonStyle(.hangar(.secondary))
+                    .fixedSize()
             }
         }
     }
@@ -419,11 +397,10 @@ struct SettingsView: View {
                 configFileRow
             }
             CardSection(title: L10n.editor) {
-                row(L10n.s(.edFormatOnSave), first: true) {
+                row(L10n.s(.edFormatOnSave), hint: L10n.s(.edFormatTip), first: true) {
                     CardSwitch(on: app.config.editorOptions.formatOnSave) { on in
                         save { try app.setEditorAppearance("editor_format_on_save", flag: on) { $0.editorOptions.formatOnSave = on } }
                     }
-                    .help(L10n.s(.edFormatTip))
                 }
             }
             languageServers
@@ -431,14 +408,13 @@ struct SettingsView: View {
     }
 
     private var configFileRow: some View {
-        row(L10n.configFile, first: true) {
-            let path = tildePath(app.configURL.path)
+        let path = tildePath(app.configURL.path)
+        return SettingsRow(label: L10n.configFile, first: true) {
             Text(verbatim: path)
-                .font(Theme.Typography.mono.font())
-                .foregroundStyle(Theme.ui.text2)
+                .font(Theme.Typography.monoSmall.font())
                 .lineLimit(1).truncationMode(.middle)
                 .help(path)
-            Spacer(minLength: Theme.cardRowGap)
+        } value: {
             Button(L10n.showInFinder) { NSWorkspace.shared.activateFileViewerSelecting([app.configURL]) }
                 .buttonStyle(.hangar(.secondary))
                 .fixedSize()
@@ -447,30 +423,30 @@ struct SettingsView: View {
 
     func save(_ change: () throws -> Void) { model.save(change) }
 
-    func row(_ label: String, first: Bool = false, @ViewBuilder value: () -> some View) -> some View {
-        CardRow(label: label, labelWidth: settingsLabelWidth(L10n.resolve(L10n.language)), first: first, value: value)
+    func row<V: View>(_ label: String, hint: String? = nil, first: Bool = false, @ViewBuilder value: () -> V) -> some View {
+        SettingsRow(label, hint: hint, first: first, value: value)
     }
 }
 
-/// The category list: icon + title, `selectedFocus` fill and `onAccent` on the chosen one, `hover` under the pointer.
+/// The category list (216, `bg1`, rows 28 with a 16 icon): icon + title, `selectedFocus` fill and `onAccent` on the chosen one, `hover` under the pointer.
 private struct SettingsSidebar: View {
     @Binding var selection: SettingsCategory
     @State private var hovered: SettingsCategory?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsNavGap) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(SettingsCategory.allCases) { category in
                 let on = category == selection
                 Button { selection = category } label: {
-                    HStack(spacing: Theme.iconGap) {
-                        IconView(icon: category.icon, tint: on ? Theme.ui.onAccent : Theme.ui.text2)
+                    HStack(spacing: Theme.Space.iconGap) {
+                        IconView(icon: category.icon, size: Theme.Icon.toolbar, tint: on ? Theme.ui.onAccent : Theme.ui.text2)
                         Text(verbatim: category.title).lineLimit(1)
                             .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text1)
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, Theme.settingsSidebarPadding)
-                    .frame(height: Theme.settingsNavRowHeight)
-                    .background(RoundedRectangle(cornerRadius: Theme.settingsNavRadius)
+                    .padding(.horizontal, Theme.Space.s2)
+                    .frame(height: Theme.Height.rowSidebar)
+                    .background(RoundedRectangle(cornerRadius: Theme.Radius.control)
                         .fill(on ? Theme.ui.selectedFocus : hovered == category ? Theme.ui.hover : .clear))
                     .contentShape(Rectangle())
                 }
@@ -481,7 +457,9 @@ private struct SettingsSidebar: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(Theme.settingsSidebarPadding)
+        .padding(.horizontal, Theme.Space.s2)
+        .padding(.bottom, Theme.Space.s2)
+        .padding(.top, Theme.settingsHeaderHeight)  // under the traffic lights
         .frame(width: Theme.settingsSidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Theme.ui.bg1)

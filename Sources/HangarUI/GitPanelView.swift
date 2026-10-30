@@ -74,7 +74,7 @@ struct GitPanelView: View {
         } else if let error = model.error {
             GitNotice(text: L10n.gitFailed(error))
         } else if model.loaded, model.commits.isEmpty {
-            GitNotice(text: model.query == GitQuery() ? L10n.gitNoCommits : L10n.gitNothingFound)
+            EmptyNote(text: model.query == GitQuery() ? L10n.gitNoCommits : L10n.gitNothingFound)
         }
     }
 }

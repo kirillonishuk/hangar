@@ -30,6 +30,14 @@ func inboxIcon(_ reason: AttentionReason) -> Icon {
     }
 }
 
+/// An inbox row's two lines (§3.16): «проект › чат · агент», then the agent's text — or the notice's title when the
+/// text would only repeat the agent's name (a tab without a message falls back to its label).
+func inboxLines(subtitle: String, body: String, agent: String, title: String) -> (place: String, text: String) {
+    let place = agent.isEmpty ? subtitle : "\(subtitle) · \(agent)"
+    let bare = body.trimmingCharacters(in: .whitespaces)
+    return (place, bare.isEmpty || bare.caseInsensitiveCompare(agent) == .orderedSame ? title : body)
+}
+
 /// A row's action: the leaf, the request it was shown for, what was pressed.
 typealias InboxAction = (UUID, UUID?, NoticeAction) -> Void
 
@@ -61,16 +69,31 @@ struct InboxBell: View {
     }
 }
 
-/// Urgent first, then «Недавно готово» (newest first) with «Очистить»; empty — «Никто не ждёт».
+/// «Требуют внимания» (§3.16): urgent first, then «Готово недавно» (newest first) with «Очистить»; empty — «Всё спокойно».
 struct InboxPopover: View {
     let app: AppState
     let act: InboxAction
 
     var body: some View {
         let (urgent, done) = inboxSections(app.attentionItems)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L10n.s(.inboxTitle))
+                .font(Theme.Typography.body.font(.semibold))
+                .foregroundStyle(Theme.ui.text0)
+                .padding(.horizontal, Theme.Inbox.rowPaddingH)
+                .frame(height: Theme.Height.barPane)
+            content(urgent, done)
+        }
+        .padding(.vertical, Theme.Inbox.popoverPaddingV)
+        .padding(.horizontal, Theme.Inbox.popoverPaddingH)
+        .frame(width: Theme.Inbox.popoverWidth)
+        .presentationBackground(Theme.ui.bg2)
+    }
+
+    @ViewBuilder private func content(_ urgent: [AttentionItem], _ done: [AttentionItem]) -> some View {
         Group {
             if urgent.isEmpty, done.isEmpty {
-                Text(L10n.nobodyWaiting)
+                Text(L10n.s(.inboxEmpty))
                     .font(Theme.Typography.secondary.font())
                     .foregroundStyle(Theme.ui.text3)
                     .frame(maxWidth: .infinity, minHeight: Theme.Inbox.emptyHeight)
@@ -80,15 +103,11 @@ struct InboxPopover: View {
                 list(urgent, done)
             }
         }
-        .padding(.vertical, Theme.Inbox.popoverPaddingV)
-        .padding(.horizontal, Theme.Inbox.popoverPaddingH)
-        .frame(width: Theme.Inbox.popoverWidth)
-        .presentationBackground(Theme.ui.bg2)
     }
 
     private func list(_ urgent: [AttentionItem], _ done: [AttentionItem]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(urgent) { InboxRow(app: app, item: $0, act: act) }
+            ForEach(urgent) { InboxRow(app: app, item: $0, first: $0.id == urgent.first?.id, act: act) }
             if !done.isEmpty {
                 if !urgent.isEmpty {
                     Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.horizontal, -Theme.Inbox.popoverPaddingH)
@@ -103,7 +122,7 @@ struct InboxPopover: View {
                 .font(Theme.Typography.caption.font())
                 .padding(.horizontal, Theme.Inbox.rowPaddingH)
                 .padding(.top, urgent.isEmpty ? 0 : Theme.Inbox.sectionPaddingTop)
-                ForEach(done) { InboxRow(app: app, item: $0, act: act) }
+                ForEach(done) { InboxRow(app: app, item: $0, first: false, act: act) }
             }
         }
     }
@@ -113,6 +132,8 @@ struct InboxPopover: View {
 private struct InboxRow: View {
     let app: AppState
     let item: AttentionItem
+    /// The first urgent row carries the popover's one primary button («Открыть», or «Разрешить»).
+    let first: Bool
     let act: InboxAction
     @State private var replying = false
     /// «Убрать» holds the keyboard: shown as under the pointer.
@@ -123,6 +144,7 @@ private struct InboxRow: View {
     var body: some View {
         let n = notice(for: item, app: app)
         let a = item.attention
+        let lines = inboxLines(subtitle: n.subtitle, body: n.body, agent: item.agent, title: n.title)
         VStack(alignment: .leading, spacing: Theme.Inbox.lineGap) {
             HoverRow(action: { act(item.leafId, a.requestKey, .open) }) { hover in
                 HStack(alignment: .top, spacing: Theme.Inbox.rowGap) {
@@ -130,7 +152,7 @@ private struct InboxRow: View {
                         .frame(height: Theme.Inbox.firstLine)
                     VStack(alignment: .leading, spacing: Theme.Inbox.lineGap) {
                         HStack(spacing: Theme.Inbox.rowGap) {
-                            Text(verbatim: n.subtitle).foregroundStyle(Theme.ui.text2).truncationMode(.middle)
+                            Text(verbatim: lines.place).foregroundStyle(Theme.ui.text2).truncationMode(.middle)
                             Spacer(minLength: 0)
                             Text(verbatim: waitingTime(since: a.since, now: app.inboxClock))
                                 .font(Theme.Typography.caption.font().monospacedDigit())
@@ -139,7 +161,7 @@ private struct InboxRow: View {
                         .font(Theme.Typography.secondary.font())
                         .frame(height: Theme.Inbox.firstLine)
                         HStack(spacing: Theme.railInset) {
-                            Text(verbatim: n.body)
+                            Text(verbatim: lines.text)
                                 .font(Theme.Typography.body.font())
                                 .foregroundStyle(Theme.ui.text1)
                                 .truncationMode(.tail)
@@ -186,7 +208,9 @@ private struct InboxRow: View {
         case .limit:
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
         case .permission, .open:
-            if item.attention.reason == .done {
+            if first {
+                InboxButton(title: L10n.noticeOpen, primary: true) { act(item.leafId, n.requestKey, .open) }
+            } else if item.attention.reason == .done {
                 // Hidden at rest but still a button: Tab reaches it (and shows it), VoiceOver reads and presses it.
                 InboxButton(title: L10n.inboxDismiss) { app.dismissDone(leafId: item.leafId) }
                     .focused($dismissFocused)

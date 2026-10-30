@@ -195,35 +195,6 @@ struct FilledRowStyle: ButtonStyle {
     }
 }
 
-/// Terminal area while there are no projects: "+ Добавить проект" (style of "+ Новая сессия") and the ⇧⌘N hint.
-struct EmptyStateView: View {
-    let addProject: () -> Void
-
-    /// For the AppKit terminal area (SwiftUI's `Tab` would clash with `Workspace.Tab` there).
-    @MainActor static func hosted(addProject: @escaping () -> Void) -> NSView {
-        let view = NSHostingView(rootView: EmptyStateView(addProject: addProject))
-        view.sizingOptions = []
-        return view
-    }
-
-    var body: some View {
-        VStack(spacing: Theme.sheetGap) {
-            Button(action: addProject) {
-                HStack(spacing: Theme.iconGap) {
-                    IconView(icon: .add, active: true)
-                    Text(L10n.addProject).foregroundStyle(Theme.ui.text0)
-                }
-                .padding(.vertical, Theme.tabPaddingV)
-                .padding(.horizontal, Theme.buttonPaddingH)
-            }
-            .buttonStyle(FilledRowStyle())
-            ShortcutHint(text: Shortcut.addProject.label)
-        }
-        .font(Theme.Typography.body.font())
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 /// One item of a small fixed menu (host row, «+ проект»): shown as an NSMenu at the pointer on click, and as
 /// SwiftUI items in the context / `…` menus.
 struct MenuEntry {

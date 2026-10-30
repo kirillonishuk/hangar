@@ -7,12 +7,11 @@ extension Theme {
     public static let terminalPaddingX = 12
     public static let terminalPaddingY = 6
 
-    /// Archive undo toast: shown 5 s, gap above the status line, inner paddings.
+    /// Toast (§3.15): shown 5 s; level-1 shadow `0 8 24 .4` (SwiftUI's radius is half the CSS blur).
     public static let toastDuration: TimeInterval = 5
-    public static let toastBottom: CGFloat = 14
-    public static let toastGap: CGFloat = 10
-    public static let toastPaddingH: CGFloat = 16
-    public static let toastPaddingV: CGFloat = 6
+    public static let toastShadow = (opacity: 0.4, radius: CGFloat(12), y: CGFloat(8))
+    /// 16 above the chat area's bottom: the hosting view's margin for the shadow is counted in.
+    public static let toastBottom: CGFloat = Space.s4 - toastShadow.radius
 
     /// Tab `×`: its hover box reaches this far around the 10 pt icon (into the tab's padding), corner radius.
     public static let tabCloseInset: CGFloat = 3

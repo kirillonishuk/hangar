@@ -278,6 +278,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         column.terminalArea.onAddProject = { [weak self] in self?.chooseProjectKind() }
+        column.terminalArea.onNewTask = { [weak self] in self?.presentNewTask(projectId: nil) }
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
         app.onIntegrationError = { [weak self] text in
             self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }

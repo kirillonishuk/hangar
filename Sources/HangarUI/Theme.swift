@@ -222,7 +222,7 @@ extension Theme {
         public static let countWidth: CGFloat = 22
         public static let bellGap: CGFloat = 2
         public static let bellPaddingH: CGFloat = 6
-        public static let popoverWidth: CGFloat = 400
+        public static let popoverWidth: CGFloat = 380
         public static let popoverPaddingV: CGFloat = 8
         public static let popoverPaddingH: CGFloat = 8
         public static let rowPaddingV: CGFloat = 6

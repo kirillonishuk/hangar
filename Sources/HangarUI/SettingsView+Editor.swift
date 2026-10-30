@@ -93,7 +93,7 @@ extension SettingsView {
                     } else {
                         previewCard(ed)
                             .padding(.bottom, Theme.settingsHeaderGap)
-                            .background(Theme.ui.bg2)
+                            .background(Theme.ui.bg0)  // the page's background, under the pinned preview
                     }
                 }
             }
@@ -131,25 +131,23 @@ extension SettingsView {
                     setOption("editor_font_size", String(size)) { $0.fontSize = size }
                 }
             }
-            row(L10n.s(.edLineHeight)) {
+            row(L10n.s(.edLineHeight), hint: L10n.s(.edLineHeightTip)) {
                 let auto = options.lineHeight == 0
+                // «Авто» left of the stepper: the stepper keeps its place at the right edge.
+                if !auto {
+                    Button(L10n.s(.edAuto)) { resetOption("editor_line_height") { $0.lineHeight = 0 } }
+                        .buttonStyle(.hangar(.plain, .small))
+                        .fixedSize()
+                }
                 SettingsStepper(value: auto ? L10n.f(.edLineAuto, options.resolvedLineHeight) : L10n.f(.edPt, options.lineHeight),
                                 canDown: options.resolvedLineHeight > EditorOptions.lineHeights.lowerBound,
                                 canUp: options.resolvedLineHeight < EditorOptions.lineHeights.upperBound) { step in
                     let height = options.resolvedLineHeight + step
                     setOption("editor_line_height", String(height)) { $0.lineHeight = height }
                 }
-                .help(L10n.s(.edLineHeightTip))
-                if !auto {
-                    Button(L10n.s(.edAuto)) { resetOption("editor_line_height") { $0.lineHeight = 0 } }
-                        .buttonStyle(.hangar(.plain, .small))
-                        .fixedSize()
-                        .help(L10n.s(.edLineHeightTip))
-                }
             }
-            row(L10n.s(.edLigatures)) {
+            row(L10n.s(.edLigatures), hint: L10n.s(.edLigaturesTip)) {
                 CardSwitch(on: options.ligatures) { on in setOption("editor_ligatures", flag: on) { $0.ligatures = on } }
-                    .help(L10n.s(.edLigaturesTip))
             }
         }
     }
@@ -161,9 +159,8 @@ extension SettingsView {
                     setOption("editor_tab_size", String(n)) { $0.tabSize = n }
                 }
             }
-            row(L10n.s(.edDetect)) {
+            row(L10n.s(.edDetect), hint: L10n.s(.edDetectTip)) {
                 CardSwitch(on: options.detectIndentation) { on in setOption("editor_detect_indentation", flag: on) { $0.detectIndentation = on } }
-                    .help(L10n.s(.edDetectTip))
             }
             row(L10n.s(.edWrap)) {
                 Segmented(selection: options.wordWrap, options: [(false, L10n.s(.edWrapOff)), (true, L10n.s(.edWrapOn))]) { on in
@@ -361,7 +358,7 @@ private struct EditorColorList: View {
         } label: {
             HStack(spacing: Theme.pickGap) {
                 IconView(icon: open ? .chevronDown : .chevronRight, size: Theme.pickChevronSize, tint: Theme.ui.text3)
-                Text(verbatim: title(section)).font(Theme.Typography.secondary.font(.semibold)).foregroundStyle(Theme.ui.text2)
+                Text(verbatim: title(section)).font(Theme.Typography.caption.font(.semibold)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)

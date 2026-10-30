@@ -12,13 +12,17 @@ public struct HookDetail: Equatable, Sendable {
     public var tool, command, text, error: String?
     /// The pid of the agent that ran the hook; only the hooks Hangar passes to a tab's own agent (`--settings`) carry it (#119).
     public var agentPid: Int32?
+    /// `--tab-agent`: the hook is one of those Hangar passes (its pid may be a `CLAUDE_CODE_SHELL_PREFIX` wrapper's).
+    public var tabAgent: Bool
 
-    public init(tool: String? = nil, command: String? = nil, text: String? = nil, error: String? = nil, agentPid: Int32? = nil) {
+    public init(tool: String? = nil, command: String? = nil, text: String? = nil, error: String? = nil, agentPid: Int32? = nil,
+                tabAgent: Bool = false) {
         self.tool = tool
         self.command = command
         self.text = text
         self.error = error
         self.agentPid = agentPid
+        self.tabAgent = tabAgent
     }
 }
 

@@ -64,7 +64,7 @@ public func posixShell(_ userShell: String) -> String {
 /// (locally `[agents]` from the config, on a server the bare name).
 /// A conversation is only ever resumed by its own id, never by recency (`--continue` / `resume --last` took the folder's
 /// latest chat, another tab's or terminal's, #119). A new claude conversation starts under the leaf's id (`--session-id`,
-/// given by the caller); a resume whose conversation was never written (nothing was said) starts it under that same id.
+/// given by the caller); a conversation never written (nothing was said: no transcript) starts under that same id instead.
 /// `hookCLI`: a shell word for `hangar` / `hangar-remote`; claude then gets Hangar's own hooks via `--settings`.
 public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: String,
                          restoring: Bool, initialPrompt: String?, hookCLI: String? = nil) -> String {
@@ -82,11 +82,10 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
         let claude = agent(.claude) + (hookCLI.map { " --settings " + shellQuote(tabAgentSettings(hookCLI: $0)) } ?? "")
         let uuid = id.flatMap { UUID(uuidString: $0) == nil ? nil : $0 }
         if restoring, let id {
-            let resume = "\(claude) --resume \(shellQuote(id))"
-            // "No conversation found" (a tab whose chat was never written) fails the resume: start it under that id. A chat
-            // that exists makes the second start fail at once ("already in use"). `||` works in fish on a server as well.
-            guard let uuid else { return resume }
-            return "\(resume) || \(claude) --session-id \(uuid)"
+            guard let uuid else { return "\(claude) --resume \(shellQuote(id))" }
+            // Decided before the start by the transcript (any project folder: ids are unique), so a resumed chat that
+            // ends with an error is never followed by another start. `sh -c` keeps it POSIX under fish on a server.
+            return "sh -c \(shellQuote(resumeOrStartScript)) sh \(uuid) \(claude)"
         }
         return withPrompt(claude + (uuid.map { " --session-id \($0)" } ?? ""), initialPrompt)
     case .codex:
@@ -98,14 +97,18 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
 /// `--settings` JSON with the hooks Hangar's control of a tab relies on (#119): the conversation id, from the tab's own agent
 /// only (`$PPID` of the hook's shell is that claude; a nested `claude -p` never gets these). They only track the conversation:
 /// the installed hooks (if any) still drive the status. A missing CLI (app moved, no `hangar-remote`) is a silent no-op.
+/// `--tab-agent` marks them: with `CLAUDE_CODE_SHELL_PREFIX` each hook's `$PPID` is another wrapper process.
 public func tabAgentSettings(hookCLI: String) -> String {
     func hook(_ kind: HookKind) -> [String: Any] {
-        ["hooks": [["type": "command", "command": "h=\(hookCLI); [ -x \"$h\" ] && \"$h\" event \(kind.rawValue) --agent-pid \"$PPID\"; exit 0"]]]
+        ["hooks": [["type": "command", "command": "h=\(hookCLI); [ -x \"$h\" ] && \"$h\" event \(kind.rawValue) --tab-agent --agent-pid \"$PPID\"; exit 0"]]]
     }
     let root: [String: Any] = ["hooks": ["SessionStart": [hook(.sessionStart)], "UserPromptSubmit": [hook(.prompt)]]]
     let data = (try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
     return String(decoding: data, as: UTF8.self)
 }
+
+/// `$1` the id, the rest the claude command: `--resume` if its transcript exists, else a new conversation under that id.
+let resumeOrStartScript = #"id=$1; shift; for f in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$id".jsonl; do [ -e "$f" ] && exec "$@" --resume "$id"; done; exec "$@" --session-id "$id""#
 
 /// The hooks' CLI on a server (`hangar-remote`, installed by the server check).
 public let remoteHookCLI = #""$HOME/.hangar/bin/hangar-remote""#
@@ -120,9 +123,12 @@ private func withPrompt(_ cmd: String, _ prompt: String?) -> String {
 public struct LaunchMode: Equatable, Sendable {
     public var restoring: Bool
     public var initialPrompt: String?
-    public init(restoring: Bool, initialPrompt: String?) {
+    /// A restored agent tab had no conversation id (saved before #119): it starts anew and says so.
+    public var unlinked: Bool
+    public init(restoring: Bool, initialPrompt: String?, unlinked: Bool = false) {
         self.restoring = restoring
         self.initialPrompt = initialPrompt
+        self.unlinked = unlinked
     }
 }
 
@@ -138,8 +144,8 @@ public enum LaunchContext: Equatable, Sendable {
     case reattach(previous: LaunchMode)
 }
 
-/// Relaunch never re-sends the prompt; a failed resume starts fresh (else "No conversation found" loops),
-/// any other exit resumes the conversation.
+/// Relaunch never re-sends the prompt; a failed codex resume starts fresh (else "No conversation found" loops),
+/// any other exit (and every claude exit) resumes the conversation.
 public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
     switch context {
     case .created(let prompt): return LaunchMode(restoring: false, initialPrompt: prompt)
@@ -148,8 +154,8 @@ public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
     case .reattach(let previous):
         return LaunchMode(restoring: leaf.kind == .claude || leaf.kind == .codex || previous.restoring, initialPrompt: nil)
     case .relaunch(let previous, let code?):
-        let isAgent = leaf.kind == .claude || leaf.kind == .codex
-        let resumeFailed = isAgent && previous.restoring && code != 0
+        // A claude resume never fails for a missing chat (the command starts it instead): any exit resumes the same id.
+        let resumeFailed = leaf.kind == .codex && previous.restoring && code != 0
         return LaunchMode(restoring: !resumeFailed, initialPrompt: nil)
     }
 }

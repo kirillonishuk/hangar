@@ -123,11 +123,12 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         let r = try Remote()
         let server = try r.start()
         defer { server.stop() }
-        let run = try r.run(["event", "session-start", "--agent-pid", "4242"], env: r.leafEnv(), stdin: #"{"session_id":"abc","source":"resume"}"#)
+        let run = try r.run(["event", "session-start", "--tab-agent", "--agent-pid", "4242"], env: r.leafEnv(),
+                            stdin: #"{"session_id":"abc","source":"resume"}"#)
         #expect(run.code == 0)
         let got = await r.inbox.wait(count: 1)
         guard case let .event(m)? = got.first else { Issue.record("no event"); return }
-        #expect(m.agentPid == 4242 && m.session == "abc" && m.source == "resume")
+        #expect(m.agentPid == 4242 && m.tabAgent == true && m.session == "abc" && m.source == "resume")
     }
 
     @Test func remoteSocketRejectsRequests() async throws {

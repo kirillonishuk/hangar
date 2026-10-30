@@ -18,13 +18,14 @@ extension AppState {
         case let .event(e):
             guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
             let status = statuses.status(leaf.id)
-            guard acceptsHook(status, kind: e.kind, session: e.session, source: e.source, agentPid: e.agentPid,
+            let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error, agentPid: e.agentPid,
+                                    tabAgent: e.tabAgent == true)
+            guard acceptsHook(status, kind: e.kind, session: e.session, source: e.source, detail: detail,
                               agent: sessionAgent(leaf.kind), known: leaf.agentSessionId) else { return }
-            let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error, agentPid: e.agentPid)
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
             // The stored id (what restore resumes) moves only with the tab's own agent (#119); codex reports only its own turns.
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
-            let own = e.kind == .codexNotify || fromTabAgent(status, agentPid: e.agentPid)
+            let own = e.kind == .codexNotify || fromTabAgent(status, kind: e.kind, detail: detail)
             if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
@@ -49,12 +50,15 @@ extension AppState {
     }
 
     /// A «Чат N» chat (#116) is named once by its agent's first prompt: the prompt's first visible line, else (a slash
-    /// command, only an image) the agent's terminal title if it set one. The branch keeps its name.
+    /// command, only an image) the agent's terminal title if it set one («Claude Code» is claude's own, no name). The branch
+    /// keeps its name.
     private func nameAutoNamedChat(of leaf: Leaf, prompt: String?) {
         guard let task = state.tasks.first(where: { t in t.autoNamed && (t.tabs.contains { $0.root.leaf(id: leaf.id) != nil } || t.drawer.leaf?.id == leaf.id) })
         else { return }
         let text = prompt.flatMap { $0.trimmingCharacters(in: .whitespaces).hasPrefix("/") ? nil : messageChatName($0) }
-        let title = leafTitles[leaf.id].flatMap { $0 == defaultTitle(leaf.kind) ? nil : messageChatName($0) }
+        let title = leafTitles[leaf.id].flatMap { t in
+            t == defaultTitle(leaf.kind) || t.caseInsensitiveCompare("Claude Code") == .orderedSame ? nil : messageChatName(t)
+        }
         guard let name = text ?? title else { return }
         perform { $0.renameTask(id: task.id, name: name) }
     }

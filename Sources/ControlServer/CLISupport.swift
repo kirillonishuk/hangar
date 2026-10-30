@@ -46,6 +46,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         m.session = validSessionId(own[i + 1])
     }
     if let i = own.firstIndex(of: "--agent-pid"), i + 1 < own.endIndex { m.agentPid = agentPid(own[i + 1]) }
+    if own.contains("--tab-agent") { m.tabAgent = true }
     return m
 }
 

@@ -158,6 +158,8 @@ import Workspace
         event(app, tab: 0, .sessionStart, session: "s", source: "startup", pid: 7)
         event(app, tab: 0, .prompt, session: "s", message: "fix the login")  // the installed hook's copy: not the tab agent
         event(app, tab: 0, .prompt, session: "s", message: "/resume", pid: 7)  // a slash command names nothing
+        app.setTitle("✳ Claude Code", leafId: leaf(app, 0).id)  // nor claude's own title
+        event(app, tab: 0, .prompt, session: "s", message: "/resume", pid: 7)
         #expect(named() == "Чат 1" && app.state.tasks[0].autoNamed)
         event(app, tab: 0, .prompt, session: "s", message: "\n# Fix the **login** page redirect loop after the OAuth callback\nmore", pid: 7)
         #expect(named() == "Fix the **login** page redirect loop" && !app.state.tasks[0].autoNamed)
@@ -167,6 +169,11 @@ import Workspace
         app.perform { $0.tasks[0].autoNamed = true; $0.renameTask(id: task, name: "Mine") }
         event(app, tab: 0, .prompt, session: "s", message: "other", pid: 7)
         #expect(named() == "Mine")
+        // Without prompt text, a title the agent set names it.
+        app.perform { $0.tasks[0].autoNamed = true }
+        app.setTitle("✳ Login redirect fix", leafId: leaf(app, 0).id)
+        event(app, tab: 0, .prompt, session: "s", message: "/compact", pid: 7)
+        #expect(named() == "Login redirect fix")
     }
 
     @Test func clearSwitchesSession() {

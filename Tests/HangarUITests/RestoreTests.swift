@@ -88,13 +88,21 @@ import Workspace
         #expect(!other.1.restoring && !other.0.command.contains("s1") && storedId(app, tab: 1) != "s1")
     }
 
-    /// A failed resume (↩ after exit 1) starts fresh under a new id, stored before the agent runs.
-    @Test func failedResumeStartsFreshWithNewId() throws {
+    /// A resumed chat that ended with an error comes back as itself on ↩: its id is never replaced.
+    @Test func errorExitResumesTheSameId() throws {
         let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])
         let app = app(s)
-        let fresh = try launch(app, tab: 0, .relaunch(previous: LaunchMode(restoring: true, initialPrompt: nil), exitCode: 1))
-        let id = try #require(storedId(app, tab: 0))
-        #expect(!fresh.1.restoring && id != "s1" && fresh.0.command.contains("--session-id \(id)"))
+        let again = try launch(app, tab: 0, .relaunch(previous: LaunchMode(restoring: true, initialPrompt: nil), exitCode: 1))
+        #expect(again.1.restoring && again.0.command.contains("--resume s1") && storedId(app, tab: 0) == "s1")
+    }
+
+    /// A tab saved without an id (before #119) starts anew and says where its conversation is.
+    @Test func unlinkedTabSaysSo() throws {
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])
+        let app = app(s)
+        #expect(try launch(app, tab: 0, .restored).1.unlinked)
+        #expect(try !launch(app, tab: 1, .restored).1.unlinked)
+        #expect(try !launch(app, tab: 0, .created(prompt: nil)).1.unlinked)
     }
 
     /// Codex has no `--session-id`: its id comes from `notify`; without one it starts anew, never `resume --last`.

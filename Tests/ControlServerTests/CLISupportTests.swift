@@ -119,6 +119,8 @@ import AgentStatus
     @Test func agentPidFlag() {
         let stdin = Data(#"{"session_id":"s1","source":"resume"}"#.utf8)
         #expect(eventMessage(kind: "session-start", args: ["--agent-pid", "4242"], env: env, stdin: stdin)?.agentPid == 4242)
+        #expect(eventMessage(kind: "session-start", args: ["--tab-agent", "--agent-pid", "1"], env: env, stdin: stdin)?.tabAgent == true)
+        #expect(eventMessage(kind: "session-start", args: ["--agent-pid", "1"], env: env, stdin: stdin)?.tabAgent == nil)
         for bad in ["", "-1", "0", "12x", "99999999999", "$PPID"] {
             #expect(eventMessage(kind: "session-start", args: ["--agent-pid", bad], env: env, stdin: stdin)?.agentPid == nil, "\(bad)")
         }

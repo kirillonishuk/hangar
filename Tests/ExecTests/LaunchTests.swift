@@ -106,7 +106,28 @@ import Workspace
     @Test func claudeSessionIdAtBirth() throws {
         let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
         #expect(try inner(spec(leaf(.claude, id: id), prompt: "fix")) == "claude --session-id \(id) fix")
-        #expect(try inner(spec(leaf(.claude, id: id), restoring: true)) == "claude --resume \(id) || claude --session-id \(id)")
+        #expect(try inner(spec(leaf(.claude, id: id), restoring: true))
+                == "sh -c \(shellQuote(resumeOrStartScript)) sh \(id) claude")
+    }
+
+    /// The restore command resumes only a conversation with a transcript (in any project folder of the config dir); a chat
+    /// never written starts under its id; a resumed chat ending with an error is not followed by a second start.
+    @Test func resumeOrStartChoosesByTranscript() throws {
+        let dir = NSTemporaryDirectory() + "hg-resume-\(UUID())"
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try FileManager.default.createDirectory(atPath: dir + "/cfg/projects/-other-folder", withIntermediateDirectories: true)
+        let fake = dir + "/claude"
+        try writeScript("#!/bin/sh\necho \"$@\" >> '\(dir)/argv'\nexit 3\n", to: fake)
+        let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
+        let line = agentCommand(for: leaf(.claude, id: id), agent: { _ in shellQuote(fake) }, shell: "sh", restoring: true, initialPrompt: nil)
+        func run() throws -> (status: Int32, argv: String) {
+            try? FileManager.default.removeItem(atPath: dir + "/argv")
+            let r = try sh("CLAUDE_CONFIG_DIR=\(shellQuote(dir + "/cfg")) && export CLAUDE_CONFIG_DIR && \(line)")
+            return (r.status, (try? String(contentsOfFile: dir + "/argv", encoding: .utf8)) ?? "")
+        }
+        #expect(try run() == (3, "--session-id \(id)\n"))
+        FileManager.default.createFile(atPath: dir + "/cfg/projects/-other-folder/\(id).jsonl", contents: Data())
+        #expect(try run() == (3, "--resume \(id)\n"))
     }
 
     /// Hangar's own hooks ride on every claude command line, quoted as one argument; nothing else gets them.
@@ -120,7 +141,7 @@ import Workspace
         let hooks = try #require(json["hooks"] as? [String: [[String: Any]]])
         #expect(Set(hooks.keys) == ["SessionStart", "UserPromptSubmit"])
         let command = try #require(((hooks["SessionStart"]?.first?["hooks"] as? [[String: Any]])?.first)?["command"] as? String)
-        #expect(command == "h='\(cli)'; [ -x \"$h\" ] && \"$h\" event session-start --agent-pid \"$PPID\"; exit 0")
+        #expect(command == "h='\(cli)'; [ -x \"$h\" ] && \"$h\" event session-start --tab-agent --agent-pid \"$PPID\"; exit 0")
         #expect(try !inner(spec(leaf(.codex, id: "t"), restoring: true, hookCLI: cli)).contains("--settings"))
         #expect(try !inner(spec(leaf(.shell), hookCLI: cli)).contains("--settings"))
     }
@@ -140,7 +161,7 @@ import Workspace
         let r = try sh("sh -c \(shellQuote(try command(shellQuote(fake)))); echo \"pid=$$\"")
         let argv = try String(contentsOfFile: dir + "/argv", encoding: .utf8)
         let parent = r.out.split(separator: "=").last.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        #expect(argv == "event session-start --agent-pid \(parent)\n")
+        #expect(argv == "event session-start --tab-agent --agent-pid \(parent)\n")
         #expect(try sh("sh -c \(shellQuote(try command(shellQuote(dir + "/missing"))))").status == 0)
     }
 
@@ -246,11 +267,14 @@ import Workspace
         #expect(launchMode(for: Leaf(kind: .codex, cwd: "/a"), .relaunch(previous: first, exitCode: 2)).initialPrompt == nil)
     }
 
-    @Test func failedContinueFallsBackToFresh() {
-        #expect(launchMode(for: claude, .relaunch(previous: resume, exitCode: 1)) == fresh)
+    /// #119: a claude resume never fails for a missing chat (its command starts it instead), so any exit of a resumed chat
+    /// resumes that same chat again; codex keeps the fresh fallback (else "No conversation found" loops).
+    @Test func failedResumeFallsBackOnlyForCodex() {
         let withId = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")
-        #expect(launchMode(for: withId, .relaunch(previous: resume, exitCode: -1)) == fresh)
-        // The fallback then crashing resumes again: no endless fresh starts, no endless failed resumes.
+        #expect(launchMode(for: withId, .relaunch(previous: resume, exitCode: 1)) == resume)
+        #expect(launchMode(for: withId, .relaunch(previous: resume, exitCode: -1)) == resume)
+        let codex = Leaf(kind: .codex, cwd: "/a", agentSessionId: "x")
+        #expect(launchMode(for: codex, .relaunch(previous: resume, exitCode: 1)) == fresh)
         #expect(launchMode(for: claude, .relaunch(previous: fresh, exitCode: 1)) == resume)
     }
 

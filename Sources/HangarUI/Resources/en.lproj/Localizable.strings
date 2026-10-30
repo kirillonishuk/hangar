@@ -41,6 +41,7 @@
 "hostOffline" = "Not connected to %@";
 "remoteNoGit" = "Remote folder without git — no file tree";
 "sessionDetached" = "Connection lost. Enter to reconnect";
+"conversationNotLinked" = "The previous conversation wasn’t linked — open it from History";
 "emptyNoTask" = "Select a chat or create a new one";
 "emptyNoTabs" = "Start an agent or a terminal";
 "terminalTab" = "Terminal";

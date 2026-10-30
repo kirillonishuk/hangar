@@ -150,11 +150,26 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
         #expect(s.agentPid == nil && fold(s, pidHook(.sessionStart, "x", 9)).agentPid == 9)
     }
 
+    /// `CLAUDE_CODE_SHELL_PREFIX`: each hook runs under another wrapper pid. Hangar's marked SessionStart moves the pid
+    /// (after /clear the installed hooks' events with the new id are the tab's, not frozen out); other kinds don't.
+    @Test func markedSessionStartMovesThePid() {
+        var s = fold(LeafStatus(), pidHook(.sessionStart, "main", 7, source: "startup"))
+        let marked = { (kind: HookKind, id: String, pid: Int32, source: String?) in
+            AgentSignal.hook(kind, session: id, notificationType: nil, source: source, detail: HookDetail(agentPid: pid, tabAgent: true))
+        }
+        #expect(fold(s, marked(.prompt, "other", 8, nil)) == s)
+        s = fold(s, marked(.sessionStart, "cleared", 9, "clear"))
+        #expect(s.agentPid == 9 && s.sessionId == "cleared")
+        #expect(fold(s, .hook(.stop, session: "cleared", notificationType: nil)).state == .done)
+        // Unmarked (a teammate's own pid hooks of an older build) still can't move it.
+        #expect(fold(s, pidHook(.sessionStart, "x", 10, source: "startup")) == s)
+    }
+
     /// Before any pid, the id the leaf was launched with filters a nested agent's first events.
     @Test func knownIdFiltersBeforeFirstHook() {
         #expect(!acceptsHook(LeafStatus(), kind: .prompt, session: "nested", source: nil, agent: .claude, known: "own"))
         #expect(acceptsHook(LeafStatus(), kind: .prompt, session: "own", source: nil, agent: .claude, known: "own"))
-        #expect(acceptsHook(LeafStatus(), kind: .prompt, session: "x", source: nil, agentPid: 7, agent: .claude, known: "own"))
+        #expect(acceptsHook(LeafStatus(), kind: .prompt, session: "x", source: nil, detail: HookDetail(agentPid: 7), agent: .claude, known: "own"))
     }
 
     @Test func codexNotifyNotFiltered() {

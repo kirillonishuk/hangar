@@ -468,7 +468,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         var leaf = self.leaf(id: leaf.id) ?? leaf
         var mode = launchMode(for: leaf, context)
         // An agent resumes only by its own id (#119): without one it starts anew.
-        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil { mode.restoring = false }
+        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil {
+            mode.restoring = false
+            if context == .restored { mode.unlinked = true }
+        }
         // A new claude conversation is born under an id stored right away: the tab knows its chat before any hook.
         if leaf.kind == .claude, !mode.restoring {
             leaf.agentSessionId = UUID().uuidString.lowercased()

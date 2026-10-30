@@ -68,10 +68,12 @@ case $cmd in
     for a in "$@"; do last=$a; done
     session=
     pid=
+    ta=
     while [ $# -gt 0 ]; do
       case $1 in
         --session) [ $# -ge 2 ] || break; session=$(printf %s "$2" | tr -cd 'A-Za-z0-9._-'); shift 2 ;;
         --agent-pid) [ $# -ge 2 ] || break; pid=$(printf %s "$2" | tr -cd 0-9); [ ${#pid} -le 10 ] || pid=; shift 2 ;;
+        --tab-agent) ta=1; shift ;;
         --then) shift; break ;;
         *) shift ;;
       esac
@@ -89,6 +91,7 @@ case $cmd in
       s=
       [ -n "$session" ] && s=",\"session\":\"$session\""
       [ -n "$pid" ] && s="$s,\"agentPid\":$pid"
+      [ -n "$ta" ] && s="$s,\"tabAgent\":true"
       deliver "{\"v\":1,\"type\":\"hook\",\"tab\":\"$HANGAR_TAB_ID\",\"leaf\":\"$HANGAR_LEAF_ID\",\"kind\":\"$kind\"$s" >/dev/null
     fi
     # The original notify command still runs outside Hangar or without the app.

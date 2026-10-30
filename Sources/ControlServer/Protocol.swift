@@ -18,9 +18,12 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var error: String?
     /// `--agent-pid`: set only by the hooks Hangar passes to a tab's own agent (#119).
     public var agentPid: Int32?
+    /// `--tab-agent`: one of Hangar's own `--settings` hooks (#119).
+    public var tabAgent: Bool?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
-                source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil, agentPid: Int32? = nil) {
+                source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil, agentPid: Int32? = nil,
+                tabAgent: Bool? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
@@ -32,6 +35,7 @@ public struct EventMessage: Codable, Equatable, Sendable {
         self.command = command
         self.error = error
         self.agentPid = agentPid
+        self.tabAgent = tabAgent
     }
 }
 
@@ -182,6 +186,7 @@ public enum RemoteMessage {
             let session = validSessionId(object["session"] as? String)
             let pid = object["agentPid"].flatMap(ControlCall.wireInt)
             let args = (session.map { ["--session", $0] } ?? []) + (pid.map { ["--agent-pid", String($0)] } ?? [])
+                + (object["tabAgent"] as? Bool == true ? ["--tab-agent"] : [])
             guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: args, payload: payload)
             else { return .failure(.badField) }
             m.message = m.message.map { String($0.prefix(500)) }

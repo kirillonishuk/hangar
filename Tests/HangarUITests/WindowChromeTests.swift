@@ -57,7 +57,7 @@ import Workspace
         #expect(line.workingHelp == "Следующий работающий чат")
         L10n.language = .en
         line.counts.subagents = 1
-        #expect(line.workingHelp == "Next working session · 1 subagent")
+        #expect(line.workingHelp == "Next working chat · 1 subagent")
     }
 
     /// «ждёт внимания» counts the project's asking agents only: a failure is an error, not «ждёт» (the bell has both).

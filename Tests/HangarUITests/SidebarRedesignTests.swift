@@ -48,7 +48,7 @@ import Workspace
         // The limit: amber, with the reset time when known.
         #expect(SessionStatus(state: .limit, agents: 1, subagents: 0, tabs: 1, limitUntil: "20:20")
                 == SessionStatus(head: "лимит · до 20:20", tail: "1 агент", tone: .waiting))
-        #expect(SessionStatus(state: .limit, agents: 2, subagents: 0, tabs: 2).text == "лимит · 2 агента")
+        #expect(SessionStatus(state: .limit, agents: 2, subagents: 0, tabs: 2).text == "на лимите · 2 агента")
         #expect(SessionStatus(state: .idle, agents: 5, subagents: 0, tabs: 5).text == "простой · 5 агентов")
         // No agent tabs: the tab count instead.
         #expect(SessionStatus(state: .idle, agents: 0, subagents: 0, tabs: 1).text == "нет агентов · 1 вкладка")

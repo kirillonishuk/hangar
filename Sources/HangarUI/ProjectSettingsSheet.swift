@@ -23,7 +23,7 @@ func worktreesInsideNoticeShown(_ project: Project) -> Bool {
 /// A typed folder for copies that the sheet refuses: inside the project (`path`, as typed), unless it is the folder already
 /// stored (existing copies keep working; the notice offers the move instead).
 func worktreeRootRefused(_ root: String?, stored: String?, path: String, remote: Bool) -> Bool {
-    guard let root, root != stored else { return false }
+    guard let root, lexicalPath(root) != stored.map(lexicalPath) else { return false }
     return worktreeRootInsideProject(root, project: path, local: !remote)
 }
 

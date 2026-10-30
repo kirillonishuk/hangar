@@ -65,12 +65,26 @@ public func defaultWorktreeRoot(projectPath: String) -> String {
 public func worktreeRootInsideProject(_ root: String, project: String, local: Bool = true) -> Bool {
     func prepared(_ path: String) -> String {
         let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedPath(local ? resolvedPath((p as NSString).expandingTildeInPath) : p)
+        return local ? lexicalPath(resolvedPath(lexicalPath((p as NSString).expandingTildeInPath))) : lexicalPath(p)
     }
     var r = prepared(root), p = prepared(project)
     guard !r.isEmpty, !p.isEmpty else { return false }
     if local, !caseSensitiveVolume(p) { r = r.lowercased(); p = p.lowercased() }
     return r == p || r.hasPrefix(p == "/" ? "/" : p + "/")
+}
+
+/// `.`, `..`, repeated and trailing slashes folded as text (no stat, no symlinks: the path may be on a server or not exist yet).
+/// `..` above `/` stays at `/`; a relative path keeps its leading `..`.
+public func lexicalPath(_ path: String) -> String {
+    let absolute = path.hasPrefix("/")
+    var parts: [Substring] = []
+    for c in path.split(separator: "/") where c != "." {
+        if c == "..", let last = parts.last, last != ".." { parts.removeLast() }
+        else if c == "..", absolute { continue }
+        else { parts.append(c) }
+    }
+    let joined = parts.joined(separator: "/")
+    return absolute ? "/" + joined : (joined.isEmpty ? "." : joined)
 }
 
 private func trimmedPath(_ path: String) -> String {

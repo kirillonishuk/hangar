@@ -121,6 +121,12 @@ import Testing
         #expect(worktreeRootInsideProject("~/app/wt", project: NSHomeDirectory() + "/app"))
         #expect(worktreeRootInsideProject(" /p/app/wt ", project: " /p/app "))
         #expect(!worktreeRootInsideProject("", project: "/p/app"))
+        // `.` / `..` folded as text, also on a server.
+        #expect(worktreeRootInsideProject("/p/nonexistent/../app/wt", project: "/p/app", local: false))
+        #expect(!worktreeRootInsideProject("/p/app/new/../../x", project: "/p/app", local: false))
+        #expect(worktreeRootInsideProject("/p/./app//wt/", project: "/p/app/.", local: false))
+        #expect(lexicalPath("/a/../../b/./c//") == "/b/c")
+        #expect(lexicalPath("a/../../b") == "../b")
     }
 
     @Test func insideRootResolvesSymlinksAndCase() throws {
@@ -133,6 +139,8 @@ import Testing
         try fm.createSymbolicLink(at: link, withDestinationURL: project)
         // Through a symlink, to a folder that doesn't exist yet.
         #expect(worktreeRootInsideProject(link.path + "/.claude/worktrees", project: project.path))
+        #expect(worktreeRootInsideProject(dir.path + "/nonexistent/../Проект/wt", project: project.path))
+        #expect(!worktreeRootInsideProject(project.path + "/new/../../x", project: project.path))
         #expect(worktreeRootInsideProject(project.path + "/.claude/worktrees", project: link.path + "/"))
         #expect(!worktreeRootInsideProject(defaultWorktreeRoot(projectPath: link.path), project: link.path))
         #expect(!worktreeRootInsideProject(dir.appendingPathComponent("Проект.worktrees").path, project: project.path))

@@ -329,6 +329,9 @@ import Workspace
         // The stored inside folder (set before) is kept as is: existing copies keep working.
         #expect(!worktreeRootRefused("/p/app/.claude/worktrees", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
         #expect(!worktreeRootRefused(nil, stored: "/p/app/wt", path: "/p/app", remote: false))
+        // The stored folder in another spelling is still the stored one.
+        #expect(!worktreeRootRefused("/p/app/.claude/./worktrees/", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
+        #expect(worktreeRootRefused("/p/app/.claude/x/../wt", stored: "/p/app/.claude/worktrees", path: "/p/app", remote: false))
         #expect(!worktreeRootRefused("/p/app.worktrees", stored: nil, path: "/p/app", remote: false))
         // On a server the path is compared as typed: Linux is case-sensitive.
         #expect(!worktreeRootRefused("/P/APP/wt", stored: nil, path: "/p/app", remote: true))

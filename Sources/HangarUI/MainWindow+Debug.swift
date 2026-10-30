@@ -547,14 +547,35 @@ extension MainWindowController {
                 PopoverMenu.show(menu, at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
             default: debugMenu(parts[0], f.first ?? "", rest)
             }
-        case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
+        case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Ветка копии»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntMessage": newTaskModelForDebug?.message = arg  // as if typed into «Задание для …»
+        case "ntPrompt": newTaskModelForDebug?.promptOpen = arg == "open"  // the «Задание для …» fold
         case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
             if let sheet = window?.attachedSheet,
                let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
                                         windowNumber: sheet.windowNumber, context: nil, characters: "\r",
                                         charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
                 uiLog.info("ntCreate handled=\(sheet.performKeyEquivalent(with: e))")
+            }
+        case "ntCancel":  // Esc into the sheet: «Отмена» (cancel action) runs, as a user's key would
+            if let sheet = window?.attachedSheet,
+               let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: sheet.windowNumber, context: nil, characters: "\u{1b}",
+                                        charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53) {
+                uiLog.info("ntCancel handled=\(sheet.performKeyEquivalent(with: e)) open=\(self.window?.attachedSheet != nil)")
+            }
+        case "ntKey":  // ntKey <keyCode> <chars>: a plain key into the sheet (Tab 48, Space 49, → 124, ↩ 36)
+            let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            if let sheet = window?.attachedSheet, let code = f.first.flatMap(UInt16.init) {
+                let arrows: [UInt16: Int] = [123: NSLeftArrowFunctionKey, 124: NSRightArrowFunctionKey, 125: NSDownArrowFunctionKey, 126: NSUpArrowFunctionKey]
+                let chars = arrows[code].flatMap(UnicodeScalar.init).map { String(Character($0)) }
+                    ?? (f.count > 1 ? f[1].replacingOccurrences(of: "\\t", with: "\t").replacingOccurrences(of: "\\r", with: "\r") : "")
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                windowNumber: sheet.windowNumber, context: nil, characters: chars,
+                                                charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { sheet.sendEvent(e) }
+                }
             }
         case "ntState":  // the sheet's progress and errors
             if let m = newTaskModelForDebug {

@@ -107,6 +107,8 @@ public enum Theme {
 
     /// Every sheet (new session, project settings, remote project, server, integration): one width, one card width.
     public static let sheetWidth: CGFloat = 620
+    /// Design-system sheet width (§3.14), so far «Новый чат»; the other sheets move to it in stage 11.
+    public static let chatSheetWidth: CGFloat = 520
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
     public static let sheetPaddingH: CGFloat = 18

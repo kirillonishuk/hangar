@@ -38,6 +38,32 @@ import TestSupport
         #expect(m.branch == "y")
     }
 
+    /// Empty «Название» (decision #116): creatable; the branch follows the message, else «Чат N».
+    @Test func emptyNameNamesTheChatAndItsBranch() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        L10n.language = .ru
+        defer { L10n.language = .system }
+        let project = Project(name: "p", location: .local(path: t.repo), worktreeByDefault: true)
+        var names = ["Чат 1"]
+        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [], chatNames: { names })
+        await m.load()
+        #expect(m.head == .branch("main"))
+        #expect(m.chatName == "Чат 2")
+        #expect(m.branch == "chat-2")
+        #expect(m.canCreate == true)
+        names.append("Чат 2")  // another window created one meanwhile
+        #expect(m.chatName == "Чат 3")
+        m.message = "Почини логин"
+        #expect(m.chatName == "Почини логин")
+        #expect(m.branch == "pochini-login")
+        m.name = "fix"
+        #expect(m.branch == "fix")
+        m.name = ""
+        #expect(await m.create(skipFetch: false) == .worktree(path: t.repo + ".worktrees/pochini-login",
+                                                              branch: "pochini-login", base: "origin/main"))
+    }
+
     @Test func defaultsFromProject() async throws {
         let t = try await repo()
         defer { t.cleanup() }

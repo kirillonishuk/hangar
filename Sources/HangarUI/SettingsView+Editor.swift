@@ -17,7 +17,7 @@ extension SettingsView {
                 }
             }
             Text(verbatim: L10n.editor)
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
+                .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.textStrong)
                 .padding(.top, Theme.EditorSettings.subsectionGap)
             editorThemeCard(ed)
@@ -54,12 +54,12 @@ extension SettingsView {
                 if changes > 0 {
                     Button { ed.reset(nil) } label: { ActionLabel(title: L10n.s(.edResetAll), icon: .restore) }
                         .buttonStyle(HeaderActionStyle())
-                        .font(.system(size: Theme.Control.font))
+                        .font(Theme.Typography.secondary.font())
                         .fixedSize()
                 }
             }
             Text(verbatim: text).foregroundStyle(Theme.ui.text2)
-                .font(.system(size: Theme.fontSize.tab))
+                .font(Theme.Typography.secondary.font())
                 .lineLimit(Theme.EditorSettings.hintLines, reservesSpace: true)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -105,7 +105,7 @@ extension SettingsView {
         VStack(spacing: 0) {
             HStack {
                 Segment(selection: ed.sample, options: EditorPreviewSample.allCases.map { ($0, $0.title) }) { ed.sample = $0 }
-                    .font(.system(size: Theme.fontSize.segment))
+                    .font(Theme.Typography.secondary.font())
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)
@@ -145,7 +145,7 @@ extension SettingsView {
                 if !auto {
                     Button(L10n.s(.edAuto)) { resetOption("editor_line_height") { $0.lineHeight = 0 } }
                         .buttonStyle(HeaderActionStyle())
-                        .font(.system(size: Theme.Control.font))
+                        .font(Theme.Typography.secondary.font())
                         .fixedSize()
                         .help(L10n.s(.edLineHeightTip))
                 }
@@ -366,7 +366,7 @@ private struct EditorColorList: View {
         } label: {
             HStack(spacing: Theme.pickGap) {
                 IconView(icon: open ? .chevronDown : .chevronRight, size: Theme.pickChevronSize, tint: Theme.ui.text3)
-                Text(verbatim: title(section)).font(.system(size: Theme.fontSize.tab, weight: .semibold)).foregroundStyle(Theme.ui.text2)
+                Text(verbatim: title(section)).font(Theme.Typography.secondary.font(.semibold)).foregroundStyle(Theme.ui.text2)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Theme.cardRowPaddingH)
@@ -404,7 +404,7 @@ private struct EditorColorList: View {
                     for c in changed { model.reset(c) }
                 }
             } else if !brackets {
-                Text(verbatim: theme.hex(color)).font(.system(size: S.hexFont, design: .monospaced)).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: theme.hex(color)).font(Theme.Typography.monoSmall.font()).foregroundStyle(Theme.ui.text3)
                     .fixedSize()
             }
         }
@@ -436,11 +436,11 @@ private struct SettingsStepper: View {
     var body: some View {
         HStack(spacing: 0) {
             Button("−") { step(-1) }.buttonStyle(HeaderActionStyle()).disabled(!canDown).help(L10n.s(.edSmaller))
-            Text(verbatim: value).font(.system(size: Theme.fontSize.tab, design: .monospaced)).foregroundStyle(Theme.ui.text)
+            Text(verbatim: value).font(Theme.Typography.mono.font()).foregroundStyle(Theme.ui.text)
                 .frame(minWidth: Theme.EditorSettings.stepperValueWidth)
             Button("+") { step(1) }.buttonStyle(HeaderActionStyle()).disabled(!canUp).help(L10n.s(.edLarger))
         }
-        .font(.system(size: Theme.fontSize.sheetRow))
+        .font(Theme.Typography.body.font())
         .padding(Theme.segmentPadding)
         .fixedSize()
         .background(RoundedRectangle(cornerRadius: Theme.segmentRadius).fill(Theme.ui.field))
@@ -515,7 +515,7 @@ private struct PickField: View {
         Button(action: open) {
             HStack(spacing: Theme.pickGap) {
                 Text(verbatim: title)
-                    .font(.system(size: Theme.fontSize.tab))
+                    .font(Theme.Typography.secondary.font())
                     .foregroundStyle(Theme.ui.sheetText)
                     .lineLimit(1)
                 IconView(icon: .chevronDown, size: Theme.pickChevronSize, tint: Theme.ui.text2)

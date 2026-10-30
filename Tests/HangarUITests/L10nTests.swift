@@ -102,10 +102,10 @@ import Workspace
         defer { L10n.language = .system }
         L10n.language = .ru
         #expect(L10n.exitedWithCode(3) == "процесс завершился с кодом 3")
-        #expect(L10n.sectionPinned == "ЗАКРЕПЛЁННЫЕ")
+        #expect(L10n.sectionPinned == "Закреплённые")
         L10n.language = .en
         #expect(L10n.exitedWithCode(3) == "process exited with code 3")
-        #expect(L10n.sectionPinned == "PINNED")
+        #expect(L10n.sectionPinned == "Pinned")
     }
 
     /// One tooltip for the ☕ in the Settings row and in the rail.
@@ -134,6 +134,6 @@ import Workspace
         #expect(L10n.lookup(.sectionPinned, .ru, in: bogus) == "sectionPinned")
         #expect(L10n.lookup(.exitedWithCode, .en, in: bogus) == "exitedWithCode")
         // The real search finds the bundle without touching SwiftPM's fatalError-ing Bundle.module.
-        #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "PINNED")
+        #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "Pinned")
     }
 }

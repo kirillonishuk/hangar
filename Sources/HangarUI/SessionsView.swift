@@ -46,7 +46,7 @@ struct SessionsView: View {
     private var header: some View {
         HStack(spacing: Theme.historyHeaderGap) {
             Text(L10n.sessionsTitle)
-                .font(.system(size: Theme.historyTitleSize, weight: .semibold))
+                .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.textStrong)
                 .fixedSize()
             // Only remote projects make a scope worth choosing.
@@ -81,7 +81,7 @@ struct SessionsView: View {
             Spacer(minLength: 0)
             let chosen = !model.agents.isEmpty || !model.states.isEmpty
             Button(L10n.sessionsReset) { model.resetChips() }
-                .font(.system(size: Theme.Control.font))
+                .font(Theme.Typography.secondary.font())
                 .buttonStyle(HeaderActionStyle())
                 .opacity(chosen ? 1 : 0)
                 .allowsHitTesting(chosen)
@@ -119,7 +119,7 @@ struct SessionsView: View {
                         if hidden > 0 {
                             HStack {
                                 Button(L10n.sessionsShowMore(hidden)) { model.expanded.insert(g.id) }
-                                    .font(.system(size: Theme.Control.font))
+                                    .font(Theme.Typography.secondary.font())
                                     .buttonStyle(HeaderActionStyle())
                                 Spacer(minLength: 0)
                             }
@@ -158,7 +158,7 @@ struct SessionsView: View {
                     Text(L10n.sessionsLoading).foregroundStyle(Theme.ui.text3)
                 }
             case .offline(let host):
-                Text(L10n.sessionsOffline(host)).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                Text(L10n.sessionsOffline(host)).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
                 Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
                 Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(ActionButtonStyle(primary: true))
             case .empty:
@@ -166,11 +166,11 @@ struct SessionsView: View {
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
-                    .font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
+                    .font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text)
                 Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(ActionButtonStyle())
             }
         }
-        .font(.system(size: Theme.fontSize.base))
+        .font(Theme.Typography.body.font())
         .multilineTextAlignment(.center)
         .frame(maxWidth: Theme.historyCenterHintWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -260,7 +260,7 @@ private struct SessionsScopeLabel: View {
                         }
                     }
             }
-            Text(verbatim: title).font(.system(size: Theme.fontSize.segment)).lineLimit(1)
+            Text(verbatim: title).font(Theme.Typography.secondary.font()).lineLimit(1)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, Theme.historyScopeItemPaddingH)
@@ -284,7 +284,7 @@ private struct SessionsProjectChip: View {
     var body: some View {
         Button(action: remove) {
             HStack(spacing: Theme.Control.iconGap) {
-                Text(verbatim: title).font(.system(size: Theme.fontSize.footer)).lineLimit(1).truncationMode(.middle)
+                Text(verbatim: title).font(Theme.Typography.secondary.font()).lineLimit(1).truncationMode(.middle)
                 IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: hover ? Theme.ui.textStrong : Theme.ui.accentText)
             }
             .foregroundStyle(Theme.ui.accentText)

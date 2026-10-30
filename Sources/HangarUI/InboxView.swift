@@ -45,7 +45,7 @@ struct InboxBell: View {
             HStack(spacing: Theme.Inbox.bellGap) {
                 IconView(icon: .bell, tint: tint)
                 Text(verbatim: bell.count > 99 ? "99+" : bell.count > 0 ? "\(bell.count)" : "")
-                    .font(.system(size: Theme.fontSize.counter, weight: .semibold).monospacedDigit())
+                    .font(Theme.Typography.caption.font(.semibold).monospacedDigit())
                     .foregroundStyle(tint)
                     .frame(width: Theme.Inbox.countWidth, alignment: .leading)
             }
@@ -71,7 +71,7 @@ struct InboxPopover: View {
         Group {
             if urgent.isEmpty, done.isEmpty {
                 Text(L10n.nobodyWaiting)
-                    .font(.system(size: Theme.fontSize.footer))
+                    .font(Theme.Typography.secondary.font())
                     .foregroundStyle(Theme.ui.text3)
                     .frame(maxWidth: .infinity, minHeight: Theme.Inbox.emptyHeight)
             } else if urgent.count + done.count > Theme.Inbox.scrollAfter {
@@ -100,7 +100,7 @@ struct InboxPopover: View {
                         .buttonStyle(HeaderActionStyle())
                         .fixedSize()
                 }
-                .font(.system(size: Theme.fontSize.small))
+                .font(Theme.Typography.caption.font())
                 .padding(.horizontal, Theme.Inbox.rowPaddingH)
                 .padding(.top, urgent.isEmpty ? 0 : Theme.Inbox.sectionPaddingTop)
                 ForEach(done) { InboxRow(app: app, item: $0, act: act) }
@@ -133,14 +133,14 @@ private struct InboxRow: View {
                             Text(verbatim: n.subtitle).foregroundStyle(Theme.ui.text2).truncationMode(.middle)
                             Spacer(minLength: 0)
                             Text(verbatim: waitingTime(since: a.since, now: app.inboxClock))
-                                .font(.system(size: Theme.fontSize.small).monospacedDigit())
+                                .font(Theme.Typography.caption.font().monospacedDigit())
                                 .foregroundStyle(Theme.ui.text3)
                         }
-                        .font(.system(size: Theme.fontSize.footer))
+                        .font(Theme.Typography.secondary.font())
                         .frame(height: Theme.Inbox.firstLine)
                         HStack(spacing: Theme.railInset) {
                             Text(verbatim: n.body)
-                                .font(.system(size: Theme.fontSize.row))
+                                .font(Theme.Typography.body.font())
                                 .foregroundStyle(Theme.ui.text)
                                 .truncationMode(.tail)
                             Spacer(minLength: Theme.Inbox.rowGap)

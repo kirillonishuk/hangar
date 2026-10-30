@@ -1,8 +1,8 @@
 /* Hangar UI strings (ru). Keys = L10n.Key cases; every key must exist in ru and en (L10nTests). */
-"sectionPinned" = "ЗАКРЕПЛЁННЫЕ";
-"sectionProjects" = "ПРОЕКТЫ";
-"sectionArchived" = "АРХИВ";
-"sectionSSHHosts" = "SSH-ХОСТЫ";
+"sectionPinned" = "Закреплённые";
+"sectionProjects" = "Проекты";
+"sectionArchived" = "Архив";
+"sectionSSHHosts" = "SSH-хосты";
 "newTask" = "Новая сессия";
 "newTaskHelp" = "Новая сессия";
 "newTaskIn" = "Новая сессия в %@";
@@ -119,7 +119,7 @@
 "ok" = "ОК";
 "exitStatus" = "код выхода %d";
 
-"drawerTitle" = "ТЕРМИНАЛ";
+"drawerTitle" = "Терминал";
 "drawerToggle" = "Показать/скрыть терминал";
 "drawerHelp" = "Терминал";
 "stateCorrupt" = "Состояние повреждено, копия: %@";

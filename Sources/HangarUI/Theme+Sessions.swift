@@ -7,7 +7,6 @@ extension Theme {
     public static let historyHeaderHeight: CGFloat = 52
     public static let historyFilterHeight: CGFloat = 36
     public static let historyHeaderGap: CGFloat = 14
-    public static let historyTitleSize: CGFloat = 15
     /// Header and chip bar insets: 20 on the left, 16 on the right.
     public static let historyPaddingH: CGFloat = 20
     public static let historyPaddingTrailing: CGFloat = 16

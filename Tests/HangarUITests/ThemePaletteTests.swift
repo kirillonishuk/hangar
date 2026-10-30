@@ -54,6 +54,56 @@ import Workspace
         #expect(contrastRatio(p.tx3.rgb, p.sidebar.rgb) >= 3)
     }
 
+    /// Every theme fills every colour role of the design system (spec §2.7): opaque except the diff tints, 16 ANSI.
+    @Test(arguments: AppTheme.allCases) func paletteFillsEveryRole(_ theme: AppTheme) throws {
+        let p = ThemePalette.of(theme)
+        let names = p.roles.map(\.key)
+        #expect(Set(names) == Set(try Self.specRoles()))
+        #expect(names.count == Set(names).count)
+        for (name, hex) in p.roles where !name.hasPrefix("diff") { #expect(hex.alpha == 1, "\(theme.rawValue).\(name)") }
+        #expect(p.ansi.count == 16)
+        // Roles the palette already had under another name stay aliases until stage 4 (spec §8): nothing moves.
+        #expect(p.bg0 == p.bg && p.text0 == p.strong && p.text1 == p.tx && p.hover2 == p.hoverStrong)
+    }
+
+    /// The role names of the §2.7 table, `ansi` and `editor*` aside.
+    private static func specRoles() throws -> [String] {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("docs/superpowers/specs/2026-10-30-design-system.md")
+        let md = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(md.range(of: "### 2.7")), end = try #require(md[start.upperBound...].range(of: "\n### "))
+        return md[start.upperBound..<end.lowerBound].split(separator: "\n").filter { $0.hasPrefix("| `") }.flatMap { row in
+            row.split(separator: "|")[0].matches(of: /`(\w+)`/).map { String($0.output.1) }
+        }
+    }
+
+    /// The contrast the design system requires (spec §2.7). Pairs that fail with today's values are listed and must
+    /// keep failing until stage 4 gives the roles their §2.7 values (then the list goes).
+    @Test(arguments: AppTheme.allCases) func rolesMeetSpecContrast(_ theme: AppTheme) {
+        let p = ThemePalette.of(theme)
+        var failing: [String] = []
+        func need(_ fg: Hex, _ fgName: String, on bg: Hex, _ bgName: String, _ ratio: Double) {
+            if contrastRatio(fg.rgb, bg.rgb) < ratio { failing.append("\(fgName)/\(bgName)") }
+        }
+        for (t, tn) in [(p.text1, "text1"), (p.text2, "text2")] {
+            for (s, sn) in [(p.bg0, "bg0"), (p.bg1, "bg1"), (p.bg2, "bg2"), (p.selected, "selected")] { need(t, tn, on: s, sn, 4.5) }
+        }
+        need(p.onAccent, "onAccent", on: p.selectedFocus, "selectedFocus", 4.5)
+        need(p.onAccent, "onAccent", on: p.accent, "accent", 4.5)
+        need(p.text3, "text3", on: p.bg1, "bg1", 3)
+        // shortcut: today's `accent` is the light focus blue / amber under white text; stage 4 sets the §2.7 accent.
+        let known: [AppTheme: [String]] = [.navy: ["onAccent/accent"], .graphite: ["onAccent/accent"]]
+        #expect(failing == known[theme, default: []], "\(theme.rawValue)")
+    }
+
+    /// Size tokens sit on the 4 pt grid (spec §2.1); the icon gap is the one exception.
+    @Test func spacingIsOnTheGrid() {
+        let space = [Theme.Space.s1, Theme.Space.s2, Theme.Space.s3, Theme.Space.s4, Theme.Space.s5, Theme.Space.s6, Theme.Space.s8]
+        #expect(space == [4, 8, 12, 16, 20, 24, 32])
+        #expect(Theme.Typography.body.nsFont().pointSize == 13)
+        #expect(Theme.Typography.mono.nsFont(.semibold).isFixedPitch)
+    }
+
     @Test func contrastMatchesWCAG() {
         #expect(abs(contrastRatio(0xffffff, 0x000000) - 21) < 0.01)
         #expect(abs(contrastRatio(0x777777, 0xffffff) - 4.48) < 0.01)

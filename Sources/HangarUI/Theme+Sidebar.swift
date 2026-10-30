@@ -73,13 +73,10 @@ extension Theme {
 extension Theme.ui {
     /// Inline action under the pointer: white at 7 % (reads on every dark theme).
     public static let rowActionHover = Color.white.opacity(0.07)
-    /// Badge border (`control`, the mockup's `.badge`) and fill (`bg` at 35 %).
-    public static var line2: Color { control }
+    /// Badge fill (`bg` at 35 %); its border is `line2`.
     public static var diffBadgeFill: Color { bg.opacity(Theme.diffBadgeFillOpacity) }
     /// Destructive menu item text/icon (= `failed` text), its key at 60 %, its hover (`failed` at 14 %).
     public static var danger: Color { failedText }
     public static var dangerShortcut: Color { failedText.opacity(0.6) }
     public static var dangerHover: Color { failed.opacity(0.14) }
-    /// «ошибка» in a session's status line.
-    public static var failedText: Color { Color(nsColor: Theme.failedText) }
 }

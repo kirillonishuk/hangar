@@ -297,7 +297,8 @@ SF Symbols / `Icon`: `icon.toolbar` 16 (тулбар, подвал сайдба�
 
 Каждый этап — отдельный PR, собирается и выпускается сам по себе; снимки Navy и Dark+ до/после.
 
-1. **Токены и роли без изменения вида.** `Theme.Space/Type/Radius/Height/Icon` + роли в `ThemePalette` (новые имена — алиасы старых значений); тест: каждая тема заполняет все роли, контраст. Риск ≈ 0.
+1. **Токены и роли без изменения вида.** `Theme.Space/Typography/Radius/Height/Icon` (`Sources/HangarUI/Theme+Tokens.swift`) + роли в `ThemePalette` (новые имена — алиасы старых значений); тест: каждая тема заполняет все роли, контраст. Риск ≈ 0.
+   Имена в Swift: `space.1…8` → `Theme.Space.s1…s8`, гэп иконки `Space.iconGap`; `type.*` → `Theme.Typography.*` (`Theme.Type` — метатип Swift), `mono` 11/14 — `Typography.monoSmall`, шрифт — `.font(weight)` / `.nsFont(weight)`; `control.regular/small`, `row.*`, `bar.*`, `card.row` → `Theme.Height.controlRegular`, `rowList`, `barTabs`, `tab`, `cardRow` …; `radius.*` → `Theme.Radius.*` (элемент сегмента — `segmentItem`); `icon.*` → `Theme.Icon.*` (+ `statusDot` 8, `tabDot` 6; внутри `extension Theme` глобальный `Icon` — `HangarUI.Icon`). Роли — `ThemePalette.bg0…` и `Theme.bg0` / `Theme.ui.bg0`. До этапа 4 у `accent` и `onAccent` прежние значения: белый на `accent` в Navy (2.7) и Графите (2.5) ниже 4.5 — тест держит это как известное исключение до этапа 4.
 2. **Шрифт.** Сведение кеглей к 4 + mono, без капса и разрядки; SF Mono по умолчанию для Monaco и терминала (без перезаписи конфига Ghostty пользователя — через overrides, как `termBg`). Обновить DESIGN.md (убрать JetBrains Mono).
 3. **Тексты и словарь.** `Localizable.strings` (ru/en): «Чат», «История», «Отдельная копия», русские подписи инспектора, §5.4 исследования. Только строки.
 4. **Цвета ролей.** Оба сайдбара `bg1`, `bg2` для всплывающего, `selectedFocus` в меню и сайдбаре, прозрачности до 4. Затрагивает все темы — снимки всех трёх.

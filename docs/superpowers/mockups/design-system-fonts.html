@@ -1,0 +1,52 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<title>Hangar — шрифты: кириллица и латиница</title>
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Golos+Text:wght@400;500;600&family=Onest:wght@400;500;600&family=PT+Sans:wght@400;700&family=JetBrains+Mono:wght@400;600&family=IBM+Plex+Mono:wght@400;600&family=Fira+Code:wght@400;600&family=Source+Code+Pro:wght@400;600&family=PT+Mono&display=block&subset=cyrillic" rel="stylesheet">
+<style>
+@font-face{font-family:'SFP';src:local('SF Pro Text'),url('file:///System/Library/Fonts/SFNS.ttf');font-weight:100 900}
+@font-face{font-family:'SFM';src:local('SF Mono'),url('file:///System/Library/Fonts/SFNSMono.ttf');font-weight:100 900}
+body{margin:0;background:#121826;color:#e3e7ef;font:13px 'SFP',system-ui;padding:20px 24px;width:1500px}
+h1{font-size:15px;font-weight:600;margin:0 0 4px}
+p.note{color:#9ba4b7;margin:0 0 16px;font-size:12px}
+table{border-collapse:collapse;width:100%}
+td,th{border-top:1px solid #222b3b;padding:8px 10px;vertical-align:top;text-align:left}
+th{color:#687185;font-weight:500;font-size:12px}
+td.name{width:150px;color:#9ba4b7;font-size:12px}
+td.name b{color:#e3e7ef;font-weight:600;display:block;font-size:13px}
+.ui13{font-size:13px;line-height:18px}.ui12{font-size:12px;line-height:16px;color:#9ba4b7}
+.mono{font-size:12.5px;line-height:18px;white-space:pre}
+.m{font-variant-numeric:tabular-nums;font-size:12px;color:#9ba4b7;width:190px}
+.bad{color:#ff6b61}.ok{color:#73c991}
+h2{font-size:13px;font-weight:600;margin:22px 0 6px}
+</style></head><body>
+<h1>Кириллица рядом с латиницей — интерфейс (13 / 12) и код (12.5)</h1>
+<p class="note">Строки из Hangar. Метрики считает браузер: x-высота кириллической «х» к латинской «x», средняя ширина строчной кириллицы к латинице (у пропорциональных шрифтов кириллица в среднем шире на 10–17 % — это норма; меньше — компактнее русский интерфейс). Шрифты не из системы — веб-шрифты Google Fonts только в этом превью.</p>
+<h2>UI</h2>
+<table id="ui"><tr><th>Шрифт</th><th>RU</th><th>EN</th><th>Метрики</th></tr></table>
+<h2>Моно</h2>
+<table id="mono"><tr><th>Шрифт</th><th>Код и пути</th><th>Метрики</th></tr></table>
+<script>
+const UI=[["SF Pro (системный)","system-ui","macOS, VS Code, Xcode; не распространяется"],["Inter","Inter","OFL; UI-шрифт JetBrains New UI"],["IBM Plex Sans","IBM Plex Sans","OFL"],["Golos Text","Golos Text","OFL; Paratype для Госуслуг"],["Onest","Onest","OFL"],["PT Sans","PT Sans","OFL; установлен в macOS"]];
+const MONO=[["SF Mono","SF NS Mono","Apple; Xcode, Terminal"],["Menlo","Menlo","дефолт VS Code на macOS"],["JetBrains Mono","JetBrains Mono","OFL; дефолт WebStorm"],["IBM Plex Mono","IBM Plex Mono","OFL"],["Fira Code","Fira Code","OFL"],["Source Code Pro","Source Code Pro","OFL"],["PT Mono","PT Mono","OFL; установлен в macOS"]];
+const ru=`<b style="font-weight:600">Новая сессия</b> · Сессии · ЗАКРЕПЛЁННЫЕ · Проекты<br>discount-codes — <span style="color:#9ba4b7">ждёт ответа · 2 агента</span><br><span class="ui12">Незакоммиченное · Ветка по умолчанию · Процесс завершился с кодом 143</span><br><span class="ui12">Щёлкните, чтобы показать сессию с ошибкой: «Отмена» / «Создать»</span>`;
+const en=`<b style="font-weight:600">New session</b> · Sessions · PINNED · Projects<br>discount-codes — <span style="color:#9ba4b7">waiting for reply · 2 agents</span><br><span class="ui12">Uncommitted · Default branch · Process exited with code 143</span><br><span class="ui12">Click to show the failed session: “Cancel” / “Create”</span>`;
+const code=`export function applyDiscount(cart: Cart, code: string): Cart {
+  const rule = DISCOUNTS[code.trim().toUpperCase()]; // 0O 1lI {}[] => !=
+  // Проверить скидку: «промокод» неверный — вернуть корзину
+  return rule ? { ...cart, total: cart.total * (1 - rule.pct) } : cart;
+}
+~/workspace/acme-web/src/checkout/cart.ts  ⎇ feat/discount  +10 −2`;
+const lat="abcdefghijklmnopqrstuvwxyz", cyr="абвгдежзийклмнопрстуфхцчшщъыьэюя";
+function metrics(fam){const c=document.createElement('canvas').getContext('2d');c.font=`100px ${fam}`;
+ const xh=t=>c.measureText(t).actualBoundingBoxAscent; const w=t=>c.measureText(t).width/t.length;
+ const xr=xh('х')/xh('x'), wr=w(cyr)/w(lat), xH=xh('x')/c.measureText('H').actualBoundingBoxAscent;
+ const cls=v=>Math.abs(v-1)<=0.04?'ok':'';
+ return `x-высота: ${xH.toFixed(2)} от H<br>«х»/«x»: <span class="${cls(xr)}">${xr.toFixed(2)}</span><br>ширина кир/лат: <span class="${cls(wr)}">${wr.toFixed(2)}</span>`;}
+function q(f){return f==='system-ui'?"'SFP',system-ui":f==='SF NS Mono'?"'SFM',ui-monospace":f==='Menlo'?f:`'${f}'`}
+document.fonts.ready.then(async()=>{
+ for(const [n,f] of [...UI,...MONO]){try{await document.fonts.load(`13px ${q(f)}`,'Жx')}catch(e){}}
+ const ui=document.getElementById('ui'),mo=document.getElementById('mono');
+ for(const [n,f,l] of UI){const tr=document.createElement('tr');tr.innerHTML=`<td class="name"><b>${n}</b>${l}</td><td class="ui13" style="font-family:${q(f)}">${ru}</td><td class="ui13" style="font-family:${q(f)}">${en}</td><td class="m">${metrics(q(f))}</td>`;ui.appendChild(tr);}
+ for(const [n,f,l] of MONO){const tr=document.createElement('tr');tr.innerHTML=`<td class="name"><b>${n}</b>${l}</td><td class="mono" style="font-family:${q(f)}"></td><td class="m">${metrics(q(f))}</td>`;tr.children[1].textContent=code;mo.appendChild(tr);}
+ document.body.dataset.done=1;});
+</script></body></html>

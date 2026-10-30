@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>Hangar — дизайн-система v2 (направление B «macOS-native»)</title>
+<style>
+/* SF Pro / SF Mono — системные шрифты; файлы читаются только для превью в headless Chrome. */
+@font-face{font-family:'SFP';src:local('SF Pro Text'),local('.SF NS'),url('file:///System/Library/Fonts/SFNS.ttf');font-weight:100 900}
+@font-face{font-family:'SFM';src:local('SF Mono'),url('file:///System/Library/Fonts/SFNSMono.ttf');font-weight:100 900}
+:root{--ui:'SFP',-apple-system,system-ui,sans-serif;--mono:'SFM',ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#0d1119;color:#d7dce6;font:13px/18px var(--ui);-webkit-font-smoothing:antialiased}
+.page{width:1400px;margin:0 auto;padding:28px 32px 60px}
+.page>h1{font-size:20px;line-height:26px;font-weight:600;margin:0 0 6px}
+.page>p.lead{color:#9ba4b7;max-width:860px;margin:0 0 20px}
+.page h2{font-size:15px;line-height:20px;font-weight:600;margin:36px 0 4px}
+.page h2+p{color:#9ba4b7;margin:0 0 12px;max-width:900px}
+.grid{display:grid;gap:16px}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}
+.card0{background:#141a26;border:1px solid #232c3c;border-radius:10px;padding:14px 16px}
+.card0 h3{font-size:13px;font-weight:600;margin:0 0 8px}
+table.t{border-collapse:collapse;width:100%;font-size:12px;line-height:16px}
+table.t td,table.t th{padding:5px 8px;border-top:1px solid #222b3b;text-align:left;vertical-align:top}
+table.t th{color:#687185;font-weight:500;border-top:0}
+table.t td.n{font-family:var(--mono);color:#e3e7ef;white-space:nowrap}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-3px;margin-right:6px;border:1px solid rgba(255,255,255,.1)}
+.labelbar{display:flex;gap:10px;align-items:baseline;margin:22px 0 8px}.labelbar b{font-size:13px}.labelbar span{color:#9ba4b7;font-size:12px}
+
+/* ===== app frame, direction B ===== */
+.app{position:relative;width:1280px;height:780px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.10);background:var(--bg0);color:var(--t1);
+  display:grid;grid-template-columns:256px 1fr 320px;grid-template-rows:52px 1fr;box-shadow:0 30px 70px rgba(0,0,0,.5);font-family:var(--ui)}
+.app.noinsp{grid-template-columns:256px 1fr}
+.ico{display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--t2);width:16px;height:16px}
+.ico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i14{width:14px;height:14px}.i12{width:12px;height:12px}
+.tl{display:flex;gap:8px}.tl i{width:12px;height:12px;border-radius:50%;background:#ff5f57;display:block}.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.mono{font-family:var(--mono)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.d-work{background:var(--work)}.d-wait{background:var(--wait)}.d-done{background:var(--done)}.d-fail{background:var(--fail)}.d-idle{background:var(--idle)}
+/* sidebar */
+.side{grid-row:1/3;background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;padding-top:52px;position:relative;min-height:0}
+.side .tl{position:absolute;top:20px;left:20px}
+.side .tgl{position:absolute;top:14px;left:212px;width:28px;height:24px;display:flex;align-items:center;justify-content:center}
+.sec{height:28px;display:flex;align-items:center;padding:0 12px 0 20px;margin-top:8px;font-size:11px;line-height:14px;font-weight:600;color:var(--t3)}
+.sec .grow{flex:1}
+.row{height:28px;margin:0 8px;padding:0 8px;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;color:var(--t1)}
+.row .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.row .br{font:11px var(--mono);color:var(--t3);max-width:92px;overflow:hidden;text-overflow:ellipsis}
+.row .st{font-size:11px}
+.row.chat{padding-left:32px}
+.row.sel{background:var(--selF);color:var(--onAcc)}.row.sel .br,.row.sel .st{color:var(--onAccDim)}.row.sel .dot{box-shadow:0 0 0 1.5px var(--onAcc)}
+.row.hov{background:var(--hover)}
+.row .act{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--hover2)}
+.side .foot{margin-top:auto;height:44px;display:flex;align-items:center;gap:4px;padding:0 12px;border-top:1px solid var(--line)}
+.ib{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.ib.on{background:var(--hover2)}.ib.on .ico{color:var(--t0)}
+/* toolbar */
+.toolbar{grid-column:2/-1;display:flex;align-items:center;gap:8px;height:52px;padding:0 12px 0 16px;background:var(--bg1);border-bottom:1px solid var(--line)}
+.toolbar .tt{display:flex;flex-direction:column;line-height:16px;margin-right:4px}
+.toolbar .tt b{font-size:13px;font-weight:600;color:var(--t0)}.toolbar .tt span{font-size:11px;line-height:14px;color:var(--t2)}
+.toolbar .grow{flex:1}
+.tbtn{height:28px;min-width:28px;padding:0 8px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--t2);font-size:12px;position:relative}
+.tbtn.branch{border:1px solid var(--line2);font:12px var(--mono);color:var(--t1);padding:0 6px 0 8px}
+.tbtn.branch.open{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent)}
+.tbtn.on{background:var(--hover2)}
+.tbtn .badge{position:absolute;top:2px;right:0;min-width:14px;height:14px;border-radius:7px;background:var(--fail);color:#fff;font:600 10px/14px var(--ui);padding:0 3px;text-align:center}
+.pill{height:22px;padding:0 8px;border-radius:6px;font-size:12px;line-height:22px;color:var(--accT);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+.search{height:28px;width:260px;border-radius:6px;background:var(--field);border:1px solid var(--line2);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t3);font-size:13px}
+/* center */
+.center{display:flex;flex-direction:column;min-width:0;min-height:0}
+.tabs{height:36px;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--bg1);border-bottom:1px solid var(--line)}
+.tab{height:26px;padding:0 12px;border-radius:6px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);position:relative}
+.tab.on{background:var(--hover2);color:var(--t0)}
+.tab .tdot{position:absolute;left:22px;top:5px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--bg1)}
+.tab.on .tdot{box-shadow:0 0 0 1.5px var(--hover2)}
+.termwrap{flex:1;background:var(--bg0);overflow:hidden}
+.term{font:12.5px/19px var(--mono);white-space:pre;padding:10px 14px;color:var(--t1)}
+.term .c2{color:var(--t2)}.term .c3{color:var(--t3)}.term .ok{color:var(--done)}.term .del{color:var(--fail)}.term .acc{color:var(--accT)}.term .cl{color:#d97757}
+.term .box{display:inline-block;border:1px solid #d97757;border-radius:4px;padding:4px 10px;margin:2px 0 8px}
+.drawer{height:28px;border-top:1px solid var(--line);background:var(--bg1);display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:var(--t2)}
+.phead{height:28px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:var(--bg1);border-bottom:1px solid var(--line);font-size:12px;color:var(--t2)}
+.phead .grow{flex:1}
+.phead .hb{height:22px;padding:0 6px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+.phead .hb.on{color:var(--accT);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+/* inspector */
+.insp{background:var(--bg1);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.seg{display:flex;padding:2px;border-radius:7px;background:var(--field);border:1px solid var(--line2)}
+.seg div{flex:1;height:22px;padding:0 10px;border-radius:5px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--t2);white-space:nowrap}
+.seg div.on{background:var(--hover2);color:var(--t0);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.seg .cnt{font-size:11px;color:var(--t3)}
+.insp .seg{margin:8px 12px}
+.itool{display:flex;align-items:center;gap:4px;padding:2px 12px 6px;font-size:12px;color:var(--t2)}
+.popbtn{height:22px;padding:0 6px 0 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t1)}
+.popbtn:hover{background:var(--hover)}
+.grp{height:24px;display:flex;align-items:center;padding:0 20px;color:var(--t3);font-size:11px;font-weight:600;margin-top:4px}
+.frow{height:24px;margin:0 8px;padding:0 8px 0 12px;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
+.frow .fi{width:14px;height:14px;border-radius:3px;font:600 7.5px/14px var(--ui);text-align:center;color:#fff;flex:none}
+.frow .grow{flex:1}
+.frow .num{font:11px var(--mono)}.frow .s{font:600 11px var(--mono);width:10px;text-align:center}
+.frow.sel{background:var(--sel)}
+/* popover / menu */
+.pop{position:absolute;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:6px;font-size:13px;color:var(--t1);z-index:5}
+.pop::before{content:"";position:absolute;top:-6px;width:10px;height:10px;background:var(--bg2);border-left:1px solid var(--line2);border-top:1px solid var(--line2);transform:rotate(45deg);left:var(--arrow,40px)}
+.pop .field{margin:0 0 6px}
+.pop .ph{height:24px;display:flex;align-items:center;padding:0 8px;color:var(--t3);font-size:11px;font-weight:600}
+.pop .ph .grow{flex:1}
+.pop .it{height:24px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:6px;white-space:nowrap}
+.pop .it .m{font:12px var(--mono);flex:1}
+.pop .it .r{font-size:11px;color:var(--t3)}
+.pop .it.hl{background:var(--selF);color:var(--onAcc)}.pop .it.hl .ico,.pop .it.hl .r{color:var(--onAccDim)}
+.pop .it.dis{opacity:.4}
+.pop .sep{height:1px;background:var(--line2);margin:6px 0}
+.pop .note{padding:4px 8px 2px;font-size:12px;line-height:16px;color:var(--t2)}
+.pop .note b{color:var(--wait);font-weight:600}
+.pop .hdr{display:flex;align-items:center;height:28px;padding:0 4px 0 8px;font-weight:600}
+.pop .hdr .grow{flex:1}
+.inb{display:flex;gap:8px;padding:6px 8px;border-radius:6px}
+.inb .ico{margin-top:1px}
+.inb .tx{flex:1;min-width:0}
+.inb .where{font-size:12px;line-height:16px;color:var(--t2)}
+.inb .what{font-size:13px;line-height:18px;color:var(--t1)}
+.inb .time{font-size:11px;color:var(--t3);white-space:nowrap}
+.inb.hl{background:var(--hover)}
+.inb .acts{display:flex;gap:6px;margin-top:6px}
+/* fields, buttons */
+.field{height:28px;border-radius:6px;background:var(--field);border:1px solid var(--line2);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t1);font-size:13px}
+.field.focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent)}
+.field .ph{color:var(--t3)}
+.field.mono{font:12px var(--mono)}
+.btn{height:28px;padding:0 12px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;font-size:13px;background:var(--btn);color:var(--t1);white-space:nowrap}
+.btn.sm{height:22px;padding:0 8px;font-size:12px}
+.btn.pri{background:var(--acc);color:var(--onAcc)}
+.btn.plain{background:none;color:var(--t2)}
+.dd{height:28px;border-radius:6px;border:1px solid var(--line2);background:var(--btn);display:inline-flex;align-items:center;gap:6px;padding:0 8px;font:12px var(--mono);color:var(--t1)}
+.sw2{width:32px;height:18px;border-radius:9px;background:var(--acc);position:relative;flex:none}.sw2::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.sw2.off{background:var(--hover2)}.sw2.off::after{left:2px;right:auto;background:var(--t2)}
+/* sheet */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:4}
+.sheet{position:absolute;left:50%;top:96px;transform:translateX(-50%);width:520px;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5);color:var(--t1);z-index:5}
+.sheet .sh{padding:20px 20px 0;font-size:15px;line-height:20px;font-weight:600;color:var(--t0)}
+.sheet .sh span{font-weight:400;color:var(--t2);font-size:13px;margin-left:6px}
+.sheet .body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.lbl{display:block;font-size:12px;line-height:16px;color:var(--t2);margin-bottom:4px}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{border:1px solid var(--line2);border-radius:10px;padding:12px;display:flex;gap:8px;align-items:flex-start}
+.opt .rb{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--t3);flex:none;margin-top:2px}
+.opt.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 8%,transparent)}
+.opt.on .rb{border:4px solid var(--acc);background:#fff}
+.opt b{display:block;font-weight:600;color:var(--t0)}
+.opt small{display:block;font-size:12px;line-height:16px;color:var(--t2);margin-top:2px}
+.inline{display:flex;align-items:center;gap:8px}.inline .w{flex:1}
+.chk{display:flex;align-items:center;gap:8px}
+.chk .bx{width:14px;height:14px;border-radius:4px;background:var(--acc);display:flex;align-items:center;justify-content:center}
+.chk .bx svg{width:10px;height:10px;stroke:#fff;stroke-width:2;fill:none}
+.disc{display:flex;align-items:center;gap:6px;color:var(--t1)}
+.hint{font-size:12px;line-height:16px;color:var(--t3)}
+.sheet .ft{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line2)}
+/* history */
+.hist{flex:1;overflow:hidden;background:var(--bg0);padding:8px 0}
+.hgrp{height:28px;display:flex;align-items:center;padding:0 24px;margin-top:8px;font-size:11px;font-weight:600;color:var(--t3)}
+.hrow{height:32px;margin:0 12px;padding:0 12px;border-radius:6px;display:flex;align-items:center;gap:10px;font-size:13px;white-space:nowrap}
+.hrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.hrow .meta{font-size:12px;color:var(--t3);width:220px;overflow:hidden;text-overflow:ellipsis}
+.hrow .meta2{font-size:12px;color:var(--t3);width:72px;text-align:right}
+.hrow .time{font:11px var(--mono);color:var(--t3);width:40px;text-align:right}
+.hrow.hov{background:var(--hover)}
+.hrow.hov .meta2{display:none}
+.empty{padding:6px 24px;color:var(--t3);font-size:12px}
+/* settings window */
+.sett{position:relative;width:900px;height:600px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:var(--bg0);color:var(--t1);display:grid;grid-template-columns:216px 1fr;box-shadow:0 30px 70px rgba(0,0,0,.5);font-family:var(--ui)}
+.sett .sside{background:var(--bg1);border-right:1px solid var(--line);padding:52px 0 0;position:relative}
+.sett .sside .tl{position:absolute;top:20px;left:20px}
+.sett .row{gap:10px}
+.sett .main{display:flex;flex-direction:column;min-width:0}
+.sett .stb{height:52px;display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600;color:var(--t0);border-bottom:1px solid var(--line)}
+.sett .content{padding:20px 24px;display:flex;flex-direction:column;gap:8px}
+.sett .gh{font-size:11px;font-weight:600;color:var(--t3);padding:12px 12px 4px}
+.cardx{background:var(--bg1);border:1px solid var(--line);border-radius:10px}
+.crow{min-height:40px;display:flex;align-items:center;gap:12px;padding:6px 12px;border-top:1px solid var(--line)}
+.crow:first-child{border-top:0}
+.crow .l{flex:1}
+.crow .l small{display:block;font-size:12px;line-height:16px;color:var(--t3)}
+.ver{font:12px var(--mono);color:var(--t2)}
+
+/* themes: one set of ROLES, two value sets */
+.navy{--bg0:#121826;--bg1:#182030;--bg2:#1f2738;--field:#121826;--hover:#202a3b;--hover2:#2b3446;--sel:#2b3446;--selF:#2a6fd6;--line:#232c3d;--line2:#2f3a4d;--btn:#2b3446;
+  --t0:#ffffff;--t1:#e3e7ef;--t2:#9ba4b7;--t3:#6b7489;--acc:#2a6fd6;--accT:#5fb0ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#ffb340;--done:#73c991;--fail:#f14c4c;--failT:#ff6b61;--idle:#5f687a;--gA:#73c991;--gM:#e2c08d;--gD:#f07a6e}
+.dplus{--bg0:#1e1e1e;--bg1:#252526;--bg2:#2c2c2d;--field:#1e1e1e;--hover:#2a2d2e;--hover2:#37373d;--sel:#37373d;--selF:#0e639c;--line:#303030;--line2:#3c3c3c;--btn:#3a3d41;
+  --t0:#ffffff;--t1:#cccccc;--t2:#a3a3a3;--t3:#7a7a7a;--acc:#0e639c;--accT:#3794ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#e8a33d;--done:#89d185;--fail:#f14c4c;--failT:#f48771;--idle:#6e6e6e;--gA:#73c991;--gM:#e2c08d;--gD:#f48771}
+.solo .page>*{display:none!important}.solo .page>.shown{display:block!important}.solo .page{padding:20px;width:auto}
+</style></head>
+<body>
+<div class="page" id="page">
+<h1>Hangar — дизайн-система v2 · направление B «macOS-native»</h1>
+<p class="lead">Решения владельца: B (как Xcode), SF Pro + SF Mono, «Чат» / «Новый чат» / «История», без строки состояния, русские подписи инспектора, один цвет обоих сайдбаров, ветка всегда видна и переключается. Обязательная спека — <code>docs/superpowers/specs/2026-10-30-design-system.md</code>.</p>
+
+<h2>Токены</h2>
+<p>Размеры не зависят от темы. Тема заполняет только цветовые роли (справа — Navy и Dark+).</p>
+<div class="grid g3">
+ <div class="card0"><h3>Шрифт</h3><table class="t">
+  <tr><th>Роль</th><th>pt / строка</th><th>Пример</th></tr>
+  <tr><td>title</td><td class="n">15/20 600</td><td style="font-size:15px;font-weight:600">Новый чат</td></tr>
+  <tr><td>body</td><td class="n">13/18 400·600</td><td>discount-codes</td></tr>
+  <tr><td>secondary</td><td class="n">12/16 400</td><td style="font-size:12px;color:#9ba4b7">src/checkout</td></tr>
+  <tr><td>caption</td><td class="n">11/14 400·600</td><td style="font-size:11px;color:#6b7489">Проекты</td></tr>
+  <tr><td>mono</td><td class="n">12/16 · 11/14</td><td class="mono" style="font-size:12px">feat/discount +10 −2</td></tr></table></div>
+ <div class="card0"><h3>Сетка, радиусы, высоты</h3><table class="t">
+  <tr><td>отступы</td><td class="n">4 8 12 16 20 24 32</td></tr>
+  <tr><td>радиусы</td><td class="n">6 · 10 · 12</td></tr>
+  <tr><td>контрол regular / small</td><td class="n">28 / 22</td></tr>
+  <tr><td>строка сайдбара</td><td class="n">28</td></tr>
+  <tr><td>строка списка, дерева, меню</td><td class="n">24</td></tr>
+  <tr><td>строка истории, навигации</td><td class="n">32 / 28</td></tr>
+  <tr><td>тулбар · вкладки · заголовок панели</td><td class="n">52 · 36 · 28</td></tr>
+  <tr><td>иконки</td><td class="n">16 · 14 · 12</td></tr></table></div>
+ <div class="card0"><h3>Глубина, состояния, движение</h3><table class="t">
+  <tr><td>разделитель / рамка</td><td>1 px line / line2</td></tr>
+  <tr><td>поповер, меню</td><td>bg2, тень 0 8 24 .4</td></tr>
+  <tr><td>лист</td><td>bg2, тень 0 20 50 .5</td></tr>
+  <tr><td>наведение / нажатие</td><td>hover / hover2, мгновенно</td></tr>
+  <tr><td>выбрано</td><td>selFocus (акцент) или sel</td></tr>
+  <tr><td>фокус</td><td>кольцо accent 3 pt 25 %</td></tr>
+  <tr><td>неактивно</td><td>.4</td></tr>
+  <tr><td>движение</td><td>сайдбар 180 мс; остальное — системное</td></tr></table></div>
+</div>
+<div class="grid g2" style="margin-top:16px"><div class="card0"><h3>Роли — Navy</h3><div id="sw-navy"></div></div><div class="card0"><h3>Роли — Dark+</h3><div id="sw-dplus"></div></div></div>
+
+<h2>Экраны</h2>
+<p>Главное — список чатов, вкладки, терминал, изменения. Второстепенное — иконки в подвале сайдбара, тулбар справа. Строки состояния нет: обновление и «не спать» — в тулбаре, ошибки и ожидание — колокольчик, язык и миникарта — заголовок панели редактора.</p>
+<div id="frames"></div>
+</div>
+
+<script>
+const I={
+ sidebar:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M6 3v10"/></svg>',
+ insp:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M10 3v10"/></svg>',
+ bell:'<svg viewBox="0 0 16 16"><path d="M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3z"/><path d="M6.5 14h3"/></svg>',
+ branch:'<svg viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5" r="1.5"/><path d="M4.5 5v6M11.5 6.5c0 3-7 2-7 4.5"/></svg>',
+ chevD:'<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>',
+ chevR:'<svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>',
+ plus:'<svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
+ newchat:'<svg viewBox="0 0 16 16"><path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z"/><path d="M8 5.5v3M6.5 7h3"/></svg>',
+ history:'<svg viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v2.5H5M8 5v3l2 1.5"/></svg>',
+ gear:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>',
+ term:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.5 6l2 2-2 2M8 10.5h3.5"/></svg>',
+ search:'<svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>',
+ server:'<svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1.2"/><rect x="2" y="9" width="12" height="4.5" rx="1.2"/></svg>',
+ folder:'<svg viewBox="0 0 16 16"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.5l1.5 1.5h5.5a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>',
+ check:'<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+ cup:'<svg viewBox="0 0 16 16"><path d="M3 6h8v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M11 7h1.5a1.5 1.5 0 0 1 0 3H11M6 2.5v1.5M8.5 2.5v1.5"/></svg>',
+ warn:'<svg viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13z"/><path d="M8 6.5v3M8 11.5v.01"/></svg>',
+ ask:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M6.3 6.3a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1v.5M8 11.5v.01"/></svg>',
+ palette:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 2v12M8 8h6"/></svg>',
+ pencil:'<svg viewBox="0 0 16 16"><path d="M10.5 2.5l3 3-8 8H2.5v-3z"/></svg>',
+ plug:'<svg viewBox="0 0 16 16"><path d="M5 2v3M11 2v3M3.5 5h9v2a4.5 4.5 0 0 1-9 0zM8 11.5V14"/></svg>',
+ dots:'<svg viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" stroke-width="2.2"/></svg>',
+ claude:'<svg viewBox="0 0 16 16" style="stroke:#d97757;stroke-width:1.8"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>',
+ codex:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 6.5l2 1.5-2 1.5M8.5 10h2"/></svg>',
+ file:'<svg viewBox="0 0 16 16"><path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3"/></svg>'
+};
+const ic=(n,c='')=>`<span class="ico ${c}">${I[n]}</span>`;
+const TERM=`<span class="box"><span class="cl">✻</span> Welcome to <b>Claude Code</b>
+  <span class="c2">cwd: ~/workspace/acme-web</span></span>
+<span class="c2">&gt;</span> Add a discount code field to the checkout
+
+<span class="ok">●</span> Read(src/checkout/cart.ts)
+  <span class="c3">⎿  Read 64 lines</span>
+<span class="ok">●</span> I'll add a <b>DiscountField</b> component and validate codes in <span class="acc">applyDiscount()</span>.
+<span class="ok">●</span> Update(src/checkout/cart.ts)
+  <span class="c3">⎿  Updated src/checkout/cart.ts with 14 additions and 3 removals</span>
+     <span class="ok">41 +  export function applyDiscount(cart: Cart, code: string): Cart {</span>
+     <span class="ok">42 +    const rule = DISCOUNTS[code.trim().toUpperCase()];</span>
+     <span class="del">43 -    return cart;</span>
+<span class="ok">●</span> Bash(npm test -- cart)
+  <span class="c3">⎿  PASS  src/checkout/cart.test.ts (12 tests)</span>
+
+<span style="color:var(--wait)">●</span> Do you want to create <b>src/checkout/DiscountField.tsx</b>?
+  <span class="acc">❯ 1. Yes</span>
+    2. Yes, and don't ask again this session
+    3. No, tell Claude what to do differently`;
+const SESS=[
+ {p:'acme-web',items:[{n:'discount-codes',d:'wait',br:'feat/discount',sel:1},{n:'fix-login-redirect',d:'work',br:'main'},{n:'перевод на Vite',d:'done',br:'chore/vite'},{n:'вопрос про кеш',d:'idle',br:'main'}]},
+ {p:'hangar',items:[{n:'design-system',d:'fail',br:'docs/design-system'},{n:'statusline-order',d:'idle',br:'main'}]},
+ {p:'infra',closed:1,items:[]}];
+const FILES=[['TS','#3178c6','cart.ts','+10','−2','M','gM'],['⚛','#1f8fb8','DiscountField.tsx','+38','','A','gA'],['TS','#3178c6','cart.test.ts','+21','−4','M','gM'],['{}','#a08b3c','package.json','+1','−1','M','gM']];
+
+function sidebar(o={}){
+ const rows=SESS.map(g=>`<div class="row ${g.p==='acme-web'&&o.hovProj?'hov':''}">${ic('folder')}<span class="nm">${g.p}</span>${g.p==='acme-web'&&o.hovProj?`<span class="act" title="Новый чат в acme-web — ⌘N">${ic('plus','i12')}</span>`:''}${g.closed?ic('chevR','i12'):''}</div>`+
+  g.items.map(s=>{const sel=s.sel&&!o.noSel;const right=s.d==='wait'?`<span class="st" style="color:${sel?'':'var(--wait)'}">ждёт ответа</span>`:s.d==='fail'?`<span class="st" style="color:${sel?'':'var(--failT)'}">ошибка</span>`:`<span class="br">${s.br}</span>`;
+   return `<div class="row chat ${sel?'sel':''}"><span class="dot d-${s.d}"></span><span class="nm">${s.n}</span>${right}</div>`}).join('')).join('');
+ return `<div class="side"><div class="tl"><i></i><i></i><i></i></div><div class="tgl">${ic('sidebar')}</div>
+  <div class="sec"><span class="grow">Проекты</span></div>${rows}
+  <div class="sec"><span class="grow">Серверы</span></div><div class="row">${ic('server')}<span class="nm">devbox</span><span class="st" style="color:var(--t3)">подключён</span></div>
+  <div class="foot"><div class="ib" title="Новый чат — ⌘N">${ic('newchat')}</div><div class="ib ${o.hist?'on':''}" title="История — ⌘Y">${ic('history')}</div><div style="flex:1"></div><div class="ib" title="Настройки — ⌘,">${ic('gear')}</div></div></div>`;}
+function toolbar(o={}){
+ const title=o.hist?`<div class="tt"><b>История</b></div>`:`<div class="tt"><b>discount-codes</b><span>acme-web</span></div><span class="tbtn branch ${o.branch?'open':''}">${ic('branch','i14')}feat/discount${ic('chevD','i12')}</span>`;
+ const mid=o.hist?`<div class="seg" style="width:220px"><div class="on">Все</div><div>Claude</div><div>Codex</div></div><span class="popbtn">Все проекты ${ic('chevD','i12')}</span><span class="grow"></span><div class="search">${ic('search','i14')}Поиск по истории</div>`:`<span class="grow"></span>`;
+ return `<div class="toolbar">${title}${mid}<span class="pill">Обновить до 0.9.0</span><span class="tbtn" title="Mac не уснёт, пока агенты работают">${ic('cup')}</span><span class="tbtn ${o.inbox?'on':''}">${ic('bell')}<span class="badge">2</span></span>${o.hist?'':`<span class="tbtn">${ic('insp')}</span>`}</div>`;}
+function center(o={}){
+ const tabs=`<div class="tabs"><div class="tab ${o.editor?'':'on'}">${ic('claude','i14')}<span class="tdot" style="background:var(--wait)"></span>claude</div><div class="tab">${ic('codex','i14')}<span class="tdot" style="background:var(--work)"></span>codex</div><div class="tab ${o.editor?'on':''}">${ic('file','i14')}cart.ts</div><div class="tab">${ic('term','i14')}zsh</div><div class="tab">${ic('plus','i14')}</div></div>`;
+ const body=o.editor?`<div class="phead">${ic('file','i12')}<span>src/checkout/cart.ts</span><span class="grow"></span><span class="hb">TypeScript ●</span><span class="hb on">Миникарта</span></div><div class="termwrap"><div class="term"><span class="c3"> 39</span>  <span style="color:#c586c0">import</span> { DISCOUNTS } <span style="color:#c586c0">from</span> <span style="color:#ce9178">'./discounts'</span>;
+<span class="c3"> 40</span>
+<span class="c3"> 41</span>  <span style="color:#569cd6">export function</span> <span style="color:#dcdcaa">applyDiscount</span>(cart: <span style="color:#4ec9b0">Cart</span>, code: <span style="color:#4ec9b0">string</span>): <span style="color:#4ec9b0">Cart</span> {
+<span class="c3"> 42</span>    <span style="color:#569cd6">const</span> rule = DISCOUNTS[code.<span style="color:#dcdcaa">trim</span>().<span style="color:#dcdcaa">toUpperCase</span>()];
+<span class="c3"> 43</span>    <span style="color:#c586c0">return</span> rule ? { ...cart, total: cart.total * (<span style="color:#b5cea8">1</span> - rule.pct) } : cart;
+<span class="c3"> 44</span>  }</div></div>`:`<div class="termwrap"><div class="term">${TERM}</div></div>`;
+ return `<div class="center">${tabs}${body}<div class="drawer">${ic('term','i14')}Терминал</div></div>`;}
+function inspector(){
+ return `<div class="insp"><div class="seg"><div>Файлы</div><div class="on">Изменения <span class="cnt">4</span></div><div>Git</div><div>Поиск</div></div>
+  <div class="itool"><span class="popbtn">Не в коммите ${ic('chevD','i12')}</span></div><div class="grp">src/checkout</div>
+  ${FILES.map((f,i)=>`<div class="frow ${i===0?'sel':''}"><span class="fi" style="background:${f[1]}">${f[0]}</span><span>${f[2]}</span><span class="grow"></span><span class="num" style="color:var(--gA)">${f[3]}</span><span class="num" style="color:var(--gD)">${f[4]}</span><span class="s" style="color:var(--${f[6]})">${f[5]}</span></div>`).join('')}</div>`;}
+function main(th,o={}){return `<div class="app ${th}">${sidebar(o)}${toolbar(o)}${center(o)}${inspector()}${o.extra||''}</div>`;}
+
+function sheet(){return `<div class="scrim"></div><div class="sheet">
+ <div class="sh">Новый чат<span>acme-web</span></div>
+ <div class="body">
+  <div><span class="lbl">Название</span><div class="field focus">discount-codes</div></div>
+  <div><span class="lbl">Где работать</span><div class="choice">
+   <div class="opt"><span class="rb"></span><div><b>В папке проекта</b><small>Ветка <span class="mono">main</span>. Изменения увидят все чаты проекта.</small></div></div>
+   <div class="opt on"><span class="rb"></span><div><b>В отдельной копии</b><small>Своя папка и ветка (worktree). Не мешает другим чатам.</small></div></div></div></div>
+  <div><span class="lbl">Ветка копии</span><div class="inline"><div class="field mono w">hangar/discount-codes</div><span style="color:var(--t2)">от</span><span class="dd">${ic('branch','i12')}origin/main${ic('chevD','i12')}</span></div></div>
+  <div class="chk"><span class="bx"><svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.5 2.5 4.5-5.5"/></svg></span>Подготовить копию: <span class="mono" style="font-size:12px">pnpm install</span></div>
+  <div class="disc">${ic('chevR','i12')}Задание для Claude <span class="hint">— можно написать потом</span></div>
+ </div>
+ <div class="ft"><span class="btn">Отмена</span><span class="btn pri">Создать чат</span></div></div>`;}
+
+function branchPop(){return `<div class="pop" style="left:400px;top:46px;width:320px;--arrow:60px">
+ <div class="field">${ic('search','i14')}<span class="ph">Найти или создать ветку</span></div>
+ <div class="ph">Локальные</div>
+ <div class="it">${ic('check','i14')}<span class="m">feat/discount</span><span class="r">текущая</span></div>
+ <div class="it dis"><span class="ico i14"></span><span class="m">main</span><span class="r">2 дня</span></div>
+ <div class="it dis"><span class="ico i14"></span><span class="m">chore/vite</span><span class="r">в чате «перевод на Vite»</span></div>
+ <div class="ph">Удалённые</div>
+ <div class="it dis"><span class="ico i14"></span><span class="m">origin/release-2.4</span><span class="r">5 дней</span></div>
+ <div class="sep"></div>
+ <div class="it hl">${ic('plus','i14')}<span style="flex:1">Новая ветка от feat/discount…</span></div>
+ <div class="sep"></div>
+ <div class="note"><b>Есть незакоммиченные изменения (4 файла).</b> Переключиться можно после коммита или stash. Новая ветка возьмёт изменения с собой.</div></div>`;}
+
+function inboxPop(){return `<div class="pop" style="left:870px;top:46px;width:380px;--arrow:310px">
+ <div class="hdr"><span class="grow">Требуют внимания</span></div>
+ <div class="inb hl">${ic('ask','i14')}<div class="tx"><div class="where">acme-web › discount-codes · claude</div><div class="what">Спрашивает разрешение: создать DiscountField.tsx</div><div class="acts"><span class="btn sm pri">Открыть</span></div></div><span class="time">сейчас</span></div>
+ <div class="inb"><span class="ico i14" style="color:var(--fail)">${I.warn}</span><div class="tx"><div class="where">hangar › design-system · codex</div><div class="what">Процесс завершился с кодом 1</div></div><span class="time">3 мин</span></div>
+ <div class="sep"></div>
+ <div class="hdr"><span class="grow" style="font-weight:400;color:var(--t3);font-size:11px">Готово недавно</span><span class="btn sm plain">Очистить</span></div>
+ <div class="inb">${ic('check','i14')}<div class="tx"><div class="where">acme-web › перевод на Vite · claude</div><div class="what">Готово</div></div><span class="time">12 мин</span></div></div>`;}
+
+function history(th){
+ const G=[['Закрытые чаты',[['claude','Перевести сборку на Vite','acme-web · перевод на Vite','34 сообщ.','вчера']]],
+  ['Суббота, 24 октября',[['codex','Review the checkout flow for accessibility issues','acme-web','20 сообщ.','13:10'],['claude','Add a discount code field to the checkout','acme-web · discount-codes','18 сообщ.','12:40']]],
+  ['Пятница, 23 октября',[['claude','Why does the cart total round 0.1 + 0.2 wrong?','acme-web','12 сообщ.','12:11'],['claude','Почему тесты падают только в CI?','hangar','9 сообщ.','10:02']]],
+  ['Четверг, 22 октября',[['codex','Migrate the cart store to a reducer','acme-web','20 сообщ.','13:10'],['claude','Build a search bar with keyboard navigation','acme-web','40 сообщ.','12:39']]]];
+ let i=0;
+ const body=G.map(([h,rows])=>`<div class="hgrp">${h}</div>`+rows.map(r=>{i++;return `<div class="hrow ${i===3?'hov':''}">${ic(r[0])}<span class="nm">${r[1]}</span><span class="meta">${r[2]}</span><span class="meta2">${r[3]}</span>${i===3?'<span class="btn sm">Продолжить</span>':''}<span class="time">${r[4]}</span></div>`}).join('')).join('');
+ return `<div class="app noinsp ${th}">${sidebar({hist:1,noSel:1})}${toolbar({hist:1})}<div class="center"><div class="hist">${body}</div></div></div>`;}
+
+function settings(th){
+ const nav=[['gear','Общие',1],['palette','Оформление'],['pencil','Редактор'],['bell','Уведомления'],['plug','Интеграции'],['dots','Дополнительно']];
+ return `<div class="sett ${th}"><div class="sside"><div class="tl"><i></i><i></i><i></i></div>${nav.map(n=>`<div class="row ${n[2]?'sel':''}">${n[2]?`<span class="ico" style="color:var(--onAcc)">${I[n[0]]}</span>`:ic(n[0])}<span class="nm">${n[1]}</span></div>`).join('')}</div>
+ <div class="main"><div class="stb">Общие</div><div class="content">
+  <div class="cardx">
+   <div class="crow"><span class="l">Язык</span><div class="seg" style="width:260px"><div>Системный</div><div class="on">Русский</div><div>English</div></div></div>
+   <div class="crow"><span class="l">Агент по умолчанию<small>Запускается в новом чате</small></span><div class="seg" style="width:160px"><div class="on">claude</div><div>codex</div></div></div>
+   <div class="crow"><span class="l">Внешний редактор<small>Открывать файлы по ⌥-клику</small></span><div class="field" style="width:260px"><span class="ph">не задан</span></div></div></div>
+  <div class="gh">Обновления</div>
+  <div class="cardx">
+   <div class="crow"><span class="l">Проверять обновления</span><span class="sw2"></span></div>
+   <div class="crow"><span class="l">Версия <span class="ver">0.8.0</span><small>Последняя проверка — сегодня в 09:14</small></span><span class="btn">Проверить сейчас</span></div></div>
+ </div></div></div>`;}
+
+const ROLES={navy:{bg0:'#121826',bg1:'#182030',bg2:'#1f2738',field:'#121826',hover:'#202a3b',hover2:'#2b3446',sel:'#2b3446',selFocus:'#2a6fd6',line:'#232c3d',line2:'#2f3a4d',text0:'#ffffff',text1:'#e3e7ef',text2:'#9ba4b7',text3:'#6b7489',accent:'#2a6fd6',accentText:'#5fb0ff',working:'#4fc1ff',waiting:'#ffb340',done:'#73c991',failed:'#f14c4c'},
+ dplus:{bg0:'#1e1e1e',bg1:'#252526',bg2:'#2c2c2d',field:'#1e1e1e',hover:'#2a2d2e',hover2:'#37373d',sel:'#37373d',selFocus:'#0e639c',line:'#303030',line2:'#3c3c3c',text0:'#ffffff',text1:'#cccccc',text2:'#a3a3a3',text3:'#7a7a7a',accent:'#0e639c',accentText:'#3794ff',working:'#4fc1ff',waiting:'#e8a33d',done:'#89d185',failed:'#f14c4c'}};
+for(const k in ROLES){const r=ROLES[k],keys=Object.keys(r),half=Math.ceil(keys.length/2);
+ const cell=x=>x?`<td><span class="sw" style="background:${r[x]}"></span>${x}</td><td class="n">${r[x]}</td>`:'<td></td><td></td>';
+ let h='<table class="t">';for(let i=0;i<half;i++)h+=`<tr>${cell(keys[i])}${cell(keys[i+half])}</tr>`;document.getElementById('sw-'+k).innerHTML=h+'</table>';}
+
+const F=[];
+for(const th of ['navy','dplus']){const T=th==='navy'?'Navy':'Dark+';
+ F.push([`main-${th}`,'Главное окно',T,main(th)]);
+ F.push([`editor-${th}`,'Редактор во вкладке: язык и миникарта — в заголовке панели',T,main(th,{editor:1,hovProj:1})]);
+ F.push([`sheet-${th}`,'Новый чат — отдельная копия',T,main(th,{extra:sheet()})]);
+ F.push([`history-${th}`,'История (⌘Y), строка под курсором',T,history(th)]);
+ F.push([`settings-${th}`,'Настройки — Общие',T,settings(th)]);
+ F.push([`branch-${th}`,'Переключатель ветки — есть изменения',T,main(th,{branch:1,extra:branchPop()})]);
+ F.push([`inbox-${th}`,'Колокольчик — входящие',T,main(th,{inbox:1,extra:inboxPop()})]);}
+const fr=document.getElementById('frames');
+fr.innerHTML=F.map(f=>`<div class="labelbar" data-k="${f[0]}"><b>${f[1]}</b><span>${f[2]}</span></div><div class="frame" id="${f[0]}">${f[3]}</div>`).join('');
+const solo=location.hash.slice(1);
+if(solo){document.body.classList.add('solo');fr.classList.add('shown');fr.querySelectorAll('.labelbar,.frame').forEach(e=>{if(e.id!==solo)e.style.display='none'});}
+</script>
+</body></html>

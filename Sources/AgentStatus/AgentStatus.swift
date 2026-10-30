@@ -69,6 +69,17 @@ public func fromTabAgent(_ status: LeafStatus, kind: HookKind, session: String?,
     return ["clear", "compact", "resume"].contains(source) || session != nil && session == status.sessionId
 }
 
+/// A server whose `hangar-remote` predates pids (< `firstPidRemoteVersion`) never marks the tab agent's hooks: there the
+/// first SessionStart after a launch and the switches set the stored id, as before #119 (else the spare id of a moved
+/// transcript would never be kept, and every restore would start anew with the note).
+public func legacyTakesId(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, agentPid: Int32?) -> Bool {
+    agentPid == nil && status.agentPid == nil && kind == .sessionStart && validSessionId(session) != nil
+        && (status.sessionId == nil || ["clear", "compact", "resume", "fork"].contains(source))
+}
+
+/// The first `hangar-remote` that forwards `--agent-pid`.
+public let firstPidRemoteVersion = 6
+
 /// The tab's own agent's `--settings` hooks only track its conversation (/resume, /clear, compact, fork, a lost SessionStart);
 /// the status still comes from the installed hooks, so the two never count one event twice.
 /// Other events: another session id than the leaf's (`known`: the one it was launched with) is a nested agent's. Without

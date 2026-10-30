@@ -15,12 +15,22 @@ extension AppState {
                                 hasWorking: { [weak self] in self?.hasWorking(host: $0) ?? false },
                                 onMessage: { [weak self] in self?.handleRemote(host: $0, $1) })
         hosts.onConnected = { [weak self] host in
-            self?.flushKills(host)
-            self?.onHostConnected?(host)
-            self?.inspectorHostConnected(host)
-            self?.refreshHeads(host: host)
-            Task { await self?.sweepTombstones(host: host) }
-            Task { await self?.integrateHost(host) }
+            guard let self else { return }
+            flushKills(host)
+            inspectorHostConnected(host)
+            refreshHeads(host: host)
+            Task { await self.sweepTombstones(host: host) }
+            // An older `hangar-remote` is replaced before the host's tabs start: their hooks need its pids (#119).
+            guard autoUpgradeRemote, remote.hosts[host]?.report?.remoteOutdated(current: hangarRemoteVersion) == true else {
+                onHostConnected?(host)
+                Task { await self.integrateHost(host) }
+                return
+            }
+            Task {
+                await self.upgradeRemoteScript(host)
+                self.onHostConnected?(host)
+                await self.integrateHost(host)
+            }
         }
         hosts.statusline = statuslineRenderer(configURL: configURL)
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }

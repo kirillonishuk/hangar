@@ -472,8 +472,21 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             mode.restoring = false
             if context == .restored { mode.unlinked = true }
         }
+        var newId = leaf.kind == .claude && !mode.restoring
+        // On this Mac the transcript decides (on a server, the launch command does): resumed only where claude finds it.
+        if leaf.kind == .claude, mode.restoring, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId),
+           UUID(uuidString: id) != nil {
+            switch transcriptChoice(id: id, cwd: leaf.cwd, configDir: claudeConfigDir) {
+            case .resume: break
+            case .start: mode.restoring = false  // nothing was said: started under the same id
+            case .foreign:
+                mode.restoring = false
+                mode.unlinked = true
+                newId = true
+            }
+        }
         // A new claude conversation is born under an id stored right away: the tab knows its chat before any hook.
-        if leaf.kind == .claude, !mode.restoring {
+        if newId {
             leaf.agentSessionId = UUID().uuidString.lowercased()
             setAgentSessionIdQuietly(leaf)
         }
@@ -499,9 +512,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
                                   userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port,
-                                  hookCLI: tabHookCLI, unlinkedNote: L10n.conversationNotLinked)
+                                  hookCLI: tabHookCLI)
         return (spec, mode)
     }
+
+    /// Claude's config folder on this Mac: the login shell's `CLAUDE_CONFIG_DIR` once read at launch, else `~/.claude`.
+    var claudeConfigDir: URL { (integrationPathsCache?.claude ?? claudeSettingsURL).deletingLastPathComponent() }
 
     /// A launch's new conversation id: saved without `perform`, whose sync may be what is starting this launch.
     private func setAgentSessionIdQuietly(_ leaf: Leaf) {

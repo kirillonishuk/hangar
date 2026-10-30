@@ -106,8 +106,11 @@ import Workspace
     @Test func claudeSessionIdAtBirth() throws {
         let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
         #expect(try inner(spec(leaf(.claude, id: id), prompt: "fix")) == "claude --session-id \(id) fix")
-        let restore = try inner(spec(leaf(.claude, id: id), restoring: true))
-        #expect(restore.hasPrefix("sh -c \(shellQuote(resumeOrStartScript)) sh \(id) ") && restore.hasSuffix(" \(shellQuote("/bin/zsh")) \(shellQuote("claude"))"))
+        // On this Mac the caller chose by the transcript already: a plain resume in the tab's login shell.
+        #expect(try inner(spec(leaf(.claude, id: id), restoring: true)) == "claude --resume \(id)")
+        let remote = agentCommand(for: leaf(.claude, id: id), agent: { $0.rawValue }, shell: "sh", restoring: true, initialPrompt: nil,
+                                  transcriptCheck: (#""$SHELL""#, "note"))
+        #expect(remote.hasPrefix("sh -c \(shellQuote(resumeOrStartScript)) sh \(id) ") && remote.hasSuffix(" \(shellQuote("note")) \"$SHELL\" \(shellQuote("claude"))"))
     }
 
     /// The restore command resumes only a conversation whose transcript was recorded in this folder; a chat never written
@@ -124,7 +127,7 @@ import Workspace
         try writeScript("#!/bin/sh\nprintf '%s\\n' \"$4\" >> '\(dir)/ran'\nexit 3\n", to: login)
         let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
         let line = agentCommand(for: leaf(.claude, id: id), agent: { _ in "claude" }, shell: "sh", restoring: true, initialPrompt: nil,
-                                loginShell: shellQuote(login), unlinkedNote: "open it from History")
+                                transcriptCheck: (shellQuote(login), "open it from History"))
         func run() throws -> (status: Int32, ran: String, out: String) {
             try? FileManager.default.removeItem(atPath: dir + "/ran")
             let r = try sh("cd \(shellQuote(dir + "/work dir")) && CLAUDE_CONFIG_DIR=\(shellQuote(dir + "/cfg")) && export CLAUDE_CONFIG_DIR && \(line)")
@@ -140,6 +143,35 @@ import Workspace
         try #"{"type":"user","cwd":"\#(dir)/work dir"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
         let own = try run()
         #expect(own.status == 3 && own.ran == "claude --resume \(id)\n" && own.out.isEmpty)
+        // No cwd among the first lines: this folder.
+        try #"{"type":"custom-title"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
+        #expect(try run().ran == "claude --resume \(id)\n")
+        // An empty $SHELL on a server: /bin/sh runs it.
+        let bare = agentCommand(for: leaf(.claude, id: id), agent: { _ in shellQuote(login) }, shell: "sh", restoring: true,
+                                initialPrompt: nil, transcriptCheck: (#""$SHELL""#, ""))
+        let r = try sh("cd \(shellQuote(dir + "/work dir")) && SHELL= && CLAUDE_CONFIG_DIR=\(shellQuote(dir + "/cfg")) && export CLAUDE_CONFIG_DIR SHELL && \(bare)")
+        #expect(r.status == 3)  // `/bin/sh -l -i -c "<login> --resume …"` ran the fake, which exits 3
+    }
+
+    /// This Mac's choice: JSON `cwd` (escaped paths too) of the first lines that have one; none → this folder.
+    @Test func transcriptChoiceReadsJSON() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("hg-choice-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let folder = dir.appendingPathComponent("projects/-some")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90", cwd = #"/w/a "quoted" \ dir"#
+        #expect(transcriptChoice(id: id, cwd: cwd, configDir: dir) == .start)
+        let file = folder.appendingPathComponent(id + ".jsonl")
+        func write(_ objects: [[String: Any]]) throws {
+            let lines = try objects.map { String(decoding: try JSONSerialization.data(withJSONObject: $0), as: UTF8.self) }
+            try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+        }
+        try write([["type": "custom-title"], ["type": "user", "cwd": cwd]])
+        #expect(transcriptChoice(id: id, cwd: cwd, configDir: dir) == .resume)
+        try write([["type": "user", "cwd": "/elsewhere"]])
+        #expect(transcriptChoice(id: id, cwd: cwd, configDir: dir) == .foreign)
+        try write([["type": "custom-title"]])
+        #expect(transcriptChoice(id: id, cwd: cwd, configDir: dir) == .resume)
     }
 
     /// Hangar's own hooks ride on every claude command line, quoted as one argument; nothing else gets them.

@@ -96,6 +96,28 @@ import Workspace
         #expect(again.1.restoring && again.0.command.contains("--resume s1") && storedId(app, tab: 0) == "s1")
     }
 
+    /// On this Mac the transcript decides: recorded here → resume; never written → started under the same id; recorded in
+    /// another folder (claude would not find it from here) → a new id, stored, and the note.
+    @Test func localTranscriptDecides() throws {
+        let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
+        let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp", agentSessionId: id)])
+        let app = app(s)
+        let cfg = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-cfg-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: cfg) }
+        app.claudeSettingsURL = cfg.appendingPathComponent("settings.json")
+        let start = try launch(app, tab: 0, .restored)
+        #expect(!start.1.restoring && !start.1.unlinked && start.0.command.contains("--session-id \(id)") && storedId(app, tab: 0) == id)
+        let folder = cfg.appendingPathComponent("projects/-tmp")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try #"{"cwd":"/tmp"}"#.write(to: folder.appendingPathComponent(id + ".jsonl"), atomically: true, encoding: .utf8)
+        let resume = try launch(app, tab: 0, .restored)
+        #expect(resume.1.restoring && resume.0.command.contains("--resume \(id)"))
+        try #"{"cwd":"/somewhere/else"}"#.write(to: folder.appendingPathComponent(id + ".jsonl"), atomically: true, encoding: .utf8)
+        let foreign = try launch(app, tab: 0, .restored)
+        let new = try #require(storedId(app, tab: 0))
+        #expect(!foreign.1.restoring && foreign.1.unlinked && new != id && foreign.0.command.contains("--session-id \(new)"))
+    }
+
     /// A tab saved without an id (before #119) starts anew and says where its conversation is.
     @Test func unlinkedTabSaysSo() throws {
         let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])

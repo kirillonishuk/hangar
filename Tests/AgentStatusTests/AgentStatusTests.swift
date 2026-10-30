@@ -170,6 +170,16 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
         #expect(fold(s, marked(.sessionStart, "cleared", 12, "startup")).agentPid == 12)
     }
 
+    /// An older `hangar-remote` (no pids): the first SessionStart after a launch and the switches set the id, nothing else.
+    @Test func legacyHostTakesFirstSessionStart() {
+        #expect(legacyTakesId(LeafStatus(), kind: .sessionStart, session: "spare", source: "startup", agentPid: nil))
+        let running = status(.idle, session: "spare")
+        #expect(!legacyTakesId(running, kind: .sessionStart, session: "nested", source: "startup", agentPid: nil))
+        #expect(legacyTakesId(running, kind: .sessionStart, session: "next", source: "clear", agentPid: nil))
+        #expect(!legacyTakesId(LeafStatus(), kind: .prompt, session: "x", source: nil, agentPid: nil))
+        #expect(!legacyTakesId(LeafStatus(), kind: .sessionStart, session: "x", source: "startup", agentPid: 7))
+    }
+
     /// Before any pid, the id the leaf was launched with filters a nested agent's first events.
     @Test func knownIdFiltersBeforeFirstHook() {
         #expect(!acceptsHook(LeafStatus(), kind: .prompt, session: "nested", source: nil, agent: .claude, known: "own"))

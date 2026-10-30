@@ -63,12 +63,13 @@ extension Git {
     /// Ignored files on disk that `target` tracks: `switch` replaces them silently (git treats ignored as expendable).
     /// `target` is a full ref or a commit; at most `limit` paths.
     func ignoredOverwritten(by target: String, limit: Int = 20) async throws -> [String] {
-        let ignored = try await exec(["--no-optional-locks", "ls-files", "-z", "-o", "-i", "--exclude-standard", "--directory"])
+        // The whole repository, top-relative: a project in a subfolder still loses a root `.env`.
+        let ignored = try await exec(["--no-optional-locks", "ls-files", "-z", "--full-name", "-o", "-i", "--exclude-standard", "--directory", "--", ":(top)"])
             .split(separator: "\0").map(String.init)
         guard !ignored.isEmpty else { return [] }
         let set = Set(ignored)
         var hit: [String] = [], underDir: [String] = []
-        for t in try await exec(["ls-tree", "-r", "-z", "--name-only", target]).split(separator: "\0").map(String.init) {
+        for t in try await exec(["ls-tree", "-r", "-z", "--full-tree", "--name-only", target]).split(separator: "\0").map(String.init) {
             if set.contains(t) { hit.append(t); continue }
             var prefix = Substring(t)
             while let slash = prefix.lastIndex(of: "/") {
@@ -80,8 +81,8 @@ extension Git {
         if !underDir.isEmpty {
             // shortcut: past 500 paths the check is skipped as a conflict, not run with a huge argv; change if it bites.
             if underDir.count > 500 { return Array((hit + underDir).prefix(limit)) }
-            let present = try await exec(["--no-optional-locks", "ls-files", "-z", "-o", "-i", "--exclude-standard", "--"]
-                                         + underDir.map { ":(literal)" + $0 })
+            let present = try await exec(["--no-optional-locks", "ls-files", "-z", "--full-name", "-o", "-i", "--exclude-standard", "--"]
+                                         + underDir.map { ":(top,literal)" + $0 })
             hit += present.split(separator: "\0").map(String.init)
         }
         return Array(hit.sorted().prefix(limit))

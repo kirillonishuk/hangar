@@ -159,6 +159,34 @@ import Exec
         #expect(FileManager.default.fileExists(atPath: t.repo + "/build/out.o"))
     }
 
+    /// A project in a subfolder: the root `.env` and changes outside the subfolder count too.
+    @Test func subfolderProjectSeesWholeRepository() async throws {
+        let t = try ignoredFixture(); defer { t.cleanup() }
+        let web = t.repo + "/apps/web"
+        try FileManager.default.createDirectory(atPath: web, withIntermediateDirectories: true)
+        try "w".write(toFile: web + "/w.txt", atomically: true, encoding: .utf8)
+        try t.git("add", ".", in: t.repo)
+        try t.git("commit", "-q", "-m", "web", in: t.repo)
+        try t.git("checkout", "-q", "other", in: t.repo)
+        try FileManager.default.createDirectory(atPath: web, withIntermediateDirectories: true)
+        try t.commit(file: "apps/web/w.txt", on: "other")
+        try t.git("checkout", "-q", "main", in: t.repo)
+        let g = Git(repo: web)
+        try "SECRET".write(toFile: t.repo + "/.env", atomically: true, encoding: .utf8)
+        await #expect(throws: BranchSwitchError.wouldOverwriteIgnored([".env"])) { try await g.switchBranch(to: "other", isRemote: false) }
+        #expect(try String(contentsOfFile: t.repo + "/.env", encoding: .utf8) == "SECRET")
+        try FileManager.default.removeItem(atPath: t.repo + "/.env")
+        try "x".write(toFile: t.repo + "/a.txt", atomically: true, encoding: .utf8)
+        #expect(try await g.uncommittedCount() == 1)
+        try t.git("checkout", "-q", "--", "a.txt", in: t.repo)
+        try FileManager.default.createDirectory(atPath: t.repo + "/build", withIntermediateDirectories: true)
+        try "local".write(toFile: t.repo + "/build/keep.txt", atomically: true, encoding: .utf8)
+        await #expect(throws: BranchSwitchError.wouldOverwriteIgnored(["build/keep.txt"])) { try await g.switchBranch(to: "other", isRemote: false) }
+        try FileManager.default.removeItem(atPath: t.repo + "/build/keep.txt")
+        try await g.switchBranch(to: "other", isRemote: false)
+        #expect(try await g.currentBranch() == "other")
+    }
+
     @Test func countIgnoresConfigThatHidesChanges() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let g = Git(repo: t.repo)

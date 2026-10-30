@@ -125,7 +125,7 @@ private struct PaneHeaderButton: View {
 
     var body: some View {
         Button(action: action) {
-            IconView(icon: icon, active: hover, size: Theme.smallIconSize).padding(Theme.tabCloseInset)
+            IconView(icon: icon, active: hover, size: Theme.Icon.inline).padding(Theme.tabCloseInset)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
         .onHover { h in hover = h }

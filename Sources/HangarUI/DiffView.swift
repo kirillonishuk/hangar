@@ -293,7 +293,7 @@ struct DiffView: View {
     private func navButton(_ icon: Icon, help: String, next: Bool) -> some View {
         let enabled = editor.changes.canStep
         return Button { editor.goChange(next: next) } label: {
-            IconView(icon: icon, size: Theme.smallIconSize, tint: Theme.ui.text2)
+            IconView(icon: icon, size: Theme.Icon.inline, tint: Theme.ui.text2)
                 .frame(width: Theme.Diff.navButtonWidth, height: Theme.Diff.navButtonHeight)
                 .overlay(RoundedRectangle(cornerRadius: Theme.Diff.navButtonRadius).strokeBorder(Theme.ui.line, lineWidth: 1))
         }

@@ -9,7 +9,7 @@ extension Theme {
         static let headerHeight: CGFloat = Theme.Height.barTabs
         static let buttonFont: CGFloat = Theme.Typography.secondary.size
         /// The conflict / notice bar above the text.
-        static let barHeight: CGFloat = 30
+        static let barHeight: CGFloat = Theme.Height.barPane
         static let barFont: CGFloat = Theme.Typography.body.size
         static let radius: CGFloat = Theme.Radius.control
     }

@@ -47,6 +47,5 @@ extension Theme {
 extension Theme {
     public static let continueRows = 5
     public static let continueKept = 50
-    public static let continueRowHeight: CGFloat = Height.rowLarge
     public static let continueWidth: CGFloat = 440
 }

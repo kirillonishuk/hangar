@@ -19,15 +19,13 @@ extension Theme {
     public static let projectRowTrailing: CGFloat = Space.s3
     /// Session row: name and badge end 8 inside the highlight (16 from the sidebar's edge); the actions overhang it by 4.
     public static let sessionRowTrailing: CGFloat = Space.s4
-    /// Inline row actions are small icon buttons; they overhang the row's edge by `rowActionsOverhang`.
-    public static let rowActionSize: CGFloat = Theme.Height.controlSmall
+    /// Inline row actions (`control.small` icon buttons) overhang the row's edge by this much.
     public static let rowActionsOverhang: CGFloat = Space.s1
-    /// Section header (`.sec`): 28 high, 8 above, text at x 20, buttons 12 from the edge and 2 apart; filter ring 1.5.
-    public static let sectionHeaderHeight: CGFloat = 28
+    /// Section header (§3.3, `bar.pane` high): 8 above, text at x 20, buttons 12 from the edge and 4 apart; filter ring 1.5.
     public static let sectionHeaderTop: CGFloat = Space.s2
     public static let sectionHeaderX: CGFloat = Space.s5
     public static let sectionHeaderTrailing: CGFloat = Space.s3
-    public static let sectionActionGap: CGFloat = 2
+    public static let sectionActionGap: CGFloat = Space.s1
     public static let sectionFilterRing: CGFloat = 1.5
     /// Footer (§3.3): 44 high, icon buttons 28 at 12 from the edges, 4 apart; in the rail they stack, 8 above and below.
     public static let sidebarFooterHeight: CGFloat = 44

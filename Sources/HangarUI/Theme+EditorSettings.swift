@@ -39,28 +39,28 @@ extension Theme {
         static let previewGutter: CGFloat = 26
         static let previewDiffGutter: CGFloat = 22
         static let previewDiffMarker: CGFloat = 16
-        static let previewCodeGap: CGFloat = 14
+        static let previewCodeGap: CGFloat = Space.s3
         static let cursorWidth: CGFloat = 2
         static let guideWidth: CGFloat = 1
         /// The current line drawn as a frame (an editor theme without a line fill), as Monaco does.
         static let lineBorder: CGFloat = 2
         static let outlineWidth: CGFloat = 1.5
         static let outlineRadius: CGFloat = 3
-        static let headerHeight: CGFloat = 34
+        static let headerHeight: CGFloat = Height.barPane
 
         // Color list
-        static let rowHeight: CGFloat = 28
+        static let rowHeight: CGFloat = Height.rowList
         static let swatch: CGFloat = 14
         static let swatchRadius: CGFloat = 3
         static let swatchGap: CGFloat = Space.s1
         static let modifiedDot: CGFloat = 5
         static let dotSlot: CGFloat = 10
-        static let groupHeight: CGFloat = 30
+        static let groupHeight: CGFloat = Height.barPane
 
         // Color popover (NSPopover)
         static let popoverWidth: CGFloat = 284
         static let popoverPadding: CGFloat = Space.s3
-        static let popoverGap: CGFloat = 10
+        static let popoverGap: CGFloat = Space.s2
         /// Between the colour's name and its sample.
         static let titleGap: CGFloat = 2
         static let popoverSwatch: CGFloat = 30

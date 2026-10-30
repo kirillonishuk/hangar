@@ -12,7 +12,7 @@ extension Theme {
         static let padding: CGFloat = Theme.inspectorSegmentPaddingH
         /// Tree rows (branches, commit files): height, highlight inset from the edges, radius, one level's indent.
         static let treeRow: CGFloat = Height.rowList
-        static let rowInset: CGFloat = 6
+        static let rowInset: CGFloat = Space.s2
         static let rowRadius: CGFloat = Radius.control
         static let treeIndent: CGFloat = Space.s4
         static let chevronSlot: CGFloat = Icon.toolbar
@@ -22,11 +22,11 @@ extension Theme {
         /// The branch block: open up to this many rows, then it scrolls.
         static let branchesMaxRows = 6
         static let sectionHeight: CGFloat = Height.barPane
-        static let sectionButton: CGFloat = 24
-        static let sectionIcon: CGFloat = 13
+        static let sectionButton: CGFloat = Height.controlSmall
+        static let sectionIcon: CGFloat = Icon.row
 
         /// Log: row height, graph column, lane spacing and the first lane's x, dot radius and its `bg1` ring, merge ring.
-        static let logRow: CGFloat = 28
+        static let logRow: CGFloat = Height.rowList
         static let laneStep: CGFloat = 12
         static let laneX0: CGFloat = 10
         static let dot: CGFloat = 4
@@ -46,9 +46,9 @@ extension Theme {
         static let refMarkGap: CGFloat = 3
 
         /// Ref pill: height, side padding, radius; own branch `accent` 14 %, remote `text2` 14 %, others their lane 16 %.
-        static let refHeight: CGFloat = 18
-        static let refPaddingH: CGFloat = 5
-        static let refRadius: CGFloat = 4
+        static let refHeight: CGFloat = Badge.height
+        static let refPaddingH: CGFloat = Badge.paddingH
+        static let refRadius: CGFloat = Radius.control
 
         /// Small glyphs (back chevron, tick); the search field itself is `Theme.Input`.
         static let searchIcon: CGFloat = Icon.row
@@ -72,7 +72,7 @@ extension Theme {
         static let minPane: CGFloat = 112
         /// Below this panel height the details replace the log (a window under ~640 pt).
         static let compactHeight: CGFloat = 540
-        static let detailsHeader: CGFloat = 32
+        static let detailsHeader: CGFloat = Height.barPane
         static let metaPaddingV: CGFloat = Space.s2
         static let filesHeader: CGFloat = Height.barPane
         static let fileIndent: CGFloat = 22
@@ -85,14 +85,14 @@ extension Theme {
 
     /// Search tab (#91): fields are `Theme.Input` (#93), toggles inside the query field, file groups.
     enum SearchTab {
-        static let toggle: CGFloat = 20
-        static let toggleGap: CGFloat = 2
+        static let toggle: CGFloat = Height.controlSmall
+        static let toggleGap: CGFloat = Space.s1
         /// The accent dot on «…» while an include / exclude glob is set.
         static let filterDot: CGFloat = Icon.tabDot
         static let gap: CGFloat = Space.iconGap
         /// A file group's header and its lines' indent (under the file name, past the chevron and icon).
         static let fileRow: CGFloat = Height.rowList
         static let hitIndent: CGFloat = 36
-        static let hitPaddingV: CGFloat = 3
+        static let hitPaddingV: CGFloat = Space.s1
     }
 }

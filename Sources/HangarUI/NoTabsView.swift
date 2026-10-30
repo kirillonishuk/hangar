@@ -69,8 +69,8 @@ struct KindChoiceButtons: View {
                             Text(title(kind)).foregroundStyle(Theme.ui.text0).lineLimit(1)
                         }
                     }
-                    .padding(.vertical, Theme.tabPaddingV)
                     .padding(.horizontal, Theme.buttonPaddingH)
+                    .frame(height: Theme.Height.controlRegular)
                 }
                 .buttonStyle(ChoiceButtonStyle())
                 .focusable(false)  // a click must not leave the keyboard in the button: ↩ / Esc belong to the pane

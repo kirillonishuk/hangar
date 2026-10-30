@@ -154,7 +154,7 @@ struct TabBarView: View {
 
     /// Natural width of a tab: paddings, icon (the status dot is its badge), title, `×` (kept in place while hidden).
     private static func natural(text: CGFloat) -> CGFloat {
-        let chrome = 2 * Theme.tabPaddingH + Theme.Icon.row + Theme.Space.iconGap + Theme.rowEndGap + Theme.smallIconSize
+        let chrome = 2 * Theme.tabPaddingH + Theme.Icon.row + Theme.Space.iconGap + Theme.rowEndGap + Theme.Icon.inline
         return (chrome + text).rounded(.up)
     }
 
@@ -425,7 +425,7 @@ private struct TabCloseButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                IconView(icon: .close, active: active || hover, size: Theme.smallIconSize).opacity(dirty && !hover ? 0 : 1)
+                IconView(icon: .close, active: active || hover, size: Theme.Icon.inline).opacity(dirty && !hover ? 0 : 1)
                 Circle().fill(active ? Theme.ui.text0 : Theme.ui.text2).frame(width: Theme.Icon.statusDot, height: Theme.Icon.statusDot)
                     .opacity(dirty && !hover ? 1 : 0)
             }
@@ -516,7 +516,6 @@ struct TabItem: View {
         }
         .font(Theme.Typography.body.font())
         .foregroundStyle(active ? Theme.ui.text0 : Theme.ui.text2)
-        .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
         .frame(width: width, height: Theme.Height.tab)
         .background(TabBackground(active: active, hover: hover))
@@ -575,7 +574,6 @@ private struct DiffTabItem: View {
         }
         .font(Theme.Typography.body.font())
         .foregroundStyle(tab.active ? Theme.ui.text0 : Theme.ui.text2)
-        .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
         .frame(width: width, height: Theme.Height.tab)
         .background(TabBackground(active: tab.active, hover: hover))

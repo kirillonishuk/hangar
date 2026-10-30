@@ -20,7 +20,7 @@ struct RenameField: View {
             .onSubmit { finish(save: true) }
             .onExitCommand { finish(save: false) }
             // Room for «×» inside the box, past the text: the mouse way to cancel (Esc is the keyboard's).
-            .padding(.trailing, Theme.smallIconSize + Theme.tabCloseInset * 2)
+            .padding(.trailing, Theme.Icon.inline + Theme.tabCloseInset * 2)
             .overlay(alignment: .trailing) { cancelButton }
             // Inline: the row's own font; the box grows outwards, so the text stays where the label was (no jump on F2).
             .modifier(InputField(focused: true, inline: true))
@@ -31,7 +31,7 @@ struct RenameField: View {
     }
 
     private var cancelButton: some View {
-        IconView(icon: .close, size: Theme.smallIconSize)
+        IconView(icon: .close, size: Theme.Icon.inline)
             .padding(Theme.tabCloseInset)
             .contentShape(Rectangle())
             // On press, not release: the press may end the field's editing, which commits.

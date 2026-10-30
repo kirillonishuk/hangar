@@ -176,9 +176,9 @@ private struct FileRow: View {
             HStack(spacing: Theme.railInset) {
                 // Files keep the chevron's slot, so names of one level line up.
                 if row.entry.isDir {
-                    IconView(icon: row.expanded ? .chevronDown : .chevronRight, size: Theme.smallIconSize)
+                    IconView(icon: row.expanded ? .chevronDown : .chevronRight, size: Theme.Icon.inline)
                 } else {
-                    Color.clear.frame(width: Theme.smallIconSize, height: Theme.smallIconSize)
+                    Color.clear.frame(width: Theme.Icon.inline, height: Theme.Icon.inline)
                 }
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)

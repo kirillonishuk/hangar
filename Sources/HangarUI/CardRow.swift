@@ -1,32 +1,43 @@
 import SwiftUI
 
-/// One row of a sheet card (new-task-v4 `.r`): fixed-width one-line label `text2`, the value after it.
-/// Used by every sheet card and the settings window (DESIGN.md: one card of rows, labels never wrap).
+/// One row of a sheet card: the label `secondary` `text2` above its field (§3.11: no label column in sheets).
+/// `compact` report rows (read-only, the server check) keep a label column instead: they read as a table.
 struct CardRow<Value: View>: View {
     let label: String
     var mono = false
-    /// Report rows (read-only text): tighter, so the whole server fits the sheet.
+    /// Report rows (read-only text): label and value side by side, tighter, so the whole server fits the sheet.
     var compact = false
-    var labelWidth = Theme.cardLabelWidth
     var first = false
     @ViewBuilder var value: Value
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
-        HStack(spacing: Theme.cardRowGap) {
-            Text(verbatim: label)
-                .font((mono ? Theme.Typography.mono : Theme.Typography.body).font())
-                .foregroundStyle(Theme.ui.text2)
-                .lineLimit(1)
-                .frame(width: labelWidth, alignment: .leading)
-                .opacity(enabled ? 1 : Theme.Opacity.inactive)  // its controls dim themselves
-            HStack(spacing: Theme.pickGap) { value }
+        Group {
+            if compact {
+                HStack(spacing: Theme.Space.s2) {
+                    labelText.font((mono ? Theme.Typography.mono : Theme.Typography.body).font())
+                        .frame(width: Theme.reportLabelWidth, alignment: .leading)
+                    HStack(spacing: Theme.pickGap) { value }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Theme.Space.s1) {
+                    labelText.font((mono ? Theme.Typography.mono : Theme.Typography.secondary).font())
+                    HStack(spacing: Theme.pickGap) { value }
+                        .frame(maxWidth: .infinity, minHeight: Theme.cardRowMinHeight, alignment: .leading)
+                }
+            }
         }
         .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: compact ? 0 : Theme.cardRowMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, compact ? Theme.reportRowPaddingV : Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line).frame(height: 1).opacity(first ? 0 : 1) }
+    }
+
+    private var labelText: some View {
+        Text(verbatim: label)
+            .foregroundStyle(Theme.ui.text2)
+            .opacity(enabled ? 1 : Theme.Opacity.inactive)  // its controls dim themselves
     }
 }
 

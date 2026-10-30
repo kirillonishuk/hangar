@@ -64,7 +64,7 @@ import Workspace
 
     func update(expanded: Bool) {
         label.stringValue = L10n.drawerTitle
-        chevron.image = (expanded ? Icon.chevronDown : Icon.chevronUp).image(size: Theme.smallIconSize)
+        chevron.image = (expanded ? Icon.chevronDown : Icon.chevronUp).image(size: Theme.Icon.inline)
         toolTip = L10n.help(L10n.drawerHelp, .toggleDrawer)
         setAccessibilityLabel(L10n.drawerTitle)
         needsLayout = true
@@ -78,8 +78,8 @@ import Workspace
         self.icon.frame = NSRect(x: px, y: (bounds.height - icon) / 2, width: icon, height: icon)
         let th = ceil(label.intrinsicContentSize.height)
         let lx = px + icon + Theme.Space.iconGap
-        label.frame = NSRect(x: lx, y: (bounds.height - th) / 2, width: max(0, bounds.width - lx - 2 * px - Theme.smallIconSize), height: th)
-        let c = Theme.smallIconSize
+        label.frame = NSRect(x: lx, y: (bounds.height - th) / 2, width: max(0, bounds.width - lx - 2 * px - Theme.Icon.inline), height: th)
+        let c = Theme.Icon.inline
         chevron.frame = NSRect(x: bounds.width - px - c, y: (bounds.height - c) / 2, width: c, height: c)
         window?.invalidateCursorRects(for: self)
     }

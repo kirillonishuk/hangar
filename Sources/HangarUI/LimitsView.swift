@@ -102,9 +102,9 @@ private struct LimitBadge: View {
         Text(level == .full ? L10n.limitBadgeFull : L10n.limitBadgeAlmost)
             .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.Limit.textColor(level))
-            .padding(.horizontal, Theme.Limit.badgePaddingH)
-            .padding(.vertical, Theme.Limit.badgePaddingV)
-            .background(Capsule().fill(Theme.Limit.color(level).opacity(Theme.Opacity.fill)))
+            .padding(.horizontal, Theme.Badge.paddingH)
+            .frame(height: Theme.Badge.height)
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.control).fill(Theme.Limit.color(level).opacity(Theme.Opacity.fill)))
     }
 }
 

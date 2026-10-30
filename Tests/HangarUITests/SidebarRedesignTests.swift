@@ -7,6 +7,17 @@ import Workspace
 
 /// Redesign track B: the two-line session row (status text, diff badge) and the custom popover menu.
 @MainActor @Suite struct SidebarRedesignTests {
+    // MARK: Row branch
+
+    /// A 40-character chat name never squeezes the branch: it keeps its own width, up to 92 (§3.3).
+    @Test func rowBranchKeepsItsWidth() {
+        let name = String(repeating: "x", count: 40)
+        #expect(SidebarView.branchWidth("main") > 20)
+        #expect(SidebarView.branchWidth("main") < Theme.rowBranchMax)
+        #expect(SidebarView.branchWidth("feature/\(name)") == Theme.rowBranchMax)
+        #expect(SidebarView.branchWidth("feat/oauth") > SidebarView.branchWidth("main"))
+    }
+
     // MARK: Plurals and status text
 
     @Test func russianPluralForms() {

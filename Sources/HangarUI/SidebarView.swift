@@ -488,7 +488,6 @@ struct SidebarView: View {
                         }
                     }
                     .padding(.trailing, showActions ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
-                    .layoutPriority(1)  // the name first; the branch takes what is left, up to its 92
                     Spacer(minLength: 0)
                     rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
                 }
@@ -527,14 +526,20 @@ struct SidebarView: View {
                     .font(Theme.Typography.monoSmall.font())
                     .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: Theme.rowBranchMax, alignment: .trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .truncationMode(.middle)
+                    // A fixed width: the branch keeps its place, a long chat name truncates instead.
+                    .frame(width: Self.branchWidth(branch), alignment: .trailing)
             }
         }
     }
 
-    /// Pin and «⋯» (120 ms fade, opacity only); the pin is white while pinned.
+    /// The branch's width in a row: its own, up to `rowBranchMax` (§3.3).
+    static func branchWidth(_ branch: String) -> CGFloat {
+        let font = Theme.Typography.monoSmall.nsFont()
+        return min(ceil((branch as NSString).size(withAttributes: [.font: font]).width), Theme.rowBranchMax)
+    }
+
+    /// Pin and «⋯» (shown on hover, no animation); the pin is white while pinned.
     private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
         HStack(spacing: 0) {
             IconButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {

@@ -1107,7 +1107,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             // The visible task's diff base may be this project's default.
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
-        }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onCancel: close)
+        }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onKeepWorktreesBeside: { [weak self] in
+            self?.app.perform { s in s.projects.firstIndex { $0.id == id }.map { s.projects[$0].worktreeRoot = nil } }
+        }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host

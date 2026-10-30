@@ -91,4 +91,52 @@ import Testing
     @Test func worktreePathCustomRoot() {
         #expect(worktreePath(projectPath: "/u/dev/shop-api", root: "/tmp/wt", branch: "Fix") == "/tmp/wt/fix")
     }
+
+    @Test func defaultRootIsNextToTheProject() {
+        #expect(defaultWorktreeRoot(projectPath: "/u/dev/frontend-cd") == "/u/dev/frontend-cd.worktrees")
+        #expect(defaultWorktreeRoot(projectPath: "/u/dev/frontend-cd///") == "/u/dev/frontend-cd.worktrees")
+        // A symlinked project path is kept as given (no stat: it may be a server's path).
+        #expect(defaultWorktreeRoot(projectPath: "/u/link-to-app") == "/u/link-to-app.worktrees")
+        #expect(defaultWorktreeRoot(projectPath: "/Users") == "/Users.worktrees")
+        #expect(defaultWorktreeRoot(projectPath: "/Users/me") == "/Users/me.worktrees")
+        #expect(defaultWorktreeRoot(projectPath: "/") == "/.worktrees")
+        #expect(defaultWorktreeRoot(projectPath: "//") == "/.worktrees")
+        #expect(worktreePath(projectPath: "/Users", root: nil, branch: "fix") == "/Users.worktrees/fix")
+        #expect(worktreePath(projectPath: "/", root: nil, branch: "fix") == "/.worktrees/fix")
+        #expect(worktreePath(projectPath: "/u/app", root: "/", branch: "fix") == "/fix")
+        for path in ["/u/dev/app", "/u/dev/app/", "/Users", "/Users/me"] {
+            #expect(!worktreeRootInsideProject(defaultWorktreeRoot(projectPath: path), project: path, local: false), "\(path)")
+        }
+    }
+
+    @Test func insideRootLexical() {
+        #expect(worktreeRootInsideProject("/p/app/wt", project: "/p/app", local: false))
+        #expect(worktreeRootInsideProject("/p/app", project: "/p/app/", local: false))
+        #expect(worktreeRootInsideProject("/p/app/.claude/worktrees/", project: "/p/app", local: false))
+        #expect(!worktreeRootInsideProject("/p/app.worktrees", project: "/p/app", local: false))
+        #expect(!worktreeRootInsideProject("/p/application", project: "/p/app", local: false))
+        #expect(!worktreeRootInsideProject("/p", project: "/p/app", local: false))
+        #expect(!worktreeRootInsideProject("/P/APP/wt", project: "/p/app", local: false))  // a server: case-sensitive
+        #expect(!worktreeRootInsideProject("~/app/wt", project: "/home/me/app", local: false))  // `~` is the server's, not expanded
+        #expect(worktreeRootInsideProject("~/app/wt", project: NSHomeDirectory() + "/app"))
+        #expect(worktreeRootInsideProject(" /p/app/wt ", project: " /p/app "))
+        #expect(!worktreeRootInsideProject("", project: "/p/app"))
+    }
+
+    @Test func insideRootResolvesSymlinksAndCase() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("hangar wt-root \(UUID().uuidString)")  // /var → /private/var too
+        defer { try? fm.removeItem(at: dir) }
+        let project = dir.appendingPathComponent("Проект")
+        try fm.createDirectory(at: project.appendingPathComponent(".claude"), withIntermediateDirectories: true)
+        let link = dir.appendingPathComponent("link")
+        try fm.createSymbolicLink(at: link, withDestinationURL: project)
+        // Through a symlink, to a folder that doesn't exist yet.
+        #expect(worktreeRootInsideProject(link.path + "/.claude/worktrees", project: project.path))
+        #expect(worktreeRootInsideProject(project.path + "/.claude/worktrees", project: link.path + "/"))
+        #expect(!worktreeRootInsideProject(defaultWorktreeRoot(projectPath: link.path), project: link.path))
+        #expect(!worktreeRootInsideProject(dir.appendingPathComponent("Проект.worktrees").path, project: project.path))
+        let caseSensitive = try project.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]).volumeSupportsCaseSensitiveNames ?? true
+        #expect(worktreeRootInsideProject(dir.path.uppercased() + "/ПРОЕКТ/wt", project: project.path) == !caseSensitive)
+    }
 }

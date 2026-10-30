@@ -14,15 +14,17 @@ func worktreeCopyInput(_ text: String) -> [String] {
     text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 }
 
-/// True if `root` is the project folder or lies inside it (worktrees would show up in the project's own tree).
-func worktreeRootInsideProject(_ root: String, project: String) -> Bool {
-    func trimmed(_ p: String) -> String {
-        var p = (p.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
-        while p.count > 1, p.hasSuffix("/") { p.removeLast() }
-        return p
-    }
-    let r = trimmed(root), p = trimmed(project)
-    return r == p || r.hasPrefix(p + "/")
+/// The «копии внутри проекта» notice: a project whose stored folder for copies is inside it (set before #121 refused that).
+func worktreesInsideNoticeShown(_ project: Project) -> Bool {
+    guard let root = project.worktreeRoot else { return false }
+    return worktreeRootInsideProject(root, project: project.path, local: project.host == nil)
+}
+
+/// A typed folder for copies that the sheet refuses: inside the project (`path`, as typed), unless it is the folder already
+/// stored (existing copies keep working; the notice offers the move instead).
+func worktreeRootRefused(_ root: String?, stored: String?, path: String, remote: Bool) -> Bool {
+    guard let root, root != stored else { return false }
+    return worktreeRootInsideProject(root, project: path, local: !remote)
 }
 
 /// «Папка worktree» input: blank → nil (default folder), `~` expanded (`remote`: not — this Mac's home is not the server's),
@@ -45,6 +47,8 @@ struct ProjectSettingsSheet: View {
     let onCancel: () -> Void
     /// Applied on «Сохранить», only when changed.
     var onNotifications: (ProjectNotifications) -> Void = { _ in }
+    /// «Хранить рядом с проектом»: applied at once (blank folder = the default one next to the project).
+    var onKeepWorktreesBeside: () -> Void = {}
 
     @State private var name: String
     @State private var path: String
@@ -59,6 +63,8 @@ struct ProjectSettingsSheet: View {
     @State private var suggestedCopy: String?
     @State private var error: String?
     @State private var rootError: String?
+    /// «Хранить рядом с проектом» was clicked: the notice is gone and the old inside folder is no longer accepted as stored.
+    @State private var keptBeside = false
     /// nil until git has answered; the git-only rows appear only for a repository with commits.
     @State private var isGit: Bool?
     @State private var branches: [Branch] = []
@@ -70,8 +76,10 @@ struct ProjectSettingsSheet: View {
     init(project: Project, git: Git, runner: Runner,
          onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void,
          onNotifications: @escaping (ProjectNotifications) -> Void = { _ in },
+         onKeepWorktreesBeside: @escaping () -> Void = {},
          onCancel: @escaping () -> Void) {
         self.onNotifications = onNotifications
+        self.onKeepWorktreesBeside = onKeepWorktreesBeside
         self.project = project
         self.git = git
         self.runner = runner
@@ -182,12 +190,26 @@ struct ProjectSettingsSheet: View {
             // No «Сюда создаются все worktree…» line: it repeated the folder field above (it is that row's tooltip).
             // Shown for as long as the command is only suggested (not while typing): no jump.
             if suggestedCommand != nil { message(L10n.setupCommandSuggested, Theme.ui.text3) }
-            if rootError == nil, case .success(let root?) = worktreeRootInput(worktreeRoot, remote: remote),
-               worktreeRootInsideProject(root, project: path) {
-                message(L10n.worktreeRootInsideProject, Theme.ui.text3)
-            }
             if let rootError { message(rootError, Theme.ui.failed) }
+            if !keptBeside, worktreesInsideNoticeShown(project) { insideNotice }
         }
+    }
+
+    /// Existing copies stay where they are: only the folder for new ones changes (moving them is not offered, see #121).
+    private var insideNotice: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s2) {
+            Text(verbatim: L10n.worktreesInsideNotice).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text1)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.keepWorktreesBeside) {
+                keptBeside = true
+                worktreeRoot = ""
+                onKeepWorktreesBeside()
+            }
+            .buttonStyle(.hangar(.secondary, .small))
+            .fixedSize()
+            .help(L10n.keepWorktreesBesideHelp(remote ? defaultRootPlaceholder : abbreviatedHomePath(defaultRootPlaceholder)))
+        }
+        .padding(.top, Theme.sheetMessageTop)
     }
 
     private func message(_ text: String, _ color: Color) -> some View {
@@ -251,7 +273,8 @@ struct ProjectSettingsSheet: View {
 
     /// Default worktree folder for the current project path.
     private var defaultRootPlaceholder: String {
-        (worktreePath(projectPath: path, root: nil, branch: "x") as NSString).deletingLastPathComponent
+        let typed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return defaultWorktreeRoot(projectPath: remote ? typed : (typed as NSString).expandingTildeInPath)
     }
 
     /// The folder new worktrees go to, as typed now (the default one while the field is blank or invalid).
@@ -298,6 +321,12 @@ struct ProjectSettingsSheet: View {
             switch worktreeRootInput(worktreeRoot, remote: remote) {
             case .success(let value): root = value
             case .failure(let e): rootError = e.message; return
+            }
+            let typedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            if worktreeRootRefused(root, stored: keptBeside ? nil : project.worktreeRoot,
+                                   path: remote ? typedPath : (typedPath as NSString).expandingTildeInPath, remote: remote) {
+                rootError = L10n.worktreeRootInsideProject(remote ? defaultRootPlaceholder : abbreviatedHomePath(defaultRootPlaceholder))
+                return
             }
         } else {
             root = project.worktreeRoot  // hidden rows keep what is stored

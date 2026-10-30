@@ -99,7 +99,7 @@ import Workspace
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
-        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, creatingWorktreeWait, worktreeRootInsideProject, pathMustBeAbsolute, branchAuto, save
+        case closeTab, projectName, projectPath, chooseEllipsis, defaultBranch, worktreeFolder, creatingWorktreeWait, worktreeRootInsideProject, worktreesInsideNotice, keepWorktreesBeside, keepWorktreesBesideHelp, pathMustBeAbsolute, branchAuto, save
         case ok, exitStatus, stateCorrupt, stateUnreadable
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
@@ -690,7 +690,10 @@ import Workspace
     static var chooseEllipsis: String { s(.chooseEllipsis) }
     static var defaultBranch: String { s(.defaultBranch) }
     static var creatingWorktreeWait: String { s(.creatingWorktreeWait) }
-    static var worktreeRootInsideProject: String { s(.worktreeRootInsideProject) }
+    static func worktreeRootInsideProject(_ sibling: String) -> String { f(.worktreeRootInsideProject, sibling) }
+    static var worktreesInsideNotice: String { s(.worktreesInsideNotice) }
+    static var keepWorktreesBeside: String { s(.keepWorktreesBeside) }
+    static func keepWorktreesBesideHelp(_ folder: String) -> String { f(.keepWorktreesBesideHelp, folder) }
     static var worktreeFolder: String { s(.worktreeFolder) }
     static func worktreeRootHint(_ folder: String) -> String { f(.worktreeRootHint, folder) }
     static var worktreeCopy: String { s(.worktreeCopy) }

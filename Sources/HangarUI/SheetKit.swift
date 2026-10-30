@@ -44,18 +44,22 @@ struct SheetFooter<Buttons: View>: View {
     }
 }
 
-/// A section: an optional header on the card's left edge, then its card of rows (full width), or bare content.
+/// A section: an optional group header (`caption` 600 `text3`, 12 / 12 / 4, §3.18), then its card of rows (full width),
+/// or bare content.
 struct CardSection<Content: View>: View {
     var title: String?
     var card = true
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
+        VStack(alignment: .leading, spacing: 0) {
             if let title {
                 Text(verbatim: title)
-                    .font(Theme.Typography.secondary.font(.semibold))
-                    .foregroundStyle(Theme.ui.text2)
+                    .font(Theme.Typography.caption.font(.semibold))
+                    .foregroundStyle(Theme.ui.text3)
+                    .padding(.horizontal, Theme.Space.s3)
+                    .padding(.top, Theme.Space.s3)
+                    .padding(.bottom, Theme.Space.s1)
             }
             if card {
                 VStack(spacing: 0) { content }

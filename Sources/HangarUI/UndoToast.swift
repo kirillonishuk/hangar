@@ -11,6 +11,8 @@ import SwiftUI
     /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).
     @ObservationIgnored var onUndo: (UUID) -> Void = { _ in }
     @ObservationIgnored private var hide: DispatchWorkItem?
+    /// The pointer is over the toast: no hide is scheduled until it leaves.
+    @ObservationIgnored private var held = false
     @ObservationIgnored private let delay: TimeInterval
     /// Runs the hide item after the delay (tests run it by hand).
     @ObservationIgnored private let schedule: (TimeInterval, DispatchWorkItem) -> Void
@@ -31,9 +33,22 @@ import SwiftUI
     }
 
     private func present(taskId id: UUID?, message text: String?) {
-        hide?.cancel()
         taskId = id
         message = text
+        arm()
+    }
+
+    /// The pointer over the toast keeps it (§3.15), also across a newer toast; leaving restarts the full delay.
+    func hold(_ on: Bool) {
+        held = on
+        guard taskId != nil || message != nil else { return }
+        if on { hide?.cancel(); hide = nil } else { arm() }
+    }
+
+    private func arm() {
+        hide?.cancel()
+        hide = nil
+        guard !held else { return }
         let item = DispatchWorkItem { [weak self] in self?.dismiss() }
         hide = item
         schedule(delay, item)
@@ -42,6 +57,7 @@ import SwiftUI
     func dismiss() {
         hide?.cancel()
         hide = nil
+        held = false  // the view goes away under the pointer: no hover-exit comes
         taskId = nil
         message = nil
     }
@@ -54,35 +70,36 @@ import SwiftUI
     }
 }
 
-/// Bottom-centre of the task area (DESIGN «Тост»: radius 12). Takes no space while hidden.
+/// Bottom-centre of the chat area (§3.15): `bg2`, `line2`, `radius.popover`, level 1; 32 high, `body`, up to one
+/// primary small button and «×». Takes no space while hidden; the pointer over it holds it.
 struct UndoToastView: View {
     let undo: ArchiveUndo
     let restore: (UUID) -> Void
 
     var body: some View {
-        if let message = undo.message {
-            Text(message).foregroundStyle(Theme.ui.text1)
-                .font(Theme.Typography.body.font())
-                .padding(.horizontal, Theme.toastPaddingH)
-                .frame(height: Theme.Height.controlSmall)
-                .padding(.vertical, Theme.toastPaddingV)
-                .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.bg2))
-                .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.line2, lineWidth: 1))
-                .fixedSize()
-        } else if undo.taskId != nil {
-            HStack(spacing: Theme.toastGap) {
-                Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
-                // A secondary action (controls-v2 B′): a button, not a blue word that reads as a link.
-                Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
-                    .buttonStyle(.hangar(.secondary, .small))
-                    .help(L10n.undoArchive)
+        if undo.message != nil || undo.taskId != nil {
+            HStack(spacing: Theme.Space.s2) {
+                if let message = undo.message {
+                    Text(message).foregroundStyle(Theme.ui.text1)
+                } else {
+                    Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
+                    Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
+                        .buttonStyle(.hangar(.primary, .small))
+                        .help(L10n.undoArchive)
+                }
+                IconButton(icon: .close, size: .small, help: L10n.close) { undo.dismiss() }
             }
             .font(Theme.Typography.body.font())
-            .padding(.leading, Theme.toastPaddingH)
-            .padding(.trailing, Theme.toastPaddingV)
-            .padding(.vertical, Theme.toastPaddingV)
-            .background(RoundedRectangle(cornerRadius: Theme.sheetRadius).fill(Theme.ui.bg2))
-            .overlay(RoundedRectangle(cornerRadius: Theme.sheetRadius).stroke(Theme.ui.line2, lineWidth: 1))
+            .lineLimit(1)
+            .padding(.leading, Theme.Space.s3)
+            .padding(.trailing, (Theme.Height.rowLarge - Theme.Height.controlSmall) / 2)
+            .frame(height: Theme.Height.rowLarge)
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.popover).fill(Theme.ui.bg2)
+                .shadow(color: .black.opacity(Theme.toastShadow.opacity), radius: Theme.toastShadow.radius, y: Theme.toastShadow.y))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.popover).stroke(Theme.ui.line2, lineWidth: 1))
+            .onHover { undo.hold($0) }
+            // Room for the level-1 shadow: the hosting view is sized to its content.
+            .padding(Theme.toastShadow.radius)
             .fixedSize()
             .accessibilityElement(children: .contain)
         }

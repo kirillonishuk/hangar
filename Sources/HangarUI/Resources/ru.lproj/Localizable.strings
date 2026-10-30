@@ -67,7 +67,13 @@
 "paneEditorCap" = "Не больше двух редакторов во вкладке";
 "continueTitle" = "Продолжить";
 "externalEditor" = "Внешний редактор";
-"externalEditorPlaceholder" = "пусто — выключен";
+"externalEditorPlaceholder" = "например, code";
+"defaultAgentHint" = "Запускается в новом чате";
+"externalEditorHint" = "Для пункта «Открыть в…» в меню";
+"updatesSection" = "Обновления";
+"emptyNoProject" = "Добавьте папку проекта, чтобы начать";
+"inboxEmpty" = "Всё спокойно";
+"inboxTitle" = "Требуют внимания";
 "appearance" = "Оформление";
 "themeTitle" = "Тема";
 "themeGraphite" = "Графит";

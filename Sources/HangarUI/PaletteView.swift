@@ -156,7 +156,7 @@ struct PaletteView: View {
         if model.sections.isEmpty, !model.showsLoading {
             Text(L10n.paletteEmpty)
                 .font(Theme.Typography.body.font())
-                .foregroundStyle(Theme.ui.text3)
+                .foregroundStyle(Theme.ui.text2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollViewReader { proxy in

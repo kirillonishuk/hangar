@@ -445,9 +445,14 @@ extension MainWindowController {
             }
         case "settingsScroll":  // settingsScroll <y>|bottom: the page's scroll position
             if let scroll = settings.window?.contentView.flatMap(Self.scrollView), let doc = scroll.documentView {
-                let max = doc.frame.height - scroll.contentView.bounds.height
-                let y = arg == "bottom" ? max : min(max, Double(arg) ?? 0)
-                scroll.contentView.scroll(to: NSPoint(x: 0, y: doc.isFlipped ? y : max - y))
+                // y is the offset from the page's top, clamped to what can scroll; the top inset is the 52 toolbar bar
+                // the clip view reaches under (a page shorter than the view must not be pushed down).
+                let inset = scroll.contentInsets.top
+                let visible = scroll.contentView.bounds.height - inset
+                let max = Swift.max(0, doc.frame.height - visible)
+                let y = arg == "bottom" ? max : Swift.min(max, Swift.max(0, Double(arg) ?? 0))
+                let top = doc.isFlipped ? -inset : doc.frame.height - visible
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: doc.isFlipped ? top + y : top - y))
                 scroll.reflectScrolledClipView(scroll.contentView)
             }
         case "settingsFit":  // settingsFit <file>: the window, the page's scroll width and the content's minimum width

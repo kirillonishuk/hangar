@@ -480,7 +480,7 @@ final class FillView: NSView {
     /// The selected task's diff tab view.
     private var diffHost: DiffHostView? { app.selectedTask.flatMap { diffHosts[$0.id]?.host } }
     private var shownDiff = false
-    private let placeholder = NSTextField(labelWithString: "")
+    private var placeholder = NSView()
     /// Tab content above the drawer.
     private let content = FillView()
     let drawer: TerminalDrawer
@@ -490,6 +490,7 @@ final class FillView: NSView {
     /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (#99).
     private var noTabs = NSView()
     var onAddProject: () -> Void = {}
+    var onNewTask: () -> Void = {}
     /// The drop zone while a tab is dragged over a pane (`PaneDragController`); above the tab content.
     let dropOverlay = PaneDropOverlay()
     /// Pane headers' actions (confirmations are the window's); set by the window controller.
@@ -537,13 +538,12 @@ final class FillView: NSView {
             send: { [weak self] in self?.controlLeaf($0)?.send(text: $1, keys: $2) },
             read: { [weak self] in self?.controlLeaf($0)?.surface?.screenText() })
         drawer.onResize = { [weak self] in self?.needsLayout = true; self?.layoutSubtreeIfNeeded() }
-        emptyState = EmptyStateView.hosted { [weak self] in self?.onAddProject() }
+        emptyState = emptyAreaView(.noProject, app: app) { [weak self] in self?.onAddProject() }
+        placeholder = emptyAreaView(.noChat, app: app) { [weak self] in self?.onNewTask() }
         noTabs = NoTabsView.hosted(app: app)
         wantsLayer = true
         observeTheme(#selector(applyTheme))
         applyTheme()
-        placeholder.font = Theme.Typography.body.nsFont()
-        placeholder.alignment = .center
         addSubview(placeholder)
         addSubview(emptyState)
         addSubview(noTabs)
@@ -564,7 +564,6 @@ final class FillView: NSView {
     /// Also redraws the split dividers (`HangarSplitView.dividerColor`) of every tab.
     @objc private func applyTheme() {
         layer?.backgroundColor = Theme.bg0.cgColor
-        placeholder.textColor = Theme.text3
         func redraw(_ view: NSView) { view.needsDisplay = true; view.subviews.forEach(redraw) }
         redraw(self)
         tabViews.values.forEach(redraw)
@@ -572,8 +571,7 @@ final class FillView: NSView {
 
     override func layout() {
         super.layout()
-        let h = placeholder.intrinsicContentSize.height
-        placeholder.frame = NSRect(x: 0, y: (bounds.height - h) / 2, width: bounds.width, height: h)
+        placeholder.frame = bounds
         emptyState.frame = bounds
         applyDrawerFrames(animated: false)
     }
@@ -720,7 +718,6 @@ final class FillView: NSView {
         let nothing = state.projects.isEmpty && state.hostShells.isEmpty
         emptyState.isHidden = !nothing
         placeholder.isHidden = app.selectedTask != nil || diffShown || nothing
-        placeholder.stringValue = L10n.emptyNoTask
         noTabs.isHidden = !app.showsNoTabs || diffShown || nothing
 
         // Focus follows tab switches, new splits and closed leaves; plain re-syncs never steal focus.

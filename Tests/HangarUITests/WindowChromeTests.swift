@@ -52,9 +52,9 @@ import Workspace
         line.counts = c
         L10n.language = .ru
         #expect(line.workingText == "2 работают")
-        #expect(line.workingHelp == "Следующая работающая сессия · 3 субагента")
+        #expect(line.workingHelp == "Следующий работающий чат · 3 субагента")
         line.counts.subagents = 0
-        #expect(line.workingHelp == "Следующая работающая сессия")
+        #expect(line.workingHelp == "Следующий работающий чат")
         L10n.language = .en
         line.counts.subagents = 1
         #expect(line.workingHelp == "Next working session · 1 subagent")

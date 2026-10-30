@@ -14,21 +14,26 @@ import Workspace
         }
     }
 
-    /// The UI says «сессия» / "session", never «задача» / "task" (#73); code keeps `Task` identifiers.
-    @Test func sessionsNotTasks() throws {
-        for (lang, banned) in [(Language.ru, "задач"), (.en, "task")] {
+    /// The UI says «чат» / "chat", never «сессия» / «задача» (#73, #113); code keeps `Task` identifiers.
+    @Test func chatsNotSessionsOrTasks() throws {
+        for (lang, banned) in [(Language.ru, ["задач", "сесси"]), (.en, ["task", "session"])] {
             let table = try #require(L10n.table(lang))
-            for (key, value) in table { #expect(!value.lowercased().contains(banned), "\(lang): \(key) = \(value)") }
+            // edsType is a code sample («Session, Promise, string»), not UI copy.
+            for (key, value) in table where key != "edsType" {
+                for word in banned { #expect(!value.lowercased().contains(word), "\(lang): \(key) = \(value)") }
+            }
         }
         defer { L10n.language = .system }
         L10n.language = .ru
-        #expect(L10n.newTask == "Новая сессия")
-        #expect(L10n.taskArchived == "Сессия в архиве")
-        #expect(L10n.deleteTaskConfirm("A") == "Удалить сессию «A» навсегда?")
-        #expect(L10n.newTaskIn("web") == "Новая сессия в web")
+        #expect(L10n.newTask == "Новый чат")
+        #expect(L10n.taskArchived == "Чат в архиве")
+        #expect(L10n.deleteTaskConfirm("A") == "Удалить чат «A» навсегда?")
+        #expect(L10n.newTaskIn("web") == "Новый чат в web")
+        #expect(L10n.sessionsTitle == "История")
         L10n.language = .en
-        #expect(L10n.newTask == "New Session")
-        #expect(L10n.taskArchived == "Session archived")
+        #expect(L10n.newTask == "New Chat")
+        #expect(L10n.taskArchived == "Chat archived")
+        #expect(L10n.sessionsTitle == "History")
     }
 
     /// A port is an identifier, not a quantity: no digit grouping («44 351») in either language.
@@ -87,7 +92,7 @@ import Workspace
         #expect(L10n.codexConfigUnsupported == "config.toml: notify в неподдерживаемом виде — правьте вручную")
         #expect(L10n.integrationConfirmTitle("~/.claude/settings.json") == "Изменить ~/.claude/settings.json?")
         #expect(L10n.backupWillBeCreated("a.bak") == "Будет создана копия: a.bak")
-        #expect(L10n.hooksMissing == "Hooks не установлены — статусы только по bell и выходу процесса")
+        #expect(L10n.hooksMissing == "Хуки не установлены — статусы только по сигналу терминала и выходу процесса")
         #expect(L10n.codexNotFound == "Codex не найден")
         #expect(L10n.linesUnchanged(12) == "… 12 строк без изменений")
         L10n.language = .en
@@ -101,11 +106,11 @@ import Workspace
     @Test func pluralizedExitCode() {
         defer { L10n.language = .system }
         L10n.language = .ru
-        #expect(L10n.exitedWithCode(3) == "процесс завершился с кодом 3")
-        #expect(L10n.sectionPinned == "ЗАКРЕПЛЁННЫЕ")
+        #expect(L10n.exitedWithCode(3) == "Завершён (код 3)")
+        #expect(L10n.sectionPinned == "Закреплённые")
         L10n.language = .en
-        #expect(L10n.exitedWithCode(3) == "process exited with code 3")
-        #expect(L10n.sectionPinned == "PINNED")
+        #expect(L10n.exitedWithCode(3) == "Exited (code 3)")
+        #expect(L10n.sectionPinned == "Pinned")
     }
 
     /// One tooltip for the ☕ in the Settings row and in the rail.
@@ -134,6 +139,6 @@ import Workspace
         #expect(L10n.lookup(.sectionPinned, .ru, in: bogus) == "sectionPinned")
         #expect(L10n.lookup(.exitedWithCode, .en, in: bogus) == "exitedWithCode")
         // The real search finds the bundle without touching SwiftPM's fatalError-ing Bundle.module.
-        #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "PINNED")
+        #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "Pinned")
     }
 }

@@ -49,7 +49,7 @@ import Workspace
         #expect(SessionStatus(state: .limit, agents: 1, subagents: 0, tabs: 1, limitUntil: "20:20")
                 == SessionStatus(head: "лимит · до 20:20", tail: "1 агент", tone: .waiting))
         #expect(SessionStatus(state: .limit, agents: 2, subagents: 0, tabs: 2).text == "лимит · 2 агента")
-        #expect(SessionStatus(state: .idle, agents: 5, subagents: 0, tabs: 5).text == "неактивен · 5 агентов")
+        #expect(SessionStatus(state: .idle, agents: 5, subagents: 0, tabs: 5).text == "простой · 5 агентов")
         // No agent tabs: the tab count instead.
         #expect(SessionStatus(state: .idle, agents: 0, subagents: 0, tabs: 1).text == "нет агентов · 1 вкладка")
         #expect(SessionStatus(state: .idle, agents: 0, subagents: 0, tabs: 0).text == "нет агентов · 0 вкладок")
@@ -80,7 +80,7 @@ import Workspace
         defer { L10n.language = .system }
         L10n.language = .ru
         let status = h.app.sessionStatus(of: try #require(h.app.state.tasks.first { $0.id == h.task }))
-        #expect(status == SessionStatus(head: "неактивен", tail: "2 агента", tone: .normal))
+        #expect(status == SessionStatus(head: "простой", tail: "2 агента", tone: .normal))
     }
 
     // MARK: Diff badge
@@ -122,10 +122,10 @@ import Workspace
         L10n.language = .ru
         let entries = actionMenu(for: .task(h.task), ctx: ActionContext(app: h.app))
         let items = entries.compactMap(\.item)
-        #expect(items.map(\.title).contains("Закрыть сессию"))
+        #expect(items.map(\.title).contains("В архив"))
         #expect(!items.map(\.title).contains("Архивировать"))
         let close = try #require(items.last)
-        #expect(close.title == "Закрыть сессию")
+        #expect(close.title == "В архив")
         #expect(close.destructive)
         #expect(close.shortcut == "⇧⌘W")
         #expect(items.first { $0.title == L10n.rename }?.shortcut == "F2")

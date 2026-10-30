@@ -87,9 +87,6 @@ private func windowLevel(_ w: UsageWindow, in u: AgentUsage) -> UsageLevel {
 /// A reached limit with no window rows yet: the agent gets the «лимит» badge under its name instead.
 func limitBadgeWithoutWindows(_ u: AgentUsage) -> Bool { u.limitReached && u.windows.isEmpty }
 
-/// The sidebar row's figure: the fullest window; a reached limit with no window data yet (StopFailure first) is 100.
-func limitBlockPercent(_ u: AgentUsage) -> Double { u.windows.map(\.usedPercent).max() ?? (u.limitReached ? 100 : 0) }
-
 private func percentText(_ p: Double) -> String { "\(Int(p.rounded()))%" }
 
 // MARK: Views
@@ -141,36 +138,68 @@ struct LimitsBlock: View {
         }
         .padding(.vertical, Theme.Limit.blockPaddingV)
         .padding(.horizontal, Theme.Limit.blockPaddingH)
-        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }), arrowEdge: .trailing) {
+        // Up from the block's right corner: beside it the popover would cover the «Терминал» bar, centred over it
+        // it would stick out of the window's left edge.
+        .popover(isPresented: Binding(get: { app.limitsPopoverShown }, set: { app.setLimitsPopoverShown($0) }),
+                 attachmentAnchor: .point(UnitPoint(x: 0.8, y: 0)), arrowEdge: .top) {
             LimitsPopover(app: app)
         }
     }
 
+    /// «claude  5 ч ━━━ 6%» over «нед ━━━ 25%»: both windows always, «—» while one has no figure yet.
     private func line(_ agent: UsageAgent, _ u: AgentUsage) -> some View {
-        let session = u.windows.first { $0.kind == .session }
-        let week = u.windows.first { $0.kind == .weekly }
-        let top = level(percent: limitBlockPercent(u), limitReached: u.limitReached)
-        return HStack(spacing: Theme.Limit.rowGap) {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Limit.rowGap) {
             Text(agent.rawValue)
                 .font(Theme.Typography.caption.font())
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1)
                 .frame(width: Theme.Limit.nameWidth, alignment: .leading)
             VStack(spacing: Theme.Limit.barGap) {
-                // A reached limit with no window data yet (StopFailure only) fills both bars, matching «100%».
-                let reached: Double? = u.windows.isEmpty && u.limitReached ? 100 : nil
-                LimitBar(percent: session?.usedPercent ?? reached, level: session.map { windowLevel($0, in: u) } ?? top, height: Theme.Limit.blockBar)
-                LimitBar(percent: week?.usedPercent ?? reached, level: week.map { windowLevel($0, in: u) } ?? top, height: Theme.Limit.blockBar)
+                ForEach(LimitSlot.footer, id: \.self) { kind in windowLine(kind, u) }
             }
-            Text(percentText(limitBlockPercent(u)))
-                .font(Theme.Typography.caption.font().monospacedDigit())
-                .foregroundStyle(Theme.Limit.textColor(top))
-                .frame(width: Theme.Limit.percentWidth, alignment: .trailing)
         }
         .padding(.vertical, Theme.Limit.rowPaddingV)
         .padding(.horizontal, Theme.Limit.rowPaddingH)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(agentName(agent)) \(percentText(limitBlockPercent(u)))")
+        .accessibilityLabel("\(agentName(agent)) \(LimitSlot.footer.map { "\(limitWindowTitle($0, agent: agent)) \(LimitSlot.figure($0, u).map(percentText) ?? "—")" }.joined(separator: ", "))")
+    }
+
+    private func windowLine(_ kind: WindowKind, _ u: AgentUsage) -> some View {
+        let percent = LimitSlot.figure(kind, u)
+        let level = LimitSlot.level(kind, u)
+        return HStack(spacing: Theme.Space.s1) {
+            Text(kind == .session ? L10n.limitSessionShort : L10n.limitWeekShort)
+                .foregroundStyle(Theme.ui.text3)
+                .fixedSize()  // never «we…»: a longer word only shortens the bar
+                .frame(minWidth: Theme.Limit.windowLabelWidth, alignment: .leading)
+            LimitBar(percent: percent, level: level, height: Theme.Limit.blockBar)
+            Text(percent.map(percentText) ?? "—")
+                .monospacedDigit()
+                .foregroundStyle(percent == nil ? Theme.ui.text3 : Theme.Limit.textColor(level))
+                .frame(width: Theme.Limit.percentWidth, alignment: .trailing)
+        }
+        .font(Theme.Typography.caption.font())
+    }
+}
+
+/// The 5-hour and weekly windows are always shown (sidebar and popover), with «—» while one has no figure.
+enum LimitSlot {
+    static let footer: [WindowKind] = [.session, .weekly]
+
+    /// The window's figure; a reached limit with no window data yet (StopFailure first) reads 100.
+    static func figure(_ kind: WindowKind, _ u: AgentUsage) -> Double? {
+        u.windows.first { $0.kind == kind }?.usedPercent ?? (u.windows.isEmpty && u.limitReached ? 100 : nil)
+    }
+
+    static func level(_ kind: WindowKind, _ u: AgentUsage) -> UsageLevel {
+        if let w = u.windows.first(where: { $0.kind == kind }) { return windowLevel(w, in: u) }
+        return u.windows.isEmpty && u.limitReached ? .full : .ok
+    }
+
+    /// Popover rows: both main windows (present or not), then whatever per-model windows came, in a stable order.
+    static func rows(_ u: AgentUsage) -> [(kind: WindowKind, window: UsageWindow?)] {
+        footer.map { k in (k, u.windows.first { $0.kind == k }) }
+            + u.windows.filter { !footer.contains($0.kind) }.sorted { rank($0.kind) < rank($1.kind) }.map { ($0.kind, $0) }
     }
 }
 
@@ -243,9 +272,26 @@ struct LimitsPopover: View {
             .font(Theme.Typography.caption.font())
             // Its own line: next to the name it would push «обновлено …» onto two lines.
             if limitBadgeWithoutWindows(u) { LimitBadge(level: .full) }
-            ForEach(u.windows.sorted { rank($0.kind) < rank($1.kind) }, id: \.kind) { w in
-                window(w, agent: agent, level: windowLevel(w, in: u))
+            ForEach(LimitSlot.rows(u), id: \.kind) { row in
+                if let w = row.window { window(w, agent: agent, level: windowLevel(w, in: u)) }
+                else { missing(row.kind, agent: agent) }
             }
+        }
+    }
+
+    /// A main window the agent sent no figure for yet: kept in place, so the 5-hour row never just disappears.
+    private func missing(_ kind: WindowKind, agent: UsageAgent) -> some View {
+        VStack(alignment: .leading, spacing: Theme.railInset) {
+            HStack(spacing: Theme.Limit.rowGap) {
+                Text(limitWindowTitle(kind, agent: agent)).fontWeight(.semibold).foregroundStyle(Theme.ui.text1)
+                Spacer(minLength: 0)
+                Text(verbatim: "—").foregroundStyle(Theme.ui.text3)
+            }
+            .font(Theme.Typography.secondary.font())
+            LimitBar(percent: nil, height: Theme.Limit.popoverBar)
+            Text(L10n.limitNoData)
+                .font(Theme.Typography.caption.font())
+                .foregroundStyle(Theme.ui.text3)
         }
     }
 

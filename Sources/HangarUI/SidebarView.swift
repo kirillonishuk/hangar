@@ -45,7 +45,8 @@ struct SidebarView: View {
             // While collapsed or animating, lay out at the expanded width and clip, so text never reflows.
             let width = collapsed || app.sidebarAnimating ? max(geo.size.width, CGFloat(app.state.sidebarWidth)) : geo.size.width
             // Row highlights keep their inset from the visible edges, also while laid out wider than shown.
-            let inset = collapsed ? Theme.railInset : Theme.rowInset
+            // The rail highlights a square around the tile, the expanded sidebar the whole row.
+            let inset = collapsed ? (Theme.sidebarRailWidth - Theme.railHighlight) / 2 : Theme.rowInset
             VStack(spacing: 0) {
                 // The toolbar's sidebar head (traffic lights, the toggle) is drawn over this.
                 Color.clear.frame(height: Theme.Height.barToolbar)
@@ -66,7 +67,8 @@ struct SidebarView: View {
             .clipped()
         }
         .font(Theme.Typography.body.font())
-        .environment(\.hoverPalette, .focus)
+        // The rail's selection is a quiet square (the tile itself carries the accent), not an `accent` block.
+        .environment(\.hoverPalette, collapsed ? .standard : .focus)
         .background(Theme.ui.bg1)
         .ignoresSafeArea()
     }
@@ -119,7 +121,7 @@ struct SidebarView: View {
                 .padding(.trailing, hover ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
                 .overlay(alignment: .trailing) { taskActions(task, target: target, shown: hover && app.renaming != target) }
             } rail: {
-                RailTile(text: monogram(task.name), state: dot, selected: selected)
+                RailTile(text: monogram(task.name), state: dot, selected: selected, hover: hover)
             }
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
@@ -208,7 +210,7 @@ struct SidebarView: View {
                         .allowsHitTesting(hover)
                 }
             } rail: {
-                RailTile(text: monogram(host), state: dot, selected: selected)
+                RailTile(text: monogram(host), state: dot, selected: selected, hover: hover)
             }
             .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
@@ -401,19 +403,9 @@ struct SidebarView: View {
                     .allowsHitTesting(hover && !renaming)
                 }
             } rail: {
-                // Rail: a folder-like monogram tile (no status dot, `text3` border).
-                Text(monogram(project.name))
-                    .font(Theme.Typography.caption.font(.semibold))
-                    .foregroundStyle(Theme.ui.text3)
-                    .frame(width: Theme.projectTileSize, height: Theme.projectTileSize)
-                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).stroke(Theme.ui.text3, lineWidth: 1))
-                    .overlay(alignment: .topTrailing) {
-                        // Folded: its sessions are hidden in the rail too, so the tile carries their most urgent dot.
-                        if let folded {
-                            StatusDot(state: folded.state, size: Theme.railDot, border: Theme.ui.bg1, borderWidth: Theme.railDotBorder)
-                                .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
-                        }
-                    }
+                // Rail: an outlined monogram tile; folded, its sessions are hidden in the rail too, so it carries
+                // their most urgent dot.
+                RailTile(text: monogram(project.name), state: folded?.state, selected: false, hover: hover, style: .project)
             }
             .opacity(exists ? 1 : Theme.Opacity.inactive)
         }
@@ -499,7 +491,7 @@ struct SidebarView: View {
                         .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
-                RailTile(text: monogram(task.name), state: dot, selected: selected)
+                RailTile(text: monogram(task.name), state: dot, selected: selected, hover: hover)
             }
             .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)

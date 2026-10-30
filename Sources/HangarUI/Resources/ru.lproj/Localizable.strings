@@ -257,6 +257,9 @@
 "agentsWorkingInfo" = "Их процессы будут завершены.";
 
 "limitSession" = "5 часов";
+"limitSessionShort" = "5 ч";
+"limitWeekShort" = "нед";
+"limitNoData" = "нет данных";
 "limitWeekAll" = "Неделя · все модели";
 "limitWeek" = "Неделя";
 "limitWeekModel" = "Неделя · %@";

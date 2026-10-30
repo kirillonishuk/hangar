@@ -27,6 +27,7 @@ enum EmptyArea { case noProject, noChat }
 @MainActor func emptyAreaView(_ area: EmptyArea, app: AppState, action: @escaping () -> Void) -> NSView {
     let host = NSHostingView(rootView: EmptyAreaView(area: area, app: app, action: action))
     host.sizingOptions = []
+    host.safeAreaRegions = []  // placed by the terminal area, not by the window's titlebar inset
     return host
 }
 

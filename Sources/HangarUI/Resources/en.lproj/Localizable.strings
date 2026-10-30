@@ -257,6 +257,9 @@
 "agentsWorkingInfo" = "Their processes will be terminated.";
 
 "limitSession" = "5-hour";
+"limitSessionShort" = "5h";
+"limitWeekShort" = "week";
+"limitNoData" = "no data yet";
 "limitWeekAll" = "Week · all models";
 "limitWeek" = "Week";
 "limitWeekModel" = "Week · %@";

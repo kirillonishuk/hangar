@@ -242,7 +242,15 @@ extension MainWindowController {
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
         case "lights":  // lights <file>: traffic light frames (window coordinates, bottom-left origin)
             let frames = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { self.window?.standardWindowButton($0) }.map { $0.convert($0.bounds, to: nil) }
-            try? "lights \(frames) content=\(String(describing: self.window?.contentView?.frame))".write(toFile: arg, atomically: true, encoding: .utf8)
+            let bar = (window?.contentViewController as? WindowRootController)?.titleBar
+            try? ("lights \(frames) content=\(String(describing: self.window?.contentView?.frame))"
+                  + " layout=\(String(describing: window?.contentLayoutRect)) barSafe=\(String(describing: bar?.safeAreaInsets))"
+                  + " barFrame=\(String(describing: bar?.frame)) offsetY=\(String(describing: (window?.contentViewController as? WindowRootController)?.metrics.offsetY))")
+                .write(toFile: arg, atomically: true, encoding: .utf8)
+        case "barInset":  // barInset <top> <bottom>: extra safe area on the toolbar's host (other window/screen setups)
+            let v = arg.split(separator: " ").compactMap { Double($0) }
+            (window?.contentViewController as? WindowRootController)?.titleBar.additionalSafeAreaInsets =
+                NSEdgeInsets(top: v.first ?? 0, left: 0, bottom: v.count > 1 ? v[1] : 0, right: 0)
         case "git": debugGit(arg)
         case "enter": _ = column.terminalArea.relaunchFocusedIfExited()
         case "peek": app.openInEditor(path: arg, line: nil, preview: true)  // peek <absolute path>: a one-click Files open

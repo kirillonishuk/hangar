@@ -115,7 +115,7 @@ import Workspace
         case agentsWorking, agentsWorkingInfo
         case keepAwakeTitle
         case keepAwakeOffHelp, keepAwakeIdleHelp, keepAwakeActiveHelp, keepAwakeGraceHelp
-        case limitSession, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour, durationUnderMin, durationHour
+        case limitSession, limitSessionShort, limitWeekShort, limitNoData, limitWeekAll, limitWeek, limitWeekModel, resetIn, durationMin, durationHourMin, durationDayHour, durationUnderMin, durationHour
         case limitAlmost, limitReached, limitBadgeAlmost, limitBadgeFull, limitsShortcutHint, refresh, limitsHelp
         case integrationClaude, integrationCodex, integrationInstalled, integrationStatuslineByUser, integrationOutdated
         case hooksMissing, codexNotifyMissing, installEllipsis, updateEllipsis, removeIntegration, codexNotFound, codexLookup
@@ -630,6 +630,9 @@ import Workspace
 
     // Subscription limits
     static var limitSession: String { s(.limitSession) }
+    static var limitSessionShort: String { s(.limitSessionShort) }
+    static var limitWeekShort: String { s(.limitWeekShort) }
+    static var limitNoData: String { s(.limitNoData) }
     static var limitWeekAll: String { s(.limitWeekAll) }
     static var limitWeek: String { s(.limitWeek) }
     static func limitWeekModel(_ model: String) -> String { f(.limitWeekModel, model) }

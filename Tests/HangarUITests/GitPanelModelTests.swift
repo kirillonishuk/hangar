@@ -83,7 +83,7 @@ import Workspace
         #expect(rows[0].title == "feat/a")
         #expect(rows[1].count == 2 && rows[2].count == 1)
         rows = branchRows(list, expanded: ["local", "local/feat/"])
-        #expect(rows.map(\.title) == ["feat/a", "Local", "main", "feat", "a", "Remote"])
+        #expect(rows.map(\.title) == ["feat/a", L10n.gitLocal, "main", "feat", "a", L10n.gitRemote])
         #expect(rows.map(\.depth) == [0, 0, 1, 1, 2, 0])
         #expect(rows[4].branch?.ahead == 2 && rows[4].branch?.behind == 1)
         #expect(rows[3].expanded && !rows[5].expanded)

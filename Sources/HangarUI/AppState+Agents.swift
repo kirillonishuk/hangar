@@ -16,12 +16,16 @@ extension AppState {
     public func handle(_ message: ControlMessage) {
         switch message {
         case let .event(e):
-            guard let leaf = liveLeaf(e.leaf, tab: e.tab),
-                  acceptsHook(statuses.status(leaf.id), kind: e.kind, session: e.session, source: e.source, agent: sessionAgent(leaf.kind)) else { return }
-            let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error)
+            guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
+            let status = statuses.status(leaf.id)
+            guard acceptsHook(status, kind: e.kind, session: e.session, source: e.source, agentPid: e.agentPid,
+                              agent: sessionAgent(leaf.kind), known: leaf.agentSessionId) else { return }
+            let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error, agentPid: e.agentPid)
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
+            // The stored id (what restore resumes) moves only with the tab's own agent (#119); codex reports only its own turns.
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
-            if leaf.kind == agent, let id = validSessionId(e.session), leaf.agentSessionId != id {
+            let own = e.kind == .codexNotify || fromTabAgent(status, agentPid: e.agentPid)
+            if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
             switch e.kind {

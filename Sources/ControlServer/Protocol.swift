@@ -16,9 +16,11 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var command: String?
     /// StopFailure's `error` type, e.g. `rate_limit` (<= 64 characters).
     public var error: String?
+    /// `--agent-pid`: set only by the hooks Hangar passes to a tab's own agent (#119).
+    public var agentPid: Int32?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
-                source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil) {
+                source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil, agentPid: Int32? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
@@ -29,6 +31,7 @@ public struct EventMessage: Codable, Equatable, Sendable {
         self.tool = tool
         self.command = command
         self.error = error
+        self.agentPid = agentPid
     }
 }
 
@@ -104,6 +107,7 @@ public enum ControlMessage: Equatable, Sendable {
             if let t = m.notificationType, t.count > 64 { return .failure(.badField) }
             if let t = m.source, t.count > 64 { return .failure(.badField) }
             m.session = validSessionId(m.session)
+            if let pid = m.agentPid, pid <= 0 { m.agentPid = nil }
             m.message = m.message.map { String($0.prefix(500)) }
             // Details, not routing: an oversized one is dropped, the event itself still counts.
             if let t = m.tool, t.count > 64 { m.tool = nil }
@@ -136,7 +140,7 @@ public enum ControlMessage: Equatable, Sendable {
 }
 
 /// The ssh host socket (`ControlServer(remote: true)`): one header line + exactly `len` raw payload bytes per connection.
-/// `{"v":1,"type":"hook","tab":…,"leaf":…,"kind":…,"session":…?,"len":N}` | `{"v":1,"type":"statusline","len":N}`.
+/// `{"v":1,"type":"hook","tab":…,"leaf":…,"kind":…,"session":…?,"agentPid":…?,"len":N}` | `{"v":1,"type":"statusline","len":N}`.
 /// Trust boundary: any process of that account on the server can write here; only status updates come out.
 public enum RemoteMessage {
     static let maxHeader = 4096
@@ -176,7 +180,9 @@ public enum RemoteMessage {
                   let leaf = (object["leaf"] as? String).flatMap(UUID.init(uuidString:)),
                   let kind = object["kind"] as? String else { return .failure(.badField) }
             let session = validSessionId(object["session"] as? String)
-            guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: session.map { ["--session", $0] } ?? [], payload: payload)
+            let pid = object["agentPid"].flatMap(ControlCall.wireInt)
+            let args = (session.map { ["--session", $0] } ?? []) + (pid.map { ["--agent-pid", String($0)] } ?? [])
+            guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: args, payload: payload)
             else { return .failure(.badField) }
             m.message = m.message.map { String($0.prefix(500)) }
             message = .event(m)

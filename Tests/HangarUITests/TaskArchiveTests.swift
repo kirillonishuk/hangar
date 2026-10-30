@@ -163,7 +163,7 @@ import TestSupport
         #expect(calls.infos.first?.contains("dev.db, .env") == true)
         #expect(calls.infos.first?.contains("node_modules") == false)
         #expect(!archived(app, id) && exists(wt + "/dev.db"))
-        #expect(app.launchContext(for: leaf.id) == .restored(inResumeSet: true))
+        #expect(app.launchContext(for: leaf.id) == .restored)
     }
 
     @Test func restoreRecreatesWorktreeFromBranch() async throws {

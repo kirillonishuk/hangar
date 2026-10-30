@@ -27,10 +27,10 @@ import Workspace
     }
 
     private func event(_ app: AppState, tab n: Int, _ kind: HookKind, session: String? = nil, type: String? = nil, message: String? = nil,
-                       source: String? = nil) {
+                       source: String? = nil, pid: Int32? = nil) {
         let tab = app.state.tasks[0].tabs[n]
         app.handle(.event(EventMessage(tab: tab.id, leaf: tab.root.leaves[0].id, kind: kind, session: session,
-                                       notificationType: type, message: message, source: source)))
+                                       notificationType: type, message: message, source: source, agentPid: pid)))
     }
 
     private func leaf(_ app: AppState, _ n: Int) -> Leaf { app.state.tasks[0].tabs[n].root.leaves[0] }
@@ -80,26 +80,63 @@ import Workspace
         #expect(archived == expected)
     }
 
+    /// The tab's own agent (its `--settings` hooks carry `--agent-pid`) sets the id restore resumes; the installed hooks'
+    /// copies (no pid) never do (#119).
     @Test func sessionIdSavedToLeaf() throws {
         let app = makeApp([.claude])
         var changes = 0
         app.didChange = { changes += 1 }
-        event(app, tab: 0, .sessionStart, session: "s1")
+        event(app, tab: 0, .sessionStart, session: "s0")
+        #expect(leaf(app, 0).agentSessionId == nil)
+        event(app, tab: 0, .sessionStart, session: "s1", pid: 42)
         #expect(leaf(app, 0).agentSessionId == "s1")
-        #expect(resumeSet(for: app.state).contains(leaf(app, 0).id))
         let spec = try launchSpec(for: leaf(app, 0), tabId: app.state.tasks[0].tabs[0].id, config: app.config,
                                   socketPath: app.socketPath, userShell: "/bin/zsh", restoring: true, initialPrompt: nil)
         #expect(spec.command.contains("--resume s1"))
         let after = changes
-        event(app, tab: 0, .prompt, session: "s1")
+        event(app, tab: 0, .prompt, session: "s1", pid: 42)
         #expect(changes == after)
+    }
+
+    /// The owner's flow: a chat, `/resume` inside claude into another conversation, quit, relaunch → that conversation.
+    /// Also `fork`, `/clear`, and a lost SessionStart (the next prompt of the tab's agent carries the new id).
+    @Test func tabAgentSwitchesAreFollowed() throws {
+        let app = makeApp([.claude])
+        event(app, tab: 0, .sessionStart, session: "own", source: "startup", pid: 7)
+        event(app, tab: 0, .sessionStart, session: "picked", source: "resume", pid: 7)
+        #expect(leaf(app, 0).agentSessionId == "picked")
+        event(app, tab: 0, .sessionStart, session: "forked", source: "fork", pid: 7)
+        #expect(leaf(app, 0).agentSessionId == "forked")
+        event(app, tab: 0, .prompt, session: "lost-start", pid: 7)
+        #expect(leaf(app, 0).agentSessionId == "lost-start")
+        let spec = try launchSpec(for: leaf(app, 0), tabId: app.state.tasks[0].tabs[0].id, config: app.config,
+                                  socketPath: app.socketPath, userShell: "/bin/zsh", restoring: true, initialPrompt: nil)
+        #expect(spec.command.contains("--resume lost-start"))
+    }
+
+    /// A nested `claude -p --resume X` (no pid, or another agent's pid) never moves the tab's conversation; the installed
+    /// hooks' copies of the tab agent's SessionStart/prompt don't count twice: status comes from them, the id from the pid.
+    @Test func nestedResumeNeverMovesTheId() {
+        let app = makeApp([.claude])
+        let id = leaf(app, 0).id
+        event(app, tab: 0, .sessionStart, session: "own", source: "startup", pid: 7)
+        event(app, tab: 0, .sessionStart, session: "own", source: "startup")
+        event(app, tab: 0, .sessionStart, session: "nested", source: "resume")
+        event(app, tab: 0, .sessionStart, session: "teammate", source: "startup", pid: 8)
+        event(app, tab: 0, .prompt, session: "nested")
+        #expect(leaf(app, 0).agentSessionId == "own")
+        #expect(app.statuses.status(id).sessionId == "own" && app.state(ofLeaf: id) == .idle)
+        event(app, tab: 0, .prompt, session: "own", pid: 7)
+        #expect(app.state(ofLeaf: id) == .idle)  // the pid copy only tracks the conversation
+        event(app, tab: 0, .prompt, session: "own")
+        #expect(app.state(ofLeaf: id) == .working)
     }
 
     /// `claude -p` run from the leaf's claude inherits HANGAR_* and reports with its own session id.
     @Test func nestedClaudeEventsIgnored() {
         let app = makeApp([.claude])
         let id = leaf(app, 0).id
-        event(app, tab: 0, .sessionStart, session: "main", source: "startup")
+        event(app, tab: 0, .sessionStart, session: "main", source: "startup", pid: 7)
         event(app, tab: 0, .prompt, session: "main")
         event(app, tab: 0, .sessionStart, session: "nested", source: "startup")
         event(app, tab: 0, .notification, session: "nested", type: "permission_prompt", message: "nested asks")
@@ -114,14 +151,14 @@ import Workspace
 
     @Test func clearSwitchesSession() {
         let app = makeApp([.claude])
-        event(app, tab: 0, .sessionStart, session: "main", source: "startup")
-        event(app, tab: 0, .sessionStart, session: "after-clear", source: "clear")
+        event(app, tab: 0, .sessionStart, session: "main", source: "startup", pid: 7)
+        event(app, tab: 0, .sessionStart, session: "after-clear", source: "clear", pid: 7)
         #expect(leaf(app, 0).agentSessionId == "after-clear")
         event(app, tab: 0, .prompt, session: "after-clear")
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .working)
-        // ↩ relaunch: the next launch's first id is taken even from a plain startup.
+        // ↩ relaunch: a new process, a new pid; its first id is taken even from a plain startup.
         app.signal(.relaunched, leaf: leaf(app, 0).id)
-        event(app, tab: 0, .sessionStart, session: "fresh", source: "startup")
+        event(app, tab: 0, .sessionStart, session: "fresh", source: "startup", pid: 9)
         #expect(leaf(app, 0).agentSessionId == "fresh")
     }
 
@@ -172,7 +209,7 @@ import Workspace
     @Test func hostileSessionIdNotStored() {
         let app = makeApp([.claude])
         for bad in ["-x", "--dangerously-skip-permissions", "x; rm -rf ~"] {
-            event(app, tab: 0, .sessionStart, session: bad)
+            event(app, tab: 0, .sessionStart, session: bad, pid: 7)
             #expect(leaf(app, 0).agentSessionId == nil, "\(bad)")
         }
         #expect(app.statuses.status(leaf(app, 0).id).sessionId == nil)
@@ -196,7 +233,7 @@ import Workspace
         #expect(app.state(ofLeaf: leaf(app, 0).id) == .working)
         #expect(leaf(app, 0).agentSessionId == nil)
         // A claude hook in a codex leaf is not its session either; codex-notify is.
-        event(app, tab: 1, .sessionStart, session: "c1")
+        event(app, tab: 1, .sessionStart, session: "c1", pid: 7)
         #expect(leaf(app, 1).agentSessionId == nil)
         event(app, tab: 1, .codexNotify, session: "c2")
         #expect(leaf(app, 1).agentSessionId == "c2")

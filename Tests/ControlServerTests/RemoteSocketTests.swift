@@ -118,6 +118,18 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         #expect(m.session == "abcx")
     }
 
+    /// hangar-remote 6 forwards Hangar's `--agent-pid` (digits only) to the Mac (#119).
+    @Test func agentPidForwarded() async throws {
+        let r = try Remote()
+        let server = try r.start()
+        defer { server.stop() }
+        let run = try r.run(["event", "session-start", "--agent-pid", "4242"], env: r.leafEnv(), stdin: #"{"session_id":"abc","source":"resume"}"#)
+        #expect(run.code == 0)
+        let got = await r.inbox.wait(count: 1)
+        guard case let .event(m)? = got.first else { Issue.record("no event"); return }
+        #expect(m.agentPid == 4242 && m.session == "abc" && m.source == "resume")
+    }
+
     @Test func remoteSocketRejectsRequests() async throws {
         let r = try Remote()
         let calls = CallCount()
@@ -319,7 +331,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
 
     @Test func scriptParsesAsPOSIX() throws {
         let lines = hangarRemoteScript.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 5)
+        #expect(lines[0] == "#!/bin/sh" && lines[1] == "# hangar-remote \(hangarRemoteVersion)" && hangarRemoteVersion == 6)
         let r = try Remote()
         for shell in shells {
             let p = Process()
@@ -329,7 +341,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
             p.waitUntilExit()
             #expect(p.terminationStatus == 0, "\(shell)")
             let v = try r.run(["version"], shell: shell, env: ["PATH": r.path()])
-            #expect(v.code == 0 && v.out == "5\n")
+            #expect(v.code == 0 && v.out == "6\n")
         }
     }
 

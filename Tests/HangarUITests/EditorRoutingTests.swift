@@ -96,7 +96,7 @@ import Workspace
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-missing-\(UUID().uuidString)").path
         defer { try? FileManager.default.removeItem(atPath: dir) }
         let previous = LaunchMode(restoring: false, initialPrompt: nil)
-        for first in [LaunchContext.restored(inResumeSet: true), .relaunch(previous: previous, exitCode: 1)] {
+        for first in [LaunchContext.restored, .relaunch(previous: previous, exitCode: 1)] {
             var contexts: [LaunchContext] = []
             var keeps: [Bool] = []
             let view = LeafView(leafId: UUID())

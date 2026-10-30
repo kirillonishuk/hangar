@@ -14,7 +14,7 @@ public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget,
                              restoring: Bool, initialPrompt: String?, port: Int? = nil) -> LaunchSpec {
     // The server's PATH finds the agents; local `[agents]` are paths on this Mac.
     let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, shell: #""$SHELL""#,
-                           restoring: restoring, initialPrompt: initialPrompt)
+                           restoring: restoring, initialPrompt: initialPrompt, hookCLI: remoteHookCLI)
     return LaunchSpec(command: remoteTabCommand(target: target, tabId: tabId, leafId: leaf.id, cwd: leaf.cwd, agentCommand: cmd, port: port),
                       cwd: NSHomeDirectory(), env: [:])
 }

@@ -28,6 +28,8 @@ public struct LeafStatus: Equatable, Sendable {
     public var state: AgentState = .idle
     public var claudeHooks = false
     public var sessionId: String?
+    /// The tab's own agent since this launch: the first pid of a hook Hangar passed it (#119); nil — none seen yet.
+    public var agentPid: Int32?
     /// Subagents (Task/Agent tool) running now; never below 0, reset whenever the turn starts or ends.
     public var activeSubagents = 0
     /// Why the leaf needs the user now; nil — it doesn't.
@@ -54,13 +56,24 @@ func ownsSessionId(_ kind: HookKind, agent: SessionAgent?) -> Bool {
     agent == (kind == .codexNotify ? .codex : .claude)
 }
 
-/// A nested agent (e.g. `claude -p` run by the leaf's agent) reports into the same leaf with its own session id.
-/// The first id after a launch is the leaf's; another one is taken only from SessionStart of /clear, compact or resume.
+/// The hook ran in the tab's own agent: it carries the pid Hangar's `--settings` hooks pass, and it is the launch's first
+/// such pid or that same one (#119). Nested agents (`claude -p` from a tool, a teammate) never pass both.
+public func fromTabAgent(_ status: LeafStatus, agentPid: Int32?) -> Bool {
+    guard let agentPid else { return false }
+    return status.agentPid == nil || status.agentPid == agentPid
+}
+
+/// The tab's own agent's `--settings` hooks only track its conversation (/resume, /clear, compact, fork, a lost SessionStart);
+/// the status still comes from the installed hooks, so the two never count one event twice.
+/// Other events: another session id than the leaf's (`known`: the one it was launched with) is a nested agent's. Without
+/// any pid this launch (an older `hangar-remote`) SessionStart of a switch still moves the status, never the stored id.
 /// Events without an id, of another agent than the leaf's, and codex-notify are always accepted.
-public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, agent: SessionAgent?) -> Bool {
-    guard kind != .codexNotify, ownsSessionId(kind, agent: agent),
-          let id = validSessionId(session), let current = status.sessionId, id != current else { return true }
-    return kind == .sessionStart && ["clear", "compact", "resume"].contains(source)
+public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, agentPid: Int32? = nil,
+                        agent: SessionAgent?, known: String? = nil) -> Bool {
+    guard kind != .codexNotify, ownsSessionId(kind, agent: agent) else { return true }
+    if fromTabAgent(status, agentPid: agentPid) { return true }
+    guard let id = validSessionId(session), let current = status.sessionId ?? known, id != current else { return true }
+    return status.agentPid == nil && kind == .sessionStart && ["clear", "compact", "resume", "fork"].contains(source)
 }
 
 /// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
@@ -72,9 +85,15 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
     }
     switch signal {
     case let .hook(kind, session, type, source, detail):
-        guard acceptsHook(status, kind: kind, session: session, source: source, agent: agent) else { return status }
+        guard acceptsHook(status, kind: kind, session: session, source: source, agentPid: detail.agentPid, agent: agent) else { return status }
+        if kind != .codexNotify, ownsSessionId(kind, agent: agent), fromTabAgent(status, agentPid: detail.agentPid) {
+            s.agentPid = detail.agentPid
+            if let id = validSessionId(session) { s.sessionId = id }
+            return s
+        }
         if kind != .codexNotify { s.claudeHooks = true }
-        if ownsSessionId(kind, agent: agent), let id = validSessionId(session) { s.sessionId = id }
+        // Once the tab's own agent has reported itself, only it moves the id.
+        if ownsSessionId(kind, agent: agent), let id = validSessionId(session), status.agentPid == nil { s.sessionId = id }
         // A missed SubagentStop must not leave a count for good: every turn boundary starts from zero.
         if [.sessionStart, .prompt, .stop, .stopFailure].contains(kind) { s.activeSubagents = 0 }
         if [.sessionStart, .prompt, .tool, .stop, .stopFailure].contains(kind) { s.pendingPermission = nil }
@@ -144,6 +163,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         s.state = .idle
         s.claudeHooks = false
         s.sessionId = nil
+        s.agentPid = nil
         s.activeSubagents = 0
         s.attention = nil
         s.pendingPermission = nil

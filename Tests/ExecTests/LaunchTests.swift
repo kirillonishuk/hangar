@@ -9,9 +9,9 @@ import Workspace
     let wrapper = #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
 
     func spec(_ leaf: Leaf, config: HangarConfig = HangarConfig(), restoring: Bool = false,
-              prompt: String? = nil, shell: String = "/bin/zsh") throws -> LaunchSpec {
+              prompt: String? = nil, shell: String = "/bin/zsh", hookCLI: String? = nil) throws -> LaunchSpec {
         try launchSpec(for: leaf, tabId: tab, config: config, socketPath: "/tmp/h.sock",
-                       userShell: shell, restoring: restoring, initialPrompt: prompt)
+                       userShell: shell, restoring: restoring, initialPrompt: prompt, hookCLI: hookCLI)
     }
 
     func leaf(_ kind: LeafKind, id: String? = nil, file: String? = nil, line: Int? = nil) -> Leaf {
@@ -93,13 +93,55 @@ import Workspace
         #expect(!s.command.contains("exec"))
     }
 
+    /// #119: only ever the leaf's own conversation; never `--continue` (the folder's latest chat, possibly another tab's).
     @Test func claudeResumesById() throws {
         #expect(try inner(spec(leaf(.claude, id: "abc"), restoring: true)) == "claude --resume abc")
-        #expect(try inner(spec(leaf(.claude), restoring: true)) == "claude --continue")
+        #expect(try inner(spec(leaf(.claude), restoring: true)) == "claude")
         #expect(try inner(spec(leaf(.claude))) == "claude")
         #expect(try inner(spec(leaf(.claude, id: "abc"), restoring: true, prompt: "hi")) == "claude --resume abc")
-        // Fresh start (a failed resume fell back): the id is ignored.
-        #expect(try inner(spec(leaf(.claude, id: "abc"))) == "claude")
+        #expect(try inner(spec(leaf(.claude, id: "abc"))) == "claude")  // not a uuid: no `--session-id`
+    }
+
+    /// A new conversation is born under the leaf's uuid; resuming one never written (nothing said) starts it under it.
+    @Test func claudeSessionIdAtBirth() throws {
+        let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
+        #expect(try inner(spec(leaf(.claude, id: id), prompt: "fix")) == "claude --session-id \(id) fix")
+        #expect(try inner(spec(leaf(.claude, id: id), restoring: true)) == "claude --resume \(id) || claude --session-id \(id)")
+    }
+
+    /// Hangar's own hooks ride on every claude command line, quoted as one argument; nothing else gets them.
+    @Test func claudeGetsTabAgentHooks() throws {
+        let cli = "/Apps/My Hangar.app/Contents/Helpers/hangar"
+        let line = try inner(spec(leaf(.claude, id: "abc"), restoring: true, hookCLI: cli))
+        let words = try sh("for w in \(line.replacingOccurrences(of: "claude", with: "")); do printf '%s\\n' \"$w\"; done").out
+            .split(separator: "\n").map(String.init)
+        #expect(words.first == "--settings" && words.last == "abc")
+        let json = try #require(try JSONSerialization.jsonObject(with: Data(words[1].utf8)) as? [String: Any])
+        let hooks = try #require(json["hooks"] as? [String: [[String: Any]]])
+        #expect(Set(hooks.keys) == ["SessionStart", "UserPromptSubmit"])
+        let command = try #require(((hooks["SessionStart"]?.first?["hooks"] as? [[String: Any]])?.first)?["command"] as? String)
+        #expect(command == "h='\(cli)'; [ -x \"$h\" ] && \"$h\" event session-start --agent-pid \"$PPID\"; exit 0")
+        #expect(try !inner(spec(leaf(.codex, id: "t"), restoring: true, hookCLI: cli)).contains("--settings"))
+        #expect(try !inner(spec(leaf(.shell), hookCLI: cli)).contains("--settings"))
+    }
+
+    /// The hook command itself: the agent's pid reaches `hangar event`; a missing CLI is a silent success.
+    @Test func tabAgentHookCommandRuns() throws {
+        let dir = NSTemporaryDirectory() + "hg-hook-\(UUID())"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let fake = dir + "/hangar"
+        try writeScript("#!/bin/sh\necho \"$@\" > '\(dir)/argv'\n", to: fake)
+        func command(_ cli: String) throws -> String {
+            let json = try #require(try JSONSerialization.jsonObject(with: Data(tabAgentSettings(hookCLI: cli).utf8)) as? [String: Any])
+            let start = ((json["hooks"] as? [String: [[String: Any]]])?["SessionStart"]?.first?["hooks"] as? [[String: Any]])?.first
+            return try #require(start?["command"] as? String)
+        }
+        let r = try sh("sh -c \(shellQuote(try command(shellQuote(fake)))); echo \"pid=$$\"")
+        let argv = try String(contentsOfFile: dir + "/argv", encoding: .utf8)
+        let parent = r.out.split(separator: "=").last.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        #expect(argv == "event session-start --agent-pid \(parent)\n")
+        #expect(try sh("sh -c \(shellQuote(try command(shellQuote(dir + "/missing"))))").status == 0)
     }
 
     @Test func initialPromptIsArgument() throws {
@@ -110,7 +152,7 @@ import Workspace
     @Test func codexResume() throws {
         #expect(try inner(spec(leaf(.codex, id: "abc"), restoring: true)) == "codex resume abc")
         #expect(try inner(spec(leaf(.codex, id: "abc"))) == "codex")
-        #expect(try inner(spec(leaf(.codex), restoring: true)) == "codex resume --last")
+        #expect(try inner(spec(leaf(.codex), restoring: true)) == "codex")  // never `resume --last` (#119)
         #expect(try inner(spec(leaf(.codex))) == "codex")
     }
 
@@ -126,9 +168,9 @@ import Workspace
 
     /// A tampered state.json must not turn the id into a flag: an invalid stored id falls back to the no-id mode.
     @Test func invalidStoredIdIsNotOnCommandLine() throws {
-        #expect(try inner(spec(leaf(.claude, id: "--dangerously-skip-permissions"), restoring: true)) == "claude --continue")
-        #expect(try inner(spec(leaf(.codex, id: "-c"), restoring: true)) == "codex resume --last")
-        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude --continue")
+        #expect(try inner(spec(leaf(.claude, id: "--dangerously-skip-permissions"), restoring: true)) == "claude")
+        #expect(try inner(spec(leaf(.codex, id: "-c"), restoring: true)) == "codex")
+        #expect(try inner(spec(leaf(.claude, id: "a;b"), restoring: true)) == "claude")
     }
 
     @Test func argumentsAreShellQuoted() throws {
@@ -193,9 +235,8 @@ import Workspace
         #expect(launchMode(for: claude, .created(prompt: nil)) == fresh)
     }
 
-    @Test func restoredFollowsResumeSet() {
-        #expect(launchMode(for: claude, .restored(inResumeSet: true)) == resume)
-        #expect(launchMode(for: claude, .restored(inResumeSet: false)) == fresh)
+    @Test func restoredResumes() {
+        #expect(launchMode(for: claude, .restored) == resume)
     }
 
     @Test func relaunchNeverResendsPrompt() {

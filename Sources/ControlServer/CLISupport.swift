@@ -39,11 +39,18 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
-    if let i = args.firstIndex(of: "--session"), i < (args.firstIndex(of: "--then") ?? args.endIndex),
-       i + 1 < args.count {
-        m.session = validSessionId(args[i + 1])
+    let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]
+    if let i = own.firstIndex(of: "--session"), i + 1 < own.endIndex {
+        m.session = validSessionId(own[i + 1])
     }
+    if let i = own.firstIndex(of: "--agent-pid"), i + 1 < own.endIndex { m.agentPid = agentPid(own[i + 1]) }
     return m
+}
+
+/// `--agent-pid` (the hook shell's `$PPID`): digits only, a positive Int32; anything else is no pid.
+func agentPid(_ s: String) -> Int32? {
+    guard (1...10).contains(s.utf8.count), s.utf8.allSatisfy({ $0 >= 0x30 && $0 <= 0x39 }), let n = Int32(s), n > 0 else { return nil }
+    return n
 }
 
 /// The user's original `notify` argv: everything between `--then` and the trailing JSON payload.

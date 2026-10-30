@@ -19,8 +19,10 @@ public enum LaunchError: Error, Equatable {
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),
 /// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions #26, #27).
 /// `-l -i` is needed so PATH matches the user's terminal (~/.local/bin is set in ~/.zshrc).
+/// `hookCLI`: this app's `hangar`, for the hooks every claude tab gets on its command line (#119); nil — none.
 public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socketPath: String,
-                       userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil) throws -> LaunchSpec {
+                       userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil,
+                       hookCLI: String? = nil) throws -> LaunchSpec {
     var isDir: ObjCBool = false
     guard FileManager.default.fileExists(atPath: leaf.cwd, isDirectory: &isDir), isDir.boolValue else {
         throw LaunchError.missingCwd(leaf.cwd)
@@ -29,7 +31,8 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
     let userShellQuoted = (isZsh ? ghosttyZshIntegration : "") + shellQuote(userShell)
     let shell = shellQuote(posixShell(userShell))
     let inner = agentCommand(for: leaf, agent: { config.agentCommands[$0] ?? $0.rawValue },
-                             shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt)
+                             shell: userShellQuoted, restoring: restoring, initialPrompt: initialPrompt,
+                             hookCLI: hookCLI.map(shellQuote))
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
     env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#60)
@@ -59,11 +62,14 @@ public func posixShell(_ userShell: String) -> String {
 
 /// What the tab runs inside its shell, for local and remote launches alike; `agent` names the CLI per kind
 /// (locally `[agents]` from the config, on a server the bare name).
+/// A conversation is only ever resumed by its own id, never by recency (`--continue` / `resume --last` took the folder's
+/// latest chat, another tab's or terminal's, #119). A new claude conversation starts under the leaf's id (`--session-id`,
+/// given by the caller); a resume whose conversation was never written (nothing was said) starts it under that same id.
+/// `hookCLI`: a shell word for `hangar` / `hangar-remote`; claude then gets Hangar's own hooks via `--settings`.
 public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: String,
-                         restoring: Bool, initialPrompt: String?) -> String {
-    // A known id is used only when resuming: a fresh start after a failed `--resume <id>` ignores it.
-    // state.json is editable: an id that is not valid falls back to the no-id resume instead of reaching argv.
-    let id = restoring ? validSessionId(leaf.agentSessionId).map(shellQuote) : nil
+                         restoring: Bool, initialPrompt: String?, hookCLI: String? = nil) -> String {
+    // state.json is editable: an id that is not valid never reaches argv.
+    let id = validSessionId(leaf.agentSessionId)
     switch leaf.kind {
     case .shell:
         // A new worktree's setup script (decision #58) runs first; the shell stays for the user.
@@ -73,15 +79,36 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
         // The editor is Monaco (#81) and a chooser runs nothing; neither launches a terminal, a shell if one ever does.
         return "\(shell) -l -i"
     case .claude:
-        if let id { return "\(agent(.claude)) --resume \(id)" }
-        if restoring { return "\(agent(.claude)) --continue" }
-        return withPrompt(agent(.claude), initialPrompt)
+        let claude = agent(.claude) + (hookCLI.map { " --settings " + shellQuote(tabAgentSettings(hookCLI: $0)) } ?? "")
+        let uuid = id.flatMap { UUID(uuidString: $0) == nil ? nil : $0 }
+        if restoring, let id {
+            let resume = "\(claude) --resume \(shellQuote(id))"
+            // "No conversation found" (a tab whose chat was never written) fails the resume: start it under that id. A chat
+            // that exists makes the second start fail at once ("already in use"). `||` works in fish on a server as well.
+            guard let uuid else { return resume }
+            return "\(resume) || \(claude) --session-id \(uuid)"
+        }
+        return withPrompt(claude + (uuid.map { " --session-id \($0)" } ?? ""), initialPrompt)
     case .codex:
-        if let id { return "\(agent(.codex)) resume \(id)" }
-        if restoring { return "\(agent(.codex)) resume --last" }
+        if restoring, let id { return "\(agent(.codex)) resume \(shellQuote(id))" }
         return withPrompt(agent(.codex), initialPrompt)
     }
 }
+
+/// `--settings` JSON with the hooks Hangar's control of a tab relies on (#119): the conversation id, from the tab's own agent
+/// only (`$PPID` of the hook's shell is that claude; a nested `claude -p` never gets these). They only track the conversation:
+/// the installed hooks (if any) still drive the status. A missing CLI (app moved, no `hangar-remote`) is a silent no-op.
+public func tabAgentSettings(hookCLI: String) -> String {
+    func hook(_ kind: HookKind) -> [String: Any] {
+        ["hooks": [["type": "command", "command": "h=\(hookCLI); [ -x \"$h\" ] && \"$h\" event \(kind.rawValue) --agent-pid \"$PPID\"; exit 0"]]]
+    }
+    let root: [String: Any] = ["hooks": ["SessionStart": [hook(.sessionStart)], "UserPromptSubmit": [hook(.prompt)]]]
+    let data = (try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+    return String(decoding: data, as: UTF8.self)
+}
+
+/// The hooks' CLI on a server (`hangar-remote`, installed by the server check).
+public let remoteHookCLI = #""$HOME/.hangar/bin/hangar-remote""#
 
 private func withPrompt(_ cmd: String, _ prompt: String?) -> String {
     guard let prompt, !prompt.isEmpty else { return cmd }
@@ -102,8 +129,8 @@ public struct LaunchMode: Equatable, Sendable {
 public enum LaunchContext: Equatable, Sendable {
     /// New task or tab; the prompt goes only into this first launch.
     case created(prompt: String?)
-    /// From state.json at startup or an unarchived task; `inResumeSet` per `resumeSet`.
-    case restored(inResumeSet: Bool)
+    /// From state.json at startup, an unarchived task or an opened conversation: resumes by the leaf's id.
+    case restored
     /// ↩ or wake retry; `exitCode` nil = the surface never started (nothing ran).
     case relaunch(previous: LaunchMode, exitCode: Int32?)
     /// A remote tab whose session outlived its client (connection lost, detach): the session is attached again;
@@ -116,7 +143,7 @@ public enum LaunchContext: Equatable, Sendable {
 public func launchMode(for leaf: Leaf, _ context: LaunchContext) -> LaunchMode {
     switch context {
     case .created(let prompt): return LaunchMode(restoring: false, initialPrompt: prompt)
-    case .restored(let inSet): return LaunchMode(restoring: inSet, initialPrompt: nil)
+    case .restored: return LaunchMode(restoring: true, initialPrompt: nil)
     case .relaunch(let previous, nil): return previous
     case .reattach(let previous):
         return LaunchMode(restoring: leaf.kind == .claude || leaf.kind == .codex || previous.restoring, initialPrompt: nil)

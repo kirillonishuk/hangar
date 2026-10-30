@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
         let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
         app.integrationCLI = hangarCLIPath(bundle: .main)
+        app.tabHookCLI = app.integrationCLI
         app.holdIntegrationUntilLaunch()  // restored agent tabs wait for `integrateAtLaunch`'s migration
         Task { await app.sweepTombstones(host: nil) }  // an archive cut short by the last quit
         #if DEBUG
@@ -76,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.claudeJSONURL = env["HANGAR_CLAUDE_JSON"].map(URL.init(fileURLWithPath:)) ?? scratch.appendingPathComponent("claude.json")
         // A stand-in helper path, so a verification run writes its (temp) agent files like an installed app.
         if let cli = env["HANGAR_DEBUG_CLI"] { app.integrationCLI = cli }
+        // The tabs' own hooks call the `hangar` built next to this app.
+        app.tabHookCLI = Bundle.main.executableURL.map { $0.deletingLastPathComponent().appendingPathComponent("hangar").path }
         if let ssh = env["HANGAR_SSH"] { app.sshPath = ssh }  // verification runs never dial real hosts
         app.autoUpgradeRemote = env["HANGAR_SSH"] != nil  // a real server's files are never written by a debug run
         if let config = env["HANGAR_SSH_CONFIG"] { app.sshConfigPath = config }  // a fixture instead of ~/.ssh/config

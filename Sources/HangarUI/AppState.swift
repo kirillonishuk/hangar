@@ -207,8 +207,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
     /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
     @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
-    /// Leaves from state.json or an unarchived task → whether they are in the resume set (`resumeSet`).
-    @ObservationIgnored private var restoredLeaves: [UUID: Bool] = [:]
+    /// Leaves from state.json, an unarchived task or an opened conversation: their first launch resumes.
+    @ObservationIgnored private var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
@@ -237,6 +237,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let integrations = IntegrationStatus()
     /// The bundled `Contents/Helpers/hangar` the agents are pointed at; nil = nothing is written or asked (tests, `swift run`).
     @ObservationIgnored public var integrationCLI: String?
+    /// The `hangar` every claude tab's own hooks call (`--settings`, #119), whatever the integration; nil — no such hooks.
+    @ObservationIgnored public var tabHookCLI: String?
     /// Claude's `.claude.json` (MCP); nil = from `CLAUDE_CONFIG_DIR` or home. DEBUG runs pin it (main.swift).
     @ObservationIgnored public var claudeJSONURL: URL?
     @ObservationIgnored var integrationPathsCache: (claude: URL, codex: URL, claudeJSON: URL)?
@@ -281,7 +283,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         isActive: { NSApp?.isActive ?? false })
 
     public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
-                socketPath: String = defaultStateDirectoryPath() + "/hangar.sock") {
+                socketPath: String? = nil) {
         self.state = state
         self.store = store
         self.config = config
@@ -290,7 +292,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         L10n.language = config.language
         userShell = resolveUserShell(passwd: getpwuid(getuid())?.pointee.pw_shell.map { String(cString: $0) },
                                      env: ProcessInfo.processInfo.environment["SHELL"])
-        self.socketPath = socketPath
+        // Socket, backups and update files follow the store's folder: a test or debug store never reaches the real one.
+        self.socketPath = socketPath ?? store.directory.appendingPathComponent("hangar.sock").path
         markRestored(state.tasks.filter { !$0.archived })
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
@@ -302,22 +305,18 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         search.currentTarget = { [weak self] in self?.searchTarget }
     }
 
-    func isRestored(leafId: UUID) -> Bool { restoredLeaves[leafId] == true }
+    func isRestored(leafId: UUID) -> Bool { restoredLeaves.contains(leafId) }
 
-    /// Judged against every live task, as `spec(for:)` does: an unarchived task's neighbours in its folders count (#89).
     private func markRestored(_ tasks: [HangarTask]) {
-        let resuming = resumeSet(for: state)
         for task in tasks {
-            for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
-                restoredLeaves[leaf.id] = resuming.contains(leaf.id)
-            }
+            for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) { restoredLeaves.insert(leaf.id) }
         }
     }
 
     /// Context of a leaf's first launch in its view; the new-task prompt is consumed here.
     func launchContext(for leafId: UUID) -> LaunchContext {
         if let prompt = pendingPrompts.removeValue(forKey: leafId) { return .created(prompt: prompt) }
-        return restoredLeaves[leafId].map { .restored(inResumeSet: $0) } ?? .created(prompt: nil)
+        return restoredLeaves.contains(leafId) ? .restored : .created(prompt: nil)
     }
 
     /// Saves right away (quit): the debounce would not fire.
@@ -466,10 +465,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
-        let leaf = self.leaf(id: leaf.id) ?? leaf
+        var leaf = self.leaf(id: leaf.id) ?? leaf
         var mode = launchMode(for: leaf, context)
-        // ↩ resumes too: a second agent leaf in the folder without a session id would `--continue` the first one's chat.
-        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, !resumeSet(for: state).contains(leaf.id) { mode.restoring = false }
+        // An agent resumes only by its own id (#119): without one it starts anew.
+        if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil { mode.restoring = false }
+        // A new claude conversation is born under an id stored right away: the tab knows its chat before any hook.
+        if leaf.kind == .claude, !mode.restoring {
+            leaf.agentSessionId = UUID().uuidString.lowercased()
+            setAgentSessionIdQuietly(leaf)
+        }
         // Tabs and the drawer alike get the task's port (#60).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         if integrationGate(leaf.kind, host: nil) { throw LaunchError.awaitingConsent }
@@ -490,8 +494,16 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
                                      restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port), mode)
         }
         let spec = try launchSpec(for: leaf, tabId: tabId, config: config, socketPath: socketPath,
-                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port)
+                                  userShell: userShell, restoring: mode.restoring, initialPrompt: mode.initialPrompt, port: port,
+                                  hookCLI: tabHookCLI)
         return (spec, mode)
+    }
+
+    /// A launch's new conversation id: saved without `perform`, whose sync may be what is starting this launch.
+    private func setAgentSessionIdQuietly(_ leaf: Leaf) {
+        guard let id = leaf.agentSessionId else { return }
+        state.setAgentSessionId(leafId: leaf.id, id)
+        store.scheduleSave(state)
     }
 
     func leaf(id: UUID) -> Leaf? {
@@ -609,7 +621,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         perform { $0.restoreTask(id: taskId) }
         let tasks = state.tasks.filter { $0.id == taskId }
         if fresh {
-            for leaf in tasks.flatMap({ $0.tabs.flatMap(\.root.leaves) + [$0.drawer.leaf].compactMap { $0 } }) { restoredLeaves[leaf.id] = nil }
+            for leaf in tasks.flatMap({ $0.tabs.flatMap(\.root.leaves) + [$0.drawer.leaf].compactMap { $0 } }) { restoredLeaves.remove(leaf.id) }
         } else {
             markRestored(tasks)
         }
@@ -631,7 +643,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         // Marked inside `perform`: its sync starts the new tab's surface, whose first launch must already resume.
         perform { s in
             if let leaf = s.addResumeTab(taskId: task.id, kind: c.agent == .claude ? .claude : .codex, cwd: c.cwd, sessionId: id) {
-                restoredLeaves[leaf] = true
+                restoredLeaves.insert(leaf)
             }
         }
     }
@@ -755,7 +767,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         guard let id = validSessionId(c.id) else { return }
         perform { s in
             if s.chooseKind(leafId: leafId, kind: c.agent == .claude ? .claude : .codex, resume: (cwd: c.cwd, sessionId: id)) {
-                restoredLeaves[leafId] = true  // before this perform's sync starts it
+                restoredLeaves.insert(leafId)  // before this perform's sync starts it
             }
         }
     }
@@ -856,39 +868,6 @@ func dockBadgeLabel(count: Int, enabled: Bool) -> String { enabled && count > 0 
     case .recoveredFromCorrupt(let backup): L10n.stateCorrupt(backup.path)
     case .unreadable(let url): L10n.stateUnreadable(url.path)
     }
-}
-
-/// Leaves of `tasks` that start with `restoring: true`; callers pass all live tasks (startup, unarchive and every launch).
-/// Without per-tab session ids `--continue` / `resume --last` pick the latest conversation in a cwd, so at most one
-/// claude/codex leaf without an id per (kind, host, cwd) continues, and only if no leaf there has an id (#89): that
-/// leaf's conversation is likely the latest one, and `--continue` would attach a second tab to it. The rest start fresh.
-/// Leaves with an id always resume; shell and editor leaves are always restored. `host`: a project's ssh host, nil if local.
-func resumeSet(for state: WorkspaceState) -> Set<UUID> {
-    resumeSet(for: state.tasks.filter { !$0.archived }, host: { id in state.projects.first { $0.id == id }?.host })
-}
-
-func resumeSet(for tasks: [HangarTask], host: (UUID) -> String?) -> Set<UUID> {
-    struct Key: Hashable { var kind: LeafKind; var host: String?; var cwd: String }
-    var agents: [(leaf: Leaf, key: Key)] = []
-    var result = Set<UUID>()
-    for task in tasks {
-        let host = host(task.projectId)
-        for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
-            switch leaf.kind {
-            case .shell, .editor, .choose: result.insert(leaf.id)
-            case .claude, .codex:
-                var cwd = leaf.cwd
-                while cwd.count > 1, cwd.hasSuffix("/") { cwd.removeLast() }
-                agents.append((leaf, Key(kind: leaf.kind, host: host, cwd: cwd)))
-            }
-        }
-    }
-    // A folder with a known conversation has no `--continue` slot left.
-    var claimed = Set(agents.filter { validSessionId($0.leaf.agentSessionId) != nil }.map(\.key))
-    for (leaf, key) in agents {
-        if validSessionId(leaf.agentSessionId) != nil || claimed.insert(key).inserted { result.insert(leaf.id) }
-    }
-    return result
 }
 
 /// Index of the tab ⌘<number> selects among `count` tabs: 1…8 by position, 9 the last one (as VS Code and browsers).

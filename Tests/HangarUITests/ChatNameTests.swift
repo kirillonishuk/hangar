@@ -15,12 +15,25 @@ import Testing
         #expect(chatName(name: "", message: "## Почини логин", existing: []) == "Почини логин")
         #expect(chatName(name: "", message: "> - * Почини логин", existing: []) == "Почини логин")
         #expect(chatName(name: "", message: "```swift\nlet x = 1\n```", existing: []) == "let x = 1")
-        #expect(chatName(name: "", message: "\u{200B}\u{FEFF}\n\u{200D}Почини\u{200B} логин", existing: []) == "Почини логин")
+        #expect(chatName(name: "", message: "\u{200B}\u{FEFF}\n\u{2060}Почини\u{200B} логин", existing: []) == "Почини логин")
         L10n.language = .ru
         defer { L10n.language = .system }
         // Nothing visible: «Чат N».
         #expect(chatName(name: "", message: "#\n> \n```\n\u{200B}", existing: []) == "Чат 1")
-        #expect(chatName(name: "\u{200B}", message: "", existing: []) == "Чат 1")
+    }
+
+    /// A typed name is only trimmed: joiners make emoji and Persian words.
+    @Test func typedNameKeepsJoiners() {
+        #expect(chatName(name: " 👨\u{200D}👩\u{200D}👧 ", message: "", existing: []) == "👨\u{200D}👩\u{200D}👧")
+        #expect(chatName(name: "می\u{200C}خواهم", message: "", existing: []) == "می\u{200C}خواهم")
+        #expect(chatName(name: "", message: "\u{200B}می\u{200C}خواهم 👨\u{200D}👩", existing: []) == "می\u{200C}خواهم 👨\u{200D}👩")
+    }
+
+    @Test func onlyWholeMarkersAreDropped() {
+        #expect(chatName(name: "", message: "-1 bug", existing: []) == "-1 bug")
+        #expect(chatName(name: "", message: "**Почини** логин", existing: []) == "**Почини** логин")
+        #expect(chatName(name: "", message: "- ** Почини логин", existing: []) == "Почини логин")
+        #expect(chatName(name: "", message: "#hashtag", existing: []) == "#hashtag")
     }
 
     @Test func longMessageIsCutAtAWord() {

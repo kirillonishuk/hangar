@@ -128,6 +128,22 @@ extension Theme {
     /// Terminal cursor: the accent, over the user's Ghostty config (#109) — not the system accent.
     public static var terminalCursor: NSColor { ns(palette.accent) }
 
+    // Roles of the design system (spec §2.7; `ThemePalette` roles). `text2`, `text3`, `hover`, `line`, `field`,
+    // `accent`, `accentText`, the statuses and `failedText` above already are roles.
+    public static var bg0: NSColor { ns(palette.bg0) }
+    public static var bg1: NSColor { ns(palette.bg1) }
+    public static var bg2: NSColor { ns(palette.bg2) }
+    public static var hover2: NSColor { ns(palette.hover2) }
+    public static var selected: NSColor { ns(palette.selected) }
+    public static var selectedFocus: NSColor { ns(palette.selectedFocus) }
+    public static var onAccent: NSColor { ns(palette.onAccent) }
+    public static var line2: NSColor { ns(palette.line2) }
+    public static var text0: NSColor { ns(palette.text0) }
+    public static var text1: NSColor { ns(palette.text1) }
+    public static var gitA: NSColor { ns(palette.gitA) }
+    public static var gitM: NSColor { ns(palette.gitM) }
+    public static var gitD: NSColor { ns(palette.gitD) }
+
     /// Terminal colours handed to Ghostty: the theme's background, text and accent cursor (always over the user's
     /// Ghostty config, #109) and its ANSI palette.
     public static func terminalColors(of p: ThemePalette = Theme.palette) -> TerminalColors {
@@ -195,5 +211,21 @@ extension Theme {
         public static var segmentHover: Color { Color(nsColor: Theme.segmentHover) }
         public static var controlBorderStrong: Color { Color(nsColor: Theme.controlBorderStrong) }
         static func of(_ hex: Hex) -> Color { Color(nsColor: Theme.ns(hex)) }
+
+        // Roles (spec §2.7), as above.
+        public static var bg0: Color { of(Theme.palette.bg0) }
+        public static var bg1: Color { of(Theme.palette.bg1) }
+        public static var bg2: Color { of(Theme.palette.bg2) }
+        public static var hover2: Color { of(Theme.palette.hover2) }
+        public static var selected: Color { of(Theme.palette.selected) }
+        public static var selectedFocus: Color { of(Theme.palette.selectedFocus) }
+        public static var onAccent: Color { of(Theme.palette.onAccent) }
+        public static var line2: Color { of(Theme.palette.line2) }
+        public static var text0: Color { of(Theme.palette.text0) }
+        public static var text1: Color { of(Theme.palette.text1) }
+        public static var failedText: Color { of(Theme.palette.failedText) }
+        public static var gitA: Color { of(Theme.palette.gitA) }
+        public static var gitM: Color { of(Theme.palette.gitM) }
+        public static var gitD: Color { of(Theme.palette.gitD) }
     }
 }

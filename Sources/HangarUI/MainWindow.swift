@@ -903,11 +903,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
+        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.chatSheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
-        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id))
+        sheet.autorecalculatesKeyViewLoop = true  // Tab reaches the copy's fields, which appear after the sheet opens
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id),
+                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
             guard let self, let sheet else { return }
@@ -918,7 +920,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             self.sheetWindow = nil
             self.newTaskModel = nil
         }
-        let view = NewTaskSheet(model: model, projectName: project.name, agentName: app.config.defaultAgent.rawValue,
+        let view = NewTaskSheet(model: model, projectName: project.name,
+                                agentName: app.config.defaultAgent == .codex ? "Codex" : "Claude",
                                 onCreate: { [weak self] name, message, mode in
                                     close()
                                     guard let app = self?.app else { return }

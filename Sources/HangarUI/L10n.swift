@@ -78,7 +78,7 @@ import Workspace
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, statusLimit, limitUntil, rowWithStatus
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
-        case taskNamePlaceholder, firstMessagePlaceholder, escCancel, cancel, create, configNotApplied
+        case taskNamePlaceholder, escCancel, cancel, create, configNotApplied
         case usingDefaults, launchFailed, terminalCreateFailed, exited, exitedWithCode, relaunchHint, hostNotConnected, hostOffline, remoteNoGit, sessionDetached
         case emptyNoTask, emptyNoTabs, terminalTab, ghosttyFailed, retry, quit, menuHide
         case menuQuit, menuEdit, undo, redo, cut, copy
@@ -104,7 +104,9 @@ import Workspace
         case clipboardRead, clipboardPasteUnsafe, allow
         case branchRequired, branchInvalid, branchExists, fetchFailed, createWithoutFetch, fetchCancelled, noCommits
         case branchDirty, branchDirtyHint, branchDirtyNewHint, branchCheckedOutInChat, branchCheckedOutAt, branchIgnoredOverwrite, branchOperationInProgress
-        case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, refreshHelp
+        case worktreeLabel, newBranch, refreshHelp
+        case whereToWork, whereFolder, whereFolderBranch, whereFolderCommit, whereFolderShared, whereCopy, whereCopyHint
+        case copyNeedsCommit, branchFrom, taskFor, taskLater, chatNumbered, createHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case switcherSearch, switcherLocal, switcherRemote, branchCurrent, branchInChatNote, branchInFolderNote, branchNewFrom, branchCreate, branchCreateNamed
         case branchNamePrompt, branchFromCurrent, branchSwitching, branchCreating, branchesLoading, branchSwitchHint
@@ -365,7 +367,6 @@ import Workspace
     static var closeTabHelp: String { s(.closeTabHelp) }
     static var allTabsHelp: String { s(.allTabsHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
-    static func firstMessagePlaceholder(_ agent: String) -> String { f(.firstMessagePlaceholder, agent) }
     static var escCancel: String { s(.escCancel) }
     static var cancel: String { s(.cancel) }
     static var create: String { s(.create) }
@@ -386,11 +387,21 @@ import Workspace
     static var fetchCancelled: String { s(.fetchCancelled) }
     static var noCommits: String { s(.noCommits) }
     static var worktreeLabel: String { s(.worktreeLabel) }
-    static var worktreeOnHint: String { s(.worktreeOnHint) }
-    static var worktreeOffHint: String { s(.worktreeOffHint) }
-    static var fromBranch: String { s(.fromBranch) }
     static var newBranch: String { s(.newBranch) }
-    static var fromName: String { s(.fromName) }
+    static var whereToWork: String { s(.whereToWork) }
+    static var whereFolder: String { s(.whereFolder) }
+    /// «Ветка» / «Коммит» before the folder's mono HEAD: «Ветка `main`. Изменения увидят все чаты проекта.»
+    static var whereFolderBranch: String { s(.whereFolderBranch) }
+    static var whereFolderCommit: String { s(.whereFolderCommit) }
+    static var whereFolderShared: String { s(.whereFolderShared) }
+    static var whereCopy: String { s(.whereCopy) }
+    static var whereCopyHint: String { s(.whereCopyHint) }
+    static var copyNeedsCommit: String { s(.copyNeedsCommit) }
+    static var branchFrom: String { s(.branchFrom) }
+    static func taskFor(_ agent: String) -> String { f(.taskFor, agent) }
+    static var taskLater: String { s(.taskLater) }
+    static func chatNumbered(_ n: Int) -> String { f(.chatNumbered, n) }
+    static var createHelp: String { s(.createHelp) }
     static var refreshHelp: String { s(.refreshHelp) }
     static var searchBranches: String { s(.searchBranches) }
     static var branchesRemote: String { s(.branchesRemote) }

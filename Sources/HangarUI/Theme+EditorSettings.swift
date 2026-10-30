@@ -53,7 +53,6 @@ extension Theme {
         static let swatchGap: CGFloat = 4
         static let modifiedDot: CGFloat = 5
         static let dotSlot: CGFloat = 10
-        static let hexFont: CGFloat = 11.5
         static let groupHeight: CGFloat = 30
 
         // Color popover (NSPopover)

@@ -78,7 +78,7 @@ private struct GitChip: View {
                 IconView(icon: .chevronDown, size: Theme.GitTab.chipIcon, tint: tint)
             }
         }
-        .font(.system(size: Theme.fontSize.footer))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(tint)
         .padding(.leading, Theme.GitTab.chipLeading)
         .padding(.trailing, Theme.GitTab.chipTrailing)
@@ -118,13 +118,13 @@ private struct GitMenuItem: View {
                 }
                 .frame(width: Theme.GitTab.menuCheck)
                 Text(verbatim: title)
-                    .font(.system(size: Theme.fontSize.base, design: mono ? .monospaced : .default))
+                    .font((mono ? Theme.Typography.mono : Theme.Typography.body).font())
                     .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: Theme.GitTab.rowGap)
                 if let note {
-                    Text(verbatim: note).font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
+                    Text(verbatim: note).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                 }
             }
             .padding(.horizontal, Theme.GitTab.chipLeading)
@@ -264,7 +264,7 @@ private struct GitPathMenu: View {
                     Button { pick(e.path) } label: {
                         HStack(spacing: Theme.GitTab.rowGap) {
                             FileIconView(name: e.name, isDir: e.isDir)
-                            Text(verbatim: e.path).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text1)
+                            Text(verbatim: e.path).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
                                 .lineLimit(1).truncationMode(.head)
                             Spacer(minLength: 0)
                         }

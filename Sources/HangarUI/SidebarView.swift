@@ -65,7 +65,7 @@ struct SidebarView: View {
             .frame(width: geo.size.width, alignment: .leading)
             .clipped()
         }
-        .font(.system(size: Theme.fontSize.sidebarRow))
+        .font(Theme.Typography.body.font())
         .environment(\.hoverPalette, .focus)
         .background(Theme.ui.bg1)
         .ignoresSafeArea()
@@ -147,7 +147,7 @@ struct SidebarView: View {
                         Text(task.name).lineLimit(1).truncationMode(.tail)
                     }
                     Text(app.project(task.projectId)?.name ?? "").lineLimit(1)
-                        .font(.system(size: Theme.rowStatusFont))
+                        .font(Theme.Typography.secondary.font())
                         .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
@@ -200,12 +200,12 @@ struct SidebarView: View {
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: host).lineLimit(1).truncationMode(.middle)
-                        .font(.system(size: Theme.fontSize.base))
+                        .font(Theme.Typography.body.font())
                         .foregroundStyle(Theme.ui.text1)
                     Spacer(minLength: 0)
                     if known {
                         Text(hostStatusLabel(info)).lineLimit(1)
-                            .font(.system(size: Theme.rowStatusFont))
+                            .font(Theme.Typography.secondary.font())
                             .foregroundStyle(Theme.ui.text3)
                             .opacity(hover ? 0 : 1)
                     }
@@ -246,7 +246,7 @@ struct SidebarView: View {
             } rail: {
                 RailTile(text: monogram(host), state: dot, selected: selected)
             }
-            .font(.system(size: Theme.fontSize.sidebarRow))
+            .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
@@ -273,7 +273,7 @@ struct SidebarView: View {
                       filter: { app.perform { $0.attentionOnly.toggle() } })
         if filtering && groups.isEmpty {
             Text(L10n.nobodyWaiting)
-                .font(.system(size: Theme.fontSize.sidebarRow))
+                .font(Theme.Typography.body.font())
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(1)
                 .padding(.leading, Theme.sectionHeaderX)
@@ -387,13 +387,13 @@ struct SidebarView: View {
                             Text(project.name).foregroundStyle(Theme.ui.text0).lineLimit(1)
                         }
                     }
-                    .font(.system(size: Theme.fontSize.sidebarRow, weight: .semibold))
+                    .font(Theme.Typography.body.font(.semibold))
                     // Remote: the server glyph and host after the name (`text3`); the rail keeps the plain monogram.
                     if let host = project.host, !renaming {
                         HStack(spacing: Theme.railInset) {
                             IconView(icon: .sshHost, size: Theme.hostIconSize, tint: Theme.ui.text3)
                             Text(verbatim: host).lineLimit(1).truncationMode(.middle)
-                                .font(.system(size: Theme.rowStatusFont))
+                                .font(Theme.Typography.secondary.font())
                                 .foregroundStyle(Theme.ui.text3)
                         }
                         .padding(.leading, Theme.inlineGap)
@@ -401,7 +401,7 @@ struct SidebarView: View {
                     }
                     Spacer(minLength: 0)
                     if !exists, project.host == nil {
-                        Text(L10n.folderMissing).font(.system(size: Theme.rowStatusFont)).foregroundStyle(Theme.ui.text3)
+                        Text(L10n.folderMissing).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                             .padding(.leading, Theme.rowEndGap)
                             .opacity(hover ? 0 : 1)
                     }
@@ -411,7 +411,7 @@ struct SidebarView: View {
                             StatusDot(state: folded.state)
                             if folded.count > 1 { Text(verbatim: "\(folded.count)").monospacedDigit() }
                         }
-                        .font(.system(size: Theme.rowStatusFont))
+                        .font(Theme.Typography.secondary.font())
                         .foregroundStyle(Theme.ui.text2)
                         .padding(.leading, Theme.rowEndGap)
                         .opacity(hover ? 0 : 1)
@@ -433,7 +433,7 @@ struct SidebarView: View {
             } rail: {
                 // Rail: a folder-like monogram tile (no status dot, `text3` border).
                 Text(monogram(project.name))
-                    .font(.system(size: Theme.fontSize.small, weight: .semibold))
+                    .font(Theme.Typography.caption.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
                     .frame(width: Theme.projectTileSize, height: Theme.projectTileSize)
                     .overlay(RoundedRectangle(cornerRadius: Theme.projectTileRadius).stroke(Theme.ui.text3, lineWidth: 1))
@@ -469,7 +469,7 @@ struct SidebarView: View {
                 .frame(height: Theme.archivedHintLine)
                 .disabled(!app.isAvailable(project))
         }
-        .font(.system(size: Theme.rowStatusFont))
+        .font(Theme.Typography.secondary.font())
         .padding(.leading, Theme.gutterTextX + Theme.sessionIndent - Theme.rowStatusGap)
         .padding(.trailing, Theme.sessionRowTrailing)
         .frame(maxWidth: .infinity, minHeight: Theme.archivedHintHeight, maxHeight: Theme.archivedHintHeight, alignment: .leading)
@@ -536,7 +536,7 @@ struct SidebarView: View {
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, selected: selected)
             }
-            .font(.system(size: Theme.fontSize.sidebarRow))
+            .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
             .opacity(offline ? Theme.Opacity.inactive : 1)
         }
@@ -574,7 +574,7 @@ struct SidebarView: View {
                     IconView(icon: .settings)
                 } expanded: {
                     Text(L10n.settings)
-                        .font(.system(size: Theme.fontSize.sidebarFooter))
+                        .font(Theme.Typography.body.font())
                         .foregroundStyle(Theme.ui.text2)
                 } rail: { EmptyView() }
             }

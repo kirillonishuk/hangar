@@ -8,7 +8,7 @@ extension SettingsView {
     var integrations: some View {
         VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
             if let notice = integrationNotice {
-                Text(verbatim: notice).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.waiting)
+                Text(verbatim: notice).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.waiting)
                     .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
             }
             agentCard(.claude)
@@ -30,7 +30,7 @@ extension SettingsView {
             HStack(spacing: Theme.sheetButtonGap) {
                 IconView(icon: agent == .claude ? .claude : .codex, size: Theme.integrationTitleIcon)
                 Text(verbatim: agentTitle(agent))
-                    .font(.system(size: Theme.integrationAgentTitle, weight: .semibold)).foregroundStyle(Theme.ui.text0)
+                    .font(Theme.Typography.title.font(.semibold)).foregroundStyle(Theme.ui.text0)
                 Spacer(minLength: 0)
                 if found != .some(nil) {
                     CardSwitch(on: on) { v in
@@ -113,7 +113,7 @@ extension SettingsView {
         HStack(spacing: Theme.cardRowGap) {
             Pill(text: L10n.intNotFound, color: Theme.ui.text3)
             Text(verbatim: L10n.intAgentNotFound(agent.rawValue, agentTitle(agent)))
-                .font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                .font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }

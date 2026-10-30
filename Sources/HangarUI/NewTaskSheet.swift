@@ -51,7 +51,7 @@ struct NewTaskSheet: View {
     private var card: some View {
         VStack(spacing: 0) {
             CardRow(label: L10n.worktreeLabel, first: true) {
-                Text(worktreeHint).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
+                Text(worktreeHint).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: Theme.cardRowGap)
                 CardSwitch(isOn: $model.worktree)
                     .disabled(model.availability != .ready || model.creating)
@@ -72,10 +72,10 @@ struct NewTaskSheet: View {
                         .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
                         .disabled(model.creating)
                     if model.branchFollowsName, !model.branch.isEmpty {
-                        Text(L10n.fromName).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
+                        Text(L10n.fromName).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
                     }
                 } else {
-                    Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    Text("—").font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
@@ -84,7 +84,7 @@ struct NewTaskSheet: View {
             // Always there (no jump when the lockfile is read); a suggestion stays off until turned on.
             CardRow(label: L10n.afterCreate) {
                 if let command = model.setupCommand {
-                    Text(verbatim: command).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    Text(verbatim: command).font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text0)
                         .truncationMode(.middle)
                         .help(command)
@@ -92,7 +92,7 @@ struct NewTaskSheet: View {
                     CardSwitch(isOn: $model.runSetup)
                         .disabled(!model.worktree || model.creating)
                 } else {
-                    Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    Text("—").font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text0)
                     Spacer(minLength: 0)
                 }
@@ -118,7 +118,7 @@ struct NewTaskSheet: View {
                 } else if let last = model.lastFetch, model.fetch == .done || model.fetch == .idle {
                     // Not after a failed/cancelled fetch: git rewrites FETCH_HEAD (our «last fetch») even then.
                     Text(L10n.updatedAgo(ageLabel(since: last, now: Date())))
-                        .font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
+                        .font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
                 }
                 Button { Task { await model.refresh() } } label: {
                     IconView(icon: .refresh, size: Theme.smallIconSize)
@@ -155,7 +155,7 @@ struct NewTaskSheet: View {
                 }
                 if let stderr = model.createError { stderrText(stderr) }
             }
-            .font(.system(size: Theme.fontSize.tab))
+            .font(Theme.Typography.secondary.font())
             .padding(.top, hasErrors ? Theme.sheetMessageTop : 0)
         }
     }
@@ -170,7 +170,7 @@ struct NewTaskSheet: View {
 
     private func stderrText(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+            .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.failed)
             .lineLimit(Theme.errorMaxLines)
             .fixedSize(horizontal: false, vertical: true)

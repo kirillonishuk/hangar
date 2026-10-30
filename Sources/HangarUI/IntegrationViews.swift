@@ -15,8 +15,8 @@ struct FunctionRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: Theme.cardRowGap) {
             VStack(alignment: .leading, spacing: Theme.integrationSubGap) {
-                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text1)
-                Text(verbatim: subtitle).font(.system(size: Theme.fontSize.tab)).foregroundStyle(subtitleColor)
+                Text(verbatim: title).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text1)
+                Text(verbatim: subtitle).font(Theme.Typography.secondary.font()).foregroundStyle(subtitleColor)
                     .lineLimit(1).truncationMode(.tail).help(subtitle)
             }
             .layoutPriority(1)
@@ -38,7 +38,7 @@ struct TagPill: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.counter))
+            .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.ui.text3)
             .padding(.horizontal, Theme.integrationTagPaddingH)
             .frame(height: Theme.integrationTagHeight)
@@ -70,7 +70,7 @@ struct WhereRow: View {
             ForEach(items) { item in entry(item) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.system(size: Theme.fontSize.tab))
+        .font(Theme.Typography.secondary.font())
         .lineLimit(1)
         .padding(.vertical, Theme.cardRowPaddingV)
         .padding(.horizontal, Theme.cardRowPaddingH)
@@ -146,12 +146,12 @@ struct ChangesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
             if changes.isEmpty {
-                Text(verbatim: L10n.intNoChanges).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: L10n.intNoChanges).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
             }
             let lines = VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
                 ForEach(changes) { change in
                     Text(verbatim: change.path)
-                        .font(.system(size: Theme.fontSize.counter, design: .monospaced)).foregroundStyle(Theme.ui.text2)
+                        .font(Theme.Typography.monoSmall.font()).foregroundStyle(Theme.ui.text2)
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(change.diff.indices, id: \.self) { i in line(change.diff[i]) }
                     }
@@ -167,7 +167,7 @@ struct ChangesView: View {
                     ScrollView(.vertical) { lines }.frame(height: Theme.Diff.maxHeight)
                 }
                 .frame(maxHeight: Theme.Diff.maxHeight)
-                .font(.system(size: Theme.Diff.sheetFont, design: .monospaced))
+                .font(Theme.Typography.monoSmall.font())
             }
         }
         .lineLimit(nil)
@@ -204,9 +204,9 @@ private struct AskHeader: View {
         VStack(alignment: .leading, spacing: Theme.sheetLineGap) {
             HStack(spacing: Theme.sheetButtonGap) {
                 IconView(icon: icon, size: Theme.integrationTitleIcon, tint: Theme.ui.text2)
-                Text(verbatim: title).font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold)).foregroundStyle(Theme.ui.text0)
+                Text(verbatim: title).font(Theme.Typography.title.font(.semibold)).foregroundStyle(Theme.ui.text0)
             }
-            Text(verbatim: subtitle).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
+            Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text3)
                 .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, Theme.sheetHeaderTop)
@@ -327,7 +327,7 @@ struct IntegrationHostSheet: View {
             IconView(icon: icon, size: Theme.integrationTitleIcon, tint: Theme.ui.text2)
             Text(verbatim: title).foregroundStyle(Theme.ui.text1)
             Spacer(minLength: Theme.cardRowGap)
-            Text(verbatim: detail).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3).truncationMode(.middle)
+            Text(verbatim: detail).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3).truncationMode(.middle)
         }
         .frame(maxWidth: .infinity, minHeight: Theme.cardRowMinHeight, alignment: .leading)
         .padding(.vertical, Theme.cardRowPaddingV)

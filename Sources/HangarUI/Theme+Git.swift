@@ -82,14 +82,9 @@ extension Theme {
         /// Below this panel height the details replace the log (a window under ~640 pt).
         static let compactHeight: CGFloat = 540
         static let detailsHeader: CGFloat = 32
-        static let subjectFont: CGFloat = 13.5
-        static let subjectFontLarge: CGFloat = 14.5
-        static let bodyFont: CGFloat = 13
-        static let metaFont: CGFloat = 12
         static let metaPaddingV: CGFloat = 8
         static let filesHeader: CGFloat = 28
         static let fileIndent: CGFloat = 22
-        static let mono: CGFloat = 12
         /// The A / M / D letter column of a commit file.
         static let badgeWidth: CGFloat = 14
         /// Notices (offline, errors, empty): top and side padding.
@@ -102,7 +97,6 @@ extension Theme {
         /// Aa / .* / ab toggles: box, radius, label size; on = `accent` 14 % with an `accent` 25 % border (as filter chips).
         static let toggle: CGFloat = 20
         static let toggleRadius: CGFloat = 4
-        static let toggleFont: CGFloat = 11.5
         static let toggleGap: CGFloat = 2
         /// The accent dot on «…» while an include / exclude glob is set.
         static let filterDot: CGFloat = 6
@@ -111,6 +105,5 @@ extension Theme {
         static let fileRow: CGFloat = 24
         static let hitIndent: CGFloat = 36
         static let hitPaddingV: CGFloat = 3
-        static let mono: CGFloat = 12
     }
 }

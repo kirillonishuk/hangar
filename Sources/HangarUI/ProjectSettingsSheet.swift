@@ -192,7 +192,7 @@ struct ProjectSettingsSheet: View {
     }
 
     private func message(_ text: String, _ color: Color) -> some View {
-        Text(verbatim: text).font(.system(size: Theme.fontSize.tab)).foregroundStyle(color)
+        Text(verbatim: text).font(Theme.Typography.secondary.font()).foregroundStyle(color)
             .lineLimit(Theme.errorMaxLines)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, Theme.sheetMessageTop)
@@ -235,7 +235,7 @@ struct ProjectSettingsSheet: View {
 
         func body(content: Content) -> some View {
             content.overlay(alignment: .leading) {
-                Text(verbatim: text).italic()
+                Text(verbatim: text)
                     .font(Theme.Input.font(mono: true))
                     .foregroundStyle(Theme.ui.inputPlaceholder)
                     .lineLimit(1)

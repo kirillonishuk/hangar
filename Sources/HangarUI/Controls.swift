@@ -25,7 +25,7 @@ struct ActionButtonStyle: ButtonStyle {
         var body: some View {
             let lit = hover && enabled
             label
-                .font(.system(size: Theme.Control.font, weight: .medium))
+                .font(Theme.Typography.secondary.font())
                 .foregroundStyle(primary ? Theme.ui.onAccent : lit && destructive ? Theme.ui.failedText : lit ? Theme.ui.text0 : Theme.ui.text1)
                 .lineLimit(1)
                 .padding(.horizontal, Theme.Control.paddingH)
@@ -127,7 +127,7 @@ struct ModeChip: View {
             HStack(spacing: Theme.Control.iconGap) {
                 if let icon { IconView(icon: icon, size: Theme.GitTab.chipIcon, tint: tint) }
                 Text(verbatim: title)
-                    .font(.system(size: Theme.fontSize.footer, design: mono ? .monospaced : .default))
+                    .font((mono ? Theme.Typography.mono : Theme.Typography.secondary).font())
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

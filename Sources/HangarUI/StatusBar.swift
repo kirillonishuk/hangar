@@ -225,7 +225,7 @@ struct WindowStatusBar: View {
                 }
             }
         }
-        .font(.system(size: Theme.fontSize.footer))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(Theme.ui.text2)
         .lineLimit(1)
         .padding(.horizontal, Theme.statusBarPaddingH - Theme.statusItemPaddingH)

@@ -37,6 +37,7 @@ import Workspace
         need(p.onAccent, on: p.selectedFocus, 4.5, "onAccent/selectedFocus")
         need(p.onAccent, on: p.accent, 4.5, "onAccent/accent")
         need(p.text3, on: p.bg1, 3, "text3/bg1")
+        need(p.text3, on: p.bg2, 3, "text3/bg2")
         for s in [p.bg1, p.bg2] { need(p.failedText, on: s, 4.5, "failedText") }
     }
 

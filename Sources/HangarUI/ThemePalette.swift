@@ -74,7 +74,7 @@ public struct ThemePalette: Sendable {
         bg0: 0x232220, bg1: 0x292826, bg2: 0x302f2c, field: 0x1f1e1c,
         hover: 0x2e2d2a, hover2: 0x3a3834, selected: 0x3a3834, selectedFocus: 0x7d4a24,
         line: 0x363430, line2: 0x3d3b37,
-        text0: 0xfbf8f3, text1: 0xe6e2dc, text2: 0xaea79e, text3: 0x77726b,
+        text0: 0xfbf8f3, text1: 0xe6e2dc, text2: 0xaea79e, text3: 0x7d7871,
         accent: 0xb35d22, accentText: 0xf0975a, onAccent: 0xffffff,
         working: 0x6cb0f0, waiting: 0xf0c048, done: 0x8fcf7f, failed: 0xf0605a, failedText: 0xff8a80, idle: 0x77726b,
         gitA: 0x8fcf7f, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x8fcf7f, 0.14), diffDel: Hex(0xf0605a, 0.15),

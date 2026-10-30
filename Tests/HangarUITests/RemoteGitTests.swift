@@ -156,6 +156,63 @@ import TestSupport
         #expect(watch.watcher == nil)
     }
 
+    /// Branch switching on the server (#114): its HEAD, refused with changes, done once clean; the decoy is untouched.
+    @Test func remoteBranchSwitch() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h)
+        let before = Self.snapshot(h.root + "/mac")
+        let task = h.app.state.tasks.first { $0.id == s.task }!
+        h.app.requestHead(task)
+        await h.app.branchModel.idle()
+        #expect(h.app.head(of: task) == .branch("main"))
+        let choices = try await h.app.branchChoices(of: task)
+        #expect(choices.uncommitted == 2)
+        #expect(Set(choices.local.map(\.name)) == ["main", "old"])
+        let old = Branch(name: "old", isRemote: false, lastCommit: .now)
+        #expect(await h.app.switchBranch(of: task, to: old) == h.app.branchMessage(.dirty(files: 2), projectId: s.project))
+        try await RemoteHostsTests.offMain {
+            try Self.git(["checkout", "-q", "--", "a.txt"], in: s.server)
+            try FileManager.default.removeItem(atPath: s.server + "/new.txt")
+        }
+        #expect(await h.app.switchBranch(of: task, to: old) == nil)
+        await h.app.branchModel.idle()
+        #expect(h.app.head(of: task) == .branch("old"))
+        #expect(await h.app.createBranch(of: task, name: "fix/x", from: "main") == nil)
+        await h.app.branchModel.idle()
+        #expect(h.app.head(of: task) == .branch("fix/x"))
+        #expect(Self.snapshot(h.root + "/mac") == before)
+    }
+
+    /// Window focus: one HEAD load per folder for the shown chats, throttled; none for hidden chats or a lost host.
+    @Test func remoteHeadsOnFocus() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let s = try await setUp(h)
+        var twin = UUID()
+        h.app.perform { twin = $0.addTask(projectId: s.project, name: "twin") }
+        let chats = h.app.state.tasks.filter { $0.projectId == s.project }
+        for c in chats { h.app.requestHead(c) }
+        await h.app.branchModel.idle()
+        #expect(h.app.head(of: chats.first { $0.id == twin }!) == .branch("main"))
+        let t0 = Date()
+        var n = gitCalls(h)
+        h.app.refreshHeadsOnFocus(now: t0)
+        await h.app.branchModel.idle()
+        #expect(gitCalls(h) == n + 1)  // one folder, one `symbolic-ref`
+        n = gitCalls(h)
+        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(1))
+        await h.app.branchModel.idle()
+        #expect(gitCalls(h) == n)
+        for c in chats { h.app.hideHead(c) }
+        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(10))
+        await h.app.branchModel.idle()
+        #expect(gitCalls(h) == n)
+        for c in chats { h.app.requestHead(c) }
+        h.app.remote.disconnect("dev")
+        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(20))
+        await h.app.branchModel.idle()
+        #expect(gitCalls(h) == n)
+    }
+
     @Test func remoteWorktreeCreate() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)
@@ -319,7 +376,8 @@ import TestSupport
         await settle(h)
         #expect(h.app.inspector.offline)
         h.app.perform { $0.inspectorVisible = false }
-        let inspectorGit = { FakeSSH.calls(h.log).filter { ($0.last ?? "").contains("--no-optional-locks") }.count }
+        // The selected chat's HEAD (`symbolic-ref`, #114) does reload on connect: the branch button is always shown.
+        let inspectorGit = { FakeSSH.calls(h.log).compactMap(\.last).filter { $0.contains("--no-optional-locks") && !$0.contains("symbolic-ref") }.count }
         #expect(await h.remote.connect("dev") == .connected)
         try? await Task.sleep(nanoseconds: 500_000_000)
         await settle(h)

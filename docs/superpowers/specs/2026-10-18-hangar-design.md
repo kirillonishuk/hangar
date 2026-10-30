@@ -27,13 +27,13 @@
 ### Допущения
 
 - Только macOS 14+, Apple Silicon.
-- Тема, шрифт и клавиши терминала берутся из конфига Ghostty пользователя (`~/.config/ghostty/config`).
+- Тема, шрифт и клавиши терминала берутся из конфига Ghostty пользователя (`~/.config/ghostty/config`); шрифт не задан — SF Mono (#112), конфиг пользователя Hangar не меняет.
 - Миграции данных из Pane нет.
 - Горячие клавиши `⌘…` работают в любой раскладке, включая русскую (сопоставление по keyCode, а не по символу).
 
 ### Вне рамок первой версии
 
-Git-действия (stage/commit/push/PR), встроенный браузер, собственный редактор кода (кроме встроенного Monaco по слову пользователя, #80), онбординг, синхронизация, Linux/Windows.
+Git-действия (stage/commit/push/PR; исключение — переключение и создание ветки, #114), встроенный браузер, собственный редактор кода (кроме встроенного Monaco по слову пользователя, #80), онбординг, синхронизация, Linux/Windows.
 
 ## 2. Архитектура
 
@@ -43,7 +43,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 |---|---|---|
 | `GhosttyBridge` | Обёртка над C-API GhosttyKit: app/surface lifecycle, ввод, события (title, bell, desktop notification, child exit), чтение текста экрана, пауза рендера. Единственное место, знающее про нестабильный API. | GhosttyKit.xcframework |
 | `Workspace` | Модель Project → Task → Tab (+ сплиты), сериализация в JSON, восстановление. Чистая логика. | — |
-| `Git` | Вызов `git` CLI: default branch (`origin/HEAD`), список веток, `fetch`, `worktree add/remove`, `status --porcelain=v2`, `diff`. | git |
+| `Git` | Вызов `git` CLI: default branch (`origin/HEAD`), список веток, `fetch`, `worktree add/remove`, `status --porcelain=v2`, `diff`, `switch` / `switch -c` (#114). | git |
 | `AgentStatus` | Приём событий агентов, свёртка в статус вкладки и сессии. | — |
 | `Usage` | Лимиты подписок: приём `rate_limits` от `hangar statusline`, вызов `codex app-server`, свёртка в окна, пороги. | `ControlServer`, `Exec` |
 | `Integration` | Правка файлов агентов (`~/.claude/settings.json`, `~/.codex/config.toml`): показ diff, копия, запись, откат (#43). | — |

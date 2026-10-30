@@ -76,7 +76,7 @@ struct ContinueList: View {
         VStack(alignment: .leading, spacing: 0) {
             if !rows.isEmpty {
                 Text(L10n.continueTitle)
-                    .font(.system(size: Theme.fontSize.footer, weight: .semibold))
+                    .font(Theme.Typography.secondary.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
                     .padding(.horizontal, Theme.historyRowPaddingH)
                     .padding(.bottom, Theme.historyGroupBottom)
@@ -93,9 +93,9 @@ struct ContinueList: View {
         return HStack(spacing: Theme.historyRowGap) {
             IconView(icon: c.agent == .claude ? .claude : .codex)
             Text(title).foregroundStyle(Theme.ui.text1).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
-            Text(relativeTime(c.lastActivity)).font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3).lineLimit(1).fixedSize()
+            Text(relativeTime(c.lastActivity)).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3).lineLimit(1).fixedSize()
         }
-        .font(.system(size: Theme.fontSize.base))
+        .font(Theme.Typography.body.font())
         .padding(.horizontal, Theme.historyRowPaddingH)
         .frame(height: Theme.continueRowHeight)
         .background(hovered == key ? Theme.ui.hover : .clear, in: RoundedRectangle(cornerRadius: Theme.historyRowRadius))

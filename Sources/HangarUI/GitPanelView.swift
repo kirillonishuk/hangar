@@ -85,7 +85,7 @@ struct GitNotice: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: Theme.fontSize.counter))
+            .font(Theme.Typography.caption.font())
             .foregroundStyle(Theme.ui.text3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -144,7 +144,7 @@ struct GitSearchField: View {
             if !model.query.text.trimmingCharacters(in: .whitespaces).isEmpty {
                 if model.loaded {
                     Text(L10n.gitFound(model.commits.count, more: model.hasMore))
-                        .font(.system(size: Theme.fontSize.footer))
+                        .font(Theme.Typography.secondary.font())
                         .foregroundStyle(Theme.ui.text3)
                 }
                 Button { model.query.text = "" } label: {

@@ -35,7 +35,7 @@ struct NoTabsView: View {
                     ContinueList(app: app, taskId: task.id, fit: fit) { app.openConversation($0) }
                 }
             }
-            .font(.system(size: Theme.fontSize.sidebarRow))
+            .font(Theme.Typography.body.font())
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -82,16 +82,16 @@ struct WindowTitleBar: View {
                     Text(verbatim: project).foregroundStyle(Theme.ui.text2)
                     Text(verbatim: "·").foregroundStyle(Theme.ui.text3)
                 }
-                Text(verbatim: t.session).fontWeight(.medium).foregroundStyle(Theme.ui.text0)
+                Text(verbatim: t.session).fontWeight(.semibold).foregroundStyle(Theme.ui.text0)
                 if let branch = t.branch {
                     HStack(spacing: Theme.railInset) {
                         IconView(icon: .branch, size: Theme.titleBranchIcon)
-                        Text(verbatim: branch).font(.system(size: Theme.fontSize.footer, design: .monospaced))
+                        Text(verbatim: branch).font(Theme.Typography.mono.font())
                     }
                     .foregroundStyle(Theme.ui.text3)
                 }
             }
-            .font(.system(size: Theme.fontSize.tabTaskTitle))
+            .font(Theme.Typography.body.font())
             .lineLimit(1)
             .truncationMode(.middle)
             // Clear of the toggles on both sides, so a long title never runs under them.

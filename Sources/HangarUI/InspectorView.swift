@@ -89,7 +89,7 @@ private struct SegmentItem: View {
                 .truncationMode(.tail)
             if let badge { SegmentBadge(text: badge, on: on) }
         }
-        .font(.system(size: Theme.fontSize.segment))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(on ? Theme.ui.text0 : lit ? Theme.ui.text1 : Theme.ui.text2)
         .padding(.vertical, Theme.segmentItemPaddingV)
         .padding(.horizontal, Theme.segmentBadgeGap)
@@ -104,7 +104,7 @@ private struct SegmentItem: View {
 
     /// Label + gap + a two-digit badge + side paddings («99+» may grow it a little).
     private static func reserved(_ title: String) -> CGFloat {
-        let label = ceil((title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: Theme.fontSize.segment)]).width)
+        let label = ceil((title as NSString).size(withAttributes: [.font: Theme.Typography.secondary.nsFont()]).width)
         return label + Theme.segmentBadgeGap * 3 + SegmentBadge.width("00")
     }
 }
@@ -116,7 +116,7 @@ private struct SegmentBadge: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.small, weight: .medium).monospacedDigit())
+            .font(Theme.Typography.caption.font().monospacedDigit())
             .foregroundStyle(Theme.ui.text3)
             .lineLimit(1)
             .fixedSize()
@@ -127,7 +127,7 @@ private struct SegmentBadge: View {
 
     /// Width of a badge with `digits` (at least round: as tall as wide).
     static func width(_ digits: String) -> CGFloat {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: Theme.fontSize.small, weight: .medium)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: Theme.Typography.caption.size, weight: .regular)
         let text = ceil((digits as NSString).size(withAttributes: [.font: font]).width)
         return max(text + Theme.segmentBadgePaddingH * 2, Theme.segmentBadgeHeight)
     }
@@ -192,7 +192,7 @@ enum FileMenuItem: Equatable, CaseIterable {
 /// A one-line `text3` remark above a list (missing base, truncation, git error, no task).
 private func notice(_ text: String) -> some View {
     Text(text)
-        .font(.system(size: Theme.fontSize.counter))
+        .font(Theme.Typography.caption.font())
         .foregroundStyle(Theme.ui.text3)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,7 +202,7 @@ private func notice(_ text: String) -> some View {
 
 private func changeBadge(_ change: FileChange?) -> some View {
     Text(verbatim: change?.rawValue ?? "")
-        .font(.system(size: Theme.fontSize.counter, weight: .semibold, design: .monospaced))
+        .font(Theme.Typography.monoSmall.font(.semibold))
         .foregroundStyle(change.map(Theme.Diff.badge) ?? .clear)
 }
 
@@ -261,7 +261,7 @@ private struct FileRow: View {
                 }
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
                 Text(row.entry.name)
-                    .font(.system(size: Theme.fontSize.row))
+                    .font(Theme.Typography.body.font())
                     .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -340,7 +340,7 @@ struct ChangeColumns: Equatable {
     /// A sign and the digits of `n` in the stats' monospaced font; nothing to show → 0.
     static func width(_ n: Int?) -> CGFloat {
         guard let n else { return 0 }
-        let font = NSFont.monospacedSystemFont(ofSize: Theme.fontSize.counter, weight: .regular)
+        let font = Theme.Typography.monoSmall.nsFont()
         return ceil(("+\(n)" as NSString).size(withAttributes: [.font: font]).width)
     }
 }
@@ -359,13 +359,13 @@ private struct ChangeRow: View {
                 FileIconView(name: name)
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
-                        .font(.system(size: Theme.fontSize.row))
+                        .font(Theme.Typography.body.font())
                         .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if !dir.isEmpty {
                         Text(dir)
-                            .font(.system(size: Theme.fontSize.counter))
+                            .font(Theme.Typography.caption.font())
                             .foregroundStyle(Theme.ui.text3)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -382,7 +382,7 @@ private struct ChangeRow: View {
                 changeBadge(file.change)
                     .frame(width: Theme.GitTab.badgeWidth, alignment: .center)
             }
-            .font(.system(size: Theme.fontSize.counter, design: .monospaced))
+            .font(Theme.Typography.monoSmall.font())
             .padding(.horizontal, Theme.rowPaddingH)
             .padding(.vertical, Theme.fileRowPaddingV)
         }

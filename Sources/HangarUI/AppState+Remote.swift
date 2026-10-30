@@ -18,6 +18,7 @@ extension AppState {
             self?.flushKills(host)
             self?.onHostConnected?(host)
             self?.inspectorHostConnected(host)
+            self?.refreshHeads(host: host)
             Task { await self?.sweepTombstones(host: host) }
             Task { await self?.integrateHost(host) }
         }

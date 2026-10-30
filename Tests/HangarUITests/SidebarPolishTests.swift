@@ -47,11 +47,10 @@ import Testing
         #expect(!Icon.shell.isBrand)
     }
 
-    /// DESIGN.md «Типографика»: nothing below 11.5 (badges 11).
+    /// Design system §2.2: four UI sizes plus mono, nothing below `caption` 11.
     @Test func fontsAtOrAboveFloor() {
-        #expect(Theme.fontSize.small >= 11.5)
-        #expect(Theme.Limit.nameFont >= 11.5)
-        #expect(Theme.Limit.percentFont >= 11.5)
-        #expect(Theme.Limit.badgeFont >= 11)
+        let T = Theme.Typography.self
+        #expect([T.title, T.body, T.secondary, T.caption].map(\.size) == [15, 13, 12, 11])
+        #expect([T.mono, T.monoSmall].allSatisfy { $0.mono && $0.size >= T.caption.size })
     }
 }

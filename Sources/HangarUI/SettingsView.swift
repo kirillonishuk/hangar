@@ -50,7 +50,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
 
 /// One-line width of a row label at `sheetRow`.
 func settingsLabelTextWidth(_ label: String) -> CGFloat {
-    ceil((label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: Theme.fontSize.sheetRow)]).width)
+    ceil((label as NSString).size(withAttributes: [.font: Theme.Typography.body.nsFont()]).width)
 }
 
 /// The label column of every page: the longest label of the language, so labels never wrap and all cards line up.
@@ -74,7 +74,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {
                         Text(verbatim: model.category.title)
-                            .font(.system(size: Theme.settingsPageTitle, weight: .semibold))
+                            .font(Theme.Typography.title.font(.semibold))
                             .foregroundStyle(Theme.ui.text0)
                         page
                     }
@@ -91,7 +91,7 @@ struct SettingsView: View {
         // Width only: the window's minimum is a frame size (title bar included); a content minHeight of the same
         // value overflowed the window at its minimum and cut 14 pt off the page's top and bottom.
         .frame(minWidth: Theme.settingsMinSize.width)
-        .font(.system(size: Theme.fontSize.sheetRow))
+        .font(Theme.Typography.body.font())
         .background(Theme.ui.bg0)
     }
 
@@ -112,7 +112,7 @@ struct SettingsView: View {
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
                 .lineLimit(1).truncationMode(.middle)
                 .help(text)
-                .font(.system(size: Theme.fontSize.tab))
+                .font(Theme.Typography.secondary.font())
                 .padding(.horizontal, Theme.settingsPagePadding)
                 .padding(.vertical, Theme.sheetFooterPaddingV)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,7 +158,7 @@ struct SettingsView: View {
         let updates = app.updates
         let status = updateStatus(updates)
         Text(verbatim: updates.current ?? "dev")
-            .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+            .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.text2)
             .fixedSize()
         if let status {
@@ -290,7 +290,7 @@ struct SettingsView: View {
 
     private func lspDetail(_ text: String, color: Color = Theme.ui.text3, mono: Bool = true) -> some View {
         Text(verbatim: text)
-            .font(.system(size: mono ? Theme.fontSize.counter : Theme.fontSize.tab, design: mono ? .monospaced : .default))
+            .font((mono ? Theme.Typography.monoSmall : Theme.Typography.secondary).font())
             .foregroundStyle(color)
             .lineLimit(1).truncationMode(mono ? .middle : .tail)
             .help(text)
@@ -403,7 +403,7 @@ struct SettingsView: View {
                     }
                 }
                 Text(verbatim: L10n.urgentNotice)
-                    .font(.system(size: Theme.fontSize.tab))
+                    .font(Theme.Typography.secondary.font())
                     .foregroundStyle(Theme.ui.text3)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -434,7 +434,7 @@ struct SettingsView: View {
         row(L10n.configFile, first: true) {
             let path = tildePath(app.configURL.path)
             Text(verbatim: path)
-                .font(.system(size: Theme.fontSize.tab, design: .monospaced))
+                .font(Theme.Typography.mono.font())
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1).truncationMode(.middle)
                 .help(path)

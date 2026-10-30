@@ -12,10 +12,10 @@ struct SheetHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
             Text(verbatim: title)
-                .font(.system(size: Theme.fontSize.sheetTitle, weight: .semibold))
+                .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.text0)
             if let subtitle {
-                Text(verbatim: subtitle).font(.system(size: Theme.fontSize.base)).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text3)
                     .lineLimit(1).truncationMode(.middle)
                     .help(subtitle)
             }
@@ -34,7 +34,7 @@ struct SheetFooter<Buttons: View>: View {
 
     var body: some View {
         HStack(spacing: Theme.sheetButtonGap) {
-            Text(verbatim: hint).font(.system(size: Theme.fontSize.tab)).foregroundStyle(Theme.ui.text3)
+            Text(verbatim: hint).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                 .lineLimit(1).truncationMode(.middle)
                 .opacity(hintHidden ? 0 : 1)
             Spacer(minLength: 0)
@@ -54,7 +54,7 @@ struct CardSection<Content: View>: View {
         VStack(alignment: .leading, spacing: Theme.settingsHeaderGap) {
             if let title {
                 Text(verbatim: title)
-                    .font(.system(size: Theme.fontSize.tab, weight: .semibold))
+                    .font(Theme.Typography.secondary.font(.semibold))
                     .foregroundStyle(Theme.ui.text2)
             }
             if card {
@@ -111,7 +111,7 @@ struct Pill: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.tab))
+            .font(Theme.Typography.secondary.font())
             .foregroundStyle(color)
             .lineLimit(1)
             .padding(.horizontal, Theme.pillPaddingH)
@@ -126,7 +126,7 @@ extension View {
     func sheetFrame(width: CGFloat = Theme.sheetWidth) -> some View {
         padding(.horizontal, Theme.sheetPaddingH)
             .frame(width: width)
-            .font(.system(size: Theme.fontSize.sheetRow))
+            .font(Theme.Typography.body.font())
             .lineLimit(1)
             .background(Theme.ui.bg2)
     }

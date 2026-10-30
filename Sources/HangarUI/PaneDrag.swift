@@ -240,7 +240,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
             addSubview(v)
         }
         zone.layer?.borderWidth = Theme.paneDropLineWidth
-        label.font = .systemFont(ofSize: Theme.fontSize.sheetTitle, weight: .semibold)
+        label.font = Theme.Typography.title.nsFont(.semibold)
         label.alignment = .center
         zone.addSubview(label)
         observeTheme(#selector(applyTheme))
@@ -286,7 +286,7 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
         layer?.shadowRadius = Theme.paneDragGhostShadowRadius
         layer?.shadowOpacity = Float(Theme.paneDragGhostShadowOpacity)
         layer?.shadowOffset = CGSize(width: 0, height: -Theme.paneDragGhostShadowRadius / 3)
-        label.font = .systemFont(ofSize: Theme.fontSize.tab)
+        label.font = Theme.Typography.secondary.nsFont()
         label.lineBreakMode = .byTruncatingTail
         addSubview(icon)
         addSubview(label)

@@ -165,7 +165,7 @@ final class FillView: NSView {
         self.leafId = leafId
         super.init(frame: .zero)
         wantsLayer = true
-        bar.font = .systemFont(ofSize: Theme.fontSize.counter)
+        bar.font = Theme.Typography.caption.nsFont()
         bar.lineBreakMode = .byTruncatingTail
         for line in [headerLine, barLine] { line.wantsLayer = true }
         applyTheme()
@@ -542,7 +542,7 @@ final class FillView: NSView {
         wantsLayer = true
         observeTheme(#selector(applyTheme))
         applyTheme()
-        placeholder.font = .systemFont(ofSize: Theme.fontSize.base)
+        placeholder.font = Theme.Typography.body.nsFont()
         placeholder.alignment = .center
         addSubview(placeholder)
         addSubview(emptyState)

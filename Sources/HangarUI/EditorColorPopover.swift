@@ -115,10 +115,10 @@ struct EditorColorPopover: View {
             HStack(spacing: S.popoverGap) {
                 EditorSwatch(hex: hex, size: S.popoverSwatch)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: color.title).font(.system(size: Theme.fontSize.sheetRow, weight: .semibold))
+                    Text(verbatim: color.title).font(Theme.Typography.body.font(.semibold))
                         .foregroundStyle(Theme.ui.text0)
                     if let sample = color.sample {
-                        Text(verbatim: sample).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+                        Text(verbatim: sample).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
                     }
                 }
                 .lineLimit(1)
@@ -140,14 +140,14 @@ struct EditorColorPopover: View {
                     Text(verbatim: "%").foregroundStyle(Theme.ui.text3)
                 }
             }
-            .font(.system(size: Theme.fontSize.tab))
+            .font(Theme.Typography.secondary.font())
             bar(hueGradient, at: hsl.h, help: L10n.s(.edHue)) { c, v in
                 c.h = v
                 c.s = max(c.s, 0.05)  // a grey gets a hint of the hue, or the bar would do nothing
             }
             bar(Gradient(colors: [.black, Theme.ui.editor(EditorHex.fromHSL(h: hsl.h, s: hsl.s, l: 0.5)), .white]), at: hsl.l,
                 help: L10n.s(.edLightness)) { c, v in c.l = v }
-            Text(verbatim: L10n.s(.edThemeColors)).font(.system(size: Theme.fontSize.small)).foregroundStyle(Theme.ui.text3)
+            Text(verbatim: L10n.s(.edThemeColors)).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(S.gridSwatch), spacing: S.gridGap), count: S.gridColumns),
                       alignment: .leading, spacing: S.gridGap) {
                 ForEach(Self.themeColors(theme), id: \.self) { c in
@@ -170,7 +170,7 @@ struct EditorColorPopover: View {
                     .disabled(!theme.changed.contains(color))
                     .help(L10n.f(.edResetTo, EditorSettingsModel.name(theme.base)))
             }
-            .font(.system(size: Theme.Control.font))
+            .font(Theme.Typography.secondary.font())
         }
         .padding(S.popoverPadding)
         .frame(width: S.popoverWidth, alignment: .leading)

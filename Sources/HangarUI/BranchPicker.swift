@@ -57,7 +57,7 @@ struct BranchPicker: View {
             HStack(spacing: Theme.pickGap) {
                 IconView(icon: .branch, size: Theme.smallIconSize)
                 Text(selection ?? defaultOption ?? "—")
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                    .font(Theme.Typography.mono.font())
                     .foregroundStyle(Theme.ui.text0)
                 IconView(icon: .chevronDown, size: Theme.pickChevronSize)
             }
@@ -144,9 +144,7 @@ struct BranchListView: View {
     @ViewBuilder private func section(_ title: String, _ rows: [BranchPickerItem]) -> some View {
         if !rows.isEmpty {
             Text(title)
-                .textCase(.uppercase)
-                .tracking(Theme.fontSize.counter * Theme.fontSize.projectTracking)
-                .font(.system(size: Theme.fontSize.counter))
+                .font(Theme.Typography.caption.font(.semibold))
                 .foregroundStyle(Theme.ui.text3)
                 .frame(maxWidth: .infinity, minHeight: Theme.dropdownSectionHeight, alignment: .bottomLeading)
                 .padding(.horizontal, Theme.dropdownPaddingH)
@@ -158,12 +156,12 @@ struct BranchListView: View {
         let on = highlight == id
         return HStack(spacing: Theme.dropdownItemGap) {
             Text(title)
-                .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
+                .font(Theme.Typography.mono.font())
                 .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
             if let meta {
-                Text(metaText(meta)).font(.system(size: Theme.fontSize.counter)).foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
+                Text(metaText(meta)).font(Theme.Typography.caption.font()).foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
             }
         }
         .lineLimit(1)

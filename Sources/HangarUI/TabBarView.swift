@@ -159,7 +159,7 @@ struct TabBarView: View {
     }
 
     private static func textWidth(_ text: String, italic: Bool = false) -> CGFloat {
-        let base = NSFont.systemFont(ofSize: Theme.fontSize.tab)
+        let base = Theme.Typography.secondary.nsFont()
         let font = italic ? NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask) : base
         return (text as NSString).size(withAttributes: [.font: font]).width
     }
@@ -546,7 +546,7 @@ struct TabItem: View {
                 Action.closeTab.perform(target, ctx)
             }
         }
-        .font(.system(size: Theme.fontSize.tab))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)
@@ -606,7 +606,7 @@ private struct DiffTabItem: View {
             Text(verbatim: (tab.path as NSString).lastPathComponent + " ↔").italic().lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
             TabCloseButton(active: tab.active, tabHover: hover, help: L10n.help(L10n.diffTabHelp, .closeTab)) { app.closeDiff() }
         }
-        .font(.system(size: Theme.fontSize.tab))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(tab.active ? Theme.ui.text0 : Theme.ui.text2)
         .padding(.vertical, Theme.tabPaddingV)
         .padding(.horizontal, Theme.tabPaddingH)

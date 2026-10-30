@@ -223,7 +223,7 @@ struct PopoverMenuView: View {
                         .padding(.horizontal, Theme.menuSeparatorPaddingH)
                 case .header(let text):
                     Text(verbatim: text).lineLimit(1).truncationMode(.tail)
-                        .font(.system(size: Theme.menuShortcutFont))
+                        .font(Theme.Typography.secondary.font())
                         .foregroundStyle(Theme.ui.text3)
                         .padding(.horizontal, Theme.menuItemPaddingLeading)
                         .frame(maxWidth: .infinity, minHeight: Theme.menuHeaderHeight, maxHeight: Theme.menuHeaderHeight, alignment: .leading)
@@ -246,12 +246,12 @@ struct PopoverMenuView: View {
                 IconView(icon: icon, tint: item.destructive ? Theme.ui.danger : on ? Theme.ui.onAccent : Theme.ui.text2)
             }
             Text(verbatim: item.title).lineLimit(1)
-                .font(.system(size: Theme.menuFont))
+                .font(Theme.Typography.body.font())
                 .foregroundStyle(text)
             Spacer(minLength: 0)
             if let key = item.shortcut {
                 Text(verbatim: key)
-                    .font(.system(size: Theme.menuShortcutFont))
+                    .font(Theme.Typography.secondary.font())
                     .foregroundStyle(item.destructive ? Theme.ui.danger : on ? Theme.ui.onAccent : Theme.ui.text3)
             }
         }

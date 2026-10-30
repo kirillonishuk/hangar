@@ -211,7 +211,7 @@ struct DiffView: View {
                 header(tab.path, commit: tab.commit, content)
                 ForEach(Array(notes(content).enumerated()), id: \.offset) { _, text in
                     Text(verbatim: text)
-                        .font(.system(size: Theme.Diff.font, design: .monospaced))
+                        .font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text3)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, Theme.Diff.headerPaddingV)
@@ -220,7 +220,7 @@ struct DiffView: View {
                 // Monaco found nothing and git counts no lines either (not an EOL-only diff): a strip, the editor stays usable.
                 if content.isText, editor.changes.isEmpty, content.added + content.deleted == 0 {
                     Text(verbatim: L10n.diffNoChanges)
-                        .font(.system(size: Theme.Diff.font, design: .monospaced))
+                        .font(Theme.Typography.mono.font())
                         .foregroundStyle(Theme.ui.text3)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, Theme.Diff.headerPaddingV)
@@ -255,7 +255,7 @@ struct DiffView: View {
         HStack(spacing: Theme.Diff.headerGap) {
             HStack(spacing: Theme.iconGap) {
                 FileIconView(name: (path as NSString).lastPathComponent)
-                Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.medium)
+                Text(verbatim: path).foregroundStyle(Theme.ui.text0).fontWeight(.semibold)
                     .lineLimit(1).truncationMode(.head)
             }
             // A commit's file (Git tab): which commit, as the details show its hash.
@@ -270,7 +270,7 @@ struct DiffView: View {
                 }
             }
         }
-        .font(.system(size: Theme.Diff.font, design: .monospaced))
+        .font(Theme.Typography.mono.font())
         .padding(.horizontal, Theme.Diff.headerPaddingH)
         // The slot of the editor's file-tab row: switching editor ↔ diff doesn't move the code.
         .frame(height: Theme.Editor.headerHeight)

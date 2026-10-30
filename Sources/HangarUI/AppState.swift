@@ -123,6 +123,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.
     let sessionBadges = SessionBadges()
+    /// Live HEAD of each chat (#114).
+    let branchModel = BranchModel()
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
@@ -296,7 +298,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         codexRead = lazyCodexRead()
         onCodexTurn = { [weak self] in Task { await self?.refreshCodexUsage(afterTurn: true) } }
         inspector.onDiffApplied = { [weak self] in self?.pruneDiffSelection() }
-        inspector.onStatusLoad = { [weak self] id in self?.refreshBadge(taskId: id) }
+        inspector.onStatusLoad = { [weak self] id in
+            self?.refreshBadge(taskId: id)
+            self?.refreshHead(taskId: id)
+        }
         search.launcher = { [weak self] q, target, column in await self?.searchLaunch(q, target, gitColumn: column) }
         search.currentTarget = { [weak self] in self?.searchTarget }
     }

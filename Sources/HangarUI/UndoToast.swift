@@ -62,7 +62,7 @@ struct UndoToastView: View {
     var body: some View {
         if let message = undo.message {
             Text(message).foregroundStyle(Theme.ui.text1)
-                .font(.system(size: Theme.fontSize.base))
+                .font(Theme.Typography.body.font())
                 .padding(.horizontal, Theme.toastPaddingH)
                 .frame(height: Theme.Control.height)
                 .padding(.vertical, Theme.toastPaddingV)
@@ -77,7 +77,7 @@ struct UndoToastView: View {
                     .buttonStyle(ActionButtonStyle())
                     .help(L10n.undoArchive)
             }
-            .font(.system(size: Theme.fontSize.base))
+            .font(Theme.Typography.body.font())
             .padding(.leading, Theme.toastPaddingH)
             .padding(.trailing, Theme.toastPaddingV)
             .padding(.vertical, Theme.toastPaddingV)

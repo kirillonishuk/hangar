@@ -16,13 +16,11 @@ extension Theme {
     /// «Все сессии в архиве» hint under a project: three 20-high lines (note, «Открыть сессии ⌘Y», «+ Новая сессия») + 4 below.
     public static let archivedHintLine: CGFloat = 20
     public static let archivedHintHeight: CGFloat = 3 * archivedHintLine + 4
-    /// Status line: 12 `text2`; the worktree ⎇ before it 12 `text3`, 4 from the text.
-    public static let rowStatusFont: CGFloat = 12
+    /// Status line: the worktree ⎇ before it 12 `text3`, 4 from the text.
     public static let rowStatusIcon: CGFloat = 12
     public static let rowStatusGap: CGFloat = 4
     /// `+N −M` badge: 20 high, mono 12, 0×6 padding, radius 6, `line2` border, `diffBadgeFill`; numbers 6 apart.
     public static let diffBadgeHeight: CGFloat = 20
-    public static let diffBadgeFont: CGFloat = 12
     public static let diffBadgePaddingH: CGFloat = 6
     public static let diffBadgeRadius: CGFloat = 6
     public static let diffBadgeGap: CGFloat = 6
@@ -59,8 +57,6 @@ extension Theme {
     public static let menuItemPaddingTrailing: CGFloat = 10
     public static let menuItemRadius: CGFloat = 6
     public static let menuIconGap: CGFloat = 10
-    public static let menuFont: CGFloat = 13
-    public static let menuShortcutFont: CGFloat = 12
     /// Separator: 1 `line2`, 6 above/below, 2 at the sides. Header: 28, 12 `text3`.
     public static let menuSeparatorPaddingV: CGFloat = 6
     public static let menuSeparatorPaddingH: CGFloat = 2

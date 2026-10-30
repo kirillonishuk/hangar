@@ -40,7 +40,7 @@ struct ChooserView: View {
                 }
             }
         }
-        .font(.system(size: Theme.fontSize.sidebarRow))
+        .font(Theme.Typography.body.font())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture(perform: focus)

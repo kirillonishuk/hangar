@@ -18,6 +18,14 @@ import Workspace
         #expect(SidebarView.branchWidth("feat/oauth") > SidebarView.branchWidth("main"))
     }
 
+    /// Hover: a branch at least as wide as the pin and «⋯» leaves the name as it is; a short one or none gives way.
+    @Test func hoverPadOnlyWhatActionsCover() {
+        let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
+        #expect(SidebarView.nameHoverPad(endWidth: Theme.rowBranchMax) == 0)
+        #expect(SidebarView.nameHoverPad(endWidth: nil) == actions)
+        #expect(SidebarView.nameHoverPad(endWidth: 20) == actions - 20 - Theme.rowEndGap)
+    }
+
     // MARK: Plurals and status text
 
     @Test func russianPluralForms() {

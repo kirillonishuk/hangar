@@ -487,7 +487,8 @@ struct SidebarView: View {
                             Text(task.name).lineLimit(1).truncationMode(.tail)
                         }
                     }
-                    .padding(.trailing, showActions ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
+                    // The row end keeps its place under the actions (opacity 0): the name gives up only what it doesn't cover.
+                    .padding(.trailing, showActions ? Self.nameHoverPad(endWidth: rowEndWidth(task, state: dot)) : 0)
                     Spacer(minLength: 0)
                     rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
                 }
@@ -530,6 +531,24 @@ struct SidebarView: View {
                     // A fixed width: the branch keeps its place, a long chat name truncates instead.
                     .frame(width: Self.branchWidth(branch), alignment: .trailing)
             }
+        }
+    }
+
+    /// What the name gives up on hover so the pin and «⋯» never cover it: the actions' width less the row end's
+    /// (still laid out, invisible) and its gap; no row end — the whole width.
+    static func nameHoverPad(endWidth: CGFloat?) -> CGFloat {
+        let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
+        guard let endWidth else { return actions }
+        return max(0, actions - endWidth - Theme.rowEndGap)
+    }
+
+    /// The width `rowEnd` takes: the state word or the branch; nil when it shows nothing.
+    private func rowEndWidth(_ task: HangarTask, state: AgentState) -> CGFloat? {
+        switch state {
+        case .waiting, .failed, .limit:
+            ceil((L10n.rowStatus(state) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
+        case .working, .done, .idle:
+            (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
         }
     }
 

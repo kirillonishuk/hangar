@@ -242,7 +242,8 @@ private struct ChangesList: View {
         let base: String? = if case .base(let b) = model.changes?.mode { b } else { model.baseName }
         let hasBase = base != nil && model.changes?.baseMissing != true
         return HStack(spacing: 0) {
-            Segmented(selection: onBase ? InspectorModel.ModeChoice.base : .uncommitted, options: [
+            // Without a base «Вся ветка» is dimmed: never shown as the chosen one (also while the list loads).
+            Segmented(selection: onBase && hasBase ? InspectorModel.ModeChoice.base : .uncommitted, options: [
                 SegmentOption(value: .uncommitted, title: L10n.changesHintUncommitted, help: L10n.changesHintToUncommitted),
                 SegmentOption(value: .base, title: L10n.changesWholeBranch,
                               help: hasBase ? L10n.changesHintToBase(base ?? "") : base.map(L10n.baseMissing) ?? L10n.baseMissingUnknown),

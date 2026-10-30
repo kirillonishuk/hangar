@@ -11,6 +11,14 @@ import Testing
 
     private func total(_ w: [CGFloat]) -> CGFloat { w.reduce(0, +) + gap * CGFloat(max(w.count - 1, 0)) }
 
+    /// An overflowing bar draws only the tabs wholly in view: none half-cut at either edge.
+    @Test func onlyWholeTabsInView() {
+        let w: [CGFloat] = [110, 110, 110, 110]
+        #expect(TabStrip.whole(widths: w, offset: 0, viewport: 230) == [true, true, false, false])
+        #expect(TabStrip.whole(widths: w, offset: 20, viewport: 230) == [false, true, false, false])
+        #expect(TabStrip.whole(widths: w, offset: 114, viewport: 228) == [false, true, true, false])
+    }
+
     /// Titles are measured in the tabs' font (`body` 13), italic for previews and the diff tab: «math.ts» is never cut.
     @Test @MainActor func titlesMeasuredInTabFont() {
         let small = ("math.ts" as NSString).size(withAttributes: [.font: Theme.Typography.secondary.nsFont()]).width
@@ -60,13 +68,13 @@ import Testing
     @Test func revealScrollsTheLeastAndClearsFades() {
         let widths = Array(repeating: lo, count: 20)  // content 20·110 + 19·2 = 2238
         let viewport: CGFloat = 500
-        let m = Theme.tabFadeWidth
+        let m = Theme.tabRevealMargin
         let start = { (i: Int) in CGFloat(i) * (lo + gap) }
         // Already in view: no scroll.
         #expect(TabStrip.reveal(index: 2, widths: widths, offset: 0, viewport: viewport) == 0)
-        // Off to the right: its end (plus the fade) lands on the right edge.
+        // Off to the right: its end (plus the margin) lands on the right edge.
         #expect(TabStrip.reveal(index: 10, widths: widths, offset: 0, viewport: viewport) == start(10) + lo + m - viewport)
-        // Off to the left: its start (minus the fade) lands on the left edge.
+        // Off to the left: its start (minus the margin) lands on the left edge.
         #expect(TabStrip.reveal(index: 3, widths: widths, offset: 1000, viewport: viewport) == start(3) - m)
         // First and last tabs: clamped to the content's ends.
         #expect(TabStrip.reveal(index: 0, widths: widths, offset: 1000, viewport: viewport) == 0)

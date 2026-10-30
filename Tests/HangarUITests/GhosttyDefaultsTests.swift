@@ -52,12 +52,30 @@ import Testing
 
     @Test func pureLayers() {
         let overrides = "background = 121826\nforeground = e3e7ef\ncursor-color = 2a6fd6\n"
-        let theirs = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: true)
+        let theirs = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: true, userFont: true)
         #expect(theirs.overrides == overrides)
-        #expect(!theirs.defaults.contains("background") && !theirs.defaults.contains("palette"))
-        let ours = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: false)
+        #expect(!theirs.defaults.contains("background") && !theirs.defaults.contains("palette") && !theirs.defaults.contains("font"))
+        let ours = GhosttyApp.layers(colors("121826"), padding: nil, userPalette: false, userFont: false)
         #expect(ours.overrides == overrides)
         #expect(!ours.defaults.contains("background") && ours.defaults.contains("palette = 0=#808080"))
+        #expect(ours.defaults.hasSuffix("font-family = \(GhosttyApp.defaultFont)\n"))
+    }
+
+    /// SF Mono only where the user's Ghostty config names no font, directly or through `config-file` (#112).
+    @Test func userFontIsSeenInFilesAndIncludes() throws {
+        let none = try userConfig("# font-family = Menlo\nfont-size = 13\nfont-family =\n")
+        defer { try? FileManager.default.removeItem(at: none.deletingLastPathComponent()) }
+        #expect(!GhosttyApp.userSetsFont([none]))
+        let direct = try userConfig("font-family = \"JetBrains Mono\"\n")
+        defer { try? FileManager.default.removeItem(at: direct.deletingLastPathComponent()) }
+        #expect(GhosttyApp.userSetsFont([direct]))
+        let dir = direct.deletingLastPathComponent()
+        let include = dir.appendingPathComponent("fonts")
+        try "font-family = Menlo\n".write(to: include, atomically: true, encoding: .utf8)
+        let included = dir.appendingPathComponent("main")
+        try "config-file = ?fonts\nconfig-file = main\n".write(to: included, atomically: true, encoding: .utf8)
+        #expect(GhosttyApp.userSetsFont([included]))
+        #expect(!GhosttyApp.userSetsFont([dir.appendingPathComponent("missing")]))
     }
 
     @Test func userThemeAgainstHangarBackground() throws {

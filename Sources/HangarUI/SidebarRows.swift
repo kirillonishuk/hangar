@@ -58,7 +58,7 @@ struct SectionHeader: View {
         // No action → no hover fill; `hover` only reveals `+`.
         HoverRow { hover in
             HStack(spacing: Theme.sectionActionGap) {
-                Text(title).tracking(Theme.fontSize.section * Theme.fontSize.projectTracking)
+                Text(title)
                 Spacer(minLength: 0)
                 if let filter {
                     Button(action: filter) {
@@ -81,7 +81,7 @@ struct SectionHeader: View {
                         .opacity(hover || plusAlwaysVisible ? 1 : 0)
                 }
             }
-            .font(.system(size: Theme.fontSize.section, weight: .semibold))
+            .font(Theme.Typography.caption.font(.semibold))
             .foregroundStyle(Theme.ui.text3)
             .padding(.leading, Theme.sectionHeaderX)
             .padding(.trailing, Theme.sectionHeaderTrailing)
@@ -130,7 +130,7 @@ struct RailTile: View {
         let style = RailTileStyle(selected: selected)
         let shape = RoundedRectangle(cornerRadius: Theme.projectTileRadius)
         Text(text)
-            .font(.system(size: Theme.fontSize.small, weight: .semibold))
+            .font(Theme.Typography.caption.font(.semibold))
             .foregroundStyle(style.text)
             .lineLimit(1)
             .fixedSize()
@@ -151,7 +151,7 @@ struct ShortcutHint: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(.system(size: Theme.fontSize.footer).monospacedDigit())
+            .font(Theme.Typography.secondary.font().monospacedDigit())
             .foregroundStyle(Theme.ui.text3)
     }
 }
@@ -219,7 +219,7 @@ struct EmptyStateView: View {
             .buttonStyle(FilledRowStyle())
             ShortcutHint(text: Shortcut.addProject.label)
         }
-        .font(.system(size: Theme.fontSize.sidebarRow))
+        .font(Theme.Typography.body.font())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -270,7 +270,7 @@ struct DiffBadgeView: View {
             Text(verbatim: badge.added).foregroundStyle(Theme.Diff.addMarker)
             Text(verbatim: badge.deleted).foregroundStyle(Theme.Diff.delMarker)
         }
-        .font(.system(size: Theme.diffBadgeFont, design: .monospaced))
+        .font(Theme.Typography.mono.font())
         .lineLimit(1)
         .fixedSize()
         .padding(.horizontal, Theme.diffBadgePaddingH)
@@ -298,7 +298,7 @@ struct SessionStatusLine: View {
             .truncationMode(.tail)
             if muted { IconView(icon: .bellSlash, size: Theme.rowStatusIcon, tint: Theme.ui.text3).help(L10n.mutedSessionHelp) }
         }
-        .font(.system(size: Theme.rowStatusFont))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(Theme.ui.text2)
         .frame(height: Theme.sessionStatusLine)
     }

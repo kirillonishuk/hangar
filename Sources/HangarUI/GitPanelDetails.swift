@@ -36,14 +36,14 @@ struct GitDetailsView: View {
                 Button { model.select(nil) } label: {
                     HStack(spacing: Theme.GitTab.rowGap) {
                         IconView(icon: .chevronRight, size: Theme.GitTab.searchIcon).rotationEffect(.degrees(180))
-                        Text(L10n.gitCommits).font(.system(size: Theme.fontSize.base))
+                        Text(L10n.gitCommits).font(Theme.Typography.body.font())
                     }
                 }
                 .buttonStyle(HeaderActionStyle())
                 .padding(.leading, -Theme.Control.headerPaddingH)
             } else {
                 Text(L10n.gitCommit)
-                    .font(.system(size: Theme.fontSize.footer, weight: .semibold))
+                    .font(Theme.Typography.secondary.font(.semibold))
                     .foregroundStyle(Theme.ui.text3)
             }
             Spacer(minLength: 0)
@@ -59,7 +59,7 @@ struct GitDetailsView: View {
         let parts = d.message.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
         let body = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespacesAndNewlines) : ""
         Text(verbatim: d.commit.subject)
-            .font(.system(size: compact ? Theme.GitTab.subjectFontLarge : Theme.GitTab.subjectFont, weight: .medium))
+            .font((compact ? Theme.Typography.title : Theme.Typography.body).font(.semibold))
             .foregroundStyle(Theme.ui.textStrong)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -67,7 +67,7 @@ struct GitDetailsView: View {
             .padding(.top, compact ? Theme.GitTab.blockGap : 0)
         if !body.isEmpty {
             Text(verbatim: body)
-                .font(.system(size: Theme.GitTab.bodyFont))
+                .font(Theme.Typography.body.font())
                 .foregroundStyle(Theme.ui.text2)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -79,7 +79,7 @@ struct GitDetailsView: View {
     @ViewBuilder private func files(_ d: CommitDetails) -> some View {
         let total = commitFileTotals(d.files)
         HStack(spacing: Theme.GitTab.blockGap) {
-            Text(L10n.fileCount(d.files.count)).font(.system(size: Theme.fontSize.footer, weight: .semibold)).foregroundStyle(Theme.ui.text3)
+            Text(L10n.fileCount(d.files.count)).font(Theme.Typography.secondary.font(.semibold)).foregroundStyle(Theme.ui.text3)
             Spacer(minLength: 0)
             GitNumbers(added: total.added, deleted: total.deleted)
         }
@@ -96,9 +96,9 @@ struct GitDetailsView: View {
                         IconView(icon: shut ? .chevronRight : .chevronDown, size: Theme.GitTab.chevron, tint: Theme.ui.text3)
                             .frame(width: Theme.GitTab.chevronSlot)
                         FileIconView(name: (group.dir as NSString).lastPathComponent, isDir: true, expanded: !shut)
-                        Text(verbatim: group.dir).font(.system(size: Theme.fontSize.row)).foregroundStyle(Theme.ui.textRow)
+                        Text(verbatim: group.dir).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.textRow)
                             .lineLimit(1).truncationMode(.head)
-                        Text(verbatim: "\(group.files.count)").font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
+                        Text(verbatim: "\(group.files.count)").font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                         Spacer(minLength: Theme.GitTab.rowGap)
                         GitNumbers(added: group.added, deleted: group.deleted)
                     }
@@ -136,7 +136,7 @@ private struct GitMetaLine: View {
                 parents?.fixedSize()
             }
         }
-        .font(.system(size: Theme.GitTab.metaFont))
+        .font(Theme.Typography.secondary.font())
         .foregroundStyle(Theme.ui.text2)
         .padding(.horizontal, Theme.GitTab.padding)
         .padding(.vertical, Theme.GitTab.metaPaddingV)
@@ -150,7 +150,7 @@ private struct GitMetaLine: View {
             copied = true
         } label: {
             HStack(spacing: Theme.railInset) {
-                Text(verbatim: String(commit.hash.prefix(7))).font(.system(size: Theme.GitTab.mono, design: .monospaced))
+                Text(verbatim: String(commit.hash.prefix(7))).font(Theme.Typography.mono.font())
                 IconView(icon: copied ? .checkServer : .copy, size: Theme.GitTab.chipIcon, tint: Theme.ui.accentText)
             }
             .foregroundStyle(Theme.ui.accentText)
@@ -187,14 +187,14 @@ private struct GitCommitFileRow: View {
                 Color.clear.frame(width: Theme.GitTab.chevronSlot)
                 FileIconView(name: name)
                 Text(verbatim: name)
-                    .font(.system(size: Theme.fontSize.row))
+                    .font(Theme.Typography.body.font())
                     .foregroundStyle(selected ? Theme.ui.selectionText : Theme.ui.textRow)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: Theme.GitTab.rowGap)
                 if let a = file.added, let d = file.deleted { GitNumbers(added: a, deleted: d) }
                 Text(verbatim: file.change.rawValue)
-                    .font(.system(size: Theme.GitTab.mono, weight: .semibold, design: .monospaced))
+                    .font(Theme.Typography.mono.font(.semibold))
                     .foregroundStyle(Theme.Diff.badge(file.change))
                     .frame(width: Theme.GitTab.badgeWidth)
             }
@@ -216,7 +216,7 @@ struct GitNumbers: View {
             Text(verbatim: "+\(added)").foregroundStyle(Theme.Diff.badgeA)
             Text(verbatim: "−\(deleted)").foregroundStyle(Theme.Diff.badgeD)
         }
-        .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+        .font(Theme.Typography.mono.font())
         .fixedSize()
     }
 }

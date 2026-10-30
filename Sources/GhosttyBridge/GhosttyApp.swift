@@ -66,8 +66,8 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     /// The user's config with Hangar's files around it; logs its diagnostics.
     /// `userFiles`: instead of the user's default Ghostty files (tests); nil = theirs.
     static func buildConfig(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userFiles: [URL]? = nil) -> ghostty_config_t? {
-        let userPalette = userSetsPalette(userFiles)
-        let layers = layers(colors, padding: padding, userPalette: userPalette)
+        let userPalette = userSetsPalette(userFiles), userFont = userSetsFont(userFiles)
+        let layers = layers(colors, padding: padding, userPalette: userPalette, userFont: userFont)
         let defaults = layers.defaults.isEmpty ? nil : writeConfig(configFileName("defaults"), layers.defaults)
         let overridesFile = tempFile(configFileName("overrides"))
         var override = writeConfig(configFileName("overrides"), layers.overrides)
@@ -77,7 +77,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
             override = overridesFile
         }
         let cfg = makeConfig(defaults: defaults, override: override, userFiles: userFiles)
-        ghosttyLog.info("terminal background: Hangar \(colors.background, privacy: .public); palette: \(userPalette ? "Ghostty config" : "Hangar", privacy: .public)")
+        ghosttyLog.info("terminal background: Hangar \(colors.background, privacy: .public); palette: \(userPalette ? "Ghostty config" : "Hangar", privacy: .public); font: \(userFont ? "Ghostty config" : defaultFont, privacy: .public)")
         for i in 0..<ghostty_config_diagnostics_count(cfg) {
             let message = String(cString: ghostty_config_get_diagnostic(cfg, i).message)
             ghosttyLog.warning("config: \(message, privacy: .public)")
@@ -87,8 +87,9 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
 
     /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them): background,
     /// text and cursor are always the app theme's (#109), over the user's config and Ghostty theme.
-    static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userPalette: Bool) -> (defaults: String, overrides: String) {
-        let defaults = defaultsConfig(padding: padding, palette: userPalette ? [] : colors.palette)
+    static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userPalette: Bool,
+                       userFont: Bool) -> (defaults: String, overrides: String) {
+        let defaults = defaultsConfig(padding: padding, palette: userPalette ? [] : colors.palette, font: userFont ? nil : defaultFont)
         return (defaults, "background = \(colors.background)\nforeground = \(colors.foreground)\ncursor-color = \(colors.cursor)\n")
     }
 
@@ -107,6 +108,46 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
             return withUnsafeBytes(of: &a) { pa in withUnsafeBytes(of: &b) { pb in !pa.elementsEqual(pb) } }
         }
         return differs("palette", ghostty_config_palette_s())
+    }
+
+    /// The terminal's font when the user's Ghostty config names none (#112): SF Mono, one mono with the editor and the UI.
+    /// By the system's own family name: "SF Mono" isn't a findable family unless installed separately (Ghostty: not found).
+    static let defaultFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular).familyName ?? ".AppleSystemUIFontMonospaced"
+
+    /// Whether the user's Ghostty files (or their `config-file` includes) set `font-family`. Read as text: libghostty
+    /// can't return a repeatable string, and `font-family` appends, so ours must stay out when theirs is there.
+    /// shortcut: a font set only inside a Ghostty `theme` isn't seen; change if someone's theme sets one.
+    static func userSetsFont(_ userFiles: [URL]? = nil) -> Bool {
+        var seen = Set<String>()
+        func sets(_ file: URL) -> Bool {
+            guard seen.insert(file.standardizedFileURL.path).inserted,
+                  let text = try? String(contentsOf: file, encoding: .utf8) else { return false }
+            for line in text.split(whereSeparator: \.isNewline) {
+                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                guard parts.count == 2 else { continue }
+                var value = parts[1]
+                if value.count >= 2, value.hasPrefix("\""), value.hasSuffix("\"") { value = String(value.dropFirst().dropLast()) }
+                if parts[0] == "font-family", !value.isEmpty { return true }
+                if parts[0] == "config-file", !value.isEmpty {
+                    if value.hasPrefix("?") { value.removeFirst() }
+                    let path = (value as NSString).expandingTildeInPath
+                    if sets(path.hasPrefix("/") ? URL(fileURLWithPath: path) : file.deletingLastPathComponent().appendingPathComponent(path)) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+        return (userFiles ?? defaultUserFiles()).contains(where: sets)
+    }
+
+    /// The files `ghostty_config_load_default_files` reads on macOS: XDG, then Application Support, old and new names.
+    private static func defaultUserFiles() -> [URL] {
+        let fm = FileManager.default
+        let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? fm.homeDirectoryForCurrentUser.appendingPathComponent(".config")
+        let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("com.mitchellh.ghostty")
+        return [xdg.appendingPathComponent("ghostty"), support].flatMap { [$0.appendingPathComponent("config"), $0.appendingPathComponent("config.ghostty")] }
     }
 
     private static func loadUserFiles(_ cfg: ghostty_config_t?, _ files: [URL]?) {
@@ -129,10 +170,11 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     }
 
     /// Text of hangar-ghostty-defaults.conf; empty when there is nothing to set.
-    /// `palette` ("rrggbb"): the theme's, left out (empty) where the user's config sets its own.
-    public static func defaultsConfig(padding: (x: Int, y: Int)?, palette: [String] = []) -> String {
+    /// `palette` ("rrggbb"): the theme's, left out (empty) where the user's config sets its own; `font` likewise.
+    public static func defaultsConfig(padding: (x: Int, y: Int)?, palette: [String] = [], font: String? = nil) -> String {
         (padding.map { "window-padding-x = \($0.x)\nwindow-padding-y = \($0.y)\n" } ?? "")
             + palette.enumerated().map { "palette = \($0.offset)=#\($0.element)\n" }.joined()
+            + (font.map { "font-family = \($0)\n" } ?? "")
     }
 
     /// Per process, so a real app and a debug copy don't overwrite each other's file.

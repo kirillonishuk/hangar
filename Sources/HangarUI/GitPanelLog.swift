@@ -64,13 +64,13 @@ struct GitLogRow: View, Equatable {
                     .layoutPriority(1)
                 }
                 subject
-                    .font(.system(size: Theme.fontSize.row))
+                    .font(Theme.Typography.body.font())
                     .foregroundStyle(selected ? Theme.ui.textStrong : commit.parents.count > 1 ? Theme.ui.text2 : Theme.ui.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(minWidth: Theme.GitTab.subjectMin, maxWidth: .infinity, alignment: .leading)
                 Text(gitShortDate(commit.date, now: now))
-                    .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+                    .font(Theme.Typography.mono.font())
                     .foregroundStyle(selected ? Theme.ui.text2 : Theme.ui.text3)
                     .lineLimit(1)
                     .fixedSize()
@@ -132,7 +132,7 @@ struct GitRefPill: View {
                 .truncationMode(.middle)
             if twin != nil { Text(verbatim: Self.syncedMark).opacity(Theme.GitTab.refMarkOpacity).fixedSize() }
         }
-        .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+        .font(Theme.Typography.mono.font())
         .foregroundStyle(tint)
         .padding(.horizontal, Theme.GitTab.refPaddingH)
         .frame(height: Theme.GitTab.refHeight)
@@ -147,7 +147,7 @@ struct GitRefPill: View {
     private var label: String { twin != nil ? ref.name + " " + Self.syncedMark : ref.name }
     static let syncedMark = "⇅"
 
-    private static let font = NSFont.monospacedSystemFont(ofSize: Theme.GitTab.mono, weight: .regular)
+    private static let font = Theme.Typography.mono.nsFont()
 
     static func width(_ name: String) -> CGFloat {
         ceil((name as NSString).size(withAttributes: [.font: font]).width) + Theme.GitTab.refPaddingH * 2
@@ -165,7 +165,7 @@ struct GitMoreRefs: View {
 
     var body: some View {
         Text(verbatim: "+\(count)")
-            .font(.system(size: Theme.GitTab.mono, design: .monospaced))
+            .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.text2)
             .padding(.horizontal, Theme.GitTab.refPaddingH)
             .frame(height: Theme.GitTab.refHeight)

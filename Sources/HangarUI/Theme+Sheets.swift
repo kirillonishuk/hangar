@@ -40,13 +40,11 @@ extension Theme {
     public static let settingsNavGap: CGFloat = 2
     /// The page: margins, its title, gaps between sections and under a section header.
     public static let settingsPagePadding: CGFloat = 24
-    public static let settingsPageTitle: CGFloat = 17
     public static let settingsSectionGap: CGFloat = 20
     /// Settings' status line preview (#105): one terminal row, faint text at half the foreground as Ghostty draws it.
     public static let statuslinePreviewHeight: CGFloat = 30
     public static let statuslinePreviewPaddingH: CGFloat = 10
     public static let statuslineFaint: Double = 0.5
-    public static let statuslinePreviewFont: CGFloat = 12
     public static let statuslineBarHeavy: CGFloat = 2
     /// Where a dragged part's chip lands (#110).
     public static let statuslineDropLine: CGFloat = 2
@@ -67,7 +65,6 @@ extension Theme {
     public static let themeTileStrip: CGFloat = 22
     /// Integrations (#111): the agent's logo by its title, the gap under a row's title, «Где установлено» items.
     public static let integrationTitleIcon: CGFloat = 18
-    public static let integrationAgentTitle: CGFloat = 15
     public static let integrationSubGap: CGFloat = 2
     public static let integrationWhereGap: CGFloat = 14
     public static let integrationWhereIcon: CGFloat = 14

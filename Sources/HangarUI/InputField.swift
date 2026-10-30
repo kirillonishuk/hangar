@@ -4,8 +4,6 @@ import SwiftUI
 /// The one text-input look (DESIGN.md «Поля ввода»): every TextField / search field / inline rename goes through it.
 extension Theme {
     public enum Input {
-        /// One size for typed text and placeholders; `mono` only for paths, branches and commands.
-        public static let fontSize: CGFloat = Theme.fontSize.sheetRow
         public static let height: CGFloat = 28
         public static let paddingH: CGFloat = 9
         /// Multi-line field: its first line sits where a single-line field's text does.
@@ -21,9 +19,10 @@ extension Theme {
         /// Inline rename: the box grows this far around the label it replaces (no jump on F2).
         public static let inlinePaddingH: CGFloat = 4
 
-        public static func font(mono: Bool = false) -> Font { .system(size: fontSize, design: mono ? .monospaced : .default) }
+        /// One size for typed text and placeholders (`body`); `mono` only for paths, branches and commands.
+        public static func font(mono: Bool = false) -> Font { (mono ? Theme.Typography.mono : Theme.Typography.body).font() }
         public static func nsFont(mono: Bool = false) -> NSFont {
-            mono ? .monospacedSystemFont(ofSize: fontSize, weight: .regular) : .systemFont(ofSize: fontSize)
+            (mono ? Theme.Typography.mono : Theme.Typography.body).nsFont()
         }
     }
 }

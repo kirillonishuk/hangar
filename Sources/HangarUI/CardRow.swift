@@ -14,7 +14,7 @@ struct CardRow<Value: View>: View {
     var body: some View {
         HStack(spacing: Theme.cardRowGap) {
             Text(verbatim: label)
-                .font(.system(size: Theme.fontSize.sheetRow, design: mono ? .monospaced : .default))
+                .font((mono ? Theme.Typography.mono : Theme.Typography.body).font())
                 .foregroundStyle(Theme.ui.text2)
                 .lineLimit(1)
                 .frame(width: labelWidth, alignment: .leading)

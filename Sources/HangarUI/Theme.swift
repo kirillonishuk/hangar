@@ -6,26 +6,7 @@ import Usage
 
 /// Colors and sizes from docs/design/DESIGN.md. UI code must use these, not literals.
 public enum Theme {
-    // Font sizes (pt)
-    public enum fontSize {
-        // Type scale +1 over the mockups (decision #34).
-        public static let base: CGFloat = 13
-        public static let row: CGFloat = 13
-        public static let sheetRow: CGFloat = 13.5
-        public static let sheetTitle: CGFloat = 14.5
-        public static let tabTaskTitle: CGFloat = 13
-        public static let tab: CGFloat = 12.5
-        public static let footer: CGFloat = 12
-        public static let segment: CGFloat = 12
-        /// The floor: nothing smaller except limit badges (11).
-        public static let small: CGFloat = 11.5
-        public static let counter: CGFloat = 11.5
-        // Sidebar, as in Pane: section headers, rows, bottom buttons.
-        public static let section: CGFloat = 11.5
-        public static let sidebarRow: CGFloat = 13.5
-        public static let sidebarFooter: CGFloat = 13
-        public static let projectTracking: CGFloat = 0.06  // em
-    }
+    // Fonts: `Theme.Typography` (Theme+Tokens.swift).
 
     // Sizes
     public static let sidebarWidth: CGFloat = 240
@@ -156,11 +137,10 @@ public enum Theme {
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = 2
     public static let inactiveOpacity: Double = 0.38
-    /// Row / toast / header actions (Controls.swift, controls-v2 B′): 22 high, radius 6, 12 pt medium, glyph 12.
+    /// Row / toast / header actions (Controls.swift, controls-v2 B′): 22 high, radius 6, `secondary`, glyph 12.
     enum Control {
         static let height: CGFloat = 22
         static let radius: CGFloat = 6
-        static let font: CGFloat = 12
         static let icon: CGFloat = 12
         static let iconGap: CGFloat = 5
         static let paddingH: CGFloat = 8
@@ -274,10 +254,8 @@ extension Theme {
         }
 
         public static let nameWidth: CGFloat = 50
-        public static let nameFont: CGFloat = 11.5
         public static let blockBar: CGFloat = 4
         public static let barGap: CGFloat = 3
-        public static let percentFont: CGFloat = 11.5
         public static let percentWidth: CGFloat = 34
         public static let rowGap: CGFloat = 8
         public static let rowPaddingV: CGFloat = 5
@@ -289,8 +267,6 @@ extension Theme {
         public static let popoverPaddingH: CGFloat = 16
         public static let popoverBar: CGFloat = 6
         public static let itemGap: CGFloat = 12
-        public static let agentFont: CGFloat = 13
-        public static let badgeFont: CGFloat = 11
         public static let badgePaddingH: CGFloat = 7
         public static let badgePaddingV: CGFloat = 1
     }
@@ -355,9 +331,6 @@ extension Theme {
         public static var badgeM: Color { ui.of(Theme.palette.gitM) }
         public static var badgeA: Color { ui.of(Theme.palette.gitA) }
         public static var badgeD: Color { ui.of(Theme.palette.gitD) }
-        /// Diff view text (mono); the integration sheet keeps its smaller `sheetFont`.
-        public static let font: CGFloat = 12.5
-        public static let sheetFont: CGFloat = 11.5
         /// Line number column.
         public static let gutter: CGFloat = 34
         /// Line height ≈ 1.6.
@@ -409,11 +382,8 @@ extension Theme {
     public static let paletteRadius: CGFloat = 12
     /// The card's top edge, as a fraction of the window height from its top.
     public static let paletteTopFraction: CGFloat = 0.16
-    public static let paletteQueryFont: CGFloat = 17
     public static let paletteQueryPaddingV: CGFloat = 14
     public static let palettePaddingH: CGFloat = 18
-    public static let paletteRowFont: CGFloat = 14
-    public static let paletteDetailFont: CGFloat = 12.5
     public static let paletteRowHeight: CGFloat = 36
     public static let paletteRowInset: CGFloat = 6
     public static let paletteRowRadius: CGFloat = 7

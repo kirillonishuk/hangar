@@ -7,10 +7,10 @@ extension Theme {
     enum Editor {
         /// The diff's header row: as tall as the tab bar above it.
         static let headerHeight: CGFloat = Theme.tabBarHeight
-        static let buttonFont: CGFloat = Theme.fontSize.tab
+        static let buttonFont: CGFloat = Theme.Typography.secondary.size
         /// The conflict / notice bar above the text.
         static let barHeight: CGFloat = 30
-        static let barFont: CGFloat = Theme.fontSize.base
+        static let barFont: CGFloat = Theme.Typography.body.size
         static let radius: CGFloat = 6
     }
 }
@@ -123,7 +123,7 @@ enum MonacoTheme {
             "--menu-w": "\(Theme.menuWidth)px", "--menu-r": "\(Theme.menuRadius)px", "--menu-pad": "\(Theme.menuPadding)px",
             "--menu-item-h": "\(Theme.menuItemHeight)px", "--menu-item-pl": "\(Theme.menuItemPaddingLeading)px",
             "--menu-item-pr": "\(Theme.menuItemPaddingTrailing)px", "--menu-item-r": "\(Theme.menuItemRadius)px",
-            "--menu-font": "\(Theme.menuFont)px", "--menu-key-font": "\(Theme.menuShortcutFont)px",
+            "--menu-font": "\(Theme.Typography.body.size)px", "--menu-key-font": "\(Theme.Typography.secondary.size)px",
             "--menu-sep-v": "\(Theme.menuSeparatorPaddingV)px", "--menu-sep-h": "\(Theme.menuSeparatorPaddingH)px",
             "--menu-hover": h(p.menuHover), "--menu-hover-text": h(p.menuHoverText), "--menu-border": h(p.controlStrong),
             "--line-sheet": h(p.lineSheet), "--inactive": "\(Theme.inactiveOpacity)",

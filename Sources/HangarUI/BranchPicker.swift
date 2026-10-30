@@ -107,6 +107,11 @@ struct PickerSearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
+        if field.placeholderAttributedString?.string != placeholder {
+            field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
+                .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),
+            ])
+        }
         if field.stringValue != text {
             field.stringValue = text
             // Set from outside (⇧⌘P puts «>»): the caret after it, not the whole text selected.

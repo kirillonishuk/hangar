@@ -156,24 +156,41 @@ extension AppState {
 
     /// `git switch` in the chat's folder (decision #114). nil when done, else the message for the user.
     func switchBranch(of task: HangarTask, to branch: Branch) async -> String? {
-        await branchAction(task) { try await $0.switchBranch(to: branch.name, isRemote: branch.isRemote) }
+        await switchBranchError(of: task, to: branch).map { branchText($0, projectId: task.projectId) }
     }
 
     /// `git switch -c <name> [<start>]` in the chat's folder. nil when done, else the message for the user.
     func createBranch(of task: HangarTask, name: String, from start: String? = nil) async -> String? {
+        await createBranchError(of: task, name: name, from: start).map { branchText($0, projectId: task.projectId) }
+    }
+
+    /// As `switchBranch`, the refusal kept as an error (the switcher shows «uncommitted changes» its own way).
+    func switchBranchError(of task: HangarTask, to branch: Branch) async -> Error? {
+        await branchAction(task) { try await $0.switchBranch(to: branch.name, isRemote: branch.isRemote) }
+    }
+
+    func createBranchError(of task: HangarTask, name: String, from start: String? = nil) async -> Error? {
         await branchAction(task) { try await $0.createBranch(name, from: start) }
     }
 
-    private func branchAction(_ task: HangarTask, _ run: (Git) async throws -> Void) async -> String? {
+    private func branchAction(_ task: HangarTask, _ run: (Git) async throws -> Void) async -> Error? {
         defer { refreshHead(taskId: task.id) }
         do {
             try await run(try branchGit(task.id))
-            return nil
-        } catch let e as BranchSwitchError {
-            return branchMessage(e, projectId: task.projectId)
         } catch {
-            return error.localizedDescription
+            return error
         }
+        // A remote chat has no FSEvents: its inspector reloads the files and changes of the new branch now.
+        if project(task.projectId)?.host != nil, inspector.shownTaskId == task.id {
+            inspector.refresh(.all)
+            gitPanel.refresh()
+        }
+        return nil
+    }
+
+    /// A refusal's text (#114), else git's own message.
+    func branchText(_ error: Error, projectId: UUID) -> String {
+        (error as? BranchSwitchError).map { branchMessage($0, projectId: projectId) } ?? error.localizedDescription
     }
 
     func branchMessage(_ e: BranchSwitchError, projectId: UUID) -> String {

@@ -9,13 +9,16 @@ import TestSupport
         .item(PopoverMenuItem(title: title, icon: icon, checked: checked) {})
     }
 
-    /// A check gets its own column only next to icons («все вкладки» keeps the tab's icon); alone it takes the icon slot.
+    /// A check gets its own column only on an item with its own icon («все вкладки» keeps the tab's icon); else it takes the icon slot.
     @Test func layoutColumnsAndHeight() {
         let tabs = PopoverMenuLayout([item("a", icon: .claude, checked: true), item("b", icon: .shell)])
         #expect(tabs.checkColumn && tabs.iconColumn)
         let branches = PopoverMenuLayout([.header("local"), item("main", checked: true), .separator, item("dev")])
         #expect(!branches.checkColumn && branches.iconColumn)
         #expect(branches.height == 3 * Theme.Height.rowList + 1 + 2 * Theme.menuPadding)
+        // The switcher: the check and «+ Новая ветка» share one slot.
+        let switcher = PopoverMenuLayout([item("main", checked: true), item("dev"), .separator, item("new", icon: .add)])
+        #expect(!switcher.checkColumn && switcher.iconColumn)
         let plain = PopoverMenuLayout([item("a"), item("b")])
         #expect(!plain.checkColumn && !plain.iconColumn)
     }

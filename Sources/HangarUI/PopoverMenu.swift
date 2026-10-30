@@ -23,11 +23,13 @@ struct PopoverMenuItem {
     /// A file's own icon instead of `icon` (a path pick).
     var file: (name: String, isDir: Bool)?
     var help: String?
+    /// The action runs with the menu still open (it shows its own progress or refusal, then closes the menu itself).
+    var keepsOpen = false
     let action: () -> Void
 
     init(title: String, icon: Icon? = nil, shortcut: String? = nil, destructive: Bool = false, enabled: Bool = true,
          checked: Bool = false, note: String? = nil, mono: Bool = false, dot: AgentState? = nil,
-         file: (name: String, isDir: Bool)? = nil, help: String? = nil, action: @escaping () -> Void) {
+         file: (name: String, isDir: Bool)? = nil, help: String? = nil, keepsOpen: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.shortcut = shortcut
@@ -39,6 +41,7 @@ struct PopoverMenuItem {
         self.dot = dot
         self.file = file
         self.help = help
+        self.keepsOpen = keepsOpen
         self.action = action
     }
 
@@ -60,7 +63,7 @@ enum PopoverMenuEntry: Equatable {
         case (.item(let x), .item(let y)):
             x.title == y.title && x.icon == y.icon && x.shortcut == y.shortcut && x.destructive == y.destructive
                 && x.enabled == y.enabled && x.checked == y.checked && x.note == y.note && x.mono == y.mono && x.dot == y.dot
-                && x.file?.name == y.file?.name && x.file?.isDir == y.file?.isDir
+                && x.file?.name == y.file?.name && x.file?.isDir == y.file?.isDir && x.help == y.help && x.keepsOpen == y.keepsOpen
         default: false
         }
     }
@@ -118,12 +121,28 @@ struct MenuReopenGuard {
 
 // MARK: Content
 
+/// A few lines under the list (the branch switcher's refusal or progress): `secondary`; `lead` 600 in the tone's
+/// color, then `text` (`text2`, or `failedText` for a failure); a spinner before it while `busy`.
+struct PopoverMenuNote: Equatable {
+    enum Tone: Equatable { case plain, waiting, failed }
+    var lead: String?
+    var text: String
+    var tone = Tone.plain
+    var busy = false
+}
+
 /// What a menu shows: fixed entries, or entries that follow a search field above them (a branch list, Git filters).
 struct PopoverMenuContent {
     var search: Search?
     var width = Theme.menuWidth
     /// The entries for the field's text ("" without a field).
     let entries: (String) -> [PopoverMenuEntry]
+    /// Under the list, rebuilt with the entries (and when the data it reads changes).
+    var note: (() -> PopoverMenuNote?)?
+    /// The menu closed (a pick, Esc, a click elsewhere, `close()`).
+    var onClose: (() -> Void)?
+    /// The icon column stays when the text filters out every check and icon: the names don't move as you type.
+    var iconSlot = false
 
     struct Search {
         let placeholder: String
@@ -134,6 +153,10 @@ struct PopoverMenuContent {
         var highlightFirst = false
         /// ↩ with nothing highlighted: the typed text (an author's name, a path).
         var submit: ((String) -> Void)?
+        /// Replaces `placeholder` while it returns a value (the switcher's new-branch name).
+        var prompt: (() -> String?)?
+        /// Esc: true when handled (a step back), else the menu closes.
+        var cancel: (() -> Bool)?
     }
 
     init(search: Search? = nil, width: CGFloat = Theme.menuWidth, entries: @escaping (String) -> [PopoverMenuEntry]) {
@@ -157,8 +180,8 @@ func menuInitialHighlight(_ entries: [PopoverMenuEntry], highlightFirst: Bool, p
 
 /// The columns and height a menu's entries need, worked out once per open / text change (not per hover).
 struct PopoverMenuLayout: Equatable {
-    /// A column of checks before the icons: some item is checked and items have their own icons («все вкладки»,
-    /// a path pick). Without icons the check takes the icon's place.
+    /// A column of checks before the icons: a checked item has its own icon («все вкладки», a path pick). Otherwise
+    /// the check takes the icon's place (the branch switcher's «+» row shares it).
     var checkColumn = false
     var iconColumn = false
     /// The list's natural height (items and headers `row.list`, separators 1 + 6 + 6), before the scroll cap.
@@ -167,7 +190,8 @@ struct PopoverMenuLayout: Equatable {
     init(_ entries: [PopoverMenuEntry]) {
         let icons = entries.contains { $0.item.map { $0.icon != nil || $0.file != nil } == true }
         let checks = entries.contains { $0.item?.checked == true }
-        checkColumn = checks && icons
+        // Only a checked item with its own icon needs both («все вкладки»); else the check takes the icon's place.
+        checkColumn = entries.contains { $0.item.map { $0.checked && ($0.icon != nil || $0.file != nil) } == true }
         iconColumn = icons || checks
         height = entries.reduce(0) { sum, e in
             if case .separator = e { return sum + 1 + 2 * Theme.menuPadding }
@@ -199,8 +223,9 @@ struct PopoverMenuLayout: Equatable {
         guard let view, let window = view.window else { return show(content, at: NSEvent.mouseLocation) }
         // Clicking the anchor of the open menu toggles it shut.
         if panel != nil, panelAnchor === view { return close() }
-        let event = NSApp.currentEvent
-        guard reopenGuard.allowsOpen(anchor: ObjectIdentifier(view), event: event.map { $0.eventNumber }) else { return }
+        // `eventNumber` exists only on mouse events (a key press or VoiceOver opens it too).
+        let event = NSApp.currentEvent.flatMap { [.leftMouseDown, .leftMouseUp].contains($0.type) ? $0.eventNumber : nil }
+        guard reopenGuard.allowsOpen(anchor: ObjectIdentifier(view), event: event) else { return }
         let frame = window.convertToScreen(view.convert(view.bounds, to: nil))
         present(content, topLeft: NSPoint(x: frame.minX, y: frame.minY - Theme.menuAnchorGap), flipAbove: frame.maxY + Theme.menuAnchorGap)
         panelAnchor = view
@@ -216,7 +241,11 @@ struct PopoverMenuLayout: Equatable {
         panel = nil
         panelAnchor = nil
         p?.orderOut(nil)
+        p?.content.onClose?()
     }
+
+    /// Closes it only if this content's panel is still the one shown (an async action finished).
+    static func close(ifShowing p: PopoverMenuPanel?) { if let p, panel === p { close() } }
 
     private static func present(_ content: PopoverMenuContent, topLeft: NSPoint, flipAbove: CGFloat) {
         close()
@@ -237,6 +266,7 @@ struct PopoverMenuLayout: Equatable {
     /// Closes first, then runs the item (its sheet or alert must not meet the menu).
     fileprivate static func pick(_ item: PopoverMenuItem) {
         guard item.enabled else { return }
+        if item.keepsOpen { return item.action() }
         close()
         DispatchQueue.main.async { item.action() }
     }
@@ -246,8 +276,16 @@ struct PopoverMenuLayout: Equatable {
         DispatchQueue.main.async { submit(text) }
     }
 
+    #if DEBUG
+    /// Debug channel: the open menu stays while the inactive app (HANGAR_DEBUG_NO_ACTIVATE) can't keep it key.
+    static var debugPinned = false
+    #endif
+
     fileprivate static func panelResigned(_ p: PopoverMenuPanel) {
         guard panel === p else { return }
+        #if DEBUG
+        if debugPinned { return }
+        #endif
         if let anchor = panelAnchor, let e = NSApp.currentEvent, e.type == .leftMouseDown {
             reopenGuard.dismissed(anchor: ObjectIdentifier(anchor), byMouseDown: e.eventNumber)
         }
@@ -261,6 +299,7 @@ struct PopoverMenuLayout: Equatable {
     /// The entries for `query`, built once per change (and again when the data they read changes).
     private(set) var entries: [PopoverMenuEntry] = []
     private(set) var layout = PopoverMenuLayout()
+    private(set) var note: PopoverMenuNote?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var content: PopoverMenuContent?
     /// After each rebuild (the panel refits itself).
@@ -276,7 +315,7 @@ struct PopoverMenuLayout: Equatable {
         guard let content else { return }
         generation += 1
         let mine = generation
-        let entries = withObservationTracking { content.entries(query) } onChange: { [weak self] in
+        let (entries, note) = withObservationTracking { (content.entries(query), content.note?()) } onChange: { [weak self] in
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self, self.generation == mine else { return }
@@ -285,7 +324,9 @@ struct PopoverMenuLayout: Equatable {
             }
         }
         self.entries = entries
+        self.note = note
         layout = PopoverMenuLayout(entries)
+        if content.iconSlot { layout.iconColumn = true }
         if let h = highlighted, !entries.indices.contains(h) || entries[h].item?.enabled != true { highlighted = nil }
         changed()
     }
@@ -355,12 +396,17 @@ final class PopoverMenuPanel: NSPanel {
         case 125: move(1)
         case 126: move(-1)
         case 36, 76: submit()
-        case 53: PopoverMenu.close()
+        case 53: cancel()
         default: super.keyDown(with: event)
         }
     }
 
-    override func cancelOperation(_ sender: Any?) { PopoverMenu.close() }
+    override func cancelOperation(_ sender: Any?) { cancel() }
+
+    func cancel() {
+        if content.search?.cancel?() == true { return queryChanged() }
+        PopoverMenu.close()
+    }
 }
 
 /// `bg2`, a `line2` edge, `radius.popover`, padding 6; items 24 (`row.list`, padding 8, radius 6, icon 14, `body`),
@@ -378,10 +424,11 @@ struct PopoverMenuView: View {
         VStack(spacing: 0) {
             if let search = content.search {
                 PickerSearchField(text: Binding(get: { state.query }, set: { state.query = $0; panel?.queryChanged() }),
-                                  placeholder: search.placeholder, font: search.mono ? Theme.Typography.mono.nsFont() : Theme.Typography.body.nsFont(),
-                                  onMove: { panel?.move($0) }, onSubmit: { panel?.submit() }, onCancel: { PopoverMenu.close() })
+                                  placeholder: search.prompt?() ?? search.placeholder,
+                                  font: search.mono ? Theme.Typography.mono.nsFont() : Theme.Typography.body.nsFont(),
+                                  onMove: { panel?.move($0) }, onSubmit: { panel?.submit() }, onCancel: { if let panel { panel.cancel() } else { PopoverMenu.close() } })
                     .inputField(focused: true, icon: .search)  // the list's keys go through it: always the focused one
-                    .padding(.bottom, entries.isEmpty ? 0 : Theme.menuPadding)
+                    .padding(.bottom, entries.isEmpty && state.note == nil ? 0 : Theme.menuPadding)
             }
             if !entries.isEmpty {
                 ScrollViewReader { proxy in
@@ -398,6 +445,10 @@ struct PopoverMenuView: View {
                         if let i { proxy.scrollTo(i) } else if let c = entries.firstIndex(where: { $0.item?.checked == true }) { proxy.scrollTo(c) }
                     }
                 }
+            }
+            if let note = state.note {
+                if !entries.isEmpty { Rectangle().fill(Theme.ui.line2).frame(height: 1).padding(.vertical, Theme.menuPadding) }
+                noteView(note)
             }
         }
         .padding(Theme.menuPadding)
@@ -469,6 +520,24 @@ struct PopoverMenuView: View {
         .help(item.help ?? "")
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(item.checked ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func noteView(_ note: PopoverMenuNote) -> some View {
+        let body = Text(verbatim: note.text).foregroundColor(note.tone == .failed ? Theme.ui.failedText : Theme.ui.text2)
+        let text = note.lead.map { lead in
+            Text(verbatim: lead + " ").fontWeight(.semibold)
+                .foregroundColor(note.tone == .waiting ? Theme.ui.waiting : note.tone == .failed ? Theme.ui.failedText : Theme.ui.text1) + body
+        } ?? body
+        return HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s2) {
+            if note.busy { ProgressView().controlSize(.mini).accessibilityHidden(true) }
+            text.font(Theme.Typography.secondary.font())
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, Theme.Space.s2)
+        .padding(.bottom, Theme.Space.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
     /// A 14 pt column that keeps its width when empty.

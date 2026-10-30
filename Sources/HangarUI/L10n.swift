@@ -106,6 +106,8 @@ import Workspace
         case branchDirty, branchDirtyHint, branchDirtyNewHint, branchCheckedOutInChat, branchCheckedOutAt, branchIgnoredOverwrite, branchOperationInProgress
         case worktreeLabel, worktreeOnHint, worktreeOffHint, fromBranch, newBranch, fromName, refreshHelp
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
+        case switcherSearch, switcherLocal, switcherRemote, branchCurrent, branchInChatNote, branchInFolderNote, branchNewFrom, branchCreate, branchCreateNamed
+        case branchNamePrompt, branchFromCurrent, branchSwitching, branchCreating, branchesLoading, branchSwitchHint
         case updatedAgo, justNow, minutesAgo, hoursAgo, daysAgo
         case agentsWorking, agentsWorkingInfo
         case keepAwakeTitle
@@ -394,6 +396,21 @@ import Workspace
     static var branchesLocal: String { s(.branchesLocal) }
     static var branchDefault: String { s(.branchDefault) }
     static var branchTask: String { s(.branchTask) }
+    static var switcherSearch: String { s(.switcherSearch) }
+    static var switcherLocal: String { s(.switcherLocal) }
+    static var switcherRemote: String { s(.switcherRemote) }
+    static var branchCurrent: String { s(.branchCurrent) }
+    static func branchInChatNote(_ chat: String) -> String { f(.branchInChatNote, chat) }
+    static var branchInFolderNote: String { s(.branchInFolderNote) }
+    static func branchNewFrom(_ head: String) -> String { f(.branchNewFrom, head) }
+    static var branchCreate: String { s(.branchCreate) }
+    static func branchCreateNamed(_ name: String) -> String { f(.branchCreateNamed, name) }
+    static var branchNamePrompt: String { s(.branchNamePrompt) }
+    static func branchFromCurrent(_ head: String) -> String { f(.branchFromCurrent, head) }
+    static func branchSwitching(_ name: String) -> String { f(.branchSwitching, name) }
+    static func branchCreating(_ name: String) -> String { f(.branchCreating, name) }
+    static var branchesLoading: String { s(.branchesLoading) }
+    static var branchSwitchHint: String { s(.branchSwitchHint) }
     static func updatedAgo(_ age: String) -> String { f(.updatedAgo, age) }
     static var justNow: String { s(.justNow) }
     static func minutesAgo(_ n: Int) -> String { f(.minutesAgo, n) }

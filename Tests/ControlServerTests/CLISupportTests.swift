@@ -108,6 +108,13 @@ import AgentStatus
         #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .sessionStart, session: "s1", source: "clear"))
     }
 
+    /// UserPromptSubmit's `prompt` is the event's message (an auto-named chat's name, #116), bounded like the rest.
+    @Test func promptText() {
+        let stdin = Data(#"{"session_id":"s1","prompt":"fix the bug","message":"x"}"#.utf8)
+        #expect(eventMessage(kind: "prompt", args: [], env: env, stdin: stdin)?.message == "fix the bug")
+        #expect(eventMessage(kind: "stop", args: [], env: env, stdin: stdin)?.message == "x")
+    }
+
     /// `--agent-pid "$PPID"` from Hangar's own `--settings` hooks (#119): digits only; never read past `--then`.
     @Test func agentPidFlag() {
         let stdin = Data(#"{"session_id":"s1","source":"resume"}"#.utf8)

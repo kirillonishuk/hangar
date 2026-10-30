@@ -929,7 +929,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                                     if let command = model.commandToSave, let p = app.project(id) {
                                         app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
                                     }
-                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript)
+                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript,
+                                                   autoNamed: model.chatNameIsAuto)
                                 },
                                 onCancel: close)
         let host = NSHostingController(rootView: view)

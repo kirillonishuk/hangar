@@ -9,16 +9,25 @@ let chatNameMaxLength = 40
 @MainActor func chatName(name: String, message: String, existing: [String]) -> String {
     let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     if !typed.isEmpty { return typed }
-    if let line = firstVisibleLine(message) {
-        guard line.count > chatNameMaxLength else { return line }
-        let cut = line.prefix(chatNameMaxLength + 1)
-        if let space = cut.lastIndex(of: " ") { return String(cut[..<space]) }
-        return String(line.prefix(chatNameMaxLength))
-    }
+    if let name = messageChatName(message) { return name }
     let taken = Set(existing)
     var n = 1
     while taken.contains(L10n.chatNumbered(n)) { n += 1 }
     return L10n.chatNumbered(n)
+}
+
+/// The «Чат N» fallback: neither a name nor a visible line of the message (#116); the agent's first prompt names it later.
+func isNumberedChatName(name: String, message: String) -> Bool {
+    name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && messageChatName(message) == nil
+}
+
+/// A name from a message: its first visible line, cut at a word to `chatNameMaxLength`; nil — nothing visible.
+func messageChatName(_ message: String) -> String? {
+    guard let line = firstVisibleLine(message) else { return nil }
+    guard line.count > chatNameMaxLength else { return line }
+    let cut = line.prefix(chatNameMaxLength + 1)
+    if let space = cut.lastIndex(of: " ") { return String(cut[..<space]) }
+    return String(line.prefix(chatNameMaxLength))
 }
 
 /// Walks lines only up to the first one with text (runs on every keystroke into the prompt).

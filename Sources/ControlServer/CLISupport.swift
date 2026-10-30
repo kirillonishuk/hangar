@@ -32,7 +32,9 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         m.notificationType = object["notification_type"] as? String
         m.source = object["source"] as? String
         // Bounded here, before encoding: a long answer or command must not push the line past ControlServer.maxLine.
-        m.message = ((object["message"] as? String) ?? (object["last_assistant_message"] as? String)).map { String($0.prefix(500)) }
+        // UserPromptSubmit's `prompt`: an auto-named chat takes its name from it (#116).
+        let text = kind == .prompt ? object["prompt"] : object["message"] ?? object["last_assistant_message"]
+        m.message = (text as? String).map { String($0.prefix(500)) }
         if kind == .permissionRequest {
             m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }

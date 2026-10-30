@@ -539,12 +539,14 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
     @discardableResult
     /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's.
+    /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (#116).
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
-                    setup: String? = nil) -> (task: UUID, tab: UUID) {
+                    setup: String? = nil, autoNamed: Bool = false) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
         var setupTab: UUID?
         perform { s in
             let task = s.addTask(projectId: projectId, name: name, mode: mode)
+            if autoNamed, let i = s.tasks.firstIndex(where: { $0.id == task }) { s.tasks[i].autoNamed = true }
             var base: String?
             if case .worktree(_, _, let b) = mode { base = b }
             if select {

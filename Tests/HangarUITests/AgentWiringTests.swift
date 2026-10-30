@@ -149,6 +149,26 @@ import Workspace
         #expect(app.state(ofLeaf: id) == .done)
     }
 
+    /// #116: a «Чат N» chat takes its name from the first prompt of its own agent, once; a named chat never changes.
+    @Test func autoNamedChatNamedByFirstPrompt() {
+        let app = makeApp([.claude])
+        let task = app.state.tasks[0].id
+        app.perform { $0.renameTask(id: task, name: "Чат 1"); $0.tasks[0].autoNamed = true }
+        let named = { app.state.tasks[0].name }
+        event(app, tab: 0, .sessionStart, session: "s", source: "startup", pid: 7)
+        event(app, tab: 0, .prompt, session: "s", message: "fix the login")  // the installed hook's copy: not the tab agent
+        event(app, tab: 0, .prompt, session: "s", message: "/resume", pid: 7)  // a slash command names nothing
+        #expect(named() == "Чат 1" && app.state.tasks[0].autoNamed)
+        event(app, tab: 0, .prompt, session: "s", message: "\n# Fix the **login** page redirect loop after the OAuth callback\nmore", pid: 7)
+        #expect(named() == "Fix the **login** page redirect loop" && !app.state.tasks[0].autoNamed)
+        event(app, tab: 0, .prompt, session: "s", message: "second prompt", pid: 7)
+        #expect(named() == "Fix the **login** page redirect loop")
+        // A chat the user named, or renamed, is never touched.
+        app.perform { $0.tasks[0].autoNamed = true; $0.renameTask(id: task, name: "Mine") }
+        event(app, tab: 0, .prompt, session: "s", message: "other", pid: 7)
+        #expect(named() == "Mine")
+    }
+
     @Test func clearSwitchesSession() {
         let app = makeApp([.claude])
         event(app, tab: 0, .sessionStart, session: "main", source: "startup", pid: 7)

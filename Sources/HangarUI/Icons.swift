@@ -402,8 +402,7 @@ struct HoverButtonStyle: ButtonStyle {
                 .background(RoundedRectangle(cornerRadius: radius)
                     .fill(palette.fill(selected: selected, pressed: pressed, hover: hover, interactive: true)))
                 .pointingHand()
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-                .animation(Motion.ease(Theme.selectionFade), value: selected)
+                .onHover { h in hover = h }
         }
     }
 }
@@ -439,7 +438,7 @@ struct HoverRow<Content: View>: View {
                 .padding(.leading, highlight.leading)
                 .padding(.trailing, highlight.trailing))
             .pointingHand(interactive)
-            .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { self.hover = h } }
+            .onHover { h in self.hover = h }
             // Global space: the dragged row is offset while dragging, local translations would feed back.
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
@@ -459,7 +458,6 @@ struct HoverRow<Content: View>: View {
                         if let doubleAction, (NSApp.currentEvent?.clickCount ?? 1) >= 2 { doubleAction() } else { action?() }
                     }
                 })
-            .animation(Motion.ease(Theme.selectionFade), value: selected)
     }
 }
 

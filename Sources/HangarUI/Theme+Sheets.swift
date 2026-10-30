@@ -4,10 +4,7 @@ import SwiftUI
 extension Theme {
     /// Confirmations (archive, delete, remove): narrower; their switch label takes most of the row.
     public static let confirmSheetWidth: CGFloat = 480
-    public static let cardLabelWide: CGFloat = 300
-    /// Destructive button: `failed` at this strength under `failedText`.
-    public static let destructiveFillOpacity: Double = 0.18
-    /// Card row content height = a field's: a segment, a picker, a `SheetButton` or a field fits, so every row is as tall.
+    /// Card row content height = a field's: a segment, a picker, a button or a field fits, so every row is as tall.
     public static let cardRowMinHeight: CGFloat = Theme.Input.height
     /// Between footer / inline buttons, and between a title and its subtitle.
     public static let sheetButtonGap: CGFloat = 8
@@ -18,10 +15,6 @@ extension Theme {
     /// Install-plan command box.
     public static let planPaddingV: CGFloat = 8
     public static let planCommandGap: CGFloat = 8
-    /// Branch picker row: name → meta.
-    public static let dropdownItemGap: CGFloat = 8
-    /// `SheetButton` and sheet icon menus on hover (the `FilledRowStyle` approach: lighter fill).
-    public static let sheetButtonHoverBrightness: Double = 0.06
 }
 
 extension Theme.ui {
@@ -56,10 +49,6 @@ extension Theme {
     /// The label column is measured from the longest label of the language (+ slack); never wider than the max.
     public static let settingsLabelSlack: CGFloat = 1
     public static let settingsLabelMax: CGFloat = 220
-    /// Switch (themes-v1.html `.sw`): 30×18, 2 inset around the knob.
-    public static let switchWidth: CGFloat = 30
-    public static let switchHeight: CGFloat = 18
-    public static let switchInset: CGFloat = 2
     /// Theme tiles (themes-v1.html `.tcard`): a mini window over the name; the chosen one is outlined in `accent`.
     public static let themeTileGap: CGFloat = 12
     public static let themeTileRadius: CGFloat = 8

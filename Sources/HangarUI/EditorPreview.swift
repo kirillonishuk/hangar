@@ -194,7 +194,7 @@ struct EditorPreview: View {
             .scrollIndicators(.automatic)
             .onChange(of: model.hovered) { _, color in
                 guard let color, let id = model.sample.line(showing: color) else { return }
-                withAnimation(Motion.ease(Theme.selectionFade)) { proxy.scrollTo(id, anchor: .center) }
+                proxy.scrollTo(id, anchor: .center)
             }
         }
         .font(Font(font))

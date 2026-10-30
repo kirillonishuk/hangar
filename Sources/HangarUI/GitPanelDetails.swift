@@ -39,8 +39,8 @@ struct GitDetailsView: View {
                         Text(L10n.gitCommits).font(.system(size: Theme.fontSize.base))
                     }
                 }
-                .buttonStyle(HeaderActionStyle())
-                .padding(.leading, -Theme.Control.headerPaddingH)
+                .buttonStyle(.hangar(.plain, .small))
+                .padding(.leading, -ControlSize.small.paddingH)
             } else {
                 Text(L10n.gitCommit)
                     .font(.system(size: Theme.fontSize.footer, weight: .semibold))

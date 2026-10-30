@@ -53,7 +53,7 @@ struct NewTaskSheet: View {
             CardRow(label: L10n.worktreeLabel, first: true) {
                 Text(worktreeHint).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
                 Spacer(minLength: Theme.cardRowGap)
-                CardSwitch(isOn: $model.worktree)
+                Checkbox(isOn: $model.worktree)
                     .disabled(model.availability != .ready || model.creating)
             }
             CardRow(label: L10n.fromBranch) {
@@ -89,7 +89,7 @@ struct NewTaskSheet: View {
                         .truncationMode(.middle)
                         .help(command)
                     Spacer(minLength: Theme.cardRowGap)
-                    CardSwitch(isOn: $model.runSetup)
+                    Checkbox(isOn: $model.runSetup)
                         .disabled(!model.worktree || model.creating)
                 } else {
                     Text("—").font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
@@ -144,7 +144,7 @@ struct NewTaskSheet: View {
                     stderrText(stderr)
                     HStack(spacing: Theme.sheetButtonGap) {
                         Button(L10n.retry) { Task { await model.refresh() } }
-                            .buttonStyle(SheetButton(primary: false))
+                            .buttonStyle(.hangar(.secondary))
                             .disabled(model.creating)
                         createWithoutFetch
                     }
@@ -179,9 +179,8 @@ struct NewTaskSheet: View {
 
     private var createWithoutFetch: some View {
         Button(L10n.createWithoutFetch) { create(skipFetch: true) }
-            .buttonStyle(SheetButton(primary: false))
+            .buttonStyle(.hangar(.secondary))
             .disabled(!model.canCreate)
-            .opacity(model.canCreate ? 1 : Theme.disabledButtonOpacity)
     }
 
     // MARK: Footer
@@ -189,17 +188,16 @@ struct NewTaskSheet: View {
     private var footer: some View {
         SheetFooter(hint: footerHint) {
             Button(L10n.cancel, action: cancel)
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .keyboardShortcut(.cancelAction)
             Button { create(skipFetch: false) } label: {
                 // The label keeps its width under the spinner: no jump.
                 Text(L10n.create).opacity(model.creating ? 0 : 1)
                     .overlay { if model.creating { ProgressView().controlSize(.small) } }
             }
-            .buttonStyle(SheetButton(primary: true))
+            .buttonStyle(.hangar(.primary, busy: model.creating))
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!model.canCreate)
-            .opacity(model.canCreate || model.creating ? 1 : Theme.disabledButtonOpacity)
         }
     }
 
@@ -225,41 +223,6 @@ struct NewTaskSheet: View {
         let message = message
         Task {
             if let mode = await model.create(skipFetch: skipFetch) { onCreate(name, message, mode) }
-        }
-    }
-}
-
-/// Sheet / settings button: `primary` fill or `button` (→ `moreBg` under the pointer, as every secondary action);
-/// `destructive` — `failedText` on `failed` 18 % (white on red fails AA); lighter on hover (120 ms), hand only while enabled.
-struct SheetButton: ButtonStyle {
-    let primary: Bool
-    var destructive = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        Body(label: configuration.label, primary: primary, destructive: destructive, pressed: configuration.isPressed)
-    }
-
-    private struct Body<Label: View>: View {
-        let label: Label
-        let primary: Bool
-        let destructive: Bool
-        let pressed: Bool
-        @Environment(\.isEnabled) private var enabled
-        @State private var hover = false
-
-        var body: some View {
-            label
-                .foregroundStyle(destructive ? Theme.ui.failedText : primary ? Theme.ui.primaryText : Theme.ui.sheetText)
-                .padding(.vertical, Theme.buttonPaddingV)
-                .padding(.horizontal, Theme.buttonPaddingH)
-                .background(RoundedRectangle(cornerRadius: Theme.buttonRadius)
-                    .fill(destructive ? Theme.ui.failed.opacity(Theme.destructiveFillOpacity) : primary ? Theme.ui.primary
-                          : hover && enabled ? Theme.ui.moreBg : Theme.ui.button)
-                    .brightness(hover && enabled && (primary || destructive) ? Theme.sheetButtonHoverBrightness : 0))
-                .contentShape(RoundedRectangle(cornerRadius: Theme.buttonRadius))
-                .opacity(pressed ? Theme.pressedOpacity : 1)
-                .pointingHand(enabled)
-                .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
         }
     }
 }

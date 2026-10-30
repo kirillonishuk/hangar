@@ -141,26 +141,13 @@ private struct SearchToggle: View {
     let label: Text
     let help: String
     @Binding var on: Bool
-    @State private var hover = false
 
     var body: some View {
-        Button { on.toggle() } label: {
-            label
-                .font(.system(size: Theme.SearchTab.toggleFont, weight: .medium, design: .monospaced))
-                .foregroundStyle(on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
-                .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
-                .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-                .overlay(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
-        .help(help)
-        .accessibilityLabel(help)
-        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        Button { on.toggle() } label: { label.font(Theme.Typography.mono.font()) }
+            .buttonStyle(ChipStyle(on: on, square: true))
+            .help(help)
+            .accessibilityLabel(help)
+            .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -168,26 +155,18 @@ private struct SearchToggle: View {
 private struct SearchFiltersToggle: View {
     @Binding var on: Bool
     let active: Bool
-    @State private var hover = false
 
     var body: some View {
         Button { on.toggle() } label: {
-            IconView(icon: .filter, size: Theme.Control.icon, tint: on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2)
-                .frame(width: Theme.SearchTab.toggle, height: Theme.SearchTab.toggle)
-                .background(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-                .overlay(RoundedRectangle(cornerRadius: Theme.SearchTab.toggleRadius)
-                    .stroke(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear, lineWidth: 1))
+            IconView(icon: .filter, size: Theme.Icon.inline, tint: on ? Theme.ui.accentText : nil)
+                .frame(width: Theme.Height.controlSmall, height: Theme.Height.controlSmall)
                 .overlay(alignment: .topTrailing) {
                     Circle().fill(Theme.ui.accent)
                         .frame(width: Theme.SearchTab.filterDot, height: Theme.SearchTab.filterDot)
                         .opacity(active ? 1 : 0)
                 }
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .buttonStyle(ChipStyle(on: on, square: true))
         .help(active ? L10n.searchFiltersOn : L10n.searchFilters)
         .accessibilityLabel(active ? L10n.searchFiltersOn : L10n.searchFilters)
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)

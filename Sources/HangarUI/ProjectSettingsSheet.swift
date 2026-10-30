@@ -99,13 +99,12 @@ struct ProjectSettingsSheet: View {
 
             SheetFooter {
                 Button(L10n.cancel, action: onCancel)
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .keyboardShortcut(.cancelAction)
                 Button(L10n.save, action: save)
-                    .buttonStyle(SheetButton(primary: true))
+                    .buttonStyle(.hangar(.primary))
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(!canSave)
-                    .opacity(canSave ? 1 : Theme.disabledButtonOpacity)
             }
             .padding(.top, Theme.sheetGap)
         }
@@ -134,10 +133,10 @@ struct ProjectSettingsSheet: View {
             CardRow(label: L10n.projectPath) {
                 pathField($path, placeholder: "", field: .path, invalid: error != nil)
                     .onChange(of: path) { error = nil }
-                if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(SheetButton(primary: false)).fixedSize() }
+                if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(.hangar(.secondary)).fixedSize() }
             }
             CardRow(label: L10n.projectNotificationsTitle) {
-                Segment(selection: notifications, options: ProjectNotifications.allCases.map { ($0, L10n.notifySegment($0)) }) { notifications = $0 }
+                Segmented(selection: notifications, options: ProjectNotifications.allCases.map { ($0, L10n.notifySegment($0)) }) { notifications = $0 }
                 Spacer(minLength: 0)
             }
     }
@@ -151,7 +150,7 @@ struct ProjectSettingsSheet: View {
                 CardRow(label: L10n.worktreeFolder) {
                     pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root, invalid: rootError != nil)
                         .onChange(of: worktreeRoot) { rootError = nil }
-                    if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(SheetButton(primary: false)).fixedSize() }
+                    if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(.hangar(.secondary)).fixedSize() }
                 }
                 .help(L10n.worktreeRootHint(rootShown))
                 CardRow(label: L10n.worktreeCopy) {

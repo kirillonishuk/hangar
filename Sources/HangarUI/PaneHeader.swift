@@ -87,7 +87,7 @@ struct PaneHeader: View {
             }
         }
         .pointingHand(!renaming && !dragging)  // a drag keeps its closed hand (PaneDragController)
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .onHover { h in hover = h }
     }
 }
 
@@ -120,7 +120,7 @@ private struct PaneHeaderButton: View {
             IconView(icon: icon, active: hover, size: Theme.smallIconSize).padding(Theme.tabCloseInset)
         }
         .buttonStyle(HoverButtonStyle(radius: Theme.tabCloseRadius))
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .onHover { h in hover = h }
         .help(help)
         .accessibilityLabel(help)
     }

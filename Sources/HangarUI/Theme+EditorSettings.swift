@@ -76,7 +76,6 @@ extension Theme {
 
         // Options
         static let stepperValueWidth: CGFloat = 92
-        static let fontMenuWidth: CGFloat = 190
     }
 }
 

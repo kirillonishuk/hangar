@@ -50,15 +50,51 @@ import Workspace
         #expect(L10n.updatedAgo("2 min ago") == "updated 2 min ago")
     }
 
-    /// ↑/↓ walk the rows of both sections; the highlight stays on the list.
-    @Test func keyboardMovesThroughBothSections() {
-        let items = branchPickerItems(branches, query: "", defaultBase: "origin/main", taskBranches: [])
-        let rows = (items.remote + items.local).map(\.branch.name)
-        #expect(movedHighlight(nil, by: 1, in: rows) == "origin/main")
-        #expect(movedHighlight("origin/feat", by: 1, in: rows) == "refactor-db")
-        #expect(movedHighlight("refactor-db", by: 1, in: rows) == "refactor-db")
-        #expect(movedHighlight("origin/main", by: -1, in: rows) == "origin/main")
-        #expect(movedHighlight("gone", by: -1, in: rows) == "origin/main")
+    /// The palette's ↑/↓: clamped at the ends; an unknown highlight lands on the first row.
+    @Test func paletteHighlightClamps() {
+        let rows = ["a", "b", "c"]
+        #expect(movedHighlight(nil, by: 1, in: rows) == "a")
+        #expect(movedHighlight("b", by: 1, in: rows) == "c")
+        #expect(movedHighlight("c", by: 1, in: rows) == "c")
+        #expect(movedHighlight("a", by: -1, in: rows) == "a")
+        #expect(movedHighlight("gone", by: -1, in: rows) == "a")
         #expect(movedHighlight(nil, by: 1, in: []) == nil)
+    }
+
+    /// The branch list is the one menu: group headers, the current branch checked and highlighted on open, ↑/↓ skip
+    /// the headers, typing moves the highlight to the first match, a pick sets the selection.
+    @Test func branchMenuGroupsChecksAndHighlights() throws {
+        var chosen: String?? = .none
+        let menu = branchMenu(selection: "origin/feat", branches: branches, defaultBase: "origin/main", taskBranches: [],
+                              defaultOption: "auto") { chosen = $0 }
+        let search = try #require(menu.search)
+        #expect(search.highlightFirst)
+        let all = menu.entries("")
+        let titles = all.map { e -> String in
+            switch e {
+            case .header(let t): "# " + t
+            case .item(let i): i.title + (i.checked ? " ✓" : "")
+            case .separator: "—"
+            }
+        }
+        #expect(titles == ["auto", "# " + L10n.branchesRemote, "origin/main", "origin/feat ✓", "# " + L10n.branchesLocal, "refactor-db"])
+        let open = menuInitialHighlight(all, highlightFirst: true, preferChecked: true)
+        #expect(open == 3)
+        #expect(menuStep(all, from: open, by: 1) == 5)
+        #expect(menuStep(all, from: 2, by: -1) == 0)
+        // Typing: the default row goes, the first match is highlighted.
+        let typed = menu.entries("refactor")
+        #expect(typed.compactMap(\.item).map(\.title) == ["refactor-db"])
+        #expect(menuInitialHighlight(typed, highlightFirst: true, preferChecked: false) == 1)
+        all[0].item?.action()
+        #expect(chosen == .some(nil))
+        all[5].item?.action()
+        #expect(chosen == .some("refactor-db"))
+    }
+
+    /// Plain menus highlight nothing until the keys or the pointer.
+    @Test func plainMenuStartsWithoutHighlight() {
+        let entries: [PopoverMenuEntry] = [.item(PopoverMenuItem(title: "a", checked: true) {})]
+        #expect(menuInitialHighlight(entries, highlightFirst: false, preferChecked: true) == nil)
     }
 }

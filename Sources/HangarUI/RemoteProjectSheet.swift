@@ -170,9 +170,8 @@ struct RemoteProjectSheet: View {
         SheetFooter(hintHidden: model.server?.phase == .installing) {
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
             Button(L10n.cancel, action: onCancel)
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .disabled(model.server?.phase == .installing)
-                .opacity(model.server?.phase == .installing ? Theme.disabledButtonOpacity : 1)
                 // Esc belongs to the install terminal while it runs.
                 .keyboardShortcut(model.server?.phase == .installing ? nil : .cancelAction)
             let enabled = model.canAdd || model.canConnect
@@ -181,10 +180,9 @@ struct RemoteProjectSheet: View {
                 Text(model.canAdd ? L10n.add : L10n.connect).opacity(model.phase == .connecting ? 0 : 1)
                     .overlay { if model.phase == .connecting { ProgressView().controlSize(.small) } }
             }
-            .buttonStyle(SheetButton(primary: true))
+            .buttonStyle(.hangar(.primary, busy: model.phase == .connecting))
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(!enabled)
-            .opacity(enabled || model.phase == .connecting ? 1 : Theme.disabledButtonOpacity)
         }
     }
 
@@ -203,9 +201,8 @@ struct HostMenu: View {
     let pick: (String) -> Void
 
     var body: some View {
-        MoreButton(icon: .chevronDown, size: Theme.sheetIconButtonSize, help: L10n.hostsMenuHelp) {
-            ForEach(hosts, id: \.self) { h in Button(h) { pick(h) } }
+        PopoverMenuButton(icon: .chevronDown, help: L10n.hostsMenuHelp) {
+            hosts.map { h in .item(PopoverMenuItem(title: h, icon: .sshHost) { pick(h) }) }
         }
-        .environment(\.hoverPalette, .sheet)
     }
 }

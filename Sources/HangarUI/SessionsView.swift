@@ -1,3 +1,4 @@
+import AgentStatus
 import History
 import SwiftUI
 import Workspace
@@ -72,17 +73,16 @@ struct SessionsView: View {
                 SessionsProjectChip(title: L10n.sessionsProjectChip(p.name)) { model.clearProject() }
                 separator
             }
-            ModeChip(title: "Claude", on: model.agents.contains(.claude), toggles: true) { model.toggle(.claude) }
-            ModeChip(title: "Codex", on: model.agents.contains(.codex), toggles: true) { model.toggle(.codex) }
+            Chip(title: "Claude", on: model.agents.contains(.claude), toggles: true) { model.toggle(.claude) }
+            Chip(title: "Codex", on: model.agents.contains(.codex), toggles: true) { model.toggle(.codex) }
             separator
-            ModeChip(title: L10n.sessionsChipOpen, on: model.states.contains(.open), toggles: true) { model.toggle(.open) }
-            ModeChip(title: L10n.sessionsChipArchived, on: model.states.contains(.archived), toggles: true) { model.toggle(.archived) }
-            ModeChip(title: L10n.sessionsChipHistory, on: model.states.contains(.history), toggles: true) { model.toggle(.history) }
+            Chip(title: L10n.sessionsChipOpen, on: model.states.contains(.open), toggles: true) { model.toggle(.open) }
+            Chip(title: L10n.sessionsChipArchived, on: model.states.contains(.archived), toggles: true) { model.toggle(.archived) }
+            Chip(title: L10n.sessionsChipHistory, on: model.states.contains(.history), toggles: true) { model.toggle(.history) }
             Spacer(minLength: 0)
             let chosen = !model.agents.isEmpty || !model.states.isEmpty
             Button(L10n.sessionsReset) { model.resetChips() }
-                .font(.system(size: Theme.Control.font))
-                .buttonStyle(HeaderActionStyle())
+                .buttonStyle(.hangar(.plain, .small))
                 .opacity(chosen ? 1 : 0)
                 .allowsHitTesting(chosen)
                 .accessibilityHidden(!chosen)
@@ -119,11 +119,10 @@ struct SessionsView: View {
                         if hidden > 0 {
                             HStack {
                                 Button(L10n.sessionsShowMore(hidden)) { model.expanded.insert(g.id) }
-                                    .font(.system(size: Theme.Control.font))
-                                    .buttonStyle(HeaderActionStyle())
+                                    .buttonStyle(.hangar(.plain, .small))
                                 Spacer(minLength: 0)
                             }
-                            .padding(.leading, Theme.historyMoreLeading - Theme.Control.headerPaddingH)
+                            .padding(.leading, Theme.historyMoreLeading - ControlSize.small.paddingH)
                             .frame(height: Theme.historyMoreHeight)
                         }
                         if let note = g.note, !model.collapsed.contains(g.id), let host = g.host { noteRow(note, host: host) }
@@ -160,14 +159,14 @@ struct SessionsView: View {
             case .offline(let host):
                 Text(L10n.sessionsOffline(host)).font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
                 Text(L10n.sessionsOfflineHint).foregroundStyle(Theme.ui.text3)
-                Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(ActionButtonStyle(primary: true))
+                Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary, .small))
             case .empty:
                 Text(L10n.sessionsEmpty).foregroundStyle(Theme.ui.text3)
             case .noMatch:
                 let q = model.query.trimmingCharacters(in: .whitespaces)
                 Text(q.isEmpty ? L10n.sessionsNoMatch : L10n.sessionsNoMatchQuery(q))
                     .font(.system(size: Theme.fontSize.sheetRow)).foregroundStyle(Theme.ui.text)
-                Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(ActionButtonStyle())
+                Button(L10n.sessionsResetFilters) { model.resetFilters() }.buttonStyle(.hangar(.secondary, .small))
             }
         }
         .font(.system(size: Theme.fontSize.base))
@@ -181,123 +180,54 @@ struct SessionsView: View {
     }
 }
 
-/// «Все» / «Этот Mac» / hosts (more than `historyScopeMaxHosts` — «Ещё ▾»): one choice; the chosen one is accent like
-/// a `ModeChip`, never the buttons' gray fill.
+/// «Все» / «Этот Mac» / hosts (more than `historyScopeMaxHosts` — «Ещё ▾», a menu of the rest): one `Segmented`.
 struct SessionsScopeSegment: View {
     let app: AppState
     let scope: SessionsScope
+
+    /// A part of the segment: a scope, or «Ещё» standing for the hosts that didn't fit.
+    private enum Part: Hashable { case scope(SessionsScope), more }
 
     var body: some View {
         let hosts = app.sessionsHosts
         let shown = hosts.count > Theme.historyScopeMaxHosts ? Array(hosts.prefix(Theme.historyScopeMaxHosts)) : hosts
         let rest = hosts.filter { !shown.contains($0) }
-        HStack(spacing: Theme.historyScopePadding) {
-            SessionsScopeItem(title: L10n.sessionsAll, on: scope == .all) { app.showSessionsView(scope: .all) }
-            if app.state.projects.contains(where: { $0.host == nil }) {
-                SessionsScopeItem(title: L10n.thisMac, icon: .mac, on: scope == .local) { app.showSessionsView(scope: .local) }
-            }
-            ForEach(shown, id: \.self) { h in
-                SessionsScopeItem(title: h, icon: .sshHost, connected: connected(h), on: scope == .host(h)) {
+        let chosen = rest.first { scope == .host($0) }
+        var options = [SegmentOption<Part>(value: .scope(.all), title: L10n.sessionsAll)]
+        if app.state.projects.contains(where: { $0.host == nil }) {
+            options.append(SegmentOption(value: .scope(.local), title: L10n.thisMac, icon: .mac))
+        }
+        options += shown.map { SegmentOption(value: .scope(.host($0)), title: $0, icon: .sshHost, dot: dot($0)) }
+        if !rest.isEmpty {
+            options.append(SegmentOption(value: .more, title: chosen ?? L10n.sessionsMore, icon: chosen == nil ? nil : .sshHost,
+                                         dot: chosen.map(dot)) {
+                rest.map { h in .item(PopoverMenuItem(title: h, icon: .sshHost, checked: scope == .host(h), dot: dot(h)) {
                     app.showSessionsView(scope: .host(h))
-                }
-            }
-            if !rest.isEmpty {
-                let chosen = rest.first { scope == .host($0) }
-                Menu {
-                    ForEach(rest, id: \.self) { h in Button(h) { app.showSessionsView(scope: .host(h)) } }
-                } label: {
-                    SessionsScopeLabel(title: (chosen ?? L10n.sessionsMore) + " ▾", icon: chosen == nil ? nil : .sshHost,
-                                       connected: chosen.map(connected), on: chosen != nil)
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-            }
+                }) }
+            })
         }
-        .padding(Theme.historyScopePadding)
-        .frame(height: Theme.historyScopeHeight)
-        .background(Theme.ui.field, in: RoundedRectangle(cornerRadius: Theme.historyScopeRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.historyScopeRadius).strokeBorder(Theme.ui.control))
-    }
-
-    private func connected(_ host: String) -> Bool { app.remote.hosts[host]?.state == .connected }
-}
-
-/// One item of the scope segment.
-private struct SessionsScopeItem: View {
-    let title: String
-    var icon: Icon?
-    var connected: Bool?
-    let on: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) { SessionsScopeLabel(title: title, icon: icon, connected: connected, on: on) }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(on ? .isSelected : [])
-    }
-}
-
-/// 22 high; a host's icon carries its link dot (`done` connected, `idle` not); `hover` fill under the pointer.
-private struct SessionsScopeLabel: View {
-    let title: String
-    var icon: Icon?
-    var connected: Bool?
-    let on: Bool
-    @State private var hover = false
-
-    var body: some View {
-        let tint = on ? Theme.ui.accentText : hover ? Theme.ui.text : Theme.ui.text2
-        HStack(spacing: Theme.historyColumnGap) {
-            if let icon {
-                IconView(icon: icon, size: Theme.historyScopeIcon, tint: tint)
-                    .overlay(alignment: .bottomTrailing) {
-                        if let connected {
-                            StatusDot(state: connected ? .done : .idle, size: Theme.historyScopeDot, border: Theme.ui.field,
-                                      borderWidth: Theme.historyScopePadding)
-                                .offset(x: Theme.historyScopePadding, y: Theme.historyScopePadding)
-                        }
-                    }
-            }
-            Text(verbatim: title).font(.system(size: Theme.fontSize.segment)).lineLimit(1)
+        return Segmented(selection: chosen == nil ? Part.scope(scope) : .more, options: options) { part in
+            if case .scope(let s) = part { app.showSessionsView(scope: s) }
         }
-        .foregroundStyle(tint)
-        .padding(.horizontal, Theme.historyScopeItemPaddingH)
-        .frame(height: Theme.historyScopeItemHeight)
-        .background(RoundedRectangle(cornerRadius: Theme.historyScopeItemRadius)
-            .fill(on ? Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity) : hover ? Theme.ui.hover : .clear))
-        .overlay(RoundedRectangle(cornerRadius: Theme.historyScopeItemRadius)
-            .strokeBorder(on ? Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity) : .clear))
-        .contentShape(Rectangle())
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
     }
+
+    /// The host's link: `done` connected, `idle` not.
+    private func dot(_ host: String) -> AgentState { app.remote.hosts[host]?.state == .connected ? .done : .idle }
 }
 
-/// «Проект: shop ×»: the chosen-chip look (`accent` 14 % + border, `accentText`); a click anywhere on it removes it.
+/// «Проект: shop ×»: a chosen chip; a click anywhere on it removes it.
 private struct SessionsProjectChip: View {
     let title: String
     let remove: () -> Void
-    @State private var hover = false
 
     var body: some View {
         Button(action: remove) {
-            HStack(spacing: Theme.Control.iconGap) {
-                Text(verbatim: title).font(.system(size: Theme.fontSize.footer)).lineLimit(1).truncationMode(.middle)
-                IconView(icon: .close, size: Theme.GitTab.chipIcon, tint: hover ? Theme.ui.textStrong : Theme.ui.accentText)
+            HStack(spacing: Theme.Space.iconGap) {
+                Text(verbatim: title).truncationMode(.middle)
+                IconView(icon: .close, size: Theme.Icon.inline, tint: Theme.ui.accentText)
             }
-            .foregroundStyle(Theme.ui.accentText)
-            .padding(.horizontal, Theme.GitTab.chipLeading)
-            .frame(height: Theme.GitTab.chipHeight)
-            .background(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius).fill(Theme.ui.accent.opacity(Theme.GitTab.chipOnOpacity)))
-            .overlay(RoundedRectangle(cornerRadius: Theme.GitTab.chipRadius)
-                .stroke(Theme.ui.accent.opacity(Theme.GitTab.chipBorderOpacity), lineWidth: 1))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .pointingHand()
-        .onHover { h in withAnimation(Motion.ease(Theme.hoverFade)) { hover = h } }
+        .buttonStyle(ChipStyle(on: true))
         .help(L10n.sessionsProjectChipHelp)
         .accessibilityAddTraits(.isSelected)
     }

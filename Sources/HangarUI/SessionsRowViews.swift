@@ -80,7 +80,6 @@ struct SessionsRow: View {
             if inside { model.hovered = item.id } else if model.hovered == item.id { model.hovered = nil }
         }
         .help(help)
-        .animation(Motion.reduced ? nil : .easeOut(duration: Theme.hoverFade), value: active)
         .padding(.horizontal, Theme.historyRowInset)
         .pointingHand(model.canRun(item))
     }
@@ -144,9 +143,9 @@ struct SessionsRow: View {
             if let task = item.archivedTask {
                 Button { model.delete(task, ctx: ctx) } label: {
                     // A square: the style's side paddings make it exactly as wide as it is high.
-                    IconView(icon: .trash, size: Theme.Control.icon).frame(width: Theme.Control.height - 2 * Theme.Control.paddingH)
+                    IconView(icon: .trash, size: Theme.Icon.inline).frame(width: ControlSize.small.height - 2 * ControlSize.small.paddingH)
                 }
-                .buttonStyle(ActionButtonStyle(destructive: true))
+                .buttonStyle(.hangar(.destructive, .small))
                 .help(L10n.deletePermanently)
             }
             let offline = model.offlineHost(item)
@@ -160,7 +159,7 @@ struct SessionsRow: View {
 
     private func primary(_ title: String, help: String?, _ action: SessionsAction) -> some View {
         Button(title) { run(action) }
-            .buttonStyle(ActionButtonStyle(primary: true))
+            .buttonStyle(.hangar(.primary, .small))
             .help(help ?? "")
     }
 
@@ -221,7 +220,7 @@ struct SessionsNoteRow: View {
             Text(verbatim: text).font(.system(size: Theme.fontSize.footer)).foregroundStyle(Theme.ui.text3)
                 .lineLimit(1).truncationMode(.tail)
                 .help(help ?? "")
-            if let button { Button(button, action: action).buttonStyle(ActionButtonStyle()) }
+            if let button { Button(button, action: action).buttonStyle(.hangar(.secondary, .small)) }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.historyRowPaddingH)

@@ -21,15 +21,14 @@ struct ServerCheckSheet: View {
             SheetFooter(hintHidden: model.phase == .installing) {
                 // A running install (maybe at a sudo prompt) is not killed by a stray click.
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
-                    .buttonStyle(SheetButton(primary: false))
+                    .buttonStyle(.hangar(.secondary))
                     .disabled(model.phase == .installing)
-                    .opacity(model.phase == .installing ? Theme.disabledButtonOpacity : 1)
                     // Esc belongs to the install terminal while it runs.
                     .keyboardShortcut(model.phase == .installing ? nil : .cancelAction)
                 if case .failed = model.phase, model.report == nil {
                     // The check itself failed (host offline): a disabled «Установить» left nothing to do but close.
                     Button(L10n.retry) { Task { await model.refresh() } }
-                        .buttonStyle(SheetButton(primary: true))
+                        .buttonStyle(.hangar(.primary))
                         .keyboardShortcut(.return, modifiers: .command)
                 } else {
                     InstallButton(model: model, primary: true)
@@ -52,10 +51,9 @@ struct InstallButton: View {
             Text(L10n.install).opacity(busy && model.installRun > 0 ? 0 : 1)
                 .overlay { if busy && model.installRun > 0 { ProgressView().controlSize(.small) } }
         }
-        .buttonStyle(SheetButton(primary: primary))
+        .buttonStyle(.hangar(primary ? .primary : .secondary, busy: busy))
         .keyboardShortcut(primary ? KeyboardShortcut(.return, modifiers: .command) : nil)
         .disabled(!enabled)
-        .opacity(enabled || busy ? 1 : Theme.disabledButtonOpacity)
     }
 }
 
@@ -218,7 +216,7 @@ struct ServerCheckView: View {
             Text(L10n.optionalToolsLabel).foregroundStyle(Theme.ui.text3)
             ForEach(model.missingOptional, id: \.self) { tool in
                 HStack(spacing: Theme.inlineGap) {
-                    CardSwitch(isOn: Binding(get: { model.optional.contains(tool) },
+                    Checkbox(isOn: Binding(get: { model.optional.contains(tool) },
                                              set: { if $0 { model.optional.insert(tool) } else { model.optional.remove(tool) } }))
                     Text(verbatim: tool.rawValue).font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
                         .foregroundStyle(Theme.ui.sheetText)

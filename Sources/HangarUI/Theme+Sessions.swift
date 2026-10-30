@@ -16,15 +16,6 @@ extension Theme {
     public static let historyChipSeparator = CGSize(width: 1, height: 16)
     public static let historySearchWidth: CGFloat = 280
 
-    /// Scope segment: 28 high, 2 padding, radius 7 outside; items 22, radius 5, 10 aside, icon 13 with a 6 pt link dot.
-    public static let historyScopeHeight: CGFloat = 28
-    public static let historyScopePadding: CGFloat = 2
-    public static let historyScopeRadius: CGFloat = 7
-    public static let historyScopeItemHeight: CGFloat = 22
-    public static let historyScopeItemRadius: CGFloat = 5
-    public static let historyScopeItemPaddingH: CGFloat = 10
-    public static let historyScopeIcon: CGFloat = 13
-    public static let historyScopeDot: CGFloat = 6
     /// Hosts shown as items; more go into «Ещё ▾».
     public static let historyScopeMaxHosts = 3
 

@@ -161,16 +161,15 @@ struct EditorColorPopover: View {
             }
             HStack(spacing: Theme.pickGap) {
                 Button { model.openSystemPalette() } label: { ActionLabel(title: L10n.s(.edSystemPalette)) }
-                    .buttonStyle(ActionButtonStyle())
+                    .buttonStyle(.hangar(.secondary, .small))
                     .fixedSize()
                 Spacer(minLength: 0)
                 Button { model.reset(color) } label: { ActionLabel(title: L10n.s(.edReset), icon: .restore) }
-                    .buttonStyle(HeaderActionStyle())
+                    .buttonStyle(.hangar(.plain, .small))
                     .fixedSize()
                     .disabled(!theme.changed.contains(color))
                     .help(L10n.f(.edResetTo, EditorSettingsModel.name(theme.base)))
             }
-            .font(.system(size: Theme.Control.font))
         }
         .padding(S.popoverPadding)
         .frame(width: S.popoverWidth, alignment: .leading)

@@ -227,10 +227,10 @@ private struct AskFooter: View {
                 .buttonStyle(.plain).foregroundStyle(Theme.ui.accent).pointingHand()
             Spacer(minLength: 0)
             Button(skip) { onAnswer(false) }
-                .buttonStyle(SheetButton(primary: false))
+                .buttonStyle(.hangar(.secondary))
                 .keyboardShortcut(.cancelAction)
             Button(L10n.intConnect) { onAnswer(true) }
-                .buttonStyle(SheetButton(primary: true))
+                .buttonStyle(.hangar(.primary))
                 .keyboardShortcut(.defaultAction)
         }
         .padding(.vertical, Theme.sheetFooterPaddingV)
@@ -255,18 +255,18 @@ struct IntegrationAgentSheet: View {
             AskHeader(icon: agent == .claude ? .claude : .codex, title: L10n.intSheetTitle(agentTitle(agent)), subtitle: L10n.intSheetSubtitle)
             VStack(spacing: 0) {
                 FunctionRow(title: L10n.intHooksTitle, subtitle: agent == .claude ? L10n.intHooksClaudeSub : L10n.intHooksCodexSub, first: true) {
-                    CardSwitch(on: choice.hooks) { choice.hooks = $0; refresh() }
+                    Checkbox(on: choice.hooks) { choice.hooks = $0; refresh() }
                 }
                 if agent == .claude {
                     FunctionRow(title: L10n.intLimitsTitle, subtitle: L10n.intLimitsSub) {
-                        CardSwitch(on: choice.limits) { choice.limits = $0; refresh() }
+                        Checkbox(on: choice.limits) { choice.limits = $0; refresh() }
                     }
                     FunctionRow(title: L10n.intStatuslineSheetTitle, subtitle: L10n.intStatuslineSheetSub) {
-                        CardSwitch(on: choice.statusline) { choice.statusline = $0; refresh() }
+                        Checkbox(on: choice.statusline) { choice.statusline = $0; refresh() }
                     }
                 }
                 FunctionRow(title: L10n.integrationMCP, subtitle: L10n.intMCPSheetSub, tag: L10n.intThisMacTag, tagHelp: L10n.intThisMacTagHelp) {
-                    CardSwitch(on: choice.mcp) { choice.mcp = $0; refresh() }
+                    Checkbox(on: choice.mcp) { choice.mcp = $0; refresh() }
                 }
                 WhereRow(label: L10n.intWhereTo, items: whereItems())
             }

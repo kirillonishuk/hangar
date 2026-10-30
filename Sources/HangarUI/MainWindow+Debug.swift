@@ -7,10 +7,6 @@ import SwiftUI
 import Usage
 import Workspace
 
-/// Off-screen branch list of the open new-task sheet: an inactive app closes real popovers at once, and
-/// `NSWindow.sendEvent` reaches the first responder without the app being active.
-@MainActor private var pickerWindow: NSWindow?
-
 /// Debug hooks (verification without a screen); not compiled in release.
 extension MainWindowController {
     /// HANGAR_DEBUG_PROJECT=<path> adds a project at launch; `dev.hangar.debug` distributed
@@ -209,6 +205,12 @@ extension MainWindowController {
                 app.debugHover = target
             } else if let target, let frame = window?.frame {
                 PopoverMenu.show(actionMenu(for: target, ctx: ctx), at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
+            }
+        case "menuPanel": debugMenu(parts[0], arg.split(separator: " ", maxSplits: 1).first.map(String.init) ?? "",
+                                    arg.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init) ?? "")
+        case "gitMenu":  // gitMenu branch|author|date|path: a Git filter chip's menu, 300/160 pt into the window from the right
+            if let chip = GitFilterChips.Chip(rawValue: arg), let frame = window?.frame {
+                PopoverMenu.show(gitFilterMenu(chip, app: app, model: app.gitPanel), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 160))
             }
         case "project": app.addProject(path: arg)
         case "link": if let url = URL(string: arg) { openLink(url) }  // link <url>: as a clicked hangar:// link (#88)
@@ -511,36 +513,19 @@ extension MainWindowController {
             }
             uiLog.info("l10n bundle=\(L10n.resources?.bundlePath ?? "-", privacy: .public) language=\(L10n.language.rawValue, privacy: .public) pinned=\(L10n.sectionPinned, privacy: .public) exit=\(L10n.exitedWithCode(3), privacy: .public) menu=\(NSApp.mainMenu?.items.last?.submenu?.title ?? "-", privacy: .public)")
         case "picker":
-            // picker open | key <code> | type <text> | snap <path>
+            // picker open | key <code> | type <text> | snap <path> | close: the new session sheet's branch menu
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             let rest = f.count > 1 ? f[1] : ""
             switch f.first ?? "" {
             case "open":
-                guard let model = newTaskModelForDebug else { return }
-                let list = BranchListView(selection: Binding(get: { model.base }, set: { model.base = $0 }),
-                                      branches: model.branches, defaultBase: model.defaultBase,
-                                      taskBranches: model.taskBranches, defaultOption: nil) {
+                guard let model = newTaskModelForDebug, let frame = window?.frame else { return }
+                let menu = branchMenu(selection: model.base, branches: model.branches, defaultBase: model.defaultBase,
+                                      taskBranches: model.taskBranches, defaultOption: nil) { base in
+                    model.base = base
                     uiLog.info("picker closed base=\(model.base ?? "-", privacy: .public)")
                 }
-                let w = NSWindow(contentRect: NSRect(x: -4000, y: 0, width: Theme.dropdownWidth, height: 340),
-                                 styleMask: [.borderless], backing: .buffered, defer: false)
-                w.isReleasedWhenClosed = false
-                w.contentView = NSHostingView(rootView: list)
-                w.orderFrontRegardless()
-                pickerWindow = w
-            case "key":
-                guard let w = pickerWindow, let code = UInt16(rest) else { return }
-                let chars = [36: "\r", 53: "\u{1b}", 125: "\u{F701}", 126: "\u{F700}"][Int(code)] ?? ""
-                if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                            windowNumber: w.windowNumber, context: nil, characters: chars,
-                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { w.sendEvent(e) }
-            case "type": (pickerWindow?.firstResponder as? NSTextView)?.insertText(rest, replacementRange: NSRange(location: NSNotFound, length: 0))
-            case "snap":
-                guard let view = pickerWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-                view.cacheDisplay(in: view.bounds, to: rep)
-                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
-                uiLog.info("picker responder=\(pickerWindow?.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
-            default: pickerWindow?.orderOut(nil); pickerWindow = nil  // not close(): last-window-closed quits
+                PopoverMenu.show(menu, at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
+            default: debugMenu(parts[0], f.first ?? "", rest)
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Новая ветка»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
@@ -694,6 +679,27 @@ extension MainWindowController {
             if !arg.isEmpty { try? (tasks.joined(separator: "\n") + "\n" + column.terminalArea.debugDump()).write(toFile: arg, atomically: true, encoding: .utf8) }
             uiLog.info("dump selected=\(self.app.selectedTask?.name ?? "-", privacy: .public) sidebar=\(self.app.state.sidebarWidth)/\(self.app.state.sidebarCollapsed) actual=\(self.sidebarItem.viewController.view.frame.width) panes=\(self.split.splitView.subviews.map { Int($0.frame.width) }, privacy: .public) win=\(Int(self.window?.frame.width ?? 0))x\(Int(self.window?.contentView?.frame.height ?? 0))\n\(tasks.joined(separator: "\n"), privacy: .public)\n\(self.column.terminalArea.debugDump(), privacy: .public)")
         default: _ = debugEditor(parts.first ?? "", arg)
+        }
+    }
+
+    /// The open `PopoverMenu`: menuPanel key <code> | type <text> | hover <index> | snap <png> | close.
+    private func debugMenu(_ command: String, _ verb: String, _ rest: String) {
+        guard let panel = PopoverMenu.panel else { return }
+        switch verb {
+        case "key":
+            guard let code = UInt16(rest) else { return }
+            let chars = [36: "\r", 53: "\u{1b}", 125: "\u{F701}", 126: "\u{F700}"][Int(code)] ?? ""
+            if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: panel.windowNumber, context: nil, characters: chars,
+                                        charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { panel.sendEvent(e) }
+        case "type": (panel.firstResponder as? NSTextView)?.insertText(rest, replacementRange: NSRange(location: NSNotFound, length: 0))
+        case "hover": panel.menuState.highlighted = Int(rest)
+        case "snap":
+            guard let view = panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
+            uiLog.info("\(command, privacy: .public) responder=\(panel.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
+        default: PopoverMenu.close()
         }
     }
 }

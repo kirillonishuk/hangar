@@ -4,41 +4,39 @@ import SwiftUI
 /// The one text-input look (DESIGN.md «Поля ввода»): every TextField / search field / inline rename goes through it.
 extension Theme {
     public enum Input {
-        /// One size for typed text and placeholders; `mono` only for paths, branches and commands.
-        public static let fontSize: CGFloat = Theme.fontSize.sheetRow
-        public static let height: CGFloat = 28
-        public static let paddingH: CGFloat = 9
+        /// One size for typed text and placeholders (`body`; `mono` 12 only for paths, branches and commands).
+        public static let fontSize: CGFloat = Theme.Typography.body.size
+        public static let height: CGFloat = Theme.Height.controlRegular
+        public static let paddingH: CGFloat = Theme.Space.s2
         /// Multi-line field: its first line sits where a single-line field's text does.
-        public static let paddingV: CGFloat = 5
-        public static let radius: CGFloat = 7
+        public static let paddingV: CGFloat = (Theme.Height.controlRegular - Theme.Typography.body.lineHeight) / 2
+        public static let radius: CGFloat = Theme.Radius.control
         public static let border: CGFloat = 1
-        public static let focusRing: CGFloat = 3
-        public static let focusRingOpacity: Double = 0.18
-        public static let disabledOpacity: Double = 0.38
+        public static let focusRing: CGFloat = Theme.Control.ringWidth
+        public static let focusRingOpacity: Double = Theme.Control.ringOpacity
+        public static let disabledOpacity: Double = Theme.Control.disabledOpacity
         /// Search glyph before the text, and the gap after it.
-        public static let iconSize: CGFloat = 14
-        public static let iconGap: CGFloat = 6
+        public static let iconSize: CGFloat = Theme.Icon.row
+        public static let iconGap: CGFloat = Theme.Space.iconGap
         /// Inline rename: the box grows this far around the label it replaces (no jump on F2).
         public static let inlinePaddingH: CGFloat = 4
 
-        public static func font(mono: Bool = false) -> Font { .system(size: fontSize, design: mono ? .monospaced : .default) }
-        public static func nsFont(mono: Bool = false) -> NSFont {
-            mono ? .monospacedSystemFont(ofSize: fontSize, weight: .regular) : .systemFont(ofSize: fontSize)
-        }
+        public static func font(mono: Bool = false) -> Font { (mono ? Theme.Typography.mono : Theme.Typography.body).font() }
+        public static func nsFont(mono: Bool = false) -> NSFont { (mono ? Theme.Typography.mono : Theme.Typography.body).nsFont() }
     }
 }
 
 extension Theme.ui {
     static var inputBackground: Color { field }
-    static var inputText: Color { sheetText }
+    static var inputText: Color { text1 }
     static var inputPlaceholder: Color { text3 }
-    static var inputBorder: Color { control }
+    static var inputBorder: Color { line2 }
     static var inputFocus: Color { accent }
     static var inputError: Color { failed }
 }
 
-/// `field` fill, 1 pt `control` border, radius 7, height 28, side padding 9, `sheetRow` text; focused → `accent` border
-/// + 3 pt ring, invalid → `failed`, disabled → .38. Placeholder drawn here in `text3` (a prompt's colour is lost under
+/// The text field (spec §3.11): `field` fill, 1 pt `line2` edge, radius 6, height 28, side padding 8, `body` text; focused
+/// → `accent` edge + 3 pt ring at .25, invalid → `failed`, disabled → .4. Placeholder drawn here in `text3` (a prompt's colour is lost under
 /// `foregroundStyle`). `inline` (rename in a row) keeps the row's font and height and grows outwards instead.
 struct InputField: ViewModifier {
     var focused: Bool
@@ -71,7 +69,6 @@ struct InputField: ViewModifier {
             .padding(.horizontal, inline ? -Theme.Input.inlinePaddingH : 0)
             .opacity(enabled ? 1 : Theme.Input.disabledOpacity)
             .textCursor()
-            .animation(Motion.ease(Theme.hoverFade), value: focused)
     }
 
     @ViewBuilder private func text(_ content: Content) -> some View {

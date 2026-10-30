@@ -305,7 +305,7 @@ struct DiffView: View {
 
     /// Side by side / inline as mode chips; the choice persists (`WorkspaceState.diffInline`).
     private func modeButton(_ title: String, inline: Bool) -> some View {
-        ModeChip(title: title, on: app.state.diffInline == inline) {
+        Chip(title: title, on: app.state.diffInline == inline) {
             app.perform { $0.diffInline = inline }
             editor.setInline(inline)
         }

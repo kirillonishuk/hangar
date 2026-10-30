@@ -33,15 +33,7 @@ func branchPickerItems(_ branches: [Branch], query: String, defaultBase: String?
     return L10n.daysAgo(minutes / (24 * 60))
 }
 
-/// ↑/↓ over the visible rows (both sections as one list), clamped at the ends; an unknown or nil highlight
-/// lands on the first row.
-func movedHighlight(_ current: String?, by delta: Int, in ids: [String]) -> String? {
-    guard !ids.isEmpty else { return nil }
-    guard let current, let i = ids.firstIndex(of: current) else { return ids[0] }
-    return ids[min(max(i + delta, 0), ids.count - 1)]
-}
-
-/// `⎇ origin/main ▾` → popover: search, `remote` / `local` sections, ↑/↓ ↩ Esc and click.
+/// `⎇ origin/main ▾` (a `.regular` popup button) → the menu: search, «Удалённые» / «Локальные» groups, ↑/↓ ↩ Esc and click.
 struct BranchPicker: View {
     @Binding var selection: String?
     let branches: [Branch]
@@ -50,144 +42,41 @@ struct BranchPicker: View {
     /// Extra first row that selects nil (project settings: «по умолчанию (origin/HEAD)»); nil = no such row.
     let defaultOption: String?
 
-    @State private var open = false
-
     var body: some View {
-        Button { open.toggle() } label: {
-            HStack(spacing: Theme.pickGap) {
-                IconView(icon: .branch, size: Theme.smallIconSize)
-                Text(selection ?? defaultOption ?? "—")
-                    .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                    .foregroundStyle(Theme.ui.sheetText)
-                IconView(icon: .chevronDown, size: Theme.pickChevronSize)
-            }
-            .padding(.vertical, Theme.pickPaddingV)
-            .padding(.horizontal, Theme.pickPaddingH)
-            .background(RoundedRectangle(cornerRadius: Theme.pickRadius).fill(Theme.ui.field))
-            .overlay(RoundedRectangle(cornerRadius: Theme.pickRadius)
-                .stroke(open ? Theme.ui.accent : Theme.ui.controlBorderStrong, lineWidth: 1))
-            .contentShape(Rectangle())
+        PopupButton(title: selection ?? defaultOption ?? "—", icon: .branch, mono: selection != nil, size: .regular) {
+            branchMenu(selection: selection, branches: branches, defaultBase: defaultBase, taskBranches: taskBranches,
+                       defaultOption: defaultOption) { selection = $0 }
         }
-        .buttonStyle(.plain)
         .fixedSize()
-        .pointingHand()
-        .popover(isPresented: $open, arrowEdge: .bottom) {
-            BranchListView(selection: $selection, branches: branches, defaultBase: defaultBase,
-                       taskBranches: taskBranches, defaultOption: defaultOption) { open = false }
-        }
     }
 }
 
-struct BranchListView: View {
-    @Binding var selection: String?
-    let branches: [Branch]
-    let defaultBase: String?
-    let taskBranches: Set<String>
-    let defaultOption: String?
-    let close: () -> Void
-
-    @State private var query = ""
-    @State private var highlight: String?
-
-    /// Row id of `defaultOption` (no branch has an empty name).
-    private static let defaultId = ""
-
-    private var items: (remote: [BranchPickerItem], local: [BranchPickerItem]) {
-        branchPickerItems(branches, query: query, defaultBase: defaultBase, taskBranches: taskBranches)
-    }
-
-    private var showsDefault: Bool { defaultOption != nil && query.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    private func ids(_ items: (remote: [BranchPickerItem], local: [BranchPickerItem])) -> [String] {
-        (showsDefault ? [Self.defaultId] : []) + (items.remote + items.local).map(\.branch.name)
-    }
-
-    var body: some View {
-        let items = items
-        let ids = ids(items)
-        VStack(spacing: 0) {
-            PickerSearchField(text: $query, placeholder: L10n.searchBranches,
-                              onMove: { highlight = movedHighlight(highlight, by: $0, in: ids) },
-                              onSubmit: { if let highlight { choose(highlight) } },
-                              onCancel: close)
-                .inputField(focused: true)  // the list's keys go through it: always the focused one
-                .padding(.vertical, Theme.dropdownSearchPaddingV)
-                .padding(.horizontal, Theme.dropdownPaddingH)
-            if !ids.isEmpty {
-                Rectangle().fill(Theme.ui.controlBorderStrong).frame(height: 1)
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            if showsDefault, let defaultOption { row(Self.defaultId, defaultOption, meta: nil) }
-                            section(L10n.branchesRemote, items.remote)
-                            section(L10n.branchesLocal, items.local)
-                        }
-                    }
-                    .frame(height: min(listHeight(items), Theme.dropdownListMaxHeight))
-                    .onChange(of: highlight) { _, id in if let id { proxy.scrollTo(id) } }
-                }
+/// The branch list as a search menu: the current choice checked and highlighted, a note on the right (default, a
+/// session's branch, age).
+@MainActor func branchMenu(selection: String?, branches: [Branch], defaultBase: String?, taskBranches: Set<String>,
+                           defaultOption: String?, choose: @escaping (String?) -> Void) -> PopoverMenuContent {
+    PopoverMenuContent(search: .init(placeholder: L10n.searchBranches, mono: true, highlightFirst: true), width: Theme.menuWidthWide) { query in
+        let items = branchPickerItems(branches, query: query, defaultBase: defaultBase, taskBranches: taskBranches)
+        var entries: [PopoverMenuEntry] = []
+        if let defaultOption, query.trimmingCharacters(in: .whitespaces).isEmpty {
+            entries.append(.item(PopoverMenuItem(title: defaultOption, checked: selection == nil) { choose(nil) }))
+        }
+        for (title, rows) in [(L10n.branchesRemote, items.remote), (L10n.branchesLocal, items.local)] where !rows.isEmpty {
+            entries.append(.header(title))
+            entries += rows.map { item in
+                .item(PopoverMenuItem(title: item.branch.name, checked: item.branch.name == selection, note: branchMetaText(item.meta),
+                                      mono: true) { choose(item.branch.name) })
             }
         }
-        .frame(width: Theme.dropdownWidth)
-        .background(Theme.ui.sheet)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.dropdownRadius))
-        .onAppear { highlight = ids.contains(selection ?? Self.defaultId) ? (selection ?? Self.defaultId) : ids.first }
-        .onChange(of: query) { highlight = self.ids(self.items).first }
+        return entries
     }
+}
 
-    private func listHeight(_ items: (remote: [BranchPickerItem], local: [BranchPickerItem])) -> CGFloat {
-        let rows = items.remote.count + items.local.count + (showsDefault ? 1 : 0)
-        let sections = (items.remote.isEmpty ? 0 : 1) + (items.local.isEmpty ? 0 : 1)
-        return CGFloat(rows) * Theme.dropdownRowHeight + CGFloat(sections) * Theme.dropdownSectionHeight
-    }
-
-    @ViewBuilder private func section(_ title: String, _ rows: [BranchPickerItem]) -> some View {
-        if !rows.isEmpty {
-            Text(title)
-                .textCase(.uppercase)
-                .tracking(Theme.fontSize.counter * Theme.fontSize.projectTracking)
-                .font(.system(size: Theme.fontSize.counter))
-                .foregroundStyle(Theme.ui.text3)
-                .frame(maxWidth: .infinity, minHeight: Theme.dropdownSectionHeight, alignment: .bottomLeading)
-                .padding(.horizontal, Theme.dropdownPaddingH)
-            ForEach(rows, id: \.branch.name) { item in row(item.branch.name, item.branch.name, meta: item.meta) }
-        }
-    }
-
-    private func row(_ id: String, _ title: String, meta: BranchPickerItem.Meta?) -> some View {
-        let on = highlight == id
-        return HStack(spacing: Theme.dropdownItemGap) {
-            Text(title)
-                .font(.system(size: Theme.fontSize.sheetRow, design: .monospaced))
-                .foregroundStyle(on ? Theme.ui.selectionText : Theme.ui.text)
-                .truncationMode(.middle)
-            Spacer(minLength: 0)
-            if let meta {
-                Text(metaText(meta)).font(.system(size: Theme.fontSize.counter)).foregroundStyle(Theme.ui.text3)
-            }
-        }
-        .lineLimit(1)
-        .padding(.horizontal, Theme.dropdownPaddingH)
-        .frame(height: Theme.dropdownRowHeight)
-        .background(on ? Theme.ui.selection : .clear)
-        .contentShape(Rectangle())
-        .onHover { if $0 { highlight = id } }
-        .onTapGesture { choose(id) }
-        .pointingHand()
-        .id(id)
-    }
-
-    private func metaText(_ meta: BranchPickerItem.Meta) -> String {
-        switch meta {
-        case .isDefault: L10n.branchDefault
-        case .task: L10n.branchTask
-        case .age(let date): ageLabel(since: date, now: Date())
-        }
-    }
-
-    private func choose(_ id: String) {
-        selection = id == Self.defaultId ? nil : id
-        close()
+@MainActor private func branchMetaText(_ meta: BranchPickerItem.Meta) -> String {
+    switch meta {
+    case .isDefault: L10n.branchDefault
+    case .task: L10n.branchTask
+    case .age(let date): ageLabel(since: date, now: Date())
     }
 }
 
@@ -196,7 +85,7 @@ struct BranchListView: View {
 struct PickerSearchField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
-    var font = Theme.Input.nsFont(mono: true)
+    var font = Theme.Typography.body.nsFont()
     let onMove: (Int) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>Hangar — чаты без проекта</title>
+<style>
+/* SF Pro / SF Mono — системные шрифты; файлы читаются только для превью в headless Chrome. */
+@font-face{font-family:'SFP';src:local('SF Pro Text'),local('.SF NS'),url('file:///System/Library/Fonts/SFNS.ttf');font-weight:100 900}
+@font-face{font-family:'SFM';src:local('SF Mono'),url('file:///System/Library/Fonts/SFNSMono.ttf');font-weight:100 900}
+:root{--ui:'SFP',-apple-system,system-ui,sans-serif;--mono:'SFM',ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#0d1119;color:#d7dce6;font:13px/18px var(--ui);-webkit-font-smoothing:antialiased}
+.page{width:1400px;margin:0 auto;padding:28px 32px 60px}
+.page>h1{font-size:20px;line-height:26px;font-weight:600;margin:0 0 6px}
+.page>p.lead{color:#9ba4b7;max-width:860px;margin:0 0 20px}
+.page h2{font-size:15px;line-height:20px;font-weight:600;margin:36px 0 4px}
+.page h2+p{color:#9ba4b7;margin:0 0 12px;max-width:900px}
+.grid{display:grid;gap:16px}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}
+.card0{background:#141a26;border:1px solid #232c3c;border-radius:10px;padding:14px 16px}
+.card0 h3{font-size:13px;font-weight:600;margin:0 0 8px}
+table.t{border-collapse:collapse;width:100%;font-size:12px;line-height:16px}
+table.t td,table.t th{padding:5px 8px;border-top:1px solid #222b3b;text-align:left;vertical-align:top}
+table.t th{color:#687185;font-weight:500;border-top:0}
+table.t td.n{font-family:var(--mono);color:#e3e7ef;white-space:nowrap}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-3px;margin-right:6px;border:1px solid rgba(255,255,255,.1)}
+.labelbar{display:flex;gap:10px;align-items:baseline;margin:22px 0 8px}.labelbar b{font-size:13px}.labelbar span{color:#9ba4b7;font-size:12px}
+
+/* ===== app frame, direction B ===== */
+.app{position:relative;width:1280px;height:780px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.10);background:var(--bg0);color:var(--t1);
+  display:grid;grid-template-columns:256px 1fr 320px;grid-template-rows:52px 1fr;box-shadow:0 30px 70px rgba(0,0,0,.5);font-family:var(--ui)}
+.app.noinsp{grid-template-columns:256px 1fr}
+.ico{display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--t2);width:16px;height:16px}
+.ico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i14{width:14px;height:14px}.i12{width:12px;height:12px}
+.tl{display:flex;gap:8px}.tl i{width:12px;height:12px;border-radius:50%;background:#ff5f57;display:block}.tl i:nth-child(2){background:#febc2e}.tl i:nth-child(3){background:#28c840}
+.mono{font-family:var(--mono)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.d-work{background:var(--work)}.d-wait{background:var(--wait)}.d-done{background:var(--done)}.d-fail{background:var(--fail)}.d-idle{background:var(--idle)}
+/* sidebar */
+.side{grid-row:1/3;background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;padding-top:52px;position:relative;min-height:0}
+.side .tl{position:absolute;top:20px;left:20px}
+.side .tgl{position:absolute;top:14px;left:212px;width:28px;height:24px;display:flex;align-items:center;justify-content:center}
+.sec{height:28px;display:flex;align-items:center;padding:0 12px 0 20px;margin-top:8px;font-size:11px;line-height:14px;font-weight:600;color:var(--t3)}
+.sec .grow{flex:1}
+.row{height:28px;margin:0 8px;padding:0 8px;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;color:var(--t1)}
+.row .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.row .br{font:11px var(--mono);color:var(--t3);max-width:92px;overflow:hidden;text-overflow:ellipsis}
+.row .st{font-size:11px}
+.row.chat{padding-left:32px}
+.row.sel{background:var(--selF);color:var(--onAcc)}.row.sel .br,.row.sel .st{color:var(--onAccDim)}.row.sel .dot{box-shadow:0 0 0 1.5px var(--onAcc)}
+.row.hov{background:var(--hover)}
+.row .act{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--hover2)}
+.side .foot{margin-top:auto;height:44px;display:flex;align-items:center;gap:4px;padding:0 12px;border-top:1px solid var(--line)}
+.ib{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.ib.on{background:var(--hover2)}.ib.on .ico{color:var(--t0)}
+/* toolbar */
+.toolbar{grid-column:2/-1;display:flex;align-items:center;gap:8px;height:52px;padding:0 12px 0 16px;background:var(--bg1);border-bottom:1px solid var(--line)}
+.toolbar .tt{display:flex;flex-direction:column;line-height:16px;margin-right:4px}
+.toolbar .tt b{font-size:13px;font-weight:600;color:var(--t0)}.toolbar .tt span{font-size:11px;line-height:14px;color:var(--t2)}
+.toolbar .grow{flex:1}
+.tbtn{height:28px;min-width:28px;padding:0 8px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--t2);font-size:12px;position:relative}
+.tbtn.branch{border:1px solid var(--line2);font:12px var(--mono);color:var(--t1);padding:0 6px 0 8px}
+.tbtn.branch.open{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent)}
+.tbtn.on{background:var(--hover2)}
+.tbtn .badge{position:absolute;top:2px;right:0;min-width:14px;height:14px;border-radius:7px;background:var(--fail);color:#fff;font:600 10px/14px var(--ui);padding:0 3px;text-align:center}
+.pill{height:22px;padding:0 8px;border-radius:6px;font-size:12px;line-height:22px;color:var(--accT);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+.search{height:28px;width:260px;border-radius:6px;background:var(--field);border:1px solid var(--line2);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t3);font-size:13px}
+/* center */
+.center{display:flex;flex-direction:column;min-width:0;min-height:0}
+.tabs{height:36px;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--bg1);border-bottom:1px solid var(--line)}
+.tab{height:26px;padding:0 12px;border-radius:6px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--t2);position:relative}
+.tab.on{background:var(--hover2);color:var(--t0)}
+.tab .tdot{position:absolute;left:22px;top:5px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--bg1)}
+.tab.on .tdot{box-shadow:0 0 0 1.5px var(--hover2)}
+.termwrap{flex:1;background:var(--bg0);overflow:hidden}
+.term{font:12.5px/19px var(--mono);white-space:pre;padding:10px 14px;color:var(--t1)}
+.term .c2{color:var(--t2)}.term .c3{color:var(--t3)}.term .ok{color:var(--done)}.term .del{color:var(--fail)}.term .acc{color:var(--accT)}.term .cl{color:#d97757}
+.term .box{display:inline-block;border:1px solid #d97757;border-radius:4px;padding:4px 10px;margin:2px 0 8px}
+.drawer{height:28px;border-top:1px solid var(--line);background:var(--bg1);display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:var(--t2)}
+.phead{height:28px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;background:var(--bg1);border-bottom:1px solid var(--line);font-size:12px;color:var(--t2)}
+.phead .grow{flex:1}
+.phead .hb{height:22px;padding:0 6px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+.phead .hb.on{color:var(--accT);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+/* inspector */
+.insp{background:var(--bg1);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.seg{display:flex;padding:2px;border-radius:7px;background:var(--field);border:1px solid var(--line2)}
+.seg div{flex:1;height:22px;padding:0 10px;border-radius:5px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--t2);white-space:nowrap}
+.seg div.on{background:var(--hover2);color:var(--t0);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.seg .cnt{font-size:11px;color:var(--t3)}
+.insp .seg{margin:8px 12px}
+.itool{display:flex;align-items:center;gap:4px;padding:2px 12px 6px;font-size:12px;color:var(--t2)}
+.popbtn{height:22px;padding:0 6px 0 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t1)}
+.popbtn:hover{background:var(--hover)}
+.grp{height:24px;display:flex;align-items:center;padding:0 20px;color:var(--t3);font-size:11px;font-weight:600;margin-top:4px}
+.frow{height:24px;margin:0 8px;padding:0 8px 0 12px;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
+.frow .fi{width:14px;height:14px;border-radius:3px;font:600 7.5px/14px var(--ui);text-align:center;color:#fff;flex:none}
+.frow .grow{flex:1}
+.frow .num{font:11px var(--mono)}.frow .s{font:600 11px var(--mono);width:10px;text-align:center}
+.frow.sel{background:var(--sel)}
+/* popover / menu */
+.pop{position:absolute;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:6px;font-size:13px;color:var(--t1);z-index:5}
+.pop::before{content:"";position:absolute;top:-6px;width:10px;height:10px;background:var(--bg2);border-left:1px solid var(--line2);border-top:1px solid var(--line2);transform:rotate(45deg);left:var(--arrow,40px)}
+.pop .field{margin:0 0 6px}
+.pop .ph{height:24px;display:flex;align-items:center;padding:0 8px;color:var(--t3);font-size:11px;font-weight:600}
+.pop .ph .grow{flex:1}
+.pop .it{height:24px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:6px;white-space:nowrap}
+.pop .it .m{font:12px var(--mono);flex:1}
+.pop .it .r{font-size:11px;color:var(--t3)}
+.pop .it.hl{background:var(--selF);color:var(--onAcc)}.pop .it.hl .ico,.pop .it.hl .r{color:var(--onAccDim)}
+.pop .it.dis{opacity:.4}
+.pop .sep{height:1px;background:var(--line2);margin:6px 0}
+.pop .note{padding:4px 8px 2px;font-size:12px;line-height:16px;color:var(--t2)}
+.pop .note b{color:var(--wait);font-weight:600}
+.pop .hdr{display:flex;align-items:center;height:28px;padding:0 4px 0 8px;font-weight:600}
+.pop .hdr .grow{flex:1}
+.inb{display:flex;gap:8px;padding:6px 8px;border-radius:6px}
+.inb .ico{margin-top:1px}
+.inb .tx{flex:1;min-width:0}
+.inb .where{font-size:12px;line-height:16px;color:var(--t2)}
+.inb .what{font-size:13px;line-height:18px;color:var(--t1)}
+.inb .time{font-size:11px;color:var(--t3);white-space:nowrap}
+.inb.hl{background:var(--hover)}
+.inb .acts{display:flex;gap:6px;margin-top:6px}
+/* fields, buttons */
+.field{height:28px;border-radius:6px;background:var(--field);border:1px solid var(--line2);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t1);font-size:13px}
+.field.focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent)}
+.field .ph{color:var(--t3)}
+.field.mono{font:12px var(--mono)}
+.btn{height:28px;padding:0 12px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;font-size:13px;background:var(--btn);color:var(--t1);white-space:nowrap}
+.btn.sm{height:22px;padding:0 8px;font-size:12px}
+.btn.pri{background:var(--acc);color:var(--onAcc)}
+.btn.plain{background:none;color:var(--t2)}
+.dd{height:28px;border-radius:6px;border:1px solid var(--line2);background:var(--btn);display:inline-flex;align-items:center;gap:6px;padding:0 8px;font:12px var(--mono);color:var(--t1)}
+.sw2{width:32px;height:18px;border-radius:9px;background:var(--acc);position:relative;flex:none}.sw2::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.sw2.off{background:var(--hover2)}.sw2.off::after{left:2px;right:auto;background:var(--t2)}
+/* sheet */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:4}
+.sheet{position:absolute;left:50%;top:96px;transform:translateX(-50%);width:520px;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5);color:var(--t1);z-index:5}
+.sheet .sh{padding:20px 20px 0;font-size:15px;line-height:20px;font-weight:600;color:var(--t0)}
+.sheet .sh span{font-weight:400;color:var(--t2);font-size:13px;margin-left:6px}
+.sheet .body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.lbl{display:block;font-size:12px;line-height:16px;color:var(--t2);margin-bottom:4px}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{border:1px solid var(--line2);border-radius:10px;padding:12px;display:flex;gap:8px;align-items:flex-start}
+.opt .rb{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--t3);flex:none;margin-top:2px}
+.opt.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 8%,transparent)}
+.opt.on .rb{border:4px solid var(--acc);background:#fff}
+.opt b{display:block;font-weight:600;color:var(--t0)}
+.opt small{display:block;font-size:12px;line-height:16px;color:var(--t2);margin-top:2px}
+.inline{display:flex;align-items:center;gap:8px}.inline .w{flex:1}
+.chk{display:flex;align-items:center;gap:8px}
+.chk .bx{width:14px;height:14px;border-radius:4px;background:var(--acc);display:flex;align-items:center;justify-content:center}
+.chk .bx svg{width:10px;height:10px;stroke:#fff;stroke-width:2;fill:none}
+.disc{display:flex;align-items:center;gap:6px;color:var(--t1)}
+.hint{font-size:12px;line-height:16px;color:var(--t3)}
+.sheet .ft{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line2)}
+/* history */
+.hist{flex:1;overflow:hidden;background:var(--bg0);padding:8px 0}
+.hgrp{height:28px;display:flex;align-items:center;padding:0 24px;margin-top:8px;font-size:11px;font-weight:600;color:var(--t3)}
+.hrow{height:32px;margin:0 12px;padding:0 12px;border-radius:6px;display:flex;align-items:center;gap:10px;font-size:13px;white-space:nowrap}
+.hrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.hrow .meta{font-size:12px;color:var(--t3);width:220px;overflow:hidden;text-overflow:ellipsis}
+.hrow .meta2{font-size:12px;color:var(--t3);width:72px;text-align:right}
+.hrow .time{font:11px var(--mono);color:var(--t3);width:40px;text-align:right}
+.hrow.hov{background:var(--hover)}
+.hrow.hov .meta2{display:none}
+.empty{padding:6px 24px;color:var(--t3);font-size:12px}
+/* settings window */
+.sett{position:relative;width:900px;height:600px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:var(--bg0);color:var(--t1);display:grid;grid-template-columns:216px 1fr;box-shadow:0 30px 70px rgba(0,0,0,.5);font-family:var(--ui)}
+.sett .sside{background:var(--bg1);border-right:1px solid var(--line);padding:52px 0 0;position:relative}
+.sett .sside .tl{position:absolute;top:20px;left:20px}
+.sett .row{gap:10px}
+.sett .main{display:flex;flex-direction:column;min-width:0}
+.sett .stb{height:52px;display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600;color:var(--t0);border-bottom:1px solid var(--line)}
+.sett .content{padding:20px 24px;display:flex;flex-direction:column;gap:8px}
+.sett .gh{font-size:11px;font-weight:600;color:var(--t3);padding:12px 12px 4px}
+.cardx{background:var(--bg1);border:1px solid var(--line);border-radius:10px}
+.crow{min-height:40px;display:flex;align-items:center;gap:12px;padding:6px 12px;border-top:1px solid var(--line)}
+.crow:first-child{border-top:0}
+.crow .l{flex:1}
+.crow .l small{display:block;font-size:12px;line-height:16px;color:var(--t3)}
+.ver{font:12px var(--mono);color:var(--t2)}
+
+/* themes: one set of ROLES, two value sets */
+.navy{--bg0:#121826;--bg1:#182030;--bg2:#1f2738;--field:#121826;--hover:#202a3b;--hover2:#2b3446;--sel:#2b3446;--selF:#2a6fd6;--line:#232c3d;--line2:#2f3a4d;--btn:#2b3446;
+  --t0:#ffffff;--t1:#e3e7ef;--t2:#9ba4b7;--t3:#6b7489;--acc:#2a6fd6;--accT:#5fb0ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#ffb340;--done:#73c991;--fail:#f14c4c;--failT:#ff6b61;--idle:#5f687a;--gA:#73c991;--gM:#e2c08d;--gD:#f07a6e}
+.dplus{--bg0:#1e1e1e;--bg1:#252526;--bg2:#2c2c2d;--field:#1e1e1e;--hover:#2a2d2e;--hover2:#37373d;--sel:#37373d;--selF:#0e639c;--line:#303030;--line2:#3c3c3c;--btn:#3a3d41;
+  --t0:#ffffff;--t1:#cccccc;--t2:#a3a3a3;--t3:#7a7a7a;--acc:#0e639c;--accT:#3794ff;--onAcc:#ffffff;--onAccDim:rgba(255,255,255,.78);--work:#4fc1ff;--wait:#e8a33d;--done:#89d185;--fail:#f14c4c;--failT:#f48771;--idle:#6e6e6e;--gA:#73c991;--gM:#e2c08d;--gD:#f48771}
+.solo .page>*{display:none!important}.solo .page>.shown{display:block!important}.solo .page{padding:20px;width:auto}
+/* ===== free chats (additions; tokens only) ===== */
+.row .tm{font-size:11px;line-height:14px;color:var(--t3)}
+.row.sel .tm{color:var(--onAccDim)}
+.row.sleep .nm{color:var(--t2)}
+.row .slot{width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex:none}
+.row.all .nm{color:var(--t2)}
+.sec .plus{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.sec .plus.on{background:var(--hover2)}
+.row .acts2{display:flex;gap:0}
+.row .acts2 .ib2{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.drop{outline:1px solid var(--acc);box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent);border-radius:6px;margin:0 8px;padding:4px 0}
+.ghost{position:absolute;right:120px;top:250px;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;background:var(--bg2);border:1px solid var(--line2);font-size:13px;color:var(--t1);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:6}
+.alert{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:300px;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5);padding:20px;z-index:5;text-align:center;color:var(--t1)}
+.alert .ai{width:48px;height:48px;margin:0 auto 12px;border-radius:12px;background:var(--hover2);display:flex;align-items:center;justify-content:center}
+.alert b{display:block;font-size:13px;line-height:18px;font-weight:600;color:var(--t0);margin-bottom:4px}
+.alert p{margin:0 0 16px;font-size:12px;line-height:16px;color:var(--t2)}
+.alert .bt{display:flex;gap:8px}.alert .bt .btn{flex:1;justify-content:center}
+/* rail */
+.app.rail{grid-template-columns:44px 1fr 320px}
+.app.rail .side{padding-top:52px}
+.rtile{height:28px;display:flex;align-items:center;justify-content:center;position:relative}
+.rtile .sq{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.rtile .sq.sel{background:var(--sel)}
+.rtile .t{width:20px;height:20px;border-radius:6px;font:600 9px/20px var(--ui);text-align:center;color:var(--t1);background:var(--hover2);position:relative}
+.rtile .t.proj{background:none;border:1px solid var(--line2);color:var(--t3);line-height:18px}
+.rtile .t.sleep{color:var(--t3)}
+.rtile .t.selT{background:var(--selF);color:var(--onAcc)}
+.rtile .t .cd{position:absolute;right:-3px;top:-3px;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--bg1)}
+.rsep{height:16px;display:flex;align-items:center;justify-content:center}.rsep i{display:block;width:24px;height:1px;background:var(--line)}
+.rgap{height:8px}
+.side .rfoot{margin-top:auto;border-top:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0}
+/* history row extras */
+.hrow .who{font-size:12px;color:var(--t3);width:210px;overflow:hidden;text-overflow:ellipsis}
+.chip{height:22px;padding:0 8px;border-radius:6px;font-size:12px;line-height:22px;color:var(--t2);background:var(--btn)}
+.chips{height:36px;display:flex;align-items:center;gap:6px;padding:0 16px 0 20px;border-bottom:1px solid var(--line);background:var(--bg0)}
+.emptyc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--t2)}
+.emptyc .bb{display:flex;gap:8px}
+.sel-note{font-size:12px;color:var(--t3)}
+</style></head>
+<body>
+<div class="page" id="page">
+<h1>Hangar — чаты без проекта</h1>
+<p class="lead">Спека: <span class="mono">docs/superpowers/specs/2026-10-31-free-chats-design.md</span>. Секция «Чаты» над «Проектами»: «+» сразу создаёт чат (⌥⌘N), до 7 строк по последнему использованию, закреплённые сверху, открытые всегда видны, спящие — без точки и с именем <span class="mono">text2</span>. Справа — время или слово, требующее действия. Токены и роли — из <span class="mono">design-system-v2.html</span>.</p>
+<div id="frames"></div>
+</div>
+<script>
+const I={
+ sidebar:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M6 3v10"/></svg>',
+ insp:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M10 3v10"/></svg>',
+ bell:'<svg viewBox="0 0 16 16"><path d="M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3z"/><path d="M6.5 14h3"/></svg>',
+ chevD:'<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>',
+ chevR:'<svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>',
+ plus:'<svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
+ newchat:'<svg viewBox="0 0 16 16"><path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z"/><path d="M8 5.5v3M6.5 7h3"/></svg>',
+ history:'<svg viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"/><path d="M2.5 2.5v2.5H5M8 5v3l2 1.5"/></svg>',
+ gear:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>',
+ term:'<svg viewBox="0 0 16 16"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2"/><path d="M4.5 6l2 2-2 2M8 10.5h3.5"/></svg>',
+ search:'<svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>',
+ server:'<svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1.2"/><rect x="2" y="9" width="12" height="4.5" rx="1.2"/></svg>',
+ folder:'<svg viewBox="0 0 16 16"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.5l1.5 1.5h5.5a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>',
+ pin:'<svg viewBox="0 0 16 16"><path d="M6 2.5h4l-.5 4 2 2H4.5l2-2zM8 8.5V14"/></svg>',
+ pencil:'<svg viewBox="0 0 16 16"><path d="M10.5 2.5l3 3-8 8H2.5v-3z"/></svg>',
+ bellx:'<svg viewBox="0 0 16 16"><path d="M4 11V7a4 4 0 0 1 6.5-3.1M12 7v4l1 1.5H5"/><path d="M6.5 14h3M2.5 2.5l11 11"/></svg>',
+ remove:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8h5"/></svg>',
+ dots:'<svg viewBox="0 0 16 16"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" stroke-width="2.2"/></svg>',
+ claude:'<svg viewBox="0 0 16 16" style="stroke:#d97757;stroke-width:1.8"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></svg>',
+ codex:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M5.5 6.5l2 1.5-2 1.5M8.5 10h2"/></svg>',
+ file:'<svg viewBox="0 0 16 16"><path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3"/></svg>'
+};
+const ic=(n,c='')=>`<span class="ico ${c}">${I[n]}</span>`;
+// chats: n name, d dot (null = sleeping), t time, st status word, pin, sel
+const CHATS=[
+ {n:'Сравнить тарифы на хостинг',d:'idle',t:'3 ч',pin:1},
+ {n:'Как работает OAuth PKCE',d:'work',t:'сейчас',sel:1},
+ {n:'Письмо арендодателю',d:'wait',st:'ждёт'},
+ {n:'Регулярка для дат в логах',d:null,t:'2 мин'},
+ {n:'План поездки в Тбилиси',d:null,t:'вчера'},
+ {n:'Чат 4',d:null,t:'пн'},
+ {n:'Разбор выписки за октябрь',d:null,t:'12 окт'}];
+const N_ALL=12;
+function chatRow(c,o={}){
+ const sel=c.sel&&!o.noSel, hov=o.hov===c.n;
+ const dot=c.d?`<span class="dot d-${c.d}"></span>`:'';
+ let right=c.st?`<span class="st" style="color:${sel?'':'var(--wait)'}">${c.st}</span>`:`<span class="tm">${c.t}</span>`;
+ if(hov) right=`<span class="acts2"><span class="ib2">${ic('pin','i14')}</span><span class="ib2">${ic('dots','i14')}</span></span>`;
+ return `<div class="row ${sel?'sel':''} ${hov?'hov':''} ${c.d?'':'sleep'}"><span class="slot">${dot}</span><span class="nm">${c.n}</span>${right}</div>`;}
+function chatsSection(o={}){
+ if(o.empty) return `<div class="sec"><span class="grow">Чаты</span><span class="plus" title="Новый чат без проекта — ⌥⌘N">${ic('plus','i14')}</span></div>`;
+ return `<div class="sec"><span class="grow">Чаты</span>${o.secHov?`<span class="plus on" title="Новый чат без проекта — ⌥⌘N">${ic('plus','i14')}</span>`:''}</div>`+
+  CHATS.map(c=>chatRow(c,o)).join('')+`<div class="row all" title="История — ⌘Y"><span class="slot"></span><span class="nm">Все чаты (${N_ALL})…</span></div>`;}
+const PROJ=[{p:'acme-web',items:[{n:'discount-codes',d:'idle',br:'feat/discount'},{n:'fix-login-redirect',d:'done',br:'main'}]},{p:'hangar',closed:1,items:[]}];
+function projects(o={}){
+ if(o.empty) return `<div class="sec"><span class="grow">Проекты</span><span class="plus">${ic('plus','i14')}</span></div>`;
+ return `<div class="sec"><span class="grow">Проекты</span></div>`+PROJ.map(g=>`<div class="row">${ic('folder')}<span class="nm">${g.p}</span>${g.closed?ic('chevR','i12'):''}</div>`+
+  g.items.map(s=>`<div class="row chat"><span class="dot d-${s.d}"></span><span class="nm">${s.n}</span><span class="br">${s.br}</span></div>`).join('')).join('');}
+function sidebar(o={}){
+ return `<div class="side"><div class="tl"><i></i><i></i><i></i></div><div class="tgl">${ic('sidebar')}</div>
+  ${chatsSection(o)}${projects(o)}
+  ${o.empty?'':`<div class="sec"><span class="grow">Серверы</span></div><div class="row">${ic('server')}<span class="nm">devbox</span><span class="st" style="color:var(--t3)">подключён</span></div>`}
+  <div class="foot"><div class="ib" title="Новый чат — ⌘N">${ic('newchat')}</div><div class="ib ${o.hist?'on':''}" title="История — ⌘Y">${ic('history')}</div><div style="flex:1"></div><div class="ib" title="Настройки — ⌘,">${ic('gear')}</div></div></div>`;}
+function toolbar(o={}){
+ const title=o.hist?`<div class="tt"><b>История</b></div>`:o.empty?'':`<div class="tt"><b>Как работает OAuth PKCE</b><span>Без проекта</span></div>`;
+ const mid=o.hist?`<div class="seg" style="width:300px"><div>Все</div><div class="on">Чаты</div><div>Этот Mac</div><div>devbox</div></div><span class="grow"></span><div class="search" style="color:var(--t1)">${ic('search','i14')}redirect_uri</div>`:`<span class="grow"></span>`;
+ return `<div class="toolbar">${title}${mid}<span class="tbtn">${ic('bell')}</span>${o.hist?'':`<span class="tbtn">${ic('insp')}</span>`}</div>`;}
+const TERM=`<span class="box"><span class="cl">✻</span> Welcome to <b>Claude Code</b>
+  <span class="c2">cwd: ~/Library/Application Support/Hangar/Chats</span></span>
+<span class="c2">&gt;</span> Объясни, как работает OAuth PKCE и зачем нужен code_verifier
+
+<span class="ok">●</span> PKCE защищает обмен кода авторизации у публичных клиентов
+  (мобильные и SPA), где нельзя хранить client_secret.
+
+  1. Клиент создаёт случайный <span class="acc">code_verifier</span> (43–128 символов).
+  2. Считает <span class="acc">code_challenge</span> = BASE64URL(SHA256(verifier)).
+  3. В запросе /authorize отправляет challenge и метод S256.
+  4. При обмене кода на токен в /token отправляет сам verifier —
+     сервер сверяет хеш, перехваченный код без него бесполезен.
+
+<span class="c2">&gt;</span> @rfc7636.pdf что в разделе 4.6 про redirect_uri?
+<span class="ok">●</span> Read(rfc7636.pdf)
+  <span class="c3">⎿  Read 19 pages</span>
+<span style="color:var(--work)">●</span> <span class="c2">Thinking…</span>`;
+function center(o={}){
+ return `<div class="center"><div class="tabs"><div class="tab on">${ic('claude','i14')}<span class="tdot" style="background:var(--work)"></span>claude</div></div><div class="termwrap"><div class="term">${TERM}</div></div><div class="drawer">${ic('term','i14')}Терминал</div></div>`;}
+const FILES=[['PDF','#c94a3d','rfc7636.pdf','2 мин'],['CSV','#3d8a5a','statement-oct.csv','12 окт'],['TXT','#6b7489','trip-notes.txt','вчера'],['LOG','#6b7489','app-2026-10-30.log','2 мин']];
+function inspector(o={}){
+ const list=FILES.map((f,i)=>`<div class="frow ${i===0&&!o.drop?'sel':''}"><span class="fi" style="background:${f[1]}">${f[0][0]}</span><span>${f[2]}</span><span class="grow"></span></div>`).join('');
+ return `<div class="insp"><div class="seg"><div class="on">Файлы</div><div>Поиск</div></div>
+  <div class="${o.drop?'drop':''}">${list}</div></div>`;}
+function main(th,o={}){return `<div class="app ${th}">${sidebar(o)}${toolbar(o)}${center(o)}${inspector(o)}${o.extra||''}</div>`;}
+
+function rowMenu(){return `<div class="pop" style="left:150px;top:228px;width:236px;--arrow:24px">
+ <div class="ph">Регулярка для дат в логах</div>
+ <div class="it">${ic('pencil','i14')}<span style="flex:1">Переименовать</span><span class="r">F2</span></div>
+ <div class="it hl">${ic('pin','i14')}<span style="flex:1">Закрепить</span></div>
+ <div class="sep"></div>
+ <div class="it" style="color:var(--failT)"><span class="ico i14" style="color:var(--failT)">${I.remove}</span><span style="flex:1">Убрать из списка…</span></div></div>`;}
+function openMenu(){return `<div class="pop" style="left:150px;top:228px;width:236px;--arrow:24px">
+ <div class="ph">Письмо арендодателю</div>
+ <div class="it">${ic('pencil','i14')}<span style="flex:1">Переименовать</span><span class="r">F2</span></div>
+ <div class="it">${ic('pin','i14')}<span style="flex:1">Закрепить</span></div>
+ <div class="it hl">${ic('bellx','i14')}<span style="flex:1">Без уведомлений</span></div>
+ <div class="sep"></div>
+ <div class="it" style="color:var(--failT)"><span class="ico i14" style="color:var(--failT)">${I.remove}</span><span style="flex:1">Убрать из списка…</span></div></div>`;}
+function confirmBox(){return `<div class="scrim"></div><div class="alert">
+ <div class="ai">${ic('newchat')}</div>
+ <b>Убрать «Регулярка для дат в логах» из списка?</b>
+ <p>Разговор останется у агента — его можно продолжить из Истории (⌘Y).</p>
+ <div class="bt"><span class="btn">Отмена</span><span class="btn pri">Убрать</span></div></div>`;}
+
+function history(th){
+ const G=[['Сегодня',[['claude','Как работает OAuth PKCE','Как работает OAuth PKCE','24 сообщ.','14:52','open'],['claude','Регулярка для дат в логах — redirect_uri в логах nginx','Регулярка для дат в логах','9 сообщ.','14:50','sleep']]],
+  ['Вчера',[['claude','План поездки в Тбилиси: redirect_uri для бронирования','План поездки в Тбилиси','31 сообщ.','21:08','sleep']]],
+  ['Понедельник, 27 октября',[['codex','Почему redirect_uri не совпадает после деплоя','','14 сообщ.','10:15','none'],['claude','Разбор выписки за октябрь','Разбор выписки за октябрь','40 сообщ.','09:02','sleep']]]];
+ let i=0;
+ const body=G.map(([h,rows])=>`<div class="hgrp">${ic('chevD','i12')}&nbsp;${h}</div>`+rows.map(r=>{i++;const hov=i===2;
+  const act=r[5]==='open'?'Перейти':'Продолжить';
+  const state=r[5]==='open'?`<span class="meta2" style="color:var(--t2)"><span class="dot d-work" style="width:6px;height:6px"></span> открыт</span>`:`<span class="meta2">${r[3]}</span>`;
+  return `<div class="hrow ${hov?'hov':''}">${ic(r[0])}<span class="nm">${r[1]}</span><span class="who">${r[2]}</span>${hov?`<span class="btn sm pri">${act}</span>`:state}<span class="time">${r[4]}</span></div>`}).join('')).join('');
+ return `<div class="app noinsp ${th}">${sidebar({hist:1,noSel:1})}${toolbar({hist:1})}<div class="center"><div class="chips"><span class="chip">Claude</span><span class="chip">Codex</span></div><div class="hist">${body}</div></div></div>`;}
+
+function rail(th){
+ const t=(m,cls,dot)=>`<div class="rtile"><div class="sq ${cls.includes('selT')?'sel':''}"><div class="t ${cls}">${m}${dot?`<span class="cd" style="background:var(--${dot})"></span>`:''}</div></div></div>`;
+ const chats=[['СТ','','idle'],['КР','selT','work'],['ПА','','wait'],['РД','sleep'],['ПП','sleep'],['Ч4','sleep'],['РВ','sleep']];
+ const tiles=chats.map((c,i)=>(i?'<div class="rgap"></div>':'')+t(c[0],c[1],c[2])).join('');
+ const side=`<div class="side"><div class="tl" style="left:20px;top:20px;z-index:3"><i></i><i></i><i></i></div>
+  <div class="rsep"><i></i></div>${tiles}<div class="rsep"><i></i></div>${t('AW','proj')}<div class="rgap"></div>${t('DC','','idle')}<div class="rgap"></div>${t('FL','','done')}<div class="rgap"></div>${t('HA','proj')}
+  <div class="rfoot"><div class="ib">${ic('newchat')}</div><div class="ib">${ic('history')}</div><div class="ib">${ic('gear')}</div></div></div>`;
+ return `<div class="app rail ${th}">${side}${toolbar().replace('class="toolbar"','class="toolbar" style="padding-left:56px"')}${center()}${inspector()}</div>`;}
+
+function emptyWin(th){
+ return `<div class="app noinsp ${th}">${sidebar({empty:1,noSel:1})}${toolbar({empty:1})}<div class="center" style="position:relative;background:var(--bg0)"><div class="emptyc"><span style="font-size:13px">Добавьте папку проекта, чтобы начать</span><div class="bb"><span class="btn pri">Добавить проект</span><span class="btn">Новый чат без проекта</span></div></div></div></div>`;}
+
+const F=[];
+for(const th of ['navy','dplus']){const T=th==='navy'?'Navy':'Dark+';
+ F.push([`main-${th}`,'Чат без проекта открыт; секция «Чаты»: закреплённый, открытые (работает, ждёт), спящие, «Все чаты (12)…»; инспектор — «Файлы · Поиск», под курсором «Регулярка…»',T,main(th,{hov:'Регулярка для дат в логах'})]);
+ if(th==='dplus') continue;
+ F.push([`drop-${th}`,'Перетаскивание файла на «Файлы»: копия в общую папку, в ввод агента вставляется @contract-draft.docx',T,main(th,{drop:1,secHov:1,extra:`<div class="ghost">${ic('file','i14')}contract-draft.docx</div>`})]);
+ F.push([`menu-${th}`,'Меню спящего чата (правый клик / «⋯»)',T,main(th,{hov:'Регулярка для дат в логах',extra:rowMenu()})]);
+ F.push([`menuopen-${th}`,'Меню открытого чата',T,main(th,{extra:openMenu().replace('top:228px','top:172px')})]);
+ F.push([`confirm-${th}`,'«Убрать из списка…» — подтверждение',T,main(th,{extra:confirmBox()})]);
+ F.push([`history-${th}`,'История (⌘Y), охват «Чаты»: группы по дню, поиск по названию и тексту, строка под курсором',T,history(th)]);
+ F.push([`rail-${th}`,'Свёрнутый сайдбар: чаты — плитки (спящие без точки, монограмма text3), затем проекты',T,rail(th)]);
+ F.push([`empty-${th}`,'Пусто: «Чаты» — только заголовок с «+»; окно без проектов — вторая кнопка',T,emptyWin(th)]);}
+const fr=document.getElementById('frames');
+fr.innerHTML=F.map(f=>`<div class="labelbar" data-k="${f[0]}"><b>${f[1]}</b><span>${f[2]}</span></div><div class="frame" id="${f[0]}">${f[3]}</div>`).join('');
+const solo=location.hash.slice(1);
+if(solo){document.body.classList.add('solo');fr.classList.add('shown');fr.querySelectorAll('.labelbar,.frame').forEach(e=>{if(e.id!==solo)e.style.display='none'});}
+</script>
+</body></html>

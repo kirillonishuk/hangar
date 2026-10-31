@@ -308,7 +308,7 @@ import TestSupport
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: dir) }
         let known = await NewTaskModel.probe(Git(repo: dir))
-        #expect(known == .notRepository)
+        #expect(known == NewTaskModel.Probe(availability: .notRepository))
         let project = Project(name: "p", location: .local(path: dir), worktreeByDefault: true)
         let m = NewTaskModel(project: project, git: Git(repo: dir), taskBranches: [], known: known)
         #expect(m.availability == .notRepository && !m.worktree)
@@ -318,10 +318,10 @@ import TestSupport
         let t = try await repo()
         defer { t.cleanup() }
         let ready = await NewTaskModel.probe(Git(repo: t.repo))
-        #expect(ready == .ready)
+        #expect(ready == NewTaskModel.Probe(availability: .ready, head: .branch("main")))
         let r = NewTaskModel(project: Project(name: "r", location: .local(path: t.repo), worktreeByDefault: true),
                              git: Git(repo: t.repo), taskBranches: [], known: ready)
-        #expect(r.availability == .loading && r.worktree)
+        #expect(r.availability == .loading && r.worktree && r.head == .branch("main"))
     }
 
     @Test func cancelStopsHangingFetch() async throws {

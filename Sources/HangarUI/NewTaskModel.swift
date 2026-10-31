@@ -69,9 +69,15 @@ import Workspace
     @ObservationIgnored private var fetchId: UUID?
     @ObservationIgnored private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
-    /// `known`: what `probe` answered (or the last open did), so the sheet's first frame already shows or leaves out
-    /// «Где работать»: no block that appears and then goes away while git answers.
-    init(project: Project, git: Git, taskBranches: Set<String>, known: Availability? = nil,
+    /// What the sheet knows before it opens (#122): no block that appears and then goes away, no folder line that grows.
+    struct Probe: Equatable {
+        var availability: Availability
+        var head: Head?
+    }
+
+    /// `known`: what `probe` answered, so the sheet's first frame already shows or leaves out «Где работать» and the
+    /// folder's branch.
+    init(project: Project, git: Git, taskBranches: Set<String>, known: Probe? = nil,
          chatNames: @escaping @MainActor () -> [String] = { [] }) {
         self.project = project
         self.chatNames = chatNames
@@ -79,7 +85,8 @@ import Workspace
         self.taskBranches = taskBranches
         worktree = project.worktreeByDefault
         // A repository loads its branches as before (`.loading`); the rest is final until `load` says otherwise.
-        if let known, known != .ready, known != .loading {
+        head = known?.head
+        if let known = known?.availability, known != .ready, known != .loading {
             availability = known
             worktree = false
         }
@@ -93,16 +100,18 @@ import Workspace
         return !worktree || (availability == .ready && base != nil && branchError == nil)
     }
 
-    /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits).
-    static func probe(_ git: Git) async -> Availability {
+    /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits);
+    /// with the folder's HEAD.
+    static func probe(_ git: Git) async -> Probe {
         do {
-            guard try await git.isRepository() else { return .notRepository }
+            guard try await git.isRepository() else { return Probe(availability: .notRepository) }
         } catch RemoteHostError.notConnected(let host) {
-            return .hostOffline(host)
+            return Probe(availability: .hostOffline(host))
         } catch {
-            return .notRepository
+            return Probe(availability: .notRepository)
         }
-        return await git.hasCommits() ? .ready : .noCommits
+        let head = try? await git.head()
+        return Probe(availability: await git.hasCommits() ? .ready : .noCommits, head: head)
     }
 
     func load() async {

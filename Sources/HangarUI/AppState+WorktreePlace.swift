@@ -83,9 +83,9 @@ extension AppState {
 
 extension AppState {
     /// Probes the project's repository for the sheets and keeps the answer (not an offline host's: it says nothing).
-    func probeRepository(_ project: Project) async -> NewTaskModel.Availability {
+    func probeRepository(_ project: Project) async -> NewTaskModel.Probe {
         let answer = await NewTaskModel.probe(git(for: project))
-        if case .hostOffline = answer {} else { repoAvailability[project.id] = answer }
+        if case .hostOffline = answer.availability {} else { repoProbes[project.id] = answer }
         return answer
     }
 }

@@ -86,7 +86,6 @@ extension AppState {
     /// The chat is selected (the toolbar's branch button): its HEAD loads now, whatever was loaded before.
     func selectedHead(_ task: HangarTask) {
         _ = branchModel.request(task.id)
-        recheckWorktree(of: task.id)
         refreshHead(taskId: task.id)
     }
 

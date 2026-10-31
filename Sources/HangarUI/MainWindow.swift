@@ -939,11 +939,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         withRepository(project) { [weak self] known in self?.showNewTask(project, known: known) }
     }
 
-    /// Runs `then` with the project's repository answer: the cached one at once (and a fresh probe for next time),
-    /// else after a first probe (a `rev-parse`, milliseconds), so a sheet never shows git-only parts that then vanish.
-    private func withRepository(_ project: Project, _ then: @escaping (NewTaskModel.Availability) -> Void) {
+    /// Runs `then` with the project's repository answer, so a sheet never shows git-only parts that then vanish: a
+    /// local project's fresh one (a few milliseconds of git), a remote one's last answer at once (and a fresh probe
+    /// for next time), else after a first probe.
+    private func withRepository(_ project: Project, _ then: @escaping (NewTaskModel.Probe) -> Void) {
         let app = self.app
-        if let known = app.repoAvailability[project.id] {
+        if project.host != nil, let known = app.repoProbes[project.id] {
             then(known)
             Task { _ = await app.probeRepository(project) }
             return
@@ -959,7 +960,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func showNewTask(_ project: Project, known: NewTaskModel.Availability) {
+    private func showNewTask(_ project: Project, known: NewTaskModel.Probe) {
         guard let window, window.attachedSheet == nil else { return }
         let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
@@ -1153,7 +1154,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         withRepository(project) { [weak self] known in self?.showProjectSettings(project, known: known) }
     }
 
-    private func showProjectSettings(_ project: Project, known: NewTaskModel.Availability) {
+    private func showProjectSettings(_ project: Project, known: NewTaskModel.Probe) {
         guard let window, window.attachedSheet == nil else { return }
         let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
@@ -1165,7 +1166,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), known: known, onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), known: known.availability, onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
             close()
             self?.app.perform {
                 $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot)

@@ -129,8 +129,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var worktreePlaces: [UUID: WorktreePlace] = [:]
     /// The running check of each project's worktrees; one at a time.
     @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
-    /// Each project's last repository probe: the new-chat and project sheets open with it (no git block that comes and goes).
-    @ObservationIgnored var repoAvailability: [UUID: NewTaskModel.Availability] = [:]
+    /// A remote project's last repository probe: its sheets open with it at once, no ssh round trip first (#122).
+    @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
@@ -352,6 +352,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
         // Another session getting selected (palette, a new or restored one) leaves «Сессии».
         if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }
+        // A chat's copy may have been moved since it was last shown (#122).
+        if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
         store.scheduleSave(state)
         didChange?()
     }

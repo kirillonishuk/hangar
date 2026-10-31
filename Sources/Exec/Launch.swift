@@ -14,6 +14,8 @@ public enum LaunchError: Error, Equatable {
     case notConnected(host: String)
     /// An agent tab waits for the answer to «Подключить Hangar к …?» (#111): its hooks must be in place before it starts.
     case awaitingConsent
+    /// The leaf waits for work before it starts (a relinked chat's conversation copy, #122); started again when done.
+    case preparing
 }
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),
@@ -114,32 +116,31 @@ public func tabAgentSettings(hookCLI: String) -> String {
 /// (nothing was said), start it under its id; `foreign` — recorded in another folder, so claude would never find it from here.
 public enum TranscriptChoice: Equatable, Sendable { case resume, start, foreign }
 
-/// The transcript is `<configDir>/projects/*/<id>.jsonl` (ids are unique); its folder is the first `cwd` among its first lines
+/// The transcript is `<configDir>/projects/*/<id>.jsonl` — first the folder claude names after `cwd` (a copy made for a
+/// moved worktree, #122, wins over the original elsewhere), then any; its folder is the first `cwd` among its first lines
 /// (JSON, so escaped paths compare right). No `cwd` in them → this folder.
 public func transcriptChoice(id: String, cwd: String, configDir: URL) -> TranscriptChoice {
     let projects = configDir.appendingPathComponent("projects")
-    let folders = (try? FileManager.default.contentsOfDirectory(atPath: projects.path)) ?? []
+    let own = [cwd, URL(fileURLWithPath: cwd).resolvingSymlinksInPath().path].compactMap(claudeProjectFolder)
+    let folders = own + ((try? FileManager.default.contentsOfDirectory(atPath: projects.path)) ?? [])
     guard let file = folders.lazy.map({ projects.appendingPathComponent($0).appendingPathComponent(id + ".jsonl") })
         .first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return .start }
     guard let handle = try? FileHandle(forReadingFrom: file) else { return .resume }
     defer { try? handle.close() }
-    let head = (try? handle.read(upToCount: 1_048_576)) ?? Data()
     func real(_ p: String) -> String { URL(fileURLWithPath: p).resolvingSymlinksInPath().standardizedFileURL.path }
-    for line in head.split(separator: UInt8(ascii: "\n")).prefix(200) {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
-              let recorded = object["cwd"] as? String else { continue }
-        return recorded == cwd || real(recorded) == real(cwd) ? .resume : .foreign
-    }
-    return .resume
+    guard let recorded = firstRecordedCwd((try? handle.read(upToCount: 1_048_576)) ?? Data()) else { return .resume }
+    return recorded == cwd || real(recorded) == real(cwd) ? .resume : .foreign
 }
 
-/// `$1` id, `$2` a spare id, `$3` note, `$4` login shell (empty → /bin/sh), `$5` the claude command. The id's transcript (any project folder:
-/// ids are unique) recorded in this folder → `--resume`; none (nothing was said) → a new conversation under that id;
+/// `$1` id, `$2` a spare id, `$3` note, `$4` login shell (empty → /bin/sh), `$5` the claude command. The id's transcript (this
+/// folder's project folder first, then any: ids are unique) recorded in this folder → `--resume`; none (nothing was said) → a new conversation under that id;
 /// recorded elsewhere (claude would not find it from here, every time) → the note and a new conversation under the spare id,
 /// which the tab's own SessionStart hook then stores.
 let resumeOrStartScript = ##"""
 id=$1 spare=$2 note=$3 sh=${4:-/bin/sh} c=$5
-for f in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$id".jsonl; do
+p=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects
+enc() { printf '%s' "$1" | sed 's/[^a-zA-Z0-9]/-/g'; }
+for f in "$p/$(enc "$PWD")/$id.jsonl" "$p/$(enc "$(pwd -P)")/$id.jsonl" "$p"/*/"$id".jsonl; do
   [ -e "$f" ] || continue
   if command -v python3 >/dev/null 2>&1 && ! python3 -I -c '
 import json, os, sys

@@ -102,6 +102,9 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var editorFiles: [EditorFile]?
     /// Set by the user (rename); wins over the automatic pane name.
     public var customTitle: String?
+    /// The cwd its agent's conversation was recorded in before a moved worktree was relinked (#122): at the next launch
+    /// the conversation is copied to where the agent looks from `cwd`, then this is cleared.
+    public var relinkedFrom: String?
 
     /// `openLine`: the new editor's cursor line in `openFile`.
     public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
@@ -114,7 +117,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         if kind == .editor, let openFile { editorFiles = [EditorFile(path: openFile, line: openLine ?? 1, column: 1)] }
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine, customTitle }
+    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine, customTitle, relinkedFrom }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -127,6 +130,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }
         // An editor pane is named by its file: a name from a version that allowed renaming it is dropped.
         if kind != .editor { customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle) }
+        relinkedFrom = try c.decodeIfPresent(String.self, forKey: .relinkedFrom)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -138,6 +142,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         try c.encodeIfPresent(openFile, forKey: .openFile)
         try c.encodeIfPresent(editorFiles, forKey: .editorFiles)
         try c.encodeIfPresent(customTitle, forKey: .customTitle)
+        try c.encodeIfPresent(relinkedFrom, forKey: .relinkedFrom)
     }
 }
 
@@ -758,6 +763,26 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
     }
 
+    /// The worktree was moved (`git worktree move`): the task and its saved cwds follow it; running terminals keep
+    /// theirs until relaunched. Session ids stay: it is the same checkout and branch; an agent leaf with one remembers
+    /// where its conversation was recorded (`relinkedFrom`, the first such place when moved again before a launch).
+    public mutating func relinkWorktree(taskId: UUID, to newPath: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, let branch, let base) = tasks[i].mode,
+              path != newPath else { return }
+        tasks[i].mode = .worktree(path: newPath, branch: branch, base: base)
+        func moved(_ p: String) -> String { p == path || p.hasPrefix(path + "/") ? newPath + p.dropFirst(path.count) : p }
+        func move(_ leaf: Leaf) -> Leaf {
+            var leaf = leaf
+            if leaf.agentSessionId != nil, leaf.relinkedFrom == nil, moved(leaf.cwd) != leaf.cwd { leaf.relinkedFrom = leaf.cwd }
+            leaf.cwd = moved(leaf.cwd)
+            leaf.openFile = leaf.openFile.map(moved)
+            leaf.editorFiles = leaf.editorFiles?.map { var f = $0; f.path = moved(f.path); return f }
+            return leaf
+        }
+        for tab in tasks[i].tabs.indices { tasks[i].tabs[tab].root = tasks[i].tabs[tab].root.mapLeaves(move) }
+        tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
+    }
+
     /// Names are trimmed; an empty name is ignored.
     public mutating func renameTask(id: UUID, name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -856,6 +881,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     }
 
     /// Session id captured from the agent's hooks (restore uses `--resume <id>`); unknown leaf ids are ignored.
+    /// The relinked leaf's conversation was copied (or there was nothing to copy): later launches don't copy again.
+    public mutating func clearRelinkedFrom(leafId: UUID) {
+        for i in tasks.indices {
+            if tasks[i].drawer.leaf?.id == leafId { tasks[i].drawer.leaf?.relinkedFrom = nil; return }
+            for t in tasks[i].tabs.indices where tasks[i].tabs[t].root.leaf(id: leafId) != nil {
+                tasks[i].tabs[t].root = tasks[i].tabs[t].root.mapLeaves { leaf in
+                    var leaf = leaf
+                    if leaf.id == leafId { leaf.relinkedFrom = nil }
+                    return leaf
+                }
+                return
+            }
+        }
+    }
+
     public mutating func setAgentSessionId(leafId: UUID, _ id: String) {
         for i in tasks.indices {
             if tasks[i].drawer.leaf?.id == leafId { tasks[i].drawer.leaf?.agentSessionId = id; return }

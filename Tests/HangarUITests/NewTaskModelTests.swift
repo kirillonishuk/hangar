@@ -302,6 +302,34 @@ import TestSupport
         #expect(await m.create(skipFetch: false) == .mainFolder)
     }
 
+    /// The probe answers before the sheet opens: a plain folder's sheet never starts with the copy chosen (#122).
+    @Test func probedPlainFolderStartsWithoutCopy() async throws {
+        let dir = NSTemporaryDirectory() + "hangar-plain-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let known = await NewTaskModel.probe(Git(repo: dir))
+        #expect(known == NewTaskModel.Probe(availability: .notRepository))
+        let project = Project(name: "p", location: .local(path: dir), worktreeByDefault: true)
+        let m = NewTaskModel(project: project, git: Git(repo: dir), taskBranches: [], known: known)
+        #expect(m.availability == .notRepository && !m.worktree)
+        await m.load()
+        #expect(m.availability == .notRepository && !m.worktree)
+
+        let t = try await repo()
+        defer { t.cleanup() }
+        let ready = await NewTaskModel.probe(Git(repo: t.repo))
+        #expect(ready == NewTaskModel.Probe(availability: .ready, head: .branch("main")))
+        let r = NewTaskModel(project: Project(name: "r", location: .local(path: t.repo), worktreeByDefault: true),
+                             git: Git(repo: t.repo), taskBranches: [], known: ready)
+        #expect(r.availability == .loading && r.worktree && r.head == .branch("main"))
+        // A remote project's remembered answer is shown but doesn't turn the copy off: `load` decides.
+        let cached = NewTaskModel(project: project, git: Git(repo: dir), taskBranches: [],
+                                  known: NewTaskModel.Probe(availability: .notRepository, cached: true))
+        #expect(cached.availability == .notRepository && cached.worktree)
+        await cached.load()
+        #expect(!cached.worktree)
+    }
+
     @Test func cancelStopsHangingFetch() async throws {
         let t = try await repo()
         defer { t.cleanup() }

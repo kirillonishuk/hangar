@@ -308,6 +308,7 @@ enum EmptyProjectRow: Hashable {
         // Chats without a project run next to the state: a test or debug store gets its own folder, never the real one.
         var state = state
         state.chatsFolder = store.directory.appendingPathComponent("Chats").path
+        state.adoptOrphanFreeChats()  // saved by an older build, which drops `freeChats` (#126)
         self.state = state
         self.store = store
         self.config = config

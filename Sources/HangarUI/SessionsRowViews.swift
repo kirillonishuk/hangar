@@ -206,6 +206,8 @@ struct SessionsRow: View {
             return [c.title, r.placeName.map(L10n.sessionsHelpSession), c.cwd,
                     (c.messageCountIsEstimate ? "~" : "") + L10n.sessionsMessages(c.messageCount)]
                 .compactMap { $0 }.joined(separator: "\n")
+        case .session(let r) where r.project == chatsGroupId:
+            return [r.name, L10n.sessionsTabs(r.tabs)].joined(separator: "\n")  // no «в архиве» for these (#126)
         case .session(let r):
             let head = L10n.sessionsArchivedHelp(r.name, L10n.sessionsTabs(r.tabs)) + (r.branch.map { ", ⎇ " + $0 } ?? "")
             return [head, r.archivedAt.map { L10n.sessionsArchivedSince(day($0)) }].compactMap { $0 }.joined(separator: "\n")

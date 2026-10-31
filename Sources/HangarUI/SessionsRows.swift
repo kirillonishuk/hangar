@@ -95,7 +95,8 @@ struct ConversationRow: Identifiable, Equatable {
     var state: SessionsRowState {
         switch place {
         case .open: .open
-        case .closed: .archived
+        // An asleep chat without a project is never «в архиве» (#126): it counts as history.
+        case .closed: project == chatsGroupId ? .history : .archived
         case .session, .none: .history
         }
     }
@@ -132,7 +133,7 @@ enum SessionsItem: Identifiable, Equatable {
     var state: SessionsRowState {
         switch self {
         case .conversation(let r): r.state
-        case .session: .archived
+        case .session(let r): r.project == chatsGroupId ? .history : .archived
         }
     }
 

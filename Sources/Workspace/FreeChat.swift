@@ -66,6 +66,24 @@ extension WorkspaceState {
         restoreTask(id: taskId)
     }
 
+    /// A build without chats without a project drops `freeChats` when it saves, but keeps their tasks under unknown ids.
+    /// Such an orphan whose every agent ran in `chatsFolder` is a chat without a project again (asleep if it was closed);
+    /// other orphans are left alone. Call once `chatsFolder` is set.
+    public mutating func adoptOrphanFreeChats() {
+        guard !chatsFolder.isEmpty else { return }
+        let folder = chatsFolder.hasSuffix("/") ? String(chatsFolder.dropLast()) : chatsFolder
+        let known = Set(projects.map(\.id)).union(freeChats.map(\.id)).union(hostShells.map(\.id))
+        var adopted = Set<UUID>()
+        for task in tasks where !known.contains(task.projectId) && !adopted.contains(task.projectId) {
+            let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
+            let cwds = leaves.map { $0.cwd.hasSuffix("/") ? String($0.cwd.dropLast()) : $0.cwd }
+            guard !cwds.isEmpty, cwds.allSatisfy({ $0 == folder }),
+                  tasks.filter({ $0.projectId == task.projectId }).count == 1 else { continue }
+            freeChats.append(FreeChat(id: task.projectId, lastUsedAt: task.archivedAt ?? Date()))
+            adopted.insert(task.projectId)
+        }
+    }
+
     /// Out of Hangar; the agent's transcript is never touched.
     public mutating func removeFreeChat(taskId: UUID) {
         guard let chat = freeChat(ofTask: taskId) else { return }

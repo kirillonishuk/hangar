@@ -358,9 +358,12 @@ public actor ConversationHistory {
         let walker = fm.enumerator(at: codexDir.appendingPathComponent("sessions"), includingPropertiesForKeys: nil)
         while !Task.isCancelled, let url = walker?.nextObject() as? URL {
             let file = url.lastPathComponent
-            guard file.hasPrefix("rollout-"), file.hasSuffix(".jsonl"),
-                  let cwd = codexPrefixCwd(read(url, from: 0, count: codexPrefixBytes)), folders.contains(cwd),
-                  let id = parseCodex(sample(url, size: fileStamp(url)?.2 ?? 0), fileName: file, mtime: nil)?.conversation.id,
+            guard file.hasPrefix("rollout-"), file.hasSuffix(".jsonl") else { continue }
+            // A rollout's cwd never changes: the History scan (`local`) has usually cached it, so only new rollouts
+            // have their 8 KB prefix read here.
+            let cached = cache[url.path]
+            guard let cwd = cached?.codexCwd ?? codexPrefixCwd(read(url, from: 0, count: codexPrefixBytes)), folders.contains(cwd),
+                  let id = cached?.record?.conversation.id ?? validSessionId(String(file.dropLast(6).suffix(36))),
                   transcriptHolds(url, query, text: codexText) else { continue }
             out.insert(id)
         }
@@ -515,11 +518,17 @@ done
 exit 0
 """#
 
-/// Some line of the file has a message whose text holds `query` (case and diacritics ignored).
+/// Some line of the file has a message whose text holds `query` (case and diacritics ignored). Lines without a message
+/// type are skipped by a byte search before any JSON parsing; a cancelled search stops inside the file too.
 private func transcriptHolds(_ url: URL, _ query: String, text: ([String: Any]) -> String?) -> Bool {
     guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
+    let markers = ["\"user\"", "\"assistant\"", "\"user_message\"", "\"agent_message\""].map { Data($0.utf8) }
+    var n = 0
     for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
-        guard let o = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any], let t = text(o) else { continue }
+        n += 1
+        if n % 256 == 0, Task.isCancelled { return false }
+        guard markers.contains(where: { line.range(of: $0) != nil }),
+              let o = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any], let t = text(o) else { continue }
         if t.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil { return true }
     }
     return false

@@ -99,4 +99,29 @@ import Testing
         let old = #"{"projects":[],"tasks":[],"inspectorVisible":false}"#
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: Data(old.utf8)).freeChats.isEmpty)
     }
+
+    /// An older build saves without `freeChats`; the next load makes those tasks chats without a project again.
+    @Test func downgradeRoundTripReadoptsOrphans() throws {
+        var s = state()
+        let open = s.addFreeChat(name: "open", kind: .claude, autoNamed: false).task
+        let asleep = s.addFreeChat(name: "asleep", kind: .codex, autoNamed: false).task
+        s.sleepFreeChat(taskId: asleep)
+        // Another orphan (not in the chats folder) stays as it is.
+        let ghost = UUID()
+        let leaf = Leaf(kind: .shell, cwd: "/elsewhere")
+        var other = HangarTask(projectId: ghost, name: "other", order: 99)
+        other.tabs = [Tab(title: "zsh", root: .leaf(leaf), focusedLeafId: leaf.id)]
+        s.tasks.append(other)
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(s)) as! [String: Any]
+        json.removeValue(forKey: "freeChats")
+        var back = try JSONDecoder().decode(WorkspaceState.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(back.freeChats.isEmpty)
+        back.chatsFolder = "/state/Chats/"  // a trailing slash still matches
+        back.adoptOrphanFreeChats()
+        #expect(Set(back.freeChatTasks.map(\.id)) == [open, asleep])
+        #expect(back.tasks.first { $0.id == open }?.archived == false && back.tasks.first { $0.id == asleep }?.archived == true)
+        #expect(!back.freeChats.contains { $0.id == ghost })
+        back.adoptOrphanFreeChats()  // idempotent
+        #expect(back.freeChats.count == 2)
+    }
 }

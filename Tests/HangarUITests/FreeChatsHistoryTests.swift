@@ -111,6 +111,14 @@ import Workspace
         let m = await model(w, scope: .all)
         #expect(m.groups.map(\.name) == [L10n.freeChatsScope, "home"])
         #expect(m.groups[1].items.map(\.id) == ["claude:" + idProject])
+        // Asleep chats are never «в архиве» (#126): the archived chip leaves them out, history keeps them.
+        m.toggle(SessionsRowState.archived)
+        #expect(!m.groups.contains { $0.id == chatsGroupId })
+        m.toggle(SessionsRowState.archived)
+        m.toggle(SessionsRowState.history)
+        let chats = try #require(m.groups.first { $0.id == chatsGroupId })
+        #expect(chats.items.map(\.id).contains("claude:" + idAsleep) && chats.items.map(\.id).contains("session:" + w.empty.uuidString))
+        #expect(chats.items.allSatisfy { $0.state != .archived })
     }
 
     @Test func searchByConversationText() async throws {
@@ -140,7 +148,18 @@ import Workspace
         #expect(w.app.dropIntoChats([src]) == ["rfc 7636 2.pdf"])
         #expect(FileManager.default.fileExists(atPath: src.path))
         #expect(FileManager.default.fileExists(atPath: w.app.state.chatsFolder + "/rfc 7636 2.pdf"))
-        #expect(sent == ["@rfc 7636.pdf ", "@rfc 7636 2.pdf "])
+        #expect(sent == ["@\"rfc 7636.pdf\" ", "@\"rfc 7636 2.pdf\" "])
+        // A dangling symlink holds its name; `"` becomes `'`; no whitespace — no quotes.
+        try FileManager.default.createSymbolicLink(atPath: w.app.state.chatsFolder + "/notes.txt", withDestinationPath: "/nonexistent/x")
+        let notes = w.root.appendingPathComponent("notes.txt")
+        try Data("n".utf8).write(to: notes)
+        let odd = w.root.appendingPathComponent("say \"hi\".txt")
+        try Data("h".utf8).write(to: odd)
+        #expect(w.app.dropIntoChats([notes, odd]) == ["notes 2.txt", "say 'hi'.txt"])
+        #expect(sent.last == "@\"notes 2.txt\" @\"say 'hi'.txt\" ")
+        #expect(freeChatMention("a.pdf", agent: .claude) == "@a.pdf")
+        #expect(freeChatMention("a b.pdf", agent: .codex) == "\"a b.pdf\"")
+        #expect(freeChatMention("a.pdf", agent: .codex) == "a.pdf")
         #expect(freeChatCopyName("notes", taken: { $0 == "notes" || $0 == "notes 2" }) == "notes 3")
     }
 }

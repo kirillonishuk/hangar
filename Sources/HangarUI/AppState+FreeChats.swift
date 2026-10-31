@@ -70,14 +70,16 @@ extension AppState {
                                    codexDir: codexConfigURL.deletingLastPathComponent(), open: openConversationIds)
     }
 
-    /// Files dropped on «Файлы» of a chat without a project: copied (never moved) into the folder, then `@name ` is typed
-    /// into the active tab's agent without Enter, to ask about them. Returns the names as copied.
+    /// Files dropped on «Файлы» of a chat without a project: copied (never moved) into the folder, then a mention of each
+    /// is typed into the active tab's agent without Enter, to ask about them (`freeChatMention`). Returns the names as copied.
     @discardableResult func dropIntoChats(_ urls: [URL]) -> [String] {
         guard let task = selectedTask, state.isFreeChatTask(task), ensureChatsFolder() else { return [] }
         let fm = FileManager.default
         var names: [String] = []
         for url in urls where url.isFileURL {
-            let name = freeChatCopyName(url.lastPathComponent) { fm.fileExists(atPath: state.chatsFolder + "/" + $0) }
+            // `"` can't be mentioned inside a quoted name by either agent: it becomes `'`. A dangling symlink is taken too.
+            let base = url.lastPathComponent.replacingOccurrences(of: "\"", with: "'")
+            let name = freeChatCopyName(base) { (try? fm.attributesOfItem(atPath: state.chatsFolder + "/" + $0)) != nil }
             do {
                 try fm.copyItem(at: url, to: URL(fileURLWithPath: state.chatsFolder + "/" + name))
                 names.append(name)
@@ -87,7 +89,7 @@ extension AppState {
         }
         if !names.isEmpty, let tab = task.tabs.first(where: { $0.id == task.activeTabId }), let leaf = tab.root.leaf(id: tab.focusedLeafId),
            leaf.kind == .claude || leaf.kind == .codex, terminals?.state(leaf.id) == .running {
-            terminals?.send(leaf.id, names.map { "@" + $0 + " " }.joined(), [])
+            terminals?.send(leaf.id, names.map { freeChatMention($0, agent: leaf.kind) + " " }.joined(), [])
         }
         return names
     }
@@ -112,15 +114,26 @@ extension AppState {
     }
 }
 
+/// A file in the chats folder as the agent's composer writes it: Claude `@name` or `@"name with spaces"` (its prompt
+/// parser takes both); Codex inserts the bare path, in quotes when it has whitespace (its `@` popup does the same).
+func freeChatMention(_ name: String, agent: LeafKind) -> String {
+    let quoted = name.contains(where: \.isWhitespace) ? "\"" + name + "\"" : name
+    return agent == .codex ? quoted : "@" + quoted
+}
+
+/// One formatter for the rows' dates; its locale, calendar and zone follow each call.
+@MainActor private let freeChatDateFormatter = DateFormatter()
+
 /// «сейчас», «5 мин», «3 ч», «вчера», «пн», «12 окт.», «12.10.25» — computed on each redraw, no timer.
 @MainActor func freeChatTime(_ d: Date, now: Date, calendar: Calendar = .current) -> String {
     let seconds = now.timeIntervalSince(d)
     if seconds < 60 { return L10n.freeTimeNow }
     if seconds < 3600 { return L10n.freeTimeMinutes(Int(seconds / 60)) }
-    let f = DateFormatter()
-    f.locale = Locale(identifier: L10n.resolve(L10n.language).rawValue)
-    f.calendar = calendar
-    f.timeZone = calendar.timeZone
+    let f = freeChatDateFormatter
+    let locale = Locale(identifier: L10n.resolve(L10n.language).rawValue)
+    if f.locale != locale { f.locale = locale }
+    if f.calendar != calendar { f.calendar = calendar }
+    if f.timeZone != calendar.timeZone { f.timeZone = calendar.timeZone }
     switch historyDay(d, now: now, calendar: calendar) {
     case .today: return L10n.freeTimeHours(Int(seconds / 3600))
     case .yesterday: return L10n.sessionsYesterday

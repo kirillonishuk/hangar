@@ -326,6 +326,12 @@
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
 "inspectorHostShell" = "Обычный SSH-терминал — нет папки проекта";
+"inspectorWorktreeMoved" = "Копия перенесена — обновите путь";
+"inspectorWorktreeMissing" = "Копия не найдена";
+"worktreeMovedTo" = "Копия перенесена в %@";
+"worktreeNotFound" = "Копия не найдена: %@";
+"relinkWorktree" = "Обновить путь";
+"notGitNoCopies" = "Папка не в git — отдельные копии недоступны";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
 "diffTooLarge" = "Слишком большой diff (%d строк)";

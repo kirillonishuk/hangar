@@ -69,12 +69,20 @@ import Workspace
     @ObservationIgnored private var fetchId: UUID?
     @ObservationIgnored private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(project: Project, git: Git, taskBranches: Set<String>, chatNames: @escaping @MainActor () -> [String] = { [] }) {
+    /// `known`: what `probe` answered (or the last open did), so the sheet's first frame already shows or leaves out
+    /// «Где работать»: no block that appears and then goes away while git answers.
+    init(project: Project, git: Git, taskBranches: Set<String>, known: Availability? = nil,
+         chatNames: @escaping @MainActor () -> [String] = { [] }) {
         self.project = project
         self.chatNames = chatNames
         self.git = git
         self.taskBranches = taskBranches
         worktree = project.worktreeByDefault
+        // A repository loads its branches as before (`.loading`); the rest is final until `load` says otherwise.
+        if let known, known != .ready, known != .loading {
+            availability = known
+            worktree = false
+        }
         let saved = project.setupCommand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         setupCommand = saved.isEmpty ? nil : saved
         runSetup = !saved.isEmpty
@@ -85,8 +93,19 @@ import Workspace
         return !worktree || (availability == .ready && base != nil && branchError == nil)
     }
 
+    /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits).
+    static func probe(_ git: Git) async -> Availability {
+        do {
+            guard try await git.isRepository() else { return .notRepository }
+        } catch RemoteHostError.notConnected(let host) {
+            return .hostOffline(host)
+        } catch {
+            return .notRepository
+        }
+        return await git.hasCommits() ? .ready : .noCommits
+    }
+
     func load() async {
-        availability = .loading
         let isRepository: Bool
         do { isRepository = try await git.isRepository() } catch RemoteHostError.notConnected(let host) {
             availability = .hostOffline(host)

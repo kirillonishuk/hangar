@@ -124,6 +124,13 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `+N −M` of the sidebar's session rows.
     /// Live HEAD of each chat (#114).
     let branchModel = BranchModel()
+    /// Where each worktree chat's copy is, by its repository's worktree list (checked, not assumed: a moved copy's old
+    /// folder inside the main checkout would show the main checkout's branch and files).
+    var worktreePlaces: [UUID: WorktreePlace] = [:]
+    /// The running check of each project's worktrees; one at a time.
+    @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
+    /// Each project's last repository probe: the new-chat and project sheets open with it (no git block that comes and goes).
+    @ObservationIgnored var repoAvailability: [UUID: NewTaskModel.Availability] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?

@@ -56,6 +56,31 @@ import Testing
         #expect(s.tasks[0].drawer.leaf?.cwd == "/repo/app")
     }
 
+    /// A moved worktree: mode, cwds and editor files follow; session ids and unrelated paths stay.
+    @Test func relinkWorktreeMovesPaths() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t", mode: .worktree(path: "/repo/.claude/worktrees/t", branch: "t", base: "main"))
+        s.addTab(taskId: t, kind: .shell)
+        s.toggleDrawer(taskId: t)
+        var agent = Leaf(kind: .claude, cwd: "/repo/.claude/worktrees/t/sub", agentSessionId: "s1")
+        agent.openFile = "/repo/.claude/worktrees/t2/x"  // a sibling folder with the same prefix is not inside
+        var editor = Leaf(kind: .editor, cwd: "/repo/.claude/worktrees/t", openFile: "/repo/.claude/worktrees/t/a.swift")
+        editor.customTitle = "e"
+        s.tasks[0].tabs[0].root = .split(axis: .horizontal, ratio: 0.5, first: .leaf(agent), second: .leaf(editor))
+        s.relinkWorktree(taskId: t, to: "/repo.worktrees/t")
+        #expect(s.tasks[0].mode == .worktree(path: "/repo.worktrees/t", branch: "t", base: "main"))
+        let leaves = s.tasks[0].tabs[0].root.leaves
+        #expect(leaves[0].cwd == "/repo.worktrees/t/sub")
+        #expect(leaves[0].agentSessionId == "s1")
+        #expect(leaves[0].openFile == "/repo/.claude/worktrees/t2/x")
+        #expect(leaves[1].openFile == "/repo.worktrees/t/a.swift")
+        #expect(leaves[1].editorFiles?.first?.path == "/repo.worktrees/t/a.swift")
+        #expect(s.tasks[0].drawer.leaf?.cwd == "/repo.worktrees/t")
+        // New tabs open in the new folder.
+        s.addTab(taskId: t, kind: .shell)
+        #expect(s.tasks[0].tabs[1].root.leaves[0].cwd == "/repo.worktrees/t")
+    }
+
     @Test func closeLastLeafClosesTab() {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")

@@ -758,6 +758,24 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
     }
 
+    /// The worktree was moved (`git worktree move`): the task and its saved cwds follow it; running terminals keep
+    /// theirs until relaunched. Session ids stay: it is the same checkout and branch.
+    public mutating func relinkWorktree(taskId: UUID, to newPath: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, let branch, let base) = tasks[i].mode,
+              path != newPath else { return }
+        tasks[i].mode = .worktree(path: newPath, branch: branch, base: base)
+        func moved(_ p: String) -> String { p == path || p.hasPrefix(path + "/") ? newPath + p.dropFirst(path.count) : p }
+        func move(_ leaf: Leaf) -> Leaf {
+            var leaf = leaf
+            leaf.cwd = moved(leaf.cwd)
+            leaf.openFile = leaf.openFile.map(moved)
+            leaf.editorFiles = leaf.editorFiles?.map { var f = $0; f.path = moved(f.path); return f }
+            return leaf
+        }
+        for tab in tasks[i].tabs.indices { tasks[i].tabs[tab].root = tasks[i].tabs[tab].root.mapLeaves(move) }
+        tasks[i].drawer.leaf = tasks[i].drawer.leaf.map(move)
+    }
+
     /// Names are trimmed; an empty name is ignored.
     public mutating func renameTask(id: UUID, name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)

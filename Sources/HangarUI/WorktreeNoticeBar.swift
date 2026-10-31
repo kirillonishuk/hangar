@@ -21,6 +21,7 @@ struct WorktreeNoticeBar: View {
                     Button(L10n.relinkWorktree) { app.relinkWorktree(problem.task.id) }
                         .buttonStyle(.hangar(.secondary, .small))
                         .fixedSize()
+                        .help(L10n.relinkWorktreeHelp)
                 }
             }
             .padding(.horizontal, Theme.Space.s3)

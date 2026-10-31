@@ -146,6 +146,13 @@ import Workspace
         // No cwd among the first lines: this folder.
         try #"{"type":"custom-title"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
         #expect(try run().ran == "claude --resume \(id)\n")
+        // A copy in this folder's own project folder (a moved worktree, #122) wins over the original recorded elsewhere.
+        try #"{"type":"user","cwd":"/elsewhere"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
+        let own2 = dir + "/cfg/projects/" + claudeProjectFolder(dir + "/work dir")
+        try FileManager.default.createDirectory(atPath: own2, withIntermediateDirectories: true)
+        try #"{"type":"user","cwd":"\#(dir)/work dir"}"#.write(toFile: own2 + "/\(id).jsonl", atomically: true, encoding: .utf8)
+        #expect(try run().ran == "claude --resume \(id)\n")
+        try FileManager.default.removeItem(atPath: own2)
         // An empty $SHELL on a server: /bin/sh runs it.
         let bare = agentCommand(for: leaf(.claude, id: id), agent: { _ in shellQuote(login) }, shell: "sh", restoring: true,
                                 initialPrompt: nil, transcriptCheck: (#""$SHELL""#, ""))

@@ -127,7 +127,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorHostShell
-        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, relinkWorktree, notGitNoCopies
+        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, relinkWorktree, relinkWorktreeHelp, notGitNoCopies
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -770,6 +770,7 @@ import Workspace
     static func worktreeMovedTo(_ path: String) -> String { f(.worktreeMovedTo, path) }
     static func worktreeNotFound(_ path: String) -> String { f(.worktreeNotFound, path) }
     static var relinkWorktree: String { s(.relinkWorktree) }
+    static var relinkWorktreeHelp: String { s(.relinkWorktreeHelp) }
     static var notGitNoCopies: String { s(.notGitNoCopies) }
 
     // Git tab (redesign v1 §4)

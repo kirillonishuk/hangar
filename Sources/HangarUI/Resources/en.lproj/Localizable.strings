@@ -331,6 +331,7 @@
 "worktreeMovedTo" = "The copy was moved to %@";
 "worktreeNotFound" = "Copy not found: %@";
 "relinkWorktree" = "Update Path";
+"relinkWorktreeHelp" = "Claude chats continue in the new folder: Hangar copies their records there and keeps the originals";
 "notGitNoCopies" = "The folder is not in git — separate copies are unavailable";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";

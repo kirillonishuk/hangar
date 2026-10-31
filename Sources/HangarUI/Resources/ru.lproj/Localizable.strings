@@ -331,6 +331,7 @@
 "worktreeMovedTo" = "Копия перенесена в %@";
 "worktreeNotFound" = "Копия не найдена: %@";
 "relinkWorktree" = "Обновить путь";
+"relinkWorktreeHelp" = "Чат Claude продолжится в новой папке: Hangar скопирует его запись туда, оригинал останется";
 "notGitNoCopies" = "Папка не в git — отдельные копии недоступны";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";

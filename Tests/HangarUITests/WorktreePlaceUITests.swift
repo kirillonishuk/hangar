@@ -1,3 +1,4 @@
+import Exec
 import Foundation
 import Testing
 import Git
@@ -24,10 +25,17 @@ import Workspace
         let p = s.addProject(name: "app", path: t.repo)
         let w = s.addTask(projectId: p, name: "w", mode: .worktree(path: old, branch: "feat/x", base: "main"))
         s.addTab(taskId: w, kind: .shell)
+        let agent = s.addTab(taskId: w, kind: .claude)
+        if let i = s.tasks.firstIndex(where: { $0.id == w }), case .leaf(var leaf) = s.tasks[i].tabs.first(where: { $0.id == agent })!.root {
+            leaf.agentSessionId = Self.session
+            s.tasks[i].tabs[1].root = .leaf(leaf)
+        }
         let dir = URL(fileURLWithPath: t.root + "/state")
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
         return (t, app, w, old)
     }
+
+    static let session = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
 
     private func task(_ app: AppState, _ id: UUID) -> HangarTask { app.state.tasks.first { $0.id == id }! }
 
@@ -41,6 +49,12 @@ import Workspace
     @Test func movedCopyIsNotTheMainCheckoutAndRelinks() async throws {
         let (t, app, w, old) = try await make()
         defer { t.cleanup() }
+        // The tab's claude conversation, recorded in the old folder (a temp claude config, never the real one).
+        let config = URL(fileURLWithPath: t.root + "/claude")
+        app.claudeSettingsURL = config.appendingPathComponent("settings.json")
+        let recorded = config.appendingPathComponent("projects/" + claudeProjectFolder(old))
+        try FileManager.default.createDirectory(at: recorded, withIntermediateDirectories: true)
+        try Data(#"{"type":"user","cwd":"\#(old)"}"#.utf8).write(to: recorded.appendingPathComponent(Self.session + ".jsonl"))
         app.perform { $0.select(taskId: w) }
         // Unchecked: no folder for git yet (never the main checkout by accident).
         #expect(app.gitFolder(of: w) == nil)
@@ -64,6 +78,10 @@ import Workspace
         await #expect(throws: (any Error).self) { try await app.branchChoices(of: task(app, w)) }
 
         app.relinkWorktree(w)
+        await app.transcriptCopy?.value
+        // The conversation is resumable from the new folder; the original stays.
+        #expect(transcriptChoice(id: Self.session, cwd: real(new), configDir: config) == .resume)
+        #expect(FileManager.default.fileExists(atPath: recorded.appendingPathComponent(Self.session + ".jsonl").path))
         #expect(task(app, w).mode == .worktree(path: real(new), branch: "feat/x", base: "main"))
         #expect(task(app, w).tabs[0].root.leaves[0].cwd == real(new))
         #expect(app.selectedWorktreeProblem == nil)

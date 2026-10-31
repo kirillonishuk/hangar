@@ -1,3 +1,5 @@
+import AgentStatus
+import Exec
 import Foundation
 import Git
 import Workspace
@@ -71,9 +73,28 @@ extension AppState {
         while let check = worktreeChecks.values.first { await check.value }
     }
 
-    /// «Обновить путь»: the chat follows its moved copy (decision #122).
+    /// «Обновить путь»: the chat follows its moved copy (decision #122), and its claude conversations are copied to the
+    /// new folder's place in claude's projects, so the tabs resume them there. Off the main thread, before any relaunch
+    /// asks; a failed copy only means a new conversation with the note (#119), as before.
+    /// shortcut: a remote chat's conversations are not copied (they live on the server); copy over ssh if asked.
     func relinkWorktree(_ id: UUID) {
-        guard case .moved(let path) = worktreePlaces[id] else { return }
+        guard case .moved(let path) = worktreePlaces[id], let task = state.tasks.first(where: { $0.id == id }),
+              case .worktree(let old, _, _) = task.mode else { return }
+        if project(task.projectId)?.host == nil {
+            let leaves = (task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 })
+                .filter { $0.kind == .claude && (($0.cwd == old) || $0.cwd.hasPrefix(old + "/")) }
+                .compactMap { leaf in validSessionId(leaf.agentSessionId).map { ($0, leaf.cwd, path + leaf.cwd.dropFirst(old.count)) } }
+            let configDir = claudeConfigDir
+            if !leaves.isEmpty {
+                transcriptCopy = Task.detached {
+                    for (session, from, to) in leaves {
+                        do { try copyClaudeTranscript(id: session, from: from, to: to, configDir: configDir) } catch {
+                            uiLog.error("transcript copy \(session, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                        }
+                    }
+                }
+            }
+        }
         perform { $0.relinkWorktree(taskId: id, to: path) }
         worktreePlaces[id] = .inPlace
         refreshHead(taskId: id)

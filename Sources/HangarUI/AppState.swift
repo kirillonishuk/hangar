@@ -130,6 +130,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// The running check of each project's worktrees; one at a time.
     @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
     /// A remote project's last repository probe: its sheets open with it at once, no ssh round trip first (#122).
+    /// The running copy of a relinked chat's claude conversations (tests wait for it).
+    @ObservationIgnored var transcriptCopy: Task<Void, Never>?
     @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).

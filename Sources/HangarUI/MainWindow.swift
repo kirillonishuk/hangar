@@ -172,6 +172,8 @@ final class WindowRootController: NSViewController {
 
 /// Traffic lights at x 20, centre y 26 in the 52 head (§3.1) without a toolbar, which on macOS 26 would give the window
 /// the larger corner radius (#123): the titlebar container grows to 52, the buttons keep their size and system spacing.
+/// shortcut: re-placed only on content layout, resize and full screen; setting the window's title, subtitle,
+/// representedURL or a native tab bar resets the lights, so re-place if any of these is added.
 @MainActor enum TrafficLights {
     static func place(in window: NSWindow?) {
         guard let window, !window.styleMask.contains(.fullScreen),
@@ -254,6 +256,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.titleVisibility = .hidden
         // No NSToolbar: on macOS 26 it gives the window the larger corner radius; `TrafficLights` places the lights (#123).
         window.isMovableByWindowBackground = false
+        window.tabbingMode = .disallowed  // a native tab bar would reset the hand-placed traffic lights
         window.backgroundColor = Theme.bg0
         window.appearance = NSAppearance(named: .darkAqua)
         window.minSize = Theme.windowMinSize

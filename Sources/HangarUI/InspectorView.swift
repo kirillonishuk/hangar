@@ -17,6 +17,10 @@ struct InspectorView: View {
                 // «<host> · терминал»: the folder of its shell and Search there (no git, #124).
                 header
                 if model.segment == .search { SearchPanel(app: app) } else { RemoteFilesView(app: app) }
+            } else if let text = app.inspectorNotice {
+                header
+                EmptyNote(text: text)
+                Spacer(minLength: 0)
             } else {
                 header
                 if model.segment == .changes && model.isGit {
@@ -36,7 +40,7 @@ struct InspectorView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 0) { segment }
+        HStack(spacing: 0) { if hostShell || app.inspectorNotice == nil { segment } }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.Height.barTabs, maxHeight: Theme.Height.barTabs)
         .background(WindowDragArea())

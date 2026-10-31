@@ -67,13 +67,16 @@ struct ProjectSettingsSheet: View {
     @State private var keptBeside = false
     /// nil until git has answered; the git-only rows appear only for a repository with commits.
     @State private var isGit: Bool?
+    /// Why the copy settings are absent: not a repository, or no commits yet.
+    private let noCopiesNote: String?
     @State private var branches: [Branch] = []
     @State private var defaultBase: String?
     @State private var branchesError: String?
     @FocusState private var focus: Field?
     private enum Field { case name, path, root, copy, setup }
 
-    init(project: Project, git: Git, runner: Runner,
+    /// `known`: the project's repository probe, so the git-only card is there (or its absence explained) from the first frame.
+    init(project: Project, git: Git, runner: Runner, known: NewTaskModel.Availability? = nil,
          onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void,
          onNotifications: @escaping (ProjectNotifications) -> Void = { _ in },
          onKeepWorktreesBeside: @escaping () -> Void = {},
@@ -92,6 +95,12 @@ struct ProjectSettingsSheet: View {
         _copyText = State(initialValue: project.worktreeCopy?.joined(separator: ", ") ?? "")
         _setupCommand = State(initialValue: project.setupCommand ?? "")
         _notifications = State(initialValue: project.notifications)
+        switch known {
+        case .ready: _isGit = State(initialValue: true)
+        case .notRepository, .noCommits: _isGit = State(initialValue: false)
+        default: break
+        }
+        noCopiesNote = known == .notRepository ? L10n.notGitNoCopies : known == .noCommits ? L10n.copyNeedsCommit : nil
     }
 
     private var remote: Bool { project.host != nil }
@@ -185,6 +194,7 @@ struct ProjectSettingsSheet: View {
     /// Under the card, as in the new-task sheet: errors and the «inside the project» hint.
     @ViewBuilder private var messages: some View {
         if let error { message(error, Theme.ui.failed) }
+        if isGit == false, let noCopiesNote { message(noCopiesNote, Theme.ui.text3) }
         if isGit == true {
             if let branchesError { message(branchesError, Theme.ui.failed) }
             // No «Сюда создаются все worktree…» line: it repeated the folder field above (it is that row's tooltip).

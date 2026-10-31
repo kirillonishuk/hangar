@@ -11,9 +11,6 @@ extension Theme {
     public static let chatTextX: CGFloat = gutterMarkerX + Icon.statusDot / 2 + Space.s2
     /// The branch at a chat row's end: `mono` 11 up to this wide, truncated at its end.
     public static let rowBranchMax: CGFloat = 92
-    /// «Все чаты в архиве» hint under a project: three 20-high lines (note, «Открыть историю ⌘Y», «+ Новый чат») + 4 below.
-    public static let archivedHintLine: CGFloat = 20
-    public static let archivedHintHeight: CGFloat = 3 * archivedHintLine + 4
     public static let rowStatusGap: CGFloat = Space.s1
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
     public static let projectRowTrailing: CGFloat = Space.s3

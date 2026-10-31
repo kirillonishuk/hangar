@@ -218,6 +218,8 @@
 "limitNotificationsTitle" = "Уведомления о лимитах";
 "toggleOn" = "Вкл";
 "toggleOff" = "Выкл";
+"projectExpanded" = "развёрнут";
+"projectCollapsed" = "свёрнут";
 "agentPermission" = "%@ просит разрешение";
 "agentQuestion" = "%@ спрашивает";
 "agentDone" = "%@ закончил";
@@ -325,6 +327,14 @@
 "statusTruncated" = "Показаны первые %d изменений";
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
+"inspectorWorktreeMoved" = "Копия перенесена — обновите путь";
+"inspectorWorktreeMissing" = "Копия не найдена";
+"worktreeMovedTo" = "Копия перенесена в %@";
+"worktreeNotFound" = "Копия не найдена: %@";
+"relinkWorktree" = "Обновить путь";
+"relinkWorktreeHelp" = "Чат Claude продолжится в новой папке: Hangar скопирует его запись туда, оригинал останется";
+"notGitNoCopies" = "Папка не в git — отдельные копии недоступны";
+"preparingConversation" = "Переношу разговор в новую папку…";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
 "diffTooLarge" = "Слишком большой diff (%d строк)";
@@ -531,8 +541,7 @@
 "sessionsRestoreHelp" = "Восстановить — копия и вкладки вернутся";
 "sessionsProjectChip" = "Проект: %@";
 "sessionsProjectChipHelp" = "Убрать — все проекты";
-"allArchived" = "Все чаты в архиве";
-"allArchivedOpen" = "Открыть историю";
+"projectArchive" = "Архив · %d";
 "integrationNeedsRemote" = "Сначала установите hangar-remote по плану установки";
 "folderEmpty" = "Папка пуста";
 "noGitFiles" = "Нет файлов в git";

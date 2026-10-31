@@ -30,6 +30,11 @@ struct NewTaskSheet: View {
                     labeled(L10n.whereToWork) { whereOptions }
                     if model.worktree { copyFields }
                     errors
+                } else {
+                    // Why there is no «Где работать»: the chat works in the project folder.
+                    Text(verbatim: L10n.notGitNoCopies)
+                        .font(Theme.Typography.secondary.font())
+                        .foregroundStyle(Theme.ui.text3)
                 }
                 task
             }

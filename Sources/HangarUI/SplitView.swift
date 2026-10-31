@@ -271,6 +271,12 @@ final class FillView: NSView {
             waitingForConsent = true
             barText = { L10n.awaitingIntegrationAnswer }
             refreshText()
+        } catch LaunchError.preparing {
+            // Not a host wait: `waitingForConsent` keeps it out of reconnects; resumed by `onTranscriptSynced`.
+            waiting = context
+            waitingForConsent = true
+            barText = { L10n.preparingConversation }
+            refreshText()
         } catch LaunchError.notConnected(let host) {
             waiting = context
             // Re-read on every `refreshText` (host changes): «connecting…» until the host is given up on.
@@ -531,6 +537,10 @@ final class FillView: NSView {
         app.onHostConnected = { [weak self] host in
             guard let self else { return }
             hostConnected(host: host, leaves: Array(leafViews.values) + drawer.leaves)
+        }
+        app.onTranscriptSynced = { [weak self] leafId in
+            guard let self else { return }
+            for view in Array(leafViews.values) + drawer.leaves where view.leafId == leafId { view.resumeIfWaiting() }
         }
         app.onIntegrationAnswered = { [weak self] in
             guard let self else { return }

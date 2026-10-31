@@ -92,7 +92,7 @@ import Workspace
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
-        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
         case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
         case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
         case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
@@ -132,6 +132,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
+        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -169,7 +170,7 @@ import Workspace
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
         case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
-        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
+        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, projectArchive
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
@@ -311,8 +312,8 @@ import Workspace
     static func sessionsArchivedSince(_ date: String) -> String { f(.sessionsArchivedSince, date) }
     static var projectSessions: String { s(.projectSessions) }
     static var sessionsUnknownError: String { s(.sessionsUnknownError) }
-    static var allArchived: String { s(.allArchived) }
-    static var allArchivedOpen: String { s(.allArchivedOpen) }
+    /// «Архив · 3» under an empty project (#125).
+    static func projectArchive(_ count: Int) -> String { f(.projectArchive, count) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
 
@@ -513,6 +514,8 @@ import Workspace
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
     static var toggleOff: String { s(.toggleOff) }
+    static var projectExpanded: String { s(.projectExpanded) }
+    static var projectCollapsed: String { s(.projectCollapsed) }
     static func agentPermission(_ agent: String) -> String { f(.agentPermission, agent) }
     static func agentQuestion(_ agent: String) -> String { f(.agentQuestion, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }
@@ -768,6 +771,14 @@ import Workspace
     static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
+    static var inspectorWorktreeMoved: String { s(.inspectorWorktreeMoved) }
+    static var inspectorWorktreeMissing: String { s(.inspectorWorktreeMissing) }
+    static func worktreeMovedTo(_ path: String) -> String { f(.worktreeMovedTo, path) }
+    static func worktreeNotFound(_ path: String) -> String { f(.worktreeNotFound, path) }
+    static var relinkWorktree: String { s(.relinkWorktree) }
+    static var relinkWorktreeHelp: String { s(.relinkWorktreeHelp) }
+    static var notGitNoCopies: String { s(.notGitNoCopies) }
+    static var preparingConversation: String { s(.preparingConversation) }
 
     // Git tab (redesign v1 §4)
     static var segmentGit: String { s(.segmentGit) }

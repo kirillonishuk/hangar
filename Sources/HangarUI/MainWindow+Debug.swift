@@ -158,6 +158,7 @@ extension MainWindowController {
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
+        case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (#122)
         case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
         // choose <kind>: the focused chooser pane's button; continue <n>: row n of «Продолжить» (chooser or empty session).
         case "choose":

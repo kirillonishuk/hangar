@@ -22,11 +22,13 @@ import Workspace
         #expect(h.app.remoteLeafHost(leaf.id) == nil)
         #expect(h.app.hostShellHost(ofLeaf: leaf.id) == "box")
         let (spec, _) = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
-        #expect(spec == sshShellSpec(host: "box", sshPath: h.app.sshPath, controlPath: h.app.sshPaths.shellControlPath(leaf.id)))
+        #expect(spec == sshShellSpec(host: "box", sshPath: h.app.sshPath,
+                                     plan: HostShellPlan(hook: true, controlPath: h.app.sshPaths.shellControlPath(leaf.id), ownMaster: true)))
         #expect(h.app.remoteFiles.link(of: leaf.id) == RemoteShellLink(host: "box", controlPath: h.app.sshPaths.shellControlPath(leaf.id), sshPath: h.app.sshPath))
         // No host master, no server check: the host stays unknown to `RemoteHosts`.
         #expect(h.app.remote.hosts["box"] == nil)
-        #expect(FakeSSH.calls(h.log).isEmpty)
+        // Only `ssh -G` (the user's config, no connection) ran.
+        #expect(FakeSSH.calls(h.log).allSatisfy { $0.first == "-G" })
         #expect(Action.list(for: .task(o.task), app: h.app).isEmpty)
         #expect(!Action.archive.isEnabled(for: .task(o.task), app: h.app))
     }
@@ -58,6 +60,78 @@ import Workspace
         h.app.closeHostShell("box")
         #expect(stopped.map(\.controlPath) == [h.app.sshPaths.shellControlPath(leaf.id)])
         #expect(h.app.remoteFiles.link(of: leaf.id) == nil && h.app.remoteFiles.shown == nil)
+    }
+
+    /// Never worse than #64's plain login (#124): a RemoteCommand host, a user's own master, an unsafe socket folder
+    /// and a login shell that can't run the hook all fall back.
+    @Test func launchFollowsTheUsersSSHConfig() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let o = try #require(h.app.openHostShell("box"))
+        let leaf = try #require(leaves(h, o.task).first)
+        func spec() throws -> LaunchSpec { try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)).0 }
+
+        h.app.sshResolve = { _, _ in ["remotecommand": "tmux attach", "controlmaster": "false"] }
+        let own = h.app.sshPaths.shellControlPath(leaf.id)
+        #expect(try spec() == sshShellSpec(host: "box", sshPath: h.app.sshPath, plan: HostShellPlan(hook: false, controlPath: own, ownMaster: true)))
+
+        h.app.sshResolve = { _, _ in ["controlmaster": "auto", "controlpath": "/Users/me/.ssh/cm-box", "controlpersist": "600"] }
+        #expect(try spec() == sshShellSpec(host: "box", sshPath: h.app.sshPath,
+                                           plan: HostShellPlan(hook: true, controlPath: "/Users/me/.ssh/cm-box", ownMaster: false)))
+        #expect(!(try spec().command.contains("ControlMaster=auto")))
+        #expect(h.app.remoteFiles.link(of: leaf.id)?.owned == false && h.app.remoteFiles.link(of: leaf.id)?.exitArgv == nil)
+
+        h.app.sshResolve = { _, _ in nil }  // ssh -G failed: exactly #64
+        #expect(try spec() == sshShellSpec(host: "box", sshPath: h.app.sshPath))
+        #expect(h.app.remoteFiles.link(of: leaf.id) == nil)
+    }
+
+    /// Someone else's (or a symlinked) socket folder: no `-S` at all, a plain tab without the files panel.
+    @Test func unsafeSocketFolderMeansAPlainTab() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        let dir = h.app.sshPaths.dir
+        try #require(dir.hasPrefix(h.root))  // never a shared /tmp/hangar-<uid>
+        try? FileManager.default.removeItem(atPath: dir)
+        try FileManager.default.createDirectory(atPath: h.root + "/elsewhere", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: dir, withDestinationPath: h.root + "/elsewhere")
+        h.app.sshResolve = { _, _ in [:] }
+        let o = try #require(h.app.openHostShell("box"))
+        let leaf = try #require(leaves(h, o.task).first)
+        let spec = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)).0
+        #expect(spec == sshShellSpec(host: "box", sshPath: h.app.sshPath))
+        #expect(h.app.remoteFiles.link(of: leaf.id) == nil)
+    }
+
+    /// A hooked login that dies before any prompt (tcsh, rbash, an appliance) → the host logs in plain from then on.
+    @Test func failedHookFallsBackToPlain() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        h.app.sshResolve = { _, _ in [:] }
+        let o = try #require(h.app.openHostShell("box"))
+        let leaf = try #require(leaves(h, o.task).first)
+        _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 255))  // wrong password / lost connection
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 0))
+        #expect(h.app.hostShellHookFailed(leaf: leaf.id, code: 1))
+        #expect(h.app.state.hostShells.first?.noHook == true)
+        let plain = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)).0
+        #expect(!plain.command.contains("kitty-shell-cwd") && plain.command.contains("ControlMaster=auto"))
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1))  // no loop
+        // Persisted with the host's terminal; a fresh one tries the hook again.
+        let saved = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(h.app.state))
+        #expect(saved.hostShells.first?.noHook == true)
+        h.app.closeHostShell("box")
+        _ = try #require(h.app.openHostShell("box"))
+        #expect(h.app.state.hostShells.first?.noHook == false)
+    }
+
+    /// Once the shell reported its folder the hook works: a later error exit is the user's command, not the hook.
+    @Test func errorAfterAPromptIsNotTheHook() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        h.app.sshResolve = { _, _ in [:] }
+        let o = try #require(h.app.openHostShell("box"))
+        let leaf = try #require(leaves(h, o.task).first)
+        _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
+        h.app.remoteFiles.pwd(leaf.id, "/root")
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1))
     }
 
     @Test func invalidHostRefused() async throws {
@@ -104,7 +178,7 @@ import Workspace
         let leaf = try #require(app.state.tasks.first { $0.id == o.task }?.tabs.first?.root.leaves.first)
         #expect(app.isRestored(leafId: leaf.id))
         #expect(try app.spec(for: leaf, tabId: o.tab, context: app.launchContext(for: leaf.id)).0 == sshShellSpec(
-            host: "box", sshPath: h.ssh, controlPath: app.sshPaths.shellControlPath(leaf.id)))
+            host: "box", sshPath: h.ssh, plan: HostShellPlan(hook: true, controlPath: app.sshPaths.shellControlPath(leaf.id), ownMaster: true)))
     }
 
     @Test func controlOpensATab() async throws {

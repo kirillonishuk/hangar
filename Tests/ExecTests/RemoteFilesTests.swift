@@ -34,7 +34,7 @@ import TestSupport
     // MARK: Spec and master
 
     @Test func tabIsItsOwnMasterAndBackgroundCallsNeverLogIn() throws {
-        let spec = sshShellSpec(host: "box", sshPath: "/usr/bin/ssh", controlPath: "/s/hs-1")
+        let spec = sshShellSpec(host: "box", sshPath: "/usr/bin/ssh", plan: HostShellPlan(hook: true, controlPath: "/s/hs-1", ownMaster: true))
         #expect(spec.command.contains("ControlMaster=auto") && spec.command.contains("ControlPersist=no"))
         #expect(spec.command.contains("-S /s/hs-1") && !spec.command.contains("BatchMode"))
         let link = RemoteShellLink(host: "box", controlPath: "/s/hs-1", sshPath: "/usr/bin/ssh")
@@ -44,6 +44,58 @@ import TestSupport
         #expect(argv.contains("ProxyCommand=/usr/bin/false"))
         #expect(link.exitArgv == ["-S", "/s/hs-1", "-O", "exit", "--", "box"])
         #expect(RemoteShellLink(host: "-oProxyCommand=x", controlPath: "/s", sshPath: "/usr/bin/ssh").argv(script: "true", args: []) == nil)
+    }
+
+    @Test func planFollowsTheUsersConfig() {
+        let own = "/s/hs-1"
+        #expect(hostShellPlan(resolved: [:], ownControlPath: own, noHook: false) == HostShellPlan(hook: true, controlPath: own, ownMaster: true))
+        #expect(hostShellPlan(resolved: ["controlmaster": "false", "controlpath": "none"], ownControlPath: own, noHook: false).ownMaster)
+        // ssh refuses a command line next to the config's RemoteCommand.
+        #expect(hostShellPlan(resolved: ["remotecommand": "tmux a"], ownControlPath: own, noHook: false) == HostShellPlan(hook: false, controlPath: own, ownMaster: true))
+        // The user's own master (2FA once per host) stays theirs; the panel uses its socket and never ends it.
+        #expect(hostShellPlan(resolved: ["controlmaster": "auto", "controlpath": "/u/cm"], ownControlPath: own, noHook: false)
+                == HostShellPlan(hook: true, controlPath: "/u/cm", ownMaster: false))
+        #expect(hostShellPlan(resolved: ["controlmaster": "false", "controlpath": "/u/cm"], ownControlPath: own, noHook: false).controlPath == "/u/cm")
+        #expect(hostShellPlan(resolved: ["controlmaster": "ask"], ownControlPath: own, noHook: false) == .plain)
+        #expect(hostShellPlan(resolved: nil, ownControlPath: own, noHook: false) == .plain)
+        #expect(hostShellPlan(resolved: [:], ownControlPath: nil, noHook: false) == .plain)
+        #expect(hostShellPlan(resolved: [:], ownControlPath: own, noHook: true) == HostShellPlan(hook: false, controlPath: own, ownMaster: true))
+        #expect(parseSSHOptions("user root\nControlPath /a b/c\nidentityfile x\nidentityfile y\n") == ["user": "root", "controlpath": "/a b/c", "identityfile": "x"])
+    }
+
+    @Test func resolvesTheConfigWithABound() throws {
+        let f = try Fixture()
+        try writeScript("#!/bin/sh\n[ \"$1\" = -G ] || exit 9\nprintf 'remotecommand echo hi\\ncontrolmaster false\\n'\n", to: f.root + "/ssh-g")
+        #expect(sshResolvedOptions(host: "box", sshPath: f.root + "/ssh-g") == ["remotecommand": "echo hi", "controlmaster": "false"])
+        try writeScript("#!/bin/sh\nexec sleep 30\n", to: f.root + "/ssh-slow")
+        let start = Date()
+        #expect(sshResolvedOptions(host: "box", sshPath: f.root + "/ssh-slow", timeout: 0.5) == nil)
+        #expect(Date().timeIntervalSince(start) < 5)
+        #expect(sshResolvedOptions(host: "-oProxyCommand=x", sshPath: f.root + "/ssh-g") == nil)
+    }
+
+    /// The login's remote command goes through the server's login shell: one line, no `!` (tcsh/csh), and a shell
+    /// that can't run it (rbash) fails with its own code — not 255 — so the app falls back to a plain login.
+    @Test func loginSurvivesOddLoginShells() async throws {
+        #expect(!hostShellLoginScript.contains("\n") && !hostShellLoginScript.contains("!"))
+        for script in [remoteListScript, remoteFileUploadScript, remoteFolderUploadScript, removeLeftoverScript] {
+            #expect(!script.contains("\n") && !script.contains("!"))
+        }
+        let f = try Fixture()
+        // The server: ssh runs the remote command with the account's login shell, `$LOGIN -c <command>`.
+        try writeScript("#!/bin/sh\nwhile [ $# -gt 0 ] && [ \"$1\" != -- ]; do shift; done\nshift 2\nexec \"$LOGIN\" -c \"$1\"\n", to: f.root + "/ssh-login")
+        try writeScript("#!/bin/sh\nexec /bin/bash -r \"$@\"\n", to: f.root + "/rbash")
+        let spec = sshShellSpec(host: "box", sshPath: f.root + "/ssh-login", plan: HostShellPlan(hook: true, controlPath: f.socket, ownMaster: true))
+        func login(_ shell: String) async throws -> RunResult {
+            try await runProcess("/bin/sh", ["-c", spec.command], cwd: "/",
+                                 env: ["LOGIN": shell, "SHELL": shell, "PATH": "/usr/bin:/bin", "HOME": f.srv, "TMPDIR": f.srv])
+        }
+        if FileManager.default.isExecutableFile(atPath: "/bin/tcsh") {
+            let tcsh = try await login("/bin/tcsh")
+            #expect(tcsh.status == 0, "\(tcsh.stderr)")
+        }
+        let rbash = try await login(f.root + "/rbash")
+        #expect(rbash.status != 0 && rbash.status != 255)
     }
 
     @Test func socketPerLeafFitsSunPath() {
@@ -85,7 +137,7 @@ import TestSupport
         try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: f.root + "/tmp", withIntermediateDirectories: true)
         try writeScript("#!/bin/sh\nR=${0%/*}/..\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \"$R/shell-argv\"\n"
-                        + "env | grep -E '^(ZDOTDIR|HANGAR_)' | sort > \"$R/shell-env\"\n"
+                        + "env | grep -E '^(ZDOTDIR|HANGAR_|PROMPT_COMMAND)' | sort > \"$R/shell-env\"\n"
                         + "for x in \"$ZDOTDIR/.zshenv\" \"$2\"; do [ -f \"$x\" ] && cp \"$x\" \"$R/hook-file\"; done\nexit 0\n", to: bin + "/" + name)
         let r = try await runProcess("/bin/sh", ["-c", hostShellLoginScript], cwd: "/",
                                      env: ["SHELL": bin + "/" + name, "PATH": "/usr/bin:/bin", "TMPDIR": f.root + "/tmp", "HOME": f.srv])
@@ -100,13 +152,13 @@ import TestSupport
         #expect(zsh.files["hook"]?.contains("kitty-shell-cwd://localhost") == true)
         #expect(zsh.files["hook"]?.contains("add-zsh-hook precmd __hangar_cwd") == true)
         let bash = try await started(shell: "bash")
-        #expect(bash.argv.first == "--rcfile" && bash.argv.last == "-i")
-        #expect(bash.files["hook"]?.contains("PROMPT_COMMAND") == true)
+        #expect(bash.argv == ["-l"])  // a real login shell; the hook rides in PROMPT_COMMAND
+        #expect(bash.env.contains("PROMPT_COMMAND=__hangar_s=$?;") && bash.env.contains("kitty-shell-cwd://localhost"))
         let fish = try await started(shell: "fish")
         #expect(fish.argv.first == "-l" && fish.argv.dropFirst().first == "-C")
         #expect(fish.argv.last?.contains("--on-event fish_prompt") == true)
         let dash = try await started(shell: "dash")
-        #expect(dash.argv == ["-l"] && !dash.env.contains("HANGAR"))
+        #expect(dash.argv == ["-l"] && dash.env.isEmpty)
     }
 
     /// The real zsh and bash of this Mac in a pty: the prompt hook reports a folder with a space and Cyrillic, the
@@ -118,7 +170,8 @@ import TestSupport
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try f.write(".zshrc", "precmd() { printf USERHOOK; }\n")
         try f.write(".zshenv", "")
-        try f.write(".bash_profile", "PROMPT_COMMAND='printf USERHOOK'\n")
+        // bash: a real login shell (logout works, .bash_logout runs); the user's rc appends to PROMPT_COMMAND.
+        try f.write(".bash_profile", "PROMPT_COMMAND=\"$PROMPT_COMMAND; printf USERHOOK\"; shopt -q login_shell && printf LOGINSHELL\n")
         // Typed slowly, as a person would: input that arrives with EOF before the shell's first prompt is dropped by zsh.
         let env = ["SHELL": shell, "PATH": "/usr/bin:/bin", "TMPDIR": tmp, "HOME": home, "TERM": "xterm-256color", "LANG": "en_US.UTF-8",
                    "HANGAR_T_LOGIN": hostShellLoginScript, "HANGAR_T_DIR": dir]
@@ -129,6 +182,7 @@ import TestSupport
         timer.cancel()
         #expect(r.stdout.contains("\u{1b}]7;kitty-shell-cwd://localhost\(dir)\u{7}"))
         #expect(r.stdout.contains("USERHOOK"))
+        if shell.hasSuffix("bash") { #expect(r.stdout.contains("LOGINSHELL")) }
         #expect((try FileManager.default.contentsOfDirectory(atPath: tmp)).isEmpty)
     }
 
@@ -243,6 +297,96 @@ import TestSupport
         try f.write("big.bin", "the old one")
         await removeUploadLeftover(f.link, dir: f.srv, name: "big.bin")
         #expect((try FileManager.default.contentsOfDirectory(atPath: f.srv)) == ["big.bin"])
+    }
+
+    /// Replace never goes through a link: a link to a folder is a clash (GNU mv would drop the file inside it), a link
+    /// to a file is replaced itself — its target stays.
+    @Test func replaceNeverFollowsALink() async throws {
+        let f = try Fixture()
+        try FileManager.default.createDirectory(atPath: f.root + "/mac", withIntermediateDirectories: true)
+        try f.write("real/keep.txt", "keep")
+        try f.write("target.txt", "target")
+        try FileManager.default.createSymbolicLink(atPath: f.srv + "/data", withDestinationPath: f.srv + "/real")
+        try FileManager.default.createSymbolicLink(atPath: f.srv + "/note.txt", withDestinationPath: f.srv + "/target.txt")
+        try Data("x".utf8).write(to: URL(fileURLWithPath: f.root + "/mac/data"))
+        try Data("new".utf8).write(to: URL(fileURLWithPath: f.root + "/mac/note.txt"))
+        await #expect(throws: RemoteFileError.kindClash("data")) {
+            try await uploadToRemote(f.link, source: try source(f.root + "/mac/data"), dir: f.srv, replace: true) { _ in }
+        }
+        #expect((try FileManager.default.contentsOfDirectory(atPath: f.srv + "/real")) == ["keep.txt"])
+        try await uploadToRemote(f.link, source: try source(f.root + "/mac/note.txt"), dir: f.srv, replace: true) { _ in }
+        #expect(f.read(f.srv + "/target.txt") == "target" && f.read(f.srv + "/note.txt") == "new")
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: f.srv + "/note.txt")) == nil)
+    }
+
+    /// «Заменить» keeps the server file's mode (a 0600 .env stays 0600); a new file gets the local mode under the
+    /// server's umask, never wider.
+    @Test func replaceKeepsModeNewFileHonoursUmask() async throws {
+        let f = try Fixture()
+        try FileManager.default.createDirectory(atPath: f.root + "/mac", withIntermediateDirectories: true)
+        try f.write(".env", "S=1")
+        chmod(f.srv + "/.env", 0o600)
+        try Data("S=2".utf8).write(to: URL(fileURLWithPath: f.root + "/mac/.env"))
+        chmod(f.root + "/mac/.env", 0o644)
+        try await uploadToRemote(f.link, source: try source(f.root + "/mac/.env"), dir: f.srv, replace: true) { _ in }
+        func mode(_ p: String) -> Int { ((try? FileManager.default.attributesOfItem(atPath: p)[.posixPermissions]) as? Int ?? 0) & 0o777 }
+        #expect(f.read(f.srv + "/.env") == "S=2" && mode(f.srv + "/.env") == 0o600)
+        try Data("w".utf8).write(to: URL(fileURLWithPath: f.root + "/mac/open.txt"))
+        chmod(f.root + "/mac/open.txt", 0o666)
+        try await uploadToRemote(f.link, source: try source(f.root + "/mac/open.txt"), dir: f.srv, replace: false) { _ in }
+        let mask = umask(0); umask(mask)
+        #expect(mode(f.srv + "/open.txt") == 0o666 & ~Int(mask))
+    }
+
+    /// «Объединить» copies into the existing folder: its own mode stays, the server's files stay, same names are
+    /// overwritten in place.
+    @Test func mergeLeavesExistingFoldersAlone() async throws {
+        let f = try Fixture()
+        let mac = f.root + "/mac/site"
+        try FileManager.default.createDirectory(atPath: mac + "/private", withIntermediateDirectories: true)
+        try Data("new".utf8).write(to: URL(fileURLWithPath: mac + "/private/a.txt"))
+        try f.write("site/private/a.txt", "old")
+        try f.write("site/private/mine.txt", "mine")
+        chmod(f.srv + "/site/private", 0o700)
+        chmod(f.srv + "/site/private/a.txt", 0o600)
+        try await uploadToRemote(f.link, source: try source(mac), dir: f.srv, replace: true) { _ in }
+        func mode(_ p: String) -> Int { ((try? FileManager.default.attributesOfItem(atPath: p)[.posixPermissions]) as? Int ?? 0) & 0o777 }
+        #expect(mode(f.srv + "/site/private") == 0o700 && mode(f.srv + "/site/private/a.txt") == 0o600)
+        #expect(f.read(f.srv + "/site/private/a.txt") == "new" && f.read(f.srv + "/site/private/mine.txt") == "mine")
+    }
+
+    @Test func namesThatLookLikeOptions() async throws {
+        let f = try Fixture()
+        let mac = f.root + "/mac/-rf"
+        try FileManager.default.createDirectory(atPath: mac, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: URL(fileURLWithPath: mac + "/-x.txt"))
+        try await uploadToRemote(f.link, source: try source(mac), dir: f.srv, replace: false) { _ in }
+        try await uploadToRemote(f.link, source: try source(mac + "/-x.txt"), dir: f.srv, replace: false) { _ in }
+        #expect(f.read(f.srv + "/-rf/-x.txt") == "x" && f.read(f.srv + "/-x.txt") == "x")
+    }
+
+    /// A link planted under the temp name (a shared folder where it can't be removed) is never written through.
+    @Test func plantedTempLinkIsNotFollowed() async throws {
+        let f = try Fixture()
+        let bin = f.root + "/norm"
+        try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
+        try writeScript("#!/bin/sh\nexit 0\n", to: bin + "/rm")  // as in a sticky folder: the link stays
+        try f.write("victim.txt", "safe")
+        try FileManager.default.createSymbolicLink(atPath: f.srv + "/.a.txt.hangar-part", withDestinationPath: f.srv + "/victim.txt")
+        let r = try await runProcess("/bin/sh", ["-c", remoteFileUploadScript, "sh", f.srv, "a.txt", "644", "0", "4"], cwd: "/",
+                                     env: ["PATH": bin + ":/usr/bin:/bin"], input: Data("evil".utf8))
+        #expect(r.status == 13)
+        #expect(f.read(f.srv + "/victim.txt") == "safe")
+    }
+
+    @Test func longNamesAreRefused() throws {
+        let f = try Fixture()
+        let ok = f.root + "/" + String(repeating: "a", count: uploadNameLimit)
+        let long = f.root + "/" + String(repeating: "a", count: uploadNameLimit + 1)
+        for p in [ok, long] { FileManager.default.createFile(atPath: p, contents: Data("x".utf8)) }
+        #expect(UploadSource(URL(fileURLWithPath: ok)) != nil)
+        #expect(UploadSource(URL(fileURLWithPath: long)) == nil)
+        #expect(uploadNameLimit == 242)
     }
 
     @Test func folderUploadNeedsTar() async throws {

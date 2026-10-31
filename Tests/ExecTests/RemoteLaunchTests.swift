@@ -143,7 +143,8 @@ import TestSupport
     @Test func plainSSHShell() async throws {
         let f = try Fixture()
         defer { try? FileManager.default.removeItem(atPath: f.root) }
-        let spec = sshShellSpec(host: "my-box", sshPath: f.ssh, controlPath: f.root + "/hs-1")
+        let own = HostShellPlan(hook: true, controlPath: f.root + "/hs-1", ownMaster: true)
+        let spec = sshShellSpec(host: "my-box", sshPath: f.ssh, plan: own)
         #expect(spec.cwd == NSHomeDirectory() && spec.env.isEmpty)
         let r = try await runProcess("/bin/sh", ["-c", spec.command], cwd: "/", env: f.env)
         #expect(r.status == 0)
@@ -160,10 +161,16 @@ import TestSupport
         // The connection drops: ssh's 255 is the tab's code (a local leaf: ↩ logs in again).
         let failing = f.root + "/ssh-255"
         try writeScript("#!/bin/sh\nexit 255\n", to: failing)
-        let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing, controlPath: f.root + "/hs-1").command],
+        let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing, plan: own).command],
                                         cwd: "/", env: f.env)
         #expect(lost.status == 255)
         #expect(lost.stdout.contains("\u{1b}]133;D;255"))
+
+        // The plain plan is #64's login exactly: no socket, no remote command.
+        let plain = sshShellSpec(host: "my-box", sshPath: f.ssh)
+        _ = try await runProcess("/bin/sh", ["-c", plain.command], cwd: "/", env: f.env)
+        let plainArgv = f.read("argv").split(separator: "\n").map(String.init)
+        #expect(plainArgv == ["-t", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "--", "my-box"])
     }
 
     @Test func reattachMode() {

@@ -151,6 +151,8 @@ final class FillView: NSView {
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
     var onPwd: ((String) -> Void)?
+    /// A host terminal's hooked login failed (#124): true = log in again at once, plain.
+    var onHookFailed: ((Int32) -> Bool)?
     var onFocus: (() -> Void)?
     /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
     var onBell: (() -> Void)?
@@ -311,6 +313,10 @@ final class FillView: NSView {
     func childExited(_ code: Int32) {
         if code == 0 { onExit?(0); return }
         exitCode = code
+        if onHookFailed?(code) == true {
+            relaunch()
+            return
+        }
         if host != nil, code == 255 {
             // Not an exit of the agent: no `.exited`, the leaf and its status stay.
             isDetached = true
@@ -802,6 +808,7 @@ final class FillView: NSView {
             self.app.setTitle(title, leafId: leaf.id)
         }
         view.onPwd = { [weak self] path in self?.app.remoteFiles.pwd(leaf.id, path) }
+        view.onHookFailed = { [weak self] code in self?.app.hostShellHookFailed(leaf: leaf.id, code: code) ?? false }
         view.onExit = { [weak self] code in
             self?.app.signal(.exited(code: code), leaf: leaf.id)
             self?.leafExited(leaf.id, code: code)

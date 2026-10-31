@@ -191,6 +191,39 @@ import TestSupport
         #expect(calls.uploads.first?.name == "b.txt" && calls.uploads.first?.dir == "/srv/public")
     }
 
+    /// A batch dropped for one leaf still runs when the inspector moved to another one meanwhile.
+    @Test func queuedBatchSurvivesAFocusChange() async throws {
+        let calls = Calls()
+        let m = model(calls, entries: ["a.txt"])
+        m.pwd(leaf, "/srv")
+        m.follow(leaf)
+        #expect(await waitUntil { m.listing != nil })
+        let (_, first) = try files(["a.txt"])
+        let (_, second) = try files(["b.txt"])
+        m.upload(first)
+        #expect(await waitUntil { m.conflict != nil })
+        m.upload(second)
+        let other = UUID()
+        m.register(other, link: link)
+        m.follow(other)
+        m.answer(replace: false, forAll: false)
+        #expect(await waitUntil { calls.uploads.count == 1 })
+        #expect(calls.uploads.first?.name == "b.txt" && calls.uploads.first?.dir == "/srv")
+    }
+
+    @Test func unusableItemsAreNamed() async throws {
+        let calls = Calls()
+        let m = model(calls, entries: [])
+        m.pwd(leaf, "/srv")
+        m.follow(leaf)
+        #expect(await waitUntil { m.listing != nil })
+        let long = String(repeating: "я", count: 122)  // 244 bytes: `.<name>.hangar-part` would pass NAME_MAX
+        let (dir, urls) = try files([long, "ok.txt"])
+        m.upload(urls + [URL(fileURLWithPath: dir + "/missing")])
+        #expect(await waitUntil { m.upload == nil && calls.uploads.count == 1 })
+        #expect(m.uploadErrors == [L10n.uploadNameTooLong(long), L10n.uploadUnreadable("missing")])
+    }
+
     @Test func failuresStayWithTheirLeaf() async throws {
         let calls = Calls()
         let m = model(calls, entries: [])

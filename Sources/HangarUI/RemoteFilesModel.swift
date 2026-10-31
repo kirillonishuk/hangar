@@ -63,7 +63,7 @@ import Observation
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var uploadTask: Task<Void, Never>?
     @ObservationIgnored private var uploadLeaf: UUID?
-    @ObservationIgnored private var queued: [(urls: [URL], dir: String)] = []
+    @ObservationIgnored private var queued: [(leaf: UUID, urls: [URL], dir: String)] = []
     @ObservationIgnored private var conflictAnswer: CheckedContinuation<(replace: Bool, forAll: Bool)?, Never>?
     @ObservationIgnored var debounce: Duration = .milliseconds(300)
     @ObservationIgnored var lister: @Sendable (RemoteShellLink, String) async throws -> RemoteListing = { try await listRemoteFolder($0, path: $1) }
@@ -80,6 +80,14 @@ import Observation
         if wanted == leaf, shown?.leaf != leaf { follow(leaf) }
     }
     func link(of leaf: UUID) -> RemoteShellLink? { links[leaf] }
+
+    /// A relaunch without a panel (no usable master): the leaf's old link and folder go.
+    func unregister(_ leaf: UUID) {
+        guard links[leaf] != nil else { return }
+        links[leaf] = nil
+        cwds[leaf] = nil
+        if shown?.leaf == leaf { shown = nil; reset() }
+    }
 
     /// The inspector shows this leaf now (nil: something else or nothing — loads stop).
     func follow(_ leaf: UUID?) {
@@ -125,6 +133,7 @@ import Observation
         for (leaf, link) in links where !live.contains(leaf) {
             links[leaf] = nil
             cwds[leaf] = nil
+            queued.removeAll { $0.leaf == leaf }
             if uploadLeaf == leaf { cancelUploads() }
             if shown?.leaf == leaf { follow(nil) }
             stopMaster(link)
@@ -201,21 +210,32 @@ import Observation
     /// Files and folders from Finder into `dir` (nil: the shown folder): one at a time; taken names are asked about.
     func upload(_ urls: [URL], into dir: String? = nil) {
         guard let shown, let dir = dir ?? path, !urls.isEmpty else { return }
-        let sources = urls.compactMap(UploadSource.init)
-        let skipped = urls.count - sources.count
-        // A drop during an upload is the next batch (its own conflict answers).
+        start(urls, into: dir, leaf: shown.leaf, link: shown.link)
+    }
+
+    /// One batch of `leaf`'s master; a drop during an upload is the next batch (its own conflict answers), kept for its
+    /// leaf even when the inspector moves on.
+    private func start(_ urls: [URL], into dir: String, leaf: UUID, link: RemoteShellLink) {
         if uploadTask != nil {
-            queued.append((urls, dir))
+            queued.append((leaf, urls, dir))
             return
         }
-        uploadErrors = skipped > 0 ? [L10n.uploadUnreadable(skipped)] : []
-        guard !sources.isEmpty else { return }
-        uploadLeaf = shown.leaf
-        batchCount = sources.count
+        uploadErrors = []
+        uploadLeaf = leaf
+        batchCount = urls.count
         batchDone = 0
         let lister = self.lister, uploader = self.uploader
         uploadTask = Task { [weak self] in
-            await self?.runBatch(sources, into: dir, link: shown.link, leaf: shown.leaf, lister: lister, uploader: uploader)
+            // Off the main actor: a folder's files are counted for the progress (node_modules has many).
+            let checked = await Task.detached { urls.map { url in (url, UploadSource(url)) } }.value
+            guard let self else { return }
+            let sources = checked.compactMap(\.1)
+            for (url, source) in checked where source == nil {
+                let name = url.resolvingSymlinksInPath().lastPathComponent
+                self.uploadErrors.append(name.utf8.count > uploadNameLimit ? L10n.uploadNameTooLong(name) : L10n.uploadUnreadable(name))
+            }
+            self.batchCount = sources.count
+            await self.runBatch(sources, into: dir, link: link, leaf: leaf, lister: lister, uploader: uploader)
         }
     }
 
@@ -269,11 +289,11 @@ import Observation
         uploadTask = nil
         uploadLeaf = nil
         if shown?.leaf == leaf { reload() }
-        if !queued.isEmpty, shown?.leaf == leaf {
+        // The next batch whose leaf is still open.
+        queued.removeAll { links[$0.leaf] == nil }
+        if !queued.isEmpty, let link = links[queued[0].leaf] {
             let next = queued.removeFirst()
-            upload(next.urls, into: next.dir)
-        } else {
-            queued = []
+            start(next.urls, into: next.dir, leaf: next.leaf, link: link)
         }
     }
 

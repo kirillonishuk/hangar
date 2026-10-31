@@ -30,6 +30,35 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
+    /// A host terminal leaf's launch (#124): the plan from the user's ssh config, Hangar's socket only in a safe folder
+    /// (a pre-created `/tmp/hangar-<uid>` of someone else would let them pose as the master: a plain tab then, as
+    /// `RemoteHosts` refuses). The files panel follows the plan's master.
+    func hostShellSpec(host: String, leaf: UUID) -> LaunchSpec {
+        let paths = sshPaths
+        let own: String? = (try? paths.prepare()) != nil ? paths.shellControlPath(leaf) : nil
+        let noHook = state.hostShells.first { $0.host == host }?.noHook ?? false
+        let plan = hostShellPlan(resolved: sshResolve(host, sshPath), ownControlPath: own, noHook: noHook)
+        if let path = plan.controlPath {
+            remoteFiles.register(leaf, link: RemoteShellLink(host: host, controlPath: path, sshPath: sshPath, owned: plan.ownMaster))
+        } else {
+            remoteFiles.unregister(leaf)
+        }
+        if plan.hook { hookedLeaves.insert(leaf) } else { hookedLeaves.remove(leaf) }
+        return sshShellSpec(host: host, sshPath: sshPath, plan: plan)
+    }
+
+    /// A hooked login ended with an error before its shell ever reported a folder (tcsh choking on the remote command,
+    /// rbash refusing `/bin/sh`, an appliance): the host's tabs log in plain from now on, and this one again at once.
+    /// 0 is a normal exit, 255 ssh's own failure (wrong password, lost connection) — neither is the hook's fault.
+    func hostShellHookFailed(leaf: UUID, code: Int32) -> Bool {
+        guard code != 0, code != 255, hookedLeaves.contains(leaf), remoteFiles.cwds[leaf] == nil,
+              let host = hostShellHost(ofLeaf: leaf) else { return false }
+        uiLog.info("host terminal hook failed host=\(host, privacy: .public) code=\(code)")
+        hookedLeaves.remove(leaf)
+        perform { $0.setHostShellNoHook(host: host) }
+        return true
+    }
+
     /// Where ssh sockets live (#47): beside the state, or `/tmp/hangar-<uid>` when that path is too long.
     var sshPaths: SSHPaths { SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent) }
 

@@ -137,6 +137,10 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let search = SearchModel()
     /// Files of the focused host-terminal leaf (#124).
     let remoteFiles = RemoteFilesModel()
+    /// Host terminal leaves launched with the folder hook (#124).
+    @ObservationIgnored var hookedLeaves: Set<UUID> = []
+    /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
+    @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -336,6 +340,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         remoteFiles.retain(live)
+        if !hookedLeaves.isSubset(of: live) { hookedLeaves.formIntersection(live) }
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
@@ -500,11 +505,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if let host = hostShellHost(ofLeaf: leaf.id) {
             // state.json is editable: a host that is not safe on an ssh command line never launches.
             guard let host = validSSHHost(host) else { throw LaunchError.missingCwd(host) }
-            let paths = sshPaths
-            try? paths.prepare()
-            let link = RemoteShellLink(host: host, controlPath: paths.shellControlPath(leaf.id), sshPath: sshPath)
-            remoteFiles.register(leaf.id, link: link)
-            return (sshShellSpec(host: host, sshPath: sshPath, controlPath: link.controlPath), mode)
+            return (hostShellSpec(host: host, leaf: leaf.id), mode)
         }
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {

@@ -395,7 +395,8 @@ extension L10n {
     static func remoteFilesNoAccess(_ dir: String) -> String { f(.remoteFilesNoAccess, dir) }
     static func remoteFilesMissing(_ dir: String) -> String { f(.remoteFilesMissing, dir) }
     static func remoteFilesFailed(_ why: String) -> String { f(.remoteFilesFailed, why) }
-    static func uploadUnreadable(_ n: Int) -> String { f(.uploadUnreadable, n) }
+    static func uploadUnreadable(_ name: String) -> String { f(.uploadUnreadable, name) }
+    static func uploadNameTooLong(_ name: String) -> String { f(.uploadNameTooLong, name) }
     static func uploadOffline(_ name: String) -> String { f(.uploadOffline, name) }
     static func uploadNoAccess(_ name: String, _ dir: String) -> String { f(.uploadNoAccess, name, dir) }
     static func uploadKindClash(_ name: String) -> String { f(.uploadKindClash, name) }

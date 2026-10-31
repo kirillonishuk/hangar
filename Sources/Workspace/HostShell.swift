@@ -5,10 +5,30 @@ import Foundation
 public struct HostShell: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var host: String
+    /// A login with the folder hook failed on this host (a login shell that can't run it, #124): its tabs log in plain.
+    /// Kept while the host's terminal exists; closing it tries the hook again.
+    public var noHook: Bool
 
-    public init(id: UUID = UUID(), host: String) {
+    public init(id: UUID = UUID(), host: String, noHook: Bool = false) {
         self.id = id
         self.host = host
+        self.noHook = noHook
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, host, noHook }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        host = try c.decode(String.self, forKey: .host)
+        noHook = try c.decodeIfPresent(Bool.self, forKey: .noHook) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(host, forKey: .host)
+        if noHook { try c.encode(noHook, forKey: .noHook) }
     }
 }
 
@@ -46,6 +66,12 @@ extension WorkspaceState {
         if let selected = selectedTaskId, tasks.contains(where: { $0.id == selected && $0.projectId == shell.id }) { selectedTaskId = nil }
         tasks.removeAll { $0.projectId == shell.id }
         hostShells.removeAll { $0.id == shell.id }
+    }
+
+    /// The host's tabs log in without the folder hook from now on (#124).
+    public mutating func setHostShellNoHook(host: String) {
+        guard let i = hostShells.firstIndex(where: { $0.host == host }) else { return }
+        hostShells[i].noHook = true
     }
 
     func isHostShellTask(_ task: HangarTask) -> Bool { hostShells.contains { $0.id == task.projectId } }

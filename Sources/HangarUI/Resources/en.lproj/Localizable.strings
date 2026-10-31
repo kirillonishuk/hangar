@@ -901,7 +901,8 @@
 "remoteFilesNoAccess" = "No access to %@";
 "remoteFilesMissing" = "The folder %@ is gone";
 "remoteFilesFailed" = "Couldn’t read the folder. %@";
-"uploadUnreadable" = "Skipped: %d — not a file or folder.";
+"uploadUnreadable" = "Couldn’t upload %@: not a file or folder.";
+"uploadNameTooLong" = "Couldn’t upload %@: the name is longer than 242 bytes. Rename it.";
 "uploadOffline" = "Couldn’t upload %@: not connected. Log in in the terminal tab.";
 "uploadNoAccess" = "Couldn’t upload %@: no permission to write to %@. Choose another folder.";
 "uploadKindClash" = "Couldn’t upload %@: the server has a folder where this is a file, or the other way round. Rename it.";

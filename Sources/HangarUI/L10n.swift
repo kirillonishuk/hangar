@@ -76,7 +76,7 @@ import Workspace
         case remoteFilesUploaded, remoteFilesProgress, remoteFilesWaiting, remoteFilesExistsIn, remoteFilesForAll, remoteFilesSkip
         case remoteFilesReplace, remoteFilesMerge, remoteFilesCancel, remoteFilesDismiss, remoteFilesLogIn, remoteFilesUnknownFolder
         case remoteFilesNoAccess, remoteFilesMissing, remoteFilesFailed, uploadUnreadable, uploadOffline, uploadNoAccess
-        case uploadKindClash, uploadNoTar, uploadIncomplete, uploadFailed
+        case uploadKindClash, uploadNoTar, uploadIncomplete, uploadFailed, uploadNameTooLong
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing

@@ -8,42 +8,107 @@ extension SSHPaths {
     public func shellControlPath(_ leaf: UUID) -> String { dir + "/hs-" + fnv1a64Hex(leaf.uuidString.lowercased()) }
 }
 
+/// `ssh -G <host>` as `key → value` (keys lowercase, first value wins): the user's ssh config for this host without
+/// connecting. nil when ssh fails or takes longer than `timeout` (a slow `Match exec`).
+/// shortcut: runs synchronously at a tab's launch (milliseconds normally, bounded by `timeout`); async when launches are.
+public func sshResolvedOptions(host: String, sshPath: String, timeout: TimeInterval = 2) -> [String: String]? {
+    guard let host = validSSHHost(host) else { return nil }
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: sshPath)
+    p.arguments = ["-G", "--", host]
+    p.standardInput = FileHandle.nullDevice
+    p.standardError = FileHandle.nullDevice
+    let out = Pipe()
+    p.standardOutput = out
+    let done = DispatchSemaphore(value: 0)
+    p.terminationHandler = { _ in done.signal() }
+    guard (try? p.run()) != nil else { return nil }
+    let data = Captured()
+    let reader = Thread { data.set(out.fileHandleForReading.readDataToEndOfFile()) }
+    reader.start()
+    if done.wait(timeout: .now() + timeout) == .timedOut {
+        p.terminate()
+        return nil
+    }
+    data.wait()
+    guard p.terminationStatus == 0 else { return nil }
+    return parseSSHOptions(String(decoding: data.value.prefix(1 << 20), as: UTF8.self))
+}
+
+private final class Captured: @unchecked Sendable {
+    private let sem = DispatchSemaphore(value: 0)
+    private(set) var value = Data()
+    func set(_ d: Data) { value = d; sem.signal() }
+    func wait() { sem.wait() }
+}
+
+func parseSSHOptions(_ text: String) -> [String: String] {
+    var out: [String: String] = [:]
+    for line in text.split(whereSeparator: \.isNewline) {
+        let parts = line.split(separator: " ", maxSplits: 1)
+        guard parts.count == 2 else { continue }
+        let key = parts[0].lowercased()
+        if out[key] == nil { out[key] = String(parts[1]) }
+    }
+    return out
+}
+
+/// How a host terminal tab logs in (#124). Never worse than a plain `ssh -t` (#64):
+/// - `ssh -G` failed, or no master can be used → a plain login, no files panel;
+/// - the host's config has a RemoteCommand (ssh refuses a second one) or the hook failed before → no hook;
+/// - the user's own ControlMaster/ControlPath → the tab keeps theirs (no `-S`), the panel uses their socket;
+/// - else Hangar's own per-leaf socket (`ownControlPath`; nil when its folder is unsafe).
+public struct HostShellPlan: Equatable, Sendable {
+    public var hook: Bool
+    /// The master the files panel goes through; nil = no panel.
+    public var controlPath: String?
+    /// `-S controlPath -o ControlMaster=auto -o ControlPersist=no` on the tab (Hangar's own master).
+    public var ownMaster: Bool
+
+    public init(hook: Bool, controlPath: String?, ownMaster: Bool) {
+        self.hook = hook; self.controlPath = controlPath; self.ownMaster = ownMaster
+    }
+
+    public static let plain = HostShellPlan(hook: false, controlPath: nil, ownMaster: false)
+}
+
+public func hostShellPlan(resolved: [String: String]?, ownControlPath: String?, noHook: Bool) -> HostShellPlan {
+    guard let o = resolved else { return .plain }
+    let remoteCommand = o["remotecommand"].map { !$0.isEmpty && $0 != "none" } ?? false
+    let userPath = o["controlpath"].flatMap { $0.isEmpty || $0 == "none" ? nil : $0 }
+    let userMaster = !["false", "no"].contains(o["controlmaster"] ?? "false")
+    let path: String?, own: Bool
+    if userMaster || userPath != nil { (path, own) = (userPath, false) } else { (path, own) = (ownControlPath, ownControlPath != nil) }
+    return HostShellPlan(hook: path != nil && !remoteCommand && !noHook, controlPath: path, ownMaster: own)
+}
+
+/// Scripts that reach a server through its login shell are one line without `!`: tcsh/csh reject a newline inside
+/// quotes and expand `!` even there. Written one statement per line here, each line ending where a space may follow.
+func oneLine(_ script: String) -> String {
+    script.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
+}
+
 /// Runs in the server's login shell before the user's shell: adds a prompt hook that reports `$PWD` as
 /// `OSC 7 kitty-shell-cwd://localhost<path>` (Ghostty drops OSC 7 of any other host; `kitty-shell-cwd` takes the path
-/// raw). Nothing is installed: zsh gets a temporary ZDOTDIR, bash a temporary rcfile (both deleted when read), fish
-/// `-C`; any other shell starts as before, without the hook. The hook keeps `$?` for the user's prompt.
-public let hostShellLoginScript = #"""
-s=${SHELL:-/bin/sh}
+/// raw). Nothing is installed: zsh gets a temporary ZDOTDIR (deleted when read; a watcher deletes it after a minute if
+/// /etc/zshenv redirects ZDOTDIR and it is never read), bash an exported PROMPT_COMMAND for a normal login shell, fish `-C`; any other shell starts as
+/// before. The hook keeps `$?` for the user's prompt.
+public let hostShellLoginScript = oneLine(#"""
+s=${SHELL:-/bin/sh};
 case ${s##*/} in
-zsh|bash)
-  d=$(mktemp -d "${TMPDIR:-/tmp}/hangar.XXXXXX" 2>/dev/null) || exec "$s" -l
-  if [ "${s##*/}" = zsh ]; then
-    cat > "$d/.zshenv" <<'HANGAR_EOF' || { rm -rf "$d"; exec "$s" -l; }
-if [[ -n $HANGAR_ZDOTDIR_SET ]]; then ZDOTDIR=$HANGAR_ZDOTDIR; else unset ZDOTDIR; fi
-command rm -rf -- "$HANGAR_HOOK_DIR"
-unset HANGAR_ZDOTDIR HANGAR_ZDOTDIR_SET HANGAR_HOOK_DIR
-[[ -r ${ZDOTDIR:-$HOME}/.zshenv ]] && builtin source "${ZDOTDIR:-$HOME}/.zshenv"
-__hangar_cwd() { local s=$?; builtin printf '\033]7;kitty-shell-cwd://localhost%s\007' "$PWD"; return $s; }
-autoload -Uz add-zsh-hook && add-zsh-hook precmd __hangar_cwd
-HANGAR_EOF
-    HANGAR_ZDOTDIR_SET=${ZDOTDIR+1}; HANGAR_ZDOTDIR=${ZDOTDIR-}; HANGAR_HOOK_DIR=$d; ZDOTDIR=$d
-    export HANGAR_ZDOTDIR_SET HANGAR_ZDOTDIR HANGAR_HOOK_DIR ZDOTDIR
-    exec "$s" -l
-  fi
-  cat > "$d/rc" <<'HANGAR_EOF' || { rm -rf "$d"; exec "$s" -l; }
-command rm -rf -- "$HANGAR_HOOK_DIR"; unset HANGAR_HOOK_DIR
-if [ -r /etc/profile ]; then . /etc/profile; fi
-if [ -r ~/.bash_profile ]; then . ~/.bash_profile; elif [ -r ~/.bash_login ]; then . ~/.bash_login; elif [ -r ~/.profile ]; then . ~/.profile; fi
-__hangar_cwd() { local s=$?; builtin printf '\033]7;kitty-shell-cwd://localhost%s\007' "$PWD"; return $s; }
-if [[ $(declare -p PROMPT_COMMAND 2>/dev/null) == "declare -a"* ]]; then PROMPT_COMMAND+=(__hangar_cwd); else PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__hangar_cwd"; fi
-HANGAR_EOF
-  HANGAR_HOOK_DIR=$d; export HANGAR_HOOK_DIR
-  exec "$s" --rcfile "$d/rc" -i ;;
-fish)
-  exec "$s" -l -C 'function __hangar_cwd --on-event fish_prompt; printf "\e]7;kitty-shell-cwd://localhost%s\a" "$PWD"; end' ;;
-esac
+zsh) d=$(mktemp -d "${TMPDIR:-/tmp}/hangar.XXXXXX" 2>/dev/null) || exec "$s" -l;
+printf '%s\n' 'if [[ -n $HANGAR_ZDOTDIR_SET ]]; then ZDOTDIR=$HANGAR_ZDOTDIR; else unset ZDOTDIR; fi' 'command rm -rf -- "$HANGAR_HOOK_DIR"; unset HANGAR_ZDOTDIR HANGAR_ZDOTDIR_SET HANGAR_HOOK_DIR' '[[ -r ${ZDOTDIR:-$HOME}/.zshenv ]] && builtin source "${ZDOTDIR:-$HOME}/.zshenv"' '__hangar_cwd() { local s=$?; builtin printf "\033]7;kitty-shell-cwd://localhost%s\007" "$PWD"; return $s; }' 'autoload -Uz add-zsh-hook && add-zsh-hook precmd __hangar_cwd' > "$d/.zshenv" || { rm -rf "$d"; exec "$s" -l; };
+(i=0; while [ -d "$d" ] && [ $i -lt 60 ]; do sleep 1; i=$((i+1)); done; rm -rf "$d") </dev/null >/dev/null 2>&1 &
+HANGAR_ZDOTDIR_SET=${ZDOTDIR+1}; HANGAR_ZDOTDIR=${ZDOTDIR-}; HANGAR_HOOK_DIR=$d; ZDOTDIR=$d;
+export HANGAR_ZDOTDIR_SET HANGAR_ZDOTDIR HANGAR_HOOK_DIR ZDOTDIR;
+exec "$s" -l;;
+bash) PROMPT_COMMAND='__hangar_s=$?; printf "\033]7;kitty-shell-cwd://localhost%s\007" "$PWD"; (exit $__hangar_s)';
+export PROMPT_COMMAND;
+exec "$s" -l;;
+fish) exec "$s" -l -C 'function __hangar_cwd --on-event fish_prompt; printf "\e]7;kitty-shell-cwd://localhost%s\a" "$PWD"; end';;
+esac;
 exec "$s" -l
-"""#
+"""#)
 
 /// A folder reported by a server's shell (OSC 7): untrusted, so only an absolute path of ≤ 4096 bytes without control
 /// characters is kept. It is only ever an argument of commands on that server, never a path on this Mac.
@@ -58,9 +123,12 @@ public struct RemoteShellLink: Sendable, Equatable, Hashable {
     public var host: String
     public var controlPath: String
     public var sshPath: String
+    /// Hangar started this master (its `-S` on the tab); false: the user's own ControlMaster from ssh config, which
+    /// Hangar uses but never ends.
+    public var owned: Bool
 
-    public init(host: String, controlPath: String, sshPath: String) {
-        self.host = host; self.controlPath = controlPath; self.sshPath = sshPath
+    public init(host: String, controlPath: String, sshPath: String, owned: Bool = true) {
+        self.host = host; self.controlPath = controlPath; self.sshPath = sshPath; self.owned = owned
     }
 
     /// The master's socket exists (the tab is logged in); a stale one fails in ssh itself.
@@ -79,7 +147,7 @@ public struct RemoteShellLink: Sendable, Equatable, Hashable {
 
     /// `ssh -O exit`: the master ends now (its tab is closed), not when its last multiplexed session does.
     public var exitArgv: [String]? {
-        guard let host = validSSHHost(host) else { return nil }
+        guard owned, let host = validSSHHost(host) else { return nil }
         return ["-S", controlPath, "-O", "exit", "--", host]
     }
 }
@@ -120,18 +188,19 @@ public struct RemoteListing: Equatable, Sendable {
 
 /// `$1` folder, `$2` limit. Prints `<type><name>\0` per entry (d folder, D link to a folder, l other link, f other),
 /// `T\0` past the limit. Exit 3: no such folder, 4: not readable. No `ls` parsing, no GNU `find`.
-let remoteListScript = #"""
-cd -- "$1" 2>/dev/null || { [ -d "$1" ] && exit 4; exit 3; }
-[ -r . ] || exit 4
-n=0
-for f in .[!.]* ..?* *; do
-  [ -e "$f" ] || [ -L "$f" ] || continue
-  n=$((n+1))
-  if [ "$n" -gt "$2" ]; then printf 'T\000'; exit 0; fi
-  if [ -d "$f" ]; then if [ -L "$f" ]; then t=D; else t=d; fi; elif [ -L "$f" ]; then t=l; else t=f; fi
-  printf '%s%s\000' "$t" "$f"
+let remoteListScript = oneLine(#"""
+cd -- "$1" 2>/dev/null || { [ -d "$1" ] && exit 4; exit 3; };
+[ -r . ] || exit 4;
+n=0;
+for f in .* *; do
+case "$f" in .|..) continue;; esac;
+[ -e "$f" ] || [ -L "$f" ] || continue;
+n=$((n+1));
+if [ "$n" -gt "$2" ]; then printf 'T\000'; exit 0; fi;
+if [ -d "$f" ]; then if [ -L "$f" ]; then t=D; else t=d; fi; elif [ -L "$f" ]; then t=l; else t=f; fi;
+printf '%s%s\000' "$t" "$f";
 done
-"""#
+"""#)
 
 /// Strict reading of the listing (server output is untrusted): unknown records are dropped, at most `limit` entries;
 /// folders first, then by name as Finder sorts.
@@ -186,54 +255,64 @@ public func validUploadName(_ s: String) -> String? {
     return s
 }
 
-/// `$1` folder, `$2` name, `$3` mode (octal), `$4` 1 = replace, `$5` size; stdin = the file. Written to a hidden
-/// `.<name>.hangar-part` beside it and moved in only when complete, so a broken stream never leaves a half file under
-/// the real name. Exit 4 no folder access, 10 name taken (checked before and after the transfer), 11 a folder has the
-/// name, 13 write failed (stderr), 14 incomplete.
-let remoteFileUploadScript = #"""
-n=$2; m=$3; r=$4
-cd -- "$1" 2>/dev/null || exit 4
-ex() { [ -e "$n" ] || [ -L "$n" ]; }
-dir() { [ -d "$n" ] && [ ! -L "$n" ]; }
-if ex; then [ "$r" = 1 ] || exit 10; if dir; then exit 11; fi; fi
-t=".$n.hangar-part"
-rm -f -- "$t"
-cat > "$t" || { rm -f -- "$t"; exit 13; }
-if [ "$(wc -c < "$t" | tr -d ' ')" != "$5" ]; then rm -f -- "$t"; exit 14; fi
-chmod "$m" "$t" 2>/dev/null
+/// `$1` folder, `$2` name, `$3` local mode (octal), `$4` 1 = replace, `$5` size; stdin = the file. Written to a hidden
+/// `.<name>.hangar-part` beside it (`set -C`: a link planted under that name in a shared folder is never followed) and
+/// moved in only when complete, so a broken stream never leaves a half file under the real name. A new file gets the
+/// local mode under the server's umask; a replaced file keeps its mode and (where allowed) owner; a replaced link is
+/// replaced, not followed. Exit 4 no folder access, 10 name taken (checked before and after the transfer), 11 a folder
+/// (or a link to one) has the name, 13 write failed (stderr), 14 incomplete.
+let remoteFileUploadScript = oneLine(#"""
+n=$2; r=$4;
+cd -- "$1" 2>/dev/null || exit 4;
+ex() { [ -e "$n" ] || [ -L "$n" ]; };
+if ex; then [ "$r" = 1 ] || exit 10; if [ -d "$n" ]; then exit 11; fi; fi;
+m=$(printf '%o' $((0$3 & ~0$(umask) & 0777)));
+t=".$n.hangar-part";
+rm -f -- "$t";
+set -C;
+cat > "$t" || { rm -f -- "$t"; exit 13; };
+set +C;
+if [ "$(wc -c < "$t" | tr -d ' ')" = "$5" ]; then :; else rm -f -- "$t"; exit 14; fi;
 if ex; then
-  if [ "$r" != 1 ]; then rm -f -- "$t"; exit 10; fi
-  if dir; then rm -f -- "$t"; exit 11; fi
-fi
+if [ "$r" = 1 ]; then :; else rm -f -- "$t"; exit 10; fi;
+if [ -d "$n" ]; then rm -f -- "$t"; exit 11; fi;
+if [ -L "$n" ]; then rm -f -- "$n"; else m=$(stat -c %a -- "$n" 2>/dev/null || stat -f %Lp -- "$n" 2>/dev/null || echo "$m"); o=$(stat -c %u:%g -- "$n" 2>/dev/null || stat -f %u:%g -- "$n" 2>/dev/null); [ -z "$o" ] || chown -- "$o" "$t" 2>/dev/null; fi;
+fi;
+chmod -- "$m" "$t" 2>/dev/null;
 mv -f -- "$t" "$n" || { rm -f -- "$t"; exit 13; }
-"""#
+"""#)
 
-/// `$1` folder, `$2` name, `$3` 1 = merge into an existing folder, `$4` number of files; stdin = a tar of `<name>/`.
+/// `$1` folder, `$2` name, `$3` 1 = merge into an existing folder, `$4` number of files; stdin = a tar of `./<name>/`.
 /// Unpacked into a hidden `.<name>.hangar-part/`, checked (a folder with all its files), then moved in — or, when the
-/// name is taken and merging was chosen, copied over the existing folder: same names are replaced, nothing on the
-/// server is deleted. Exit codes as the file script, 12 = no tar.
-let remoteFolderUploadScript = #"""
-n=$2; r=$3
-cd -- "$1" 2>/dev/null || exit 4
-command -v tar >/dev/null 2>&1 || exit 12
-ex() { [ -e "$n" ] || [ -L "$n" ]; }
-dir() { [ -d "$n" ] && [ ! -L "$n" ]; }
-if ex; then [ "$r" = 1 ] || exit 10; dir || exit 11; fi
-t=".$n.hangar-part"
-rm -rf -- "$t"
-mkdir -- "$t" || exit 13
-tar -xf - -C "$t" || { rm -rf -- "$t"; exit 14; }
-if [ ! -d "$t/$n" ] || [ -L "$t/$n" ] || [ "$(find "$t/$n" -type f | wc -l | tr -d ' ')" != "$4" ]; then rm -rf -- "$t"; exit 14; fi
+/// name is taken and merging was chosen, copied into the existing folder with `cp -R`: same names are overwritten in
+/// place (their mode stays), existing folders keep their mode and time, nothing on the server is deleted. A link to a
+/// folder under the name is a clash, never followed. Exit codes as the file script, 12 = no tar.
+let remoteFolderUploadScript = oneLine(#"""
+n=$2; r=$3;
+cd -- "$1" 2>/dev/null || exit 4;
+command -v tar >/dev/null 2>&1 || exit 12;
+ex() { [ -e "$n" ] || [ -L "$n" ]; };
+real() { if [ -L "$n" ]; then return 1; fi; [ -d "$n" ]; };
+if ex; then [ "$r" = 1 ] || exit 10; real || exit 11; fi;
+t=".$n.hangar-part";
+rm -rf -- "$t";
+mkdir -- "$t" || exit 13;
+tar -xf - -C "$t" || { rm -rf -- "$t"; exit 14; };
+ok=0; if [ -L "$t/$n" ]; then ok=0; elif [ -d "$t/$n" ]; then [ "$(find "$t/$n" -type f | wc -l | tr -d ' ')" = "$4" ] && ok=1; fi;
+if [ "$ok" = 1 ]; then :; else rm -rf -- "$t"; exit 14; fi;
 if ex; then
-  if [ "$r" != 1 ]; then rm -rf -- "$t"; exit 10; fi
-  if ! dir; then rm -rf -- "$t"; exit 11; fi
-  (cd -- "$t/$n" && tar -cf - .) | (cd -- "$n" && tar -xf -) || { rm -rf -- "$t"; exit 13; }
-  rm -rf -- "$t"
+if [ "$r" = 1 ]; then :; else rm -rf -- "$t"; exit 10; fi;
+real || { rm -rf -- "$t"; exit 11; };
+cp -R -- "$t/$n/." "$n/" || { rm -rf -- "$t"; exit 13; };
+rm -rf -- "$t";
 else
-  mv -- "$t/$n" "$n" || { rm -rf -- "$t"; exit 13; }
-  rmdir -- "$t"
+mv -- "$t/$n" "$n" || { rm -rf -- "$t"; exit 13; };
+rmdir -- "$t";
 fi
-"""#
+"""#)
+
+/// Longest name an upload takes: `.<name>.hangar-part` must still fit NAME_MAX (255 bytes).
+public let uploadNameLimit = 255 - ".".utf8.count - ".hangar-part".utf8.count
 
 /// What an upload sends: its size in bytes for the progress (a folder: its files plus tar headers, an estimate).
 public struct UploadSource: Equatable, Sendable {
@@ -247,7 +326,7 @@ public struct UploadSource: Equatable, Sendable {
     /// nil for something that is neither a readable file nor a folder (or has a name unsafe on the server).
     public init?(_ url: URL) {
         let real = url.resolvingSymlinksInPath()
-        guard let name = validUploadName(real.lastPathComponent),
+        guard let name = validUploadName(real.lastPathComponent), name.utf8.count <= uploadNameLimit,
               let attrs = try? FileManager.default.attributesOfItem(atPath: real.path) else { return nil }
         self.url = real
         self.name = name
@@ -274,11 +353,11 @@ public struct UploadSource: Equatable, Sendable {
     }
 }
 
-/// The local tar of a folder upload: no macOS metadata (`._*`, xattrs, ACLs, flags), owner root — as `scp` leaves files
+/// The local tar of a folder upload (`./<name>`: a name starting with `-` is never an option): no macOS metadata (`._*`, xattrs, ACLs, flags), owner root — as `scp` leaves files
 /// to the server's user.
 func uploadTarArgs(_ source: UploadSource) -> [String] {
     ["--no-mac-metadata", "--no-xattrs", "--no-acls", "--no-fflags", "--uid", "0", "--gid", "0", "--uname", "root",
-     "--gname", "root", "-cf", "-", "-C", source.url.deletingLastPathComponent().path, source.name]
+     "--gname", "root", "-cf", "-", "-C", source.url.deletingLastPathComponent().path, "./" + source.name]
 }
 
 /// Puts `source` into the server folder `dir` through the leaf's master; `replace`: overwrite a file / merge a folder.
@@ -356,11 +435,13 @@ private func writeChunk(_ data: Data, to sink: FileHandle) -> Bool {
     }
 }
 
+let removeLeftoverScript = #"cd -- "$1" 2>/dev/null && rm -rf -- ".$2.hangar-part""#
+
 /// After a cancelled upload: its hidden `.<name>.hangar-part` goes (the server side may have been cut before its own
 /// cleanup ran). Only that temp name is ever removed.
 public func removeUploadLeftover(_ link: RemoteShellLink, dir: String, name: String) async {
     guard validUploadName(name) != nil, link.isUp,
-          let argv = link.argv(script: #"cd -- "$1" 2>/dev/null && rm -rf -- ".$2.hangar-part""#, args: [dir, name]) else { return }
+          let argv = link.argv(script: removeLeftoverScript, args: [dir, name]) else { return }
     _ = try? await runProcess(link.sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment, maxOutput: 4096)
 }
 

@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 struct RemoteFilesView: View {
     let app: AppState
     private var model: RemoteFilesModel { app.remoteFiles }
+    /// A drag is over the list (maybe over one of its folder rows); what lights up is `model.dropTarget`.
     @State private var listTargeted = false
-    @State private var rowTarget: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,10 +20,13 @@ struct RemoteFilesView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .opacity(model.offline ? Theme.Opacity.inactive : 1)
-                .background(Self.dropFill(listTargeted && rowTarget == nil))
+                .background(Self.dropFill(model.dropTarget != nil && model.dropTarget == model.path))
                 .overlay(alignment: .bottom) { dropHint }
                 .overlay(alignment: .bottom) { conflictCard }
-                .onDrop(of: [.fileURL], isTargeted: Binding(get: { listTargeted }, set: { listTargeted = $0 && model.canUpload })) { providers in
+                .onDrop(of: [.fileURL], isTargeted: Binding(get: { listTargeted }, set: { on in
+                    listTargeted = on && model.canUpload
+                    if listTargeted, model.dropTarget == nil { model.dropTarget = model.path } else if !on, model.dropTarget == model.path { model.dropTarget = nil }
+                })) { providers in
                     drop(providers, into: model.path)
                 }
             footer
@@ -71,10 +74,10 @@ struct RemoteFilesView: View {
                 ScrollView(.vertical) {
                     LazyVStack(spacing: 0) {
                         ForEach(rows(listing, in: model.listedPath ?? RemoteFilesModel.home, depth: 0), id: \.path) { row in
-                            RemoteFileRow(row: row, expanded: model.expanded.contains(row.path), targeted: rowTarget == row.path) {
+                            RemoteFileRow(row: row, expanded: model.expanded.contains(row.path), targeted: model.dropTarget == row.path) {
                                 model.toggle(row.path)
                             }
-                            .modifier(FolderDrop(enabled: row.entry.isDir, path: row.path, target: $rowTarget, canUpload: model.canUpload) {
+                            .modifier(FolderDrop(enabled: row.entry.isDir, path: row.path, model: model, listTargeted: listTargeted) {
                                 drop($0, into: row.path)
                             })
                         }
@@ -145,14 +148,14 @@ struct RemoteFilesView: View {
     private struct FolderDrop: ViewModifier {
         let enabled: Bool
         let path: String
-        @Binding var target: String?
-        let canUpload: Bool
+        let model: RemoteFilesModel
+        let listTargeted: Bool
         let perform: ([NSItemProvider]) -> Bool
 
         func body(content: Content) -> some View {
             if enabled {
-                content.onDrop(of: [.fileURL], isTargeted: Binding(get: { target == path }, set: { on in
-                    if on, canUpload { target = path } else if target == path { target = nil }
+                content.onDrop(of: [.fileURL], isTargeted: Binding(get: { model.dropTarget == path }, set: { on in
+                    if on, model.canUpload { model.dropTarget = path } else if model.dropTarget == path { model.dropTarget = listTargeted ? model.path : nil }
                 })) { perform($0) }
             } else {
                 content
@@ -166,10 +169,10 @@ struct RemoteFilesView: View {
             .overlay(Rectangle().strokeBorder(on ? Theme.ui.accent : .clear, lineWidth: 1))
     }
 
-    private var dropHintShown: Bool { model.canUpload && (listTargeted || rowTarget != nil) }
+    private var dropHintShown: Bool { model.canUpload && model.dropTarget != nil }
 
     @ViewBuilder private var dropHint: some View {
-        if dropHintShown, let dir = rowTarget ?? model.path {
+        if dropHintShown, let dir = model.dropTarget {
             HStack(spacing: Theme.inlineGap) {
                 IconView(icon: .add, size: Theme.Icon.inline)
                 Text(verbatim: L10n.remoteFilesDropInto)
@@ -334,7 +337,7 @@ struct RemoteFilesView: View {
 
     private func drop(_ providers: [NSItemProvider], into dir: String?) -> Bool {
         listTargeted = false
-        rowTarget = nil
+        model.dropTarget = nil
         guard model.canUpload, let dir else { return false }
         let found = URLCollector()
         let group = DispatchGroup()

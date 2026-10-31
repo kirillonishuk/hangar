@@ -356,6 +356,14 @@ private func writeChunk(_ data: Data, to sink: FileHandle) -> Bool {
     }
 }
 
+/// After a cancelled upload: its hidden `.<name>.hangar-part` goes (the server side may have been cut before its own
+/// cleanup ran). Only that temp name is ever removed.
+public func removeUploadLeftover(_ link: RemoteShellLink, dir: String, name: String) async {
+    guard validUploadName(name) != nil, link.isUp,
+          let argv = link.argv(script: #"cd -- "$1" 2>/dev/null && rm -rf -- ".$2.hangar-part""#, args: [dir, name]) else { return }
+    _ = try? await runProcess(link.sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment, maxOutput: 4096)
+}
+
 /// Ends the master of a closed host-terminal leaf (fire and forget).
 public func stopRemoteMaster(_ link: RemoteShellLink) {
     guard let args = link.exitArgv, link.isUp else { return }

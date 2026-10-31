@@ -61,6 +61,7 @@ import Observation
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var uploadTask: Task<Void, Never>?
     @ObservationIgnored private var uploadLeaf: UUID?
+    @ObservationIgnored private var queued: [(urls: [URL], dir: String)] = []
     @ObservationIgnored private var conflictAnswer: CheckedContinuation<(replace: Bool, forAll: Bool)?, Never>?
     @ObservationIgnored var debounce: Duration = .milliseconds(300)
     @ObservationIgnored var lister: @Sendable (RemoteShellLink, String) async throws -> RemoteListing = { try await listRemoteFolder($0, path: $1) }
@@ -68,6 +69,7 @@ import Observation
         try await uploadToRemote($0, source: $1, dir: $2, replace: $3, progress: $4)
     }
     @ObservationIgnored var stopMaster: (RemoteShellLink) -> Void = stopRemoteMaster
+    @ObservationIgnored var removeLeftover: @Sendable (RemoteShellLink, String, String) async -> Void = { await removeUploadLeftover($0, dir: $1, name: $2) }
     @ObservationIgnored var isUp: (RemoteShellLink) -> Bool = { $0.isUp }
 
     /// A host-terminal leaf was launched with this master.
@@ -79,6 +81,8 @@ import Observation
         let next = leaf.flatMap { l in links[l].map { Shown(leaf: l, link: $0) } }
         guard next != shown else { return }
         let samePath = next.map { cwds[$0.leaf] ?? Self.home } == listedPath && next?.link == shown?.link
+        // Another leaf (or none): the last batch's failures were about that one's folder.
+        if next?.leaf != shown?.leaf, uploadTask == nil { uploadErrors = [] }
         shown = next
         loadTask?.cancel()
         debounceTask?.cancel()
@@ -193,8 +197,9 @@ import Observation
         guard let shown, let dir = dir ?? path, !urls.isEmpty else { return }
         let sources = urls.compactMap(UploadSource.init)
         let skipped = urls.count - sources.count
+        // A drop during an upload is the next batch (its own conflict answers).
         if uploadTask != nil {
-            // shortcut: a drop during an upload waits for the next batch, not appended; append when asked for.
+            queued.append((urls, dir))
             return
         }
         uploadErrors = skipped > 0 ? [L10n.uploadUnreadable(skipped)] : []
@@ -243,7 +248,13 @@ import Observation
                     ask = true  // appeared meanwhile: asked like any taken name
                     continue
                 } catch {
-                    if !Task.isCancelled, !(error is CancellationError) { uploadErrors.append(Self.message(error, name: source.name)) }
+                    if Task.isCancelled || error is CancellationError {
+                        // A new task: this one is cancelled, and the leftover must go even so.
+                        let remove = removeLeftover, name = source.name
+                        await Task { await remove(link, dir, name) }.value
+                    } else {
+                        uploadErrors.append(Self.message(error, name: source.name))
+                    }
                 }
                 break
             }
@@ -252,6 +263,12 @@ import Observation
         uploadTask = nil
         uploadLeaf = nil
         if shown?.leaf == leaf { reload() }
+        if !queued.isEmpty, shown?.leaf == leaf {
+            let next = queued.removeFirst()
+            upload(next.urls, into: next.dir)
+        } else {
+            queued = []
+        }
     }
 
     /// Progress of the running upload; redrawn only when the shown percent changes.
@@ -276,6 +293,7 @@ import Observation
     }
 
     func cancelUploads() {
+        queued = []
         uploadTask?.cancel()
         if conflictAnswer != nil { answer(replace: nil, forAll: false) }
     }

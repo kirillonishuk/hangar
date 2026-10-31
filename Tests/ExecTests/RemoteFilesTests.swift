@@ -237,6 +237,14 @@ import TestSupport
         #expect((try FileManager.default.contentsOfDirectory(atPath: f.srv)) == ["site"])
     }
 
+    @Test func leftoverOfACancelledUploadGoes() async throws {
+        let f = try Fixture()
+        try f.write(".big.bin.hangar-part", "half")
+        try f.write("big.bin", "the old one")
+        await removeUploadLeftover(f.link, dir: f.srv, name: "big.bin")
+        #expect((try FileManager.default.contentsOfDirectory(atPath: f.srv)) == ["big.bin"])
+    }
+
     @Test func folderUploadNeedsTar() async throws {
         let f = try Fixture()
         let empty = f.root + "/empty-bin"

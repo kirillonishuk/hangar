@@ -24,6 +24,7 @@ import TestSupport
         m.debounce = .zero
         m.isUp = { _ in true }
         m.stopMaster = { _ in }
+        m.removeLeftover = { _, dir, name in calls.list("leftover " + dir + "/" + name) }
         m.lister = { _, path in
             calls.list(path)
             return RemoteListing(entries: entries.map { RemoteEntry(name: $0, kind: .file) })
@@ -159,7 +160,40 @@ import TestSupport
         m.retain([])
         #expect(await waitUntil { m.upload == nil })
         #expect(stopped == [link] && m.shown == nil && m.uploadErrors.isEmpty)
+        #expect(calls.lists.contains("leftover /srv/big.bin"))
         #expect(m.link(of: leaf) == nil)
+    }
+
+    @Test func aDropDuringAnUploadIsTheNextBatch() async throws {
+        let calls = Calls()
+        let m = model(calls, entries: ["a.txt"])
+        m.pwd(leaf, "/srv")
+        m.follow(leaf)
+        #expect(await waitUntil { m.listing != nil })
+        let (_, first) = try files(["a.txt"])
+        let (_, second) = try files(["b.txt"])
+        m.upload(first)
+        #expect(await waitUntil { m.conflict != nil })
+        m.upload(second, into: "/srv/public")
+        m.answer(replace: false, forAll: false)
+        #expect(await waitUntil { m.upload == nil && calls.uploads.count == 1 })
+        #expect(calls.uploads.first?.name == "b.txt" && calls.uploads.first?.dir == "/srv/public")
+    }
+
+    @Test func failuresStayWithTheirLeaf() async throws {
+        let calls = Calls()
+        let m = model(calls, entries: [])
+        m.uploader = { _, _, dir, _, _ in throw RemoteFileError.noAccess(dir) }
+        m.pwd(leaf, "/etc")
+        m.follow(leaf)
+        #expect(await waitUntil { m.listing != nil })
+        let (_, urls) = try files(["a.txt"])
+        m.upload(urls)
+        #expect(await waitUntil { m.uploadErrors.count == 1 && m.upload == nil })
+        let other = UUID()
+        m.register(other, link: link)
+        m.follow(other)
+        #expect(m.uploadErrors.isEmpty)
     }
 
     @Test func errorsReadAsWhatToDo() {

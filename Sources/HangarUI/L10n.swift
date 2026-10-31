@@ -164,7 +164,7 @@ import Workspace
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
         case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
-        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
+        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, projectArchive
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
@@ -306,8 +306,8 @@ import Workspace
     static func sessionsArchivedSince(_ date: String) -> String { f(.sessionsArchivedSince, date) }
     static var projectSessions: String { s(.projectSessions) }
     static var sessionsUnknownError: String { s(.sessionsUnknownError) }
-    static var allArchived: String { s(.allArchived) }
-    static var allArchivedOpen: String { s(.allArchivedOpen) }
+    /// «Архив · 3» under an empty project (#125).
+    static func projectArchive(_ count: Int) -> String { f(.projectArchive, count) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
 

@@ -532,8 +532,7 @@
 "sessionsRestoreHelp" = "Восстановить — копия и вкладки вернутся";
 "sessionsProjectChip" = "Проект: %@";
 "sessionsProjectChipHelp" = "Убрать — все проекты";
-"allArchived" = "Все чаты в архиве";
-"allArchivedOpen" = "Открыть историю";
+"projectArchive" = "Архив · %d";
 "integrationNeedsRemote" = "Сначала установите hangar-remote по плану установки";
 "folderEmpty" = "Папка пуста";
 "noGitFiles" = "Нет файлов в git";

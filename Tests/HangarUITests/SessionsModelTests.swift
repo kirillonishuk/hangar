@@ -778,18 +778,21 @@ import Workspace
         #expect(name.count <= 40 && name.hasPrefix("fix the"))
     }
 
-    /// The sidebar's «Все сессии в архиве» hint: only when the project has closed sessions and no open one.
-    @Test func allSessionsArchivedHint() {
+    /// Rows under an empty project (#125): «+ Новый чат» always, «Архив · N» only with archived chats; none while
+    /// it lists a chat.
+    @Test func emptyProjectRows() {
         let w = world()
-        #expect(!w.app.allSessionsArchived(w.project))
-        w.app.perform { s in
-            s.archiveTask(id: w.main, at: Date())
-            s.archiveTask(id: w.feature, at: Date())
-        }
-        #expect(w.app.allSessionsArchived(w.project))
+        #expect(w.app.emptyProjectRows(w.project).isEmpty)
+        w.app.perform { $0.archiveTask(id: w.main, at: Date()) }
+        #expect(w.app.emptyProjectRows(w.project).isEmpty)  // one chat still listed
+        w.app.perform { $0.archiveTask(id: w.feature, at: Date()) }
+        #expect(w.app.emptyProjectRows(w.project) == [.newChat, .archive(count: 3)])
         var empty = UUID()
         w.app.perform { empty = $0.addProject(name: "new", path: "/work/new") }
-        #expect(!w.app.allSessionsArchived(empty))  // never had a session: nothing to point at
+        #expect(w.app.emptyProjectRows(empty) == [.newChat])  // never had a chat: nothing archived to point at
+        w.app.perform { $0.restoreTask(id: w.main) }
+        w.app.setPinned(w.main, true)
+        #expect(w.app.emptyProjectRows(w.project) == [.newChat, .archive(count: 2)])  // pinned: listed above, not here
     }
 
     @Test func nestedProjectOwnsItsConversations() async throws {

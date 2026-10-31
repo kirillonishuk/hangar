@@ -350,7 +350,7 @@ struct SidebarView: View {
                         taskRow(task)
                             .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
                     }
-                    if showsArchivedHint(project) { archivedHint(project) }
+                    ForEach(emptyRows(project), id: \.self) { row in emptyProjectRow(row, project: project) }
                 }
             }
             .modifier(DragLook(dy: dragOffset(.project(project.id)), line: dropLine(at: project.id)))
@@ -372,8 +372,7 @@ struct SidebarView: View {
             return (ids, ids.map { _ in Theme.Height.rowSidebar })
         case .project:
             let heights = app.state.projects.map { p in
-                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count))
-                    + (!p.collapsed && showsArchivedHint(p) ? Theme.archivedHintHeight : 0)
+                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count + emptyRows(p).count))
             }
             return (app.state.projects.map(\.id), heights)
         case .tab, .leaf: return nil
@@ -422,8 +421,8 @@ struct SidebarView: View {
         })
     }
 
-    /// Project, 28 (§3.3): folder 16, name `body`; folded — its chats' most urgent dot and a chevron at the end;
-    /// «⋯» and «+» on hover, on the highlight itself.
+    /// Project, 28 (§3.3): folder 16, open while expanded (the only expand indicator, #125), name `body`; folded — its
+    /// chats' most urgent dot at the end; «⋯» and «+» on hover, on the highlight itself.
     private func projectRow(_ project: Project) -> some View {
         // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
         let exists = app.isAvailable(project)
@@ -439,7 +438,7 @@ struct SidebarView: View {
                         onDrag: app.state.attentionOnly ? nil : handlers.onDrag, onDragEnd: handlers.onDragEnd,
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                IconView(icon: .project, size: Theme.Icon.toolbar)
+                IconView(icon: project.collapsed ? .project : .projectOpen, size: Theme.Icon.toolbar)
             } expanded: {
                 HStack(spacing: 0) {
                     Group {
@@ -480,11 +479,6 @@ struct SidebarView: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(L10n.statusLabel(folded.state))
                     }
-                    if project.collapsed {
-                        IconView(icon: .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text3)
-                            .padding(.leading, Theme.rowEndGap)
-                            .opacity(hover ? 0 : 1)
-                    }
                 }
                 .padding(.trailing, hover ? 2 * Theme.Height.controlSmall : 0)
                 .overlay(alignment: .trailing) {
@@ -504,43 +498,51 @@ struct SidebarView: View {
             }
             .opacity(exists ? 1 : Theme.Opacity.inactive)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(project.collapsed ? L10n.projectCollapsed : L10n.projectExpanded)
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
-    private func showsArchivedHint(_ project: Project) -> Bool {
-        !collapsed && !app.state.attentionOnly && app.allSessionsArchived(project.id)
+    /// Why the project's folder cannot be used: its host is not connected, or the folder is gone.
+    private func unavailableReason(_ project: Project) -> String {
+        project.host.map(L10n.hostOffline) ?? L10n.folderMissing(project.path)
     }
 
-    /// Under an expanded project whose sessions are all closed: «Все сессии в архиве», «Открыть сессии ⌘Y» (scoped to
-    /// the project), «+ Новая сессия» — one line each (the sidebar is narrow), at the sessions' indent, constant height.
-    private func archivedHint(_ project: Project) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(L10n.allArchived).foregroundStyle(Theme.ui.text3).lineLimit(1)
-                .padding(.leading, Theme.rowStatusGap)  // in line with the buttons' titles
-                .frame(height: Theme.archivedHintLine)
-            hintButton(L10n.allArchivedOpen, shortcut: Shortcut.sessions.label) { app.showSessionsView(projectId: project.id) }
-                .frame(height: Theme.archivedHintLine)
-            hintButton("+ " + L10n.newTask, shortcut: nil) { ctx.newTask(project.id) }
-                .frame(height: Theme.archivedHintLine)
-                .disabled(!app.isAvailable(project))
-        }
-        .font(Theme.Typography.secondary.font())
-        .padding(.leading, Theme.chatTextX + Theme.chatIndent - Theme.rowStatusGap)
-        .padding(.trailing, Theme.sessionRowTrailing)
-        .frame(maxWidth: .infinity, minHeight: Theme.archivedHintHeight, maxHeight: Theme.archivedHintHeight, alignment: .leading)
+    /// Expanded sidebar only: the rail and the «только ждущие» list show no placeholder rows.
+    private func emptyRows(_ project: Project) -> [EmptyProjectRow] {
+        collapsed || app.state.attentionOnly || project.collapsed ? [] : app.emptyProjectRows(project.id)
     }
 
-    private func hintButton(_ title: String, shortcut: String?, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: Theme.rowStatusGap) {
-                Text(title).foregroundStyle(Theme.ui.text2).lineLimit(1)
-                if let shortcut { Text(verbatim: shortcut).foregroundStyle(Theme.ui.text3).monospacedDigit() }
-            }
-            .padding(.horizontal, Theme.rowStatusGap)
+    /// «+ Новый чат» / «Архив · N» under an empty project (#125): plain rows like the old «Новая сессия» (variant B),
+    /// the icon in the chats' dot slot, the text at their names; the shortcut only in the tooltip.
+    private func emptyProjectRow(_ row: EmptyProjectRow, project: Project) -> some View {
+        let available = app.isAvailable(project)
+        let (icon, tint, title, help): (Icon, Color, String, String)
+        let action: (() -> Void)?
+        switch row {
+        case .newChat:
+            (icon, tint, title, help) = (.add, Theme.ui.accentText, L10n.newTask,
+                                         available ? L10n.newTaskIn(project.name) : unavailableReason(project))
+            action = available ? { ctx.newTask(project.id) } : nil
+        case .archive(let count):
+            (icon, tint, title, help) = (.archive, Theme.ui.text3, L10n.projectArchive(count), L10n.help(L10n.sessionsViewHelp, .sessions))
+            action = { app.showSessionsView(projectId: project.id) }
         }
-        .buttonStyle(HoverButtonStyle(radius: Theme.Radius.control))
+        return HoverRow(action: action) { _ in
+            GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent, trailing: Theme.sessionRowTrailing) {
+                IconView(icon: icon, size: Theme.Icon.row, tint: tint)
+            } expanded: {
+                Text(title).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text2).lineLimit(1)
+            } rail: { EmptyView() }
+            .opacity(action == nil ? Theme.Opacity.inactive : 1)  // a project whose folder is gone
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .disabled(action == nil)  // announced as dimmed
+        .help(help)
     }
 
     // MARK: Sessions

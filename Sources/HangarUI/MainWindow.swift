@@ -34,8 +34,14 @@ final class TaskColumnController: NSViewController {
     /// «Сессии» (⌘Y) over the tab bar and terminals.
     let sessionsModel: SessionsModel
     let sessions: NSHostingView<SessionsHost>
+    /// «Копия перенесена / не найдена» between the tabs and the terminals (#122); 0 high without one.
+    let worktreeNotice: NSHostingView<WorktreeNoticeBar>
+    private var noticeHeight: NSLayoutConstraint?
+    private let app: AppState
 
     init(app: AppState) {
+        self.app = app
+        worktreeNotice = NSHostingView(rootView: WorktreeNoticeBar(app: app))
         sessionsModel = SessionsModel(app: app)
         sessions = NSHostingView(rootView: SessionsHost(app: app, model: sessionsModel, ctx: ActionContext(app: app)))
         terminalArea = TerminalArea(app: app)
@@ -57,7 +63,9 @@ final class TaskColumnController: NSViewController {
         sessions.safeAreaRegions = []  // starts right under the toolbar, inside the titlebar's safe area on macOS 26
         toast.safeAreaRegions = []
         sessions.isHidden = true
-        for sub in [tabBar, terminalArea, sessions, toast] as [NSView] {
+        worktreeNotice.sizingOptions = []
+        worktreeNotice.safeAreaRegions = []
+        for sub in [tabBar, worktreeNotice, terminalArea, sessions, toast] as [NSView] {
             sub.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(sub)
         }
@@ -66,7 +74,10 @@ final class TaskColumnController: NSViewController {
             tabBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             tabBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             tabBar.heightAnchor.constraint(equalToConstant: Theme.Height.barTabs),
-            terminalArea.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            worktreeNotice.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            worktreeNotice.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            worktreeNotice.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            terminalArea.topAnchor.constraint(equalTo: worktreeNotice.bottomAnchor),
             terminalArea.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             terminalArea.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             terminalArea.bottomAnchor.constraint(equalTo: v.bottomAnchor),
@@ -77,7 +88,18 @@ final class TaskColumnController: NSViewController {
             toast.centerXAnchor.constraint(equalTo: terminalArea.centerXAnchor),
             toast.bottomAnchor.constraint(equalTo: terminalArea.bottomAnchor, constant: -(Theme.Height.barPane + Theme.toastBottom)),  // above the TERMINAL bar
         ])
+        let height = worktreeNotice.heightAnchor.constraint(equalToConstant: 0)
+        height.isActive = true
+        noticeHeight = height
         view = v
+        syncNotice()
+    }
+
+    /// Shows or hides the notice row; the terminals give it its height (only when the copy's state changes).
+    func syncNotice() {
+        let want: CGFloat = app.selectedWorktreeProblem == nil ? 0 : Theme.Height.barPane
+        if noticeHeight?.constant != want { noticeHeight?.constant = want }
+        worktreeNotice.isHidden = want == 0
     }
 }
 
@@ -213,6 +235,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sheetWindow: NSWindow?
     private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
+    /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
+    /// does nothing; another sheet waits for its own answer.
+    private var probingSheets: Set<String> = []
+    static let sheetProbeTimeout: Duration = .milliseconds(400)
     /// The open «Удалённый проект» / «Сервер» sheet's models (debug hooks drive them).
     private(set) var remoteProjectModel: RemoteProjectModel?
     private(set) var serverModel: ServerCheckModel?
@@ -331,6 +357,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 if !sessionsShown { DispatchQueue.main.async { self.column.terminalArea.focusActiveLeaf() } }
             }
             self.syncInspector()
+            self.column.syncNotice()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()
             // Inline rename ended and the field editor left the window without a responder.
@@ -943,12 +970,39 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
+        withRepository(project, sheet: "newTask") { [weak self] known in self?.showNewTask(project, known: known) }
+    }
+
+    /// Runs `then` with the project's repository answer, so a sheet never shows git-only parts that then vanish: a
+    /// local project's fresh one (a few milliseconds of git; at most `sheetProbeTimeout`, then the sheet loads as
+    /// before); a remote one's last answer at once, or none (loading, as before), and a fresh probe for next time.
+    private func withRepository(_ project: Project, sheet: String, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
+        let app = self.app
+        if project.host != nil {
+            then(app.repoProbes[project.id].map { var p = $0; p.cached = true; return p })
+            Task { _ = await app.probeRepository(project) }
+            return
+        }
+        let key = project.id.uuidString + sheet
+        guard probingSheets.insert(key).inserted else { return }
+        Task { [weak self] in
+            let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
+            guard let self else { return }
+            self.probingSheets.remove(key)
+            guard self.window?.attachedSheet == nil else { return }
+            then(known)
+        }
+    }
+
+    private func showNewTask(_ project: Project, known: NewTaskModel.Probe?) {
+        guard let window, window.attachedSheet == nil else { return }
+        let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.bg2
         sheet.appearance = window.appearance
         sheet.autorecalculatesKeyViewLoop = true  // Tab reaches the copy's fields, which appear after the sheet opens
-        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id),
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
                                  chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
         let load = Task { await model.load() }
         let close: () -> Void = { [weak self, weak sheet] in
@@ -1125,6 +1179,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
+        withRepository(project, sheet: "settings") { [weak self] known in self?.showProjectSettings(project, known: known) }
+    }
+
+    private func showProjectSettings(_ project: Project, known: NewTaskModel.Probe?) {
+        guard let window, window.attachedSheet == nil else { return }
+        let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         sheet.backgroundColor = Theme.bg2
@@ -1134,7 +1194,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), known: known?.availability, onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
             close()
             self?.app.perform {
                 $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot)

@@ -49,7 +49,9 @@ import Workspace
     func root(of task: HangarTask) -> String? {
         let project = app.project(task.projectId)
         switch task.mode {
-        case .worktree(let path, _, _):
+        case .worktree:
+            // Only a checked copy: a moved one's old folder would show the main checkout (#122).
+            guard let path = app.gitFolder(of: task.id) else { return nil }
             // A subfolder project: the same subfolder inside the worktree (local only; a remote one shows the whole worktree).
             guard let project, project.host == nil, let sub = subfolderInRepository(project.path),
                   FileManager.default.fileExists(atPath: path + "/" + sub) else { return path }
@@ -137,7 +139,7 @@ import Workspace
         let task = app.selectedTask
         guard windowVisible(), let task else { stopHeadWatch(); return }
         if headTask != task.id { app.selectedHead(task) }
-        guard app.project(task.projectId)?.host == nil, current?.task != task.id, let root = app.path(of: .task(task.id)) else {
+        guard app.project(task.projectId)?.host == nil, current?.task != task.id, let root = app.gitFolder(of: task.id) else {
             stopHeadWatch()
             headTask = task.id
             return

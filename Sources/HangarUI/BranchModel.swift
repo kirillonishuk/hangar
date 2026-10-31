@@ -35,6 +35,9 @@ import Workspace
 
     func hide(_ id: UUID) { shown.remove(id) }
 
+    /// A loaded HEAD that turned out not to be the chat's (its copy is not in place).
+    func forget(_ id: UUID) { heads[id] = nil }
+
     /// Loads `folder` once for all `ids`, or once more after the load in flight.
     func refresh(folder: String, ids: [UUID], load: @escaping Load) {
         guard !ids.isEmpty else { return }
@@ -97,7 +100,9 @@ extension AppState {
 
     func refreshHead(ofLeaf leaf: UUID) {
         let task = state.tasks.first { t in t.tabs.contains { $0.root.leaf(id: leaf) != nil } || t.drawer.leaf?.id == leaf }
-        if let task { refreshHead(taskId: task.id) }
+        guard let task else { return }
+        recheckWorktree(of: task.id)  // an agent may have moved its copy (`git worktree move`)
+        refreshHead(taskId: task.id)
     }
 
     /// Back to the window: the selected and on-screen chats (a remote one only while its host is connected),
@@ -106,6 +111,9 @@ extension AppState {
         if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
         branchModel.lastFocusRefresh = now
         let ids = branchModel.shown.union(state.selectedTaskId.map { [$0] } ?? [])
+        for projectId in Set(ids.compactMap { id in state.tasks.first { $0.id == id && $0.branch != nil }?.projectId }) {
+            checkWorktrees(projectId: projectId)
+        }
         refreshHeads(folders: Set(ids.compactMap { id in
             guard let folder = headFolder(id) else { return nil }
             if let host = folder.host, remote.hosts[host]?.state != .connected { return nil }
@@ -127,7 +135,7 @@ extension AppState {
 
     private func headFolder(_ id: UUID) -> HeadFolder? {
         guard let task = state.tasks.first(where: { $0.id == id }), !task.archived, let project = project(task.projectId),
-              let path = path(of: .task(id)) else { return nil }
+              let path = gitFolder(of: id) else { return nil }
         return HeadFolder(projectId: project.id, host: project.host, path: path)
     }
 
@@ -225,7 +233,7 @@ extension AppState {
 
     private func branchGit(_ id: UUID) throws -> Git {
         guard let task = state.tasks.first(where: { $0.id == id }), let project = project(task.projectId),
-              let path = path(of: .task(id)) else { throw CocoaError(.fileNoSuchFile) }
+              let path = gitFolder(of: id) else { throw CocoaError(.fileNoSuchFile) }
         return git(for: project, repo: path)
     }
 }

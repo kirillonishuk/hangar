@@ -34,7 +34,12 @@ extension AppState {
     /// still holds the previous chat's files then, and must not show them. No chat: the inspector is empty (§3.19).
     var inspectorNotice: String? {
         guard let task = selectedTask else { return nil }
-        return isHostShellTask(task.id) ? L10n.inspectorHostShell : nil
+        if isHostShellTask(task.id) { return L10n.inspectorHostShell }
+        switch selectedWorktreeProblem?.place {
+        case .moved: return L10n.inspectorWorktreeMoved
+        case .missing: return L10n.inspectorWorktreeMissing
+        default: return nil
+        }
     }
 
     /// The ssh config's hosts again (launch, app activation): no file watcher, the list is cheap to read.

@@ -78,6 +78,9 @@ struct RefreshParts: OptionSet, Sendable {
     static let untrackedCountLimit = 500
     @ObservationIgnored private var remote = false
     @ObservationIgnored private var context = Context(taskId: nil, root: nil, mode: .base)
+    /// Each shown chat folder's last answer to "git?": selecting a plain folder again doesn't flash the git segments.
+    @ObservationIgnored private var knownGit: [String: Bool] = [:]
+    private var gitKey: String { (context.taskId?.uuidString ?? "") + "\0" + (context.root ?? "") }
     /// The task whose data is loaded (kept while the inspector is hidden, so another selected task must not use it).
     var shownTaskId: UUID? { context.taskId }
     @ObservationIgnored private var baseBranch: @Sendable () async -> String? = { nil }
@@ -104,7 +107,7 @@ struct RefreshParts: OptionSet, Sendable {
         context = next
         cancel()
         self.root = root
-        isGit = true
+        isGit = knownGit[gitKey] ?? true
         remoteNoGit = false
         offline = false
         top = nil
@@ -340,12 +343,14 @@ struct RefreshParts: OptionSet, Sendable {
         offline = r.offline
         if r.offline { return }
         remoteNoGit = r.remoteNoGit
+        knownGit[gitKey] = r.isGit
         if !r.isGit {
             isGit = false
             if segment != .search { segment = .files }
             if let tree = r.tree { self.tree = tree; treeLoaded = true }
             return
         }
+        if !isGit { isGit = true }  // a folder remembered as plain became a repository
         if let top = r.top { self.top = top }
         if let tree = r.tree {
             self.tree = tree

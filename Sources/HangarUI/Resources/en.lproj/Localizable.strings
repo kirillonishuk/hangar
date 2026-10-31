@@ -326,6 +326,14 @@
 "filesTruncated" = "Not all files shown (over %d)";
 "gitFailed" = "git: %@";
 "inspectorHostShell" = "Plain SSH terminal — no project folder";
+"inspectorWorktreeMoved" = "The copy was moved — update its path";
+"inspectorWorktreeMissing" = "Copy not found";
+"worktreeMovedTo" = "The copy was moved to %@";
+"worktreeNotFound" = "Copy not found: %@";
+"relinkWorktree" = "Update Path";
+"relinkWorktreeHelp" = "Claude chats continue in the new folder: Hangar copies their records there and keeps the originals";
+"notGitNoCopies" = "The folder is not in git — separate copies are unavailable";
+"preparingConversation" = "Moving the conversation to the new folder…";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";
 "diffTooLarge" = "Diff too large (%d lines)";

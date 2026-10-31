@@ -124,6 +124,21 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// `+N −M` of the sidebar's session rows.
     /// Live HEAD of each chat (#114).
     let branchModel = BranchModel()
+    /// Where each worktree chat's copy is, by its repository's worktree list (checked, not assumed: a moved copy's old
+    /// folder inside the main checkout would show the main checkout's branch and files).
+    var worktreePlaces: [UUID: WorktreePlace] = [:]
+    /// The running check of each project's worktrees; one at a time.
+    @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
+    /// Projects asked to check again while their check ran: it reruns once after.
+    @ObservationIgnored var worktreeRechecks: Set<UUID> = []
+    /// Relinked claude tabs whose conversation is being copied before they launch (#122), and those whose copy failed
+    /// (they launch without it).
+    @ObservationIgnored var transcriptSyncs: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var transcriptSyncFailed: Set<UUID> = []
+    /// A leaf's conversation copy finished: the window starts the waiting leaf again.
+    @ObservationIgnored var onTranscriptSynced: ((UUID) -> Void)?
+    /// A remote project's last definite repository probe: its sheets open with it at once, no ssh round trip first (#122).
+    @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
     var debugHover: ActionTarget?
@@ -345,6 +360,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         }
         // Another session getting selected (palette, a new or restored one) leaves «Сессии».
         if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }
+        // A chat's copy may have been moved since it was last shown (#122).
+        if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
         store.scheduleSave(state)
         didChange?()
     }
@@ -473,6 +490,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             if context == .restored { mode.unlinked = true }
         }
         var newId = leaf.kind == .claude && !mode.restoring
+        // A relinked chat's conversation is copied first, off the main thread; the leaf starts again when it is done (#122).
+        if prepareRelinkedTranscript(leaf, restoring: mode.restoring) { throw LaunchError.preparing }
         // On this Mac the transcript decides (on a server, the launch command does): resumed only where claude finds it.
         if leaf.kind == .claude, mode.restoring, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId),
            UUID(uuidString: id) != nil {
@@ -520,6 +539,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var claudeConfigDir: URL { (integrationPathsCache?.claude ?? claudeSettingsURL).deletingLastPathComponent() }
 
     /// A launch's new conversation id: saved without `perform`, whose sync may be what is starting this launch.
+    /// Like `setAgentSessionIdQuietly`: saved, no redraw (a launch is under way).
+    func clearRelinkedFromQuietly(_ leafId: UUID) {
+        state.clearRelinkedFrom(leafId: leafId)
+        store.scheduleSave(state)
+    }
+
     private func setAgentSessionIdQuietly(_ leaf: Leaf) {
         guard let id = leaf.agentSessionId else { return }
         state.setAgentSessionId(leafId: leaf.id, id)

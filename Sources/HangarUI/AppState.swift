@@ -156,6 +156,19 @@ enum EmptyProjectRow: Hashable {
     let gitPanel = GitPanelModel()
     /// The inspector's Search tab (find in files, #91).
     let search = SearchModel()
+    /// Files of the focused host-terminal leaf (#124).
+    let remoteFiles = RemoteFilesModel()
+    /// Host terminal leaves launched with the folder hook (#124), with the launch time.
+    @ObservationIgnored var hookedLeaves: [UUID: Date] = [:]
+    /// Host terminal leaves whose hooked login failed: they log in plain (#124).
+    @ObservationIgnored var plainLeaves: Set<UUID> = []
+    /// Suspected hook failures per host in this run; the second one marks the host `noHook`.
+    @ObservationIgnored var hookSuspects: [String: Int] = [:]
+    /// A hook failure shows within this long of the launch (password typing included).
+    @ObservationIgnored var hookFailWindow: TimeInterval = 20
+    @ObservationIgnored var hookClock: () -> Date = Date.init
+    /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
+    @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -354,6 +367,9 @@ enum EmptyProjectRow: Hashable {
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        remoteFiles.retain(live)
+        hookedLeaves = hookedLeaves.filter { live.contains($0.key) }
+        plainLeaves.formIntersection(live)
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
@@ -525,7 +541,7 @@ enum EmptyProjectRow: Hashable {
         if let host = hostShellHost(ofLeaf: leaf.id) {
             // state.json is editable: a host that is not safe on an ssh command line never launches.
             guard let host = validSSHHost(host) else { throw LaunchError.missingCwd(host) }
-            return (sshShellSpec(host: host, sshPath: sshPath), mode)
+            return (hostShellSpec(host: host, leaf: leaf.id), mode)
         }
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {
@@ -837,6 +853,7 @@ enum EmptyProjectRow: Hashable {
     func setTitle(_ title: String, leafId: UUID) {
         let clean = terminalTitle(title)
         leafTitles[leafId] = clean.isEmpty ? nil : clean
+        remoteFiles.titleChanged(leafId)
     }
 
     /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).

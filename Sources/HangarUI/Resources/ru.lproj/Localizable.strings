@@ -327,7 +327,6 @@
 "statusTruncated" = "Показаны первые %d изменений";
 "filesTruncated" = "Показаны не все файлы (больше %d)";
 "gitFailed" = "git: %@";
-"inspectorHostShell" = "Обычный SSH-терминал — нет папки проекта";
 "inspectorWorktreeMoved" = "Копия перенесена — обновите путь";
 "inspectorWorktreeMissing" = "Копия не найдена";
 "worktreeMovedTo" = "Копия перенесена в %@";
@@ -888,3 +887,34 @@
 "awaitingIntegrationAnswer" = "Ждёт ответа: подключить Hangar?";
 "intOtherCopy" = "записи Hangar здесь принадлежат другой копии приложения";
 "intRemoteMissing" = "не удалось установить hangar-remote — хуки не записаны";
+
+/* Files of a host terminal (#124) */
+"remoteFilesUpload" = "Загрузить файлы";
+"remoteFilesUploadButton" = "Загрузить";
+"remoteFilesRefresh" = "Обновить";
+"remoteFilesEmpty" = "Папка пуста. Перетащите сюда файлы";
+"remoteFilesDropInto" = "Загрузить в";
+"remoteFilesUploading" = "Загрузка: %d из %d";
+"remoteFilesUploaded" = "Загружено %d из %d";
+"remoteFilesProgress" = "%@ · %@ из %@";
+"remoteFilesWaiting" = "%@ — ждёт ответа";
+"remoteFilesExistsIn" = "уже есть в";
+"remoteFilesForAll" = "Для всех (%d)";
+"remoteFilesSkip" = "Пропустить";
+"remoteFilesReplace" = "Заменить";
+"remoteFilesMerge" = "Объединить";
+"remoteFilesCancel" = "Отменить загрузку";
+"remoteFilesDismiss" = "Скрыть";
+"remoteFilesLogIn" = "Войдите во вкладке терминала";
+"remoteFilesUnknownFolder" = "Папка терминала неизвестна";
+"remoteFilesNoAccess" = "Нет доступа к %@";
+"remoteFilesMissing" = "Папки %@ больше нет";
+"remoteFilesFailed" = "Не удалось прочитать папку. %@";
+"uploadUnreadable" = "Не удалось загрузить %@: это не файл и не папка.";
+"uploadNameTooLong" = "Не удалось загрузить %@: имя длиннее 242 байт. Переименуйте.";
+"uploadOffline" = "Не удалось загрузить %@: нет соединения. Войдите во вкладке терминала.";
+"uploadNoAccess" = "Не удалось загрузить %@: нет прав на запись в %@. Выберите другую папку.";
+"uploadKindClash" = "Не удалось загрузить %@: на сервере под этим именем не то — папка вместо файла или наоборот. Переименуйте.";
+"uploadNoTar" = "Не удалось загрузить папку %@: на сервере нет tar. Файлы загружаются.";
+"uploadIncomplete" = "Загрузка %@ прервана — на сервере ничего не изменилось.";
+"uploadFailed" = "Не удалось загрузить %@. %@";

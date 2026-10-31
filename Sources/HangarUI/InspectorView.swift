@@ -13,6 +13,10 @@ struct InspectorView: View {
             // No chat: nothing to inspect, and the centre already says what to do (§3.19, #106).
             if app.selectedTask == nil {
                 Spacer(minLength: 0)
+            } else if hostShell {
+                // «<host> · терминал»: the folder of its shell and Search there (no git, #124).
+                header
+                if model.segment == .search { SearchPanel(app: app) } else { RemoteFilesView(app: app) }
             } else if let text = app.inspectorNotice {
                 header
                 EmptyNote(text: text)
@@ -36,9 +40,7 @@ struct InspectorView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 0) {
-            if app.inspectorNotice == nil { segment }
-        }
+        HStack(spacing: 0) { if hostShell || app.inspectorNotice == nil { segment } }
         .padding(.horizontal, Theme.inspectorSegmentPaddingH)
         .frame(maxWidth: .infinity, minHeight: Theme.Height.barTabs, maxHeight: Theme.Height.barTabs)
         .background(WindowDragArea())
@@ -47,16 +49,19 @@ struct InspectorView: View {
 
     /// Equal parts (Changes at least its label and count), so a changing count never moves the labels; a plain folder
     /// has only Files and Search.
+    private var hostShell: Bool { app.selectedTask.map { app.isHostShellTask($0.id) } ?? false }
+
     private var segment: some View {
         let count = model.changes?.files.count ?? 0
         var options = [SegmentOption(value: InspectorModel.Segment.files, title: L10n.segmentFiles, help: L10n.help(L10n.showFiles, .inspectorFiles))]
-        if model.isGit {
+        if model.isGit && !hostShell {
             options.append(SegmentOption(value: .changes, title: L10n.segmentChangesTitle, badge: segmentBadge(count), reserveBadge: true,
                                          help: L10n.help(L10n.statusShowChanges, .inspectorChanges), accessibilityLabel: L10n.segmentChanges(count)))
             options.append(SegmentOption(value: .git, title: L10n.segmentGit, help: L10n.help(L10n.showGit, .inspectorGit)))
         }
         options.append(SegmentOption(value: .search, title: L10n.segmentSearch, help: L10n.help(L10n.findInFiles, .findInFiles)))
-        return Segmented(selection: model.segment, options: options, equal: true) { model.segment = $0 }
+        let selection = hostShell && model.segment != .search ? .files : model.segment
+        return Segmented(selection: selection, options: options, equal: true) { model.segment = $0 }
     }
 }
 

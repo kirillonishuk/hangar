@@ -150,6 +150,9 @@ final class FillView: NSView {
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
+    var onPwd: ((String) -> Void)?
+    /// A host terminal's login exited (#124): code and whether anything was typed; true = log in again at once, plain.
+    var onHookFailed: ((Int32, Bool) -> Bool)?
     var onFocus: (() -> Void)?
     /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
     var onBell: (() -> Void)?
@@ -289,6 +292,7 @@ final class FillView: NSView {
         let view = TerminalSurfaceView(spec: spec)
         view.onChildExit = { [weak self] code in self?.childExited(code) }
         view.onTitleChange = { [weak self] title in self?.onTitle?(title) }
+        view.onPwd = { [weak self] path in self?.onPwd?(path) }
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] title, body in self?.onNotification?(oscNotificationText(title: title, body: body)) }
@@ -315,6 +319,10 @@ final class FillView: NSView {
     func childExited(_ code: Int32) {
         if code == 0 { onExit?(0); return }
         exitCode = code
+        if onHookFailed?(code, surface?.hadInput ?? true) == true {
+            relaunch()
+            return
+        }
         if host != nil, code == 255 {
             // Not an exit of the agent: no `.exited`, the leaf and its status stay.
             isDetached = true
@@ -809,6 +817,8 @@ final class FillView: NSView {
             guard let self else { return }
             self.app.setTitle(title, leafId: leaf.id)
         }
+        view.onPwd = { [weak self] path in self?.app.remoteFiles.pwd(leaf.id, path) }
+        view.onHookFailed = { [weak self] code, typed in self?.app.hostShellHookFailed(leaf: leaf.id, code: code, typed: typed) ?? false }
         view.onExit = { [weak self] code in
             self?.app.signal(.exited(code: code), leaf: leaf.id)
             self?.leafExited(leaf.id, code: code)

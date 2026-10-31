@@ -20,11 +20,16 @@ public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget,
                       cwd: NSHomeDirectory(), env: [:])
 }
 
-/// «<host> · терминал» (#64): a plain interactive `ssh -t` login to the host's home — no master, no server
-/// check, no tmux — so a password or 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again).
-/// `host` must pass `validSSHHost`. ServerAlive ends a connection that died while the Mac slept instead of hanging.
-public func sshShellSpec(host: String, sshPath: String) -> LaunchSpec {
-    let ssh = [sshPath, "-t", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "--", host]
+/// «<host> · терминал» (#64): an interactive `ssh -t` login to the host — no server check, no tmux — so a password or
+/// 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again). `plan` (#124) may add Hangar's own
+/// per-leaf master (the files panel lists and uploads through it, no second login) and the folder hook
+/// (`hostShellLoginScript` as the remote command). `host` must pass `validSSHHost`.
+/// ServerAlive ends a connection that died while the Mac slept instead of hanging.
+public func sshShellSpec(host: String, sshPath: String, plan: HostShellPlan = .plain) -> LaunchSpec {
+    var ssh = [sshPath, "-t"]
+    if plan.ownMaster, let path = plan.controlPath { ssh += ["-S", path, "-o", "ControlMaster=auto", "-o", "ControlPersist=no"] }
+    ssh += ["-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "--", host]
+    if plan.hook { ssh.append(remoteShellArgs(script: hostShellLoginScript, [])) }
     let script = "TERM=xterm-256color " + ssh.map(shellQuote).joined(separator: " ")
         + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     return LaunchSpec(command: "/bin/sh -c " + shellQuote(script), cwd: NSHomeDirectory(), env: [:])

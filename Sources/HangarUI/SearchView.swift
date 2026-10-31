@@ -87,7 +87,8 @@ struct SearchPanel: View {
     }
 
     private func open(_ path: String, _ hit: SearchHit) {
-        guard let root = model.target?.root else { return }
+        // shortcut: a host terminal's results don't open (no editor for its files yet, phase 2 of #124).
+        guard let root = model.target?.root, model.target?.link == nil else { return }
         app.openInEditor(path: root + "/" + path, line: hit.line, column: hit.column, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2)
     }
 }

@@ -36,6 +36,32 @@ extension MainWindowController {
         (v as? NSScrollView) ?? v.subviews.lazy.compactMap(scrollView).first
     }
 
+    /// `rf drop <path>[|<dir>]` as files dropped from Finder (into the shown folder or `dir`), `rf target <dir>|-` the drag
+    /// highlight, `rf answer replace|skip|esc [all]` the conflict prompt, `rf toggle <dir>`, `rf cancel`, `rf dump <file>` (#124).
+    private func debugRemoteFiles(_ arg: String) {
+        let m = app.remoteFiles
+        let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
+        let rest = f.count > 1 ? f[1] : ""
+        switch f.first ?? "" {
+        case "drop":
+            let p = rest.split(separator: "|", maxSplits: 1).map(String.init)
+            m.upload([URL(fileURLWithPath: p[0])], into: p.count > 1 ? p[1] : nil)
+        case "target": m.dropTarget = rest == "-" ? nil : rest
+        case "toggle": m.toggle(rest)
+        case "cancel": m.cancelUploads()
+        case "answer":
+            let all = rest.hasSuffix(" all")
+            m.answer(replace: rest.hasPrefix("replace") ? true : rest.hasPrefix("skip") ? false : nil, forAll: all)
+        case "dump":
+            let lines = ["path=\(m.path ?? "-") known=\(m.cwdKnown) shown=\(m.shown?.link.controlPath ?? "-") offline=\(m.offline) loading=\(m.loading)",
+                         "listing=\(m.listing?.entries.map(\.name) ?? []) truncated=\(m.listing?.truncated ?? false) error=\(m.error.map { "\($0)" } ?? "-")",
+                         "expanded=\(m.expanded.sorted()) upload=\(m.upload.map { "\($0.index)/\($0.count) \($0.name) \($0.percent)% waiting=\($0.waiting)" } ?? "-")",
+                         "conflict=\(m.conflict.map { "\($0.name) more=\($0.more)" } ?? "-") errors=\(m.uploadErrors) done=\(m.batchDone)/\(m.batchCount)"]
+            try? lines.joined(separator: "\n").write(toFile: rest, atomically: true, encoding: .utf8)
+        default: break
+        }
+    }
+
     /// NSPopover's window (e.g. the branch picker), if one is shown.
     private var popoverWindow: NSWindow? {
         NSApp.windows.first { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }
@@ -421,6 +447,8 @@ extension MainWindowController {
                   let hit = frameView.hitTest(NSPoint(x: v[0], y: frameView.frame.height - v[1])) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
         case "connectHost": presentConnectHost()
+        case "hostShell": app.showHostShell(arg)  // hostShell <host>: as a click on a config host's row (#64)
+        case "rf": debugRemoteFiles(arg)
         case "update":  // update check|show|install|later|dump <file>: the in-app updater (#86) against HANGAR_UPDATE_FEED
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             switch f.first ?? "" {

@@ -105,7 +105,7 @@ private struct LimitBadge: View {
     }
 }
 
-private struct LimitBar: View {
+struct LimitBar: View {
     var percent: Double?
     var level: UsageLevel = .ok
     let height: CGFloat

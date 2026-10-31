@@ -40,6 +40,7 @@ extension TerminalSurfaceView {
 
     public override func keyDown(with event: NSEvent) {
         guard let surface else { interpretKeyEvents([event]); return }
+        hadInput = true
         // ⌘V that skipped performKeyEquivalent (window not key) would hit Ghostty's own super+v paste.
         if Int(event.keyCode) == kVK_ANSI_V, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
            onPaste?() == true { return }

@@ -137,11 +137,14 @@ import TestSupport
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 
-    /// The plain login of «<host> · терминал» (#64): no master, no tmux, no remote command; ssh's own code comes back.
+    /// The plain login of «<host> · терминал» (#64): no tmux, no server check, no BatchMode (a password or 2FA is
+    /// typed in the tab); the login is the master of its leaf socket (#124) and its remote command only adds the folder
+    /// hook before the login shell; ssh's own code comes back.
     @Test func plainSSHShell() async throws {
         let f = try Fixture()
         defer { try? FileManager.default.removeItem(atPath: f.root) }
-        let spec = sshShellSpec(host: "my-box", sshPath: f.ssh)
+        let own = HostShellPlan(hook: true, controlPath: f.root + "/hs-1", ownMaster: true)
+        let spec = sshShellSpec(host: "my-box", sshPath: f.ssh, plan: own)
         #expect(spec.cwd == NSHomeDirectory() && spec.env.isEmpty)
         let r = try await runProcess("/bin/sh", ["-c", spec.command], cwd: "/", env: f.env)
         #expect(r.status == 0)
@@ -149,14 +152,25 @@ import TestSupport
         let argv = f.read("argv").split(separator: "\n").map(String.init)
         #expect(f.read("term") == "xterm-256color")
         #expect(argv.contains("-t"))
-        #expect(Array(argv.suffix(2)) == ["--", "my-box"])
-        #expect(!argv.contains("-S") && !argv.contains { $0.hasPrefix("ControlPath") || $0.hasPrefix("BatchMode") || $0.contains("tmux") })
+        #expect(Array(argv.prefix(7)) == ["-t", "-S", f.root + "/hs-1", "-o", "ControlMaster=auto", "-o", "ControlPersist=no"])
+        let dash = try #require(argv.firstIndex(of: "--"))
+        // The remote command spans lines (the fake writes one argv word per line).
+        #expect(argv[(dash + 1)...].joined(separator: "\n") == "my-box\n" + remoteShellArgs(script: hostShellLoginScript, []))
+        #expect(!argv.contains { $0.hasPrefix("BatchMode") || $0.contains("tmux") || $0.hasPrefix("ProxyCommand") })
 
         // The connection drops: ssh's 255 is the tab's code (a local leaf: ↩ logs in again).
         let failing = f.root + "/ssh-255"
         try writeScript("#!/bin/sh\nexit 255\n", to: failing)
-        let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing).command], cwd: "/", env: f.env)
+        let lost = try await runProcess("/bin/sh", ["-c", sshShellSpec(host: "my-box", sshPath: failing, plan: own).command],
+                                        cwd: "/", env: f.env)
         #expect(lost.status == 255)
+        #expect(lost.stdout.contains("\u{1b}]133;D;255"))
+
+        // The plain plan is #64's login exactly: no socket, no remote command.
+        let plain = sshShellSpec(host: "my-box", sshPath: f.ssh)
+        _ = try await runProcess("/bin/sh", ["-c", plain.command], cwd: "/", env: f.env)
+        let plainArgv = f.read("argv").split(separator: "\n").map(String.init)
+        #expect(plainArgv == ["-t", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "--", "my-box"])
     }
 
     @Test func reattachMode() {

@@ -32,6 +32,11 @@ extension AppState {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
             if e.kind == .prompt, leaf.kind == .claude, own { nameAutoNamedChat(of: leaf, prompt: e.message) }
+            // A chat without a project moves up on its agent's own turn, never on a click.
+            if own, leaf.kind == agent, e.kind == .prompt || e.kind == .codexNotify, let task = location(ofLeaf: leaf.id)?.task,
+               isFreeChatTask(task) {
+                perform { $0.touchFreeChat(taskId: task) }
+            }
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()

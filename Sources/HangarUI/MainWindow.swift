@@ -651,6 +651,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         switch sc {
         case .newTask: presentNewTask(projectId: nil)
+        case .newFreeChat: app.newFreeChat()
         case .newTab: app.addTab(.shell)
         case .closeTab, .splitRight, .splitDown, .rename, .archiveTask, .toggleDrawer, .revealInFinder, .copyPath:
             break  // Action registry above (F2: handleKeyDown)
@@ -694,8 +695,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return
         }
         guard let window, window.attachedSheet == nil else { return }
-        let tasks = (app.pinnedTasks + app.state.projects.flatMap { app.groupTasks($0.id) }).map { t in
-            PaletteItem(task: t.id, name: t.name, project: app.project(t.projectId)?.name ?? "")
+        let tasks = (app.state.freeChatTasks + app.pinnedTasks + app.state.projects.flatMap { app.groupTasks($0.id) }).map { t in
+            PaletteItem(task: t.id, name: t.name, project: app.placeName(of: t))
         }
         let task = app.selectedTask
         let project = task.flatMap { app.project($0.projectId) }
@@ -746,7 +747,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func choosePalette(_ item: PaletteItem, pickFor leafId: UUID? = nil) {
         switch item.target {
         case .task(let id):
-            app.select(taskId: id)
+            if app.isFreeChatTask(id) { app.wakeFreeChat(id) } else { app.select(taskId: id) }
             column.terminalArea.focusActiveLeaf()
         case .file(let path):
             guard let paletteRoot else { return }

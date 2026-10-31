@@ -102,7 +102,8 @@ extension AppState {
     case .limit: L10n.agentLimit(agent)
     }
     let session = owner?.task.name ?? ""
-    var subtitle = app.project(item.projectId).map { "\($0.name) › \(session)" } ?? session
+    let place = owner.map { app.placeName(of: $0.task) } ?? app.project(item.projectId)?.name ?? ""
+    var subtitle = place.isEmpty ? session : "\(place) › \(session)"
     // A host terminal is named as in the sidebar («devbox · терминал»), its session name is the host itself.
     if let host = item.host { subtitle = app.isHostShellTask(item.taskId) ? L10n.hostTerminal(host) : subtitle + " · \(host)" }
     let details = a.reason == .permission ? a.tool.flatMap { t in a.command.map { "\(t): \($0)" } } : nil

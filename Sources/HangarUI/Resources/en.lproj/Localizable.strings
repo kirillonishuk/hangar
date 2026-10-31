@@ -879,3 +879,19 @@
 "awaitingIntegrationAnswer" = "Waiting for an answer: connect Hangar?";
 "intOtherCopy" = "Hangar's entries here belong to another copy of the app";
 "intRemoteMissing" = "couldn't install hangar-remote — no hooks written";
+
+"sectionChats" = "Chats";
+"newFreeChat" = "New Chat Without Project";
+"allFreeChats" = "All Chats (%d)…";
+"noProject" = "No project";
+"removeFromList" = "Remove from List…";
+"removeFreeChatConfirm" = "Remove “%@” from the list?";
+"removeFreeChatInfo" = "The conversation stays with the agent — continue it from History (%@).";
+"freeChatsScope" = "Chats";
+"freeChatsSearch" = "Title or conversation text";
+"freeChatsEmpty" = "No chats without a project yet";
+"today" = "Today";
+"freeTimeNow" = "now";
+"freeTimeMinutes" = "%d min";
+"freeTimeHours" = "%d h";
+"removeFreeChatButton" = "Remove";

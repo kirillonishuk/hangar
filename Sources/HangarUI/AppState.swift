@@ -284,6 +284,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
                 socketPath: String? = nil) {
+        // Chats without a project run next to the state: a test or debug store gets its own folder, never the real one.
+        var state = state
+        state.chatsFolder = store.directory.appendingPathComponent("Chats").path
         self.state = state
         self.store = store
         self.config = config
@@ -384,7 +387,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.
-    var orderedTasks: [HangarTask] { pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
+    var orderedTasks: [HangarTask] { sidebarFreeChats().filter { !$0.archived } + pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
 
     func defaultTitle(_ kind: LeafKind) -> String {
         switch kind {
@@ -466,6 +469,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         var leaf = self.leaf(id: leaf.id) ?? leaf
+        if leaf.cwd == state.chatsFolder { ensureChatsFolder() }
         var mode = launchMode(for: leaf, context)
         // An agent resumes only by its own id (#119): without one it starts anew.
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil {

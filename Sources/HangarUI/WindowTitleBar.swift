@@ -15,6 +15,7 @@ struct WindowTitle: Equatable {
 @MainActor func windowTitle(_ s: WorkspaceState) -> WindowTitle? {
     guard let id = s.selectedTaskId, let task = s.tasks.first(where: { $0.id == id && !$0.archived }) else { return nil }
     if let host = s.hostShell(ofTask: id)?.host { return WindowTitle(title: L10n.hostTerminal(host)) }
+    if s.isFreeChatTask(task) { return WindowTitle(title: task.name, subtitle: L10n.noProject) }
     let project = s.projects.first { $0.id == task.projectId }
     return WindowTitle(title: task.name, subtitle: project.map { p in p.host.map { "\($0) · \(p.name)" } ?? p.name })
 }
@@ -113,7 +114,7 @@ struct WindowTitleBar: View {
             .truncationMode(.tail)
             .padding(.trailing, Theme.Space.s1)
             .allowsHitTesting(false)
-            if let task = app.selectedTask, !app.isHostShellTask(task.id), let branch = app.head(of: task)?.title ?? task.branch {
+            if let task = app.selectedTask, !app.isOutsideProjects(task), let branch = app.head(of: task)?.title ?? task.branch {
                 BranchButton(app: app, task: task, branch: branch)
             }
         }

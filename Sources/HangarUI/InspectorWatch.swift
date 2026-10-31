@@ -54,7 +54,7 @@ import Workspace
             guard let project, project.host == nil, let sub = subfolderInRepository(project.path),
                   FileManager.default.fileExists(atPath: path + "/" + sub) else { return path }
             return path + "/" + sub
-        case .mainFolder: return project?.path
+        case .mainFolder: return project?.path ?? (app.state.isFreeChatTask(task) ? app.state.chatsFolder : nil)
         }
     }
 

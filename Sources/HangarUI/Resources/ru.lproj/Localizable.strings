@@ -879,3 +879,19 @@
 "awaitingIntegrationAnswer" = "Ждёт ответа: подключить Hangar?";
 "intOtherCopy" = "записи Hangar здесь принадлежат другой копии приложения";
 "intRemoteMissing" = "не удалось установить hangar-remote — хуки не записаны";
+
+"sectionChats" = "Чаты";
+"newFreeChat" = "Новый чат без проекта";
+"allFreeChats" = "Все чаты (%d)…";
+"noProject" = "Без проекта";
+"removeFromList" = "Убрать из списка…";
+"removeFreeChatConfirm" = "Убрать «%@» из списка?";
+"removeFreeChatInfo" = "Разговор останется у агента — его можно продолжить из Истории (%@).";
+"freeChatsScope" = "Чаты";
+"freeChatsSearch" = "Название или текст разговора";
+"freeChatsEmpty" = "Пока нет чатов без проекта";
+"today" = "Сегодня";
+"freeTimeNow" = "сейчас";
+"freeTimeMinutes" = "%d мин";
+"freeTimeHours" = "%d ч";
+"removeFreeChatButton" = "Убрать";

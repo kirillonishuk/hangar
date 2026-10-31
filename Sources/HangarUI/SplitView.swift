@@ -716,7 +716,7 @@ final class FillView: NSView {
         }
 
         // A host's terminal (#64) needs no project.
-        let nothing = state.projects.isEmpty && state.hostShells.isEmpty
+        let nothing = state.projects.isEmpty && state.hostShells.isEmpty && state.freeChats.isEmpty
         emptyState.isHidden = !nothing
         placeholder.isHidden = app.selectedTask != nil || diffShown || nothing
         noTabs.isHidden = !app.showsNoTabs || diffShown || nothing

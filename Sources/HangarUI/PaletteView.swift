@@ -269,7 +269,7 @@ struct PaletteView: View {
 /// Command glyphs: the same icons as the buttons and menus that run them.
 func paletteIcon(_ sc: Shortcut) -> Icon {
     switch sc {
-    case .newTask, .newTab: .add
+    case .newTask, .newFreeChat, .newTab: .add
     case .addProject, .inspectorFiles: .project
     case .closeTab: .close
     case .splitRight: .splitRight

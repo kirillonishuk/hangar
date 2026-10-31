@@ -47,6 +47,12 @@ private struct EmptyAreaView: View {
             Button(title, action: action)
                 .buttonStyle(.hangar(.primary))
                 .help(L10n.help(title, shortcut))
+            // No project yet: a chat without one needs none.
+            if area == .noProject {
+                Button(L10n.newFreeChat) { app.newFreeChat() }
+                    .buttonStyle(.hangar())
+                    .help(L10n.help(L10n.newFreeChat, .newFreeChat))
+            }
         }
     }
 }

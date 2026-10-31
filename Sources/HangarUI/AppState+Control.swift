@@ -321,7 +321,7 @@ extension AppState {
     /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
     /// Hosts' terminals (#64, not in `tasks list`) are never found.
     func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !state.hostShells.contains { $0.id == t.projectId } }
+        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !isOutsideProjects(t) }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
             .mapError { refError($0, ref, archived ? "archived session" : "session") }
     }

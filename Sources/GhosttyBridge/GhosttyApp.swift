@@ -276,6 +276,10 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
             event = .mouseVisible(action.action.mouse_visibility == GHOSTTY_MOUSE_VISIBLE)
         case GHOSTTY_ACTION_CELL_SIZE:
             event = .cellSize(width: action.action.cell_size.width, height: action.action.cell_size.height)
+        case GHOSTTY_ACTION_PWD:
+            // OSC 7 of a local host only (Ghostty checks); a host terminal's hook sends `kitty-shell-cwd://localhost`.
+            guard let p = action.action.pwd.pwd else { return false }
+            event = .pwd(String(cString: p))
         case GHOSTTY_ACTION_OPEN_URL:
             let u = action.action.open_url
             guard let p = u.url else { return false }

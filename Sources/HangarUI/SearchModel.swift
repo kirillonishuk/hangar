@@ -9,6 +9,8 @@ struct SearchTarget: Equatable, Sendable {
     var host: String?
     /// A remote plain folder (not a repository) gets `git grep --no-index`; a local root is probed per search.
     var remoteGit = true
+    /// A host terminal's leaf master (#123): the search runs through it, `git grep --no-index`.
+    var link: RemoteShellLink?
 }
 
 /// One search process: argv for `Process` (never a shell) and how to read its output.
@@ -257,6 +259,11 @@ extension AppState {
     /// The process for a search: local — rg if there is one, else git grep (`--no-index` outside a repository);
     /// remote — git grep on the host through its ssh master (rg isn't assumed there), streamed like a local process.
     func searchLaunch(_ q: SearchQuery, _ target: SearchTarget, gitColumn: Bool) async -> SearchLaunch? {
+        if let link = target.link {
+            guard link.isUp, let args = link.streamArgv(cwd: target.root, argv: remoteWatchdogArgv(gitGrepArgs(q, noIndex: true, column: gitColumn)))
+            else { return nil }
+            return SearchLaunch(executable: link.sshPath, args: args, cwd: "/", engine: .gitGrep, gitColumn: gitColumn, remote: true)
+        }
         if let host = target.host {
             guard let t = remote.target(host),
                   let args = sshStreamArgs(host: host, controlPath: t.controlPath, path: remote.hosts[host]?.report?.path, cwd: target.root,
@@ -274,6 +281,11 @@ extension AppState {
 
     /// The Search tab's root: the inspector's, while it shows the selected session.
     var searchTarget: SearchTarget? {
+        if let leaf = hostShellFocusedLeaf {
+            guard let link = remoteFiles.link(of: leaf) else { return nil }
+            let root = remoteFiles.shown?.leaf == leaf ? remoteFiles.path ?? RemoteFilesModel.home : RemoteFilesModel.home
+            return SearchTarget(root: root, host: link.host, remoteGit: false, link: link)
+        }
         guard let task = selectedTask, inspector.shownTaskId == task.id, let root = inspector.root else { return nil }
         return SearchTarget(root: root, host: project(task.projectId)?.host, remoteGit: !inspector.remoteNoGit)
     }

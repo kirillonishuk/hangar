@@ -30,11 +30,14 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
-    /// What the inspector says instead of its data: a host's terminal (#64), which has no project folder — the inspector
-    /// still holds the previous chat's files then, and must not show them. No chat: the inspector is empty (§3.19).
-    var inspectorNotice: String? {
-        guard let task = selectedTask else { return nil }
-        return isHostShellTask(task.id) ? L10n.inspectorHostShell : nil
+    /// Where ssh sockets live (#47): beside the state, or `/tmp/hangar-<uid>` when that path is too long.
+    var sshPaths: SSHPaths { SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent) }
+
+    /// The leaf whose folder the inspector shows: the focused leaf of the selected host terminal's active tab.
+    var hostShellFocusedLeaf: UUID? {
+        guard let task = selectedTask, isHostShellTask(task.id) else { return nil }
+        let tab = task.tabs.first { $0.id == task.activeTabId } ?? task.tabs.first
+        return tab?.focusedLeafId
     }
 
     /// The ssh config's hosts again (launch, app activation): no file watcher, the list is cheap to read.

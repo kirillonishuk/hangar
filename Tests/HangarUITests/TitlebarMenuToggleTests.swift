@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import HangarUI
@@ -6,6 +7,23 @@ import Testing
     @Test func offsetFollowsTheTrafficLights() {
         #expect(titlebarOffset(lightsCenterY: 16, barHeight: 38) == -3)
         #expect(titlebarOffset(lightsCenterY: nil, barHeight: 38) == 0)
+    }
+
+    @Test func trafficLightsSitInTheHeadAfterResize() throws {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                              backing: .buffered, defer: false)
+        window.titlebarAppearsTransparent = true
+        for size in [NSSize(width: 800, height: 600), NSSize(width: 1100, height: 700)] {
+            window.setContentSize(size)
+            TrafficLights.place(in: window)
+            let close = try #require(window.standardWindowButton(.closeButton))
+            let mini = try #require(window.standardWindowButton(.miniaturizeButton))
+            let r = close.convert(close.bounds, to: nil), m = mini.convert(mini.bounds, to: nil)
+            #expect(r.minX == Theme.Space.s5 - 1)
+            #expect(window.frame.height - r.midY == Theme.Height.barToolbar / 2)
+            #expect(m.midY == r.midY && m.minX > r.maxX)
+        }
     }
 
     @Test func clickOnAnchorOfOpenMenuDoesNotReopen() {

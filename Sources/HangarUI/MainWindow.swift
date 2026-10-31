@@ -144,6 +144,7 @@ final class WindowRootController: NSViewController {
 
     override func viewDidLayout() {
         super.viewDidLayout()
+        TrafficLights.place(in: view.window)
         metrics.update(from: view.window)
         updateContentX()
     }
@@ -156,12 +157,43 @@ final class WindowRootController: NSViewController {
             observesWindow = true
             for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didResizeNotification] {
                 observers.append(nc.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.metrics.update(from: self?.view.window) }
+                    MainActor.assumeIsolated {
+                        TrafficLights.place(in: self?.view.window)
+                        self?.metrics.update(from: self?.view.window)
+                    }
                 })
             }
         }
+        TrafficLights.place(in: view.window)
         metrics.update(from: view.window)
         updateContentX()
+    }
+}
+
+/// Traffic lights at x 20, centre y 26 in the 52 head (§3.1) without a toolbar, which on macOS 26 would give the window
+/// the larger corner radius (#123): the titlebar container grows to 52, the buttons keep their size and system spacing.
+/// shortcut: re-placed only on content layout, resize and full screen; setting the window's title, subtitle,
+/// representedURL or a native tab bar resets the lights, so re-place if any of these is added.
+@MainActor enum TrafficLights {
+    static func place(in window: NSWindow?) {
+        guard let window, !window.styleMask.contains(.fullScreen),
+              let close = window.standardWindowButton(.closeButton), let mini = window.standardWindowButton(.miniaturizeButton),
+              let zoom = window.standardWindowButton(.zoomButton), let bar = close.superview,
+              let container = bar.superview else { return }
+        let height = Theme.Height.barToolbar
+        let top = window.frame.height - height
+        if container.frame.height != height || container.frame.minY != top {
+            container.frame = NSRect(x: container.frame.minX, y: top, width: container.frame.width, height: height)
+        }
+        let gap = mini.frame.minX - close.frame.maxX
+        var x = Theme.Space.s5 - 1  // the 14-pt button draws its 12-pt circle 1 in: the circle's edge at x 20
+        for button in [close, mini, zoom] {
+            let size = button.frame.size
+            let y = bar.isFlipped ? (height - size.height) / 2 : bar.bounds.height - height / 2 - size.height / 2
+            let origin = NSPoint(x: x, y: y.rounded())
+            if button.frame.origin != origin { button.setFrameOrigin(origin) }
+            x += size.width + gap
+        }
     }
 }
 
@@ -222,10 +254,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // An empty unified toolbar puts the traffic lights at x 20, centre y 26: inside the sidebar's 52 head (§3.1).
-        window.toolbar = NSToolbar(identifier: "HangarMain")
-        window.toolbarStyle = .unified
+        // No NSToolbar: on macOS 26 it gives the window the larger corner radius; `TrafficLights` places the lights (#123).
         window.isMovableByWindowBackground = false
+        window.tabbingMode = .disallowed  // a native tab bar would reset the hand-placed traffic lights
         window.backgroundColor = Theme.bg0
         window.appearance = NSAppearance(named: .darkAqua)
         window.minSize = Theme.windowMinSize
@@ -952,12 +983,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.
     /// A new-task create is in progress: closing the window or quitting would abandon a half-made worktree.
     public var isCreatingTask: Bool { newTaskModel?.creating == true }
-    /// Full screen: the empty toolbar would only add a blank band over our own 52 (and could take its clicks).
-    public func windowWillEnterFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = false }
-    public func windowDidExitFullScreen(_ notification: Notification) { window?.toolbar?.isVisible = true }
-    /// Refused (e.g. the app is not active): no exit follows, so the toolbar comes back here.
-    public func windowDidFailToEnterFullScreen(_ window: NSWindow) { window.toolbar?.isVisible = true }
-
     public func windowShouldClose(_ sender: NSWindow) -> Bool {
         switch currentQuitDecision() {
         case .terminateNow: return true

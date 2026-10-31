@@ -24,9 +24,9 @@ extension AppState {
 
     /// A scope from ⌘Y or the segment: every project of it (the project chip goes).
     func showSessionsView(scope: SessionsScope) {
-        guard !state.projects.isEmpty else { beep(); return }  // no project: nothing to show
+        guard !state.projects.isEmpty || !state.freeChats.isEmpty else { beep(); return }  // nothing to show
         sessionsProject = nil
-        sessionsScope = sessionsProjects(scope).isEmpty ? .all : scope
+        sessionsScope = scope == .chats || !sessionsProjects(scope).isEmpty ? scope : .all
         sessionsViewVisible = true
         didChange?()
     }
@@ -44,6 +44,7 @@ extension AppState {
     func sessionsProjects(_ scope: SessionsScope) -> [Project] {
         switch scope {
         case .all: state.projects
+        case .chats: []
         case .local: state.projects.filter { $0.host == nil }
         case .host(let host): state.projects.filter { $0.host == host }
         }
@@ -132,7 +133,12 @@ enum SessionsAction: Equatable {
     case focus(leaf: UUID)
     case open(Conversation, task: UUID)
     case openInNewSession(Conversation, project: UUID)
+    /// A conversation of the chats folder no chat holds: a new chat without a project resuming it.
+    case openInNewFreeChat(Conversation)
 }
+
+/// The «Чаты» group's id: chats without a project are no project, their conversations are found under this.
+let chatsGroupId = UUID(uuidString: "00000000-0000-0000-0000-00000000C4A7")!
 
 // MARK: Model
 
@@ -193,6 +199,13 @@ enum SessionsAction: Equatable {
     @ObservationIgnored lazy var hostLink: (String) -> SessionsHostLink = { [app] in sessionsHostLink(app.remote.hosts[$0]) }
     /// The conversations of one folder; tests replace it.
     @ObservationIgnored var scan: (@MainActor @Sendable (String, Project) async throws -> [Conversation])?
+    /// The chats folder's conversations; tests replace it.
+    @ObservationIgnored var scanChats: (@MainActor @Sendable () async -> [Conversation])?
+    /// Conversation search by text (chats only); tests replace it.
+    @ObservationIgnored var matchText: (@MainActor @Sendable (String) async -> Set<String>)?
+    /// Ids of chats-folder conversations whose text holds `textQuery` (the search as it was last run).
+    private(set) var textMatches: Set<String> = []
+    private(set) var textQuery = ""
 
     struct Found {
         var conversation: Conversation
@@ -203,7 +216,11 @@ enum SessionsAction: Equatable {
     init(app: AppState) { self.app = app }
 
     /// The chosen scope while it has projects; «Все» once a host's last project is gone.
-    var scope: SessionsScope { app.sessionsProjects(app.sessionsScope).isEmpty ? .all : app.sessionsScope }
+    var scope: SessionsScope {
+        app.sessionsScope == .chats || !app.sessionsProjects(app.sessionsScope).isEmpty ? app.sessionsScope : .all
+    }
+    /// The chats folder is read for «Все» and «Чаты» (not with a project chip).
+    var includesChats: Bool { project == nil && (scope == .all || scope == .chats) }
     /// The project chip's project while it exists.
     var project: Project? { app.sessionsProject.flatMap { id in app.state.projects.first { $0.id == id } } }
     /// The scope's projects, or only the chip's.
@@ -241,11 +258,19 @@ enum SessionsAction: Equatable {
         connectingHosts = []
         load = .loading
         let progressive = found.isEmpty
+        let chatsFolder = app.state.chatsFolder
+        var chats: [Found] = []
+        if includesChats {
+            let list = await (scanChats ?? { [app] in await app.chatConversations() })()
+            guard gen == generation, !Task.isCancelled else { return }
+            chats = list.map { Found(conversation: $0, folder: chatsFolder, project: chatsGroupId) }
+            if progressive { found = newestFirst(chats) }
+        }
         let all = app.state.projects
         let scoped = projects
         let scan = self.scan ?? { [app] folder, project in try await app.conversations(folder: folder, project: project) }
-        var out: [Found] = []
-        var seen = Set<String>()
+        var out = chats
+        var seen = Set(out.map { $0.conversation.agent.rawValue + $0.conversation.id })
         let sources: [String?] = [nil] + app.sessionsHosts.filter { h in scoped.contains { $0.host == h } }
         pendingHosts = progressive ? Set(sources.compactMap { $0 }.filter { hostLink($0) == .connected }) : []
         for host in sources {
@@ -277,7 +302,8 @@ enum SessionsAction: Equatable {
                         failures.append(SessionsFailure(host: host, message: sessionsErrorText(error), timedOut: false))
                         failed = true
                     }
-                    for c in list where !inDeeperProject(c.cwd, of: project, among: all)
+                    // A project around the chats folder (in ~) does not list the chats' conversations.
+                    for c in list where !inDeeperProject(c.cwd, of: project, among: all) && !isInside(c.cwd, chatsFolder)
                         && seen.insert((host ?? "") + "\0" + c.agent.rawValue + c.id).inserted {
                         out.append(Found(conversation: c, folder: folder, project: project.id))
                     }
@@ -307,6 +333,8 @@ enum SessionsAction: Equatable {
         var states: Set<SessionsRowState>
         var query: String
         var projects: [UUID]
+        var scope: SessionsScope
+        var textQuery: String, textMatches: Set<String>
         var offline: [String], connecting: [String], pending: Set<String>, failures: [SessionsFailure]
     }
 
@@ -318,7 +346,7 @@ enum SessionsAction: Equatable {
 
     private var list: List {
         let key = ListKey(found: foundVersion, state: app.state, agents: agents, states: states, query: query,
-                          projects: projects.map(\.id), offline: offlineHosts, connecting: connectingHosts, pending: pendingHosts,
+                          projects: projects.map(\.id), scope: scope, textQuery: textQuery, textMatches: textMatches, offline: offlineHosts, connecting: connectingHosts, pending: pendingHosts,
                           failures: failures)
         _ = found.count  // observed: a rescan's rows redraw the list
         if let cache, cache.key == key { return cache.list }
@@ -332,16 +360,60 @@ enum SessionsAction: Equatable {
         let conversations = all.filter { admits(.conversation($0)) }
         // A session shows through its listed conversations; when the chips or the search hide them, it is its own row again.
         let held = Set(conversations.compactMap { r -> UUID? in if case .closed(let t, _) = r.place { t } else { nil } })
-        let closed = closedSessionRows(app.state.tasks, projects: projects).filter { !held.contains($0.id) && admits(.session($0)) }
+        var closed = closedSessionRows(app.state.tasks, projects: projects)
+        if includesChats { closed += closedFreeChatRows() }
+        closed = closed.filter { !held.contains($0.id) && admits(.session($0)) }
         let items = conversations.map(SessionsItem.conversation) + closed.map(SessionsItem.session)
         let byProject = Dictionary(grouping: items, by: projectOf)
-        let groups = projects.compactMap { p -> SessionsGroup? in
-            let rows = (byProject[p.id] ?? []).sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+        let newest: ([SessionsItem]) -> [SessionsItem] = { $0.sorted { ($0.date, $0.id) > ($1.date, $1.id) } }
+        let chatRows = newest(byProject[chatsGroupId] ?? [])
+        if scope == .chats { return List(conversations: conversations, closed: closed, groups: dayGroups(chatRows)) }
+        // «Все»: «Чаты» first, as in the sidebar.
+        let chats = chatRows.isEmpty ? [] : [SessionsGroup(id: chatsGroupId, name: L10n.freeChatsScope, host: nil, items: chatRows)]
+        let groups = chats + projects.compactMap { p -> SessionsGroup? in
+            let rows = newest(byProject[p.id] ?? [])
             let note = p.host.flatMap(note(host:))
             guard !rows.isEmpty || note != nil else { return nil }
             return SessionsGroup(id: p.id, name: p.name, host: p.host, items: rows, note: note)
         }
         return List(conversations: conversations, closed: closed, groups: groups)
+    }
+
+    /// Asleep chats without a project, as rows (those holding a listed conversation show through it).
+    private func closedFreeChatRows() -> [ClosedSessionRow] {
+        app.state.freeChatTasks.filter(\.archived).map {
+            ClosedSessionRow(id: $0.id, name: $0.name, project: chatsGroupId, branch: nil, archivedAt: $0.archivedAt, tabs: $0.tabs.count)
+        }
+    }
+
+    /// «Чаты»: one group per day of last activity — «Сегодня», «Вчера», «Суббота, 24 октября» (another year: with it).
+    private func dayGroups(_ rows: [SessionsItem]) -> [SessionsGroup] {
+        let now = self.now()
+        var order: [Date] = []
+        var byDay: [Date: [SessionsItem]] = [:]
+        for r in rows {
+            let day = calendar.startOfDay(for: r.date)
+            if byDay[day] == nil { order.append(day) }
+            byDay[day, default: []].append(r)
+        }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: L10n.resolve(L10n.language).rawValue)
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        return order.map { day in
+            let name: String = switch historyDay(day, now: now, calendar: calendar) {
+            case .today: L10n.today
+            case .yesterday: L10n.sessionsYesterday.prefix(1).uppercased() + L10n.sessionsYesterday.dropFirst()
+            case .date:
+                {
+                    f.setLocalizedDateFormatFromTemplate(calendar.isDate(day, equalTo: now, toGranularity: .year) ? "EEEEdMMMM" : "EEEEdMMMMyyyy")
+                    let t = f.string(from: day)
+                    return t.prefix(1).uppercased() + t.dropFirst()
+                }()
+            }
+            let id = UUID(uuidString: String(format: "00000000-0000-0000-0001-%012llx", UInt64(max(0, day.timeIntervalSince1970)))) ?? chatsGroupId
+            return SessionsGroup(id: id, name: name, host: nil, items: byDay[day] ?? [])
+        }
     }
 
     /// Every scanned conversation with its place; open markers come from the live tabs now, not from the scan.
@@ -367,7 +439,28 @@ enum SessionsAction: Equatable {
                 worktrees[t.projectId.uuidString + "\0" + path] = t
             }
         }
+        // Asleep chats without a project by the conversations their agents hold.
+        var asleepChats: [String: HangarTask] = [:]
+        for t in app.state.freeChatTasks where t.archived {
+            for leaf in t.tabs.flatMap(\.root.leaves) {
+                guard let agent: HistoryAgent = leaf.kind == .claude ? .claude : leaf.kind == .codex ? .codex : nil,
+                      let id = validSessionId(leaf.agentSessionId) else { continue }
+                if asleepChats[agent.rawValue + "\0" + id] == nil { asleepChats[agent.rawValue + "\0" + id] = t }
+            }
+        }
         return found.compactMap { f in
+            if f.project == chatsGroupId {
+                let c = f.conversation
+                let place: ConversationPlace
+                if let o = open[conversationKey(host: nil, agent: c.agent, id: c.id)] {
+                    place = .open(task: o.task, leaf: o.leaf, name: names[o.task] ?? "")
+                } else if let t = asleepChats[c.agent.rawValue + "\0" + c.id] {
+                    place = .closed(task: t.id, name: t.name)
+                } else {
+                    place = .none
+                }
+                return ConversationRow(conversation: c, place: place, project: chatsGroupId, folder: f.folder, projectPath: f.folder)
+            }
             guard let project = byId[f.project] else { return nil }
             let c = f.conversation
             // Only a leaf holding this very conversation makes it open (or archived): a session of the same folder holds
@@ -402,7 +495,18 @@ enum SessionsAction: Equatable {
     }
 
     private func admits(_ item: SessionsItem) -> Bool {
-        guard sessionsAdmits(item, agents: agents, states: states), let p = app.project(projectOf(item)) else { return false }
+        // «Чаты» has no state chips: chats without a project are never «в архиве».
+        guard sessionsAdmits(item, agents: agents, states: scope == .chats ? [] : states) else { return false }
+        if projectOf(item) == chatsGroupId {
+            switch item {
+            case .conversation(let r):
+                let q = query.trimmingCharacters(in: .whitespaces)
+                return sessionsMatch(query, [r.conversation.title, r.placeName])
+                    || (!q.isEmpty && q == textQuery && textMatches.contains(r.conversation.id))
+            case .session(let r): return sessionsMatch(query, [r.name])
+            }
+        }
+        guard let p = app.project(projectOf(item)) else { return false }
         switch item {
         case .conversation(let r):
             let c = r.conversation
@@ -444,7 +548,8 @@ enum SessionsAction: Equatable {
     /// The rows a group shows: none when collapsed, the first `Theme.sessionsGroupLimit` until «Показать ещё N».
     func visibleItems(_ g: SessionsGroup) -> [SessionsItem] {
         if collapsed.contains(g.id) { return [] }
-        return expanded.contains(g.id) ? g.items : Array(g.items.prefix(Theme.sessionsGroupLimit))
+        // A day of «Чаты» shows all its rows: the days already split them.
+        return expanded.contains(g.id) || scope == .chats ? g.items : Array(g.items.prefix(Theme.sessionsGroupLimit))
     }
 
     func hiddenCount(_ g: SessionsGroup) -> Int { collapsed.contains(g.id) ? 0 : g.items.count - visibleItems(g).count }
@@ -493,7 +598,7 @@ enum SessionsAction: Equatable {
         case .open(_, let leaf, _): .focus(leaf: leaf)
         case .session(let task, _): .open(row.conversation, task: task)
         case .closed(let task, _): .restore(task)
-        case .none: .openInNewSession(row.conversation, project: row.project)
+        case .none: row.project == chatsGroupId ? .openInNewFreeChat(row.conversation) : .openInNewSession(row.conversation, project: row.project)
         }
     }
 
@@ -517,7 +622,9 @@ enum SessionsAction: Equatable {
     /// Every action ends in a selected session, which closes the view; a failed restore keeps it (with the alert).
     func perform(_ action: SessionsAction, ctx: ActionContext) async {
         switch action {
-        case .restore(let id): await restoreArchivedTask(id, ctx: ctx, reselect: true)
+        case .restore(let id):
+            if app.isFreeChatTask(id) { app.wakeFreeChat(id) } else { await restoreArchivedTask(id, ctx: ctx, reselect: true) }
+        case .openInNewFreeChat(let c): app.openFreeChat(resuming: c)
         case .focus(let leaf):
             app.reveal(leafId: leaf)  // its tab, or the TERMINAL panel it is in
             app.hideSessionsView()
@@ -534,11 +641,34 @@ enum SessionsAction: Equatable {
     }
 
     /// «Удалить навсегда»: the sidebar's flow with its confirmations.
-    func delete(_ id: UUID, ctx: ActionContext) { Action.deletePermanently.perform(.task(id), ctx) }
+    func delete(_ id: UUID, ctx: ActionContext) {
+        (app.isFreeChatTask(id) ? Action.removeFreeChat : .deletePermanently).perform(.task(id), ctx)
+    }
+
+    /// «Чаты»: matches by conversation text, 250 ms after the last keystroke; a newer query cancels this one.
+    func searchText() async {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard scope == .chats, !q.isEmpty else {
+            textMatches = []
+            textQuery = ""
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        let ids = await (matchText ?? { [app] q in await app.matchChatText(q) })(q)
+        guard !Task.isCancelled else { return }
+        textMatches = ids
+        textQuery = q
+    }
 }
 
 /// A new session's name from a conversation title (file content): one safe line, at most 40 characters.
 @MainActor func sessionName(_ title: String?) -> String {
     let clean = title.flatMap(conversationTitle) ?? L10n.sessionsUntitled
     return clean.count > 40 ? String(clean.prefix(39)) + "…" : clean
+}
+
+/// `path` is `folder` or inside it (an empty folder holds nothing).
+func isInside(_ path: String, _ folder: String) -> Bool {
+    !folder.isEmpty && (path == folder || path.hasPrefix(folder.hasSuffix("/") ? folder : folder + "/"))
 }

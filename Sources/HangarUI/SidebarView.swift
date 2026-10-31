@@ -52,6 +52,7 @@ struct SidebarView: View {
                 Color.clear.frame(height: Theme.Height.barToolbar)
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 0) {
+                        chatsSection
                         if !app.state.attentionOnly { pinnedSection }
                         projectsSection
                         hostsSection
@@ -80,6 +81,100 @@ struct SidebarView: View {
         #else
         false
         #endif
+    }
+
+    // MARK: Chats without a project
+
+    /// «Чаты» above everything (spec free-chats §4): pinned, open and recent chats, «Все чаты (N)…»; empty — the header
+    /// with its «+». The attention filter keeps only chats that need action; the rail only shows their tiles.
+    @ViewBuilder private var chatsSection: some View {
+        let filtering = app.state.attentionOnly
+        let rows = filtering
+            ? app.state.freeChatTasks.filter { !$0.archived && [.waiting, .failed].contains(app.displayState(of: $0)) }
+            : app.sidebarFreeChats()
+        if !rows.isEmpty || !(filtering || collapsed) {
+            SectionHeader(title: L10n.sectionChats, collapsed: collapsed, plusHelp: L10n.help(L10n.newFreeChat, .newFreeChat),
+                          plusAlwaysVisible: app.state.freeChats.isEmpty, plus: { app.newFreeChat() })
+            ForEach(rows) { task in freeChatRow(task) }
+            if !filtering, !rows.isEmpty { allChatsRow }
+        }
+    }
+
+    /// One line, 28, at the project level: dot (none while asleep), name, and at the end the word that needs action or
+    /// the time of last use; pin and «⋯» over that end on hover. Asleep: name `text2`; a click wakes it.
+    private func freeChatRow(_ task: HangarTask) -> some View {
+        let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId
+        let target = ActionTarget.task(task.id)
+        let asleep = task.archived
+        let dot = app.displayState(of: task)
+        // The word that needs action wins over the time («2 мин», «вчера»), which is recomputed on redraw, no timer.
+        let urgent = !asleep && [.waiting, .failed, .limit].contains(dot)
+        let end = urgent ? L10n.rowStatus(dot)
+            : app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: Date()) } ?? ""
+        let endWidth = ceil((end as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
+        return HoverRow(selected: selected, action: {
+                            clicked(target)
+                            app.wakeFreeChat(task.id)
+                        },
+                        doubleAction: { Action.rename.perform(target, ctx) },
+                        forceHover: forcedHover(target)) { hover in
+            let showActions = hover && app.renaming != target
+            GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
+                if !asleep {
+                    StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                }
+            } expanded: {
+                HStack(spacing: Theme.rowEndGap) {
+                    Group {
+                        if app.renaming == target {
+                            RenameField(app: app, target: target)
+                        } else {
+                            Text(task.name).lineLimit(1).truncationMode(.tail)
+                                .foregroundStyle(selected ? Theme.ui.onAccent : asleep ? Theme.ui.text2 : Theme.ui.text1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    ZStack(alignment: .trailing) {
+                        Color.clear.frame(width: Self.rowEndSlot(endWidth), height: 1)
+                        Text(verbatim: end)
+                            .font(Theme.Typography.caption.font())
+                            .foregroundStyle(selected ? Theme.ui.onAccent
+                                             : urgent ? (dot == .failed ? Theme.ui.failedText : Theme.ui.waiting) : Theme.ui.text3)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .opacity(showActions ? 0 : 1)
+                    }
+                }
+                .overlay(alignment: .trailing) {
+                    taskActions(task, target: target, shown: showActions)
+                        .offset(x: Theme.rowActionsOverhang)
+                }
+            } rail: {
+                RailTile(text: monogram(task.name), state: asleep ? nil : dot, selected: selected, hover: hover,
+                         style: asleep && !selected ? RailTileStyle(fill: Theme.ui.hover2, border: .clear, text: Theme.ui.text3) : nil)
+            }
+            .font(Theme.Typography.body.font())
+            .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
+        .help(collapsed ? "\(L10n.noProject) › \(task.name)" : "")
+        .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
+    }
+
+    /// «Все чаты (N)…»: History scoped to «Чаты» (search by title and conversation text).
+    private var allChatsRow: some View {
+        HoverRow(action: { app.showSessionsView(scope: .chats) }) { _ in
+            GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing) {
+                EmptyView()
+            } expanded: {
+                Text(L10n.allFreeChats(app.state.freeChats.count)).lineLimit(1).foregroundStyle(Theme.ui.text2)
+            } rail: { EmptyView() }
+        }
+        .frame(height: collapsed ? 0 : nil)
+        .opacity(collapsed ? 0 : 1)
+        .allowsHitTesting(!collapsed)
+        .help(L10n.help(L10n.sessionsViewHelp, .sessions))
     }
 
     // MARK: Pinned

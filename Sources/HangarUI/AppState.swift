@@ -208,7 +208,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
     @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json, an unarchived task or an opened conversation: their first launch resumes.
-    @ObservationIgnored private var restoredLeaves: Set<UUID> = []
+    @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).

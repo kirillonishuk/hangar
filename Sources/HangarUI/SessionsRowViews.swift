@@ -102,25 +102,45 @@ struct SessionsRow: View {
         }
     }
 
-    /// Folder = the project's main folder, ⎇ = a worktree; then the branch (a session row: its worktree branch only).
-    @ViewBuilder private var place: some View {
-        let (glyph, text): (Icon?, String?) = switch item {
+    private var projectPlace: (Icon?, String?) {
+        switch item {
         case .conversation(let r):
             (r.inWorktree ? .branch : .project, r.conversation.gitBranch ?? (r.folder as NSString).lastPathComponent)
         case .session(let r): (r.branch == nil ? nil : .branch, r.branch)
         }
+    }
+
+    /// Folder = the project's main folder, ⎇ = a worktree; then the branch (a session row: its worktree branch only).
+    @ViewBuilder private var place: some View {
+        let (glyph, text): (Icon?, String?) = isChat ? (nil, chatName) : projectPlace
         HStack(spacing: Theme.historyColumnGap) {
             if let glyph { IconView(icon: glyph, size: Theme.Icon.inline, tint: Theme.ui.text3) }
             if let text {
-                Text(verbatim: text).font(Theme.Typography.monoSmall.font()).foregroundStyle(Theme.ui.text3)
+                Text(verbatim: text).font(isChat ? Theme.Typography.secondary.font() : Theme.Typography.monoSmall.font()).foregroundStyle(Theme.ui.text3)
                     .lineLimit(1).truncationMode(.middle)
             }
         }
     }
 
+    /// A row of «Чаты»: its chat's name instead of folder and branch; no «в архиве» / «в истории».
+    private var isChat: Bool {
+        switch item {
+        case .conversation(let r): r.project == chatsGroupId
+        case .session(let r): r.project == chatsGroupId
+        }
+    }
+
+    private var chatName: String? {
+        switch item {
+        case .conversation(let r): r.placeName
+        case .session: nil
+        }
+    }
+
     @ViewBuilder private var state: some View {
         HStack(spacing: Theme.historyColumnGap) {
-            switch item.state {
+            switch isChat && item.state != .open ? nil : item.state {
+            case nil: EmptyView()
             case .open:
                 if case .conversation(let r) = item, case .open(_, let leaf, _) = r.place { StatusDot(state: app.state(ofLeaf: leaf)) }
                 Text(L10n.sessionsMarkerOpen).foregroundStyle(Theme.ui.text1)
@@ -141,6 +161,16 @@ struct SessionsRow: View {
         let action = model.primaryAction(item)
         switch action {
         case .focus: button(L10n.sessionsGo, help: nil, action)
+        case .restore where isChat:
+            // An asleep chat without a project: it wakes; «Убрать из списка» instead of deleting.
+            if let task = item.archivedTask {
+                Button { model.delete(task, ctx: ctx) } label: {
+                    IconView(icon: .remove, size: Theme.Icon.inline).frame(width: ControlSize.small.height - 2 * ControlSize.small.paddingH)
+                }
+                .buttonStyle(.hangar(.destructive, .small))
+                .help(L10n.removeFromList)
+            }
+            button(L10n.sessionsContinue, help: nil, action)
         case .restore:
             if let task = item.archivedTask {
                 Button { model.delete(task, ctx: ctx) } label: {
@@ -155,7 +185,7 @@ struct SessionsRow: View {
                 .disabled(offline != nil)
         case .open(_, let task):
             button(L10n.sessionsContinue, help: L10n.sessionsContinueIn(app.state.tasks.first { $0.id == task }?.name ?? ""), action)
-        case .openInNewSession: button(L10n.sessionsContinue, help: L10n.sessionsContinueNew, action)
+        case .openInNewSession, .openInNewFreeChat: button(L10n.sessionsContinue, help: L10n.sessionsContinueNew, action)
         }
     }
 
@@ -186,6 +216,7 @@ struct SessionsRow: View {
     private var time: String {
         let d = item.date
         guard d != .distantPast else { return "" }
+        if model.scope == .chats { return formatted(d, "HH:mm") }  // the day is the group's heading
         switch historyDay(d, now: model.now(), calendar: model.calendar) {
         case .today: return formatted(d, "HH:mm")
         case .yesterday: return L10n.sessionsYesterday

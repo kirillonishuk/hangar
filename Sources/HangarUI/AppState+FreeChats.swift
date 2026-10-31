@@ -1,5 +1,7 @@
+import AgentStatus
 import AppKit
 import Foundation
+import History
 import Workspace
 
 /// Rows of the sidebar's «Чаты» beyond pinned, open and selected chats.
@@ -46,6 +48,56 @@ extension AppState {
 
     func removeFreeChat(_ id: UUID) { perform { $0.removeFreeChat(taskId: id) } }
 
+    /// History's «Продолжить» on a conversation of the folder no chat holds: a new chat resuming it.
+    func openFreeChat(resuming c: Conversation) {
+        guard let id = validSessionId(c.id) else { beep(); return }
+        ensureChatsFolder()
+        sessionsViewVisible = false
+        deactivateDiff()
+        perform { s in
+            let task = s.addFreeChatTask(name: sessionName(c.title), autoNamed: false)
+            // Marked inside `perform`: the tab's first launch must already resume.
+            if let leaf = s.addResumeTab(taskId: task, kind: c.agent == .claude ? .claude : .codex, cwd: s.chatsFolder, sessionId: id) {
+                restoredLeaves.insert(leaf)
+            }
+        }
+    }
+
+    /// The chats folder's conversations (History «Чаты»), read like a project's.
+    func chatConversations() async -> [Conversation] {
+        guard folderExists(state.chatsFolder) else { return [] }
+        return await history.local(folder: state.chatsFolder, claudeDir: claudeSettingsURL.deletingLastPathComponent(),
+                                   codexDir: codexConfigURL.deletingLastPathComponent(), open: openConversationIds)
+    }
+
+    /// Files dropped on «Файлы» of a chat without a project: copied (never moved) into the folder, then `@name ` is typed
+    /// into the active tab's agent without Enter, to ask about them. Returns the names as copied.
+    @discardableResult func dropIntoChats(_ urls: [URL]) -> [String] {
+        guard let task = selectedTask, state.isFreeChatTask(task), ensureChatsFolder() else { return [] }
+        let fm = FileManager.default
+        var names: [String] = []
+        for url in urls where url.isFileURL {
+            let name = freeChatCopyName(url.lastPathComponent) { fm.fileExists(atPath: state.chatsFolder + "/" + $0) }
+            do {
+                try fm.copyItem(at: url, to: URL(fileURLWithPath: state.chatsFolder + "/" + name))
+                names.append(name)
+            } catch {
+                uiLog.error("drop into chats failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if !names.isEmpty, let tab = task.tabs.first(where: { $0.id == task.activeTabId }), let leaf = tab.root.leaf(id: tab.focusedLeafId),
+           leaf.kind == .claude || leaf.kind == .codex, terminals?.state(leaf.id) == .running {
+            terminals?.send(leaf.id, names.map { "@" + $0 + " " }.joined(), [])
+        }
+        return names
+    }
+
+    /// History «Чаты»: conversations of the folder whose text holds `query`.
+    func matchChatText(_ query: String) async -> Set<String> {
+        await history.matching(query, folder: state.chatsFolder, claudeDir: claudeSettingsURL.deletingLastPathComponent(),
+                               codexDir: codexConfigURL.deletingLastPathComponent())
+    }
+
     /// The sidebar's rows: pinned, open and selected chats always, the rest by last use up to `freeChatsVisible`.
     func sidebarFreeChats(limit: Int = freeChatsVisible) -> [HangarTask] {
         let all = state.freeChatTasks
@@ -76,5 +128,18 @@ extension AppState {
         let days = calendar.dateComponents([.day], from: day, to: calendar.startOfDay(for: now)).day ?? 0
         f.setLocalizedDateFormatFromTemplate(days < 7 ? "EEE" : calendar.isDate(d, equalTo: now, toGranularity: .year) ? "dMMM" : "ddMMyy")
         return f.string(from: d)
+    }
+}
+
+/// A free name in the folder: «report.pdf», then «report 2.pdf», «report 3.pdf»…
+func freeChatCopyName(_ name: String, taken: (String) -> Bool) -> String {
+    guard taken(name) else { return name }
+    let ext = (name as NSString).pathExtension
+    let stem = ext.isEmpty ? name : String(name.dropLast(ext.count + 1))
+    var n = 2
+    while true {
+        let candidate = ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)"
+        if !taken(candidate) { return candidate }
+        n += 1
     }
 }

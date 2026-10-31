@@ -35,13 +35,19 @@ extension WorkspaceState {
     /// A new chat with one `kind` tab in `chatsFolder`, selected.
     @discardableResult
     public mutating func addFreeChat(name: String, kind: LeafKind, autoNamed: Bool, at date: Date = Date()) -> (task: UUID, tab: UUID) {
+        let task = addFreeChatTask(name: name, autoNamed: autoNamed, at: date)
+        return (task, addTab(taskId: task, kind: kind))
+    }
+
+    /// The chat alone, selected, without tabs (History's «Продолжить» adds a resuming one).
+    @discardableResult
+    public mutating func addFreeChatTask(name: String, autoNamed: Bool, at date: Date = Date()) -> UUID {
         let chat = FreeChat(lastUsedAt: date)
         freeChats.append(chat)
         let task = addTask(projectId: chat.id, name: name)
         if autoNamed, let i = tasks.firstIndex(where: { $0.id == task }) { tasks[i].autoNamed = true }
-        let tab = addTab(taskId: task, kind: kind)
         select(taskId: task)
-        return (task, tab)
+        return task
     }
 
     public mutating func touchFreeChat(taskId: UUID, at date: Date = Date()) {

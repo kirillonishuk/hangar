@@ -9,6 +9,8 @@ import Workspace
 /// name in the search (no project scope).
 enum SessionsScope: Hashable {
     case all
+    /// Chats without a project: their shared folder only, grouped by day.
+    case chats
     case local
     case host(String)
 }

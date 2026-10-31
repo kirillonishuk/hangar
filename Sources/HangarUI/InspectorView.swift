@@ -25,6 +25,8 @@ struct InspectorView: View {
                     GitPanelView(app: app)
                 } else if model.segment == .search {
                     SearchPanel(app: app)
+                } else if app.selectedTask.map(app.state.isFreeChatTask) == true {
+                    FilesList(app: app, model: model).modifier(FreeChatDrop(app: app))
                 } else {
                     FilesList(app: app, model: model)
                 }
@@ -349,4 +351,36 @@ struct NameFolderLayout: Layout {
 func folderRoom(width: CGFloat, name: CGFloat, gap: CGFloat, minFolder: CGFloat) -> CGFloat {
     let room = width - name - gap
     return room >= minFolder ? room : 0
+}
+
+/// «Файлы» of a chat without a project takes files from Finder (copies, never moves); the target shows the focus ring.
+private struct FreeChatDrop: ViewModifier {
+    let app: AppState
+    @State private var targeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .strokeBorder(Theme.ui.accent, lineWidth: 1)
+                    .background(RoundedRectangle(cornerRadius: Theme.Radius.control)
+                        .strokeBorder(Theme.ui.accent.opacity(Theme.Opacity.ring), lineWidth: Theme.focusRing))
+                    .padding(Theme.Space.s2)
+                    .opacity(targeted ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .onDrop(of: [.fileURL], isTargeted: $targeted) { providers in
+                Task { @MainActor in
+                    var urls: [URL] = []
+                    for p in providers {
+                        let url: URL? = await withCheckedContinuation { c in
+                            _ = p.loadObject(ofClass: URL.self) { url, _ in c.resume(returning: url) }
+                        }
+                        if let url { urls.append(url) }
+                    }
+                    app.dropIntoChats(urls)
+                }
+                return true
+            }
+    }
 }

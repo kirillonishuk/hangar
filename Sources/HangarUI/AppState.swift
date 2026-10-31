@@ -135,7 +135,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let gitPanel = GitPanelModel()
     /// The inspector's Search tab (find in files, #91).
     let search = SearchModel()
-    /// Files of the focused host-terminal leaf (#123).
+    /// Files of the focused host-terminal leaf (#124).
     let remoteFiles = RemoteFilesModel()
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]

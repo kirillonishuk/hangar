@@ -22,7 +22,7 @@ public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget,
 
 /// «<host> · терминал» (#64): a plain interactive `ssh -t` login to the host — no server check, no tmux — so a password
 /// or 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again). The login itself is the master of
-/// `controlPath` (per leaf, #123): the inspector lists and uploads through it without a second login. The remote command
+/// `controlPath` (per leaf, #124): the inspector lists and uploads through it without a second login. The remote command
 /// adds the folder hook (`hostShellLoginScript`) and starts the login shell. `host` must pass `validSSHHost`.
 /// ServerAlive ends a connection that died while the Mac slept instead of hanging.
 public func sshShellSpec(host: String, sshPath: String, controlPath: String) -> LaunchSpec {

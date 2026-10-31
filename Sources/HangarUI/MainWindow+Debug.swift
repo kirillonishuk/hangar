@@ -37,7 +37,7 @@ extension MainWindowController {
     }
 
     /// `rf drop <path>[|<dir>]` as files dropped from Finder (into the shown folder or `dir`), `rf target <dir>|-` the drag
-    /// highlight, `rf answer replace|skip|esc [all]` the conflict prompt, `rf toggle <dir>`, `rf cancel`, `rf dump <file>` (#123).
+    /// highlight, `rf answer replace|skip|esc [all]` the conflict prompt, `rf toggle <dir>`, `rf cancel`, `rf dump <file>` (#124).
     private func debugRemoteFiles(_ arg: String) {
         let m = app.remoteFiles
         let f = arg.split(separator: " ", maxSplits: 1).map(String.init)

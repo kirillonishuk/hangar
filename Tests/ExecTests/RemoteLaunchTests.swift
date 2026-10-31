@@ -138,7 +138,7 @@ import TestSupport
     }
 
     /// The plain login of «<host> · терминал» (#64): no tmux, no server check, no BatchMode (a password or 2FA is
-    /// typed in the tab); the login is the master of its leaf socket (#123) and its remote command only adds the folder
+    /// typed in the tab); the login is the master of its leaf socket (#124) and its remote command only adds the folder
     /// hook before the login shell; ssh's own code comes back.
     @Test func plainSSHShell() async throws {
         let f = try Fixture()

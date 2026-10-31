@@ -4,7 +4,7 @@ import Testing
 @testable import HangarUI
 import TestSupport
 
-/// The inspector's Files of a host terminal (#123) on stub listing/upload: what loads when, offline, conflicts, close.
+/// The inspector's Files of a host terminal (#124) on stub listing/upload: what loads when, offline, conflicts, close.
 @MainActor @Suite struct RemoteFilesModelTests {
     final class Calls: @unchecked Sendable {
         private let lock = NSLock()

@@ -879,7 +879,7 @@
 "intOtherCopy" = "Hangar's entries here belong to another copy of the app";
 "intRemoteMissing" = "couldn't install hangar-remote — no hooks written";
 
-/* Files of a host terminal (#123) */
+/* Files of a host terminal (#124) */
 "remoteFilesUpload" = "Upload Files";
 "remoteFilesUploadButton" = "Upload";
 "remoteFilesRefresh" = "Refresh";

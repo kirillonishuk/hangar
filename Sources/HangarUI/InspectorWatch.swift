@@ -64,7 +64,7 @@ import Workspace
         defer {
             app.gitPanel.setOnScreen(current != nil && app.state.inspectorVisible)
             updateHeadWatch()
-            // A host terminal's files load only while they are on screen (#123).
+            // A host terminal's files load only while they are on screen (#124).
             app.remoteFiles.follow(app.state.inspectorVisible && windowVisible() ? app.hostShellFocusedLeaf : nil)
         }
         let task = app.selectedTask

@@ -3,7 +3,7 @@ import Testing
 @testable import Exec
 import TestSupport
 
-/// Files of «<host> · терминал» (#123): the folder hook, the per-leaf master, listing and upload scripts — run against
+/// Files of «<host> · терминал» (#124): the folder hook, the per-leaf master, listing and upload scripts — run against
 /// this Mac's /bin/sh through a fake ssh (never a real host).
 @Suite struct RemoteFilesTests {
     /// A temp root (space and Cyrillic in the path), a fake ssh that runs the remote command locally, a fake socket.

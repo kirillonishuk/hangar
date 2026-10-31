@@ -31,7 +31,7 @@ import Workspace
         #expect(!Action.archive.isEnabled(for: .task(o.task), app: h.app))
     }
 
-    /// The inspector follows the focused leaf of a host's terminal (#123): Search runs through that leaf's master in the
+    /// The inspector follows the focused leaf of a host's terminal (#124): Search runs through that leaf's master in the
     /// folder its shell reported; a project chat gets the usual target again.
     @Test func inspectorFollowsTheHostShellLeaf() async throws {
         let h = try await Harness(); defer { h.cleanup() }

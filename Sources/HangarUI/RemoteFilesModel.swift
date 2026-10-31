@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Observation
 
-/// The inspector's Files of «<host> · терминал» (spec 2026-10-31-remote-files-design, #123): the folder the focused
+/// The inspector's Files of «<host> · терминал» (spec 2026-10-31-remote-files-design, #124): the folder the focused
 /// leaf's shell reported last (OSC 7), listed through that leaf's ssh master; uploads go there one at a time.
 /// Loads only while shown; a prompt (new folder or the same) reloads after a short debounce. No timers, no polling.
 @MainActor @Observable final class RemoteFilesModel {

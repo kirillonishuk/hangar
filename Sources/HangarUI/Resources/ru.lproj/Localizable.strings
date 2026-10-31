@@ -879,7 +879,7 @@
 "intOtherCopy" = "записи Hangar здесь принадлежат другой копии приложения";
 "intRemoteMissing" = "не удалось установить hangar-remote — хуки не записаны";
 
-/* Files of a host terminal (#123) */
+/* Files of a host terminal (#124) */
 "remoteFilesUpload" = "Загрузить файлы";
 "remoteFilesUploadButton" = "Загрузить";
 "remoteFilesRefresh" = "Обновить";

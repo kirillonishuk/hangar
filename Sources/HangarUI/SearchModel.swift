@@ -9,7 +9,7 @@ struct SearchTarget: Equatable, Sendable {
     var host: String?
     /// A remote plain folder (not a repository) gets `git grep --no-index`; a local root is probed per search.
     var remoteGit = true
-    /// A host terminal's leaf master (#123): the search runs through it, `git grep --no-index`.
+    /// A host terminal's leaf master (#124): the search runs through it, `git grep --no-index`.
     var link: RemoteShellLink?
 }
 

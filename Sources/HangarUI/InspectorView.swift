@@ -14,7 +14,7 @@ struct InspectorView: View {
             if app.selectedTask == nil {
                 Spacer(minLength: 0)
             } else if hostShell {
-                // «<host> · терминал»: the folder of its shell and Search there (no git, #123).
+                // «<host> · терминал»: the folder of its shell and Search there (no git, #124).
                 header
                 if model.segment == .search { SearchPanel(app: app) } else { RemoteFilesView(app: app) }
             } else {

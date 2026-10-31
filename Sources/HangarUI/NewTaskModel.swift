@@ -73,6 +73,8 @@ import Workspace
     struct Probe: Equatable {
         var availability: Availability
         var head: Head?
+        /// A remote project's last answer, not checked now: shown, but it doesn't turn the copy off.
+        var cached = false
     }
 
     /// `known`: what `probe` answered, so the sheet's first frame already shows or leaves out «Где работать» and the
@@ -86,9 +88,9 @@ import Workspace
         worktree = project.worktreeByDefault
         // A repository loads its branches as before (`.loading`); the rest is final until `load` says otherwise.
         head = known?.head
-        if let known = known?.availability, known != .ready, known != .loading {
-            availability = known
-            worktree = false
+        if let known, known.availability != .ready, known.availability != .loading {
+            availability = known.availability
+            if !known.cached { worktree = false }
         }
         let saved = project.setupCommand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         setupCommand = saved.isEmpty ? nil : saved
@@ -101,14 +103,14 @@ import Workspace
     }
 
     /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits);
-    /// with the folder's HEAD.
-    static func probe(_ git: Git) async -> Probe {
+    /// with the folder's HEAD. nil when git couldn't answer (the sheet loads as before).
+    static func probe(_ git: Git) async -> Probe? {
         do {
             guard try await git.isRepository() else { return Probe(availability: .notRepository) }
         } catch RemoteHostError.notConnected(let host) {
             return Probe(availability: .hostOffline(host))
         } catch {
-            return Probe(availability: .notRepository)
+            return nil
         }
         let head = try? await git.head()
         return Probe(availability: await git.hasCommits() ? .ready : .noCommits, head: head)

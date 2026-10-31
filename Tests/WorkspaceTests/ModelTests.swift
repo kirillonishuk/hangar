@@ -72,6 +72,13 @@ import Testing
         let leaves = s.tasks[0].tabs[0].root.leaves
         #expect(leaves[0].cwd == "/repo.worktrees/t/sub")
         #expect(leaves[0].agentSessionId == "s1")
+        #expect(leaves[0].relinkedFrom == "/repo/.claude/worktrees/t/sub" && leaves[1].relinkedFrom == nil)
+        // Moved again before a launch: the conversation is still where it was recorded first.
+        s.relinkWorktree(taskId: t, to: "/elsewhere/t")
+        #expect(s.tasks[0].tabs[0].root.leaves[0].relinkedFrom == "/repo/.claude/worktrees/t/sub")
+        s.relinkWorktree(taskId: t, to: "/repo.worktrees/t")
+        s.clearRelinkedFrom(leafId: leaves[0].id)
+        #expect(s.tasks[0].tabs[0].root.leaves[0].relinkedFrom == nil)
         #expect(leaves[0].openFile == "/repo/.claude/worktrees/t2/x")
         #expect(leaves[1].openFile == "/repo.worktrees/t/a.swift")
         #expect(leaves[1].editorFiles?.first?.path == "/repo.worktrees/t/a.swift")

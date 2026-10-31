@@ -52,7 +52,7 @@ import Workspace
         // The tab's claude conversation, recorded in the old folder (a temp claude config, never the real one).
         let config = URL(fileURLWithPath: t.root + "/claude")
         app.claudeSettingsURL = config.appendingPathComponent("settings.json")
-        let recorded = config.appendingPathComponent("projects/" + claudeProjectFolder(old))
+        let recorded = config.appendingPathComponent("projects/" + claudeProjectFolder(old)!)
         try FileManager.default.createDirectory(at: recorded, withIntermediateDirectories: true)
         try Data(#"{"type":"user","cwd":"\#(old)"}"#.utf8).write(to: recorded.appendingPathComponent(Self.session + ".jsonl"))
         app.perform { $0.select(taskId: w) }
@@ -78,16 +78,48 @@ import Workspace
         await #expect(throws: (any Error).self) { try await app.branchChoices(of: task(app, w)) }
 
         app.relinkWorktree(w)
-        await app.transcriptCopy?.value
-        // The conversation is resumable from the new folder; the original stays.
+        // Nothing is copied at the click (claude may still be writing in the old folder): the tab only remembers where.
+        var agent = task(app, w).tabs[1].root.leaves[0]
+        #expect(agent.relinkedFrom == old)
+        #expect(transcriptChoice(id: Self.session, cwd: real(new), configDir: config) == .foreign)
+        // Its next launch copies the conversation as it is then (a turn said after the click included) and drops the mark.
+        let file = recorded.appendingPathComponent(Self.session + ".jsonl")
+        let later = try FileHandle(forWritingTo: file)
+        try later.seekToEnd(); try later.write(contentsOf: Data("\n{\"type\":\"assistant\",\"cwd\":\"\(old)\"}".utf8)); try later.close()
+        app.syncRelinkedTranscript(&agent)
+        #expect(agent.relinkedFrom == nil && task(app, w).tabs[1].root.leaves[0].relinkedFrom == nil)
         #expect(transcriptChoice(id: Self.session, cwd: real(new), configDir: config) == .resume)
-        #expect(FileManager.default.fileExists(atPath: recorded.appendingPathComponent(Self.session + ".jsonl").path))
+        let copy = config.appendingPathComponent("projects/" + claudeProjectFolder(real(new))! + "/" + Self.session + ".jsonl")
+        #expect(try String(contentsOf: copy, encoding: .utf8).contains("assistant"))
+        #expect(FileManager.default.fileExists(atPath: file.path))  // the original stays
         #expect(task(app, w).mode == .worktree(path: real(new), branch: "feat/x", base: "main"))
         #expect(task(app, w).tabs[0].root.leaves[0].cwd == real(new))
         #expect(app.selectedWorktreeProblem == nil)
         await check(app, w)
         #expect(app.worktreePlaces[w] == .inPlace)
         #expect(app.head(of: task(app, w)) == .branch("feat/x"))
+    }
+
+    /// Asked again while a check runs: it runs once more after, not dropped.
+    @Test func recheckDuringACheckRunsAgain() async throws {
+        let (t, app, w, _) = try await make()
+        defer { t.cleanup() }
+        let p = task(app, w).projectId
+        app.checkWorktrees(projectId: p)
+        app.checkWorktrees(projectId: p)
+        #expect(app.worktreeRechecks.contains(p))
+        await app.worktreeChecksIdle()
+        #expect(app.worktreeRechecks.isEmpty && app.worktreeChecks.isEmpty)
+        #expect(app.worktreePlaces[w] == .inPlace)
+    }
+
+    /// A slow git: the sheet doesn't wait for it longer than the timeout.
+    @Test func sheetProbeTimesOut() async {
+        let start = ContinuousClock.now
+        let slow: Int? = await answer(within: .milliseconds(50)) { try? await Task.sleep(for: .seconds(30)); return 1 }
+        #expect(slow == nil && ContinuousClock.now - start < .seconds(10))
+        let quick: Int? = await answer(within: .seconds(30)) { 2 }
+        #expect(quick == 2)
     }
 
     @Test func deletedCopyIsMissing() async throws {

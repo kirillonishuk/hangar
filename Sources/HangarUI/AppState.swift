@@ -129,9 +129,9 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var worktreePlaces: [UUID: WorktreePlace] = [:]
     /// The running check of each project's worktrees; one at a time.
     @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
-    /// A remote project's last repository probe: its sheets open with it at once, no ssh round trip first (#122).
-    /// The running copy of a relinked chat's claude conversations (tests wait for it).
-    @ObservationIgnored var transcriptCopy: Task<Void, Never>?
+    /// Projects asked to check again while their check ran: it reruns once after.
+    @ObservationIgnored var worktreeRechecks: Set<UUID> = []
+    /// A remote project's last definite repository probe: its sheets open with it at once, no ssh round trip first (#122).
     @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
@@ -484,6 +484,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             if context == .restored { mode.unlinked = true }
         }
         var newId = leaf.kind == .claude && !mode.restoring
+        syncRelinkedTranscript(&leaf)
         // On this Mac the transcript decides (on a server, the launch command does): resumed only where claude finds it.
         if leaf.kind == .claude, mode.restoring, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId),
            UUID(uuidString: id) != nil {
@@ -531,6 +532,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     var claudeConfigDir: URL { (integrationPathsCache?.claude ?? claudeSettingsURL).deletingLastPathComponent() }
 
     /// A launch's new conversation id: saved without `perform`, whose sync may be what is starting this launch.
+    /// Like `setAgentSessionIdQuietly`: saved, no redraw (a launch is under way).
+    func clearRelinkedFromQuietly(_ leafId: UUID) {
+        state.clearRelinkedFrom(leafId: leafId)
+        store.scheduleSave(state)
+    }
+
     private func setAgentSessionIdQuietly(_ leaf: Leaf) {
         guard let id = leaf.agentSessionId else { return }
         state.setAgentSessionId(leafId: leaf.id, id)

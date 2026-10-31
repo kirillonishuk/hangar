@@ -119,20 +119,15 @@ public enum TranscriptChoice: Equatable, Sendable { case resume, start, foreign 
 /// (JSON, so escaped paths compare right). No `cwd` in them → this folder.
 public func transcriptChoice(id: String, cwd: String, configDir: URL) -> TranscriptChoice {
     let projects = configDir.appendingPathComponent("projects")
-    let own = [claudeProjectFolder(cwd), claudeProjectFolder(URL(fileURLWithPath: cwd).resolvingSymlinksInPath().path)]
+    let own = [cwd, URL(fileURLWithPath: cwd).resolvingSymlinksInPath().path].compactMap(claudeProjectFolder)
     let folders = own + ((try? FileManager.default.contentsOfDirectory(atPath: projects.path)) ?? [])
     guard let file = folders.lazy.map({ projects.appendingPathComponent($0).appendingPathComponent(id + ".jsonl") })
         .first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return .start }
     guard let handle = try? FileHandle(forReadingFrom: file) else { return .resume }
     defer { try? handle.close() }
-    let head = (try? handle.read(upToCount: 1_048_576)) ?? Data()
     func real(_ p: String) -> String { URL(fileURLWithPath: p).resolvingSymlinksInPath().standardizedFileURL.path }
-    for line in head.split(separator: UInt8(ascii: "\n")).prefix(200) {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
-              let recorded = object["cwd"] as? String else { continue }
-        return recorded == cwd || real(recorded) == real(cwd) ? .resume : .foreign
-    }
-    return .resume
+    guard let recorded = firstRecordedCwd((try? handle.read(upToCount: 1_048_576)) ?? Data()) else { return .resume }
+    return recorded == cwd || real(recorded) == real(cwd) ? .resume : .foreign
 }
 
 /// `$1` id, `$2` a spare id, `$3` note, `$4` login shell (empty → /bin/sh), `$5` the claude command. The id's transcript (this

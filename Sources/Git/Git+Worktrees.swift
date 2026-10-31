@@ -36,6 +36,15 @@ public func worktreePlace(path: String, branch: String, in list: [WorktreeEntry]
     return .missing
 }
 
+/// As `worktreePlace`, comparing paths as written, then — not in place — once more with `path` resolved on its machine
+/// (`resolve`: symlinks, `/tmp` → `/private/tmp`; git lists real paths). One resolution only when needed.
+public func worktreePlace(path: String, branch: String, in list: [WorktreeEntry],
+                          resolve: @Sendable (String) async -> String?) async -> WorktreePlace {
+    let place = worktreePlace(path: path, branch: branch, in: list)
+    guard place != .inPlace, let real = await resolve(path), real != path else { return place }
+    return worktreePlace(path: real, branch: branch, in: list)
+}
+
 func parseWorktreeList(_ out: String) -> [WorktreeEntry] {
     var result: [WorktreeEntry] = []
     for line in out.split(separator: "\n", omittingEmptySubsequences: false) {
@@ -54,5 +63,12 @@ extension Git {
     /// Every worktree of the repository, the main checkout first (`git worktree list --porcelain`).
     public func worktrees() async throws -> [WorktreeEntry] {
         parseWorktreeList(try await exec(["--no-optional-locks", "worktree", "list", "--porcelain"]))
+    }
+
+    /// `path` with symlinks resolved on the repository's machine (`pwd -P`); nil when it can't be entered.
+    public func resolvedPath(_ path: String) async -> String? {
+        guard let r = try? await runner.run(["sh", "-c", #"cd -- "$1" 2>/dev/null && pwd -P"#, "sh", path], "/"), r.status == 0 else { return nil }
+        let out = r.stdout.trimmed
+        return out.hasPrefix("/") ? out : nil
     }
 }

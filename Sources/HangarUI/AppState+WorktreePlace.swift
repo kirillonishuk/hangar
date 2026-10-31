@@ -33,39 +33,58 @@ extension AppState {
         checkWorktrees(projectId: task.projectId)
     }
 
-    /// One `git worktree list` for all worktree chats of the project. A failed check (host offline, folder gone) keeps
-    /// the last answer, and an unchecked chat falls back to its stored folder as before.
+    /// One `git worktree list` for all worktree chats of the project (a path that doesn't match is resolved on its
+    /// machine once, so a symlinked stored path is not taken for a moved copy). A failed check (host offline, folder
+    /// gone) keeps the last answer, and an unchecked chat falls back to its stored folder as before. Asked again while
+    /// it runs, it runs once more after.
     func checkWorktrees(projectId: UUID) {
-        guard worktreeChecks[projectId] == nil, let project = project(projectId), isAvailable(project) else { return }
+        guard worktreeChecks[projectId] == nil else { worktreeRechecks.insert(projectId); return }
+        guard let project = project(projectId), isAvailable(project) else { return }
         let git = git(for: project)
-        let local = project.host == nil
+        let chats = state.tasks.compactMap { t -> (id: UUID, path: String, branch: String)? in
+            guard t.projectId == projectId, !t.archived, case .worktree(let path, let branch, _) = t.mode else { return nil }
+            return (t.id, path, branch)
+        }
         worktreeChecks[projectId] = Task { [weak self] in
             let list = try? await git.worktrees()
+            var places: [UUID: WorktreePlace] = [:]
+            if let list {
+                for chat in chats {
+                    places[chat.id] = await worktreePlace(path: chat.path, branch: chat.branch, in: list) { await git.resolvedPath($0) }
+                }
+            }
             guard let self else { return }
             self.worktreeChecks[projectId] = nil
-            var changed: [UUID] = []
-            for task in self.state.tasks where task.projectId == projectId && !task.archived {
-                guard case .worktree(let path, let branch, _) = task.mode else { continue }
-                let place: WorktreePlace
-                if let list {
-                    place = worktreePlace(path: path, branch: branch, in: list) { local ? realPath($0) == realPath($1) : $0 == $1 }
-                } else {
-                    guard self.worktreePlaces[task.id] == nil else { continue }
-                    place = .inPlace
-                }
-                if self.worktreePlaces[task.id] != place {
-                    self.worktreePlaces[task.id] = place
-                    changed.append(task.id)
-                }
-            }
-            guard !changed.isEmpty else { return }
-            for id in changed {
-                // The main checkout's HEAD may have been loaded through the old folder: not this chat's branch.
-                if self.worktreePlaces[id] != .inPlace { self.branchModel.forget(id) }
-                self.refreshHead(taskId: id)
-            }
-            self.didChange?()
+            self.apply(places, checked: chats, failed: list == nil)
+            if self.worktreeRechecks.remove(projectId) != nil { self.checkWorktrees(projectId: projectId) }
         }
+    }
+
+    private func apply(_ places: [UUID: WorktreePlace], checked chats: [(id: UUID, path: String, branch: String)], failed: Bool) {
+        var changed: [UUID] = []
+        for chat in chats {
+            // Relinked or archived meanwhile: this answer is about the old folder.
+            guard let task = state.tasks.first(where: { $0.id == chat.id }), !task.archived,
+                  case .worktree(chat.path, _, _) = task.mode else { continue }
+            let place: WorktreePlace
+            if let known = places[chat.id] {
+                place = known
+            } else {
+                guard failed, worktreePlaces[chat.id] == nil else { continue }
+                place = .inPlace
+            }
+            if worktreePlaces[chat.id] != place {
+                worktreePlaces[chat.id] = place
+                changed.append(chat.id)
+            }
+        }
+        guard !changed.isEmpty else { return }
+        for id in changed {
+            // The main checkout's HEAD may have been loaded through the old folder: not this chat's branch.
+            if worktreePlaces[id] != .inPlace { branchModel.forget(id) }
+            refreshHead(taskId: id)
+        }
+        didChange?()
     }
 
     /// Tests: waits until no worktree check runs.
@@ -73,28 +92,10 @@ extension AppState {
         while let check = worktreeChecks.values.first { await check.value }
     }
 
-    /// «Обновить путь»: the chat follows its moved copy (decision #122), and its claude conversations are copied to the
-    /// new folder's place in claude's projects, so the tabs resume them there. Off the main thread, before any relaunch
-    /// asks; a failed copy only means a new conversation with the note (#119), as before.
-    /// shortcut: a remote chat's conversations are not copied (they live on the server); copy over ssh if asked.
+    /// «Обновить путь»: the chat follows its moved copy (decision #122). Its claude tabs remember where their
+    /// conversations were recorded; each is copied over when the tab next launches (`syncRelinkedTranscript`).
     func relinkWorktree(_ id: UUID) {
-        guard case .moved(let path) = worktreePlaces[id], let task = state.tasks.first(where: { $0.id == id }),
-              case .worktree(let old, _, _) = task.mode else { return }
-        if project(task.projectId)?.host == nil {
-            let leaves = (task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 })
-                .filter { $0.kind == .claude && (($0.cwd == old) || $0.cwd.hasPrefix(old + "/")) }
-                .compactMap { leaf in validSessionId(leaf.agentSessionId).map { ($0, leaf.cwd, path + leaf.cwd.dropFirst(old.count)) } }
-            let configDir = claudeConfigDir
-            if !leaves.isEmpty {
-                transcriptCopy = Task.detached {
-                    for (session, from, to) in leaves {
-                        do { try copyClaudeTranscript(id: session, from: from, to: to, configDir: configDir) } catch {
-                            uiLog.error("transcript copy \(session, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                        }
-                    }
-                }
-            }
-        }
+        guard case .moved(let path) = worktreePlaces[id] else { return }
         perform { $0.relinkWorktree(taskId: id, to: path) }
         worktreePlaces[id] = .inPlace
         refreshHead(taskId: id)
@@ -103,10 +104,59 @@ extension AppState {
 }
 
 extension AppState {
-    /// Probes the project's repository for the sheets and keeps the answer (not an offline host's: it says nothing).
-    func probeRepository(_ project: Project) async -> NewTaskModel.Probe {
+    /// Probes the project's repository for the sheets; a remote project keeps a definite answer for next time.
+    func probeRepository(_ project: Project) async -> NewTaskModel.Probe? {
         let answer = await NewTaskModel.probe(git(for: project))
-        if case .hostOffline = answer.availability {} else { repoProbes[project.id] = answer }
+        if project.host != nil, let answer {
+            switch answer.availability {
+            case .notRepository, .noCommits, .ready: repoProbes[project.id] = answer
+            default: break
+            }
+        }
         return answer
+    }
+}
+
+/// Resumes its continuation once: with the work's answer or, at the timeout, nil.
+@MainActor private final class AnswerOnce<T: Sendable> {
+    var continuation: CheckedContinuation<T?, Never>?
+    func finish(_ value: T?) {
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+}
+
+/// `work`'s answer if it comes within `timeout`, else nil at the timeout (the work goes on, its answer is dropped).
+@MainActor func answer<T: Sendable>(within timeout: Duration, _ work: @escaping @MainActor () async -> T?) async -> T? {
+    let once = AnswerOnce<T>()
+    return await withCheckedContinuation { c in
+        once.continuation = c
+        Task { @MainActor in once.finish(await work()) }
+        Task { @MainActor in
+            try? await Task.sleep(for: timeout)
+            once.finish(nil)
+        }
+    }
+}
+
+extension AppState {
+    /// A relinked claude tab launches (#122): its conversation is copied to where claude looks from the new folder, so
+    /// the resume finds it, with every turn said in the old folder up to now. Done once, then the mark goes; a failed
+    /// copy keeps the mark and the launch goes on as before (a new conversation with the note, #119).
+    /// shortcut: on the main thread (one file read and write, transcripts are a few MB); move off it if launches stall.
+    /// shortcut: a remote tab's conversation lives on the server and is not copied (the mark just goes); copy over ssh if asked.
+    func syncRelinkedTranscript(_ leaf: inout Leaf) {
+        guard let from = leaf.relinkedFrom else { return }
+        if leaf.kind == .claude, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId) {
+            do {
+                let result = try syncClaudeTranscript(id: id, recordedIn: from, cwd: leaf.cwd, configDir: claudeConfigDir)
+                uiLog.info("relinked transcript \(id, privacy: .public): \(String(describing: result), privacy: .public)")
+            } catch {
+                uiLog.error("relinked transcript \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                return
+            }
+        }
+        leaf.relinkedFrom = nil
+        clearRelinkedFromQuietly(leaf.id)
     }
 }

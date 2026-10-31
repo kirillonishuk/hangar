@@ -148,7 +148,7 @@ import Workspace
         #expect(try run().ran == "claude --resume \(id)\n")
         // A copy in this folder's own project folder (a moved worktree, #122) wins over the original recorded elsewhere.
         try #"{"type":"user","cwd":"/elsewhere"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
-        let own2 = dir + "/cfg/projects/" + claudeProjectFolder(dir + "/work dir")
+        let own2 = dir + "/cfg/projects/" + claudeProjectFolder(dir + "/work dir")!
         try FileManager.default.createDirectory(atPath: own2, withIntermediateDirectories: true)
         try #"{"type":"user","cwd":"\#(dir)/work dir"}"#.write(toFile: own2 + "/\(id).jsonl", atomically: true, encoding: .utf8)
         #expect(try run().ran == "claude --resume \(id)\n")

@@ -52,6 +52,18 @@ import Testing
         #expect(worktreePlace(path: "/gone", branch: "feat/x", in: [list[0]]) == .missing)
     }
 
+    /// A remote path is compared as written, then resolved on the server: a symlinked stored path is in place, not moved.
+    @Test func resolvedPathDecidesBeforeMoved() async {
+        let list = [WorktreeEntry(path: "/srv/r", branch: "main"), WorktreeEntry(path: "/data/r.worktrees/x", branch: "x")]
+        let place = await worktreePlace(path: "/home/u/r.worktrees/x", branch: "x", in: list) { p in
+            p == "/home/u/r.worktrees/x" ? "/data/r.worktrees/x" : nil
+        }
+        #expect(place == .inPlace)
+        // In place as written: no resolution at all.
+        #expect(await worktreePlace(path: "/data/r.worktrees/x", branch: "x", in: list) { _ in Issue.record("resolved"); return nil } == .inPlace)
+        #expect(await worktreePlace(path: "/gone", branch: "x", in: list) { _ in nil } == .moved(to: "/data/r.worktrees/x"))
+    }
+
     @Test func movedOutOfMainRepoWhileOldFolderStays() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let old = t.repo + "/.claude/worktrees/feat-x"

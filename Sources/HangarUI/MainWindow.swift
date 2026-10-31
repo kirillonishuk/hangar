@@ -203,8 +203,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sheetWindow: NSWindow?
     private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
-    /// A sheet waits for its project's first repository probe (one at a time).
-    private var probingForSheet = false
+    /// Projects whose sheet waits for their repository probe (a second ⌘N meanwhile does nothing).
+    private var probingSheets: Set<UUID> = []
+    static let sheetProbeTimeout: Duration = .milliseconds(400)
     /// The open «Удалённый проект» / «Сервер» sheet's models (debug hooks drive them).
     private(set) var remoteProjectModel: RemoteProjectModel?
     private(set) var serverModel: ServerCheckModel?
@@ -940,27 +941,26 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Runs `then` with the project's repository answer, so a sheet never shows git-only parts that then vanish: a
-    /// local project's fresh one (a few milliseconds of git), a remote one's last answer at once (and a fresh probe
-    /// for next time), else after a first probe.
-    private func withRepository(_ project: Project, _ then: @escaping (NewTaskModel.Probe) -> Void) {
+    /// local project's fresh one (a few milliseconds of git; at most `sheetProbeTimeout`, then the sheet loads as
+    /// before); a remote one's last answer at once, or none (loading, as before), and a fresh probe for next time.
+    private func withRepository(_ project: Project, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
         let app = self.app
-        if project.host != nil, let known = app.repoProbes[project.id] {
-            then(known)
+        if project.host != nil {
+            then(app.repoProbes[project.id].map { var p = $0; p.cached = true; return p })
             Task { _ = await app.probeRepository(project) }
             return
         }
-        guard !probingForSheet else { return }
-        probingForSheet = true
+        guard probingSheets.insert(project.id).inserted else { return }
         Task { [weak self] in
-            let known = await app.probeRepository(project)
+            let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
             guard let self else { return }
-            self.probingForSheet = false
+            self.probingSheets.remove(project.id)
             guard self.window?.attachedSheet == nil else { return }
             then(known)
         }
     }
 
-    private func showNewTask(_ project: Project, known: NewTaskModel.Probe) {
+    private func showNewTask(_ project: Project, known: NewTaskModel.Probe?) {
         guard let window, window.attachedSheet == nil else { return }
         let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
@@ -1154,7 +1154,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         withRepository(project) { [weak self] known in self?.showProjectSettings(project, known: known) }
     }
 
-    private func showProjectSettings(_ project: Project, known: NewTaskModel.Probe) {
+    private func showProjectSettings(_ project: Project, known: NewTaskModel.Probe?) {
         guard let window, window.attachedSheet == nil else { return }
         let id = project.id
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
@@ -1166,7 +1166,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             window.endSheet(sheet)
             self.sheetWindow = nil
         }
-        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), known: known.availability, onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
+        let view = ProjectSettingsSheet(project: project, git: app.git(for: project), runner: app.runner(for: project), known: known?.availability, onSave: { [weak self] name, path, baseBranch, worktreeRoot, setup in
             close()
             self?.app.perform {
                 $0.updateProject(id: id, name: name, path: path, baseBranch: baseBranch, worktreeRoot: worktreeRoot)

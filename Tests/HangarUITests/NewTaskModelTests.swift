@@ -322,6 +322,12 @@ import TestSupport
         let r = NewTaskModel(project: Project(name: "r", location: .local(path: t.repo), worktreeByDefault: true),
                              git: Git(repo: t.repo), taskBranches: [], known: ready)
         #expect(r.availability == .loading && r.worktree && r.head == .branch("main"))
+        // A remote project's remembered answer is shown but doesn't turn the copy off: `load` decides.
+        let cached = NewTaskModel(project: project, git: Git(repo: dir), taskBranches: [],
+                                  known: NewTaskModel.Probe(availability: .notRepository, cached: true))
+        #expect(cached.availability == .notRepository && cached.worktree)
+        await cached.load()
+        #expect(!cached.worktree)
     }
 
     @Test func cancelStopsHangingFetch() async throws {

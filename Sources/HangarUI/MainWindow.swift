@@ -203,8 +203,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var sheetWindow: NSWindow?
     private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
-    /// Projects whose sheet waits for their repository probe (a second ⌘N meanwhile does nothing).
-    private var probingSheets: Set<UUID> = []
+    /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
+    /// does nothing; another sheet waits for its own answer.
+    private var probingSheets: Set<String> = []
     static let sheetProbeTimeout: Duration = .milliseconds(400)
     /// The open «Удалённый проект» / «Сервер» sheet's models (debug hooks drive them).
     private(set) var remoteProjectModel: RemoteProjectModel?
@@ -937,24 +938,25 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         guard let window, window.attachedSheet == nil else { return }
         let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
-        withRepository(project) { [weak self] known in self?.showNewTask(project, known: known) }
+        withRepository(project, sheet: "newTask") { [weak self] known in self?.showNewTask(project, known: known) }
     }
 
     /// Runs `then` with the project's repository answer, so a sheet never shows git-only parts that then vanish: a
     /// local project's fresh one (a few milliseconds of git; at most `sheetProbeTimeout`, then the sheet loads as
     /// before); a remote one's last answer at once, or none (loading, as before), and a fresh probe for next time.
-    private func withRepository(_ project: Project, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
+    private func withRepository(_ project: Project, sheet: String, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
         let app = self.app
         if project.host != nil {
             then(app.repoProbes[project.id].map { var p = $0; p.cached = true; return p })
             Task { _ = await app.probeRepository(project) }
             return
         }
-        guard probingSheets.insert(project.id).inserted else { return }
+        let key = project.id.uuidString + sheet
+        guard probingSheets.insert(key).inserted else { return }
         Task { [weak self] in
             let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
             guard let self else { return }
-            self.probingSheets.remove(project.id)
+            self.probingSheets.remove(key)
             guard self.window?.attachedSheet == nil else { return }
             then(known)
         }
@@ -1151,7 +1153,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private func presentProjectSettings(_ id: UUID) {
         guard let window, window.attachedSheet == nil, let project = app.project(id) else { return }
-        withRepository(project) { [weak self] known in self?.showProjectSettings(project, known: known) }
+        withRepository(project, sheet: "settings") { [weak self] known in self?.showProjectSettings(project, known: known) }
     }
 
     private func showProjectSettings(_ project: Project, known: NewTaskModel.Probe?) {

@@ -58,7 +58,8 @@ public func syncClaudeTranscript(id: String, recordedIn old: String, cwd new: St
             .first(where: { fm.fileExists(atPath: $0.appendingPathComponent(id + ".jsonl").path) }) else { return .noSource }
     let sourceFile = source.appendingPathComponent(id + ".jsonl")
     func size(_ url: URL) -> Int? { (try? fm.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue }
-    if fm.fileExists(atPath: file.path) {
+    let replacing = fm.fileExists(atPath: file.path)
+    if replacing {
         // Ours: "<original size> <copy size>" when made. Replaced only while claude hasn't written to the copy.
         guard let made = try? String(contentsOf: note, encoding: .utf8).split(separator: " ").compactMap({ Int($0) }),
               made.count == 2, size(file) == made[1] else { return .skipped }
@@ -76,8 +77,12 @@ public func syncClaudeTranscript(id: String, recordedIn old: String, cwd new: St
     let perms = (try? fm.attributesOfItem(atPath: sourceFile.path)[.posixPermissions]) ?? 0o600
     let tmp = target.appendingPathComponent(tmpPrefix + UUID().uuidString)
     guard fm.createFile(atPath: tmp.path, contents: out, attributes: [.posixPermissions: perms]) else { throw CocoaError(.fileWriteUnknown) }
-    guard rename(tmp.path, file.path) == 0 else {
-        try? fm.removeItem(at: tmp)
+    // A first copy never replaces a file that appeared meanwhile (`link` refuses an existing name); our own is replaced.
+    let placed = replacing ? rename(tmp.path, file.path) == 0 : link(tmp.path, file.path) == 0
+    let appeared = !placed && !replacing && errno == EEXIST
+    if !replacing || !placed { try? fm.removeItem(at: tmp) }
+    guard placed else {
+        if appeared { return .skipped }
         throw CocoaError(.fileWriteUnknown)
     }
     _ = fm.createFile(atPath: note.path, contents: Data("\(data.count) \(out.count)".utf8), attributes: [.posixPermissions: 0o600])

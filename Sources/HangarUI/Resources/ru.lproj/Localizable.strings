@@ -333,6 +333,7 @@
 "relinkWorktree" = "Обновить путь";
 "relinkWorktreeHelp" = "Чат Claude продолжится в новой папке: Hangar скопирует его запись туда, оригинал останется";
 "notGitNoCopies" = "Папка не в git — отдельные копии недоступны";
+"preparingConversation" = "Переношу разговор в новую папку…";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
 "diffTooLarge" = "Слишком большой diff (%d строк)";

@@ -86,8 +86,19 @@ import Workspace
         let file = recorded.appendingPathComponent(Self.session + ".jsonl")
         let later = try FileHandle(forWritingTo: file)
         try later.seekToEnd(); try later.write(contentsOf: Data("\n{\"type\":\"assistant\",\"cwd\":\"\(old)\"}".utf8)); try later.close()
-        app.syncRelinkedTranscript(&agent)
-        #expect(agent.relinkedFrom == nil && task(app, w).tabs[1].root.leaves[0].relinkedFrom == nil)
+        // The launch waits for the copy (off the main thread), then starts again and resumes.
+        var synced: [UUID] = []
+        app.onTranscriptSynced = { synced.append($0) }
+        #expect(app.prepareRelinkedTranscript(agent, restoring: true))
+        #expect(app.prepareRelinkedTranscript(agent, restoring: true))  // still copying: still waits
+        await app.transcriptSyncsIdle()
+        #expect(synced == [agent.id])
+        agent = task(app, w).tabs[1].root.leaves[0]
+        #expect(agent.relinkedFrom == nil && !app.prepareRelinkedTranscript(agent, restoring: true))
+        // A launch that won't resume writes nothing into claude's folder.
+        var fresh = Leaf(kind: .claude, cwd: real(new) + "/other", agentSessionId: "1b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b91")
+        fresh.relinkedFrom = old
+        #expect(!app.prepareRelinkedTranscript(fresh, restoring: false) && app.transcriptSyncs.isEmpty)
         #expect(transcriptChoice(id: Self.session, cwd: real(new), configDir: config) == .resume)
         let copy = config.appendingPathComponent("projects/" + claudeProjectFolder(real(new))! + "/" + Self.session + ".jsonl")
         #expect(try String(contentsOf: copy, encoding: .utf8).contains("assistant"))
@@ -98,6 +109,17 @@ import Workspace
         await check(app, w)
         #expect(app.worktreePlaces[w] == .inPlace)
         #expect(app.head(of: task(app, w)) == .branch("feat/x"))
+    }
+
+    /// A stored path typed in another case than the folder on disk (case-insensitive APFS) is in place, not moved.
+    @Test func caseDifferingStoredPathIsInPlace() async throws {
+        let (t, app, w, old) = try await make()
+        defer { t.cleanup() }
+        let typed = (old as NSString).deletingLastPathComponent + "/FEAT-X"
+        try #require(FileManager.default.fileExists(atPath: typed))  // the volume ignores case
+        app.perform { s in s.tasks[0].mode = .worktree(path: typed, branch: "feat/x", base: "main") }
+        await check(app, w)
+        #expect(app.worktreePlaces[w] == .inPlace)
     }
 
     /// Asked again while a check runs: it runs once more after, not dropped.

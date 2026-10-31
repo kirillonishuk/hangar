@@ -14,6 +14,8 @@ public enum LaunchError: Error, Equatable {
     case notConnected(host: String)
     /// An agent tab waits for the answer to «Подключить Hangar к …?» (#111): its hooks must be in place before it starts.
     case awaitingConsent
+    /// The leaf waits for work before it starts (a relinked chat's conversation copy, #122); started again when done.
+    case preparing
 }
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),

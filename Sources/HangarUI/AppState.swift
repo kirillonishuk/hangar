@@ -132,6 +132,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     /// Projects asked to check again while their check ran: it reruns once after.
     @ObservationIgnored var worktreeRechecks: Set<UUID> = []
     /// A remote project's last definite repository probe: its sheets open with it at once, no ssh round trip first (#122).
+    /// Relinked claude tabs whose conversation is being copied before they launch (#122), and those whose copy failed
+    /// (they launch without it).
+    @ObservationIgnored var transcriptSyncs: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var transcriptSyncFailed: Set<UUID> = []
+    /// A leaf's conversation copy finished: the window starts the waiting leaf again.
+    @ObservationIgnored var onTranscriptSynced: ((UUID) -> Void)?
     @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
@@ -484,7 +490,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
             if context == .restored { mode.unlinked = true }
         }
         var newId = leaf.kind == .claude && !mode.restoring
-        syncRelinkedTranscript(&leaf)
+        // A relinked chat's conversation is copied first, off the main thread; the leaf starts again when it is done (#122).
+        if prepareRelinkedTranscript(leaf, restoring: mode.restoring) { throw LaunchError.preparing }
         // On this Mac the transcript decides (on a server, the launch command does): resumed only where claude finds it.
         if leaf.kind == .claude, mode.restoring, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId),
            UUID(uuidString: id) != nil {

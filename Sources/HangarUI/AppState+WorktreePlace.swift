@@ -41,6 +41,7 @@ extension AppState {
         guard worktreeChecks[projectId] == nil else { worktreeRechecks.insert(projectId); return }
         guard let project = project(projectId), isAvailable(project) else { return }
         let git = git(for: project)
+        let local = project.host == nil
         let chats = state.tasks.compactMap { t -> (id: UUID, path: String, branch: String)? in
             guard t.projectId == projectId, !t.archived, case .worktree(let path, let branch, _) = t.mode else { return nil }
             return (t.id, path, branch)
@@ -50,7 +51,11 @@ extension AppState {
             var places: [UUID: WorktreePlace] = [:]
             if let list {
                 for chat in chats {
-                    places[chat.id] = await worktreePlace(path: chat.path, branch: chat.branch, in: list) { await git.resolvedPath($0) }
+                    // Local: realpath(3) gives the on-disk case too (a stored path typed in another case is the same folder);
+                    // `pwd -P` keeps the typed case, so it is only for a server's paths.
+                    places[chat.id] = local
+                        ? worktreePlace(path: chat.path, branch: chat.branch, in: list) { realPath($0) == realPath($1) }
+                        : await worktreePlace(path: chat.path, branch: chat.branch, in: list) { await git.resolvedPath($0) }
                 }
             }
             guard let self else { return }
@@ -140,23 +145,40 @@ extension AppState {
 }
 
 extension AppState {
-    /// A relinked claude tab launches (#122): its conversation is copied to where claude looks from the new folder, so
-    /// the resume finds it, with every turn said in the old folder up to now. Done once, then the mark goes; a failed
-    /// copy keeps the mark and the launch goes on as before (a new conversation with the note, #119).
-    /// shortcut: on the main thread (one file read and write, transcripts are a few MB); move off it if launches stall.
+    /// A relinked claude tab launches to resume (#122): its conversation is copied to where claude looks from the new
+    /// folder — with every turn said in the old folder up to now — on a background thread. true: the launch waits for
+    /// it (`onTranscriptSynced` starts it again). Done once, then the mark goes. A launch that won't resume writes
+    /// nothing and drops the mark; a failed copy keeps the mark and this launch goes on without it (a new conversation
+    /// with the note, #119).
     /// shortcut: a remote tab's conversation lives on the server and is not copied (the mark just goes); copy over ssh if asked.
-    func syncRelinkedTranscript(_ leaf: inout Leaf) {
-        guard let from = leaf.relinkedFrom else { return }
-        if leaf.kind == .claude, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId) {
-            do {
-                let result = try syncClaudeTranscript(id: id, recordedIn: from, cwd: leaf.cwd, configDir: claudeConfigDir)
-                uiLog.info("relinked transcript \(id, privacy: .public): \(String(describing: result), privacy: .public)")
-            } catch {
-                uiLog.error("relinked transcript \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                return
-            }
+    func prepareRelinkedTranscript(_ leaf: Leaf, restoring: Bool) -> Bool {
+        guard let from = leaf.relinkedFrom else { return false }
+        if transcriptSyncs[leaf.id] != nil { return true }
+        if transcriptSyncFailed.remove(leaf.id) != nil { return false }
+        guard restoring, leaf.kind == .claude, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId) else {
+            clearRelinkedFromQuietly(leaf.id)
+            return false
         }
-        leaf.relinkedFrom = nil
-        clearRelinkedFromQuietly(leaf.id)
+        let (leafId, cwd, configDir) = (leaf.id, leaf.cwd, claudeConfigDir)
+        transcriptSyncs[leafId] = Task { [weak self] in
+            let result = await Task.detached { Result { try syncClaudeTranscript(id: id, recordedIn: from, cwd: cwd, configDir: configDir) } }.value
+            guard let self else { return }
+            self.transcriptSyncs[leafId] = nil
+            switch result {
+            case .success(let r):
+                uiLog.info("relinked transcript \(id, privacy: .public): \(String(describing: r), privacy: .public)")
+                self.clearRelinkedFromQuietly(leafId)
+            case .failure(let error):
+                uiLog.error("relinked transcript \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                self.transcriptSyncFailed.insert(leafId)
+            }
+            self.onTranscriptSynced?(leafId)
+        }
+        return true
+    }
+
+    /// Tests: waits until no conversation copy runs.
+    func transcriptSyncsIdle() async {
+        while let sync = transcriptSyncs.values.first { await sync.value }
     }
 }

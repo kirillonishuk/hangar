@@ -71,6 +71,17 @@ import TestSupport
         #expect(calls.lists.count == 3)
     }
 
+    /// The inspector asks before the leaf's surface has launched (restore, a new tab): it follows once registered.
+    @Test func followsALeafLaunchedLater() async throws {
+        let calls = Calls()
+        let m = model(calls)
+        let later = UUID()
+        m.follow(later)
+        #expect(m.shown == nil)
+        m.register(later, link: link)
+        #expect(m.shown?.leaf == later)
+    }
+
     @Test func unknownFolderIsTheHome() async throws {
         let calls = Calls()
         let m = model(calls)

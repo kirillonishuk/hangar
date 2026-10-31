@@ -57,6 +57,8 @@ import Observation
     var cwdKnown: Bool { shown.map { cwds[$0.leaf] != nil } ?? false }
 
     @ObservationIgnored private var links: [UUID: RemoteShellLink] = [:]
+    /// The leaf the inspector asked for, launched or not yet.
+    @ObservationIgnored private var wanted: UUID?
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var uploadTask: Task<Void, Never>?
@@ -72,12 +74,16 @@ import Observation
     @ObservationIgnored var removeLeftover: @Sendable (RemoteShellLink, String, String) async -> Void = { await removeUploadLeftover($0, dir: $1, name: $2) }
     @ObservationIgnored var isUp: (RemoteShellLink) -> Bool = { $0.isUp }
 
-    /// A host-terminal leaf was launched with this master.
-    func register(_ leaf: UUID, link: RemoteShellLink) { links[leaf] = link }
+    /// A host-terminal leaf was launched with this master (the inspector may already be waiting for it).
+    func register(_ leaf: UUID, link: RemoteShellLink) {
+        links[leaf] = link
+        if wanted == leaf, shown?.leaf != leaf { follow(leaf) }
+    }
     func link(of leaf: UUID) -> RemoteShellLink? { links[leaf] }
 
     /// The inspector shows this leaf now (nil: something else or nothing — loads stop).
     func follow(_ leaf: UUID?) {
+        wanted = leaf
         let next = leaf.flatMap { l in links[l].map { Shown(leaf: l, link: $0) } }
         guard next != shown else { return }
         let samePath = next.map { cwds[$0.leaf] ?? Self.home } == listedPath && next?.link == shown?.link

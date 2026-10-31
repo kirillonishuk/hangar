@@ -6,7 +6,7 @@ import Workspace
 /// Every icon in the UI (icons-v2.html, decision #56): line glyphs drawn in code on a 16 grid, 1.5 pt stroke at every
 /// size, round caps and joins; only the agents keep their brand logos. No glyph data outside this file.
 enum Icon: CaseIterable {
-    case sidebarLeft, sidebarRight, add, project, branch, sshHost, mac, editor, shell, diff, keepAwake, limits, settings
+    case sidebarLeft, sidebarRight, add, project, projectOpen, branch, sshHost, mac, editor, shell, diff, keepAwake, limits, settings
     case archive, splitRight, splitDown, close, pin, chevronDown, chevronUp, chevronLeft, chevronRight, more
     case rename, finder, copy, openExternal, restore, trash, remove, refresh, reconnect, disconnect, checkServer
     case history
@@ -25,6 +25,9 @@ enum Icon: CaseIterable {
         case .add: [.line(p(8, 3), p(8, 13)), .line(p(3, 8), p(13, 8))]
         case .project:
             [.shape(p(1.75, 2.75, r: 2), p(6.35, 2.75), p(7.95, 4.5), p(14.25, 4.5, r: 2), p(14.25, 13.25, r: 2), p(1.75, 13.25, r: 2))]
+        case .projectOpen:  // expanded project (#125): the back of `.project` and a front flap tilted open
+            [.line(p(3.25, 11), p(5.1, 7.25, r: 1.25), p(14.5, 7.25, r: 1.25), p(12.85, 13.25, r: 1.5), p(1.75, 13.25, r: 2),
+                   p(1.75, 2.75, r: 2), p(6.35, 2.75), p(7.95, 4.5), p(12.25, 4.5, r: 1.5), p(12.25, 6.5))]
         case .branch:
             [.line(p(4, 2.25), p(4, 10.25)), .circle(p(4, 12), 1.75), .circle(p(12, 4), 1.75),
              .arc(from: p(12, 5.75), to: p(5.75, 12), r: 6.25, large: false, sweep: true)]

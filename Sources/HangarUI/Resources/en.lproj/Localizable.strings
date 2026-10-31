@@ -218,6 +218,8 @@
 "limitNotificationsTitle" = "Limit notifications";
 "toggleOn" = "On";
 "toggleOff" = "Off";
+"projectExpanded" = "expanded";
+"projectCollapsed" = "collapsed";
 "agentPermission" = "%@ asks for permission";
 "agentQuestion" = "%@ asks";
 "agentDone" = "%@ finished";
@@ -540,8 +542,7 @@
 "sessionsRestoreHelp" = "Restore — the copy and tabs come back";
 "sessionsProjectChip" = "Project: %@";
 "sessionsProjectChipHelp" = "Remove — all projects";
-"allArchived" = "All chats are archived";
-"allArchivedOpen" = "Open History";
+"projectArchive" = "Archive · %d";
 "integrationNeedsRemote" = "Install hangar-remote first, with the install plan";
 "folderEmpty" = "The folder is empty";
 "noGitFiles" = "No files in git";

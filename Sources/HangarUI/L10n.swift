@@ -87,7 +87,7 @@ import Workspace
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
-        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
         case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
         case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
         case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
@@ -165,7 +165,7 @@ import Workspace
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
         case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
-        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, allArchived, allArchivedOpen
+        case sessionsLoadFailedLocal, projectSessions, sessionsContinue, sessionsTimedOut, sessionsUnknownError, projectArchive
         case segmentSearch, cmdFindInFiles, searchPlaceholder, searchInclude, searchExclude, searchFilters, searchFiltersOn, searchCase, searchRegex, searchWord
         case searchClear, searchRunning, searchNothing, searchFailed, searchTruncated, searchFileTruncated
         case searchSkippedOne, searchSkippedFew, searchSkippedMany
@@ -307,8 +307,8 @@ import Workspace
     static func sessionsArchivedSince(_ date: String) -> String { f(.sessionsArchivedSince, date) }
     static var projectSessions: String { s(.projectSessions) }
     static var sessionsUnknownError: String { s(.sessionsUnknownError) }
-    static var allArchived: String { s(.allArchived) }
-    static var allArchivedOpen: String { s(.allArchivedOpen) }
+    /// «Архив · 3» under an empty project (#125).
+    static func projectArchive(_ count: Int) -> String { f(.projectArchive, count) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
 
@@ -509,6 +509,8 @@ import Workspace
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
     static var toggleOff: String { s(.toggleOff) }
+    static var projectExpanded: String { s(.projectExpanded) }
+    static var projectCollapsed: String { s(.projectCollapsed) }
     static func agentPermission(_ agent: String) -> String { f(.agentPermission, agent) }
     static func agentQuestion(_ agent: String) -> String { f(.agentQuestion, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }

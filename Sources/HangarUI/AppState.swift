@@ -31,6 +31,12 @@ func terminalTitle(_ raw: String) -> String {
 
 public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
+/// A row under an expanded project that has no chats in its list (`AppState.emptyProjectRows`).
+enum EmptyProjectRow: Hashable {
+    case newChat
+    case archive(count: Int)
+}
+
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
 @MainActor @Observable public final class AppState {
     public private(set) var state: WorkspaceState
@@ -395,9 +401,12 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 
     var archivedTasks: [HangarTask] { state.tasks.filter(\.archived) }
 
-    /// Every session of the project is closed: its expanded block says so instead of showing nothing.
-    func allSessionsArchived(_ projectId: UUID) -> Bool {
-        state.tasks(in: projectId).isEmpty && state.tasks.contains { $0.projectId == projectId && $0.archived }
+    /// Under an expanded project with no chats in its list (never had any, or all archived), instead of nothing:
+    /// «+ Новый чат», then «Архив · N» when some are archived (#125).
+    func emptyProjectRows(_ projectId: UUID) -> [EmptyProjectRow] {
+        guard groupTasks(projectId).isEmpty else { return [] }
+        let archived = state.tasks.filter { $0.projectId == projectId && $0.archived }.count
+        return archived > 0 ? [.newChat, .archive(count: archived)] : [.newChat]
     }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.

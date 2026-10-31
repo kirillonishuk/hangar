@@ -218,6 +218,8 @@
 "limitNotificationsTitle" = "Limit notifications";
 "toggleOn" = "On";
 "toggleOff" = "Off";
+"projectExpanded" = "expanded";
+"projectCollapsed" = "collapsed";
 "agentPermission" = "%@ asks for permission";
 "agentQuestion" = "%@ asks";
 "agentDone" = "%@ finished";

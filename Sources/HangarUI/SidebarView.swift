@@ -403,9 +403,17 @@ struct SidebarView: View {
             }
             .opacity(exists ? 1 : Theme.Opacity.inactive)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(project.collapsed ? L10n.projectCollapsed : L10n.projectExpanded)
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
+    }
+
+    /// Why the project's folder cannot be used: its host is not connected, or the folder is gone.
+    private func unavailableReason(_ project: Project) -> String {
+        project.host.map(L10n.hostOffline) ?? L10n.folderMissing(project.path)
     }
 
     /// Expanded sidebar only: the rail and the «только ждущие» list show no placeholder rows.
@@ -421,7 +429,8 @@ struct SidebarView: View {
         let action: (() -> Void)?
         switch row {
         case .newChat:
-            (icon, tint, title, help) = (.add, Theme.ui.accentText, L10n.newTask, L10n.newTaskIn(project.name))
+            (icon, tint, title, help) = (.add, Theme.ui.accentText, L10n.newTask,
+                                         available ? L10n.newTaskIn(project.name) : unavailableReason(project))
             action = available ? { ctx.newTask(project.id) } : nil
         case .archive(let count):
             (icon, tint, title, help) = (.archive, Theme.ui.text3, L10n.projectArchive(count), L10n.help(L10n.sessionsViewHelp, .sessions))
@@ -435,6 +444,9 @@ struct SidebarView: View {
             } rail: { EmptyView() }
             .opacity(action == nil ? Theme.Opacity.inactive : 1)  // a project whose folder is gone
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .disabled(action == nil)  // announced as dimmed
         .help(help)
     }
 

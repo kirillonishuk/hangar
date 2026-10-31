@@ -87,7 +87,7 @@ import Workspace
         case appearance, themeTitle, themeGraphite, saveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
-        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
+        case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
         case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
         case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
         case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
@@ -508,6 +508,8 @@ import Workspace
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
     static var toggleOff: String { s(.toggleOff) }
+    static var projectExpanded: String { s(.projectExpanded) }
+    static var projectCollapsed: String { s(.projectCollapsed) }
     static func agentPermission(_ agent: String) -> String { f(.agentPermission, agent) }
     static func agentQuestion(_ agent: String) -> String { f(.agentQuestion, agent) }
     static func agentDone(_ agent: String) -> String { f(.agentDone, agent) }

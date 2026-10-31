@@ -7,7 +7,7 @@ import Testing
     let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
 
     @Test func folderNameAsClaude() {
-        #expect(claudeProjectFolder("/Users/a/frontend-cd/.claude/worktrees/feat_x") == "-Users-a-frontend-cd--claude-worktrees-feat-x")
+        #expect(claudeProjectFolder("/home/a/frontend-cd/.claude/worktrees/feat_x") == "-home-a-frontend-cd--claude-worktrees-feat-x")
         #expect(claudeProjectFolder("/w/проект 1") == "-w--------1")
     }
 

@@ -95,6 +95,15 @@ import Workspace
         #expect(synced == [agent.id])
         agent = task(app, w).tabs[1].root.leaves[0]
         #expect(agent.relinkedFrom == nil && !app.prepareRelinkedTranscript(agent, restoring: true))
+        // Relinked again while the copy ran: the mark stays for the newer place.
+        agent.relinkedFrom = old
+        app.perform { [agent] s in s.tasks[0].tabs[1].root = .leaf(agent) }
+        #expect(app.prepareRelinkedTranscript(agent, restoring: true))
+        var moved = agent
+        moved.cwd += "-moved"
+        app.perform { [moved] s in s.tasks[0].tabs[1].root = .leaf(moved) }
+        await app.transcriptSyncsIdle()
+        #expect(task(app, w).tabs[1].root.leaves[0].relinkedFrom == old)
         // A launch that won't resume writes nothing into claude's folder.
         var fresh = Leaf(kind: .claude, cwd: real(new) + "/other", agentSessionId: "1b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b91")
         fresh.relinkedFrom = old

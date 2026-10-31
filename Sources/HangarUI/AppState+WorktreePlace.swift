@@ -167,10 +167,12 @@ extension AppState {
             switch result {
             case .success(let r):
                 uiLog.info("relinked transcript \(id, privacy: .public): \(String(describing: r), privacy: .public)")
-                self.clearRelinkedFromQuietly(leafId)
+                // Relinked again meanwhile: the next launch copies to the newer place.
+                if self.leaf(id: leafId)?.cwd == cwd { self.clearRelinkedFromQuietly(leafId) }
             case .failure(let error):
                 uiLog.error("relinked transcript \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                self.transcriptSyncFailed.insert(leafId)
+                // Consumed by the leaf's next launch; a closed leaf has none.
+                if self.leaf(id: leafId) != nil { self.transcriptSyncFailed.insert(leafId) }
             }
             self.onTranscriptSynced?(leafId)
         }

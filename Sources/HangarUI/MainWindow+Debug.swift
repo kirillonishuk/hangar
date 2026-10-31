@@ -111,7 +111,7 @@ extension MainWindowController {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
-            "rename": .rename, "archiveTask": .archiveTask, "toggleDrawer": .toggleDrawer, "limits": .limits,
+            "rename": .rename, "archiveTask": .archiveTask, "newFreeChat": .newFreeChat, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
@@ -174,8 +174,20 @@ extension MainWindowController {
         case "sessionsHover":  // sessionsHover <n> | -1: the n-th row drawn as hovered (snapshots can't hover)
             let rows = column.sessionsModel.visibleList
             column.sessionsModel.hovered = Int(arg).flatMap { rows.indices.contains($0) ? rows[$0].id : nil }
-        case "sessionsScope":  // sessionsScope all | local | <host>
-            app.showSessionsView(scope: arg == "all" ? .all : arg == "local" ? .local : .host(arg))
+        case "sessionsScope":  // sessionsScope all | local | chats | <host>
+            app.showSessionsView(scope: arg == "all" ? .all : arg == "local" ? .local : arg == "chats" ? .chats : .host(arg))
+        // chat new | sleep <n> | wake <n> | remove <n> (its confirmation sheet): chats without a project, n in sidebar order.
+        case "chat":
+            let f = arg.split(separator: " ").map(String.init)
+            let chats = app.state.freeChatTasks
+            let id = f.count > 1 ? Int(f[1]).flatMap { chats.indices.contains($0) ? chats[$0].id : nil } : nil
+            switch (f.first, id) {
+            case ("new", _): app.newFreeChat()
+            case ("sleep", let id?): Action.archive.perform(.task(id), ctx)
+            case ("wake", let id?): app.wakeFreeChat(id)
+            case ("remove", let id?): Action.removeFreeChat.perform(.task(id), ctx)
+            default: break
+            }
         case "sessionsChip":  // sessionsChip claude | codex | open | archived | history: toggles that chip
             let m = column.sessionsModel
             switch arg {
@@ -198,9 +210,14 @@ extension MainWindowController {
             case "task": app.orderedTasks.indices.contains(n) ? .task(app.orderedTasks[n].id) : nil
             case "project": app.state.projects.indices.contains(n) ? .project(app.state.projects[n].id) : nil
             case "leaf": debugLeafTarget(n)
+            case "chat": app.state.freeChatTasks.indices.contains(n) ? .task(app.state.freeChatTasks[n].id) : nil
             default: nil
             }
-            if parts[0] == "menu", f.first == "snap", f.count > 1, let first = app.orderedTasks.first {
+            // menu chatsnap <n> <png>: the n-th chat without a project's «⋯» menu, drawn like `menu snap`.
+            let snapChat = f.first == "chatsnap" && f.count > 2 && app.state.freeChatTasks.indices.contains(n)
+            if parts[0] == "menu", snapChat || f.first == "snap", f.count > 1,
+               let first = snapChat ? app.state.freeChatTasks[n] : app.orderedTasks.first {
+                let f = snapChat ? [f[0], f[2]] : f
                 // menu snap <png>: the first task's «⋯» menu drawn offscreen (an inactive app's menu closes at once).
                 // The first item highlighted, as under the pointer.
                 let panel = PopoverMenuPanel(content: PopoverMenuContent(actionMenu(for: .task(first.id), ctx: ctx)))

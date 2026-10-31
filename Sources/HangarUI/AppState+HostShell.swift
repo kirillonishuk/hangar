@@ -19,7 +19,10 @@ extension AppState {
         if let task = state.hostShellTask(host: host) { select(taskId: task.id) } else { openHostShell(host) }
     }
 
-    func closeHostShell(_ host: String) { perform { $0.closeHostShell(host: host) } }
+    func closeHostShell(_ host: String) {
+        hookSuspects[host] = nil
+        perform { $0.closeHostShell(host: host) }
+    }
 
     /// Host of the terminal whose task holds the leaf (a tab or its TERMINAL drawer); nil for project leaves.
     func hostShellHost(ofLeaf leafId: UUID) -> String? {
@@ -30,11 +33,55 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
-    /// What the inspector says instead of its data: a host's terminal (#64), which has no project folder — the inspector
-    /// still holds the previous chat's files then, and must not show them. No chat: the inspector is empty (§3.19).
+    /// A host terminal leaf's launch (#124): the plan from the user's ssh config, Hangar's socket only in a safe folder
+    /// (a pre-created `/tmp/hangar-<uid>` of someone else would let them pose as the master: a plain tab then, as
+    /// `RemoteHosts` refuses). The files panel follows the plan's master.
+    func hostShellSpec(host: String, leaf: UUID) -> LaunchSpec {
+        let paths = sshPaths
+        let own: String? = (try? paths.prepare()) != nil ? paths.shellControlPath(leaf) : nil
+        let noHook = (state.hostShells.first { $0.host == host }?.noHook ?? false) || plainLeaves.contains(leaf)
+        let plan = hostShellPlan(resolved: sshResolve(host, sshPath), ownControlPath: own, noHook: noHook)
+        if let path = plan.controlPath {
+            remoteFiles.register(leaf, link: RemoteShellLink(host: host, controlPath: path, sshPath: sshPath, owned: plan.ownMaster))
+        } else {
+            remoteFiles.unregister(leaf)
+        }
+        hookedLeaves[leaf] = plan.hook ? hookClock() : nil
+        return sshShellSpec(host: host, sshPath: sshPath, plan: plan)
+    }
+
+    /// Did a hooked login fail because of the hook (tcsh choking on the remote command, rbash refusing `/bin/sh`, an
+    /// appliance)? Suspected only for an error exit (1…127: not 0, not ssh's own 255 — wrong password, lost connection —
+    /// not a signal or unknown code — Ctrl-C at the password prompt) within `hookFailWindow` of the launch, before the
+    /// shell ever reported a folder. Then this leaf logs in plain from now on (a shell that never reports a folder loses
+    /// nothing by it). The tab logs in again at once only when nothing was typed since the launch (key login: the
+    /// hook's failure is all that happened); otherwise the exit may be the user's own `exit` and ↩ is theirs to press.
+    /// A second suspected failure on the host in this run marks the host (`HostShell.noHook`, persisted).
+    func hostShellHookFailed(leaf: UUID, code: Int32, typed: Bool) -> Bool {
+        guard (1...127).contains(code), let launched = hookedLeaves[leaf], hookClock().timeIntervalSince(launched) <= hookFailWindow,
+              remoteFiles.cwds[leaf] == nil, let host = hostShellHost(ofLeaf: leaf) else { return false }
+        hookedLeaves[leaf] = nil
+        plainLeaves.insert(leaf)
+        hookSuspects[host, default: 0] += 1
+        uiLog.info("host terminal hook suspected host=\(host, privacy: .public) code=\(code) typed=\(typed) count=\(self.hookSuspects[host] ?? 0)")
+        if hookSuspects[host, default: 0] >= 2 { perform { $0.setHostShellNoHook(host: host) } }
+        return !typed
+    }
+
+    /// Where ssh sockets live (#47): beside the state, or `/tmp/hangar-<uid>` when that path is too long.
+    var sshPaths: SSHPaths { SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent) }
+
+    /// The leaf whose folder the inspector shows: the focused leaf of the selected host terminal's active tab.
+    var hostShellFocusedLeaf: UUID? {
+        guard let task = selectedTask, isHostShellTask(task.id) else { return nil }
+        let tab = task.tabs.first { $0.id == task.activeTabId } ?? task.tabs.first
+        return tab?.focusedLeafId
+    }
+
+    /// What the inspector says instead of its data: a chat whose copy was moved or is gone. A host's terminal shows its
+    /// server's files instead (#124). No chat: the inspector is empty (§3.19).
     var inspectorNotice: String? {
         guard let task = selectedTask else { return nil }
-        if isHostShellTask(task.id) { return L10n.inspectorHostShell }
         switch selectedWorktreeProblem?.place {
         case .moved: return L10n.inspectorWorktreeMoved
         case .missing: return L10n.inspectorWorktreeMissing

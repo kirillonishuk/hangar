@@ -30,6 +30,7 @@ struct SessionsView: View {
         }
         .background(Theme.ui.bg0)
         .task(id: reloadKey) { await model.reload() }
+        .task(id: "\(model.scope)|\(model.query)") { await model.searchText() }
         .onAppear {
             model.clearPointer()
             searchFocused = true
@@ -51,14 +52,14 @@ struct SessionsView: View {
                 .foregroundStyle(Theme.ui.text0)
                 .fixedSize()
             // Only remote projects make a scope worth choosing.
-            if !app.sessionsHosts.isEmpty { SessionsScopeSegment(app: app, scope: model.scope).fixedSize() }
+            if !app.sessionsHosts.isEmpty || !app.state.freeChats.isEmpty { SessionsScopeSegment(app: app, scope: model.scope).fixedSize() }
             Spacer(minLength: 0)
             TextField(text: $model.query) { EmptyView() }
                 .focused($searchFocused)
                 .onKeyPress(.downArrow) { model.step(by: 1); return .handled }
                 .onKeyPress(.upArrow) { model.step(by: -1); return .handled }
                 .onSubmit { if let a = model.activateSelection() { run(a) } }
-                .inputField(focused: searchFocused, icon: .search, placeholder: model.query.isEmpty ? L10n.sessionsSearch : nil)
+                .inputField(focused: searchFocused, icon: .search, placeholder: model.query.isEmpty ? (model.scope == .chats ? L10n.freeChatsSearch : L10n.sessionsSearch) : nil)
                 .frame(minWidth: Theme.historySearchWidth / 2, maxWidth: Theme.historySearchWidth)
         }
         .padding(.leading, Theme.historyPaddingH)
@@ -75,12 +76,15 @@ struct SessionsView: View {
             }
             Chip(title: "Claude", on: model.agents.contains(.claude), toggles: true) { model.toggle(.claude) }
             Chip(title: "Codex", on: model.agents.contains(.codex), toggles: true) { model.toggle(.codex) }
-            separator
-            Chip(title: L10n.sessionsChipOpen, on: model.states.contains(.open), toggles: true) { model.toggle(.open) }
-            Chip(title: L10n.sessionsChipArchived, on: model.states.contains(.archived), toggles: true) { model.toggle(.archived) }
-            Chip(title: L10n.sessionsChipHistory, on: model.states.contains(.history), toggles: true) { model.toggle(.history) }
+            // «Чаты»: no state chips, chats without a project are never «в архиве».
+            if model.scope != .chats {
+                separator
+                Chip(title: L10n.sessionsChipOpen, on: model.states.contains(.open), toggles: true) { model.toggle(.open) }
+                Chip(title: L10n.sessionsChipArchived, on: model.states.contains(.archived), toggles: true) { model.toggle(.archived) }
+                Chip(title: L10n.sessionsChipHistory, on: model.states.contains(.history), toggles: true) { model.toggle(.history) }
+            }
             Spacer(minLength: 0)
-            let chosen = !model.agents.isEmpty || !model.states.isEmpty
+            let chosen = !model.agents.isEmpty || (!model.states.isEmpty && model.scope != .chats)
             Button(L10n.sessionsReset) { model.resetChips() }
                 .buttonStyle(.hangar(.plain, .small))
                 .opacity(chosen ? 1 : 0)
@@ -160,6 +164,9 @@ struct SessionsView: View {
                 Text(L10n.sessionsOffline(host)).foregroundStyle(Theme.ui.text2)
                 Text(L10n.sessionsOfflineHint).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
                 Button(L10n.sessionsConnect) { app.reconnect(host: host) }.buttonStyle(.hangar(.primary))
+            case .empty where model.scope == .chats:
+                Text(L10n.freeChatsEmpty).foregroundStyle(Theme.ui.text2)
+                Button(L10n.newFreeChat) { app.newFreeChat() }.buttonStyle(.hangar())
             case .empty:
                 Text(L10n.sessionsEmpty).foregroundStyle(Theme.ui.text2)
             case .noMatch:
@@ -194,6 +201,7 @@ struct SessionsScopeSegment: View {
         let rest = hosts.filter { !shown.contains($0) }
         let chosen = rest.first { scope == .host($0) }
         var options = [SegmentOption<Part>(value: .scope(.all), title: L10n.sessionsAll)]
+        if !app.state.freeChats.isEmpty { options.append(SegmentOption(value: .scope(.chats), title: L10n.freeChatsScope)) }
         if app.state.projects.contains(where: { $0.host == nil }) {
             options.append(SegmentOption(value: .scope(.local), title: L10n.thisMac, icon: .mac))
         }

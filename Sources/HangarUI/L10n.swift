@@ -181,6 +181,9 @@ import Workspace
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
         // Integrations by function (#111)
         case intOtherCopy, intRemoteMissing, intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, awaitingIntegrationAnswer
+        // Chats without a project
+        case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
+        case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
     }
 
 
@@ -973,6 +976,7 @@ import Workspace
     static func command(_ sc: Shortcut) -> String {
         switch sc {
         case .newTask: newTask
+        case .newFreeChat: newFreeChat
         case .addProject: addProject
         case .newTab: s(.cmdNewTab)
         case .closeTab: s(.cmdCloseTab)
@@ -1005,4 +1009,23 @@ import Workspace
         case .focusSplit: ""
         }
     }
+}
+
+/// Chats without a project.
+extension L10n {
+    static var sectionChats: String { s(.sectionChats) }
+    static var newFreeChat: String { s(.newFreeChat) }
+    static func allFreeChats(_ n: Int) -> String { f(.allFreeChats, n) }
+    static var noProject: String { s(.noProject) }
+    static var removeFreeChatButton: String { s(.removeFreeChatButton) }
+    static var removeFromList: String { s(.removeFromList) }
+    static func removeFreeChatConfirm(_ name: String) -> String { f(.removeFreeChatConfirm, name) }
+    static var removeFreeChatInfo: String { f(.removeFreeChatInfo, Shortcut.sessions.label) }
+    static var freeChatsScope: String { s(.freeChatsScope) }
+    static var freeChatsSearch: String { s(.freeChatsSearch) }
+    static var freeChatsEmpty: String { s(.freeChatsEmpty) }
+    static var today: String { s(.today) }
+    static var freeTimeNow: String { s(.freeTimeNow) }
+    static func freeTimeMinutes(_ n: Int) -> String { f(.freeTimeMinutes, n) }
+    static func freeTimeHours(_ n: Int) -> String { f(.freeTimeHours, n) }
 }

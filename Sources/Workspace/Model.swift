@@ -364,6 +364,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var inspectorWidth: Double
     /// Plain ssh logins without a project (#64); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
+    /// Chats without a project; their tasks sit in `tasks` with the chat's id as `projectId`.
+    public var freeChats: [FreeChat] = []
+    /// Where chats without a project run (`<state dir>/Chats`); set by the app on load, not saved.
+    public var chatsFolder: String = ""
     /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
     public var attentionOnly: Bool
     /// Diff tab: inline instead of side by side (#80).
@@ -388,7 +392,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly, diffInline, editorMinimap
+        case attentionOnly, diffInline, editorMinimap, freeChats
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -405,6 +409,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
+        freeChats = try c.decodeIfPresent([FreeChat].self, forKey: .freeChats) ?? []
         assignMissingPorts()
         splitEditorTabs()
     }
@@ -479,7 +484,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     func cwd(for task: HangarTask) -> String {
         switch task.mode {
         case .worktree(let path, _, _): return path
-        case .mainFolder: return projects.first { $0.id == task.projectId }?.path ?? ""
+        case .mainFolder:
+            if isFreeChatTask(task) { return chatsFolder }
+            return projects.first { $0.id == task.projectId }?.path ?? ""
         }
     }
 
@@ -512,6 +519,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func closeTab(taskId: UUID, tabId: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }),
               let t = tasks[i].tabs.firstIndex(where: { $0.id == tabId }) else { return }
+        // A chat without a project sleeps instead: its last tab holds the conversation to resume.
+        if tasks[i].tabs.count == 1, isFreeChatTask(tasks[i]) { return sleepFreeChat(taskId: taskId) }
         tasks[i].tabs.remove(at: t)
         // A host's terminal lives only while it has tabs.
         if tasks[i].tabs.isEmpty, let shell = hostShells.first(where: { $0.id == tasks[i].projectId }) {

@@ -335,6 +335,41 @@ public actor ConversationHistory {
         return sorted(out, open: open)
     }
 
+    /// Ids of `folder`'s conversations whose user or assistant text (not tools, not wrapped command or context blocks)
+    /// holds `query`, ignoring case and diacritics. Whole files are read, nothing of the text is kept; stops between
+    /// files when cancelled. Used for one small folder only (chats without a project).
+    public func matching(_ query: String, folder: String, claudeDir: URL, codexDir: URL) async -> Set<String> {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+        let folder = normalized(folder)
+        let folders: Set<String> = [folder, URL(fileURLWithPath: folder).resolvingSymlinksInPath().path]
+        let fm = FileManager.default
+        var out = Set<String>()
+        let projects = claudeDir.appendingPathComponent("projects")
+        for dir in (try? fm.contentsOfDirectory(atPath: projects.path)) ?? []
+        where !Task.isCancelled && folders.contains(where: { claudeDirMatches(dir, encoded: claudeProjectDirName($0)) }) {
+            let d = projects.appendingPathComponent(dir)
+            for file in (try? fm.contentsOfDirectory(atPath: d.path)) ?? [] where !Task.isCancelled && file.hasSuffix(".jsonl") {
+                guard let id = validSessionId(String(file.dropLast(6))), !file.hasPrefix("agent-"),
+                      transcriptHolds(d.appendingPathComponent(file), query, text: claudeText) else { continue }
+                out.insert(id)
+            }
+        }
+        let walker = fm.enumerator(at: codexDir.appendingPathComponent("sessions"), includingPropertiesForKeys: nil)
+        while !Task.isCancelled, let url = walker?.nextObject() as? URL {
+            let file = url.lastPathComponent
+            guard file.hasPrefix("rollout-"), file.hasSuffix(".jsonl") else { continue }
+            // A rollout's cwd never changes: the History scan (`local`) has usually cached it, so only new rollouts
+            // have their 8 KB prefix read here.
+            let cached = cache[url.path]
+            guard let cwd = cached?.codexCwd ?? codexPrefixCwd(read(url, from: 0, count: codexPrefixBytes)), folders.contains(cwd),
+                  let id = cached?.record?.conversation.id ?? validSessionId(String(file.dropLast(6).suffix(36))),
+                  transcriptHolds(url, query, text: codexText) else { continue }
+            out.insert(id)
+        }
+        return out
+    }
+
     struct ClaudeJob: Sendable {
         var url: URL, file: String, dir: String, stamp: String, mtime: Date?, size: Int
     }
@@ -482,3 +517,38 @@ for f in "$@"; do
 done
 exit 0
 """#
+
+/// Some line of the file has a message whose text holds `query` (case and diacritics ignored). Lines without a message
+/// type are skipped by a byte search before any JSON parsing; a cancelled search stops inside the file too.
+private func transcriptHolds(_ url: URL, _ query: String, text: ([String: Any]) -> String?) -> Bool {
+    guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
+    let markers = ["\"user\"", "\"assistant\"", "\"user_message\"", "\"agent_message\""].map { Data($0.utf8) }
+    var n = 0
+    for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
+        n += 1
+        if n % 256 == 0, Task.isCancelled { return false }
+        guard markers.contains(where: { line.range(of: $0) != nil }),
+              let o = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any], let t = text(o) else { continue }
+        if t.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil { return true }
+    }
+    return false
+}
+
+/// A claude line's words: the user's prompt (not a wrapped command or context block) or the assistant's text parts.
+private func claudeText(_ o: [String: Any]) -> String? {
+    let type = o["type"] as? String
+    guard type == "user" || type == "assistant", o["isSidechain"] as? Bool != true, o["isMeta"] as? Bool != true else { return nil }
+    let content = (o["message"] as? [String: Any])?["content"]
+    let text: String? = if let s = content as? String { s } else {
+        (content as? [[String: Any]])?.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined(separator: "\n")
+    }
+    guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") else { return nil }
+    return text
+}
+
+/// A codex rollout line's words: the user's or the agent's message.
+private func codexText(_ o: [String: Any]) -> String? {
+    guard o["type"] as? String == "event_msg", let p = o["payload"] as? [String: Any],
+          ["user_message", "agent_message"].contains(p["type"] as? String) else { return nil }
+    return p["message"] as? String
+}

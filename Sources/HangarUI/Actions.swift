@@ -44,7 +44,7 @@ enum ActionTarget: Equatable {
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
-    case toggleMute, projectNotifications, projectSessions
+    case toggleMute, projectNotifications, projectSessions, removeFreeChat
     // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
     case detachPane, closePane
 
@@ -57,6 +57,11 @@ enum Action: CaseIterable {
         case .task(let id):
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
+            // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
+            if app.isFreeChatTask(id) {
+                let open = app.state.tasks.first(where: { $0.id == id })?.archived == false
+                return [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
+            }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
             return reconnect + [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
@@ -69,7 +74,7 @@ enum Action: CaseIterable {
     }
 
     /// A divider goes before these (unless first in the menu).
-    var startsGroup: Bool { [.revealInFinder, .archive, .deletePermanently, .removeProject, .splitRight, .closeTab, .detachPane, .closePane].contains(self) }
+    var startsGroup: Bool { [.revealInFinder, .archive, .deletePermanently, .removeProject, .removeFreeChat, .splitRight, .closeTab, .detachPane, .closePane].contains(self) }
 
     var shortcut: Shortcut? {
         switch self {
@@ -110,7 +115,7 @@ enum Action: CaseIterable {
         case .archive: .archive
         case .restore: .restore
         case .deletePermanently: .trash
-        case .removeProject: .remove
+        case .removeProject, .removeFreeChat: .remove
         case .splitRight: .splitRight
         case .splitDown: .splitDown
         case .closeTab, .closePane: .close
@@ -139,6 +144,7 @@ enum Action: CaseIterable {
         case .restore: L10n.restore
         case .deletePermanently: L10n.deletePermanently
         case .removeProject: L10n.removeFromHangar
+        case .removeFreeChat: L10n.removeFromList
         case .splitRight: L10n.splitRight
         case .splitDown: L10n.splitDown
         case .closeTab: L10n.closeTab
@@ -212,7 +218,12 @@ enum Action: CaseIterable {
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in
                 ctx.showError(L10n.openFailed(editorName(editor)), details)
             }
-        case (.archive, .task(let id)): Task { await archiveTask(id, ctx: ctx) }
+        case (.archive, .task(let id)):
+            // Asleep, not archived: the row stays in «Чаты», no undo toast.
+            if app.isFreeChatTask(id) { app.sleepFreeChat(id) } else { Task { await archiveTask(id, ctx: ctx) } }
+        case (.removeFreeChat, .task(let id)):
+            guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
+            ctx.confirm(L10n.removeFreeChatConfirm(task.name), L10n.removeFreeChatInfo, L10n.removeFreeChatButton) { app.removeFreeChat(id) }
         case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }

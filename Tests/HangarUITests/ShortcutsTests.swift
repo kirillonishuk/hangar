@@ -19,6 +19,8 @@ import Testing
         #expect(shortcut(keyCode: 29, modifiers: .command) == .toggleSidebar)
         #expect(shortcut(keyCode: 43, modifiers: .command) == .settings)
         #expect(shortcut(keyCode: 45, modifiers: [.command, .shift]) == .addProject)
+        #expect(shortcut(keyCode: 45, modifiers: [.command, .option]) == .newFreeChat)  // ⌥⌘N, any layout
+        #expect(Shortcut.newFreeChat.label == "⌥⌘N")
     }
 
     /// ⌘Q never reaches the menu while a terminal has focus (Ghostty's default super+q binding takes it first):
@@ -69,7 +71,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 41)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96)
+        #expect(Shortcut.allCases.count == 42)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.

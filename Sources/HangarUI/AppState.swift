@@ -242,7 +242,7 @@ enum EmptyProjectRow: Hashable {
     /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
     @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json, an unarchived task or an opened conversation: their first launch resumes.
-    @ObservationIgnored private var restoredLeaves: Set<UUID> = []
+    @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
@@ -318,6 +318,10 @@ enum EmptyProjectRow: Hashable {
 
     public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
                 socketPath: String? = nil) {
+        // Chats without a project run next to the state: a test or debug store gets its own folder, never the real one.
+        var state = state
+        state.chatsFolder = store.directory.appendingPathComponent("Chats").path
+        state.adoptOrphanFreeChats()  // saved by an older build, which drops `freeChats` (#126)
         self.state = state
         self.store = store
         self.config = config
@@ -426,7 +430,7 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.
-    var orderedTasks: [HangarTask] { pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
+    var orderedTasks: [HangarTask] { sidebarFreeChats().filter { !$0.archived } + pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
 
     func defaultTitle(_ kind: LeafKind) -> String {
         switch kind {
@@ -508,6 +512,7 @@ enum EmptyProjectRow: Hashable {
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         var leaf = self.leaf(id: leaf.id) ?? leaf
+        if leaf.cwd == state.chatsFolder { ensureChatsFolder() }
         var mode = launchMode(for: leaf, context)
         // An agent resumes only by its own id (#119): without one it starts anew.
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil {

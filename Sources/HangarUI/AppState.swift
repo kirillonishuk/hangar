@@ -137,8 +137,15 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let search = SearchModel()
     /// Files of the focused host-terminal leaf (#124).
     let remoteFiles = RemoteFilesModel()
-    /// Host terminal leaves launched with the folder hook (#124).
-    @ObservationIgnored var hookedLeaves: Set<UUID> = []
+    /// Host terminal leaves launched with the folder hook (#124), with the launch time.
+    @ObservationIgnored var hookedLeaves: [UUID: Date] = [:]
+    /// Host terminal leaves whose hooked login failed: they log in plain (#124).
+    @ObservationIgnored var plainLeaves: Set<UUID> = []
+    /// Suspected hook failures per host in this run; the second one marks the host `noHook`.
+    @ObservationIgnored var hookSuspects: [String: Int] = [:]
+    /// A hook failure shows within this long of the launch (password typing included).
+    @ObservationIgnored var hookFailWindow: TimeInterval = 20
+    @ObservationIgnored var hookClock: () -> Date = Date.init
     /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
     @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
@@ -340,7 +347,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
         remoteFiles.retain(live)
-        if !hookedLeaves.isSubset(of: live) { hookedLeaves.formIntersection(live) }
+        hookedLeaves = hookedLeaves.filter { live.contains($0.key) }
+        plainLeaves.formIntersection(live)
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {

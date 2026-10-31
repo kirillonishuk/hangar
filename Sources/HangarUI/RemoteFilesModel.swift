@@ -134,7 +134,7 @@ import Observation
             links[leaf] = nil
             cwds[leaf] = nil
             queued.removeAll { $0.leaf == leaf }
-            if uploadLeaf == leaf { cancelUploads() }
+            if uploadLeaf == leaf { cancelCurrentUpload() }  // other leaves' batches stay queued
             if shown?.leaf == leaf { follow(nil) }
             stopMaster(link)
         }
@@ -320,6 +320,10 @@ import Observation
 
     func cancelUploads() {
         queued = []
+        cancelCurrentUpload()
+    }
+
+    private func cancelCurrentUpload() {
         uploadTask?.cancel()
         if conflictAnswer != nil { answer(replace: nil, forAll: false) }
     }

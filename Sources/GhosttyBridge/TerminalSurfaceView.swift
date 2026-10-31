@@ -35,6 +35,8 @@ public struct ClipboardPromptText: Sendable {
     public var onFocus: (() -> Void)?
     /// ⌘V: true = the owner handled it (e.g. sent ⌃V for an image), so no text paste.
     public var onPaste: (() -> Bool)?
+    /// Something was typed, pasted or sent into this surface (a password, a command): a new surface per launch.
+    public internal(set) var hadInput = false
 
     // nonisolated(unsafe): freed in deinit, which is nonisolated; only touched on main.
     nonisolated(unsafe) private(set) var surface: ghostty_surface_t?
@@ -165,6 +167,7 @@ public struct ClipboardPromptText: Sendable {
     /// Paste semantics (bracketed paste): a trailing "\r" does not submit; use sendEnter().
     public func sendText(_ text: String) {
         guard let surface else { return }
+        hadInput = true
         let len = text.utf8.count
         guard len > 0 else { return }
         text.withCString { ghostty_surface_text(surface, $0, UInt(len)) }
@@ -172,6 +175,7 @@ public struct ClipboardPromptText: Sendable {
 
     public func sendEnter() {
         guard let surface else { return }
+        hadInput = true
         var k = ghostty_input_key_s()
         k.keycode = 36  // kVK_Return
         k.action = GHOSTTY_ACTION_PRESS
@@ -183,6 +187,7 @@ public struct ClipboardPromptText: Sendable {
     /// A real key press + release (not a paste), e.g. Esc or Ctrl-C from `tabs send`.
     public func sendKey(_ key: SurfaceKey) {
         guard let surface else { return }
+        hadInput = true
         var k = ghostty_input_key_s()
         k.action = GHOSTTY_ACTION_PRESS
         switch key {

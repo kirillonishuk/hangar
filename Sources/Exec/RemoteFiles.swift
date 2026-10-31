@@ -285,8 +285,10 @@ mv -f -- "$t" "$n" || { rm -f -- "$t"; exit 13; }
 /// `$1` folder, `$2` name, `$3` 1 = merge into an existing folder, `$4` number of files; stdin = a tar of `./<name>/`.
 /// Unpacked into a hidden `.<name>.hangar-part/`, checked (a folder with all its files), then moved in — or, when the
 /// name is taken and merging was chosen, copied into the existing folder with `cp -R`: same names are overwritten in
-/// place (their mode stays), existing folders keep their mode and time, nothing on the server is deleted. A link to a
-/// folder under the name is a clash, never followed. Exit codes as the file script, 12 = no tar.
+/// place (their mode stays), existing folders keep their mode and time, nothing on the server is deleted. Links are
+/// never written through: a link to a folder under the name, or where the upload has a folder inside it, is a clash
+/// (nothing copied); a link where the upload has a file is replaced by the file (its target stays). Files are counted
+/// NUL-safe (a newline in a name). Exit codes as the file script, 12 = no tar.
 let remoteFolderUploadScript = oneLine(#"""
 n=$2; r=$3;
 cd -- "$1" 2>/dev/null || exit 4;
@@ -298,11 +300,14 @@ t=".$n.hangar-part";
 rm -rf -- "$t";
 mkdir -- "$t" || exit 13;
 tar -xf - -C "$t" || { rm -rf -- "$t"; exit 14; };
-ok=0; if [ -L "$t/$n" ]; then ok=0; elif [ -d "$t/$n" ]; then [ "$(find "$t/$n" -type f | wc -l | tr -d ' ')" = "$4" ] && ok=1; fi;
+ok=0; if [ -L "$t/$n" ]; then ok=0; elif [ -d "$t/$n" ]; then [ "$(find "$t/$n" -type f -exec sh -c 'for f; do printf x; done' sh {} + | wc -c | tr -d ' ')" = "$4" ] && ok=1; fi;
 if [ "$ok" = 1 ]; then :; else rm -rf -- "$t"; exit 14; fi;
 if ex; then
 if [ "$r" = 1 ]; then :; else rm -rf -- "$t"; exit 10; fi;
 real || { rm -rf -- "$t"; exit 11; };
+b="$PWD/$n";
+(cd -- "$t/$n" && find . -type d -exec sh -c 'for p; do if [ -L "$0/$p" ]; then exit 1; fi; done' "$b" {} +) || { rm -rf -- "$t"; exit 11; };
+(cd -- "$t/$n" && find . -type f -exec sh -c 'for p; do if [ -L "$0/$p" ]; then rm -f -- "$0/$p"; fi; done' "$b" {} +) || { rm -rf -- "$t"; exit 13; };
 cp -R -- "$t/$n/." "$n/" || { rm -rf -- "$t"; exit 13; };
 rm -rf -- "$t";
 else

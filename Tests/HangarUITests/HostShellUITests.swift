@@ -101,26 +101,60 @@ import Workspace
         #expect(h.app.remoteFiles.link(of: leaf.id) == nil)
     }
 
-    /// A hooked login that dies before any prompt (tcsh, rbash, an appliance) → the host logs in plain from then on.
+    /// A hooked login that dies right away, nothing typed (key login on tcsh, rbash, an appliance): the tab logs in
+    /// again plain at once; the second such failure on the host marks it for good.
     @Test func failedHookFallsBackToPlain() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         h.app.sshResolve = { _, _ in [:] }
         let o = try #require(h.app.openHostShell("box"))
         let leaf = try #require(leaves(h, o.task).first)
         _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
-        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 255))  // wrong password / lost connection
-        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 0))
-        #expect(h.app.hostShellHookFailed(leaf: leaf.id, code: 1))
-        #expect(h.app.state.hostShells.first?.noHook == true)
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 255, typed: false))  // wrong password / lost connection
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 0, typed: false))
+        #expect(h.app.hostShellHookFailed(leaf: leaf.id, code: 1, typed: false))
+        #expect(h.app.state.hostShells.first?.noHook == false)  // one ambiguous exit is not persisted
         let plain = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)).0
         #expect(!plain.command.contains("kitty-shell-cwd") && plain.command.contains("ControlMaster=auto"))
-        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1))  // no loop
-        // Persisted with the host's terminal; a fresh one tries the hook again.
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1, typed: false))  // no loop
+        // Another tab of the host fails the same way: now the host is marked, persisted.
+        h.app.addTab(.shell)
+        let tab2 = try #require(h.app.state.tasks.first { $0.id == o.task }?.tabs.last)
+        let leaf2 = try #require(tab2.root.leaves.first)
+        #expect(leaf2.id != leaf.id)
+        _ = try h.app.spec(for: leaf2, tabId: tab2.id, context: .created(prompt: nil))
+        #expect(h.app.hostShellHookFailed(leaf: leaf2.id, code: 127, typed: false))
         let saved = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(h.app.state))
         #expect(saved.hostShells.first?.noHook == true)
         h.app.closeHostShell("box")
         _ = try #require(h.app.openHostShell("box"))
         #expect(h.app.state.hostShells.first?.noHook == false)
+    }
+
+    /// Normal exits are not the hook's failure: Ctrl-C at the password prompt (a signal), and the user's own `exit`
+    /// after a failed command in a shell that never reports a folder (ksh, dash, bash with its own PROMPT_COMMAND).
+    @Test func normalExitsNeverReLogIn() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        h.app.sshResolve = { _, _ in [:] }
+        var now = Date()
+        h.app.hookClock = { now }
+        let o = try #require(h.app.openHostShell("box"))
+        let leaf = try #require(leaves(h, o.task).first)
+        func launch() throws { _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)) }
+        try launch()
+        for code: Int32 in [-1, 130, 129, 143] {
+            #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: code, typed: true))
+        }
+        // `exit` long after the launch: not the hook.
+        now += 600
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1, typed: true))
+        // A quick `false; exit` right after a typed password: no re-login (↩ is the user's), the leaf's next login is
+        // plain — the same for a shell that never reports a folder — and nothing is persisted.
+        try launch()
+        now += 5
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1, typed: true))
+        #expect(h.app.state.hostShells.first?.noHook == false)
+        let next = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil)).0
+        #expect(!next.command.contains("kitty-shell-cwd"))
     }
 
     /// Once the shell reported its folder the hook works: a later error exit is the user's command, not the hook.
@@ -131,7 +165,7 @@ import Workspace
         let leaf = try #require(leaves(h, o.task).first)
         _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
         h.app.remoteFiles.pwd(leaf.id, "/root")
-        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1))
+        #expect(!h.app.hostShellHookFailed(leaf: leaf.id, code: 1, typed: false))
     }
 
     @Test func invalidHostRefused() async throws {

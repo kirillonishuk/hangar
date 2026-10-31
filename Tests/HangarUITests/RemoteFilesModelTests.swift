@@ -211,6 +211,29 @@ import TestSupport
         #expect(calls.uploads.first?.name == "b.txt" && calls.uploads.first?.dir == "/srv")
     }
 
+    /// Closing the uploading tab stops only its upload: another tab's queued batch still runs.
+    @Test func closingTheUploadingTabKeepsOthersQueue() async throws {
+        let calls = Calls()
+        let m = model(calls, entries: [], hang: true)
+        m.pwd(leaf, "/srv")
+        m.follow(leaf)
+        #expect(await waitUntil { m.listing != nil })
+        let (_, first) = try files(["a.txt"])
+        m.upload(first)
+        #expect(await waitUntil { calls.uploads.count == 1 })
+        let other = UUID()
+        m.register(other, link: link)
+        m.pwd(other, "/other")
+        m.follow(other)
+        #expect(await waitUntil { m.listing != nil && m.path == "/other" })
+        let (_, second) = try files(["b.txt"])
+        m.upload(second)
+        m.retain([other])
+        #expect(await waitUntil { calls.uploads.count == 2 })
+        #expect(calls.uploads.last?.name == "b.txt" && calls.uploads.last?.dir == "/other")
+        m.cancelUploads()
+    }
+
     @Test func unusableItemsAreNamed() async throws {
         let calls = Calls()
         let m = model(calls, entries: [])

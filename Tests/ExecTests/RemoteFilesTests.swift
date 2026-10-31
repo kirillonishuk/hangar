@@ -355,6 +355,41 @@ import TestSupport
         #expect(f.read(f.srv + "/site/private/a.txt") == "new" && f.read(f.srv + "/site/private/mine.txt") == "mine")
     }
 
+    /// «Объединить» never writes through a link inside the server's folder: a link where the upload has a file is
+    /// replaced (its target stays), a link where it has a folder is a clash and nothing is copied.
+    @Test func mergeNeverWritesThroughLinks() async throws {
+        let f = try Fixture()
+        let mac = f.root + "/mac/app"
+        try FileManager.default.createDirectory(atPath: mac, withIntermediateDirectories: true)
+        try Data("new".utf8).write(to: URL(fileURLWithPath: mac + "/config.yml"))
+        try f.write("app/keep.txt", "keep")
+        try f.write("outside/config.yml", "shared")
+        try FileManager.default.createSymbolicLink(atPath: f.srv + "/app/config.yml", withDestinationPath: f.srv + "/outside/config.yml")
+        try await uploadToRemote(f.link, source: try source(mac), dir: f.srv, replace: true) { _ in }
+        #expect(f.read(f.srv + "/outside/config.yml") == "shared" && f.read(f.srv + "/app/config.yml") == "new")
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: f.srv + "/app/config.yml")) == nil)
+
+        try FileManager.default.createDirectory(atPath: mac + "/shared", withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: URL(fileURLWithPath: mac + "/shared/x.txt"))
+        try FileManager.default.createSymbolicLink(atPath: f.srv + "/app/shared", withDestinationPath: f.srv + "/outside")
+        await #expect(throws: RemoteFileError.kindClash("app")) {
+            try await uploadToRemote(f.link, source: try source(mac), dir: f.srv, replace: true) { _ in }
+        }
+        #expect(!FileManager.default.fileExists(atPath: f.srv + "/outside/x.txt"))
+        #expect((try FileManager.default.contentsOfDirectory(atPath: f.srv)).filter { $0.hasSuffix(".hangar-part") }.isEmpty)
+    }
+
+    /// A newline in a file name does not break the folder's file count.
+    @Test func newlineInANameStillCounts() async throws {
+        let f = try Fixture()
+        let mac = f.root + "/mac/notes"
+        try FileManager.default.createDirectory(atPath: mac, withIntermediateDirectories: true)
+        try Data("1".utf8).write(to: URL(fileURLWithPath: mac + "/two\nlines.txt"))
+        try Data("2".utf8).write(to: URL(fileURLWithPath: mac + "/plain.txt"))
+        try await uploadToRemote(f.link, source: try source(mac), dir: f.srv, replace: false) { _ in }
+        #expect(f.read(f.srv + "/notes/two\nlines.txt") == "1" && f.read(f.srv + "/notes/plain.txt") == "2")
+    }
+
     @Test func namesThatLookLikeOptions() async throws {
         let f = try Fixture()
         let mac = f.root + "/mac/-rf"

@@ -113,9 +113,13 @@ import Workspace
         #expect(windowTitle(app.state) == WindowTitle(title: L10n.chatNumbered(1), subtitle: L10n.noProject))
         #expect(app.placeName(of: try #require(app.state.tasks.first { $0.id == task })) == L10n.noProject)
         #expect(Action.list(for: .task(task), app: app) == [.rename, .togglePin, .toggleMute, .removeFreeChat])
+        // CLI and MCP never see chats without a project; a project's chat still resolves.
+        if case .success = app.resolveTask(L10n.chatNumbered(1)) { Issue.record("free chat resolved") }
+        if case .failure = app.resolveTask("work") { Issue.record("project chat not resolved") }
         app.sleepFreeChat(task)
         #expect(Action.list(for: .task(task), app: app) == [.rename, .togglePin, .removeFreeChat])
         #expect(app.isOutsideProjects(try #require(app.state.tasks.first { $0.id == task })))
+        if case .success = app.resolveTask(L10n.chatNumbered(1), archived: true) { Issue.record("asleep free chat resolved") }
     }
 
     @Test func archiveKeySleepsAndRemoveConfirmsWithoutTouchingTranscript() throws {

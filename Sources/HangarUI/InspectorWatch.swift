@@ -56,7 +56,11 @@ import Workspace
             guard let project, project.host == nil, let sub = subfolderInRepository(project.path),
                   FileManager.default.fileExists(atPath: path + "/" + sub) else { return path }
             return path + "/" + sub
-        case .mainFolder: return project?.path ?? (app.state.isFreeChatTask(task) ? app.state.chatsFolder : nil)
+        case .mainFolder:
+            if let project { return project.path }
+            // Chats without a project: the shared folder, recreated if the user removed it (spec free-chats §3).
+            guard app.state.isFreeChatTask(task), app.ensureChatsFolder() else { return nil }
+            return app.state.chatsFolder
         }
     }
 

@@ -358,3 +358,39 @@ private func writeRenamedFixtures(_ f: Fixture) {
         #expect(list.map(\.cwd) == ["/work/proj-old"])
     }
 }
+
+/// Chats without a project: search by the conversation's words, never by tools or wrapped blocks; case and diacritics ignored.
+@Suite struct HistoryMatchingTests {
+    @Test func matchesUserAndAssistantTextOnly() async {
+        let f = Fixture(); defer { f.remove() }
+        let cwd = "/state/Chats"
+        func claude(_ id: String, _ lines: [String]) { f.write(".claude/projects/\(claudeProjectDirName(cwd))/\(id).jsonl", lines) }
+        claude(idA, [
+            #"{"type":"user","message":{"role":"user","content":"<command-name>/model</command-name> Résumé"},"timestamp":"2026-10-20T10:00:00Z","cwd":"/state/Chats"}"#,
+            #"{"type":"user","message":{"role":"user","content":"как устроен PKCE"},"timestamp":"2026-10-20T10:00:01Z","cwd":"/state/Chats"}"#,
+            #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Смотри code_verifier"},{"type":"tool_use","name":"Bash","input":{"command":"grep toolonly"}}]},"timestamp":"2026-10-20T10:00:02Z","cwd":"/state/Chats"}"#,
+        ])
+        claude(idB, [
+            #"{"type":"user","message":{"role":"user","content":"cafe résumé"},"timestamp":"2026-10-20T10:00:00Z","cwd":"/state/Chats"}"#,
+        ])
+        // Another folder's conversation never matches.
+        f.write(".claude/projects/-elsewhere/\(idY).jsonl", [
+            #"{"type":"user","message":{"role":"user","content":"pkce"},"timestamp":"2026-10-20T10:00:00Z","cwd":"/elsewhere"}"#,
+        ])
+        f.write(".codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-\(idX).jsonl", [
+            codexMeta(idX, cwd: cwd, ts: "2026-10-20T10:00:00Z"),
+            codexEvent("user_message", "Регулярка для дат", ts: "2026-10-20T10:00:01Z"),
+            codexEvent("agent_message", "используй CODE_VERIFIER", ts: "2026-10-20T10:00:02Z"),
+        ])
+        let h = ConversationHistory()
+        func m(_ q: String) async -> Set<String> { await h.matching(q, folder: cwd, claudeDir: f.claude, codexDir: f.codex) }
+        #expect(await m("pkce") == [idA])
+        #expect(await m("code_verifier") == [idA, idX])
+        #expect(await m("RESUME") == [idB])  // diacritics; the wrapped command's «Résumé» is not the user's words
+        #expect(await m("toolonly").isEmpty)
+        #expect(await m("  ").isEmpty)
+        let cancelled = Task { await h.matching("pkce", folder: cwd, claudeDir: f.claude, codexDir: f.codex) }
+        cancelled.cancel()
+        #expect(await cancelled.value.isEmpty)
+    }
+}

@@ -96,14 +96,16 @@ public func remoteWatchdogArgv(_ argv: [String]) -> [String] {
 /// Starts `executable` and collects stdout/stderr; `input` (if any) is written to stdin, else stdin is /dev/null.
 /// Cancel terminates the child (and its process group). Past `maxOutput` bytes on stdout or stderr the child is
 /// terminated and the stream is cut there (untrusted servers). `onStdout`: stdout goes there instead (`streamProcess`).
+/// `feed`: writes stdin itself on a background thread (an upload streaming a file); the pipe's writer closes after it.
 func runProcess(_ executable: String, _ args: [String], cwd: String, env: [String: String], input: Data? = nil,
-                maxOutput: Int = .max, holdStdin: Bool = false, onStdout: (@Sendable (Data) -> Bool)? = nil) async throws -> RunResult {
+                maxOutput: Int = .max, holdStdin: Bool = false, onStdout: (@Sendable (Data) -> Bool)? = nil,
+                feed: (@Sendable (FileHandle) -> Void)? = nil) async throws -> RunResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = args
     process.currentDirectoryURL = URL(fileURLWithPath: cwd)
     process.environment = env
-    let inPipe = input != nil || holdStdin ? Pipe() : nil
+    let inPipe = input != nil || holdStdin || feed != nil ? Pipe() : nil
     process.standardInput = inPipe ?? FileHandle.nullDevice
     let outPipe = Pipe(), errPipe = Pipe()
     process.standardOutput = outPipe
@@ -132,6 +134,13 @@ func runProcess(_ executable: String, _ args: [String], cwd: String, env: [Strin
             }
             if let inPipe, let input {
                 DispatchQueue.global().async { writeAll(input, to: inPipe.fileHandleForWriting) }
+            } else if let inPipe, let feed {
+                DispatchQueue.global().async {
+                    let h = inPipe.fileHandleForWriting
+                    _ = fcntl(h.fileDescriptor, F_SETNOSIGPIPE, 1)
+                    feed(h)
+                    try? h.close()
+                }
             }
             if let onStdout {
                 DispatchQueue.global().async {

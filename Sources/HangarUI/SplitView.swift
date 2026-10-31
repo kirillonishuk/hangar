@@ -150,6 +150,7 @@ final class FillView: NSView {
     var showsHeader = false { didSet { needsLayout = true; header.isHidden = !showsHeader; headerLine.isHidden = !showsHeader } }
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
+    var onPwd: ((String) -> Void)?
     var onFocus: (() -> Void)?
     /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
     var onBell: (() -> Void)?
@@ -283,6 +284,7 @@ final class FillView: NSView {
         let view = TerminalSurfaceView(spec: spec)
         view.onChildExit = { [weak self] code in self?.childExited(code) }
         view.onTitleChange = { [weak self] title in self?.onTitle?(title) }
+        view.onPwd = { [weak self] path in self?.onPwd?(path) }
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] title, body in self?.onNotification?(oscNotificationText(title: title, body: body)) }
@@ -799,6 +801,7 @@ final class FillView: NSView {
             guard let self else { return }
             self.app.setTitle(title, leafId: leaf.id)
         }
+        view.onPwd = { [weak self] path in self?.app.remoteFiles.pwd(leaf.id, path) }
         view.onExit = { [weak self] code in
             self?.app.signal(.exited(code: code), leaf: leaf.id)
             self?.leafExited(leaf.id, code: code)

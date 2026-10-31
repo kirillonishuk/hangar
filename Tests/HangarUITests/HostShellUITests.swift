@@ -22,16 +22,18 @@ import Workspace
         #expect(h.app.remoteLeafHost(leaf.id) == nil)
         #expect(h.app.hostShellHost(ofLeaf: leaf.id) == "box")
         let (spec, _) = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
-        #expect(spec == sshShellSpec(host: "box", sshPath: h.app.sshPath))
-        // No master, no server check: the host stays unknown to `RemoteHosts`.
+        #expect(spec == sshShellSpec(host: "box", sshPath: h.app.sshPath, controlPath: h.app.sshPaths.shellControlPath(leaf.id)))
+        #expect(h.app.remoteFiles.link(of: leaf.id) == RemoteShellLink(host: "box", controlPath: h.app.sshPaths.shellControlPath(leaf.id), sshPath: h.app.sshPath))
+        // No host master, no server check: the host stays unknown to `RemoteHosts`.
         #expect(h.app.remote.hosts["box"] == nil)
         #expect(FakeSSH.calls(h.log).isEmpty)
         #expect(Action.list(for: .task(o.task), app: h.app).isEmpty)
         #expect(!Action.archive.isEnabled(for: .task(o.task), app: h.app))
     }
 
-    /// The inspector has no project for a host's terminal: a notice, never the previous session's files or changes.
-    @Test func inspectorShowsNoProjectForHostShell() async throws {
+    /// The inspector follows the focused leaf of a host's terminal (#124): Search runs through that leaf's master in the
+    /// folder its shell reported; a project chat gets the usual target again.
+    @Test func inspectorFollowsTheHostShellLeaf() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         var local: UUID?
         h.app.perform { s in
@@ -40,12 +42,22 @@ import Workspace
         }
         let project = try #require(local)
         h.app.select(taskId: project)
-        #expect(h.app.inspectorNotice == nil)
+        #expect(h.app.hostShellFocusedLeaf == nil)
         let o = try #require(h.app.openHostShell("box"))
-        #expect(h.app.state.selectedTaskId == o.task)
-        #expect(h.app.inspectorNotice == L10n.inspectorHostShell)
-        h.app.select(taskId: project)
-        #expect(h.app.inspectorNotice == nil)
+        let leaf = try #require(leaves(h, o.task).first)
+        #expect(h.app.hostShellFocusedLeaf == leaf.id)
+        _ = try h.app.spec(for: leaf, tabId: o.tab, context: .created(prompt: nil))
+        h.app.remoteFiles.isUp = { _ in false }
+        h.app.remoteFiles.follow(h.app.hostShellFocusedLeaf)
+        h.app.remoteFiles.pwd(leaf.id, "/var/www/app")
+        let target = try #require(h.app.searchTarget)
+        #expect(target.root == "/var/www/app" && target.host == "box" && target.link?.controlPath == h.app.sshPaths.shellControlPath(leaf.id))
+        // Closing the terminal ends its master and forgets the folder.
+        var stopped: [RemoteShellLink] = []
+        h.app.remoteFiles.stopMaster = { stopped.append($0) }
+        h.app.closeHostShell("box")
+        #expect(stopped.map(\.controlPath) == [h.app.sshPaths.shellControlPath(leaf.id)])
+        #expect(h.app.remoteFiles.link(of: leaf.id) == nil && h.app.remoteFiles.shown == nil)
     }
 
     @Test func invalidHostRefused() async throws {
@@ -91,7 +103,8 @@ import Workspace
         app.sshPath = h.ssh
         let leaf = try #require(app.state.tasks.first { $0.id == o.task }?.tabs.first?.root.leaves.first)
         #expect(app.isRestored(leafId: leaf.id))
-        #expect(try app.spec(for: leaf, tabId: o.tab, context: app.launchContext(for: leaf.id)).0 == sshShellSpec(host: "box", sshPath: h.ssh))
+        #expect(try app.spec(for: leaf, tabId: o.tab, context: app.launchContext(for: leaf.id)).0 == sshShellSpec(
+            host: "box", sshPath: h.ssh, controlPath: app.sshPaths.shellControlPath(leaf.id)))
     }
 
     @Test func controlOpensATab() async throws {

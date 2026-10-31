@@ -26,6 +26,8 @@ public struct ClipboardPromptText: Sendable {
     }
 
     public var onTitleChange: ((String) -> Void)?
+    /// The shell's folder (OSC 7): untrusted text from the program in the terminal.
+    public var onPwd: ((String) -> Void)?
     public var onBell: (() -> Void)?
     public var onDesktopNotification: ((String, String) -> Void)?  // title, body
     public var onChildExit: ((Int32) -> Void)?  // -1 = exit code unknown
@@ -57,6 +59,7 @@ public struct ClipboardPromptText: Sendable {
         case commandFinished(Int16), childExited
         case mouseShape(ghostty_action_mouse_shape_e), mouseVisible(Bool)
         case cellSize(width: UInt32, height: UInt32), openURL(String)
+        case pwd(String)
     }
 
     public init(spec: LaunchSpec) {
@@ -232,6 +235,7 @@ public struct ClipboardPromptText: Sendable {
     func handle(_ event: Event) -> Bool {
         switch event {
         case .title(let t): onTitleChange?(t)
+        case .pwd(let p): onPwd?(p)
         case .bell: onBell?()
         case .notification(let title, let body): onDesktopNotification?(title, body)
         case .commandFinished(let code):

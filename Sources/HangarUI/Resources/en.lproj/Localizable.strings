@@ -325,7 +325,6 @@
 "statusTruncated" = "Showing the first %d changes";
 "filesTruncated" = "Not all files shown (over %d)";
 "gitFailed" = "git: %@";
-"inspectorHostShell" = "Plain SSH terminal — no project folder";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";
 "diffTooLarge" = "Diff too large (%d lines)";
@@ -879,3 +878,33 @@
 "awaitingIntegrationAnswer" = "Waiting for an answer: connect Hangar?";
 "intOtherCopy" = "Hangar's entries here belong to another copy of the app";
 "intRemoteMissing" = "couldn't install hangar-remote — no hooks written";
+
+/* Files of a host terminal (#124) */
+"remoteFilesUpload" = "Upload Files";
+"remoteFilesUploadButton" = "Upload";
+"remoteFilesRefresh" = "Refresh";
+"remoteFilesEmpty" = "The folder is empty. Drop files here";
+"remoteFilesDropInto" = "Upload to";
+"remoteFilesUploading" = "Uploading: %d of %d";
+"remoteFilesUploaded" = "Uploaded %d of %d";
+"remoteFilesProgress" = "%@ · %@ of %@";
+"remoteFilesWaiting" = "%@ — waiting for an answer";
+"remoteFilesExistsIn" = "already exists in";
+"remoteFilesForAll" = "Apply to all (%d)";
+"remoteFilesSkip" = "Skip";
+"remoteFilesReplace" = "Replace";
+"remoteFilesMerge" = "Merge";
+"remoteFilesCancel" = "Cancel upload";
+"remoteFilesDismiss" = "Hide";
+"remoteFilesLogIn" = "Log in in the terminal tab";
+"remoteFilesUnknownFolder" = "The terminal’s folder is unknown";
+"remoteFilesNoAccess" = "No access to %@";
+"remoteFilesMissing" = "The folder %@ is gone";
+"remoteFilesFailed" = "Couldn’t read the folder. %@";
+"uploadUnreadable" = "Skipped: %d — not a file or folder.";
+"uploadOffline" = "Couldn’t upload %@: not connected. Log in in the terminal tab.";
+"uploadNoAccess" = "Couldn’t upload %@: no permission to write to %@. Choose another folder.";
+"uploadKindClash" = "Couldn’t upload %@: the server has a folder where this is a file, or the other way round. Rename it.";
+"uploadNoTar" = "Couldn’t upload the folder %@: the server has no tar. Files upload fine.";
+"uploadIncomplete" = "Upload of %@ was interrupted — nothing changed on the server.";
+"uploadFailed" = "Couldn’t upload %@. %@";

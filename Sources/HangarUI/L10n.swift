@@ -72,6 +72,11 @@ import Workspace
     }
 
     nonisolated enum Key: String, CaseIterable, Sendable {
+        case remoteFilesUpload, remoteFilesUploadButton, remoteFilesRefresh, remoteFilesEmpty, remoteFilesDropInto, remoteFilesUploading
+        case remoteFilesUploaded, remoteFilesProgress, remoteFilesWaiting, remoteFilesExistsIn, remoteFilesForAll, remoteFilesSkip
+        case remoteFilesReplace, remoteFilesMerge, remoteFilesCancel, remoteFilesDismiss, remoteFilesLogIn, remoteFilesUnknownFolder
+        case remoteFilesNoAccess, remoteFilesMissing, remoteFilesFailed, uploadUnreadable, uploadOffline, uploadNoAccess
+        case uploadKindClash, uploadNoTar, uploadIncomplete, uploadFailed
         case sectionPinned, sectionProjects, sectionArchived, sectionSSHHosts, newTask, newTaskHelp
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
@@ -126,7 +131,7 @@ import Workspace
         case segmentFiles, segmentChanges, segmentChangesTitle, changesWholeBranch, changesHintToBase, changesHintUncommitted, changesHintToUncommitted
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
-        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed, inspectorHostShell
+        case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -763,7 +768,6 @@ import Workspace
     static func statusTruncated(_ n: Int) -> String { f(.statusTruncated, Int32(clamping: n)) }
     static func filesTruncated(_ n: Int) -> String { f(.filesTruncated, Int32(clamping: n)) }
     static func gitFailed(_ message: String) -> String { f(.gitFailed, message) }
-    static var inspectorHostShell: String { s(.inspectorHostShell) }
 
     // Git tab (redesign v1 §4)
     static var segmentGit: String { s(.segmentGit) }

@@ -135,6 +135,8 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     let gitPanel = GitPanelModel()
     /// The inspector's Search tab (find in files, #91).
     let search = SearchModel()
+    /// Files of the focused host-terminal leaf (#124).
+    let remoteFiles = RemoteFilesModel()
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:]
     @ObservationIgnored let diffCache = DiffContentCache()
@@ -333,6 +335,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         let live = liveLeafIds
         // A host whose last project went is forgotten (after its sessions are killed).
         lastKills = killSessions(of: remoteBefore.filter { !live.contains($0.key) }, removing: hostsBefore.subtracting(state.projects.compactMap(\.host)))
+        remoteFiles.retain(live)
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
@@ -497,7 +500,11 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
         if let host = hostShellHost(ofLeaf: leaf.id) {
             // state.json is editable: a host that is not safe on an ssh command line never launches.
             guard let host = validSSHHost(host) else { throw LaunchError.missingCwd(host) }
-            return (sshShellSpec(host: host, sshPath: sshPath), mode)
+            let paths = sshPaths
+            try? paths.prepare()
+            let link = RemoteShellLink(host: host, controlPath: paths.shellControlPath(leaf.id), sshPath: sshPath)
+            remoteFiles.register(leaf.id, link: link)
+            return (sshShellSpec(host: host, sshPath: sshPath, controlPath: link.controlPath), mode)
         }
         if let host = remoteLeafHost(leaf.id) {
             guard let target = remote.target(host) else {
@@ -803,6 +810,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
     func setTitle(_ title: String, leafId: UUID) {
         let clean = terminalTitle(title)
         leafTitles[leafId] = clean.isEmpty ? nil : clean
+        remoteFiles.titleChanged(leafId)
     }
 
     /// A surface got keyboard focus: the model's focused leaf follows (⌘D splits it; restored on launch).

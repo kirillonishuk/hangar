@@ -2,7 +2,8 @@
 # README screenshots (docs/assets/screenshots/*.png) from the DEBUG app in the fixture world → $OUT/screenshots.
 # Real window captures by id (titlebar and corners included); the app is never activated.
 # SNAP=1: the app draws its own window (`snap …-window`, with the traffic lights) when the terminal may not capture
-# the screen; the corners are cut to the window's radius afterwards. Sheets and Settings need SNAP unset.
+# the screen; the corners are cut to the window's radius afterwards. A menu or sheet is then snapped on its own and drawn
+# over the window snap at its place (`over`). Settings needs SNAP unset.
 source "$(dirname "$0")/common.sh"
 stop_app
 bash "$D/setup.sh" >/dev/null
@@ -12,6 +13,8 @@ shoot() {
   if [ -n "${SNAP:-}" ]; then $C "snap $R/snaps/$1-window.png"; sleep 1.5; mv "$R/snaps/$1-window.png" "$R/snaps/$1.png"; else cap "$1"; fi
   $C "window back"
 }
+# over <name> <radius>: $R/<name>-panel.png (the open menu or sheet) over $R/snaps/<name>.png, its corners cut to <radius> pt.
+over() { "$T/over" "$(pid)" "$R/snaps/$1.png" "$R/$1-panel.png" "$2" "$R/over.png" 2>>$R/comp.log && mv "$R/over.png" "$R/snaps/$1.png"; }
 launch; sleep 5
 $C "resize 1440 900" "window back"; sleep 0.5
 scene  # common.sh: projects, chats in every state, the devbox project
@@ -30,11 +33,19 @@ shoot main
 
 # The branch switcher of a chat in its own copy (clean, so every branch can be switched to).
 $C "select 3" "inspector" "inspector files"; sleep 2
-$C "branchMenu"; sleep 1.5; shoot branch
+$C "branchMenu"; sleep 1.5
+[ -n "${SNAP:-}" ] && { $C "menuPanel snap $R/branch-panel.png"; sleep 1; }
+shoot branch
+[ -n "${SNAP:-}" ] && over branch 10  # radius.popover
 $C "menuPanel key 53"; sleep 0.5
 
+# SNAP: the window is snapped before the sheet opens (with a sheet up, `snap` draws the sheet).
+[ -n "${SNAP:-}" ] && shoot new-chat
 $C "sheet 0"; sleep 1.5
-$C "ntWorktree on" "ntName Add Apple Pay to checkout" "ntSetup on"; sleep 1.5; shoot new-chat
+$C "ntWorktree on" "ntName Add Apple Pay to checkout" "ntSetup on"; sleep 1.5
+if [ -n "${SNAP:-}" ]; then
+  $C "window front" "snap $R/new-chat-panel.png"; sleep 1.5; over new-chat 27; $C "window back"  # the system sheet's radius
+else shoot new-chat; fi
 $C "ntCancel"; sleep 1
 
 $C "key sessions" "sessionsHover -1"; sleep 3; shoot history

@@ -14,7 +14,7 @@ R=/tmp/hg-media          # fixture world (the fake ssh script hardcodes this pat
 T=/tmp/hg-media-tools    # compiled Swift helpers
 OUT=/tmp/hg-media-out    # results, laid out as docs/assets (setup.sh wipes $R, not this)
 mkdir -p "$T" "$OUT/screenshots"
-for t in hgcmd comp wid mkvideo social; do
+for t in hgcmd comp over wid mkvideo social; do
   [ "$T/$t" -nt "$D/$t.swift" ] || swiftc -O "$D/$t.swift" -o "$T/$t" || exit 1
 done
 C="$T/hgcmd"

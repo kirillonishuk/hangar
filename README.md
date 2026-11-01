@@ -19,7 +19,7 @@ A native macOS app for running Claude Code and Codex side by side: one chat per 
 
 ## What it is
 
-Hangar is a workspace for coding agents. You add projects (local folders or folders on an SSH server); each project holds chats. A chat is one piece of work for one or more agents: its own terminal tabs and splits, and either the project folder or a separate copy of it (a git worktree on its own branch). The sidebar shows every chat with its state, so you can run several agents at once and see which one needs you.
+Hangar is a workspace for coding agents. You add projects (local folders or folders on an SSH server); each project holds chats. Questions that don't belong to a repository go to chats without a project. A chat is one piece of work for one or more agents: its own terminal tabs and splits, and either the project folder or a separate copy of it (a git worktree on its own branch). The sidebar shows every chat with its state, so you can run several agents at once and see which one needs you.
 
 It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://github.com/ghostty-org/ghostty) and use your Ghostty config. Hangar does not replace the agents: it runs the `claude` and `codex` you already have.
 
@@ -27,16 +27,16 @@ It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://githu
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/main.png" alt="Chats in the sidebar with their states, a Claude Code transcript, the Changes tab"><br><sub>Chats and their states, Claude's status line, Changes</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/main.png" alt="Chats in the sidebar with their states, chats without a project, a Claude Code transcript, the Changes tab"><br><sub>Chats and their states, Claude's status line, Changes</sub></td>
     <td width="50%"><img src="docs/assets/screenshots/branch.png" alt="Branch switcher open from the toolbar"><br><sub>Branch switcher in the toolbar</sub></td>
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/new-chat.png" alt="New Chat sheet: project folder or a separate copy"><br><sub>New Chat: project folder or a separate copy</sub></td>
-    <td><img src="docs/assets/screenshots/history.png" alt="History: closed chats and past Claude and Codex conversations"><br><sub>History (⌘Y)</sub></td>
+    <td><img src="docs/assets/screenshots/history.png" alt="History: chats without a project, closed chats and past Claude and Codex conversations"><br><sub>History (⌘Y)</sub></td>
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/diff.png" alt="Side-by-side diff in the VS Code Dark+ theme"><br><sub>Diff, VS Code Dark+ theme</sub></td>
-    <td><img src="docs/assets/screenshots/remote.png" alt="A chat on an SSH server with the Git tab"><br><sub>A project on an SSH server, Git tab</sub></td>
+    <td><img src="docs/assets/screenshots/remote.png" alt="A terminal on an SSH server with its Files panel"><br><sub>SSH terminal: the server's files follow its folder</sub></td>
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/settings.png" alt="Settings, Appearance: three themes, each with its editor theme"><br><sub>Settings → Appearance</sub></td>
@@ -46,14 +46,15 @@ It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://githu
 
 ## Features
 
-- **Chats.** One row per chat in the sidebar, grouped under Projects and Servers. A chat works in the project folder or in a separate copy (a git worktree with its own branch, created next to the project, not inside it), optionally prepared with `pnpm install` / `yarn` / `bun`.
+- **Chats.** One row per chat in the sidebar, grouped under Projects and Servers. A chat works in the project folder or in a separate copy (a git worktree with its own branch, created next to the project, not inside it), optionally prepared with `pnpm install` / `yarn` / `bun`. If a copy is moved (say, by `git worktree move`) or deleted, the chat says so instead of showing the project's files, and «Update Path» follows the move. A project with no open chats shows «+ New Chat» and «Archive · N»; its folder icon opens and closes with it.
+- **Chats without a project.** ⌥⌘N (or «+» in the Chats section) starts your default agent in one shared Chats folder, for questions that aren't about a repository. Closing such a chat puts it to sleep; a click wakes it with its own conversation. Files dropped on its Files panel are copied into the folder and mentioned in the agent's input.
 - **Agent states.** Working, waiting, done, error and at-limit, from Claude Code and Codex hooks: a dot in the sidebar, a word when a chat needs you, the bell's inbox, the Dock badge and notifications.
 - **Branch in the toolbar.** Each chat shows its live branch. The switcher checks out a local or remote branch or creates a new one, and refuses when uncommitted changes or ignored files would be lost.
 - **Inspector.** Files, Changes (not committed or the whole branch), Git (branches, graph, history with filters) and Search in files.
 - **Editor and diff.** [Monaco](https://github.com/microsoft/monaco-editor), side-by-side or inline diff. TypeScript/JavaScript go to definition, references, hover and rename via the project's `tsserver`; Python, Swift, Go and Rust via `pyright`/`pylsp`, `sourcekit-lsp`, `gopls`, `rust-analyzer` when installed.
-- **History (⌘Y).** Closed chats and past Claude and Codex conversations, searchable, with Continue.
+- **History (⌘Y).** Closed chats and past Claude and Codex conversations, searchable, with Continue. The Chats scope lists chats without a project by day and searches the text of their conversations.
 - **Restore.** After a restart every chat reopens its tabs, splits and its own agent conversation (by id, never "the latest one in this folder").
-- **SSH servers.** Remote projects run in `tmux` on the host and survive disconnects; statuses and limits come back over the SSH connection.
+- **SSH servers.** Remote projects run in `tmux` on the host and survive disconnects; statuses and limits come back over the SSH connection. Any host from `~/.ssh/config` also opens as a plain terminal: its Files panel follows the terminal's current folder and uploads files and folders dropped from Finder (Skip / Replace, or Merge for a folder), over the terminal's SSH connection without a second login. When the host's config or shell doesn't allow that, the tab falls back to a plain `ssh` login.
 - **Usage limits.** Claude and Codex subscription limits (5 hours and week) in the sidebar.
 - **Claude status line.** Hangar's own line under Claude's prompt: model, context, 5-hour and weekly limits, optionally branch and effort; or keep yours.
 - **Appearance.** Hangar Navy, VS Code Dark+ and Graphite; each theme brings a matching editor theme, which you can customise color by color.
@@ -94,6 +95,7 @@ Changes are additive: Hangar only adds and removes its own entries, leaves yours
 |---|---|
 | ⌘N | New chat |
 | ⇧⌘N | Add project |
+| ⌥⌘N | New chat without a project |
 | ⌘T / ⌘W | New tab / close tab (in a split: the focused pane) |
 | ⇧⌘W | Archive chat |
 | ⌘D / ⇧⌘D | Split right / split down |
@@ -126,7 +128,7 @@ hangar tabs read --tab <id> --lines 40
 hangar doctor
 ```
 
-A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only: chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
 
 ## Build from source
 

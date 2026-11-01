@@ -66,11 +66,20 @@ P="${P# }"; SID=${SID:-$(uuidgen | tr A-Z a-z)}
 if [ -z "$P" ] && [ "$(basename "$PWD")" = api ]; then
   case "$PWD" in */sshd/*) P="Add created_at to orders and backfill it" ;; *) P="Add a /healthz endpoint for the load balancer" ;; esac
 fi
+# Chats without a project (#126) all start in <state>/Chats without a prompt: each takes the next question.
+if [ -z "$P" ] && [ "$(basename "$PWD")" = Chats ]; then
+  n=$(cat /tmp/hg-media/chat-n 2>/dev/null || echo 0); echo $((n + 1)) > /tmp/hg-media/chat-n
+  case $n in
+    0) P="Explain rebase --onto" ;;
+    *) P="429 or 503 for limits?" ;;
+  esac
+fi
 # On the fake server the hooks go through hangar-remote, as a real Claude's would there.
 ev() {
   local j="{\"session_id\":\"$SID\"${2:+,$2}}"
   case "$PWD" in
     */sshd/*) printf %s "$j" | "$HOME/.hangar/bin/hangar-remote" event "$1" >/dev/null 2>&1 ;;
+    */Chats) "$H" event "$1" "$j" --tab-agent --agent-pid $$ >/dev/null 2>&1 ;;  # its prompt names the chat (#116)
     *) "$H" event "$1" "$j" >/dev/null 2>&1 ;;
   esac
   true
@@ -142,6 +151,16 @@ case "$P" in
   say "Done. GET /healthz returns 200 when the database is reachable, 503 otherwise." 0.3
   ev stop '"last_assistant_message":"Done. GET /healthz is ready."'
   prompt_box "" 17 ;;
+*429*)
+  say "${b}429${n} means this client is over its limit: retry after ${c}Retry-After${n}. ${b}503${n} means the service itself is overloaded." 0.3
+  ev stop '"last_assistant_message":"429 is the client over its limit; 503 is the service overloaded."'
+  prompt_box "" 6 ;;
+*rebase*)
+  say "${b}git rebase --onto <newbase> <upstream>${n} replays the commits after ${c}<upstream>${n} onto ${c}<newbase>${n}:"
+  say "  git rebase --onto main feature-a feature-b"
+  say "moves ${b}feature-b${n} off ${b}feature-a${n} and onto ${b}main${n}, leaving feature-a's own commits behind."
+  ev stop '"last_assistant_message":"It replays the commits after upstream onto newbase."'
+  prompt_box "" 9 ;;
 *)
   S=8
   step "Read(internal/orders/order.go)" "Read 6 lines" 0.4
@@ -372,6 +391,12 @@ commit "2026-10-24T09:40:00" "build: Dockerfile"
 printf 'package orders\n\nconst MaxPage = 100\n' > internal/orders/page.go
 GIT_AUTHOR_NAME="Grace Hopper" GIT_AUTHOR_EMAIL=grace@example.com commit "2026-10-28T13:15:00" "feat(orders): cap page size at 100"
 
+# --- docs-site: a project with no open chats (the sidebar's «+ New chat» and «Archive · N» rows).
+DS="$R/work/docs-site"
+mkdir -p "$DS"; cd "$DS"; git init -q -b main
+printf '# docs-site\n' > README.md
+commit "2026-10-18T11:00:00" "Initial docs site"
+
 # --- Past conversations for History (fixture ~/.claude/projects and ~/.codex/sessions).
 enc() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
 conv() { # dir id title date branch msgs
@@ -390,6 +415,11 @@ conv "$W" 6b1f0c2e-1a2b-4c3d-8e9f-000000000003 "Sketch the search bar API before
 conv "$W" 6b1f0c2e-1a2b-4c3d-8e9f-000000000004 "Write tests for formatPrice in EUR and USD" 2026-10-27 main 16
 conv "$W" 6b1f0c2e-1a2b-4c3d-8e9f-000000000005 "Refactor Summary into smaller components" 2026-10-26 main 8
 conv "$A" 6b1f0c2e-1a2b-4c3d-8e9f-000000000006 "Add pagination to GET /orders" 2026-10-28 main 22
+# Chats without a project: their shared folder (History's «Chats» scope, by day).
+CH="$R/state/Chats"
+conv "$CH" 6b1f0c2e-1a2b-4c3d-8e9f-000000000021 "How do I undo the last commit but keep the changes?" 2026-10-30 "" 6
+conv "$CH" 6b1f0c2e-1a2b-4c3d-8e9f-000000000022 "Regex for ISO 8601 dates with an optional time" 2026-10-29 "" 4
+conv "$CH" 6b1f0c2e-1a2b-4c3d-8e9f-000000000023 "Compare Postgres advisory locks and SELECT FOR UPDATE" 2026-10-27 "" 10
 cx() { # id title date branch
   local d="$R/codex/sessions/2026/10/$(echo $3 | cut -c9-10)"; mkdir -p "$d"; local f="$d/rollout-$3T10-00-00-$1.jsonl"
   printf '{"timestamp":"%sT10:00:00.000Z","type":"session_meta","payload":{"id":"%s","cwd":"%s","git":{"branch":"%s"}}}\n' "$3" "$1" "$W" "$4" > "$f"
@@ -407,29 +437,52 @@ cp -R "$A" "$R/sshd/home/srv/api"
 cat > "$R/sshd/ssh" <<'EOF'
 #!/bin/sh
 D=${0%/*}
-ctl=; fwd=; master=
+ctl=; fwd=; master=; sock=; auto=; G=
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
     -O) ctl=$2; shift 2 ;;
     -R) fwd=$2; shift 2 ;;
-    -o|-S|-L|-p|-l|-i|-F|-E|-e) shift 2 ;;
+    -S) sock=$2; shift 2 ;;
+    -o) [ "$2" = ControlMaster=auto ] && auto=1; shift 2 ;;
+    -L|-p|-l|-i|-F|-E|-e) shift 2 ;;
+    -G) G=1; shift ;;
     -M) master=1; shift ;;
     -*) shift ;;
     *) break ;;
   esac
 done
 host=$1; shift
+# ssh -G: no ControlMaster of the user's own, so a host terminal is the master of its socket (#124).
+[ -n "$G" ] && { printf 'hostname devbox.example.com\nuser dev\ncontrolmaster false\ncontrolpath none\nremotecommand none\n'; exit 0; }
+case "$sock" in */hs-*) hs=1 ;; *) hs= ;; esac
 case "$ctl" in
   forward) ln -sf "${fwd#*:}" "${fwd%%:*}"; exit 0 ;;
-  exit) kill "$(cat "$D/master.pid")" 2>/dev/null; exit 0 ;;
+  exit) if [ -n "$hs" ]; then rm -f "$sock"; else kill "$(cat "$D/master.pid")" 2>/dev/null; fi; exit 0 ;;
   ?*) exit 0 ;;
 esac
 [ -n "$master" ] && echo $$ > "$D/master.pid"
 export HOME="$D/home" ZDOTDIR=/tmp/hg-media/zdot TMUX_TMPDIR=/tmp/hg-media/tmux; mkdir -p /tmp/hg-media/tmux
 cd "$HOME" || exit 255
 if [ $# -eq 0 ]; then exec sleep 100000; fi
-exec sh -c "$*"
+# The host terminal's server looks like /home/dev: its shell reports that path, commands map it back here.
+cmd=$(printf '%s' "$*" | sed "s#/home/dev#$HOME#g")
+if [ -n "$hs" ] && [ -n "$auto" ]; then
+  : > "$sock"; export ZDOTDIR=$D/zdot
+  sh -c "$cmd"; st=$?; rm -f "$sock"; exit $st
+fi
+exec sh -c "$cmd"
+EOF
+# The host terminal's shell (#124): a server prompt; the hook's folder is reported as /home/dev/….
+mkdir -p "$R/sshd/zdot"
+printf 'export PATH=/usr/bin:/bin:/usr/sbin:/sbin\n' > "$R/sshd/zdot/.zshenv"
+cat > "$R/sshd/zdot/.zshrc" <<'EOF'
+PROMPT='%F{245}dev@devbox%f %F{75}%~%f %F{245}$%f '
+RPROMPT=''
+unsetopt PROMPT_SP
+HISTFILE=/dev/null
+__hangar_cwd() { local s=$?; builtin printf "\033]7;kitty-shell-cwd://localhost%s\007" "${PWD/#$HOME//home/dev}"; return $s; }
+printf '\e[H\e[2J\e[3J'
 EOF
 chmod +x "$R/sshd/ssh"
 # hangar-remote already on the host (a DEBUG build can't upload it), from the script embedded in the app.

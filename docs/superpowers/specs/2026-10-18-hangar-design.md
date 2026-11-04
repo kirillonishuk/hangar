@@ -158,7 +158,8 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `hangar sessions spawn --name N --prompt T [--agent claude\|codex] [--worktree [--base B]] [--parent S]` | подчат вызывающего чата (`HANGAR_LEAF_ID`) или `--parent`: работает параллельно в папке родителя (`--worktree` — в новой копии), родителю ничего не печатает (MCP `sessions_spawn`, #128, #131) |
 | `hangar sessions wait [S…] [--timeout N] [--parent S]` | ждать, пока подчаты полностью закончат / попросят ввод / упадут; на таймауте `still-running` (MCP `sessions_wait`, #128) |
 | `hangar event <kind>` | событие от hooks |
-| `hangar mcp [--read-only]` | MCP-сервер (stdio) с теми же операциями; `--read-only` — только `projects_list`, `sessions_list`, `tabs_read`, `doctor`, `sessions_wait`, остальные отклоняются (#63) |
+| `hangar actions list [--session S]` / `hangar actions run --name N [--session S]` | действия проекта чата и их запуск, как кнопкой ▶ (MCP `actions_list`, `actions_run`; по умолчанию — вызывающий чат; команда из `.hangar/actions.json` без одобрения в приложении — отказ; #133, спека `specs/2026-11-05-project-actions-design.md`) |
+| `hangar mcp [--read-only]` | MCP-сервер (stdio) с теми же операциями; `--read-only` — только `projects_list`, `sessions_list`, `tabs_read`, `doctor`, `sessions_wait`, `actions_list`, остальные отклоняются (#63) |
 
 Разрушительные операции без `--yes` (в MCP — `yes: true`) отклоняются. Все команды поддерживают `--json`.
 

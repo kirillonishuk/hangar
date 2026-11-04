@@ -42,6 +42,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case sshOpen = "ssh.open"
     case linksCreate = "links.create"
     case tasksSpawn = "tasks.spawn", tasksWait = "tasks.wait"
+    case actionsList = "actions.list", actionsRun = "actions.run"
 
     /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#73); the socket method stays.
     public var toolName: String { legacyToolName.replacingOccurrences(of: "tasks_", with: "sessions_") }
@@ -49,7 +50,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public var legacyToolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
     /// Exposed by `hangar mcp --read-only`: listings and screen reads, nothing that changes Hangar or types into a terminal.
-    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait].contains(self) }
+    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait, .actionsList].contains(self) }
 
     public static let maxText = 32_768
     public static let maxPrompt = 16_384
@@ -76,6 +77,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
         case .tasksSpawn: "Start a sub-session of the calling chat (or of parent) to do something in parallel: a full chat with its own terminal and agent, shown under the parent in Hangar's sidebar, started with prompt (Hangar asks it to end with a concise final result). By default it works in the parent's own folder (the same worktree or main folder); worktree: true gives it a new git worktree instead. Returns its id and hangar:// link. Nothing is ever typed into the parent: when it has fully finished (agent stopped and no background tasks left), needs input or failed, the user gets a notification. To get its result, call sessions_wait."
         case .tasksWait: "Wait until sub-sessions have fully finished (agent stopped and no background tasks it started are left), need input, or failed; or until timeout. Returns per sub-session: status (done, needs-input, error, still-running), id, name, link, tab, the agent's final message (capped at ~1500 characters; truncated: true when cut). still-running means the timeout passed: call again. Without sessions: all open sub-sessions of the calling chat. Full output: tabs_read."
+        case .actionsList: "List a session's project actions (named commands like Dev server or Test, from the project's settings and the repository's .hangar/actions.json in the session's folder), with whether each is running and in which tab. The repository file's problems are reported in error."
+        case .actionsRun: "Run a project action in a session's folder in its own tab (like the Run button). With restart on (the default), a running copy is interrupted (Ctrl-C) and started again in the same tab; else another tab opens. An action from .hangar/actions.json whose command the user has not approved in Hangar is refused: they run it once from the app first."
         case .linksCreate: "Get a hangar:// link to a session, a tab, a project, an SSH host or a project's Sessions view. Clicking it in Hangar only selects and shows it; nothing runs."
         }
     }
@@ -155,6 +158,15 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "parent", type: ref, required: false,
                           summary: "Whose sub-sessions to wait for when sessions is omitted; default: the calling chat (HANGAR_LEAF_ID)."),
             ]
+        case .actionsList:
+            return [ParamSpec(name: "task", type: ref, required: false,
+                              summary: "Session id/prefix/name or a tab/leaf id; default: the calling chat (HANGAR_LEAF_ID).")]
+        case .actionsRun:
+            return [
+                ParamSpec(name: "task", type: ref, required: false,
+                          summary: "Session id/prefix/name or a tab/leaf id; default: the calling chat (HANGAR_LEAF_ID)."),
+                ParamSpec(name: "name", type: .string(maxBytes: 240), required: true, summary: "The action's name, as actions_list shows it."),
+            ]
         case .linksCreate:
             return [
                 ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at: task (a session), tab, project, host, sessions (a project's Sessions view)."),
@@ -183,6 +195,9 @@ public enum ControlCall: Equatable, Sendable {
     /// `parent`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
     case tasksSpawn(parent: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool, base: String?)
     case tasksWait(sessions: [String], parent: String?, timeout: Int)
+    /// `task`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
+    case actionsList(task: String)
+    case actionsRun(task: String, name: String)
 
     public static let defaultLines = 100
 
@@ -202,6 +217,8 @@ public enum ControlCall: Equatable, Sendable {
         case .linksCreate: .linksCreate
         case .tasksSpawn: .tasksSpawn
         case .tasksWait: .tasksWait
+        case .actionsList: .actionsList
+        case .actionsRun: .actionsRun
         }
     }
 
@@ -244,6 +261,8 @@ public enum ControlCall: Equatable, Sendable {
             p = ["timeout": timeout]
             if !sessions.isEmpty { p["sessions"] = sessions }
             p["parent"] = parent
+        case let .actionsList(task): p = ["task": task]
+        case let .actionsRun(task, name): p = ["task": task, "name": name]
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -380,6 +399,14 @@ public enum ControlCall: Equatable, Sendable {
                                worktree: worktree, base: v.strings["base"])
         case .tasksWait:
             return .tasksWait(sessions: v.lists["sessions"] ?? [], parent: v.strings["parent"], timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
+        case .actionsList:
+            guard let task = v.strings["task"] else { throw bad("not inside a Hangar chat: pass \"session\"") }
+            return .actionsList(task: task)
+        case .actionsRun:
+            guard let task = v.strings["task"] else { throw bad("not inside a Hangar chat: pass \"session\"") }
+            let name = v.strings["name"]!.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { throw bad("\"name\" must not be blank") }
+            return .actionsRun(task: task, name: name)
         }
     }
 

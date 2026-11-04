@@ -373,6 +373,16 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         column.terminalArea.onAddProject = { [weak self] in self?.chooseProjectKind() }
         column.terminalArea.onNewTask = { [weak self] in self?.presentNewTask(projectId: nil) }
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
+        app.editActions = { [weak self] id in self?.presentProjectSettings(id) }
+        app.actionFailed = { [weak self] title, details in self?.showError(title, details) }
+        // A repository command before its first run (#133): not destructive, ↩ runs it.
+        app.confirmActionRun = { [weak self] name, command, then in
+            guard let self, let window = self.window, window.attachedSheet == nil else { return }
+            sheetWindow = window.beginHangarSheet({ end in
+                ConfirmSheet(message: L10n.actionConfirmTitle(name), info: L10n.actionConfirmInfo(command), button: L10n.actionConfirmButton,
+                             destructive: false, onConfirm: { _ in end(.OK); then() }, onCancel: { end(.cancel) })
+            }, done: { [weak self] _ in self?.sheetWindow = nil })
+        }
         app.onIntegrationError = { [weak self] text in
             self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }
         }
@@ -711,6 +721,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .sessions: app.toggleSessionsView()
         case .findInFiles: app.showSearch()
         case .nextWorking: app.selectNextWorking()
+        case .runAction: app.runPrimaryAction()
         case .nextAttention:
             // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
@@ -747,7 +758,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         } else {
             files = []
         }
-        let model = PaletteModel(tasks: tasks, files: files, commands: paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
+        let model = PaletteModel(tasks: tasks, files: files, commands: (task.map { app.actions(of: $0).map { PaletteItem(action: $0.name, title: L10n.actionPalette($0.name)) } } ?? [])
+                                     + paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
                                  query: commands ? ">" : "", loadFiles: load)
         paletteRoot = root
         palettePickFor = leafId
@@ -786,6 +798,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             guard let paletteRoot else { return }
             if let leafId { app.chooseEditor(leafId, path: paletteRoot + "/" + path) } else { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
         case .command(let sc): perform(sc)
+        case .action(let name): if let task = app.selectedTask { app.runAction(name, taskId: task.id) }
         }
     }
 
@@ -1254,7 +1267,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onKeepWorktreesBeside: { [weak self] in
             self?.app.perform { s in s.projects.firstIndex { $0.id == id }.map { s.projects[$0].worktreeRoot = nil } }
-        }, onCancel: close)
+        }, onActions: { [weak self] actions, hidden in self?.app.perform { $0.setActions(projectId: id, actions, hidden: hidden) } },
+        loadRepo: { [weak self] in await self?.app.loadRepoActions(folder: project.path, project: project) ?? RepoActions() },
+        discover: { [weak self] in await self?.app.discoverActions(folder: project.path, project: project) ?? [] },
+        onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host

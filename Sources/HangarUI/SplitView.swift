@@ -130,7 +130,12 @@ final class FillView: NSView {
     private(set) var failed = false
     /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
     private var missingFolder: LaunchContext?
-    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil }
+    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil || actionIdle }
+    /// A project action's tab (#133): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
+    var isAction = false
+    var onActionRun: (() -> Void)?
+    /// The action was not asked to run in this terminal (restored, or hung up after a stop): ↩ runs it.
+    private(set) var actionIdle = false
     /// A new surface replaced the old one; `keepsStatus`: the same agent goes on (reattach, a launch that never ran).
     var onRelaunch: ((_ keepsStatus: Bool) -> Void)?
     /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (#47).
@@ -258,6 +263,7 @@ final class FillView: NSView {
             waiting = nil
             waitingForConsent = false
             missingFolder = nil
+            actionIdle = false
             let (spec, mode) = try make(context)
             self.mode = mode
             setBar(mode.unlinked ? L10n.conversationNotLinked : nil)
@@ -266,6 +272,9 @@ final class FillView: NSView {
         } catch LaunchError.missingCwd(let path) {
             missingFolder = context
             setBar("\(L10n.folderMissing(path)) · \(L10n.relaunchHint)")
+        } catch LaunchError.actionNotStarted {
+            actionIdle = true
+            setBar("\(L10n.actionNotRunning) · \(L10n.actionRunHint)")
         } catch LaunchError.awaitingConsent {
             waiting = context
             waitingForConsent = true
@@ -317,6 +326,14 @@ final class FillView: NSView {
     }
 
     func childExited(_ code: Int32) {
+        if isAction, host == nil || code != 255 {
+            // Kept, with how it ended: a dev server's ⌃C is a stop, a test's non-zero code a failure.
+            exitCode = code
+            let how = code == 0 ? L10n.actionFinished : actionWasStopped(code) ? L10n.actionStopped : L10n.exitedWithCode(code)
+            setBar("\(how) · \(L10n.actionRunHint)")
+            onExit?(code)
+            return
+        }
         if code == 0 { onExit?(0); return }
         exitCode = code
         if onHookFailed?(code, surface?.hadInput ?? true) == true {
@@ -430,7 +447,7 @@ final class FillView: NSView {
 
     /// ↩ or a click on the bar: relaunch an exited/failed leaf, or reconnect the host a waiting one gave up on.
     func activateBar() {
-        if canReconnect { onReconnect?() } else { relaunch() }
+        if canReconnect { onReconnect?() } else if isAction, exitCode != nil || actionIdle, let onActionRun { onActionRun() } else { relaunch() }
     }
 
     /// The ↩ bar of an exited/failed leaf (or of one whose host gave up) is clickable.
@@ -813,6 +830,8 @@ final class FillView: NSView {
         case .claude, .codex, .shell: break
         }
         app.wireHost(view)
+        view.isAction = leaf.action != nil
+        if leaf.action != nil { view.onActionRun = { [weak self] in self?.app.rerunAction(leafId: leaf.id) } }
         view.onTitle = { [weak self] title in
             guard let self else { return }
             self.app.setTitle(title, leafId: leaf.id)
@@ -855,7 +874,7 @@ final class FillView: NSView {
 
     private func leafExited(_ leafId: UUID, code: Int32) {
         uiLog.info("leaf exited leaf=\(leafId.uuidString.prefix(8), privacy: .public) code=\(code)")
-        if code == 0 { app.closeLeaf(leafId) }
+        if code == 0, app.leaf(id: leafId)?.action == nil { app.closeLeaf(leafId) }
     }
 
     /// Rebuilds the split tree, reparenting existing leaf views. The new tree is attached to the window
@@ -958,6 +977,8 @@ final class FillView: NSView {
     }
 
     #if DEBUG
+    func debugLeafView(_ id: UUID) -> LeafView? { leafViews[id] }
+
     /// Focuses the n-th leaf of the active tab like a click would (first responder).
     func debugFocus(_ n: Int) {
         guard let tab = activeTab, tab.root.leaves.indices.contains(n) else { return }

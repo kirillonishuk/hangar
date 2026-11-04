@@ -952,3 +952,17 @@
 "subChatHint" = "The sub-chat works in parallel and sends nothing to the chat; you get a notification when it is done.";
 "subChatStart" = "Start";
 "subChatFailed" = "Couldn’t start the sub-chat";
+
+"subagentsShow" = "Show subagents";
+"subagentsHide" = "Hide subagents";
+"subagentRunning" = "working";
+"subagentDone" = "done";
+"subagentFailed" = "interrupted";
+"subagentUnderMinute" = "<1 min";
+"subagentMinutes" = "%d min";
+"subagentHours" = "%d h %d min";
+"subagentPrompt" = "Prompt";
+"subagentReport" = "Result";
+"subagentRemoteNote" = "Progress is shown only for chats on this Mac.";
+"subagentPendingNote" = "Progress appears once the subagent starts.";
+"subagentRow" = "%@ · %@ · %@ · %@";

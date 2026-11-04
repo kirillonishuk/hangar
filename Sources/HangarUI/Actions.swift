@@ -27,6 +27,8 @@ enum ActionTarget: Equatable {
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
     /// «Новый подчат…» of this chat (#128).
     var newSubSession: (UUID) -> Void = { _ in }
+    /// The read-only viewer of a chat's subagent (leaf, subagent id).
+    var openSubagent: (UUID, String) -> Void = { _, _ in }
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
     var openSettings: () -> Void = {}

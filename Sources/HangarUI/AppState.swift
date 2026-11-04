@@ -61,6 +61,10 @@ enum EmptyProjectRow: Hashable {
             updateDockBadge()
         }
     }
+    /// Claude subagents per agent leaf, from hooks only (spec agent-subagents); in memory only.
+    var subagents: [UUID: SubagentList] = [:]
+    /// Chats whose subagent list is unfolded (folded by default, not persisted).
+    var subagentsExpanded: Set<UUID> = []
     /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
     @ObservationIgnored var onDockBadge: ((String) -> Void)?
     /// macOS's notification permission for the settings page; nil without an app bundle (no row).
@@ -393,6 +397,7 @@ enum EmptyProjectRow: Hashable {
         plainLeaves.formIntersection(live)
         if !setupLeaves.isEmpty { setupLeaves.formIntersection(state.tasks.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) }) }
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
+        if subagents.keys.contains(where: { !live.contains($0) }) { subagents = subagents.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
             statuses.retain(live)

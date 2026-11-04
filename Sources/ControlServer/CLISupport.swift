@@ -40,6 +40,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
         }
         if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
+        subagentFields(&m, object)
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
     let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]
@@ -49,6 +50,30 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
     if let i = own.firstIndex(of: "--agent-pid"), i + 1 < own.endIndex { m.agentPid = agentPid(own[i + 1]) }
     if own.contains("--tab-agent") { m.tabAgent = true }
     return m
+}
+
+/// Subagent rows (spec agent-subagents §3). Only the Agent/Task tool's PreToolUse / PostToolUse and SubagentStart / Stop
+/// carry them; every other tool's PostToolUse stays as it was (no fields, no extra work in the app).
+func subagentFields(_ m: inout EventMessage, _ object: [String: Any]) {
+    let input = object["tool_input"] as? [String: Any]
+    switch m.kind {
+    case .subagentStart:
+        m.toolUseId = subagentId(object["tool_use_id"] as? String)
+        m.agentType = subagentType(input?["subagent_type"] as? String)
+        m.title = subagentTitle(input?["description"] as? String)
+        m.message = (input?["prompt"] as? String).map { String($0.prefix(maxEventMessage(m.kind))) }
+    case .tool:
+        guard let tool = object["tool_name"] as? String, tool == "Agent" || tool == "Task" else { return }
+        let response = object["tool_response"] as? [String: Any]
+        m.tool = tool
+        m.toolUseId = subagentId(object["tool_use_id"] as? String)
+        m.agentId = subagentId(response?["agentId"] as? String)
+        m.backgrounded = response?["status"] as? String == "async_launched"
+    case .subagentRun, .subagentStop:
+        m.agentId = subagentId(object["agent_id"] as? String)
+        m.agentType = subagentType(object["agent_type"] as? String)
+    default: break
+    }
 }
 
 /// `--agent-pid` (the hook shell's `$PPID`): digits only, a positive Int32; anything else is no pid.

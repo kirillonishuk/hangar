@@ -952,3 +952,17 @@
 "subChatHint" = "Подчат работает параллельно и ничего не передаёт чату; когда закончит, придёт уведомление.";
 "subChatStart" = "Запустить";
 "subChatFailed" = "Не удалось запустить подчат";
+
+"subagentsShow" = "Показать субагентов";
+"subagentsHide" = "Скрыть субагентов";
+"subagentRunning" = "работает";
+"subagentDone" = "готово";
+"subagentFailed" = "прерван";
+"subagentUnderMinute" = "<1 мин";
+"subagentMinutes" = "%d мин";
+"subagentHours" = "%d ч %d мин";
+"subagentPrompt" = "Задание";
+"subagentReport" = "Итог";
+"subagentRemoteNote" = "Ход работы виден только у чатов на этом Mac.";
+"subagentPendingNote" = "Ход работы появится, когда субагент начнёт.";
+"subagentRow" = "%@ · %@ · %@ · %@";

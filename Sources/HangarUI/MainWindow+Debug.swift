@@ -81,11 +81,15 @@ extension MainWindowController {
                 lines.append("agent leaf=\(l.id.uuidString) kind=\(l.kind.rawValue) state=\(state) session=\(l.agentSessionId ?? "-") message=\(message)")
             }
             lines.append("agent task=\(t.name) state=\(app.state(of: t).rawValue)")
+            for (leaf, a) in app.subagentRows(of: t) {
+                lines.append("subagent leaf=\(leaf.uuidString) id=\(a.id) agent=\(a.agentId ?? "-") type=\(a.type) state=\(a.state.rawValue) bg=\(a.background) title=\(a.title)")
+            }
         }
         let now = app.usageClock
         let windows: [String] = app.usage.view(.claude, now: now)?.windows.map { "\($0.kind)=\(Int($0.usedPercent))" } ?? []
         let level: String = app.usage.level(.claude, now: now).map { "\($0)" } ?? "-"
         lines.append("agents working=\(app.workingLeafCount) usage.claude=\(windows) level=\(level)")
+        lines.append("subagentViewer=\(subagentViewer == nil ? "closed" : "open") watching=\(subagentViewer?.watcher != nil) entries=\(subagentViewer?.entries.count ?? 0)")
         lines.append("limits rows=\(app.limitRows.map(\.agent.rawValue)) popover=\(app.limitsPopoverShown) codex=\(app.codexRead != nil)")
         return lines
     }
@@ -228,6 +232,14 @@ extension MainWindowController {
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (#132)
             app.worktreeRemovals.items.first { $0.failure != nil }.map { app.worktreeRemovals.retry($0.id) }
+        case "closeSubagent": closeSubagentViewer?()
+        case "subagents":  // subagents: folds/unfolds the selected chat's subagent list
+            if let t = app.selectedTask { app.toggleSubagents(t.id) }
+        case "subagent":  // subagent <n>: as a click on the selected chat's n-th subagent row
+            if let t = app.selectedTask, let n = Int(arg) {
+                let rows = app.subagentRows(of: t)
+                if rows.indices.contains(n) { presentSubagent(leaf: rows[n].leaf, id: rows[n].item.id) }
+            }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
         case "hover", "menu":
             // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).

@@ -185,6 +185,8 @@ import Workspace
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
         case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
+        case subagentsShow, subagentsHide, subagentRunning, subagentDone, subagentFailed, subagentUnderMinute, subagentMinutes
+        case subagentHours, subagentPrompt, subagentReport, subagentRemoteNote, subagentPendingNote, subagentRow
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
     }
 
@@ -1029,6 +1031,33 @@ extension L10n {
         count(n, .subChatsOne, .subChatsFew, .subChatsMany) + (working > 0 ? " · " + f(.subChatsWorking, Int32(clamping: working)) : "")
     }
     static var subChatsShow: String { s(.subChatsShow) }
+    /// «3 субагента · 1 работает» under a chat (spec agent-subagents §4).
+    static func subagentsCounter(_ n: Int, running: Int) -> String {
+        subagentCount(n) + (running > 0 ? " · " + f(.subChatsWorking, Int32(clamping: running)) : "")
+    }
+    static var subagentsShow: String { s(.subagentsShow) }
+    static var subagentsHide: String { s(.subagentsHide) }
+    static func subagentState(_ state: Subagent.State) -> String {
+        switch state {
+        case .running: s(.subagentRunning)
+        case .done: s(.subagentDone)
+        case .failed: s(.subagentFailed)
+        }
+    }
+    /// Minutes, never seconds: recomputed on redraw only (no timer), so a second count would stand still.
+    static func subagentElapsed(_ seconds: TimeInterval) -> String {
+        let m = Int(max(seconds, 0) / 60)
+        if m < 1 { return s(.subagentUnderMinute) }
+        return m < 60 ? f(.subagentMinutes, Int32(m)) : f(.subagentHours, Int32(m / 60), Int32(m % 60))
+    }
+    static var subagentPrompt: String { s(.subagentPrompt) }
+    static var subagentReport: String { s(.subagentReport) }
+    static var subagentRemoteNote: String { s(.subagentRemoteNote) }
+    static var subagentPendingNote: String { s(.subagentPendingNote) }
+    /// Accessibility / tooltip: «Implement Task 2.2, Explore, работает, 3 мин».
+    static func subagentRow(_ title: String, _ type: String, _ state: String, _ elapsed: String) -> String {
+        f(.subagentRow, title, type, state, elapsed)
+    }
     static var subChatsHide: String { s(.subChatsHide) }
     static var subChatDone: String { s(.subChatDone) }
     static var newSubChat: String { s(.newSubChat) }

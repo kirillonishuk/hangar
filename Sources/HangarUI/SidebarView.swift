@@ -95,7 +95,10 @@ struct SidebarView: View {
         if !rows.isEmpty || !(filtering || collapsed) {
             SectionHeader(title: L10n.sectionChats, collapsed: collapsed, plusHelp: L10n.help(L10n.newFreeChat, .newFreeChat),
                           plusAlwaysVisible: app.state.freeChats.isEmpty, plus: { app.newFreeChat() })
-            ForEach(rows, id: \.task.id) { row in freeChatRow(row.task, depth: row.depth) }
+            ForEach(rows, id: \.task.id) { row in
+                freeChatRow(row.task, depth: row.depth)
+                subagentRows(row.task, indent: subIndent(row.depth), textX: Theme.gutterTextX)
+            }
             if !filtering, app.freeChatsBeyond(rows.map(\.task)) { allChatsRow }
         }
     }
@@ -352,8 +355,11 @@ struct SidebarView: View {
                     let rows = filtering ? (groups.first { $0.project.id == project.id }?.tasks ?? []).map { (task: $0, depth: 0) }
                         : app.groupRows(project.id)
                     ForEach(rows, id: \.task.id) { row in
-                        taskRow(row.task, depth: row.depth)
-                            .modifier(DragLook(dy: dragOffset(.task(row.task.id)), line: dropLine(at: row.task.id)))
+                        VStack(spacing: 0) {
+                            taskRow(row.task, depth: row.depth)
+                            subagentRows(row.task, indent: Theme.chatIndent + subIndent(row.depth), textX: Theme.chatTextX)
+                        }
+                        .modifier(DragLook(dy: dragOffset(.task(row.task.id)), line: dropLine(at: row.task.id)))
                     }
                     ForEach(emptyRows(project), id: \.self) { row in emptyProjectRow(row, project: project) }
                 }
@@ -376,12 +382,14 @@ struct SidebarView: View {
             // A parent moves with its sub-chats: one slot per top-level row, as tall as the rows under it.
             var ids: [UUID] = [], heights: [CGFloat] = []
             for row in app.groupRows(task.projectId) {
-                if row.depth == 0 { ids.append(row.task.id); heights.append(Theme.Height.rowSidebar) } else if !heights.isEmpty { heights[heights.count - 1] += Theme.Height.rowSidebar }
+                let h = Theme.Height.rowSidebar * CGFloat(1 + subagentLines(row.task))
+                if row.depth == 0 { ids.append(row.task.id); heights.append(h) } else if !heights.isEmpty { heights[heights.count - 1] += h }
             }
             return (ids, heights)
         case .project:
             let heights = app.state.projects.map { p in
-                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupRows(p.id).count + emptyRows(p).count))
+                let rows = p.collapsed ? [] : app.groupRows(p.id)
+                return Theme.Height.rowSidebar * CGFloat(1 + rows.count + rows.map { subagentLines($0.task) }.reduce(0, +) + emptyRows(p).count)
             }
             return (app.state.projects.map(\.id), heights)
         case .tab, .leaf: return nil
@@ -661,6 +669,19 @@ struct SidebarView: View {
                 (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
             }
         }
+    }
+
+    // MARK: Subagents (spec agent-subagents §4)
+
+    private func subagentRows(_ task: HangarTask, indent: CGFloat, textX: CGFloat) -> some View {
+        SidebarSubagents(app: app, task: task, indent: indent, textX: textX, collapsed: collapsed,
+                         open: { leaf, id in ctx.openSubagent(leaf, id) })
+    }
+
+    /// Sidebar lines the subagents take under a chat (drag slots): the folded line, plus each row while unfolded.
+    private func subagentLines(_ task: HangarTask) -> Int {
+        let n = collapsed ? 0 : app.subagentRows(of: task).count
+        return n == 0 ? 0 : 1 + (app.subagentsExpanded.contains(task.id) ? n : 0)
     }
 
     // MARK: Sub-chats (#128)

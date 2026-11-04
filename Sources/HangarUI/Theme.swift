@@ -30,6 +30,10 @@ public enum Theme {
     public static let drawerMaxFraction: CGFloat = 0.7
     public static let drawerAnimation: Double = 0.18
 
+    /// Hollow and half status marks (#131): the icons' line, so a 6–8 pt ring keeps a visible hole.
+    public static let statusDotStroke: CGFloat = iconStroke
+    /// «Differentiate without colour» failure: a square this share of the dot, turned 45° (its corners just reach the dot's edge).
+    public static let statusDiamondScale: CGFloat = 0.75
     /// `waiting` halo: ring of `waiting` at 25%.
     public static let haloWidth: CGFloat = 3
     /// Rail monogram's corner dot and its `bg1` border.
@@ -51,6 +55,8 @@ public enum Theme {
     /// Dragging a tab/pane over a pane: each edge's drop zone, as a share of that side (DESIGN «Сплиты»).
     public static let paneDropZone: CGFloat = 0.25
     public static let paneDropLineWidth: CGFloat = 2
+    /// A split pane that waits or failed: a 1 px frame of that colour around it (spec §2.6, #131).
+    public static let paneFrameWidth: CGFloat = 1
     public static let paneDragGhostHeight: CGFloat = Height.tab
     public static let paneDragGhostPaddingH: CGFloat = Space.s3
     public static let paneDragGhostMaxWidth: CGFloat = 260
@@ -217,6 +223,10 @@ extension Theme {
         public static var badgeM: Color { ui.gitM }
         public static var badgeA: Color { ui.gitA }
         public static var badgeD: Color { ui.gitD }
+        /// Changed characters over a diff row's tint (`gitA`/`gitD` at this alpha, #131).
+        public static let changedChars: Double = 0.28
+        /// The hatching of a side's missing lines: `line` at half strength, quieter than the code (#131).
+        public static let hatch: Double = 0.5
         /// Line height ≈ 1.6.
         public static let linePaddingV: CGFloat = 3
         public static let maxHeight: CGFloat = 360

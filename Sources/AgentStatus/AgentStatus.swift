@@ -35,6 +35,8 @@ public struct LeafStatus: Equatable, Sendable {
     /// Why the leaf needs the user now; nil — it doesn't.
     public var attention: Attention?
     public var pendingPermission: PendingPermission?
+    /// A finished turn nobody has looked at yet (#131): set by every done, cleared once the leaf is on screen.
+    public var unseen = false
     public init() {}
 }
 
@@ -140,6 +142,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             }
         case .stop, .codexNotify:
             s.state = .done
+            s.unseen = true
             attend(.done, text: detail.text)
         case .stopFailure:
             if detail.error == nil || detail.error == "rate_limit" {
@@ -185,6 +188,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         s.attention = nil
         s.pendingPermission = nil
     }
+    if s.state != .done { s.unseen = false }
     return s
 }
 
@@ -236,10 +240,25 @@ public struct StatusBoard: Equatable, Sendable {
         return old.state == new.state ? nil : Transition(leaf: leaf, from: old.state, to: new.state)
     }
 
-    /// «Убрать» in the inbox: drops a done record only; the tab keeps its done dot.
+    /// «Убрать» in the inbox: drops a done record only; the tab keeps its done dot, now seen.
     public mutating func dismissDone(_ leaf: UUID) -> Bool {
         guard leaves[leaf]?.attention?.reason == .done else { return false }
         leaves[leaf]?.attention = nil
+        leaves[leaf]?.unseen = false
+        return true
+    }
+
+    /// The leaf was on screen: its finished turn is seen. False — nothing to mark.
+    @discardableResult public mutating func markSeen(_ leaf: UUID) -> Bool {
+        guard leaves[leaf]?.unseen == true else { return false }
+        leaves[leaf]?.unseen = false
+        return true
+    }
+
+    /// «Отметить непрочитанным»: a done leaf is new again (its inbox record too, while it has one).
+    @discardableResult public mutating func markUnseen(_ leaf: UUID) -> Bool {
+        guard let s = leaves[leaf], s.state == .done, !s.unseen else { return false }
+        leaves[leaf]?.unseen = true
         return true
     }
 

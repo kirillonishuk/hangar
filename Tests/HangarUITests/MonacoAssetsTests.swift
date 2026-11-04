@@ -44,7 +44,7 @@ import Workspace
         // Translucent diff tints keep their alpha (`#rrggbbaa`).
         let dark = EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: .darkPlus)
         let colors = try #require(MonacoTheme.json(dark)["colors"] as? [String: String])
-        #expect(colors["diffEditor.insertedLineBackground"] == "#9bb95533")
+        #expect(colors["diffEditor.insertedLineBackground"] == "#9bb9551a")
         // The syntax doesn't depend on the app theme.
         func rules(_ app: AppTheme) -> [[String: String]]? {
             MonacoTheme.json(EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: app))["rules"] as? [[String: String]]

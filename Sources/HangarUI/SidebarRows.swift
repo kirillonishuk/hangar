@@ -133,6 +133,7 @@ struct RailTileStyle: Equatable {
 struct RailTile: View {
     let text: String
     let state: AgentState?
+    var seen = false
     let selected: Bool
     var hover = false
     var style: RailTileStyle?
@@ -150,7 +151,7 @@ struct RailTile: View {
             .overlay(shape.strokeBorder(style.border, lineWidth: Theme.railTileBorderWidth))
             .overlay(alignment: .topTrailing) {
                 if let state {
-                    StatusDot(state: state, size: Theme.railDot, border: RailTileStyle.ring(selected: selected, hover: hover),
+                    StatusDot(state: state, seen: seen, size: Theme.railDot, border: RailTileStyle.ring(selected: selected, hover: hover),
                               borderWidth: Theme.railDotBorder)
                         .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
                 }
@@ -204,4 +205,24 @@ struct MenuEntry {
     var screen = point
     if let view, let window = view.window { screen = window.convertPoint(toScreen: view.convert(point, to: nil)) }
     PopoverMenu.show(popoverEntries(items), at: screen)
+}
+
+/// A row's clock (#131): a tick on each minute only while `active` (a chat that waits, for «ждёт 12 м» and its tooltip);
+/// otherwise a single entry and no updates — nothing wakes up while idle.
+struct MinutesWhile: TimelineSchedule {
+    let active: Bool
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        guard active else { return AnyIterator([start].makeIterator()) }
+        var next = start
+        return AnyIterator {
+            defer { next = minuteAfter(next) }
+            return next
+        }
+    }
+}
+
+/// The next whole minute after `date`.
+func minuteAfter(_ date: Date) -> Date {
+    Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60 + 60)
 }

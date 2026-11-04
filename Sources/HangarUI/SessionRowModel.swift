@@ -42,6 +42,18 @@ func pluralForm(_ n: Int) -> PluralForm {
     var text: String { "\(head) · \(tail)" }
 }
 
+/// After this many minutes a waiting row's word carries the time: «ждёт 12 м» (#131).
+let rowWaitingMinutes = 5
+
+/// A waiting row's end word: «ждёт» for the first minutes, then «ждёт 12 м», «ждёт 2 ч». Computed when the row is
+/// drawn (a per-minute redraw while it waits), never by a ticking clock of its own.
+@MainActor func rowWaitingWord(since: Date?, now: Date) -> String {
+    guard let since else { return L10n.rowStatus(.waiting) }
+    let minutes = Int(now.timeIntervalSince(since) / 60)
+    if minutes < rowWaitingMinutes { return L10n.rowStatus(.waiting) }
+    return minutes < 60 ? L10n.rowWaitingMin(minutes) : L10n.rowWaitingHour(minutes / 60)
+}
+
 /// A folded project's row: the most urgent state among its sessions and how many sessions are in it.
 struct FoldedProjectBadge: Equatable {
     var state: AgentState
@@ -58,14 +70,34 @@ func foldedProjectBadge(_ states: [AgentState]) -> FoldedProjectBadge? {
 }
 
 extension AppState {
-    /// The row's status line from the task's agent leaves (tabs and the TERMINAL drawer).
-    func sessionStatus(of task: HangarTask) -> SessionStatus {
+    /// The row's status line from the task's agent leaves (tabs and the TERMINAL drawer). Waiting: how long, who and
+    /// what it asks — «ждёт 4 мин · codex · Would you like to run…» (#131).
+    func sessionStatus(of task: HangarTask, now: Date = Date()) -> SessionStatus {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
         let agents = leaves.filter { $0.kind == .claude || $0.kind == .codex }
         let subagents = agents.reduce(0) { $0 + statusSummary(ofLeaf: $1.id).subagents }
         let state = displayState(of: task)
+        if state == .waiting, let wait = longestWait(of: task) {
+            let body = notice(for: wait, app: self).body
+            return SessionStatus(head: L10n.waitingFor(waitingTime(since: wait.attention.since, now: now)),
+                                 tail: body.isEmpty ? wait.agent : "\(wait.agent) · \(body)", tone: .waiting)
+        }
         return SessionStatus(state: state, agents: agents.count, subagents: subagents, tabs: task.tabs.count,
                              limitUntil: state == .limit ? limitClock(of: agents) : nil)
+    }
+
+    /// The task's request that has waited longest (a permission or a question); nil — none.
+    func longestWait(of task: HangarTask) -> AttentionItem? {
+        attentionItems.filter { $0.taskId == task.id && [.permission, .question].contains($0.attention.reason) }
+            .min { $0.attention.since < $1.attention.since }
+    }
+
+    /// VoiceOver: «currency-rounding, ждёт ответа 4 мин» / «…, готово, не просмотрено».
+    func rowAccessibility(_ name: String, task: HangarTask, state: AgentState, now: Date) -> String {
+        if state == .waiting, let wait = longestWait(of: task) {
+            return L10n.rowWithStatusText(name, "\(L10n.statusLabel(.waiting)) \(waitingTime(since: wait.attention.since, now: now))")
+        }
+        return L10n.rowWithStatusText(name, L10n.statusLabel(state, seen: doneSeen(task)))
     }
 
     func foldedBadge(of projectId: UUID) -> FoldedProjectBadge? {

@@ -22,6 +22,8 @@ struct PopoverMenuItem {
     var monoSpan: String?
     /// A status dot on the icon's corner (a tab in the overflow menu).
     var dot: AgentState?
+    /// Its done was seen (#131): the dot is hollow.
+    var dotSeen = false
     /// A file's own icon instead of `icon` (a path pick).
     var file: (name: String, isDir: Bool)?
     var help: String?
@@ -30,7 +32,7 @@ struct PopoverMenuItem {
     let action: () -> Void
 
     init(title: String, icon: Icon? = nil, shortcut: String? = nil, destructive: Bool = false, enabled: Bool = true,
-         checked: Bool = false, note: String? = nil, mono: Bool = false, dot: AgentState? = nil,
+         checked: Bool = false, note: String? = nil, mono: Bool = false, dot: AgentState? = nil, dotSeen: Bool = false,
          file: (name: String, isDir: Bool)? = nil, help: String? = nil, keepsOpen: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
@@ -41,6 +43,7 @@ struct PopoverMenuItem {
         self.note = note
         self.mono = mono
         self.dot = dot
+        self.dotSeen = dotSeen
         self.file = file
         self.help = help
         self.keepsOpen = keepsOpen
@@ -64,7 +67,7 @@ enum PopoverMenuEntry: Equatable {
         case (.header(let x, let xm), .header(let y, let ym)): x == y && xm == ym
         case (.item(let x), .item(let y)):
             x.title == y.title && x.icon == y.icon && x.shortcut == y.shortcut && x.destructive == y.destructive
-                && x.enabled == y.enabled && x.checked == y.checked && x.note == y.note && x.mono == y.mono && x.monoSpan == y.monoSpan && x.dot == y.dot
+                && x.enabled == y.enabled && x.checked == y.checked && x.note == y.note && x.mono == y.mono && x.monoSpan == y.monoSpan && x.dot == y.dot && x.dotSeen == y.dotSeen
                 && x.file?.name == y.file?.name && x.file?.isDir == y.file?.isDir && x.help == y.help && x.keepsOpen == y.keepsOpen
         default: false
         }
@@ -92,7 +95,7 @@ private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .re
         entries.append(.header(task.branch.map { "\(task.name) · \($0)" } ?? task.name, mono: task.branch))
     }
     for (i, action) in actions.enumerated() {
-        if i > 0 && (action.startsGroup || actions[i - 1] == .reconnect) { entries.append(.separator) }
+        if i > 0 && (action.startsGroup || [.reconnect, .markUnread].contains(actions[i - 1])) { entries.append(.separator) }
         entries.append(.item(PopoverMenuItem(title: action.title(for: target, app: app), icon: action.icon, shortcut: action.shortcut(for: target, app: app)?.label,
                                              destructive: destructiveActions.contains(action), enabled: action.isEnabled(for: target, app: app)) {
             action.perform(target, ctx)
@@ -501,7 +504,7 @@ struct PopoverMenuView: View {
                     } else if let glyph = item.icon {
                         IconView(icon: glyph, size: Theme.Icon.row, tint: icon)
                             .overlay(alignment: .bottomTrailing) {
-                                if let dot = item.dot { StatusDot(state: dot, size: Theme.Icon.tabDot) }
+                                if let dot = item.dot { StatusDot(state: dot, seen: item.dotSeen, size: Theme.Icon.tabDot) }
                             }
                     }
                 }

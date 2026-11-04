@@ -71,6 +71,10 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
     /// A notify-only sub-session finished (#128): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
+    /// The main window is on screen and the app active (set by the window controller; nil — never, as in tests).
+    @ObservationIgnored var screenShown: (() -> Bool)?
+    /// What `refreshSeen` found on screen last time.
+    @ObservationIgnored var shownLeaves: Set<UUID> = []
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
     /// Mute, project mode or a notification setting changed: delivered banners no longer allowed go.
@@ -172,7 +176,9 @@ enum EmptyProjectRow: Hashable {
     /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
     @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
-    var diffTabs: [UUID: DiffTab] = [:]
+    var diffTabs: [UUID: DiffTab] = [:] {
+        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (#131)
+    }
     @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
@@ -182,7 +188,10 @@ enum EmptyProjectRow: Hashable {
     var inboxClock = Date()
     /// «Сессии» (⌘Y) is shown instead of the session area, for `sessionsScope` (SessionsModel.swift).
     var sessionsViewVisible = false {
-        didSet { if !sessionsViewVisible { sessionsPointer = nil } }  // however it hides, no row stays hovered or chosen
+        didSet {
+            if !sessionsViewVisible { sessionsPointer = nil }  // however it hides, no row stays hovered or chosen
+            refreshSeen()
+        }
     }
     var sessionsScope: SessionsScope = .all
     /// Its search text.
@@ -414,6 +423,7 @@ enum EmptyProjectRow: Hashable {
         if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
         store.scheduleSave(savedState)
         didChange?()
+        refreshSeen()
     }
 
     /// What state.json gets: the state without setup leaves (their tab goes when it has nothing else).

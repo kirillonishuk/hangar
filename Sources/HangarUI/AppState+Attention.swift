@@ -9,7 +9,9 @@ extension AppState {
         var items: [AttentionItem] = []
         for task in state.tasks where !task.archived {
             for leaf in task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap({ $0 }) {
-                guard let a = statuses.status(leaf.id).attention else { continue }
+                let status = statuses.status(leaf.id)
+                // A seen done is no longer news (#131): «Готово недавно» lists only the unseen ones.
+                guard let a = status.attention, a.reason != .done || status.unseen else { continue }
                 let agent = leaf.kind == .claude || leaf.kind == .codex ? leaf.kind.rawValue : title(of: leaf)
                 items.append(AttentionItem(leafId: leaf.id, taskId: task.id, projectId: task.projectId,
                                            host: remoteLeafHost(leaf.id) ?? hostShellHost(ofLeaf: leaf.id), agent: agent, attention: a))

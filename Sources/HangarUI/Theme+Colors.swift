@@ -26,6 +26,9 @@ extension Theme {
     /// Observable holder of the chosen theme (a static stored property can't be observed).
     @Observable final class Selection: @unchecked Sendable {
         var theme: AppTheme = .darkPlus
+        /// The system's «Increase contrast» and «Differentiate without colour» (#131).
+        var increaseContrast = false
+        var differentiateWithoutColor = false
     }
     // Written on the main thread only (launch, Settings).
     nonisolated(unsafe) static let store = Selection()
@@ -42,7 +45,30 @@ extension Theme {
         }
     }
 
-    public static var palette: ThemePalette { ThemePalette.of(current) }
+    public static var palette: ThemePalette { ThemePalette.of(current).contrasted(store.increaseContrast) }
+
+    /// Status dots draw failure as a diamond, not only in red (#131).
+    static var differentiateWithoutColor: Bool { store.differentiateWithoutColor }
+
+    /// Takes the system's accessibility display options; a change redraws like a theme switch.
+    static func applyAccessibility(increaseContrast: Bool, differentiateWithoutColor: Bool) {
+        guard increaseContrast != store.increaseContrast || differentiateWithoutColor != store.differentiateWithoutColor else { return }
+        store.increaseContrast = increaseContrast
+        store.differentiateWithoutColor = differentiateWithoutColor
+        NotificationCenter.default.post(name: .hangarThemeDidChange, object: nil)
+    }
+
+    /// Reads the options now and follows every change in System Settings (no polling); keep the token.
+    static func followSystemAccessibility() -> NSObjectProtocol {
+        func read() {
+            let ws = NSWorkspace.shared
+            applyAccessibility(increaseContrast: ws.accessibilityDisplayShouldIncreaseContrast,
+                               differentiateWithoutColor: ws.accessibilityDisplayShouldDifferentiateWithoutColor)
+        }
+        read()
+        return NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+                                                                 object: nil, queue: .main) { _ in read() }
+    }
 
     /// One NSColor per value, so equal tokens compare equal and nothing is rebuilt on every draw.
     static func ns(_ hex: Hex) -> NSColor {

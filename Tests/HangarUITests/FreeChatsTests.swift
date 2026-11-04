@@ -103,6 +103,26 @@ import Workspace
         #expect(app.orderedTasks.map(\.name) == ["c0"])
     }
 
+    @Test func allChatsRowOnlyWhenSomeChatIsNotListed() throws {
+        var ids: [UUID] = []
+        let (app, dir) = makeApp { s in
+            for i in 0..<3 { ids.append(s.addFreeChat(name: "c\(i)", kind: .claude, autoNamed: false).task) }
+            let i = s.tasks.firstIndex { $0.id == ids[2] }!
+            s.tasks[i].parentTaskId = ids[0]  // a sub-chat row counts as listed, not as an extra chat
+        }
+        defer { try? FileManager.default.removeItem(at: dir) }
+        func shown() -> [HangarTask] { app.state.withSubSessions(app.sidebarFreeChats()).map(\.task) }
+        #expect(!app.freeChatsBeyond(shown()))
+        #expect(app.freeChatsBeyond(app.state.withSubSessions(app.sidebarFreeChats(limit: 1)).map(\.task)) == false)  // open ones stay
+        app.perform { $0.setSubsCollapsed(taskId: ids[0], true) }  // the folded sub-chat isn't listed: History has it
+        #expect(app.freeChatsBeyond(shown()))
+        app.perform { s in
+            s.setSubsCollapsed(taskId: ids[0], false)
+            for id in ids { s.sleepFreeChat(taskId: id) }
+        }
+        #expect(app.freeChatsBeyond(app.state.withSubSessions(app.sidebarFreeChats(limit: 1)).map(\.task)))
+    }
+
     @Test func titleMenusAndControlStayOutsideProjects() throws {
         let (app, dir) = makeApp { s in
             let p = s.addProject(name: "app", path: "/tmp")

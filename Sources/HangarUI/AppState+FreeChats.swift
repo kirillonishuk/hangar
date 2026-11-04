@@ -112,6 +112,12 @@ extension AppState {
             return true
         }
     }
+
+    /// «Все чаты (N)…» leads somewhere new only when some chat without a project isn't among the rows shown (spec §4.1).
+    func freeChatsBeyond(_ shown: [HangarTask]) -> Bool {
+        let ids = Set(shown.map(\.id))
+        return state.freeChatTasks.contains { !ids.contains($0.id) }
+    }
 }
 
 /// A file in the chats folder as the agent's composer writes it: Claude `@name` or `@"name with spaces"` (its prompt

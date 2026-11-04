@@ -1,7 +1,21 @@
 #!/usr/bin/env bash
-# Builds build/Hangar.app (release, ad-hoc signed) with Ghostty resources.
+# Builds build/Hangar.app (release) with Ghostty resources. Signing identity: $HANGAR_SIGN_IDENTITY (name or SHA-1,
+# "-" = ad-hoc), else "Hangar Self-Signed" from the keychain, else ad-hoc with a warning (decision #129).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# A stable certificate keeps macOS permissions (screen recording, files…) across updates; ad-hoc loses them.
+# find-identity without -v: the self-signed certificate is untrusted, but codesign signs with it.
+IDENTITY="${HANGAR_SIGN_IDENTITY:-}"
+if [ -z "$IDENTITY" ]; then
+  IDENTITY="$({ security find-identity -p codesigning 2>/dev/null || true; } | awk '/"Hangar Self-Signed"/ && !n++ { print $2 }')"
+  [ -n "$IDENTITY" ] || {
+    echo "warning: no \"Hangar Self-Signed\" identity in the keychain: signing ad-hoc (macOS permissions reset on every update)" >&2
+    IDENTITY=-
+  }
+fi
+# No Apple timestamp server for a self-signed certificate.
+sign() { codesign --force --timestamp=none -s "$IDENTITY" "$1"; }
 
 SHARE=vendor/ghostty-src/zig-out/share
 [ -d vendor/GhosttyKit.xcframework ] && [ -d "$SHARE/terminfo" ] && [ -d "$SHARE/ghostty" ] || {
@@ -35,7 +49,7 @@ cp -R "$BIN_DIR/Hangar_HangarUI.bundle" "$APP/Contents/Resources/Hangar_HangarUI
 
 mkdir -p "$APP/Contents/Helpers"
 cp "$BIN_DIR/hangar" "$APP/Contents/Helpers/hangar"
-codesign --force -s - "$APP/Contents/Helpers/hangar"
+sign "$APP/Contents/Helpers/hangar"
 
-codesign --force -s - "$APP"
-echo "Built $APP"
+sign "$APP"
+echo "Built $APP (signed: $IDENTITY)"

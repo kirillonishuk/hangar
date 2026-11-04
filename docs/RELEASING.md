@@ -59,12 +59,21 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
    shasum -a 256 -c "Hangar-$V.dmg.sha256"
    mnt=$(hdiutil attach -nobrowse -readonly "Hangar-$V.dmg" | awk -F'\t' '/\/Volumes\//{print $NF}')
    /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$mnt/Hangar.app/Contents/Info.plist"  # must be $V
-   codesign --verify --deep "$mnt/Hangar.app"
+   codesign --verify --deep --strict "$mnt/Hangar.app"
+   codesign -dvv "$mnt/Hangar.app" 2>&1 | grep Authority   # must be Authority=Hangar Self-Signed
    hdiutil detach "$mnt"
    ```
 
 4. Do not launch the app from automation: a release build ignores `HANGAR_STATE_DIR` and rewrites the real
    `state.json`. The owner launches it by hand.
+
+## Signing
+
+Releases are signed with the self-signed "Hangar Self-Signed" certificate (SHA-1
+`2BC32E9E59D0A3BB47BA27D3E2410F0A86F16768`, valid to 2046) so macOS keeps users' permissions across updates
+(`docs/decisions.md` #129). The Release workflow imports it from the secrets `HANGAR_SIGN_P12` (base64 of the .p12)
+and `HANGAR_SIGN_P12_PASSWORD` into a temporary keychain and fails without them. Never replace the certificate: a new
+one resets every user's permissions. CI on PRs signs ad-hoc.
 
 ## Release notes
 

@@ -39,9 +39,10 @@ struct RunActionButton: View {
     @State private var anchor = MenuAnchor()
 
     private func showMenu() {
-        let task = app.state.tasks.first { $0.id == task.id } ?? task  // as it is now (its action leaves are renewed on restarts)
-        PopoverMenu.show(actionMenuEntries(app: app, task: task), below: anchor.view)
-        Task { await app.loadRepoActions(task) }  // the next opening has the file as it is now
+        let id = task.id
+        let now = app.state.tasks.first { $0.id == id } ?? task  // as it is now (its action leaves are renewed on restarts)
+        PopoverMenu.show(actionMenuEntries(app: app, task: now), below: anchor.view)
+        Task { await app.loadRepoActions(now) }  // the next opening has the file as it is now
     }
 
     var body: some View {

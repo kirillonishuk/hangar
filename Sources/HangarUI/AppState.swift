@@ -307,6 +307,24 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
     /// `tabs send --wait` callers waiting for their leaf to turn `working`, by waiter token.
     @ObservationIgnored var workingWaiters: [UUID: (leaf: UUID, done: CheckedContinuation<Bool, Never>)] = [:]
+    /// Sub-sessions' done detection, by task (spec sub-sessions §6); in memory, rebuilt lazily after a restart.
+    @ObservationIgnored var subWatches: [UUID: SubSessionWatch] = [:]
+    /// `sessions_wait` callers, woken on every re-evaluation, by token.
+    @ObservationIgnored var subWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    /// The next scheduled re-evaluation of sub-sessions (one at a time; none while nothing is settling).
+    @ObservationIgnored var subCheck: (at: Date, task: Task<Void, Never>)?
+    /// Notes for parents' agents not typed in yet, by parent task.
+    // shortcut: in memory only; a quit loses undelivered notes (sessions_wait still sees the status).
+    @ObservationIgnored var parentNotes: [UUID: [SubSessionNote]] = [:]
+    @ObservationIgnored var noteRetry: Task<Void, Never>?
+    /// Per terminal leaf: typed characters with no Enter / ⌃C after them, and the last key's time.
+    @ObservationIgnored var leafDrafts: [UUID: Bool] = [:]
+    @ObservationIgnored var leafLastKey: [UUID: Date] = [:]
+    /// Tests shorten them.
+    @ObservationIgnored var subPollInterval: Duration = .seconds(10)
+    @ObservationIgnored var noteRetryInterval: Duration = .seconds(5)
+    /// Detached tool shells of an agent pid (`detachedChildren`); tests replace it.
+    @ObservationIgnored var probeDetached: (Int32) -> Int? = detachedChildren(of:)
     /// How long `tabs send --wait` waits for the turn to start; tests shorten it.
     @ObservationIgnored var sendWaitTimeout: Duration = .seconds(ControlMethod.sendWaitSeconds)
     /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
@@ -430,7 +448,10 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.
-    var orderedTasks: [HangarTask] { sidebarFreeChats().filter { !$0.archived } + pinnedTasks + state.projects.filter { !$0.collapsed }.flatMap { groupTasks($0.id) } }
+    var orderedTasks: [HangarTask] {
+        state.withSubSessions(sidebarFreeChats()).map(\.task).filter { !$0.archived } + pinnedTasks
+            + state.projects.filter { !$0.collapsed }.flatMap { groupRows($0.id).map(\.task) }
+    }
 
     func defaultTitle(_ kind: LeafKind) -> String {
         switch kind {
@@ -683,7 +704,8 @@ enum EmptyProjectRow: Hashable {
     /// Drag within a project group: `index` is among the group's other (unpinned) tasks; pinned siblings keep their slots.
     func moveTask(_ id: UUID, toGroupIndex index: Int) {
         guard let task = state.tasks.first(where: { $0.id == id }) else { return }
-        let others = groupTasks(task.projectId).filter { $0.id != id }
+        // Sub-chats move with their parent: the slots are the top-level rows.
+        let others = groupRows(task.projectId).filter { $0.depth == 0 }.map(\.task).filter { $0.id != id }
         let all = state.tasks(in: task.projectId).map(\.id).filter { $0 != id }
         guard let last = others.last, let lastSlot = all.firstIndex(of: last.id) else { return }
         let slot = index < others.count ? all.firstIndex(of: others[max(index, 0)].id) ?? lastSlot + 1 : lastSlot + 1

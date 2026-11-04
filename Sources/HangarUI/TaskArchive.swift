@@ -27,7 +27,19 @@ extension AppState {
     /// The task's tabs stop first (archived: surfaces close, remote tmux sessions are killed and awaited), so nothing
     /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
     /// unarchived again, its tabs relaunch lazily as after a restart.
+    /// Its open sub-sessions follow a parent into the archive, each by the same rules (#127); one at risk stays open.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
+        let children = state.subSessions(of: id).map(\.id)
+        let outcome = await archiveOne(id, force: force)
+        switch outcome {
+        case .archived, .worktreeKept:
+            for child in children { _ = await archiveRemovingWorktree(child, force: force) }
+        case .atRisk, .failed: break
+        }
+        return outcome
+    }
+
+    private func archiveOne(_ id: UUID, force: Bool) async -> ArchiveOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
         guard case .worktree(let path, _, _) = task.mode, let project = project(task.projectId) else {
             archive(taskId: id)

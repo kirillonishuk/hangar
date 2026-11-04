@@ -1,3 +1,4 @@
+import AgentStatus
 import ControlServer
 import Exec
 import Foundation
@@ -185,6 +186,28 @@ extension AppState {
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
 
+        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base):
+            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base)
+
+        case let .tasksWait(refs, parentRef, timeout):
+            var ids: [UUID] = []
+            if refs.isEmpty {
+                guard let parentRef else { return fail(ControlError(code: .badParams, message: "pass sessions or parent")) }
+                switch resolveParent(parentRef) {
+                case .success(let p): ids = state.subSessions(of: p).map(\.id)
+                case .failure(let e): return fail(e)
+                }
+                guard !ids.isEmpty else { return fail(ControlError(code: .notFound, message: "the calling chat has no open sub-sessions")) }
+            } else {
+                for ref in refs {
+                    switch resolveTask(ref) {
+                    case .success(let t): if !ids.contains(t) { ids.append(t) }
+                    case .failure(let e): return fail(e)
+                    }
+                }
+            }
+            return .ok(id, WaitResult(sessions: await waitForSubSessions(ids, timeout: .seconds(timeout))))
+
         case let .linksCreate(kind, ref):
             switch linkTarget(kind, ref) {
             case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
@@ -194,6 +217,71 @@ extension AppState {
     }
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// `sessions_spawn` (spec sub-sessions §5): a chat under the parent, its agent started at once with the prompt.
+    private func spawn(_ id: Int, parentRef: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool,
+                       base: String?) async -> ControlResponse {
+        func fail(_ e: ControlError) -> ControlResponse { ControlResponse(id: id, body: .failure(e)) }
+        guard let parentRef else { return fail(ControlError(code: .badParams, message: "not inside a Hangar chat: pass parent")) }
+        let parentId: UUID
+        switch resolveParent(parentRef) {
+        case .success(let p): parentId = p
+        case .failure(let e): return fail(e)
+        }
+        guard let parent = state.tasks.first(where: { $0.id == parentId }) else { return fail(ControlError(code: .notFound, message: "parent is gone")) }
+        let free = state.isFreeChatTask(parent)
+        var mode = TaskMode.mainFolder, setup: String?
+        if worktree {
+            guard !free, let project = project(parent.projectId) else {
+                return fail(ControlError(code: .badParams, message: "a chat without a project has no repository for a worktree"))
+            }
+            switch await countingCreation({ await worktreeMode(project, name: name, base: base) }) {
+            case .success(let m): (mode, setup) = m
+            case .failure(let e): return fail(e)
+            }
+        }
+        guard state.tasks.contains(where: { $0.id == parentId }) else { return fail(ControlError(code: .notFound, message: "parent was removed meanwhile")) }
+        if free { ensureChatsFolder() }
+        let kind: LeafKind = agent == .codex ? .codex : agent == .claude ? .claude : config.defaultAgent
+        var created: (task: UUID, tab: UUID)?
+        var setupTab: UUID?
+        perform { s in
+            guard let c = s.addSubSession(parent: parentId, name: name, kind: kind, mode: mode),
+                  let i = s.tasks.firstIndex(where: { $0.id == c.task }) else { return }
+            created = c
+            if let leaf = s.tasks[i].tabs.first(where: { $0.id == c.tab })?.root.leaves.first {
+                pendingPrompts[leaf.id] = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if let setup {
+                let shell = s.addTab(taskId: c.task, kind: .shell)
+                s.tasks[i].activeTabId = c.tab
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                setupTab = shell
+            }
+        }
+        guard let created, let task = state.tasks.first(where: { $0.id == created.task }) else {
+            return fail(ControlError(code: .failed, message: "sub-session was not created"))
+        }
+        subWatches[task.id] = SubSessionWatch(created: clock())
+        terminals?.start(created.tab)
+        if let setupTab { terminals?.start(setupTab) }
+        if mode != .mainFolder { Task { await syncProjectStatuslines(host: project(task.projectId)?.host) } }
+        let note = "\(kind.rawValue) may ask to trust the folder on first open; the user answers that in the tab (check with tabs read). "
+            + "When it has fully finished, Hangar types a note into this chat's agent; or call sessions_wait"
+        return .ok(id, SpawnResult(task: taskInfo(task), link: subSessionLink(task.id), note: note))
+    }
+
+    /// A parent: a tab or leaf id of an open chat (the caller's `HANGAR_LEAF_ID`, chats without a project included), else a session ref.
+    func resolveParent(_ ref: String) -> Result<UUID, ControlError> {
+        if let uuid = UUID(uuidString: ref), let loc = location(ofLeaf: uuid) ?? location(ofTab: uuid).map({ (task: $0, tab: uuid) }),
+           state.tasks.contains(where: { $0.id == loc.task && !$0.archived }) {
+            return .success(loc.task)
+        }
+        if let uuid = UUID(uuidString: ref), let task = state.tasks.first(where: { !$0.archived && $0.drawer.leaf?.id == uuid }) {
+            return .success(task.id)
+        }
+        return resolveTask(ref)
+    }
 
     /// `tabs send` on a running leaf (Pane #302/#723/#945): Enter into a working codex is refused, into a working
     /// claude it is queued by claude; `wait` waits for claude's UserPromptSubmit hook (status working).
@@ -282,13 +370,15 @@ extension AppState {
 
     func taskInfo(_ task: HangarTask) -> TaskInfo {
         let project = project(task.projectId)
-        var path = project?.path ?? "", base: String?
+        var path = project?.path ?? (state.isFreeChatTask(task) ? state.chatsFolder : ""), base: String?
         var mode = "main-folder"
         if case .worktree(let p, _, let b) = task.mode { (path, base, mode) = (p, b, "worktree") }
-        return TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
+        var info = TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
                         status: displayState(of: task).rawValue, mode: mode, path: path, branch: task.branch, base: base,
                         tabs: task.tabs.map(tabInfo),
                         drawer: task.drawer.leaf.map { LeafInfo(id: $0.id, kind: tabKind($0.kind), status: displayState(ofLeaf: $0.id, kind: $0.kind).rawValue) })
+        info.parent = task.parentTaskId
+        return info
     }
 
     private func tabInfo(_ tab: Tab) -> TabInfo {
@@ -319,9 +409,9 @@ extension AppState {
     }
 
     /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
-    /// Hosts' terminals (#64, not in `tasks list`) are never found.
+    /// Hosts' terminals (#64, not in `tasks list`) are never found; chats without a project only as sub-sessions.
     func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !isOutsideProjects(t) }
+        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && (!isOutsideProjects(t) || t.parentTaskId != nil && state.isFreeChatTask(t)) }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
             .mapError { refError($0, ref, archived ? "archived session" : "session") }
     }

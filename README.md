@@ -128,7 +128,16 @@ hangar tabs read --tab <id> --lines 40
 hangar doctor
 ```
 
-A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only: chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only (plus sub-chats): chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+
+MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `tabs_open`, `tabs_send`, `tabs_read`, `ssh_open`, `links_create`, `doctor`.
+
+**Sub-chats.** An agent can hand work to a sub-chat of its own chat: `sessions_spawn` (CLI `hangar sessions spawn --name N --prompt TEXT`) starts a full chat with its own terminal, shown under the parent in the sidebar. The parent hears back only when the sub-chat has fully finished — its agent stopped and no background task it started is still running — or needs input, or failed: Hangar types a one-line note into the parent's agent once it is idle (never over what you are typing), and `sessions_wait` blocks until then (`still-running` on timeout: call again).
+
+```sh
+hangar sessions spawn --name release --prompt "Release 1.2 and wait until it is live"
+hangar sessions wait          # all open sub-chats of this chat
+```
 
 ## Build from source
 

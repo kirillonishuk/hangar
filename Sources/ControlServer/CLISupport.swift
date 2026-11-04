@@ -39,6 +39,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
             m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
         }
+        if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
     let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]

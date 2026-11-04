@@ -298,6 +298,10 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var muted = false
     /// Named «Чат N» for want of a name or message (#116): the first prompt of its agent names it; any rename clears it.
     public var autoNamed = false
+    /// The chat whose agent spawned this one (`sessions_spawn`): shown under it in the sidebar.
+    public var parentTaskId: UUID?
+    /// Its sub-chats are folded under it in the sidebar.
+    public var subsCollapsed = false
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -323,7 +327,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges, muted
-        case autoNamed
+        case autoNamed, parentTaskId, subsCollapsed
     }
 
     /// `pinned`, `drawer`, `port` and the `archived…` details were added later; older files decode with the default.
@@ -341,6 +345,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         archivedChanges = try c.decodeIfPresent(LineChanges.self, forKey: .archivedChanges)
         muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         autoNamed = try c.decodeIfPresent(Bool.self, forKey: .autoNamed) ?? false
+        parentTaskId = try c.decodeIfPresent(UUID.self, forKey: .parentTaskId)
+        subsCollapsed = try c.decodeIfPresent(Bool.self, forKey: .subsCollapsed) ?? false
     }
 }
 

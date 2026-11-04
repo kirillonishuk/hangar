@@ -112,7 +112,8 @@ func timeout(_ call: ControlCall) -> Double {
 /// `confirm-required`).
 func runCommand(_ args: [String]) -> Int32 {
     let stderr = FileHandle.standardError
-    switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath) {
+    let leaf = ProcessInfo.processInfo.environment["HANGAR_LEAF_ID"].flatMap(UUID.init(uuidString:))?.uuidString.lowercased()
+    switch parseCLI(args, cwd: FileManager.default.currentDirectoryPath, callerLeaf: leaf) {
     case let .usage(message):
         stderr.write(jsonRequested(args) ? errorJSON(ControlError(code: .badParams, message: message)) + Data("\n".utf8)
                                          : Data("hangar: \(message)\n\(cliUsage)\n".utf8))
@@ -163,7 +164,7 @@ func runDoctor(_ args: [String]) -> Int32 {
 
 /// MCP over stdio: one JSON-RPC message per line until EOF, answered in order; stdout carries only replies.
 func runMCP(readOnly: Bool) -> Int32 {
-    var session = MCPSession(readOnly: readOnly) { call in
+    var session = MCPSession(readOnly: readOnly, callerLeaf: ProcessInfo.processInfo.environment["HANGAR_LEAF_ID"]) { call in
         // `doctor` answers even when the app is down: the report says so.
         if call == .doctor { return .success(doctorJSON(collectDoctorReport())) }
         return ControlClient.request(call, to: defaultSocketPath(), timeout: timeout(call))

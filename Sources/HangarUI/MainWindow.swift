@@ -544,6 +544,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
         if !consumed, firstResponderKind != .other { app.keyReachedTerminal() }
+        // Drafts and the typing pause: Hangar never types a sub-session's note over what the user is writing (#127).
+        if !consumed, let view = window.firstResponder as? NSView,
+           let leaf = sequence(first: view, next: { $0.superview }).lazy.compactMap({ $0 as? LeafView }).first {
+            app.keyTyped(leaf: leaf.leafId, keyCode: event.keyCode, modifiers: event.modifierFlags, characters: event.characters)
+        }
         return consumed
     }
 

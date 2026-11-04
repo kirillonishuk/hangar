@@ -933,3 +933,9 @@
 "uploadNoTar" = "Couldn’t upload the folder %@: the server has no tar. Files upload fine.";
 "uploadIncomplete" = "Upload of %@ was interrupted — nothing changed on the server.";
 "uploadFailed" = "Couldn’t upload %@. %@";
+"subChatsOne" = "%d sub-chat";
+"subChatsFew" = "%d sub-chats";
+"subChatsMany" = "%d sub-chats";
+"subChatsWorking" = "%d working";
+"subChatsShow" = "Show sub-chats";
+"subChatsHide" = "Hide sub-chats";

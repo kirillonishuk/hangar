@@ -37,6 +37,7 @@ extension AppState {
                isFreeChatTask(task) {
                 perform { $0.touchFreeChat(taskId: task) }
             }
+            subSessionHook(leaf: leaf.id, kind: e.kind, background: e.background, message: e.message)
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
@@ -81,6 +82,7 @@ extension AppState {
         default: break
         }
         apply(signal, leaf: leaf)
+        subSessionSignal(leaf: leaf.id)
     }
 
     func state(ofLeaf id: UUID) -> AgentState { statuses.status(id).state }

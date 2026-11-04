@@ -933,3 +933,9 @@
 "uploadNoTar" = "Не удалось загрузить папку %@: на сервере нет tar. Файлы загружаются.";
 "uploadIncomplete" = "Загрузка %@ прервана — на сервере ничего не изменилось.";
 "uploadFailed" = "Не удалось загрузить %@. %@";
+"subChatsOne" = "%d подчат";
+"subChatsFew" = "%d подчата";
+"subChatsMany" = "%d подчатов";
+"subChatsWorking" = "%d работает";
+"subChatsShow" = "Показать подчаты";
+"subChatsHide" = "Скрыть подчаты";

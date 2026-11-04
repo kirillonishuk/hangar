@@ -90,19 +90,19 @@ struct SidebarView: View {
     @ViewBuilder private var chatsSection: some View {
         let filtering = app.state.attentionOnly
         let rows = filtering
-            ? app.state.freeChatTasks.filter { !$0.archived && [.waiting, .failed].contains(app.displayState(of: $0)) }
-            : app.sidebarFreeChats()
+            ? app.state.freeChatTasks.filter { !$0.archived && [.waiting, .failed].contains(app.displayState(of: $0)) }.map { (task: $0, depth: 0) }
+            : app.state.withSubSessions(app.sidebarFreeChats())
         if !rows.isEmpty || !(filtering || collapsed) {
             SectionHeader(title: L10n.sectionChats, collapsed: collapsed, plusHelp: L10n.help(L10n.newFreeChat, .newFreeChat),
                           plusAlwaysVisible: app.state.freeChats.isEmpty, plus: { app.newFreeChat() })
-            ForEach(rows) { task in freeChatRow(task) }
+            ForEach(rows, id: \.task.id) { row in freeChatRow(row.task, depth: row.depth) }
             if !filtering, !rows.isEmpty { allChatsRow }
         }
     }
 
     /// One line, 28, at the project level: dot (none while asleep), name, and at the end the word that needs action or
     /// the time of last use; pin and «⋯» over that end on hover. Asleep: name `text2`; a click wakes it.
-    private func freeChatRow(_ task: HangarTask) -> some View {
+    private func freeChatRow(_ task: HangarTask, depth: Int) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId
         let target = ActionTarget.task(task.id)
         let asleep = task.archived
@@ -110,7 +110,7 @@ struct SidebarView: View {
         // The word that needs action wins over the time («2 мин», «вчера»), which is recomputed on redraw, no timer.
         let urgent = !asleep && [.waiting, .failed, .limit].contains(dot)
         let end = urgent ? L10n.rowStatus(dot)
-            : app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: Date()) } ?? ""
+            : foldedCounter(task) ?? app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: Date()) } ?? ""
         let endWidth = ceil((end as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         return HoverRow(selected: selected, action: {
                             clicked(target)
@@ -119,9 +119,12 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         forceHover: forcedHover(target)) { hover in
             let showActions = hover && app.renaming != target
-            GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
-                if !asleep {
-                    StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+            GutterRow(collapsed: collapsed, indent: subIndent(depth), trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
+                ZStack {
+                    if !asleep {
+                        StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                    }
+                    subsChevron(task)
                 }
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
@@ -346,9 +349,11 @@ struct SidebarView: View {
             VStack(spacing: 0) {
                 projectRow(project)
                 if !project.collapsed {
-                    ForEach(filtering ? groups.first { $0.project.id == project.id }?.tasks ?? [] : app.groupTasks(project.id)) { task in
-                        taskRow(task)
-                            .modifier(DragLook(dy: dragOffset(.task(task.id)), line: dropLine(at: task.id)))
+                    let rows = filtering ? (groups.first { $0.project.id == project.id }?.tasks ?? []).map { (task: $0, depth: 0) }
+                        : app.groupRows(project.id)
+                    ForEach(rows, id: \.task.id) { row in
+                        taskRow(row.task, depth: row.depth)
+                            .modifier(DragLook(dy: dragOffset(.task(row.task.id)), line: dropLine(at: row.task.id)))
                     }
                     ForEach(emptyRows(project), id: \.self) { row in emptyProjectRow(row, project: project) }
                 }
@@ -368,11 +373,15 @@ struct SidebarView: View {
         switch target {
         case .task(let id):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return nil }
-            let ids = app.groupTasks(task.projectId).map(\.id)
-            return (ids, ids.map { _ in Theme.Height.rowSidebar })
+            // A parent moves with its sub-chats: one slot per top-level row, as tall as the rows under it.
+            var ids: [UUID] = [], heights: [CGFloat] = []
+            for row in app.groupRows(task.projectId) {
+                if row.depth == 0 { ids.append(row.task.id); heights.append(Theme.Height.rowSidebar) } else if !heights.isEmpty { heights[heights.count - 1] += Theme.Height.rowSidebar }
+            }
+            return (ids, heights)
         case .project:
             let heights = app.state.projects.map { p in
-                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupTasks(p.id).count + emptyRows(p).count))
+                Theme.Height.rowSidebar * CGFloat(1 + (p.collapsed ? 0 : app.groupRows(p.id).count + emptyRows(p).count))
             }
             return (app.state.projects.map(\.id), heights)
         case .tab, .leaf: return nil
@@ -549,13 +558,13 @@ struct SidebarView: View {
 
     /// One line, 28 (§3.3): dot, name, and at the end what needs action — «ждёт ответа», «ошибка», «на лимите» —
     /// else the live branch (`mono` 11 `text3`). On hover pin and «⋯» take the end's place: nothing moves.
-    private func taskRow(_ task: HangarTask) -> some View {
+    private func taskRow(_ task: HangarTask, depth: Int = 0) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «История» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
-        let handlers = app.state.attentionOnly ? nil : dragHandlers(target)
+        let handlers = app.state.attentionOnly || depth > 0 ? nil : dragHandlers(target)
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.select(taskId: task.id)
@@ -564,9 +573,12 @@ struct SidebarView: View {
                         onDrag: handlers?.onDrag, onDragEnd: handlers?.onDragEnd,
                         forceHover: forcedHover(target)) { hover in
             let showActions = hover && app.renaming != target
-            GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent, trailing: Theme.sessionRowTrailing,
+            GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent + subIndent(depth), trailing: Theme.sessionRowTrailing,
                       railReplacesMarker: true) {
-                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                ZStack {
+                    StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                    subsChevron(task)
+                }
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     Group {
@@ -613,7 +625,13 @@ struct SidebarView: View {
                 .lineLimit(1)
                 .fixedSize()
         case .working, .done, .idle:
-            if let branch = app.head(of: task)?.title ?? task.branch {
+            if let counter = foldedCounter(task) {
+                Text(verbatim: counter)
+                    .font(Theme.Typography.caption.font())
+                    .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
+                    .lineLimit(1)
+                    .fixedSize()
+            } else if let branch = app.head(of: task)?.title ?? task.branch {
                 Text(verbatim: branch)
                     .font(Theme.Typography.monoSmall.font())
                     .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
@@ -637,7 +655,38 @@ struct SidebarView: View {
         case .waiting, .failed, .limit:
             ceil((L10n.rowStatus(state) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         case .working, .done, .idle:
-            (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
+            if let counter = foldedCounter(task) {
+                ceil((counter as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
+            } else {
+                (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
+            }
+        }
+    }
+
+    // MARK: Sub-chats (#127)
+
+    private func subIndent(_ depth: Int) -> CGFloat { CGFloat(min(depth, Theme.subChatMaxDepth)) * Theme.subChatIndent }
+
+    /// «2 подчата · 1 работает» at a folded parent's end; nil — not folded or no sub-chats.
+    private func foldedCounter(_ task: HangarTask) -> String? {
+        guard task.subsCollapsed else { return nil }
+        let counts = app.subChatCounts(of: task.id)
+        return counts.total > 0 ? L10n.subChatsCounter(counts.total, working: counts.working) : nil
+    }
+
+    /// The disclosure triangle left of a parent's dot; nothing for a chat without open sub-chats.
+    @ViewBuilder private func subsChevron(_ task: HangarTask) -> some View {
+        if !app.state.subSessions(of: task.id).isEmpty {
+            let help = task.subsCollapsed ? L10n.subChatsShow : L10n.subChatsHide
+            Button { app.toggleSubsCollapsed(task.id) } label: {
+                IconView(icon: task.subsCollapsed ? .chevronRight : .chevronDown, size: Theme.Icon.inline, tint: Theme.ui.text3)
+                    .frame(width: Theme.Icon.toolbar, height: Theme.Icon.toolbar)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .offset(x: Theme.subChatChevronDX)
+            .help(help)
+            .accessibilityLabel(help)
         }
     }
 

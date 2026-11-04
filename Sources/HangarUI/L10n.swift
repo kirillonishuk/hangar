@@ -184,6 +184,7 @@ import Workspace
         // Chats without a project
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
+        case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
     }
 
 
@@ -1018,6 +1019,12 @@ extension L10n {
     static func allFreeChats(_ n: Int) -> String { f(.allFreeChats, n) }
     static var noProject: String { s(.noProject) }
     static var removeFreeChatButton: String { s(.removeFreeChatButton) }
+    /// A folded parent's row end: «2 подчата · 1 работает» (the second part only while some work).
+    static func subChatsCounter(_ n: Int, working: Int) -> String {
+        count(n, .subChatsOne, .subChatsFew, .subChatsMany) + (working > 0 ? " · " + f(.subChatsWorking, Int32(clamping: working)) : "")
+    }
+    static var subChatsShow: String { s(.subChatsShow) }
+    static var subChatsHide: String { s(.subChatsHide) }
     static var removeFromList: String { s(.removeFromList) }
     static func removeFreeChatConfirm(_ name: String) -> String { f(.removeFreeChatConfirm, name) }
     static var removeFreeChatInfo: String { f(.removeFreeChatInfo, Shortcut.sessions.label) }

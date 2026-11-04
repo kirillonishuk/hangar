@@ -75,9 +75,10 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
     let id = validSessionId(leaf.agentSessionId)
     switch leaf.kind {
     case .shell:
-        // A new worktree's setup script (decision #58) runs first; the shell stays for the user.
+        // A new worktree's setup script (#58) is the tab's whole run: its code ends the tab (0 closes it, #127). Its own
+        // shell, so an `exit` in it still reaches the exit-code wrapper; `-i` keeps the user's functions and aliases.
         guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
-        return "\(script)\n\(shell) -l -i"
+        return "\(shell) -i -c \(shellQuote(script))"
     case .editor, .choose:
         // The editor is Monaco (#81) and a chooser runs nothing; neither launches a terminal, a shell if one ever does.
         return "\(shell) -l -i"

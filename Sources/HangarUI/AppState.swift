@@ -241,6 +241,9 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
+    /// A new worktree's setup leaves (#58, #127) until they end or are relaunched: never saved, so a restart brings back
+    /// no dead setup tab; one that ends without its code (Ctrl-C) is still marked failed.
+    @ObservationIgnored var setupLeaves: Set<UUID> = []
     /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
     @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json, an unarchived task or an opened conversation: their first launch resumes.
@@ -379,7 +382,7 @@ enum EmptyProjectRow: Hashable {
 
     /// Saves right away (quit): the debounce would not fire.
     public func saveNow() {
-        do { try store.saveNow(state) } catch { uiLog.error("state save on quit failed: \(String(describing: error), privacy: .public)") }
+        do { try store.saveNow(savedState) } catch { uiLog.error("state save on quit failed: \(String(describing: error), privacy: .public)") }
     }
 
     public func perform(_ mutate: (inout WorkspaceState) -> Void) {
@@ -394,6 +397,7 @@ enum EmptyProjectRow: Hashable {
         remoteFiles.retain(live)
         hookedLeaves = hookedLeaves.filter { live.contains($0.key) }
         plainLeaves.formIntersection(live)
+        if !setupLeaves.isEmpty { setupLeaves.formIntersection(state.tasks.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) }) }
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
@@ -408,8 +412,20 @@ enum EmptyProjectRow: Hashable {
         if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }
         // A chat's copy may have been moved since it was last shown (#122).
         if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
-        store.scheduleSave(state)
+        store.scheduleSave(savedState)
         didChange?()
+    }
+
+    /// What state.json gets: the state without setup leaves (their tab goes when it has nothing else).
+    var savedState: WorkspaceState {
+        guard !setupLeaves.isEmpty else { return state }
+        var saved = state
+        for task in state.tasks {
+            for tab in task.tabs {
+                for leaf in tab.root.leaves where setupLeaves.contains(leaf.id) { saved.closeLeaf(taskId: task.id, tabId: tab.id, leafId: leaf.id) }
+            }
+        }
+        return saved
     }
 
     // MARK: Queries
@@ -595,13 +611,13 @@ enum EmptyProjectRow: Hashable {
     /// Like `setAgentSessionIdQuietly`: saved, no redraw (a launch is under way).
     func clearRelinkedFromQuietly(_ leafId: UUID) {
         state.clearRelinkedFrom(leafId: leafId)
-        store.scheduleSave(state)
+        store.scheduleSave(savedState)
     }
 
     private func setAgentSessionIdQuietly(_ leaf: Leaf) {
         guard let id = leaf.agentSessionId else { return }
         state.setAgentSessionId(leafId: leaf.id, id)
-        store.scheduleSave(state)
+        store.scheduleSave(savedState)
     }
 
     func leaf(id: UUID) -> Leaf? {
@@ -636,7 +652,8 @@ enum EmptyProjectRow: Hashable {
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
     /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
     @discardableResult
-    /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's.
+    /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's;
+    /// the tab closes itself when it succeeds and stays, marked failed, when it does not (#127).
     /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (#116).
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
                     setup: String? = nil, autoNamed: Bool = false) -> (task: UUID, tab: UUID) {
@@ -660,7 +677,10 @@ enum EmptyProjectRow: Hashable {
             if let setup, let i = s.tasks.firstIndex(where: { $0.id == task }) {
                 let shell = s.addTab(taskId: task, kind: .shell)
                 s.tasks[i].activeTabId = tab
-                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first {
+                    pendingPrompts[leaf.id] = setup
+                    setupLeaves.insert(leaf.id)
+                }
                 setupTab = shell
             }
         }
@@ -876,7 +896,13 @@ enum EmptyProjectRow: Hashable {
     /// ↩ relaunched a leaf: the new process carries its tab of now, so the tabs it ran under before are no longer trusted.
     func relaunched(leafId: UUID) {
         formerTabs[leafId] = nil
+        setupLeaves.remove(leafId)  // ↩ after a failed setup gives a plain shell, kept like any other
         signal(.relaunched, leaf: leafId)
+    }
+
+    /// A tab leaf's process ended (0 closes it, `SplitView`); a setup leaf without its code (-1: Ctrl-C) still failed (#127).
+    func exited(leafId: UUID, code: Int32) {
+        signal(.exited(code: code < 0 && setupLeaves.contains(leafId) ? 1 : code), leaf: leafId)
     }
 
     func setTitle(_ title: String, leafId: UUID) {

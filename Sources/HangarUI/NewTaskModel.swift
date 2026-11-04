@@ -336,6 +336,8 @@ import Workspace
 /// nil = nothing to run (no tab). Newlines, not `;`: a command ending in a `#` comment would swallow what follows.
 @MainActor func worktreeSetupScript(failures: [String], command: String?) -> String? {
     let command = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    // A failed copy keeps the tab open (non-zero exit, #127); `exit 1` reads the same in sh, zsh and fish.
     let lines = failures.map { "printf '%s\\n' " + shellQuote(L10n.copyFailed($0)) + " >&2" } + (command.isEmpty ? [] : [command])
+        + (failures.isEmpty ? [] : ["exit 1"])
     return lines.isEmpty ? nil : lines.joined(separator: "\n")
 }

@@ -374,9 +374,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         // A repository command before its first run (#131): not destructive, ↩ runs it.
         app.confirmActionRun = { [weak self] name, command, then in
             guard let self, let window = self.window, window.attachedSheet == nil else { return }
-            #if DEBUG
-            debugConfirmAction = { [weak window] in if let sheet = window?.attachedSheet { window?.endSheet(sheet) }; then() }
-            #endif
             sheetWindow = window.beginHangarSheet({ end in
                 ConfirmSheet(message: L10n.actionConfirmTitle(name), info: L10n.actionConfirmInfo(command), button: L10n.actionConfirmButton,
                              destructive: false, onConfirm: { _ in end(.OK); then() }, onCancel: { end(.cancel) })

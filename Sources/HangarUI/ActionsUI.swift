@@ -10,7 +10,7 @@ import Workspace
     var entries: [PopoverMenuEntry] = actions.map { a in
         let isRunning = running.contains { $0.name == a.name }
         return .item(PopoverMenuItem(title: a.name, icon: .play,
-                                     shortcut: a.name == primary && app.selectedTask?.id == task.id ? Shortcut.runAction.label : nil,
+                                     shortcut: !isRunning && a.name == primary && app.selectedTask?.id == task.id ? Shortcut.runAction.label : nil,
                                      note: isRunning ? L10n.actionRunningNote : a.source == .repo ? L10n.actionFromRepo : nil,
                                      help: a.action.command) {
             app.runAction(a.name, taskId: task.id)
@@ -39,6 +39,7 @@ struct RunActionButton: View {
     @State private var anchor = MenuAnchor()
 
     private func showMenu() {
+        let task = app.state.tasks.first { $0.id == task.id } ?? task  // as it is now (its action leaves are renewed on restarts)
         PopoverMenu.show(actionMenuEntries(app: app, task: task), below: anchor.view)
         Task { await app.loadRepoActions(task) }  // the next opening has the file as it is now
     }
@@ -95,6 +96,4 @@ struct RunActionButton: View {
 #if DEBUG
 /// Debug channel `runMenu`: as a click on the toolbar run button's chevron.
 @MainActor var debugRunMenuOpen: (() -> Void)?
-/// Debug channel `confirmAction`: «Запустить» on the repository command's sheet.
-@MainActor var debugConfirmAction: (() -> Void)?
 #endif

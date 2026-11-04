@@ -81,17 +81,17 @@ struct ProjectActionsSection: View {
             TextField("", text: row.name)
                 .focused($focus, equals: .name(id))
                 .onSubmit(submit)
-                .inputField(focused: focus == .name(id), placeholder: L10n.actionName)
+                .inputField(focused: focus == .name(id), placeholder: row.wrappedValue.name.isEmpty ? L10n.actionName : nil)
                 .frame(width: Theme.actionNameWidth)
             TextField("", text: row.command)
                 .focused($focus, equals: .command(id))
                 .onSubmit(submit)
-                .inputField(focused: focus == .command(id), mono: true, placeholder: L10n.actionCommand)
+                .inputField(focused: focus == .command(id), mono: true, placeholder: row.wrappedValue.command.isEmpty ? L10n.actionCommand : nil)
             TextField("", text: row.folder)
                 .focused($focus, equals: .folder(id))
                 .onSubmit(submit)
                 .inputField(focused: focus == .folder(id), mono: true, invalid: actionFolderInvalid(row.wrappedValue.folder),
-                            placeholder: L10n.actionFolderPlaceholder)
+                            placeholder: row.wrappedValue.folder.isEmpty ? L10n.actionFolderPlaceholder : nil)
                 .frame(width: Theme.actionFolderWidth)
                 .help(L10n.actionFolderHelp)
             Checkbox(L10n.actionRestart, showsLabel: false, isOn: row.restart)
@@ -120,6 +120,7 @@ struct ProjectActionsSection: View {
                 .truncationMode(.middle).frame(width: Theme.actionFolderWidth, alignment: .leading)
             Text(verbatim: isHidden ? L10n.actionHiddenNote : L10n.actionFromRepo).font(Theme.Typography.caption.font())
                 .foregroundStyle(Theme.ui.text3)
+                .fixedSize()
                 .help(L10n.actionFromRepoHelp)
             PopoverMenuButton(help: L10n.actionRowMenu) {
                 [

@@ -291,7 +291,6 @@ extension MainWindowController {
             }
             lines.append("tabs=\(task.tabs.count) active=\(task.tabs.firstIndex { $0.id == task.activeTabId } ?? -1) last=\(app.project(task.projectId)?.lastAction ?? "-")")
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        case "confirmAction": debugConfirmAction?(); debugConfirmAction = nil
         case "actionPicker":  // «Добавить действие» in the open Project Settings, kept open like `branchMenu`
             PopoverMenu.debugPinned = true
             debugActionPicker?()

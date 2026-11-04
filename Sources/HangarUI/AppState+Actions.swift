@@ -115,7 +115,7 @@ extension AppState {
             await loadRepoActions(task)
             guard let action = actions(of: task).first(where: { $0.name == name }), let project = project(task.projectId) else { return }
             if let missing = await missingActionFolder(action.action, task: task) {
-                actionFailed?(L10n.actionNotStarted(name), L10n.actionFolderMissing(missing))
+                actionFailed?(L10n.actionNotStarted(name), L10n.actionFolderMissing(action.action.folder ?? missing))
                 return
             }
             guard actionNeedsApproval(action, approved: project.approvedActions) else {

@@ -99,6 +99,15 @@ import Testing
                 == "[Hangar] sub-session \"R\" is waiting for input (needs-input) — L")
     }
 
+    /// The child's text is typed into the parent's terminal: nothing in it may act as a key or an escape sequence there.
+    @Test func noteLineCarriesNoControls() {
+        let hostile = "ok\u{1B}[201~rm -rf ~\r\u{03}\u{15}\u{04}\u{7F}\u{9B}31m\u{9D}0;x\u{07}\u{85}tail\tend\u{2028}last"
+        let line = SubSessionNote(task: UUID(), name: "a\u{1B}]0;t\u{07}b\tc", status: .done, message: hostile, link: "L").line
+        #expect(!line.unicodeScalars.contains { $0.properties.generalCategory == .control })
+        #expect(!line.contains { $0.isNewline })
+        #expect(line == "[Hangar] sub-session \"a]0;tb c\" finished (done): ok[201~rm -rf ~ 31m0;x tail end last — L")
+    }
+
     @Test func parentInput() {
         let idle = ParentInput(running: true, state: .done, screenBusy: false, draft: false, lastKey: nil)
         #expect(idle.canDeliver(now: t0))

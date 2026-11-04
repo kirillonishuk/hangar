@@ -112,9 +112,20 @@ public struct SubSessionNote: Equatable, Sendable {
         }
         let flat = (message ?? "").split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }.joined(separator: " ")
-        let cut = compactResult(flat, max: Self.maxMessage).text ?? ""
-        let safeName = name.replacingOccurrences(of: "\"", with: "'")
+        let cut = compactResult(Self.typable(flat), max: Self.maxMessage).text ?? ""
+        let safeName = Self.typable(name).replacingOccurrences(of: "\"", with: "'")
         return "[Hangar] sub-session \"\(safeName)\" \(what)" + (cut.isEmpty ? "" : ": " + cut) + " — " + link
+    }
+
+    /// The line is typed into the parent's terminal: the child's text must not carry keys or escape sequences there.
+    /// ESC would end the bracketed paste (the rest then runs as keystrokes), ⌃C/⌃U/⌃D act on the agent's input, CR submits;
+    /// C0, DEL and C1 (0x80–0x9F: 8-bit CSI/OSC) go, a tab becomes a space.
+    static func typable(_ text: String) -> String {
+        var out = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if scalar == "\t" { out.append(" ") } else if scalar.properties.generalCategory != .control { out.append(scalar) }
+        }
+        return String(out)
     }
 }
 

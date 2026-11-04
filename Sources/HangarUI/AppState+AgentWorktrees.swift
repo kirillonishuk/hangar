@@ -173,7 +173,7 @@ extension AppState {
 }
 
 /// «Удалить копию…»: always asks; then the same checks as archive (uncommitted changes, ignored files) and the same
-/// crash-safe removal (#59). The branch stays. A locked copy is never offered.
+/// removal (#59, #132). The branch stays. A locked copy (the agent's `git worktree lock`) is never offered.
 @MainActor func removeSpareWorktree(_ entry: WorktreeEntry, projectId: UUID, ctx: ActionContext, asked: Bool = false) async {
     let app = ctx.app
     guard let project = app.project(projectId), !entry.locked else { return }
@@ -192,11 +192,18 @@ extension AppState {
         ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return
     }
+    // The shared removal (#132): progress and «Повторить» over the chat area; a failure stays there, not in a dialog.
     func remove() async {
-        do {
-            if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(entry.path, git: git, runner: runner) }
-        } catch {
-            ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
+        if check == .missing {
+            do { try await git.pruneWorktrees() } catch { ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription) }
+        } else {
+            let item = app.worktreeRemovals.begin(name: (entry.path as NSString).lastPathComponent, path: entry.path, local: runner.isLocal)
+            @MainActor func attempt() async {
+                await app.removeWorktree(entry.path, name: "", host: project.host, git: git, runner: runner, item: item) {
+                    Task { await attempt(); app.checkWorktrees(projectId: projectId) }
+                }
+            }
+            await attempt()
         }
         app.checkWorktrees(projectId: projectId)
     }

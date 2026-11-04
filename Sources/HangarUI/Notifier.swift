@@ -262,7 +262,11 @@ extension AppState {
             self.post(notice(for: item, app: app))
         }
         app.onLeafSeen = { [weak self] in self?.remove(leaf: $0) }
-        app.onSubSessionNotice = { [weak self] in self?.post($0) }
+        // A sub-chat that finished in plain sight needs no banner, like any other agent.
+        app.onSubSessionNotice = { [weak self] n in
+            guard !(appActive() && n.leaf.map(leafVisible) == true) else { return }
+            self?.post(n)
+        }
         // Only withdraws: a banner the old policy held back is not posted late.
         app.onBannerPolicy = { [weak self, weak app] in
             guard let self, let app else { return }

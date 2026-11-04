@@ -1,6 +1,7 @@
 import Foundation
 
-/// What a sub-session's parent is told (spec sub-sessions §6); `still-running` is never reported, only waited out.
+/// A sub-session's outcome (spec sub-sessions §6) for `sessions_wait` and the user's notification; `still-running` is never
+/// reported, only waited out.
 public enum SubSessionStatus: String, Codable, Sendable, CaseIterable {
     case running = "still-running", done, needsInput = "needs-input", error
 }
@@ -78,86 +79,10 @@ public func runningBackgroundTasks(_ raw: Any?) -> Int? {
     return min(going.count, 99)
 }
 
-/// Cuts a sub-session's result for the parent's context (#128): at most `max` characters, the cut marked.
+/// Cuts a sub-session's result for the caller's context (#128): at most `max` characters, the cut marked.
 public func compactResult(_ text: String?, max: Int) -> (text: String?, truncated: Bool) {
     guard let text, !text.isEmpty else { return (nil, false) }
     guard text.count > max else { return (text, false) }
     let marker = " … [truncated; full output: tabs_read]"
     return (String(text.prefix(max - marker.count)) + marker, true)
-}
-
-/// A note for the parent's agent: one line, the message cut to `maxMessage` characters.
-public struct SubSessionNote: Equatable, Sendable {
-    public static let maxMessage = 1500
-    public var task: UUID
-    public var name: String
-    public var status: SubSessionStatus
-    public var message: String?
-    public var link: String
-
-    public init(task: UUID, name: String, status: SubSessionStatus, message: String?, link: String) {
-        self.task = task
-        self.name = name
-        self.status = status
-        self.message = message
-        self.link = link
-    }
-
-    public var line: String {
-        let what = switch status {
-        case .done: "finished (done)"
-        case .needsInput: "is waiting for input (needs-input)"
-        case .error: "stopped with an error (error)"
-        case .running: "is still running"
-        }
-        let flat = (message ?? "").split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }.joined(separator: " ")
-        let cut = compactResult(Self.typable(flat), max: Self.maxMessage).text ?? ""
-        let safeName = Self.typable(name).replacingOccurrences(of: "\"", with: "'")
-        return "[Hangar] sub-session \"\(safeName)\" \(what)" + (cut.isEmpty ? "" : ": " + cut) + " — " + link
-    }
-
-    /// The line is typed into the parent's terminal: the child's text must not carry keys or escape sequences there.
-    /// ESC would end the bracketed paste (the rest then runs as keystrokes), ⌃C/⌃U/⌃D act on the agent's input, CR submits;
-    /// C0, DEL and C1 (0x80–0x9F: 8-bit CSI/OSC) go, a tab becomes a space.
-    static func typable(_ text: String) -> String {
-        var out = String.UnicodeScalarView()
-        for scalar in text.unicodeScalars {
-            if scalar == "\t" { out.append(" ") } else if scalar.properties.generalCategory != .control { out.append(scalar) }
-        }
-        return String(out)
-    }
-}
-
-/// When a note may be typed into the parent's agent leaf (spec sub-sessions §7b).
-public struct ParentInput: Equatable, Sendable {
-    public static let typingPause: TimeInterval = 5
-    public var running: Bool
-    public var state: AgentState
-    public var screenBusy: Bool
-    /// Characters typed into the leaf with no Enter / ⌃C after them.
-    public var draft: Bool
-    public var lastKey: Date?
-
-    public init(running: Bool, state: AgentState, screenBusy: Bool, draft: Bool, lastKey: Date?) {
-        self.running = running
-        self.state = state
-        self.screenBusy = screenBusy
-        self.draft = draft
-        self.lastKey = lastKey
-    }
-
-    public func canDeliver(now: Date) -> Bool {
-        guard running, state != .working, state != .waiting, !screenBusy, !draft else { return false }
-        if let lastKey, now.timeIntervalSince(lastKey) < Self.typingPause { return false }
-        return true
-    }
-}
-
-/// Per-leaf draft tracking: printable keys and ⌘V start a draft, Enter / ⌃C / ⌃U end it.
-public func draftAfterKey(_ draft: Bool, keyCode: UInt16, control: Bool, command: Bool, printable: Bool) -> Bool {
-    if keyCode == 36 || keyCode == 76 { return false }  // Return, keypad Enter
-    if control, keyCode == 8 || keyCode == 32 { return false }  // ⌃C, ⌃U
-    if command { return draft || keyCode == 9 }  // ⌘V pastes into the input
-    return draft || printable
 }

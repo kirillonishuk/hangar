@@ -71,7 +71,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
-    /// A notify-only sub-session finished (#128): its banner (set by `Notifier.attach`).
+    /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
@@ -261,6 +261,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
+    /// Worktree folders being removed, shown over the chat area (#132).
+    let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -329,16 +331,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var subWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
     /// The next scheduled re-evaluation of sub-sessions (one at a time; none while nothing is settling).
     @ObservationIgnored var subCheck: (at: Date, task: Task<Void, Never>)?
-    /// Notes for parents' agents not typed in yet, by parent task.
-    // shortcut: in memory only; a quit loses undelivered notes (sessions_wait still sees the status).
-    @ObservationIgnored var parentNotes: [UUID: [SubSessionNote]] = [:]
-    @ObservationIgnored var noteRetry: Task<Void, Never>?
-    /// Per terminal leaf: typed characters with no Enter / ⌃C after them, and the last key's time.
-    @ObservationIgnored var leafDrafts: [UUID: Bool] = [:]
-    @ObservationIgnored var leafLastKey: [UUID: Date] = [:]
-    /// Tests shorten them.
+    /// Tests shorten it.
     @ObservationIgnored var subPollInterval: Duration = .seconds(10)
-    @ObservationIgnored var noteRetryInterval: Duration = .seconds(5)
     /// Detached tool shells of an agent pid (`detachedChildren`); tests replace it.
     @ObservationIgnored var probeDetached: (Int32) -> Int? = detachedChildren(of:)
     /// How long `tabs send --wait` waits for the turn to start; tests shorten it.

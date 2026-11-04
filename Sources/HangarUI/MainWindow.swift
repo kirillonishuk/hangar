@@ -47,7 +47,7 @@ final class TaskColumnController: NSViewController {
         terminalArea = TerminalArea(app: app)
         let undo = ArchiveUndo()
         archiveUndo = undo
-        toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
+        toast = NSHostingView(rootView: UndoToastView(undo: undo, removals: app.worktreeRemovals) { [weak undo] id in undo?.onUndo(id) })
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         super.init(nibName: nil, bundle: nil)
     }
@@ -544,11 +544,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         let consumed = route(event, in: window)
         // A key that goes on to a terminal or field ends the "just clicked a row/tab" state (F2 then passes through).
         if !consumed, firstResponderKind != .other { app.keyReachedTerminal() }
-        // Drafts and the typing pause: Hangar never types a sub-session's note over what the user is writing (#128).
-        if !consumed, let view = window.firstResponder as? NSView,
-           let leaf = sequence(first: view, next: { $0.superview }).lazy.compactMap({ $0 as? LeafView }).first {
-            app.keyTyped(leaf: leaf.leafId, keyCode: event.keyCode, modifiers: event.modifierFlags, characters: event.characters)
-        }
         return consumed
     }
 
@@ -1167,7 +1162,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, view, on: window)
     }
 
-    /// «Новый подчат…» (#128): the sub-chat starts at once (a copy is made first); a failure is an alert.
+    /// «Новый подчат…» (#128, #131): the sub-chat starts at once in the chat's folder (or a copy made first); a failure is an alert.
     func presentNewSubSession(parent id: UUID) {
         guard let window, window.attachedSheet == nil, let parent = app.state.tasks.first(where: { $0.id == id && !$0.archived }) else { return }
         let sheet = makeSheet(over: window)
@@ -1178,14 +1173,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let canWorktree = !app.isFreeChatTask(id) && app.project(parent.projectId)?.host == nil
         let view = SubSessionSheet(parentName: parent.name, canWorktree: canWorktree, agent: app.config.defaultAgent,
-                                   onStart: { [weak self] prompt, agent, worktree, delivery in
+                                   onStart: { [weak self] prompt, agent, worktree in
             close()
             guard let self else { return }
             let app = self.app, ctx = self.ctx
             let name = messageChatName(prompt) ?? L10n.newSubChat
             Task {
                 if case .failure(let e) = await app.spawnSubSession(parent: id, name: name, prompt: prompt, kind: agent, worktree: worktree,
-                                                                    base: nil, delivery: delivery) {
+                                                                    base: nil) {
                     ctx.showError(L10n.subChatFailed, e.message)
                 }
             }

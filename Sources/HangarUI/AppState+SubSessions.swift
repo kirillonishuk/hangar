@@ -72,7 +72,11 @@ extension AppState {
             if let setup {
                 let shell = s.addTab(taskId: c.task, kind: .shell)
                 s.tasks[i].activeTabId = c.tab
-                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                // Like `createTask` (#127): closes itself on success, never saved, a ⌃C still marks it failed.
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first {
+                    pendingPrompts[leaf.id] = setup
+                    setupLeaves.insert(leaf.id)
+                }
                 setupTab = shell
             }
         }

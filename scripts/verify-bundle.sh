@@ -2,6 +2,8 @@
 # Smoke-checks a bundled Hangar.app (built dir or mounted DMG): Ghostty resources complete (dotfiles included),
 # zsh integration really restores the user's ~/.zshrc, version stamped, signature valid. Usage:
 #   scripts/verify-bundle.sh path/to/Hangar.app [expected-version]
+# HANGAR_VERIFY_SIGNED=1 (releases): app and helper must be signed by the "Hangar Self-Signed" certificate
+# (SHA-1 $HANGAR_CERT_SHA1), not ad-hoc (decision #129).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="${1:?usage: verify-bundle.sh path/to/Hangar.app [expected-version]}"
@@ -37,5 +39,16 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "bad CFBundleShortVersionString '$VERSION'"
 [ -z "$EXPECTED" ] || [ "$VERSION" = "$EXPECTED" ] || fail "version is $VERSION, expected $EXPECTED"
 codesign --verify --deep --strict "$APP" || fail "codesign verification failed"
+if [ "${HANGAR_VERIFY_SIGNED:-}" = 1 ]; then
+  # Its SHA-1 is the "certificate root" in the designated requirement macOS pins permissions to: never rotate it.
+  CERT_SHA1="${HANGAR_CERT_SHA1:-2BC32E9E59D0A3BB47BA27D3E2410F0A86F16768}"
+  for code in "$APP" "$APP/Contents/Helpers/hangar"; do
+    INFO="$(codesign -d --verbose=2 "$code" 2>&1)" || fail "codesign -d $code: $INFO"
+    grep -qx 'Authority=Hangar Self-Signed' <<< "$INFO" \
+      || fail "$code is not signed by \"Hangar Self-Signed\" (ad-hoc or another identity)"
+    codesign --verify --strict -R="certificate root = H\"$CERT_SHA1\"" "$code" \
+      || fail "$code is not signed by the certificate $CERT_SHA1"
+  done
+fi
 
 echo "verify-bundle OK: $APP ($VERSION)"

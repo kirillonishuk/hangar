@@ -55,6 +55,40 @@ jobs:
           ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
           fetch-depth: 0
 
+      # Stable self-signed certificate: macOS keeps the app's permissions across updates (decision #129).
+      # No secrets → no release: an ad-hoc build would silently reset every user's permissions.
+      - name: Import signing certificate
+        env:
+          P12: ${{ secrets.HANGAR_SIGN_P12 }}
+          P12_PASSWORD: ${{ secrets.HANGAR_SIGN_P12_PASSWORD }}
+        run: |
+          if [ -z "$P12" ] || [ -z "$P12_PASSWORD" ]; then
+            echo "::error::secrets HANGAR_SIGN_P12 and HANGAR_SIGN_P12_PASSWORD are required: refusing an ad-hoc release"
+            exit 1
+          fi
+          KC="$RUNNER_TEMP/hangar-sign.keychain-db"
+          KC_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$KC_PASSWORD"
+          security create-keychain -p "$KC_PASSWORD" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PASSWORD" "$KC"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/hangar-sign.p12"
+          security import "$RUNNER_TEMP/hangar-sign.p12" -k "$KC" -f pkcs12 -P "$P12_PASSWORD" -T /usr/bin/codesign >/dev/null
+          rm -f "$RUNNER_TEMP/hangar-sign.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASSWORD" "$KC" >/dev/null
+          # codesign only finds identities in the user search list; keep the keychains already there
+          # (create-keychain may have added ours already).
+          KEYCHAINS=("$KC")
+          while IFS= read -r k; do
+            k="${k#"${k%%[![:space:]]*}"}"; k="${k#\"}"; k="${k%\"}"
+            if [ -n "$k" ] && [ "$k" != "$KC" ]; then KEYCHAINS+=("$k"); fi
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${KEYCHAINS[@]}"
+          SHA1="$(security find-identity -p codesigning "$KC" | awk '/"Hangar Self-Signed"/ && !n++ { print $2 }')"
+          [ -n "$SHA1" ] || { echo "::error::no \"Hangar Self-Signed\" code-signing identity in HANGAR_SIGN_P12"; exit 1; }
+          echo "Signing with $SHA1"
+          echo "HANGAR_SIGN_IDENTITY=$SHA1" >> "$GITHUB_ENV"
+
       - name: Next version
         id: version
         env:
@@ -108,6 +142,8 @@ jobs:
         run: scripts/bundle.sh
 
       - name: Verify Hangar.app
+        env:
+          HANGAR_VERIFY_SIGNED: "1"
         run: scripts/verify-bundle.sh build/Hangar.app "${{ steps.version.outputs.version }}"
 
       - name: Build DMG
@@ -117,6 +153,8 @@ jobs:
           cd build && shasum -a 256 "Hangar-${{ steps.version.outputs.version }}.dmg" > "Hangar-${{ steps.version.outputs.version }}.dmg.sha256"
 
       - name: Verify DMG contents
+        env:
+          HANGAR_VERIFY_SIGNED: "1"
         run: |
           MNT=$(mktemp -d)
           hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "build/Hangar-${{ steps.version.outputs.version }}.dmg"
@@ -142,11 +180,20 @@ jobs:
           ### Install
 
           1. Download **Hangar-$VERSION.dmg** below, open it and drag **Hangar** to **Applications**.
-          2. The build is ad-hoc signed (not notarized), so macOS blocks the first launch: right-click Hangar → **Open**, or run
+          2. The build is self-signed (not notarized), so macOS blocks the first launch: right-click Hangar → **Open**, or run
              \`xattr -dr com.apple.quarantine /Applications/Hangar.app\`.
+          3. Permissions you grant (screen recording, files and folders…) persist across updates; the first update from an
+             older ad-hoc signed build asks for them one last time.
 
           Requires macOS 14 or later on Apple silicon.
           EOF
           gh release create "v$VERSION" \
             "build/Hangar-$VERSION.dmg" "build/Hangar-$VERSION.dmg.sha256" docs/assets/hangar-demo.mp4 \
             --title "Hangar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes --verify-tag
+
+      - name: Remove signing keychain
+        if: always()
+        run: |
+          KC="$RUNNER_TEMP/hangar-sign.keychain-db"
+          rm -f "$RUNNER_TEMP/hangar-sign.p12"
+          [ ! -e "$KC" ] || security delete-keychain "$KC"

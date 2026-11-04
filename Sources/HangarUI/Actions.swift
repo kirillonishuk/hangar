@@ -59,7 +59,7 @@ enum Action: CaseIterable {
         case .task(let id):
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
-            // Only a chat whose «готово» is already seen (#131).
+            // Only a chat whose «готово» is already seen (#133).
             let unread: [Action] = app.canMarkUnread(id) ? [.markUnread] : []
             // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
             if app.isFreeChatTask(id) {
@@ -237,7 +237,9 @@ enum Action: CaseIterable {
         case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-            guard case .worktree = task.mode, let project = app.project(task.projectId) else {
+            // A worktree another session works in (a sub-chat in its parent's, #131) is not this one's to delete.
+            guard case .worktree = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty,
+                  let project = app.project(task.projectId) else {
                 ctx.confirm(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete) {
                     app.perform { $0.deleteTask(id: id) }
                 }

@@ -133,7 +133,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
-        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
+        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -186,7 +186,7 @@ import Workspace
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
         case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
-        case subChatDone, subChatNeedsInput, subChatError, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatDeliver, subChatDeliverParent, subChatDeliverNotify, subChatDeliverParentHint, subChatDeliverNotifyHint, subChatStart, subChatFailed
+        case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
     }
 
 
@@ -361,7 +361,7 @@ import Workspace
     static func limitUntil(_ clock: String) -> String { f(.limitUntil, clock) }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func rowWithStatusText(_ name: String, _ status: String) -> String { f(.rowWithStatus, name, status) }
-    /// A done dot says whether its result was seen (#131); other states as `statusLabel`.
+    /// A done dot says whether its result was seen (#133); other states as `statusLabel`.
     static func statusLabel(_ state: AgentState, seen: Bool) -> String {
         state == .done ? s(seen ? .statusDoneSeen : .statusDoneNew) : statusLabel(state)
     }
@@ -791,6 +791,9 @@ import Workspace
     static var inspectorWorktreeMoved: String { s(.inspectorWorktreeMoved) }
     static var inspectorWorktreeMissing: String { s(.inspectorWorktreeMissing) }
     static func worktreeMovedTo(_ path: String) -> String { f(.worktreeMovedTo, path) }
+    static func removingCopy(_ name: String) -> String { f(.removingCopy, name) }
+    static func removeCopyFailed(_ name: String) -> String { f(.removeCopyFailed, name) }
+    static var removeCopyChanged: String { s(.removeCopyChanged) }
     static func worktreeNotFound(_ path: String) -> String { f(.worktreeNotFound, path) }
     static var relinkWorktree: String { s(.relinkWorktree) }
     static var relinkWorktreeHelp: String { s(.relinkWorktreeHelp) }
@@ -1039,23 +1042,14 @@ extension L10n {
     }
     static var subChatsShow: String { s(.subChatsShow) }
     static var subChatsHide: String { s(.subChatsHide) }
-    static func subChatResult(_ status: SubSessionStatus) -> String {
-        switch status {
-        case .needsInput: s(.subChatNeedsInput)
-        case .error: s(.subChatError)
-        case .done, .running: s(.subChatDone)
-        }
-    }
+    static var subChatDone: String { s(.subChatDone) }
     static var newSubChat: String { s(.newSubChat) }
     static func newSubChatTitle(_ parent: String) -> String { f(.newSubChatTitle, parent) }
     static var subChatTask: String { s(.subChatTask) }
     static var subChatTaskPlaceholder: String { s(.subChatTaskPlaceholder) }
     static var subChatAgent: String { s(.subChatAgent) }
-    static var subChatDeliver: String { s(.subChatDeliver) }
-    static var subChatDeliverParent: String { s(.subChatDeliverParent) }
-    static var subChatDeliverNotify: String { s(.subChatDeliverNotify) }
-    static var subChatDeliverParentHint: String { s(.subChatDeliverParentHint) }
-    static var subChatDeliverNotifyHint: String { s(.subChatDeliverNotifyHint) }
+    static var subChatWhereSame: String { s(.subChatWhereSame) }
+    static var subChatHint: String { s(.subChatHint) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }
     static var removeFromList: String { s(.removeFromList) }

@@ -22,7 +22,7 @@ struct PopoverMenuItem {
     var monoSpan: String?
     /// A status dot on the icon's corner (a tab in the overflow menu).
     var dot: AgentState?
-    /// Its done was seen (#131): the dot is hollow.
+    /// Its done was seen (#133): the dot is hollow.
     var dotSeen = false
     /// A file's own icon instead of `icon` (a path pick).
     var file: (name: String, isDir: Bool)?

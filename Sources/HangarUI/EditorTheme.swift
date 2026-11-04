@@ -190,7 +190,7 @@ struct EditorTheme: Equatable {
             .find: EditorHex.of(p.waiting, alpha: 0.35), .gutter: EditorHex.of(p.edGutter), .gutterActive: EditorHex.of(p.edGutterActive),
             .cursor: EditorHex.of(p.accentText), .indent: EditorHex.of(p.edIndent), .indentActive: EditorHex.of(p.line2),
             .whitespace: EditorHex.of(p.line2), .diffAddedLine: EditorHex.of(p.diffAdd), .diffRemovedLine: EditorHex.of(p.diffDel),
-            // Rows a pale tint, the changed characters a clear step over it (#131).
+            // Rows a pale tint, the changed characters a clear step over it (#133).
             .diffAddedText: EditorHex.of(p.gitA, alpha: Theme.Diff.changedChars), .diffRemovedText: EditorHex.of(p.gitD, alpha: Theme.Diff.changedChars),
         ]
         return c.merging(ui) { $1 }

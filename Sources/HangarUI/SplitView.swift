@@ -105,7 +105,7 @@ final class FillView: NSView {
     }
 }
 
-/// The frame a split pane gets (#131): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
+/// The frame a split pane gets (#133): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
 func paneFrame(_ state: AgentState, split: Bool) -> AgentState? {
     split && (state == .waiting || state == .failed) ? state : nil
 }
@@ -143,7 +143,7 @@ final class PaneFrameView: NSView {
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
     private let barFill = HoverFill { Theme.hover }
-    /// The waiting / failed frame over the whole pane, header included (#131).
+    /// The waiting / failed frame over the whole pane, header included (#133).
     private let frameView = PaneFrameView()
     var attentionFrame: AgentState? {
         didSet { if attentionFrame != oldValue { applyFrame() } }
@@ -792,7 +792,7 @@ final class PaneFrameView: NSView {
         }
     }
 
-    /// The waiting / failed frame of each pane of a split tab (#131).
+    /// The waiting / failed frame of each pane of a split tab (#133).
     private func applyPaneFrames() {
         for task in app.state.tasks where !task.archived {
             for tab in task.tabs {

@@ -226,6 +226,8 @@ extension MainWindowController {
             }
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
+        case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (#132)
+            app.worktreeRemovals.items.first { $0.failure != nil }.map { app.worktreeRemovals.retry($0.id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
         case "hover", "menu":
             // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).
@@ -546,10 +548,10 @@ extension MainWindowController {
             case "install": lsp.install(package)
             default: lsp.jobs[package] = nil
             }
-        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (#131)
+        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (#133)
             let f = arg.split(separator: " ")
             Theme.applyAccessibility(increaseContrast: f.first == "1", differentiateWithoutColor: f.count > 1 && f[1] == "1")
-        case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», #131)
+        case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», #133)
             app.screenShown = arg == "on" ? { true } : { [weak self] in self?.windowVisible ?? false }
             app.refreshSeen()
         case "rowHelp":  // rowHelp <file>: each sidebar chat's tooltip and VoiceOver label (snapshots can't hover)
@@ -558,7 +560,7 @@ extension MainWindowController {
                 "\(t.name)\t\(app.sessionStatus(of: t, now: now).text)\t\(app.rowAccessibility(t.name, task: t, state: app.displayState(of: t), now: now))"
             }
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        case "clockShift":  // clockShift <seconds>: status events are stamped that long ago (a long wait, #131); 0 resets
+        case "clockShift":  // clockShift <seconds>: status events are stamped that long ago (a long wait, #133); 0 resets
             let shift = TimeInterval(arg) ?? 0
             app.clock = { Date().addingTimeInterval(-shift) }
         case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)

@@ -72,7 +72,10 @@ extension AppState {
     private func statuslineDirs(project p: Project) -> [StatuslineDir] {
         var dirs = [StatuslineDir(path: p.path, name: p.name)]
         for t in state.tasks where t.projectId == p.id && !t.archived {
-            if case .worktree(let path, _, _) = t.mode { dirs.append(StatuslineDir(path: path, name: p.name + " › " + t.name)) }
+            // One entry per folder: a sub-chat may share its parent's worktree (#131).
+            if case .worktree(let path, _, _) = t.mode, !dirs.contains(where: { $0.path == path }) {
+                dirs.append(StatuslineDir(path: path, name: p.name + " › " + t.name))
+            }
         }
         return dirs
     }

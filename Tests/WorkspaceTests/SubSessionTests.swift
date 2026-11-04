@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Sub-sessions in the model (#128): where they live, the sidebar order, persistence.
+/// Sub-sessions in the model (#128, #131): where they live, the sidebar order, persistence.
 @Suite struct SubSessionTests {
     private func sub(_ s: inout WorkspaceState, parent: UUID, name: String, kind: LeafKind,
-                     mode: TaskMode = .mainFolder) throws -> (task: UUID, tab: UUID) {
+                     mode: TaskMode? = nil) throws -> (task: UUID, tab: UUID) {
         let r = s.addSubSession(parent: parent, name: name, kind: kind, mode: mode)
         return try #require(r)
     }
@@ -24,6 +24,30 @@ import Testing
         #expect(s.subSessions(of: parent).map(\.id) == [child.task])
         #expect(s.hasLiveParent(task))
         #expect(s.addSubSession(parent: UUID(), name: "x", kind: .claude) == nil)
+    }
+
+    /// By default a sub-chat works in its parent's own folder (#131): the same worktree, or the main folder.
+    @Test func defaultPlacementIsTheParentsFolder() throws {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/tmp/app")
+        let wt = TaskMode.worktree(path: "/tmp/app.worktrees/feat", branch: "feat", base: "main")
+        let parent = s.addTask(projectId: p, name: "Feat", mode: wt)
+        let child = try sub(&s, parent: parent, name: "Check", kind: .claude)
+        let task = try #require(s.tasks.first { $0.id == child.task })
+        #expect(task.mode == wt && task.branch == "feat")
+        #expect(task.tabs.first?.root.leaves.first?.cwd == "/tmp/app.worktrees/feat")
+        let main = s.addTask(projectId: p, name: "Main")
+        let mainChild = try sub(&s, parent: main, name: "Look", kind: .claude)
+        let mainTask = try #require(s.tasks.first { $0.id == mainChild.task })
+        #expect(mainTask.mode == .mainFolder && mainTask.tabs.first?.root.leaves.first?.cwd == "/tmp/app")
+        // Sharing: the parent and its sub-chat, not the main-folder chats; archived ones only when asked.
+        let parentTask = try #require(s.tasks.first { $0.id == parent })
+        #expect(s.worktreeSharers(of: parentTask, openOnly: true).map(\.id) == [child.task])
+        #expect(s.worktreeSharers(of: task, openOnly: true).map(\.id) == [parent])
+        #expect(s.worktreeSharers(of: mainTask, openOnly: false).isEmpty)
+        s.archiveTask(id: child.task)
+        #expect(s.worktreeSharers(of: parentTask, openOnly: true).isEmpty)
+        #expect(s.worktreeSharers(of: parentTask, openOnly: false).map(\.id) == [child.task])
     }
 
     @Test func freeChatSubSessionIsAFreeChat() throws {
@@ -77,5 +101,36 @@ import Testing
         dict["subsCollapsed"] = nil
         let task = try JSONDecoder().decode(HangarTask.self, from: JSONSerialization.data(withJSONObject: dict))
         #expect(task.parentTaskId == nil && !task.subsCollapsed)
+    }
+
+    /// Sharing is by place, not by spelling (#132): trailing slashes, `.`/`..` and case don't hide a sharer; another
+    /// project on the same machine counts (also one whose main folder is this worktree); another machine doesn't.
+    @Test func sharersAreFoundByPlace() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/tmp/app")
+        let again = s.addProject(name: "app2", path: "/tmp/App/")
+        let asProject = s.addProject(name: "wt", path: "/tmp/app.worktrees/feat/")
+        let remote = s.addRemoteProject(name: "srv", host: "dev", path: "/tmp/app")
+        let a = s.addTask(projectId: p, name: "A", mode: .worktree(path: "/tmp/app.worktrees/feat", branch: "feat", base: "main"))
+        let slash = s.addTask(projectId: p, name: "B", mode: .worktree(path: "/tmp/app.worktrees/feat/", branch: "feat", base: "main"))
+        let dots = s.addTask(projectId: again, name: "C", mode: .worktree(path: "/tmp/App.worktrees/x/../FEAT/.", branch: "feat", base: "main"))
+        let main = s.addTask(projectId: asProject, name: "D")
+        _ = s.addTask(projectId: remote, name: "E", mode: .worktree(path: "/tmp/app.worktrees/feat", branch: "feat", base: "main"))
+        _ = s.addTask(projectId: p, name: "F", mode: .worktree(path: "/tmp/app.worktrees/feature", branch: "feature", base: "main"))
+        _ = s.addTask(projectId: p, name: "G")
+        let task = s.tasks.first { $0.id == a }!
+        #expect(Set(s.worktreeSharers(of: task, openOnly: true).map(\.id)) == [slash, dots, main])
+        #expect(worktreeKey("//tmp/./a//b/") == "/tmp/a/b")
+    }
+
+    /// The branch is kept while another session of the project has a worktree on it (an archived one restores onto it).
+    @Test func branchKeepers() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/tmp/app")
+        let a = s.addTask(projectId: p, name: "A", mode: .worktree(path: "/tmp/w/a", branch: "feat", base: "main"))
+        let b = s.addTask(projectId: p, name: "B", mode: .worktree(path: "/tmp/w/b", branch: "feat", base: "main"))
+        _ = s.addTask(projectId: p, name: "C", mode: .worktree(path: "/tmp/w/c", branch: "other", base: "main"))
+        s.archiveTask(id: b)
+        #expect(s.branchKeepers(of: s.tasks.first { $0.id == a }!).map(\.id) == [b])
     }
 }

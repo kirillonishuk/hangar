@@ -207,7 +207,7 @@ struct MenuEntry {
     PopoverMenu.show(popoverEntries(items), at: screen)
 }
 
-/// A row's clock (#131): a tick on each minute only while `active` (a chat that waits, for «ждёт 12 м» and its tooltip);
+/// A row's clock (#133): a tick on each minute only while `active` (a chat that waits, for «ждёт 12 м» and its tooltip);
 /// otherwise a single entry and no updates — nothing wakes up while idle.
 struct MinutesWhile: TimelineSchedule {
     let active: Bool

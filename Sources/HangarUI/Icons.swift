@@ -311,7 +311,7 @@ struct IconView: View {
     }
 }
 
-/// How a status dot is drawn (#131): not by colour alone. Working — a ring half filled, done — solid until seen,
+/// How a status dot is drawn (#133): not by colour alone. Working — a ring half filled, done — solid until seen,
 /// then hollow like idle; waiting, failed and limit are solid (their rows carry a word); with «Differentiate without
 /// colour» failure is a diamond, so it never reads as a done dot. All static: nothing animates but waiting's one pulse.
 enum StatusMark: Equatable {
@@ -343,7 +343,7 @@ private struct HalfDisc: Shape {
 /// Status dot (`StatusMark`); `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
     var state: AgentState = .idle
-    /// A done dot whose result was seen (#131).
+    /// A done dot whose result was seen (#133).
     var seen = false
     var size = Theme.Icon.statusDot
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.

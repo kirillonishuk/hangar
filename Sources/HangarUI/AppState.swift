@@ -69,7 +69,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
-    /// A notify-only sub-session finished (#128): its banner (set by `Notifier.attach`).
+    /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// The main window is on screen and the app active (set by the window controller; nil — never, as in tests).
     @ObservationIgnored var screenShown: (() -> Bool)?
@@ -177,7 +177,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:] {
-        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (#131)
+        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (#133)
     }
     @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
@@ -259,6 +259,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
+    /// Worktree folders being removed, shown over the chat area (#132).
+    let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -327,16 +329,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var subWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
     /// The next scheduled re-evaluation of sub-sessions (one at a time; none while nothing is settling).
     @ObservationIgnored var subCheck: (at: Date, task: Task<Void, Never>)?
-    /// Notes for parents' agents not typed in yet, by parent task.
-    // shortcut: in memory only; a quit loses undelivered notes (sessions_wait still sees the status).
-    @ObservationIgnored var parentNotes: [UUID: [SubSessionNote]] = [:]
-    @ObservationIgnored var noteRetry: Task<Void, Never>?
-    /// Per terminal leaf: typed characters with no Enter / ⌃C after them, and the last key's time.
-    @ObservationIgnored var leafDrafts: [UUID: Bool] = [:]
-    @ObservationIgnored var leafLastKey: [UUID: Date] = [:]
-    /// Tests shorten them.
+    /// Tests shorten it.
     @ObservationIgnored var subPollInterval: Duration = .seconds(10)
-    @ObservationIgnored var noteRetryInterval: Duration = .seconds(5)
     /// Detached tool shells of an agent pid (`detachedChildren`); tests replace it.
     @ObservationIgnored var probeDetached: (Int32) -> Int? = detachedChildren(of:)
     /// How long `tabs send --wait` waits for the turn to start; tests shorten it.

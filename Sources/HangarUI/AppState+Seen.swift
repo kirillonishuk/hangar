@@ -2,7 +2,7 @@ import AgentStatus
 import Foundation
 import Workspace
 
-/// «Готово» seen or not (#131): a finished turn stays new until its leaf is on screen while the window is shown.
+/// «Готово» seen or not (#133): a finished turn stays new until its leaf is on screen while the window is shown.
 extension AppState {
     /// Leaves on screen now: the selected chat's active tab (unless the diff tab or History covers it) and its open
     /// TERMINAL drawer; none while the window is hidden or the app inactive.

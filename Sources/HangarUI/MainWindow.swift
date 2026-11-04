@@ -1162,7 +1162,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, view, on: window)
     }
 
-    /// «Новый подчат…» (#128, #130): the sub-chat starts at once in the chat's folder (or a copy made first); a failure is an alert.
+    /// «Новый подчат…» (#128, #131): the sub-chat starts at once in the chat's folder (or a copy made first); a failure is an alert.
     func presentNewSubSession(parent id: UUID) {
         guard let window, window.attachedSheet == nil, let parent = app.state.tasks.first(where: { $0.id == id && !$0.archived }) else { return }
         let sheet = makeSheet(over: window)

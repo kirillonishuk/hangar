@@ -6,7 +6,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Sub-sessions end to end inside the app (#128, #130): spawn, done detection from hooks, the user's notification, wait,
+/// Sub-sessions end to end inside the app (#128, #131): spawn, done detection from hooks, the user's notification, wait,
 /// archive. Nothing is ever sent to the parent's terminal.
 @MainActor @Suite struct SubSessionsFlowTests {
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-subs-\(UUID())")
@@ -127,7 +127,7 @@ import Workspace
         #expect(f.notices.isEmpty && f.sent.isEmpty)
     }
 
-    /// The owner's rule (#130): whatever the sub-chat does, and however it was made, the parent's terminal gets nothing.
+    /// The owner's rule (#131): whatever the sub-chat does, and however it was made, the parent's terminal gets nothing.
     @Test func nothingIsEverSentToTheParent() async throws {
         let f = try Fixture(dir: dir)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -230,7 +230,7 @@ import Workspace
         #expect(f.app.subSessionStatus(of: task()) == .done && probed.count == probes)
     }
 
-    /// Default placement (#130): the parent's own worktree; the sub-chat's terminal opens there, no new copy is made.
+    /// Default placement (#131): the parent's own worktree; the sub-chat's terminal opens there, no new copy is made.
     @Test func subChatOpensInTheParentsWorktree() async throws {
         let f = try Fixture(dir: dir)
         defer { try? FileManager.default.removeItem(at: dir) }

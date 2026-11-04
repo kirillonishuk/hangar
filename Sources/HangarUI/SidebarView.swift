@@ -85,7 +85,7 @@ struct SidebarView: View {
 
     // MARK: Chats without a project
 
-    /// «Чаты» above everything (spec free-chats §4): pinned, open and recent chats, «Все чаты (N)…»; empty — the header
+    /// «Чаты» above everything (spec free-chats §4): pinned, open and recent chats, «Все чаты (N)…» when some aren't listed; empty — the header
     /// with its «+». The attention filter keeps only chats that need action; the rail only shows their tiles.
     @ViewBuilder private var chatsSection: some View {
         let filtering = app.state.attentionOnly
@@ -96,7 +96,7 @@ struct SidebarView: View {
             SectionHeader(title: L10n.sectionChats, collapsed: collapsed, plusHelp: L10n.help(L10n.newFreeChat, .newFreeChat),
                           plusAlwaysVisible: app.state.freeChats.isEmpty, plus: { app.newFreeChat() })
             ForEach(rows, id: \.task.id) { row in freeChatRow(row.task, depth: row.depth) }
-            if !filtering, !rows.isEmpty { allChatsRow }
+            if !filtering, app.freeChatsBeyond(rows.map(\.task)) { allChatsRow }
         }
     }
 
@@ -122,7 +122,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, indent: subIndent(depth), trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
                 ZStack {
                     if !asleep {
-                        StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                        StatusDot(state: dot, onAccent: selected)
                     }
                     subsChevron(task)
                 }
@@ -202,7 +202,7 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                StatusDot(state: dot, onAccent: selected)
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     if app.renaming == target {
@@ -295,7 +295,7 @@ struct SidebarView: View {
                      MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
         return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                StatusDot(state: dot, onAccent: selected)
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
@@ -576,7 +576,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent + subIndent(depth), trailing: Theme.sessionRowTrailing,
                       railReplacesMarker: true) {
                 ZStack {
-                    StatusDot(state: dot, border: selected ? Theme.ui.onAccent : nil, borderWidth: selected ? Theme.railDotBorder : 0)
+                    StatusDot(state: dot, onAccent: selected)
                     subsChevron(task)
                 }
             } expanded: {

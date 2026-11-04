@@ -13,7 +13,7 @@ extension WorkspaceState {
         return tasks.contains { $0.id == parent && !$0.archived }
     }
 
-    /// A sub-session in the parent's project, by default in the parent's own folder (its worktree or the main folder, #130),
+    /// A sub-session in the parent's project, by default in the parent's own folder (its worktree or the main folder, #131),
     /// or in `mode` (a new worktree); for a chat without a project a new such chat (the same shared folder).
     /// One `kind` tab; the selection is not changed. nil — no such parent.
     public mutating func addSubSession(parent: UUID, name: String, kind: LeafKind, mode: TaskMode? = nil,
@@ -32,7 +32,7 @@ extension WorkspaceState {
         return (task, addTab(taskId: task, kind: kind))
     }
 
-    /// Other sessions working in `task`'s worktree folder (a sub-chat shares its parent's, #130): the same machine and the
+    /// Other sessions working in `task`'s worktree folder (a sub-chat shares its parent's, #131): the same machine and the
     /// same folder, any project (one repo added twice, or this worktree added as a project of its own, whose main-folder
     /// sessions work there too). `openOnly`: archived ones are left out. Empty for a main-folder session.
     public func worktreeSharers(of task: HangarTask, openOnly: Bool) -> [HangarTask] {

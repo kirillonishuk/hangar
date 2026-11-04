@@ -46,7 +46,7 @@ import TestSupport
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
-    /// A worktree and branch another session still uses (a sub-chat in its parent's, #130) are never deleted with one of them.
+    /// A worktree and branch another session still uses (a sub-chat in its parent's, #131) are never deleted with one of them.
     @Test func sharedWorktreeAndBranchStay() async throws {
         let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
@@ -78,7 +78,7 @@ import TestSupport
         var bad = UUID()
         app.perform { bad = $0.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main")) }
         await deleteTaskPermanently(bad, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
-        // The removal's own row says why, with «Повторить» (#131); no alert on top.
+        // The removal's own row says why, with «Повторить» (#132); no alert on top.
         #expect(calls.errors.isEmpty && app.worktreeRemovals.items.count == 1 && app.worktreeRemovals.items[0].failure != nil)
         #expect(app.state.tasks.contains { $0.id == bad })
         #expect(exists(t.repo + "/a.txt") && exists(t.repo + "/.git") && !exists(t.repo + ".hangar-removing"))
@@ -168,7 +168,7 @@ import TestSupport
         #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
-    /// A locked worktree goes with its branch (#131: unlocked first, no stale registration blocks `branch -d`); a branch
+    /// A locked worktree goes with its branch (#132: unlocked first, no stale registration blocks `branch -d`); a branch
     /// another session keeps for its restore stays.
     @Test func lockedWorktreeGoesBranchKeptForAnotherSession() async throws {
         let (t, app, id, wt, calls, ctx) = try await make()

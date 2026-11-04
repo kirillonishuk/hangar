@@ -69,7 +69,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
-    /// A sub-session finished, needs input or failed (#130): its banner (set by `Notifier.attach`).
+    /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
@@ -250,7 +250,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
-    /// Worktree folders being removed, shown over the chat area (#131).
+    /// Worktree folders being removed, shown over the chat area (#132).
     let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?

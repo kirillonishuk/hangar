@@ -30,7 +30,7 @@ extension AppState {
     /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
     /// unarchived again, its tabs relaunch lazily as after a restart.
     /// Its open sub-sessions follow a parent into the archive, each by the same rules (#128); one at risk stays open.
-    /// A worktree another open session still works in (a sub-chat shares its parent's, #130) is left alone: only the last
+    /// A worktree another open session still works in (a sub-chat shares its parent's, #131) is left alone: only the last
     /// session to leave it checks and removes it; sub-sessions archived along with it count as leaving.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
@@ -200,7 +200,7 @@ extension AppState {
 @MainActor func archiveTask(_ id: UUID, ctx: ActionContext, force: Bool = false) async {
     switch await ctx.app.archiveRemovingWorktree(id, force: force) {
     case .archived: ctx.didArchive(id)
-    // The removal's own row shows the failure with «Повторить» (#131).
+    // The removal's own row shows the failure with «Повторить» (#132).
     case .worktreeKept: ctx.didArchive(id)
     case let .atRisk(dirty, ignored):
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.archiveAnyway) {

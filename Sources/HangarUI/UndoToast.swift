@@ -71,7 +71,7 @@ import SwiftUI
 }
 
 /// Bottom-centre of the chat area (§3.15): `bg2`, `line2`, `radius.popover`, level 1; 32 high, `body`, up to one
-/// primary small button and «×». Takes no space while hidden; the pointer over it holds it. Worktree removals (#131)
+/// primary small button and «×». Takes no space while hidden; the pointer over it holds it. Worktree removals (#132)
 /// stack above it in the same toast style.
 struct UndoToastView: View {
     let undo: ArchiveUndo

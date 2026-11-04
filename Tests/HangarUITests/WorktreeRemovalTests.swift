@@ -6,7 +6,7 @@ import Git
 import Workspace
 import TestSupport
 
-/// Worktree removal never fails silently and is shown while it runs (#131): the removal rows' state machine and real-git
+/// Worktree removal never fails silently and is shown while it runs (#132): the removal rows' state machine and real-git
 /// removals — a big folder, a missing one, a locked one, a process inside, a failure and its retry.
 @MainActor @Suite struct WorktreeRemovalTests {
     /// Active worktree task "x" (branch x, a shell tab) under `<repo>.worktrees/x`.

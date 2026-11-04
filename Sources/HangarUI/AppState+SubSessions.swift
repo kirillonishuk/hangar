@@ -3,7 +3,7 @@ import ControlServer
 import Foundation
 import Workspace
 
-/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128, #130): done detection, `sessions_wait` and the user's
+/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128, #131): done detection, `sessions_wait` and the user's
 /// notification. Nothing is ever sent to the parent's terminal.
 extension AppState {
     // MARK: Model
@@ -32,7 +32,7 @@ extension AppState {
     // MARK: Creation
 
     /// MCP/CLI `sessions_spawn` and the «New Sub-chat» sheet: the sub-session, its agent started at once with the prompt.
-    /// It works in the parent's own folder (the same worktree or main folder, #130); `worktree` — in a new worktree instead.
+    /// It works in the parent's own folder (the same worktree or main folder, #131); `worktree` — in a new worktree instead.
     func spawnSubSession(parent parentId: UUID, name: String, prompt: String, kind: LeafKind, worktree: Bool,
                          base: String?) async -> Result<UUID, ControlError> {
         guard let parent = state.tasks.first(where: { $0.id == parentId && !$0.archived }) else {
@@ -171,7 +171,7 @@ extension AppState {
         })
     }
 
-    /// Fully finished (#130): the user is told, as for an agent that finished out of sight; nothing reaches the parent.
+    /// Fully finished (#131): the user is told, as for an agent that finished out of sight; nothing reaches the parent.
     /// The banner takes the place of the leaf's own «done» one (same id). Needs-input and errors already have the leaf's
     /// own banners (permission, question, failure), with their buttons.
     private func report(_ task: HangarTask, status: SubSessionStatus) {

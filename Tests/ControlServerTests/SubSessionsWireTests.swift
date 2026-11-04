@@ -23,7 +23,7 @@ import Testing
             ["sessions", "spawn", "--name", "R"],
             ["sessions", "spawn", "--name", "R", "--prompt", "p", "--agent", "shell"],
             ["sessions", "spawn", "--name", "R", "--prompt", "p", "--base", "main"],
-            ["sessions", "spawn", "--name", "R", "--prompt", "p", "--notify-only"],  // gone (#130): nothing reaches the parent anyway
+            ["sessions", "spawn", "--name", "R", "--prompt", "p", "--notify-only"],  // gone (#131): nothing reaches the parent anyway
             ["sessions", "wait", "--timeout", "0"],
         ]
         for args in usage {
@@ -47,7 +47,7 @@ import Testing
             guard case .failure(let e) = decode("tasks.spawn", bad) else { Issue.record("accepted \(bad)"); continue }
             #expect(e.code == .badParams)
         }
-        // `deliver` is gone (#130): a sub-session never sends anything to its parent.
+        // `deliver` is gone (#131): a sub-session never sends anything to its parent.
         guard case .failure = decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"notify"}"#) else { Issue.record("deliver"); return }
         #expect(decode("tasks.wait", #"{"sessions":["a","b"],"timeout":5}"#) == .success(.tasksWait(sessions: ["a", "b"], parent: nil, timeout: 5)))
         for bad in [#"{"sessions":"a"}"#, #"{"sessions":[1]}"#, #"{"sessions":[""]}"#, #"{"timeout":0}"#, #"{"timeout":3601}"#,

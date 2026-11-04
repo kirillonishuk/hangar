@@ -318,17 +318,23 @@ struct StatusDot: View {
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0
+    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle has no colour to frame — a ring around the
+    /// grey dot read as an empty radio button, so it's a dim `onAccent` dot without a ring.
+    var onAccent = false
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        Circle().fill(Theme.ui.status(state))
+        let quietIdle = onAccent && state == .idle
+        let ring = onAccent && !quietIdle ? Theme.ui.onAccent : border
+        let ringWidth = onAccent ? (quietIdle ? 0 : Theme.railDotBorder) : borderWidth
+        Circle().fill(quietIdle ? Theme.ui.onAccent.opacity(Theme.Opacity.inactive) : Theme.ui.status(state))
             .frame(width: size, height: size)
             .background {
-                if let border { Circle().fill(border).padding(-borderWidth) }
+                if let ring { Circle().fill(ring).padding(-ringWidth) }
             }
             .background {
                 if state == .waiting {
-                    Circle().fill(Theme.ui.waiting.opacity(Theme.Opacity.ring)).padding(-(borderWidth + Theme.haloWidth))
+                    Circle().fill(Theme.ui.waiting.opacity(Theme.Opacity.ring)).padding(-(ringWidth + Theme.haloWidth))
                 }
             }
             .scaleEffect(scale)

@@ -69,7 +69,10 @@ jobs:
           swift test --no-parallel
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
+      # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs.
       - name: Bundle & verify
+        env:
+          HANGAR_SIGN_IDENTITY: "-"
         run: |
           scripts/bundle.sh
           scripts/verify-bundle.sh build/Hangar.app

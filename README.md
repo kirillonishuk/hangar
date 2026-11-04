@@ -66,11 +66,14 @@ It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://githu
 Requires macOS 14 or later on Apple silicon (the app is arm64-only).
 
 1. Download `Hangar-x.y.z.dmg` from [Releases](https://github.com/kirillonishuk/hangar/releases/latest) and drag Hangar to Applications.
-2. The app is ad-hoc signed, not notarized. Allow the first launch with right-click → Open, or:
+2. The app is self-signed, not notarized. Allow the first launch with right-click → Open, or:
 
    ```sh
    xattr -dr com.apple.quarantine /Applications/Hangar.app
    ```
+
+Permissions you grant Hangar (screen recording, files and folders…) persist across updates: every release is signed
+with the same certificate. Updating from an older ad-hoc signed build (before this change) asks for them one last time.
 
 Hangar checks GitHub Releases once a day and shows «Update to X» in the toolbar: one click downloads the DMG, verifies its SHA-256 and replaces the app (Settings → General).
 
@@ -148,7 +151,7 @@ Requires an Apple silicon Mac, Xcode 26 with the Metal toolchain (`xcodebuild -d
 git clone https://github.com/kirillonishuk/hangar.git && cd hangar
 scripts/build-ghosttykit.sh   # vendor/GhosttyKit.xcframework at vendor/GHOSTTY_COMMIT
 swift build && swift test
-scripts/bundle.sh             # build/Hangar.app (release, ad-hoc signed)
+scripts/bundle.sh             # build/Hangar.app (release; ad-hoc signed without the "Hangar Self-Signed" certificate)
 scripts/make-dmg.sh           # build/Hangar.dmg
 ```
 

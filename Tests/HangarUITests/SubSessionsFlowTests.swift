@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Sub-sessions end to end inside the app (#127): spawn, done detection from hooks, the parent's note, wait, archive.
+/// Sub-sessions end to end inside the app (#128): spawn, done detection from hooks, the parent's note, wait, archive.
 @MainActor @Suite struct SubSessionsFlowTests {
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-subs-\(UUID())")
 
@@ -63,7 +63,7 @@ import Workspace
         #expect(task.parentTaskId == f.parent && task.projectId == f.app.state.tasks.first { $0.id == f.parent }?.projectId)
         #expect(sub.result.task.parent == f.parent)
         #expect(sub.result.link == "hangar://task/\(sub.task.uuidString.lowercased())")
-        #expect(f.app.pendingPrompts[sub.leaf] == "ship it")
+        #expect(f.app.pendingPrompts[sub.leaf] == "ship it" + AppState.subSessionPromptSuffix)
         #expect(f.app.state.selectedTaskId != sub.task)
         #expect(f.app.groupRows(task.projectId).map(\.depth) == [0, 1])
         // By session name too; an unknown caller is refused.
@@ -150,6 +150,42 @@ import Workspace
         f.screens[f.parentLeaf] = "> "
         f.app.deliverNotes(to: f.parent)
         #expect(f.sent.map(\.text) == ["[Hangar] sub-session \"Second\" finished (done): fine — hangar://task/\(second.task.uuidString.lowercased())"])
+    }
+
+    /// «Notify me only»: nothing is typed into the parent; the user gets one banner.
+    @Test func notifyOnlyNeverTypesIntoTheParent() async throws {
+        let f = try Fixture(dir: dir)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var notices: [AgentNotice] = []
+        f.app.onSubSessionNotice = { notices.append($0) }
+        let r = await f.app.respond(1, .tasksSpawn(parent: f.parentLeaf.uuidString, name: "Quiet", prompt: "look", agent: nil,
+                                                   worktree: false, base: nil, notifyOnly: true))
+        guard case .success(let data) = r.body else { Issue.record("\(r.body)"); return }
+        let id = try JSONDecoder().decode(SpawnResult.self, from: data).task.id
+        let task = try #require(f.app.state.tasks.first { $0.id == id })
+        #expect(task.subDelivery == .notify)
+        let tab = task.tabs[0].id, leaf = task.tabs[0].root.leaves[0].id
+        f.hook(.prompt, tab: tab, leaf: leaf)
+        f.hook(.stop, tab: tab, leaf: leaf, message: "found it in config/app.yml", background: 0)
+        f.now += 6
+        f.app.evaluateSubSessions()
+        #expect(f.sent.isEmpty)
+        #expect(notices.count == 1 && notices.first?.body == "found it in config/app.yml" && notices.first?.subtitle == "Quiet")
+    }
+
+    /// The parent's context pays for the result: capped, the cut marked, the tab for tabs_read given.
+    @Test func resultIsCompact() async throws {
+        let f = try Fixture(dir: dir)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let sub = try await f.spawn()
+        f.hook(.prompt, tab: sub.tab, leaf: sub.leaf)
+        f.hook(.stop, tab: sub.tab, leaf: sub.leaf, message: String(repeating: "x", count: 1900), background: 0)
+        f.now += 6
+        let info = await f.app.waitForSubSessions([sub.task], timeout: .seconds(1)).first
+        #expect(info?.status == "done" && info?.truncated == true && info?.tab == sub.tab)
+        #expect((info?.message?.count ?? 0) <= SubSessionInfo.maxMessage && info?.message?.hasSuffix("[truncated; full output: tabs_read]") == true)
+        f.app.evaluateSubSessions()
+        #expect((f.sent.first?.text?.count ?? 0) < SubSessionNote.maxMessage + 200)
     }
 
     @Test func waitTimesOutWithStillRunning() async throws {

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Exec
 
-/// `detachedChildren`: tool shells lead their own process group, MCP servers share the agent's (#127).
+/// `detachedChildren`: tool shells lead their own process group, MCP servers share the agent's (#128).
 @Suite struct ProcessProbeTests {
     private func spawn(_ script: String) throws -> Process {
         let p = Process()

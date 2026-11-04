@@ -69,6 +69,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
+    /// A notify-only sub-session finished (#128): its banner (set by `Notifier.attach`).
+    @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
     /// Mute, project mode or a notification setting changed: delivered banners no longer allowed go.

@@ -1,5 +1,9 @@
 import Foundation
 
+/// Where a finished sub-session's result goes (#128): typed into the parent's agent, or only a notification for the user
+/// (nothing reaches the parent's context).
+public enum SubDelivery: String, Codable, Sendable, CaseIterable { case parent, notify }
+
 /// Sub-sessions (spec sub-sessions §2): a chat spawned by another chat's agent, kept under it in the sidebar.
 extension WorkspaceState {
     /// Open children of `parent`, in their `order`.
@@ -16,7 +20,7 @@ extension WorkspaceState {
     /// A sub-session in the parent's project (main folder or `mode`), or for a chat without a project a new such chat.
     /// One `kind` tab; the selection is not changed. nil — no such parent.
     public mutating func addSubSession(parent: UUID, name: String, kind: LeafKind, mode: TaskMode = .mainFolder,
-                                       at date: Date = Date()) -> (task: UUID, tab: UUID)? {
+                                       delivery: SubDelivery = .parent, at date: Date = Date()) -> (task: UUID, tab: UUID)? {
         guard let p = tasks.first(where: { $0.id == parent }) else { return nil }
         let selected = selectedTaskId
         let task: UUID
@@ -28,6 +32,7 @@ extension WorkspaceState {
         }
         guard let i = tasks.firstIndex(where: { $0.id == task }) else { return nil }
         tasks[i].parentTaskId = parent
+        tasks[i].subDelivery = delivery == .parent ? nil : delivery
         return (task, addTab(taskId: task, kind: kind))
     }
 

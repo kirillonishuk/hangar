@@ -71,7 +71,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 42)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
+        #expect(Shortcut.allCases.count == 43)  // + newSubSession (#128)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.

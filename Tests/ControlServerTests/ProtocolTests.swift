@@ -73,10 +73,15 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             == .success(.usage(UsageMessage(agent: "claude", windows: [WireWindow(name: "five_hour", usedPercent: 100, resetsAt: nil)]))))
         #expect(ControlMessage.decode(us(agent: "codex", windows: #"[{"name":"primary","usedPercent":-3}]"#))
             == .success(.usage(UsageMessage(agent: "codex", windows: [WireWindow(name: "primary", usedPercent: 0, resetsAt: nil)]))))
-        guard case let .success(.event(m)) = ControlMessage.decode(ev(#","message":"\#(String(repeating: "m", count: 2000))""#)) else {
+        guard case let .success(.event(m)) = ControlMessage.decode(ev(#","message":"\#(String(repeating: "m", count: 3000))""#, kind: "notification")) else {
             Issue.record("long message rejected"); return
         }
         #expect(m.message?.count == 500)
+        // A Stop's answer is a sub-session's result (#128): up to 2000.
+        guard case let .success(.event(stop)) = ControlMessage.decode(ev(#","message":"\#(String(repeating: "m", count: 3000))""#)) else {
+            Issue.record("long stop rejected"); return
+        }
+        #expect(stop.message?.count == 2000)
         guard case let .success(.event(bad)) = ControlMessage.decode(ev(#","session":"x; rm -rf ~""#)) else {
             Issue.record("bad session rejected whole message"); return
         }
@@ -116,6 +121,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             .tasksRestore(task: "t1"), .tasksList(project: nil, git: true), .sshOpen(host: "u@dev"), .linksCreate(kind: .task, ref: "t1"),
             .tasksSpawn(parent: "leaf1", name: "Release", prompt: "ship it", agent: nil, worktree: false, base: nil),
             .tasksSpawn(parent: nil, name: "R", prompt: "go", agent: .codex, worktree: true, base: "main"),
+            .tasksSpawn(parent: "p", name: "R", prompt: "go", agent: nil, worktree: false, base: nil, notifyOnly: true),
             .tasksWait(sessions: [], parent: "leaf1", timeout: 110), .tasksWait(sessions: ["a", "b"], parent: nil, timeout: 5),
         ]
         #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))

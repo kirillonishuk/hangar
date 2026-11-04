@@ -90,8 +90,11 @@ import Testing
         let id = UUID()
         let note = SubSessionNote(task: id, name: "Re\"lease", status: .done, message: "line one\n\n  line two  ", link: "hangar://task/x")
         #expect(note.line == "[Hangar] sub-session \"Re'lease\" finished (done): line one line two — hangar://task/x")
-        let long = SubSessionNote(task: id, name: "R", status: .error, message: String(repeating: "a", count: 400), link: "L")
-        #expect(long.line.contains(String(repeating: "a", count: SubSessionNote.maxMessage - 1) + "… — L"))
+        let long = SubSessionNote(task: id, name: "R", status: .error, message: String(repeating: "a", count: 4000), link: "L")
+        #expect(long.line.hasSuffix("a … [truncated; full output: tabs_read] — L"))
+        #expect(long.line.count < SubSessionNote.maxMessage + 80)
+        #expect(compactResult("short", max: 10) == ("short", false))
+        #expect(compactResult(nil, max: 10) == (nil, false))
         #expect(SubSessionNote(task: id, name: "R", status: .needsInput, message: nil, link: "L").line
                 == "[Hangar] sub-session \"R\" is waiting for input (needs-input) — L")
     }

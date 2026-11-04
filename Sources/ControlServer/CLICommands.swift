@@ -14,8 +14,9 @@ usage:
   hangar sessions list [--project P] [--git] [--json]   (--git: +added −removed lines and files vs the base, dirty, ↑ahead ↓behind)
   hangar sessions create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
   hangar sessions archive --session S --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
-  hangar sessions spawn --name N --prompt TEXT [--agent claude|codex] [--worktree [--base B]] [--parent S] [--json]
-    (a sub-session of the calling chat, from HANGAR_LEAF_ID, or of --parent; shown under it in the sidebar)
+  hangar sessions spawn --name N --prompt TEXT [--agent claude|codex] [--worktree [--base B]] [--parent S] [--notify-only] [--json]
+    (a sub-session of the calling chat, from HANGAR_LEAF_ID, or of --parent; shown under it in the sidebar;
+    --notify-only: its result only notifies the user instead of being typed into the parent)
   hangar sessions wait [S…] [--timeout SECONDS] [--parent S] [--json]   (until sub-sessions are done / need input / failed;
     default: all open sub-sessions of the calling chat; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
   hangar sessions restore --session S [--json]   (an archived session; re-creates its worktree from the kept branch)
@@ -49,7 +50,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "sessions restore": Grammar(values: ["--session"])
     case "sessions create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "sessions archive": Grammar(values: ["--session"], flags: ["--yes", "--force"])
-    case "sessions spawn": Grammar(values: ["--name", "--prompt", "--agent", "--base", "--parent"], flags: ["--worktree"])
+    case "sessions spawn": Grammar(values: ["--name", "--prompt", "--agent", "--base", "--parent"], flags: ["--worktree", "--notify-only"])
     case "sessions wait": Grammar(values: ["--timeout", "--parent"], positionals: 0...16)
     case "tabs open": Grammar(values: ["--session", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
@@ -137,7 +138,8 @@ public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -
         let worktree = flags.contains("--worktree")
         if values["--base"] != nil, !worktree { return .usage("--base requires --worktree") }
         guard let parent = values["--parent"] ?? callerLeaf else { return .usage("not inside a Hangar chat: pass --parent") }
-        call = .tasksSpawn(parent: parent, name: name, prompt: prompt, agent: agent, worktree: worktree, base: values["--base"])
+        call = .tasksSpawn(parent: parent, name: name, prompt: prompt, agent: agent, worktree: worktree, base: values["--base"],
+                           notifyOnly: flags.contains("--notify-only"))
     case "sessions wait":
         var timeout = ControlMethod.waitDefaultSeconds
         if let raw = values["--timeout"] {

@@ -663,7 +663,7 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: Sub-chats (#127)
+    // MARK: Sub-chats (#128)
 
     private func subIndent(_ depth: Int) -> CGFloat { CGFloat(min(depth, Theme.subChatMaxDepth)) * Theme.subChatIndent }
 

@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import ControlServer
 
-/// `sessions_spawn` / `sessions_wait` over the CLI, MCP and the socket, and Stop's `background_tasks` (#127).
+/// `sessions_spawn` / `sessions_wait` over the CLI, MCP and the socket, and Stop's `background_tasks` (#128).
 @Suite struct SubSessionsWireTests {
     let tab = UUID(), leaf = UUID()
     let caller = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
@@ -15,6 +15,8 @@ import Testing
              .call(.tasksSpawn(parent: me, name: "Release", prompt: "ship 1.2", agent: nil, worktree: false, base: nil), json: false)),
             (["sessions", "spawn", "--name", "R", "--prompt", "p", "--agent", "codex", "--worktree", "--base", "main", "--parent", "chat", "--json"],
              .call(.tasksSpawn(parent: "chat", name: "R", prompt: "p", agent: .codex, worktree: true, base: "main"), json: true)),
+            (["sessions", "spawn", "--name", "R", "--prompt", "p", "--notify-only"],
+             .call(.tasksSpawn(parent: me, name: "R", prompt: "p", agent: nil, worktree: false, base: nil, notifyOnly: true), json: false)),
             (["sessions", "wait"], .call(.tasksWait(sessions: [], parent: me, timeout: ControlMethod.waitDefaultSeconds), json: false)),
             (["sessions", "wait", "a1", "b2", "--timeout", "30"], .call(.tasksWait(sessions: ["a1", "b2"], parent: me, timeout: 30), json: false)),
         ]
@@ -46,6 +48,9 @@ import Testing
             guard case .failure(let e) = decode("tasks.spawn", bad) else { Issue.record("accepted \(bad)"); continue }
             #expect(e.code == .badParams)
         }
+        #expect(decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"notify"}"#)
+                == .success(.tasksSpawn(parent: nil, name: "R", prompt: "go", agent: nil, worktree: false, base: nil, notifyOnly: true)))
+        guard case .failure = decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"both"}"#) else { Issue.record("deliver"); return }
         #expect(decode("tasks.wait", #"{"sessions":["a","b"],"timeout":5}"#) == .success(.tasksWait(sessions: ["a", "b"], parent: nil, timeout: 5)))
         for bad in [#"{"sessions":"a"}"#, #"{"sessions":[1]}"#, #"{"sessions":[""]}"#, #"{"timeout":0}"#, #"{"timeout":3601}"#,
                     "{\"sessions\":[" + Array(repeating: "\"a\"", count: 17).joined(separator: ",") + "]}"] {

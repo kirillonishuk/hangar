@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Sub-sessions in the model (#127): where they live, the sidebar order, persistence.
+/// Sub-sessions in the model (#128): where they live, the sidebar order, persistence.
 @Suite struct SubSessionTests {
     private func sub(_ s: inout WorkspaceState, parent: UUID, name: String, kind: LeafKind,
                      mode: TaskMode = .mainFolder) throws -> (task: UUID, tab: UUID) {

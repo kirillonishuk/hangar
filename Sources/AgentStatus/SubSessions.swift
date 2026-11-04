@@ -78,9 +78,17 @@ public func runningBackgroundTasks(_ raw: Any?) -> Int? {
     return min(going.count, 99)
 }
 
+/// Cuts a sub-session's result for the parent's context (#128): at most `max` characters, the cut marked.
+public func compactResult(_ text: String?, max: Int) -> (text: String?, truncated: Bool) {
+    guard let text, !text.isEmpty else { return (nil, false) }
+    guard text.count > max else { return (text, false) }
+    let marker = " … [truncated; full output: tabs_read]"
+    return (String(text.prefix(max - marker.count)) + marker, true)
+}
+
 /// A note for the parent's agent: one line, the message cut to `maxMessage` characters.
 public struct SubSessionNote: Equatable, Sendable {
-    public static let maxMessage = 300
+    public static let maxMessage = 1500
     public var task: UUID
     public var name: String
     public var status: SubSessionStatus
@@ -104,7 +112,7 @@ public struct SubSessionNote: Equatable, Sendable {
         }
         let flat = (message ?? "").split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }.joined(separator: " ")
-        let cut = flat.count > Self.maxMessage ? String(flat.prefix(Self.maxMessage - 1)) + "…" : flat
+        let cut = compactResult(flat, max: Self.maxMessage).text ?? ""
         let safeName = name.replacingOccurrences(of: "\"", with: "'")
         return "[Hangar] sub-session \"\(safeName)\" \(what)" + (cut.isEmpty ? "" : ": " + cut) + " — " + link
     }

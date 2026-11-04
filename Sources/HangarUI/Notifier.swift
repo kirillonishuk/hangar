@@ -262,6 +262,7 @@ extension AppState {
             self.post(notice(for: item, app: app))
         }
         app.onLeafSeen = { [weak self] in self?.remove(leaf: $0) }
+        app.onSubSessionNotice = { [weak self] in self?.post($0) }
         // Only withdraws: a banner the old policy held back is not posted late.
         app.onBannerPolicy = { [weak self, weak app] in
             guard let self, let app else { return }

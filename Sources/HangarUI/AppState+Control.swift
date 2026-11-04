@@ -186,8 +186,8 @@ extension AppState {
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
 
-        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base):
-            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base)
+        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base, notifyOnly):
+            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base, notifyOnly: notifyOnly)
 
         case let .tasksWait(refs, parentRef, timeout):
             var ids: [UUID] = []
@@ -220,7 +220,7 @@ extension AppState {
 
     /// `sessions_spawn` (spec sub-sessions §5): a chat under the parent, its agent started at once with the prompt.
     private func spawn(_ id: Int, parentRef: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool,
-                       base: String?) async -> ControlResponse {
+                       base: String?, notifyOnly: Bool) async -> ControlResponse {
         func fail(_ e: ControlError) -> ControlResponse { ControlResponse(id: id, body: .failure(e)) }
         guard let parentRef else { return fail(ControlError(code: .badParams, message: "not inside a Hangar chat: pass parent")) }
         let parentId: UUID
@@ -228,47 +228,16 @@ extension AppState {
         case .success(let p): parentId = p
         case .failure(let e): return fail(e)
         }
-        guard let parent = state.tasks.first(where: { $0.id == parentId }) else { return fail(ControlError(code: .notFound, message: "parent is gone")) }
-        let free = state.isFreeChatTask(parent)
-        var mode = TaskMode.mainFolder, setup: String?
-        if worktree {
-            guard !free, let project = project(parent.projectId) else {
-                return fail(ControlError(code: .badParams, message: "a chat without a project has no repository for a worktree"))
-            }
-            switch await countingCreation({ await worktreeMode(project, name: name, base: base) }) {
-            case .success(let m): (mode, setup) = m
-            case .failure(let e): return fail(e)
-            }
-        }
-        guard state.tasks.contains(where: { $0.id == parentId }) else { return fail(ControlError(code: .notFound, message: "parent was removed meanwhile")) }
-        if free { ensureChatsFolder() }
         let kind: LeafKind = agent == .codex ? .codex : agent == .claude ? .claude : config.defaultAgent
-        var created: (task: UUID, tab: UUID)?
-        var setupTab: UUID?
-        perform { s in
-            guard let c = s.addSubSession(parent: parentId, name: name, kind: kind, mode: mode),
-                  let i = s.tasks.firstIndex(where: { $0.id == c.task }) else { return }
-            created = c
-            if let leaf = s.tasks[i].tabs.first(where: { $0.id == c.tab })?.root.leaves.first {
-                pendingPrompts[leaf.id] = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            if let setup {
-                let shell = s.addTab(taskId: c.task, kind: .shell)
-                s.tasks[i].activeTabId = c.tab
-                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
-                setupTab = shell
-            }
+        switch await spawnSubSession(parent: parentId, name: name, prompt: prompt, kind: kind, worktree: worktree, base: base,
+                                     delivery: notifyOnly ? .notify : .parent) {
+        case .failure(let e): return fail(e)
+        case .success(let taskId):
+            guard let task = state.tasks.first(where: { $0.id == taskId }) else { return fail(ControlError(code: .failed, message: "sub-session is gone")) }
+            let note = "\(kind.rawValue) may ask to trust the folder on first open; the user answers that in the tab (check with tabs read). "
+                + (notifyOnly ? "Its result only notifies the user." : "When it has fully finished, Hangar types a compact result into this chat's agent; or call sessions_wait")
+            return .ok(id, SpawnResult(task: taskInfo(task), link: subSessionLink(task.id), note: note))
         }
-        guard let created, let task = state.tasks.first(where: { $0.id == created.task }) else {
-            return fail(ControlError(code: .failed, message: "sub-session was not created"))
-        }
-        subWatches[task.id] = SubSessionWatch(created: clock())
-        terminals?.start(created.tab)
-        if let setupTab { terminals?.start(setupTab) }
-        if mode != .mainFolder { Task { await syncProjectStatuslines(host: project(task.projectId)?.host) } }
-        let note = "\(kind.rawValue) may ask to trust the folder on first open; the user answers that in the tab (check with tabs read). "
-            + "When it has fully finished, Hangar types a note into this chat's agent; or call sessions_wait"
-        return .ok(id, SpawnResult(task: taskInfo(task), link: subSessionLink(task.id), note: note))
     }
 
     /// A parent: a tab or leaf id of an open chat (the caller's `HANGAR_LEAF_ID`, chats without a project included), else a session ref.
@@ -451,7 +420,7 @@ extension AppState {
     }
 
     /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path, copy; a failed fetch fails.
-    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
+    func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
         typealias R = Result<(TaskMode, setup: String?), ControlError>
         let failed = { (message: String) in R.failure(ControlError(code: .failed, message: message)) }
         let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))

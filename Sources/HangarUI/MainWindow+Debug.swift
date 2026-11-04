@@ -137,7 +137,7 @@ extension MainWindowController {
         let shortcuts: [String: Shortcut] = [
             "newTab": .newTab, "closeTab": .closeTab, "splitRight": .splitRight, "splitDown": .splitDown,
             "prevTask": .prevTask, "nextTask": .nextTask, "toggleSidebar": .toggleSidebar, "toggleInspector": .toggleInspector,
-            "rename": .rename, "archiveTask": .archiveTask, "newFreeChat": .newFreeChat, "toggleDrawer": .toggleDrawer, "limits": .limits,
+            "rename": .rename, "archiveTask": .archiveTask, "newFreeChat": .newFreeChat, "newSubSession": .newSubSession, "toggleDrawer": .toggleDrawer, "limits": .limits,
             "prevTab": .prevTab, "nextTab": .nextTab, "focusLeft": .focusSplit(.left), "focusRight": .focusSplit(.right),
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,

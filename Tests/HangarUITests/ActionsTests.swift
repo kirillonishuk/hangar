@@ -53,7 +53,7 @@ import Workspace
         let (app, p, a, _) = try makeApp(externalEditor: "zed")
         defer { cleanup() }
         #expect(Action.list(for: .task(a), app: app)
-            == [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink, .openInEditor, .archive])
+            == [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink, .openInEditor, .archive])
         #expect(Action.list(for: .project(p), app: app)
             == [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink, .openInEditor, .removeProject])
         let tab = UUID()

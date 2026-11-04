@@ -4,7 +4,7 @@ import ControlServer
 import Foundation
 import Workspace
 
-/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #127): done detection, `sessions_wait` and the parent's notes.
+/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128): done detection, `sessions_wait` and the parent's notes.
 extension AppState {
     // MARK: Model
 
@@ -34,6 +34,54 @@ extension AppState {
     func subChatCounts(of id: UUID) -> (total: Int, working: Int) {
         let all = state.withSubSessions([state.tasks.first { $0.id == id }].compactMap { $0 }, expandedOnly: false).dropFirst()
         return (all.count, all.filter { displayState(of: $0.task) == .working }.count)
+    }
+
+    // MARK: Creation
+
+    /// Appended to every sub-session's prompt: its last message is all its parent gets (#128).
+    static let subSessionPromptSuffix = "\n\n(You run as a Hangar sub-session. When you are done, end with a concise final result: "
+        + "what you found or did, key paths and links, under 1500 characters. Only that last message goes back to the chat that started you.)"
+
+    /// MCP/CLI `sessions_spawn` and the «New Sub-chat» sheet: the sub-session, its agent started at once with the prompt.
+    func spawnSubSession(parent parentId: UUID, name: String, prompt: String, kind: LeafKind, worktree: Bool, base: String?,
+                         delivery: SubDelivery) async -> Result<UUID, ControlError> {
+        guard let parent = state.tasks.first(where: { $0.id == parentId && !$0.archived }) else {
+            return .failure(ControlError(code: .notFound, message: "parent is gone"))
+        }
+        let free = state.isFreeChatTask(parent)
+        var mode = TaskMode.mainFolder, setup: String?
+        if worktree {
+            guard !free, let project = project(parent.projectId) else {
+                return .failure(ControlError(code: .badParams, message: "a chat without a project has no repository for a worktree"))
+            }
+            switch await countingCreation({ await worktreeMode(project, name: name, base: base) }) {
+            case .success(let m): (mode, setup) = m
+            case .failure(let e): return .failure(e)
+            }
+        }
+        guard state.tasks.contains(where: { $0.id == parentId }) else { return .failure(ControlError(code: .notFound, message: "parent was removed meanwhile")) }
+        if free { ensureChatsFolder() }
+        var created: (task: UUID, tab: UUID)?
+        var setupTab: UUID?
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines) + Self.subSessionPromptSuffix
+        perform { s in
+            guard let c = s.addSubSession(parent: parentId, name: name, kind: kind, mode: mode, delivery: delivery),
+                  let i = s.tasks.firstIndex(where: { $0.id == c.task }) else { return }
+            created = c
+            if let leaf = s.tasks[i].tabs.first(where: { $0.id == c.tab })?.root.leaves.first { pendingPrompts[leaf.id] = text }
+            if let setup {
+                let shell = s.addTab(taskId: c.task, kind: .shell)
+                s.tasks[i].activeTabId = c.tab
+                if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first { pendingPrompts[leaf.id] = setup }
+                setupTab = shell
+            }
+        }
+        guard let created else { return .failure(ControlError(code: .failed, message: "sub-session was not created")) }
+        subWatches[created.task] = SubSessionWatch(created: clock())
+        terminals?.start(created.tab)
+        if let setupTab { terminals?.start(setupTab) }
+        if mode != .mainFolder { Task { await syncProjectStatuslines(host: project(parent.projectId)?.host) } }
+        return .success(created.task)
     }
 
     // MARK: Done detection
@@ -73,9 +121,11 @@ extension AppState {
         let w = watch(of: task)
         let st = state(ofLeaf: leaf.id)
         // The probe only matters once the turn is over.
+        let settling = w.started && (st == .done || st == .idle)
         var detached: Int?
-        if w.started, st == .done || st == .idle, let pid = statuses.status(leaf.id).agentPid { detached = probeDetached(pid) }
-        return AgentStatus.subSessionStatus(w, state: st, detached: detached, screenBusy: agentScreenBusy(leaf.id), now: clock())
+        if settling, let pid = statuses.status(leaf.id).agentPid { detached = probeDetached(pid) }
+        // The screen is read only while it can matter (it is the whole terminal's text).
+        return AgentStatus.subSessionStatus(w, state: st, detached: detached, screenBusy: settling && agentScreenBusy(leaf.id), now: clock())
     }
 
     func agentScreenBusy(_ leaf: UUID) -> Bool { codexBusy(terminals?.read(leaf)) }
@@ -87,6 +137,8 @@ extension AppState {
         let now = clock()
         for (id, w) in subWatches {
             guard let task = state.tasks.first(where: { $0.id == id }) else { subWatches[id] = nil; continue }
+            // Reported: nothing changes until the agent works again, and that hook resets `reported`.
+            if w.reported != nil { continue }
             let status = subSessionStatus(of: task)
             if status != .running {
                 if w.reported != status {
@@ -125,23 +177,35 @@ extension AppState {
     }
 
     private func report(_ task: HangarTask, status: SubSessionStatus) {
-        guard let parent = task.parentTaskId, state.tasks.contains(where: { $0.id == parent }) else { return }
         let info = subSessionInfo(task, status: status)
+        if task.subDelivery == .notify {
+            // Nothing for the parent's context: the user is told, as for an agent that finished out of sight.
+            if config.notifications, !task.muted {
+                onSubSessionNotice?(AgentNotice(id: "sub-" + task.id.uuidString, title: L10n.subChatResult(status), subtitle: task.name,
+                                                body: noticeBody(info.message ?? ""), leaf: agentLeaf(of: task)?.id, category: .open,
+                                                thread: (task.parentTaskId ?? task.id).uuidString, sound: noticeSound(config.sounds["done"])))
+            }
+            return
+        }
+        guard let parent = task.parentTaskId, state.tasks.contains(where: { $0.id == parent }) else { return }
         parentNotes[parent, default: []].removeAll { $0.task == task.id }
         parentNotes[parent, default: []].append(SubSessionNote(task: task.id, name: task.name, status: status, message: info.message, link: info.link))
         deliverNotes(to: parent)
     }
 
-    /// The agent's last message, else the last lines of its screen.
+    /// The agent's last message, else the last lines of its screen; compact (#128): the parent's context pays for it.
     func subSessionInfo(_ task: HangarTask, status: SubSessionStatus) -> SubSessionInfo {
         let leaf = agentLeaf(of: task)
         var message = subWatches[task.id]?.lastMessage
         if message == nil, let leaf, let screen = terminals?.read(leaf.id) {
             let tail = screenTail(screen, lines: 20).text
-            message = tail.isEmpty ? nil : String(tail.suffix(2000))
+            message = tail.isEmpty ? nil : tail
         }
+        let cut = compactResult(message, max: SubSessionInfo.maxMessage)
         let agent: TabKind? = leaf.map { $0.kind == .codex ? .codex : .claude }
-        return SubSessionInfo(id: task.id, name: task.name, status: status.rawValue, link: subSessionLink(task.id), agent: agent, message: message)
+        let tab = leaf.flatMap { l in task.tabs.first { $0.root.leaf(id: l.id) != nil }?.id }
+        return SubSessionInfo(id: task.id, name: task.name, status: status.rawValue, link: subSessionLink(task.id), agent: agent,
+                              message: cut.text, truncated: cut.truncated ? true : nil, tab: tab)
     }
 
     // MARK: sessions_wait

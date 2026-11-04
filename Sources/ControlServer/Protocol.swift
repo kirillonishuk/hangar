@@ -20,10 +20,12 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var agentPid: Int32?
     /// `--tab-agent`: one of Hangar's own `--settings` hooks (#119).
     public var tabAgent: Bool?
+    /// Stop's running `background_tasks` (0...99); nil — the payload had no such list.
+    public var background: Int?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
                 source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil, agentPid: Int32? = nil,
-                tabAgent: Bool? = nil) {
+                tabAgent: Bool? = nil, background: Int? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
@@ -36,6 +38,7 @@ public struct EventMessage: Codable, Equatable, Sendable {
         self.error = error
         self.agentPid = agentPid
         self.tabAgent = tabAgent
+        self.background = background
     }
 }
 
@@ -112,7 +115,8 @@ public enum ControlMessage: Equatable, Sendable {
             if let t = m.source, t.count > 64 { return .failure(.badField) }
             m.session = validSessionId(m.session)
             if let pid = m.agentPid, pid <= 0 { m.agentPid = nil }
-            m.message = m.message.map { String($0.prefix(500)) }
+            if let b = m.background, !(0...99).contains(b) { m.background = nil }
+            m.message = m.message.map { String($0.prefix(maxEventMessage(m.kind))) }
             // Details, not routing: an oversized one is dropped, the event itself still counts.
             if let t = m.tool, t.count > 64 { m.tool = nil }
             if let t = m.error, t.count > 64 { m.error = nil }
@@ -189,7 +193,7 @@ public enum RemoteMessage {
                 + (object["tabAgent"] as? Bool == true ? ["--tab-agent"] : [])
             guard var m = eventMessage(kind: kind, tab: tab, leaf: leaf, args: args, payload: payload)
             else { return .failure(.badField) }
-            m.message = m.message.map { String($0.prefix(500)) }
+            m.message = m.message.map { String($0.prefix(maxEventMessage(m.kind))) }
             message = .event(m)
         } else {
             let windows = statuslineWindows(payload)
@@ -354,6 +358,8 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     /// Commits of HEAD not in the base / of the base not in HEAD; nil without a base.
     public var ahead: Int?
     public var behind: Int?
+    /// The session that spawned this one (`sessions_spawn`); nil for a top-level session.
+    public var parent: UUID?
 
     public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
                 branch: String?, base: String?, tabs: [TabInfo], drawer: LeafInfo? = nil) {
@@ -465,3 +471,49 @@ public struct ArchiveResult: Codable, Equatable, Sendable {
         self.worktreeRemoved = worktreeRemoved
     }
 }
+
+public struct SpawnResult: Codable, Equatable, Sendable {
+    public var task: TaskInfo
+    /// `hangar://task/<id>`.
+    public var link: String
+    public var note: String?
+    public init(task: TaskInfo, link: String, note: String? = nil) {
+        self.task = task
+        self.link = link
+        self.note = note
+    }
+}
+
+/// One sub-session in `sessions_wait`: `status` is a `SubSessionStatus` raw value.
+public struct SubSessionInfo: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var status: String
+    public var link: String
+    public var agent: TabKind?
+    /// The agent's last message, else the last lines of its screen; at most `maxMessage` characters (keeps the parent's context small).
+    public var message: String?
+    /// The message was cut: the whole output is `tabs_read` of `tab`.
+    public var truncated: Bool?
+    /// The sub-session's agent tab, for `tabs_read`.
+    public var tab: UUID?
+    public static let maxMessage = 1500
+    public init(id: UUID, name: String, status: String, link: String, agent: TabKind?, message: String?, truncated: Bool? = nil, tab: UUID? = nil) {
+        self.truncated = truncated
+        self.tab = tab
+        self.id = id
+        self.name = name
+        self.status = status
+        self.link = link
+        self.agent = agent
+        self.message = message
+    }
+}
+
+public struct WaitResult: Codable, Equatable, Sendable {
+    public var sessions: [SubSessionInfo]
+    public init(sessions: [SubSessionInfo]) { self.sessions = sessions }
+}
+
+/// A turn's final answer (Stop, codex notify) is a sub-session's result (#128): longer than other hook texts.
+public func maxEventMessage(_ kind: HookKind) -> Int { kind == .stop || kind == .codexNotify ? 2000 : 500 }

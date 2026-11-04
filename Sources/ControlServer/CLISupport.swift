@@ -26,7 +26,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         // verify: проверить, когда codex будет установлен
         guard object["type"] as? String == "agent-turn-complete" else { return nil }
         m.session = validSessionId(object["thread-id"] as? String)
-        m.message = (object["last-assistant-message"] as? String).map { String($0.prefix(500)) }
+        m.message = (object["last-assistant-message"] as? String).map { String($0.prefix(maxEventMessage(kind))) }
     } else {
         m.session = validSessionId(object["session_id"] as? String)
         m.notificationType = object["notification_type"] as? String
@@ -34,11 +34,12 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         // Bounded here, before encoding: a long answer or command must not push the line past ControlServer.maxLine.
         // UserPromptSubmit's `prompt`: an auto-named chat takes its name from it (#116).
         let text = kind == .prompt ? object["prompt"] : object["message"] ?? object["last_assistant_message"]
-        m.message = (text as? String).map { String($0.prefix(500)) }
+        m.message = (text as? String).map { String($0.prefix(maxEventMessage(kind))) }
         if kind == .permissionRequest {
             m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
         }
+        if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
     let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]

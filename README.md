@@ -96,6 +96,7 @@ Changes are additive: Hangar only adds and removes its own entries, leaves yours
 | ⌘N | New chat |
 | ⇧⌘N | Add project |
 | ⌥⌘N | New chat without a project |
+| ⇧⌥⌘N | New sub-chat of the selected chat |
 | ⌘T / ⌘W | New tab / close tab (in a split: the focused pane) |
 | ⇧⌘W | Archive chat |
 | ⌘D / ⇧⌘D | Split right / split down |
@@ -128,7 +129,16 @@ hangar tabs read --tab <id> --lines 40
 hangar doctor
 ```
 
-A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only: chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only (plus sub-chats): chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
+
+MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `tabs_open`, `tabs_send`, `tabs_read`, `ssh_open`, `links_create`, `doctor`.
+
+**Sub-chats.** An agent can hand work to a sub-chat of its own chat: `sessions_spawn` (CLI `hangar sessions spawn --name N --prompt TEXT`) starts a full chat with its own terminal, shown under the parent in the sidebar. The parent hears back only when the sub-chat has fully finished — its agent stopped and no background task it started is still running — or needs input, or failed: Hangar types a compact one-line result (status, the sub-agent's final summary capped at ~1500 characters, a link) into the parent's agent once it is idle (never over what you are typing) — or, with `deliver: notify` / `--notify-only`, only notifies you, so the parent spends no tokens — and `sessions_wait` blocks until then (`still-running` on timeout: call again). You can also start one yourself: «New Sub-chat…» in a chat's menu, or ⇧⌥⌘N.
+
+```sh
+hangar sessions spawn --name release --prompt "Release 1.2 and wait until it is live"
+hangar sessions wait          # all open sub-chats of this chat
+```
 
 ## Build from source
 

@@ -1,3 +1,4 @@
+import AgentStatus
 import ControlServer
 import Exec
 import Foundation
@@ -185,6 +186,28 @@ extension AppState {
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
 
+        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base, notifyOnly):
+            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base, notifyOnly: notifyOnly)
+
+        case let .tasksWait(refs, parentRef, timeout):
+            var ids: [UUID] = []
+            if refs.isEmpty {
+                guard let parentRef else { return fail(ControlError(code: .badParams, message: "pass sessions or parent")) }
+                switch resolveParent(parentRef) {
+                case .success(let p): ids = state.subSessions(of: p).map(\.id)
+                case .failure(let e): return fail(e)
+                }
+                guard !ids.isEmpty else { return fail(ControlError(code: .notFound, message: "the calling chat has no open sub-sessions")) }
+            } else {
+                for ref in refs {
+                    switch resolveTask(ref) {
+                    case .success(let t): if !ids.contains(t) { ids.append(t) }
+                    case .failure(let e): return fail(e)
+                    }
+                }
+            }
+            return .ok(id, WaitResult(sessions: await waitForSubSessions(ids, timeout: .seconds(timeout))))
+
         case let .linksCreate(kind, ref):
             switch linkTarget(kind, ref) {
             case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
@@ -194,6 +217,40 @@ extension AppState {
     }
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
+
+    /// `sessions_spawn` (spec sub-sessions §5): a chat under the parent, its agent started at once with the prompt.
+    private func spawn(_ id: Int, parentRef: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool,
+                       base: String?, notifyOnly: Bool) async -> ControlResponse {
+        func fail(_ e: ControlError) -> ControlResponse { ControlResponse(id: id, body: .failure(e)) }
+        guard let parentRef else { return fail(ControlError(code: .badParams, message: "not inside a Hangar chat: pass parent")) }
+        let parentId: UUID
+        switch resolveParent(parentRef) {
+        case .success(let p): parentId = p
+        case .failure(let e): return fail(e)
+        }
+        let kind: LeafKind = agent == .codex ? .codex : agent == .claude ? .claude : config.defaultAgent
+        switch await spawnSubSession(parent: parentId, name: name, prompt: prompt, kind: kind, worktree: worktree, base: base,
+                                     delivery: notifyOnly ? .notify : .parent) {
+        case .failure(let e): return fail(e)
+        case .success(let taskId):
+            guard let task = state.tasks.first(where: { $0.id == taskId }) else { return fail(ControlError(code: .failed, message: "sub-session is gone")) }
+            let note = "\(kind.rawValue) may ask to trust the folder on first open; the user answers that in the tab (check with tabs read). "
+                + (notifyOnly ? "Its result only notifies the user." : "When it has fully finished, Hangar types a compact result into this chat's agent; or call sessions_wait")
+            return .ok(id, SpawnResult(task: taskInfo(task), link: subSessionLink(task.id), note: note))
+        }
+    }
+
+    /// A parent: a tab or leaf id of an open chat (the caller's `HANGAR_LEAF_ID`, chats without a project included), else a session ref.
+    func resolveParent(_ ref: String) -> Result<UUID, ControlError> {
+        if let uuid = UUID(uuidString: ref), let loc = location(ofLeaf: uuid) ?? location(ofTab: uuid).map({ (task: $0, tab: uuid) }),
+           state.tasks.contains(where: { $0.id == loc.task && !$0.archived }) {
+            return .success(loc.task)
+        }
+        if let uuid = UUID(uuidString: ref), let task = state.tasks.first(where: { !$0.archived && $0.drawer.leaf?.id == uuid }) {
+            return .success(task.id)
+        }
+        return resolveTask(ref)
+    }
 
     /// `tabs send` on a running leaf (Pane #302/#723/#945): Enter into a working codex is refused, into a working
     /// claude it is queued by claude; `wait` waits for claude's UserPromptSubmit hook (status working).
@@ -282,13 +339,15 @@ extension AppState {
 
     func taskInfo(_ task: HangarTask) -> TaskInfo {
         let project = project(task.projectId)
-        var path = project?.path ?? "", base: String?
+        var path = project?.path ?? (state.isFreeChatTask(task) ? state.chatsFolder : ""), base: String?
         var mode = "main-folder"
         if case .worktree(let p, _, let b) = task.mode { (path, base, mode) = (p, b, "worktree") }
-        return TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
+        var info = TaskInfo(id: task.id, name: task.name, project: task.projectId, projectName: project?.name ?? "",
                         status: displayState(of: task).rawValue, mode: mode, path: path, branch: task.branch, base: base,
                         tabs: task.tabs.map(tabInfo),
                         drawer: task.drawer.leaf.map { LeafInfo(id: $0.id, kind: tabKind($0.kind), status: displayState(ofLeaf: $0.id, kind: $0.kind).rawValue) })
+        info.parent = task.parentTaskId
+        return info
     }
 
     private func tabInfo(_ tab: Tab) -> TabInfo {
@@ -319,9 +378,9 @@ extension AppState {
     }
 
     /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
-    /// Hosts' terminals (#64, not in `tasks list`) are never found.
+    /// Hosts' terminals (#64, not in `tasks list`) are never found; chats without a project only as sub-sessions.
     func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
-        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && !isOutsideProjects(t) }
+        resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && (!isOutsideProjects(t) || t.parentTaskId != nil && state.isFreeChatTask(t)) }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
             .mapError { refError($0, ref, archived ? "archived session" : "session") }
     }
@@ -361,7 +420,7 @@ extension AppState {
     }
 
     /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path, copy; a failed fetch fails.
-    private func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
+    func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
         typealias R = Result<(TaskMode, setup: String?), ControlError>
         let failed = { (message: String) in R.failure(ControlError(code: .failed, message: message)) }
         let model = NewTaskModel(project: project, git: git(for: project), taskBranches: taskBranches(project.id))

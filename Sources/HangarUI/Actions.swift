@@ -25,6 +25,8 @@ enum ActionTarget: Equatable {
     /// «Сервер <host>» sheet.
     var checkServer: (String) -> Void = { _ in }
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
+    /// «Новый подчат…» of this chat (#128).
+    var newSubSession: (UUID) -> Void = { _ in }
     var projectSettings: (UUID) -> Void = { _ in }
     var toggleSidebar: () -> Void = {}
     var openSettings: () -> Void = {}
@@ -44,7 +46,7 @@ enum ActionTarget: Equatable {
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
-    case toggleMute, projectNotifications, projectSessions, removeFreeChat
+    case toggleMute, projectNotifications, projectSessions, removeFreeChat, newSubSession
     // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
     case detachPane, closePane
 
@@ -60,10 +62,10 @@ enum Action: CaseIterable {
             // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
             if app.isFreeChatTask(id) {
                 let open = app.state.tasks.first(where: { $0.id == id })?.archived == false
-                return [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
+                return (open ? [.newSubSession] : []) + [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
             }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + [.rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
+            return reconnect + [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
             return reconnect + [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
@@ -86,6 +88,7 @@ enum Action: CaseIterable {
         case .toggleDrawer: .toggleDrawer
         case .revealInFinder: .revealInFinder
         case .copyPath: .copyPath
+        case .newSubSession: .newSubSession
         default: nil
         }
     }
@@ -105,7 +108,7 @@ enum Action: CaseIterable {
 
     var icon: Icon {
         switch self {
-        case .newTask: .add
+        case .newTask, .newSubSession: .add
         case .rename: .rename
         case .togglePin: .pin
         case .projectSettings: .settings
@@ -131,6 +134,7 @@ enum Action: CaseIterable {
     @MainActor func title(for target: ActionTarget, app: AppState) -> String {
         switch self {
         case .newTask: L10n.newTask
+        case .newSubSession: L10n.newSubChat
         case .rename: L10n.rename
         case .togglePin:
             if case .task(let id) = target, app.state.tasks.first(where: { $0.id == id })?.pinned == true { L10n.unpin } else { L10n.pin }
@@ -174,6 +178,7 @@ enum Action: CaseIterable {
         // Sidebar rows can't host a text field in rail mode.
         case .rename: if case .tab = target { app.renameable(target) } else { !app.state.sidebarCollapsed }
         case .newTask: app.isAvailable(target)
+        case .newSubSession: if case .task(let id) = target { app.state.tasks.contains { $0.id == id && !$0.archived } } else { false }
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
         case .copyPath: app.path(of: target) != nil
@@ -190,6 +195,7 @@ enum Action: CaseIterable {
         guard isEnabled(for: target, app: app) else { return }
         switch (self, target) {
         case (.newTask, .project(let id)): ctx.newTask(id)
+        case (.newSubSession, .task(let id)): ctx.newSubSession(id)
         case (.projectSessions, .project(let id)): app.showSessionsView(projectId: id)
         case (.rename, _): app.renaming = target
         case (.togglePin, .task(let id)):

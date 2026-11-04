@@ -203,6 +203,14 @@ import Workspace
         #expect(task.tabs.count == 2)
         let shell = try #require(task.tabs.last?.root.leaves.first)
         #expect(app.launchContext(for: shell.id) == .created(prompt: "pnpm i"))
+        #expect(app.setupLeaves.contains(shell.id))
+        // A sub-session's worktree gets the same setup tab, closing itself and never saved (#127, #128).
+        let sub = try await ok(app, .tasksSpawn(parent: saved.task.id.uuidString, name: "c", prompt: "go", agent: .claude, worktree: true, base: "main"),
+                               SpawnResult.self)
+        let subTask = try #require(app.state.tasks.first { $0.id == sub.task.id })
+        let subShell = try #require(subTask.tabs.last?.root.leaves.first)
+        #expect(subTask.tabs.count == 2 && subShell.kind == .shell && app.setupLeaves.contains(subShell.id))
+        #expect(app.savedState.tasks.first { $0.id == subTask.id }?.tabs.count == 1)
     }
 
     /// tasks.create with a worktree on a host that isn't connected: says so in English, not "not a git repository".

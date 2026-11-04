@@ -15,6 +15,8 @@ public enum ParamType: Sendable {
     case int(ClosedRange<Int>)
     case oneOf([String])
     case list(of: [String], max: Int)
+    /// Free strings (session refs), each up to 256 bytes.
+    case refs(max: Int)
 }
 
 public struct ParamSpec: Sendable {
@@ -39,6 +41,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case tasksRestore = "tasks.restore"
     case sshOpen = "ssh.open"
     case linksCreate = "links.create"
+    case tasksSpawn = "tasks.spawn", tasksWait = "tasks.wait"
 
     /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#73); the socket method stays.
     public var toolName: String { legacyToolName.replacingOccurrences(of: "tasks_", with: "sessions_") }
@@ -46,12 +49,17 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public var legacyToolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
     /// Exposed by `hangar mcp --read-only`: listings and screen reads, nothing that changes Hangar or types into a terminal.
-    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor].contains(self) }
+    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait].contains(self) }
 
     public static let maxText = 32_768
     public static let maxPrompt = 16_384
     public static let maxNameChars = 200
     public static let sendWaitSeconds = 10
+    /// `sessions_wait` default: under Claude Code's 2-minute move of a long MCP call into the background.
+    public static let waitDefaultSeconds = 110
+    /// `sessions_wait` default for Codex, whose MCP calls time out after 60 s.
+    public static let waitCodexSeconds = 50
+    public static let waitMaxSeconds = 3600
 
     public var summary: String {
         switch self {
@@ -66,6 +74,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksArchive: "Archive a session. A worktree session's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived session. A worktree session's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
+        case .tasksSpawn: "Start a sub-session of the calling chat (or of parent): a full chat with its own terminal and agent, shown under the parent in Hangar's sidebar, started with prompt (Hangar asks it to end with a concise final result). Returns its id and hangar:// link. When it has fully finished (agent stopped and no background tasks left), needs input or failed, Hangar types a compact note (status, the agent's final summary capped at ~1500 characters, link) into the parent's agent terminal once it is idle — or, with deliver: notify, only notifies the user. Or block on sessions_wait."
+        case .tasksWait: "Wait until sub-sessions have fully finished (agent stopped and no background tasks it started are left), need input, or failed; or until timeout. Returns per sub-session: status (done, needs-input, error, still-running), id, name, link, tab, the agent's final message (capped at ~1500 characters; truncated: true when cut). still-running means the timeout passed: call again. Without sessions: all open sub-sessions of the calling chat. Full output: tabs_read."
         case .linksCreate: "Get a hangar:// link to a session, a tab, a project, an SSH host or a project's Sessions view. Clicking it in Hangar only selects and shows it; nothing runs."
         }
     }
@@ -125,6 +135,27 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [ParamSpec(name: "task", type: ref, required: true, summary: "Archived session id (or unique prefix) or name.")]
         case .sshOpen:
             return [ParamSpec(name: "host", type: .string(maxBytes: 255), required: true, summary: "ssh host (ssh config name or user@host).")]
+        case .tasksSpawn:
+            return [
+                ParamSpec(name: "name", type: .string(maxBytes: Self.maxNameChars * 4), required: true, summary: "Sub-session name, 1-200 characters."),
+                ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: true, summary: "The sub-session agent's task."),
+                ParamSpec(name: "agent", type: .oneOf(["claude", "codex"]), required: false, summary: "Agent to run (default: Hangar's default agent)."),
+                ParamSpec(name: "worktree", type: .bool, required: false, summary: "Work in a new git worktree of the parent's project instead of its main folder."),
+                ParamSpec(name: "base", type: .string(maxBytes: 255), required: false, summary: "Base branch for the worktree (only with worktree)."),
+                ParamSpec(name: "parent", type: ref, required: false,
+                          summary: "Parent session id/prefix/name or a tab/leaf id; default: the calling chat (HANGAR_LEAF_ID)."),
+                ParamSpec(name: "deliver", type: .oneOf(["parent", "notify"]), required: false,
+                          summary: "parent (default): Hangar types the compact result into the parent's agent; notify: only a notification for the user, nothing reaches the parent."),
+            ]
+        case .tasksWait:
+            return [
+                ParamSpec(name: "sessions", type: .refs(max: 16), required: false,
+                          summary: "Sub-session ids (or unique prefixes / names); default: all open sub-sessions of the calling chat."),
+                ParamSpec(name: "timeout", type: .int(1...Self.waitMaxSeconds), required: false,
+                          summary: "Seconds to wait at most (default \(Self.waitDefaultSeconds); \(Self.waitCodexSeconds) under Codex)."),
+                ParamSpec(name: "parent", type: ref, required: false,
+                          summary: "Whose sub-sessions to wait for when sessions is omitted; default: the calling chat (HANGAR_LEAF_ID)."),
+            ]
         case .linksCreate:
             return [
                 ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at: task (a session), tab, project, host, sessions (a project's Sessions view)."),
@@ -150,6 +181,10 @@ public enum ControlCall: Equatable, Sendable {
     /// `host`: checked with `validSSHHost` by the app.
     case sshOpen(host: String)
     case linksCreate(kind: LinkKind, ref: String)
+    /// `parent`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
+    /// `notifyOnly`: the result only notifies the user; nothing is typed into the parent (#128).
+    case tasksSpawn(parent: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool, base: String?, notifyOnly: Bool = false)
+    case tasksWait(sessions: [String], parent: String?, timeout: Int)
 
     public static let defaultLines = 100
 
@@ -167,6 +202,8 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksRestore: .tasksRestore
         case .sshOpen: .sshOpen
         case .linksCreate: .linksCreate
+        case .tasksSpawn: .tasksSpawn
+        case .tasksWait: .tasksWait
         }
     }
 
@@ -199,6 +236,17 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksRestore(task): p = ["task": task]
         case let .sshOpen(host): p = ["host": host]
         case let .linksCreate(kind, ref): p = ["kind": kind.rawValue, "ref": ref]
+        case let .tasksSpawn(parent, name, prompt, agent, worktree, base, notifyOnly):
+            p = ["name": name, "prompt": prompt]
+            if notifyOnly { p["deliver"] = "notify" }
+            p["parent"] = parent
+            p["agent"] = agent?.rawValue
+            if worktree { p["worktree"] = true }
+            p["base"] = base
+        case let .tasksWait(sessions, parent, timeout):
+            p = ["timeout": timeout]
+            if !sessions.isEmpty { p["sessions"] = sessions }
+            p["parent"] = parent
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -230,6 +278,14 @@ public enum ControlCall: Equatable, Sendable {
         var bools: [String: Bool] = [:]
         var ints: [String: Int] = [:]
         var lists: [String: [String]] = [:]
+    }
+
+    /// Shared by `tasks.create` and `tasks.spawn`.
+    private static func validName(_ raw: String) throws -> String {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1...ControlMethod.maxNameChars).contains(name.count) else { throw bad("\"name\" must be 1-\(ControlMethod.maxNameChars) characters") }
+        guard !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || invisibleSeparators.contains($0.value) }) else { throw bad("\"name\" must not contain control characters") }
+        return name
     }
 
     private static func validate(_ m: ControlMethod, _ params: [String: Any]) throws -> Values {
@@ -269,6 +325,16 @@ public enum ControlCall: Equatable, Sendable {
                     out.append(s)
                 }
                 v.lists[n] = out
+            case let .refs(max):
+                guard let a = raw as? [Any], a.count <= max else { throw bad("\"\(n)\" must be an array of at most \(max) strings") }
+                var out: [String] = []
+                for item in a {
+                    guard let s = item as? String, !s.isEmpty, s.utf8.count <= 256, !s.unicodeScalars.contains("\0") else {
+                        throw bad("\"\(n)\" items must be non-empty strings of at most 256 bytes")
+                    }
+                    out.append(s)
+                }
+                v.lists[n] = out
             }
         }
         return v
@@ -284,9 +350,7 @@ public enum ControlCall: Equatable, Sendable {
             return .projectsAdd(path: path, host: host)
         case .tasksList: return .tasksList(project: v.strings["project"], git: v.bools["git"] ?? false)
         case .tasksCreate:
-            let name = v.strings["name"]!.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard (1...ControlMethod.maxNameChars).contains(name.count) else { throw bad("\"name\" must be 1-\(ControlMethod.maxNameChars) characters") }
-            guard !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || invisibleSeparators.contains($0.value) }) else { throw bad("\"name\" must not contain control characters") }
+            let name = try validName(v.strings["name"]!)
             let worktree = v.bools["worktree"] ?? false
             if v.strings["base"] != nil, !worktree { throw bad("\"base\" requires worktree: true") }
             return .tasksCreate(project: v.strings["project"]!, name: name, worktree: worktree, base: v.strings["base"], prompt: v.strings["prompt"])
@@ -309,6 +373,16 @@ public enum ControlCall: Equatable, Sendable {
         case .tasksRestore: return .tasksRestore(task: v.strings["task"]!)
         case .sshOpen: return .sshOpen(host: v.strings["host"]!)
         case .linksCreate: return .linksCreate(kind: LinkKind(rawValue: v.strings["kind"]!)!, ref: v.strings["ref"]!)
+        case .tasksSpawn:
+            let name = try validName(v.strings["name"]!)
+            let worktree = v.bools["worktree"] ?? false
+            if v.strings["base"] != nil, !worktree { throw bad("\"base\" requires worktree: true") }
+            let prompt = v.strings["prompt"]!
+            guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw bad("\"prompt\" must not be blank") }
+            return .tasksSpawn(parent: v.strings["parent"], name: name, prompt: prompt, agent: v.strings["agent"].flatMap(TabKind.init(rawValue:)),
+                               worktree: worktree, base: v.strings["base"], notifyOnly: v.strings["deliver"] == "notify")
+        case .tasksWait:
+            return .tasksWait(sessions: v.lists["sessions"] ?? [], parent: v.strings["parent"], timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
         }
     }
 

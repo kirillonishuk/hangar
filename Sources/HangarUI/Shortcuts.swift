@@ -1,7 +1,7 @@
 import AppKit
 
 public enum Shortcut: Equatable, CaseIterable {
-    case newTask, newFreeChat, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
+    case newTask, newFreeChat, newSubSession, newTab, closeTab, splitRight, splitDown, tab(Int), prevTask, nextTask, toggleInspector, toggleSidebar, addProject, settings
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
@@ -9,7 +9,7 @@ public enum Shortcut: Equatable, CaseIterable {
     case nextWorking
 
     public static var allCases: [Shortcut] {
-        [.newTask, .newFreeChat, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
+        [.newTask, .newFreeChat, .newSubSession, .newTab, .closeTab, .splitRight, .splitDown] + (1...9).map { .tab($0) }
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .inspectorGit, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
@@ -22,6 +22,7 @@ public enum Shortcut: Equatable, CaseIterable {
         switch self {
         case .newTask: (.command, 45, "N")
         case .newFreeChat: ([.command, .option], 45, "N")
+        case .newSubSession: ([.command, .option, .shift], 45, "N")  // a sub-chat of the selected chat (#128)
         case .addProject: ([.command, .shift], 45, "N")
         case .newTab: (.command, 17, "T")
         case .closeTab: (.command, 13, "W")

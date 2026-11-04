@@ -77,7 +77,8 @@ import AgentStatus
             let line = ControlMessage.event(m).encoded()
             #expect(line.count < ControlServer.maxLine / 4)
             #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
-            #expect((m.message ?? m.command)?.count == 500)
+            // A Stop's answer is a sub-session's result (#128): kept longer than other hook texts.
+            #expect((m.message ?? m.command)?.count == (kind == "stop" ? 2000 : 500))
         }
     }
 
@@ -86,7 +87,7 @@ import AgentStatus
         let payload = #"{"type":"agent-turn-complete","thread-id":"t1","last-assistant-message":"\#(big)"}"#
         guard let m = eventMessage(kind: "codex-notify", tab: tab, leaf: leaf, args: [payload], payload: nil) else { Issue.record("nil"); return }
         let line = ControlMessage.event(m).encoded()
-        #expect(line.count < ControlServer.maxLine / 4 && m.message?.count == 500)
+        #expect(line.count < ControlServer.maxLine / 4 && m.message?.count == 2000)
         #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
     }
 

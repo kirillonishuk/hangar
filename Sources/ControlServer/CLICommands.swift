@@ -14,6 +14,11 @@ usage:
   hangar sessions list [--project P] [--git] [--json]   (--git: +added −removed lines and files vs the base, dirty, ↑ahead ↓behind)
   hangar sessions create --project P --name N [--worktree [--base B]] [--prompt TEXT] [--json]
   hangar sessions archive --session S --yes [--force] [--json]   (removes a worktree, keeps its branch; --force: even with uncommitted or ignored files)
+  hangar sessions spawn --name N --prompt TEXT [--agent claude|codex] [--worktree [--base B]] [--parent S] [--notify-only] [--json]
+    (a sub-session of the calling chat, from HANGAR_LEAF_ID, or of --parent; shown under it in the sidebar;
+    --notify-only: its result only notifies the user instead of being typed into the parent)
+  hangar sessions wait [S…] [--timeout SECONDS] [--parent S] [--json]   (until sub-sessions are done / need input / failed;
+    default: all open sub-sessions of the calling chat; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
   hangar sessions restore --session S [--json]   (an archived session; re-creates its worktree from the kept branch)
   hangar tabs open --session S --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
@@ -24,7 +29,7 @@ usage:
   (S: a session id, a unique id prefix or a name; T: a tab id, a leaf id or a session's drawer leaf id from `sessions list`, or a unique prefix)
   (--json keeps the keys "tasks" and "task" for compatibility; `tasks …` and `--task` still work as aliases)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
-  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor)
+  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor, sessions_wait)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """
@@ -45,6 +50,8 @@ private func grammar(_ command: String) -> Grammar? {
     case "sessions restore": Grammar(values: ["--session"])
     case "sessions create": Grammar(values: ["--project", "--name", "--base", "--prompt"], flags: ["--worktree"])
     case "sessions archive": Grammar(values: ["--session"], flags: ["--yes", "--force"])
+    case "sessions spawn": Grammar(values: ["--name", "--prompt", "--agent", "--base", "--parent"], flags: ["--worktree", "--notify-only"])
+    case "sessions wait": Grammar(values: ["--timeout", "--parent"], positionals: 0...16)
     case "tabs open": Grammar(values: ["--session", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
@@ -67,7 +74,8 @@ private func canonicalFlag(_ flag: String) -> String { flag == "--task" ? "--ses
 /// `ssh` is the one single-word command; the rest are `<noun> <verb>`.
 private func commandWords(_ args: [String]) -> Int { args.first == "ssh" ? 1 : 2 }
 
-public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
+/// `callerLeaf`: `HANGAR_LEAF_ID` of the terminal the CLI runs in, the default parent of `sessions spawn|wait`.
+public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -> CLIParse {
     let args = canonicalCommand(args)
     let n = commandWords(args)
     let command = args.prefix(n).joined(separator: " ")
@@ -119,6 +127,30 @@ public func parseCLI(_ args: [String], cwd: String) -> CLIParse {
         let worktree = flags.contains("--worktree")
         if values["--base"] != nil, !worktree { return .usage("--base requires --worktree") }
         call = .tasksCreate(project: project, name: name, worktree: worktree, base: values["--base"], prompt: values["--prompt"])
+    case "sessions spawn":
+        guard let name = required("name") else { return missing("name") }
+        guard let prompt = required("prompt") else { return missing("prompt") }
+        var agent: TabKind?
+        if let raw = values["--agent"] {
+            guard raw == "claude" || raw == "codex" else { return .usage("--agent must be claude or codex") }
+            agent = TabKind(rawValue: raw)
+        }
+        let worktree = flags.contains("--worktree")
+        if values["--base"] != nil, !worktree { return .usage("--base requires --worktree") }
+        guard let parent = values["--parent"] ?? callerLeaf else { return .usage("not inside a Hangar chat: pass --parent") }
+        call = .tasksSpawn(parent: parent, name: name, prompt: prompt, agent: agent, worktree: worktree, base: values["--base"],
+                           notifyOnly: flags.contains("--notify-only"))
+    case "sessions wait":
+        var timeout = ControlMethod.waitDefaultSeconds
+        if let raw = values["--timeout"] {
+            guard let n = Int(raw), (1...ControlMethod.waitMaxSeconds).contains(n) else {
+                return .usage("--timeout must be an integer in 1...\(ControlMethod.waitMaxSeconds)")
+            }
+            timeout = n
+        }
+        let parent = values["--parent"] ?? callerLeaf
+        guard !words.isEmpty || parent != nil else { return .usage("not inside a Hangar chat: pass sub-sessions or --parent") }
+        call = .tasksWait(sessions: words, parent: parent, timeout: timeout)
     case "sessions archive":
         guard let task = required("session") else { return missing("session") }
         guard flags.contains("--yes") else { return .confirmRequired("refusing to archive without --yes") }
@@ -165,6 +197,8 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .tasksRestore: 120
     // A few git runs per session, possibly over ssh.
     case .tasksList(_, true): 60
+    case .tasksSpawn: 300
+    case let .tasksWait(_, _, timeout): Double(timeout + 15)
     default: 10
     }
 }
@@ -222,6 +256,16 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = (try? d.decode(ArchiveResult.self, from: result)).map { "archived \(id($0.task))" + ($0.worktreeRemoved ? "; worktree removed, branch kept" : "") }
     case .linksCreate:
         text = (try? d.decode(LinkResult.self, from: result))?.url
+    case .tasksSpawn:
+        text = (try? d.decode(SpawnResult.self, from: result)).map { r in
+            "session \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "") + "\n" + r.link + (r.note.map { "\nnote: " + $0 } ?? "")
+        }
+    case .tasksWait:
+        text = (try? d.decode(WaitResult.self, from: result)).map { r in
+            r.sessions.map { s in
+                "\(id8(s.id))  \(s.status)  \(s.name)  \(s.link)" + (s.message.map { "\n    " + $0.replacingOccurrences(of: "\n", with: "\n    ") } ?? "")
+            }.joined(separator: "\n")
+        }
     }
     return text ?? String(decoding: result, as: UTF8.self)
 }

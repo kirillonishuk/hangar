@@ -12,9 +12,14 @@ public struct MCPSession {
     private let call: (ControlCall) -> Result<Data, ControlError>
     /// `hangar mcp --read-only`: only `ControlMethod.readOnly` tools are listed or run.
     private let readOnly: Bool
+    /// `HANGAR_LEAF_ID` of the terminal the agent runs in: the default `parent` of `sessions_spawn` / `sessions_wait`.
+    private let callerLeaf: String?
+    /// `clientInfo.name` from `initialize`: Codex gets a `sessions_wait` default under its 60 s tool timeout.
+    private var clientName: String?
 
-    public init(readOnly: Bool = false, call: @escaping (ControlCall) -> Result<Data, ControlError>) {
+    public init(readOnly: Bool = false, callerLeaf: String? = nil, call: @escaping (ControlCall) -> Result<Data, ControlError>) {
         self.readOnly = readOnly
+        self.callerLeaf = callerLeaf.flatMap { UUID(uuidString: $0) }.map { $0.uuidString.lowercased() }
         self.call = call
     }
 
@@ -40,6 +45,7 @@ public struct MCPSession {
         }
         switch method {
         case "initialize":
+            clientName = ((params["clientInfo"] as? [String: Any])?["name"] as? String).map { String($0.prefix(64)) }
             let asked = params["protocolVersion"] as? String
             let version = asked.flatMap { mcpProtocolVersions.contains($0) ? $0 : nil } ?? mcpProtocolVersions[0]
             return Self.result(id, ["protocolVersion": version, "capabilities": ["tools": [String: Any]()],
@@ -66,6 +72,10 @@ public struct MCPSession {
             if let session = arguments.removeValue(forKey: "session") {
                 guard arguments["task"] == nil else { return Self.result(id, Self.toolText("pass \"session\" or \"task\", not both", isError: true)) }
                 arguments["task"] = session
+            }
+            if m == .tasksSpawn || m == .tasksWait, arguments["parent"] == nil, let callerLeaf { arguments["parent"] = callerLeaf }
+            if m == .tasksWait, arguments["timeout"] == nil {
+                arguments["timeout"] = clientName == "codex-mcp-client" ? ControlMethod.waitCodexSeconds : ControlMethod.waitDefaultSeconds
             }
             let outcome = ControlCall.decode(method: m.rawValue, params: arguments).flatMap(call)
             switch outcome {
@@ -131,6 +141,7 @@ public struct MCPSession {
             case let .int(range): schema = ["type": "integer", "minimum": range.lowerBound, "maximum": range.upperBound]
             case let .oneOf(options): schema = ["type": "string", "enum": options]
             case let .list(options, max): schema = ["type": "array", "items": ["type": "string", "enum": options], "maxItems": max]
+            case let .refs(max): schema = ["type": "array", "items": ["type": "string", "maxLength": 256], "maxItems": max]
             }
             schema["description"] = p.summary
             properties[schemaName(p.name)] = schema

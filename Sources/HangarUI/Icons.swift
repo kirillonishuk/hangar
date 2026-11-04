@@ -312,16 +312,17 @@ struct IconView: View {
 }
 
 /// How a status dot is drawn (#133): not by colour alone. Working — a ring half filled, done — solid until seen,
-/// then hollow like idle; waiting, failed and limit are solid (their rows carry a word); with «Differentiate without
-/// colour» failure is a diamond, so it never reads as a done dot. All static: nothing animates but waiting's one pulse.
+/// then a ring; idle — a smaller solid dot (a hollow one read as an empty radio button, #130); waiting, failed and
+/// limit are solid (their rows carry a word); with «Differentiate without colour» failure is a diamond, so it never
+/// reads as a done dot. All static: nothing animates but waiting's one pulse.
 enum StatusMark: Equatable {
-    case solid, hollow, half, diamond
+    case solid, small, hollow, half, diamond
 
     static func of(_ state: AgentState, seen: Bool, differentiateWithoutColor: Bool) -> StatusMark {
         switch state {
         case .working: .half
         case .done: seen ? .hollow : .solid
-        case .idle: .hollow
+        case .idle: .small
         case .failed: differentiateWithoutColor ? .diamond : .solid
         case .waiting, .limit: .solid
         }
@@ -349,14 +350,14 @@ struct StatusDot: View {
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0
-    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); a hollow mark has no colour to frame — a ring
-    /// around it read as an empty radio button (#130), so it is drawn in `onAccent` itself (idle at .4).
+    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle and a seen done have no colour to frame — a
+    /// ring around them read as an empty radio button (#130), so they are drawn in `onAccent` itself (idle at .4).
     var onAccent = false
     @State private var scale: CGFloat = 1
 
     var body: some View {
         let mark = StatusMark.of(state, seen: seen, differentiateWithoutColor: Theme.differentiateWithoutColor)
-        let quiet = onAccent && mark == .hollow
+        let quiet = onAccent && (mark == .hollow || mark == .small)
         let ring = onAccent && !quiet ? Theme.ui.onAccent : border
         let ringWidth = onAccent ? (quiet ? 0 : Theme.railDotBorder) : borderWidth
         let color = quiet ? Theme.ui.onAccent.opacity(state == .idle ? Theme.Opacity.inactive : 1) : Theme.ui.status(state)
@@ -380,6 +381,7 @@ struct StatusDot: View {
     @ViewBuilder private static func shape(_ mark: StatusMark, color: Color) -> some View {
         switch mark {
         case .solid: Circle().fill(color)
+        case .small: Circle().fill(color).scaleEffect(Theme.statusIdleScale)
         case .hollow: Circle().strokeBorder(color, lineWidth: Theme.statusDotStroke)
         case .half:
             ZStack {

@@ -133,11 +133,13 @@ import Workspace
         #expect(StatusMark.of(.working, seen: false, differentiateWithoutColor: false) == .half)
         #expect(StatusMark.of(.done, seen: false, differentiateWithoutColor: false) == .solid)
         #expect(StatusMark.of(.done, seen: true, differentiateWithoutColor: false) == .hollow)
-        #expect(StatusMark.of(.idle, seen: false, differentiateWithoutColor: false) == .hollow)
+        #expect(StatusMark.of(.idle, seen: false, differentiateWithoutColor: false) == .small)
+        #expect(StatusMark.of(.idle, seen: true, differentiateWithoutColor: true) == .small)  // never a ring (#130)
         #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: false) == .solid)
         #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: true) == .diamond)
         // With the system option every state an icon-only place shows (tab, rail) has its own mark or halo.
         let marks = [AgentState.working, .done, .idle, .failed].map { StatusMark.of($0, seen: false, differentiateWithoutColor: true) }
+            + [StatusMark.of(.done, seen: true, differentiateWithoutColor: true)]
         #expect(Set(marks.map { "\($0)" }).count == marks.count)
     }
 

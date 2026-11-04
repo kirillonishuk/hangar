@@ -32,6 +32,8 @@ public enum Theme {
 
     /// Hollow and half status marks (#133): the icons' line, so a 6–8 pt ring keeps a visible hole.
     public static let statusDotStroke: CGFloat = iconStroke
+    /// Idle: a solid dot this share of the others — quieter, and a different shape from the done ring (#133).
+    public static let statusIdleScale: CGFloat = 0.75
     /// «Differentiate without colour» failure: a square this share of the dot, turned 45° (its corners just reach the dot's edge).
     public static let statusDiamondScale: CGFloat = 0.75
     /// `waiting` halo: ring of `waiting` at 25%.

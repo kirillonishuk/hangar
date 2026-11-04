@@ -57,7 +57,11 @@ func fuzzyMatch(_ query: String, _ text: String) -> FuzzyMatch? {
 
 struct PaletteItem: Equatable, Identifiable {
     enum Kind: Equatable { case task, file, command }
-    enum Target: Equatable { case task(UUID), file(String), command(Shortcut) }
+    enum Target: Equatable {
+        case task(UUID), file(String), command(Shortcut)
+        /// «Запустить: Dev server» — a project action of the selected chat (#133).
+        case action(String)
+    }
 
     let target: Target
     /// Shown and matched: task name, file name, command title.
@@ -75,12 +79,13 @@ struct PaletteItem: Equatable, Identifiable {
         subtitle = slash.map { String(path[..<$0]) } ?? ""
     }
     init(command: Shortcut, title: String) { target = .command(command); self.title = title }
+    init(action name: String, title: String) { target = .action(name); self.title = title }
 
     var kind: Kind {
         switch target {
         case .task: .task
         case .file: .file
-        case .command: .command
+        case .command, .action: .command
         }
     }
 
@@ -89,6 +94,7 @@ struct PaletteItem: Equatable, Identifiable {
         case .task(let id): "t:" + id.uuidString
         case .file(let path): "f:" + path
         case .command(let sc): "c:\(sc)"
+        case .action(let name): "a:" + name
         }
     }
 }

@@ -186,6 +186,7 @@ import Workspace
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
         case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
+        case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
     }
 
 
@@ -1009,6 +1010,7 @@ import Workspace
         case .attentionFilter: s(.cmdAttentionOnly)
         case .nextAttention: s(.cmdNextAttention)
         case .nextWorking: s(.cmdNextWorking)
+        case .runAction: s(.cmdRunAction)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
         case .tab(let n): "\(n)"
@@ -1040,6 +1042,50 @@ extension L10n {
     static var subChatHint: String { s(.subChatHint) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }
+    static var actionNotRunning: String { s(.actionNotRunning) }
+    static var actionRunHint: String { s(.actionRunHint) }
+    static var actionFinished: String { s(.actionFinished) }
+    static var actionStopped: String { s(.actionStopped) }
+    static func actionRun(_ value: String) -> String { f(.actionRun, value) }
+    static var actionsMenuHelp: String { s(.actionsMenuHelp) }
+    static func actionStop(_ value: String) -> String { f(.actionStop, value) }
+    static var actionsEdit: String { s(.actionsEdit) }
+    static var actionRunningNote: String { s(.actionRunningNote) }
+    static func actionPalette(_ value: String) -> String { f(.actionPalette, value) }
+    static var cmdRunAction: String { s(.cmdRunAction) }
+    static func actionConfirmTitle(_ value: String) -> String { f(.actionConfirmTitle, value) }
+    static func actionConfirmInfo(_ value: String) -> String { f(.actionConfirmInfo, value) }
+    static var actionConfirmButton: String { s(.actionConfirmButton) }
+    static var sectionActions: String { s(.sectionActions) }
+    static var actionName: String { s(.actionName) }
+    static var actionCommand: String { s(.actionCommand) }
+    static var actionRestart: String { s(.actionRestart) }
+    static var actionRestartHelp: String { s(.actionRestartHelp) }
+    static var actionRemove: String { s(.actionRemove) }
+    static var actionAdd: String { s(.actionAdd) }
+    static var actionFromRepo: String { s(.actionFromRepo) }
+    static var actionFromRepoHelp: String { s(.actionFromRepoHelp) }
+    static var actionsHint: String { s(.actionsHint) }
+    static var actionIncomplete: String { s(.actionIncomplete) }
+    static func actionDuplicate(_ value: String) -> String { f(.actionDuplicate, value) }
+    static func actionNotStarted(_ value: String) -> String { f(.actionNotStarted, value) }
+    static func actionFolderMissing(_ value: String) -> String { f(.actionFolderMissing, value) }
+    static var actionFolder: String { s(.actionFolder) }
+    static var actionFolderPlaceholder: String { s(.actionFolderPlaceholder) }
+    static var actionFolderHelp: String { s(.actionFolderHelp) }
+    static var actionFolderInvalid: String { s(.actionFolderInvalid) }
+    static var actionMoveUp: String { s(.actionMoveUp) }
+    static var actionMoveDown: String { s(.actionMoveDown) }
+    static var actionEditOwn: String { s(.actionEditOwn) }
+    static var actionHide: String { s(.actionHide) }
+    static var actionShow: String { s(.actionShow) }
+    static var actionHiddenNote: String { s(.actionHiddenNote) }
+    static var actionBlank: String { s(.actionBlank) }
+    static var actionSearch: String { s(.actionSearch) }
+    static var actionDiscovering: String { s(.actionDiscovering) }
+    static var actionNoSuggestions: String { s(.actionNoSuggestions) }
+    static var actionRootGroup: String { s(.actionRootGroup) }
+    static var actionRowMenu: String { s(.actionRowMenu) }
     static var removeFromList: String { s(.removeFromList) }
     static func removeFreeChatConfirm(_ name: String) -> String { f(.removeFreeChatConfirm, name) }
     static var removeFreeChatInfo: String { f(.removeFreeChatInfo, Shortcut.sessions.label) }

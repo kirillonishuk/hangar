@@ -23,13 +23,15 @@ usage:
   hangar tabs open --session S --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  hangar actions list [--session S] [--json]   (the session's project actions; default: the calling chat)
+  hangar actions run --name N [--session S] [--json]   (runs it in its own tab; a running copy is restarted unless the action opens a new tab)
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
   hangar link session|tab|project|host|sessions <ref> [--json]   (prints a hangar:// link; opening it only shows, nothing runs;
     host: an SSH HOSTS name; sessions: the «Sessions» view of project <ref>)
   (S: a session id, a unique id prefix or a name; T: a tab id, a leaf id or a session's drawer leaf id from `sessions list`, or a unique prefix)
   (--json keeps the keys "tasks" and "task" for compatibility; `tasks …` and `--task` still work as aliases)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
-  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor, sessions_wait)
+  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor, sessions_wait, actions_list)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """
@@ -56,6 +58,8 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
     case "ssh": Grammar(positionals: 1...1)
+    case "actions list": Grammar(values: ["--session"])
+    case "actions run": Grammar(values: ["--session", "--name"])
     case "link session", "link tab", "link project", "link host", "link sessions": Grammar(positionals: 1...1)
     default: nil
     }
@@ -162,6 +166,13 @@ public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -
         call = .tabsOpen(task: task, kind: kind, prompt: values["--prompt"])
     case "ssh":
         call = .sshOpen(host: words[0])
+    case "actions list":
+        guard let task = values["--session"] ?? callerLeaf else { return .usage("not inside a Hangar chat: pass --session") }
+        call = .actionsList(task: task)
+    case "actions run":
+        guard let name = required("name") else { return missing("name") }
+        guard let task = values["--session"] ?? callerLeaf else { return .usage("not inside a Hangar chat: pass --session") }
+        call = .actionsRun(task: task, name: name)
     case "tabs send":
         guard let tab = required("tab") else { return missing("tab") }
         if flags.contains("--enter") { keys.append(.enter) }
@@ -199,6 +210,8 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     case .tasksList(_, true): 60
     case .tasksSpawn: 300
     case let .tasksWait(_, _, timeout): Double(timeout + 15)
+    // A remote session's repository file is read over ssh; a restart waits up to 3 s for the old run to stop.
+    case .actionsList, .actionsRun: 30
     default: 10
     }
 }
@@ -260,6 +273,16 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
         text = (try? d.decode(SpawnResult.self, from: result)).map { r in
             "session \(id(r.task.id))" + (r.task.tabs.first.map { " tab \(id($0.id))" } ?? "") + "\n" + r.link + (r.note.map { "\nnote: " + $0 } ?? "")
         }
+    case .actionsList:
+        text = (try? d.decode(ActionsResult.self, from: result)).map { r in
+            let rows = r.actions.map { a in
+                "\(a.name)  \(a.command)" + (a.folder.map { "  (in \($0))" } ?? "") + (a.source == "repo" ? "  (repo" + (a.approved ? ")" : ", not approved yet)") : "")
+                    + (a.runningTab.map { "  running in tab \(id8($0))" } ?? "")
+            }
+            return (rows.isEmpty ? ["no actions"] : rows).joined(separator: "\n") + (r.error.map { "\nwarning: " + $0 } ?? "")
+        }
+    case .actionsRun:
+        text = (try? d.decode(ActionRunResult.self, from: result)).map { "\($0.restarted ? "restarted" : "started") in tab \(id($0.tab.id))" }
     case .tasksWait:
         text = (try? d.decode(WaitResult.self, from: result)).map { r in
             r.sessions.map { s in

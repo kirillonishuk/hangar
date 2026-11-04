@@ -25,6 +25,14 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     /// Run at the new worktree's top in a shell tab after the copy; nil = the package manager's default, "" = none.
     public var setupCommand: String?
     public var notifications: ProjectNotifications = .all
+    /// Project actions from Project Settings («Dev server», «Test»; `ProjectActions.swift`); nil = none.
+    public var actions: [ProjectAction]?
+    /// SHA-256 of `.hangar/actions.json` commands the user confirmed (#131): a repo action runs unasked only with its approved text.
+    public var approvedActions: [String]?
+    /// The action ⌘R and the toolbar's run button start; nil = the first one.
+    public var lastAction: String?
+    /// `.hangar/actions.json` actions (by name) the user took off this project's list.
+    public var hiddenActions: [String]?
 
     public init(id: UUID = UUID(), name: String, location: Location, lastBaseBranch: String? = nil, collapsed: Bool = false,
                 worktreeByDefault: Bool = false, worktreeRoot: String? = nil, worktreeCopy: [String]? = nil,
@@ -42,6 +50,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, location, lastBaseBranch, collapsed, worktreeByDefault, worktreeRoot, worktreeCopy, setupCommand, notifications
+        case actions, approvedActions, lastAction, hiddenActions
     }
 
     /// `collapsed` and the worktree fields were added later; older files decode with the default.
@@ -56,6 +65,10 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
                   worktreeCopy: try c.decodeIfPresent([String].self, forKey: .worktreeCopy),
                   setupCommand: try c.decodeIfPresent(String.self, forKey: .setupCommand))
         notifications = try c.decodeIfPresent(ProjectNotifications.self, forKey: .notifications) ?? .all
+        actions = try? c.decodeIfPresent([ProjectAction].self, forKey: .actions)
+        approvedActions = try? c.decodeIfPresent([String].self, forKey: .approvedActions)
+        lastAction = try? c.decodeIfPresent(String.self, forKey: .lastAction)
+        hiddenActions = try? c.decodeIfPresent([String].self, forKey: .hiddenActions)
     }
 
 
@@ -105,6 +118,8 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     /// The cwd its agent's conversation was recorded in before a moved worktree was relinked (#122): at the next launch
     /// the conversation is copied to where the agent looks from `cwd`, then this is cleared.
     public var relinkedFrom: String?
+    /// A project action's shell (#131): the action's name; its command is looked up again at every run.
+    public var action: String?
 
     /// `openLine`: the new editor's cursor line in `openFile`.
     public init(id: UUID = UUID(), kind: LeafKind, cwd: String, agentSessionId: String? = nil,
@@ -117,7 +132,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         if kind == .editor, let openFile { editorFiles = [EditorFile(path: openFile, line: openLine ?? 1, column: 1)] }
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine, customTitle, relinkedFrom }
+    private enum CodingKeys: String, CodingKey { case id, kind, cwd, agentSessionId, openFile, editorFiles, openLine, customTitle, relinkedFrom, action }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -131,6 +146,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         // An editor pane is named by its file: a name from a version that allowed renaming it is dropped.
         if kind != .editor { customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle) }
         relinkedFrom = try c.decodeIfPresent(String.self, forKey: .relinkedFrom)
+        if kind == .shell { action = try c.decodeIfPresent(String.self, forKey: .action) }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -143,6 +159,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         try c.encodeIfPresent(editorFiles, forKey: .editorFiles)
         try c.encodeIfPresent(customTitle, forKey: .customTitle)
         try c.encodeIfPresent(relinkedFrom, forKey: .relinkedFrom)
+        try c.encodeIfPresent(action, forKey: .action)
     }
 }
 

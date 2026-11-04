@@ -244,6 +244,16 @@ enum EmptyProjectRow: Hashable {
     /// A new worktree's setup leaves (#58, #127) until they end or are relaunched: never saved, so a restart brings back
     /// no dead setup tab; one that ends without its code (Ctrl-C) is still marked failed.
     @ObservationIgnored var setupLeaves: Set<UUID> = []
+    /// `.hangar/actions.json` per chat folder as last read (#131); the toolbar, menus and palette show these.
+    var repoActions: [String: RepoActions] = [:]
+    /// Action leaves being stopped by Hangar (restart, «Остановить»): their exit is not a failure; the value runs once they end.
+    @ObservationIgnored var stoppingActions: [UUID: () -> Void] = [:]
+    /// Asks before a `.hangar/actions.json` command runs for the first time or changed (name, command, then on «Запустить»).
+    @ObservationIgnored var confirmActionRun: ((String, String, @escaping () -> Void) -> Void)?
+    /// «Настроить действия…»: the project's settings.
+    @ObservationIgnored var editActions: ((UUID) -> Void)?
+    /// An action could not start (its folder is missing): title, details.
+    @ObservationIgnored var actionFailed: ((String, String) -> Void)?
     /// Leaf → tabs it was launched under in this process (merge / move / detach); not saved: a relaunch gets the current tab.
     @ObservationIgnored var formerTabs: [UUID: Set<UUID>] = [:]
     /// Leaves from state.json, an unarchived task or an opened conversation: their first launch resumes.
@@ -483,6 +493,7 @@ enum EmptyProjectRow: Hashable {
     /// A file tab is its file's name (#83; «Editor» without one); others go by their terminal title.
     func title(of leaf: Leaf) -> String {
         if leaf.kind == .editor { return leaf.openFile.map { ($0 as NSString).lastPathComponent } ?? defaultTitle(.editor) }
+        if let action = leaf.action { return action }
         return leafTitles[leaf.id] ?? defaultTitle(leaf.kind)
     }
 
@@ -551,6 +562,8 @@ enum EmptyProjectRow: Hashable {
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         var leaf = self.leaf(id: leaf.id) ?? leaf
+        // An action runs only when asked (#131): a restored or never-run action tab waits for ↩.
+        if leaf.action != nil, !actionLaunches(context, remote: remoteLeafHost(leaf.id) != nil) { throw LaunchError.actionNotStarted }
         if leaf.cwd == state.chatsFolder { ensureChatsFolder() }
         var mode = launchMode(for: leaf, context)
         // An agent resumes only by its own id (#119): without one it starts anew.
@@ -902,6 +915,7 @@ enum EmptyProjectRow: Hashable {
 
     /// A tab leaf's process ended (0 closes it, `SplitView`); a setup leaf without its code (-1: Ctrl-C) still failed (#127).
     func exited(leafId: UUID, code: Int32) {
+        if leaf(id: leafId)?.action != nil { return actionExited(leafId, code: code) }
         signal(.exited(code: code < 0 && setupLeaves.contains(leafId) ? 1 : code), leaf: leafId)
     }
 

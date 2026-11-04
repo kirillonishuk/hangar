@@ -71,7 +71,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 43)  // + newSubSession (#128)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
+        #expect(Shortcut.allCases.count == 44)  // + runAction ⌘R (#131), newSubSession (#128)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -86,7 +86,7 @@ import Testing
         #expect(shortcut(keyCode: 19, modifiers: .command) == .tab(2))
         #expect(shortcut(keyCode: 21, modifiers: [.command, .option]) == .findInFiles)
         #expect(shortcut(keyCode: 23, modifiers: [.command, .option]) == nil)
-        #expect(shortcut(keyCode: 15, modifiers: .command) == nil)
+        #expect(shortcut(keyCode: 15, modifiers: .command) == .runAction)  // ⌘R: the last project action (#131)
         #expect(shortcut(keyCode: 8, modifiers: .command) == nil)  // ⌘C is the terminal's copy
         #expect(Action.revealInFinder.shortcut == .revealInFinder)
         #expect(Action.copyPath.shortcut == .copyPath)

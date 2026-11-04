@@ -123,6 +123,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             .tasksSpawn(parent: nil, name: "R", prompt: "go", agent: .codex, worktree: true, base: "main"),
             .tasksSpawn(parent: "p", name: "R", prompt: "go", agent: nil, worktree: false, base: nil, notifyOnly: true),
             .tasksWait(sessions: [], parent: "leaf1", timeout: 110), .tasksWait(sessions: ["a", "b"], parent: nil, timeout: 5),
+            .actionsList(task: "t1"), .actionsRun(task: "leaf1", name: "Dev server"),
         ]
         #expect(Set(calls.map(\.method)) == Set(ControlMethod.allCases))
         for call in calls {

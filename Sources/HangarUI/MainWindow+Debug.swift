@@ -142,7 +142,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
-            "nextAttention": .nextAttention,
+            "nextAttention": .nextAttention, "runAction": .runAction,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -159,7 +159,7 @@ extension MainWindowController {
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (#122)
-        case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (#133)
+        case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (#134)
         case "projectSettings": app.state.projects.first.map { ctx.projectSettings($0.id) }
         case "spareMenu":  // spareMenu <png>: the first project's «Копии без чата» menu drawn offscreen, first item highlighted
             guard let project = app.state.projects.first?.id else { return }
@@ -284,6 +284,34 @@ extension MainWindowController {
             debugBranchOpen?()
             PopoverMenu.panel?.hidesOnDeactivate = false
             PopoverMenu.panel?.orderFrontRegardless()
+        case "runMenu":  // as a click on the toolbar run button's chevron (#133), kept open like `branchMenu`
+            PopoverMenu.debugPinned = true
+            debugRunMenuOpen?()
+            PopoverMenu.panel?.hidesOnDeactivate = false
+            PopoverMenu.panel?.orderFrontRegardless()
+        case "runAction":  // runAction <name>: the selected chat's action, as its menu item
+            if let task = app.selectedTask { app.runAction(arg, taskId: task.id) }
+        case "stopAction":  // stopAction <name>: the run menu's «Остановить»
+            if let task = app.selectedTask, let r = app.runningActions(of: task).first(where: { $0.name == arg }) { app.stopAction(r.leaf) }
+        case "actionsDump":  // actionsDump <file>: the selected chat's actions, running leaves and every action leaf's bar
+            guard let task = app.selectedTask else { return }
+            let running = app.runningActions(of: task)
+            var lines = app.actions(of: task).map { a in
+                "\(a.name)|\(a.source.rawValue)|\(a.action.command)|restart=\(a.action.restart)|running=\(running.contains { $0.name == a.name })"
+            }
+            for tab in task.tabs {
+                for leaf in tab.root.leaves where leaf.action != nil {
+                    let view = column.terminalArea.debugLeafView(leaf.id)
+                    lines.append("leaf \(leaf.action!) tab=\(tab.id.uuidString.prefix(8)) leaf=\(leaf.id.uuidString.prefix(8)) state=\(app.terminals.map { "\($0.state(leaf.id))" } ?? "-") bar=\(view?.barString ?? "-") status=\(app.state(ofLeaf: leaf.id).rawValue)")
+                }
+            }
+            lines.append("tabs=\(task.tabs.count) active=\(task.tabs.firstIndex { $0.id == task.activeTabId } ?? -1) last=\(app.project(task.projectId)?.lastAction ?? "-")")
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "actionPicker":  // «Добавить действие» in the open Project Settings, kept open like `branchMenu`
+            PopoverMenu.debugPinned = true
+            debugActionPicker?()
+        case "projectSettings":  // projectSettings <project index>
+            if let n = Int(arg), app.state.projects.indices.contains(n) { ctx.projectSettings(app.state.projects[n].id) }
         case "menuPanel": debugMenu(parts[0], arg.split(separator: " ", maxSplits: 1).first.map(String.init) ?? "",
                                     arg.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init) ?? "")
         case "gitMenu":  // gitMenu branch|author|date|path: a Git filter chip's menu, 300/160 pt into the window from the right

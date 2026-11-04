@@ -513,7 +513,7 @@ struct SidebarView: View {
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        // Its worktree list (spare copies, #133): asked once when first shown, then with its chats' checks.
+        // Its worktree list (spare copies, #134): asked once when first shown, then with its chats' checks.
         .onAppear { if exists, app.worktreeLists[project.id] == nil { app.checkWorktrees(projectId: project.id) } }
     }
 

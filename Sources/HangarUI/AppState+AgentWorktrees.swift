@@ -4,7 +4,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Worktrees agents make and enter on their own (decision #133). Hangar adapts to them and only offers actions: nothing
+/// Worktrees agents make and enter on their own (decision #134). Hangar adapts to them and only offers actions: nothing
 /// on disk changes unless the user clicks «Удалить копию…» or «Скрыть от git локально…».
 extension AppState {
     /// How this project's paths compare with git's list: real paths on this Mac, as written on a server.

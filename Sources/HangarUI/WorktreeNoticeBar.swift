@@ -30,7 +30,7 @@ struct WorktreeNoticeBar: View {
         }
     }
 
-    /// The agent entered another worktree of the project itself (#133): informational, so no warning colour; the
+    /// The agent entered another worktree of the project itself (#134): informational, so no warning colour; the
     /// action only re-points the chat, «Скрыть» hides it for this chat and copy.
     private func agentBar(_ task: HangarTask, _ entry: WorktreeEntry) -> some View {
         let shown = shortCopyPath(entry.path, project: app.project(task.projectId)?.path)

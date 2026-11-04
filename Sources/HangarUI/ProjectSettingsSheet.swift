@@ -49,7 +49,16 @@ struct ProjectSettingsSheet: View {
     var onNotifications: (ProjectNotifications) -> Void = { _ in }
     /// «Хранить рядом с проектом»: applied at once (blank folder = the default one next to the project).
     var onKeepWorktreesBeside: () -> Void = {}
-    /// Worktrees inside the repository git doesn't ignore (#133), and the click that hides them locally (nil — done).
+    /// «Действия» (#133): own actions and hidden repository ones, applied on «Сохранить» only when changed; `loadRepo`
+    /// reads the project folder's `.hangar/actions.json`, `discover` its suggestions (when the «Добавить» picker opens).
+    var onActions: ([ProjectAction], [String]) -> Void = { _, _ in }
+    var loadRepo: () async -> RepoActions = { RepoActions() }
+    var discover: () async -> [ActionSuggestionGroup] = { [] }
+    @State private var actionRows: [ActionDraft]
+    @State private var hiddenActions: [String]
+    @State private var repo = RepoActions()
+    @State private var actionsError: String?
+    /// Worktrees inside the repository git doesn't ignore (#134), and the click that hides them locally (nil — done).
     var notIgnored: [String] = []
     var onHideFromGit: () async -> String? = { nil }
     @State private var hideFromGit: HideFromGit = .offered
@@ -78,17 +87,25 @@ struct ProjectSettingsSheet: View {
     @State private var defaultBase: String?
     @State private var branchesError: String?
     @FocusState private var focus: Field?
-    private enum Field { case name, path, root, copy, setup }
+    private enum Field: Hashable { case name, path, root, copy, setup, actionName(UUID), actionCommand(UUID) }
 
     /// `known`: the project's repository probe, so the git-only card is there (or its absence explained) from the first frame.
     init(project: Project, git: Git, runner: Runner, known: NewTaskModel.Availability? = nil,
          onSave: @escaping (_ name: String, _ path: String, _ baseBranch: String?, _ worktreeRoot: String?, _ setup: WorktreeSetup) -> Void,
          onNotifications: @escaping (ProjectNotifications) -> Void = { _ in },
          onKeepWorktreesBeside: @escaping () -> Void = {},
+         onActions: @escaping ([ProjectAction], [String]) -> Void = { _, _ in },
+         loadRepo: @escaping () async -> RepoActions = { RepoActions() },
+         discover: @escaping () async -> [ActionSuggestionGroup] = { [] },
          notIgnored: [String] = [], onHideFromGit: @escaping () async -> String? = { nil },
          onCancel: @escaping () -> Void) {
         self.notIgnored = notIgnored
         self.onHideFromGit = onHideFromGit
+        self.onActions = onActions
+        self.loadRepo = loadRepo
+        self.discover = discover
+        _actionRows = State(initialValue: (project.actions ?? []).map(ActionDraft.init))
+        _hiddenActions = State(initialValue: project.hiddenActions ?? [])
         self.onNotifications = onNotifications
         self.onKeepWorktreesBeside = onKeepWorktreesBeside
         self.project = project
@@ -136,6 +153,7 @@ struct ProjectSettingsSheet: View {
         .sheetFrame()
         .onAppear { focus = .name }
         .task { await loadGit() }
+        .task { repo = await loadRepo() }
     }
 
     // MARK: Card
@@ -144,6 +162,10 @@ struct ProjectSettingsSheet: View {
     private var card: some View {
         VStack(spacing: Theme.sheetGap) {
             CardSection(title: L10n.sectionProjectTitle) { projectRows }
+            VStack(alignment: .leading, spacing: 0) {
+                ProjectActionsSection(rows: $actionRows, hidden: $hiddenActions, repo: repo, error: actionsError, discover: discover,
+                                      submit: save)
+            }
             if isGit == true { CardSection(title: L10n.worktreeLabel) { worktreeRows } }
         }
     }
@@ -214,7 +236,7 @@ struct ProjectSettingsSheet: View {
         }
     }
 
-    /// Copies inside the project git doesn't ignore (#133): what it costs, the exact `info/exclude` lines, and the one
+    /// Copies inside the project git doesn't ignore (#134): what it costs, the exact `info/exclude` lines, and the one
     /// button that adds them — nothing is written unless it is clicked.
     private var notIgnoredNotice: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s2) {
@@ -351,11 +373,15 @@ struct ProjectSettingsSheet: View {
 
     private func commit(_ name: String, _ path: String, _ base: String?, _ root: String?, _ setup: WorktreeSetup) {
         if notifications != project.notifications { onNotifications(notifications) }
+        if case .success(let actions) = projectActionsInput(actionRows),
+           actions != (project.actions ?? []) || hiddenActions != (project.hiddenActions ?? []) { onActions(actions, hiddenActions) }
         onSave(name, path, base, root, setup)
     }
 
     private func save() {
         guard canSave else { return }
+        if case .failure(let e) = projectActionsInput(actionRows) { actionsError = e.message; return }
+        actionsError = nil
         var root: String?
         var setup = WorktreeSetup(copy: project.worktreeCopy, command: project.setupCommand)  // hidden rows keep what is stored
         if isGit == true {

@@ -92,7 +92,7 @@ import Exec
         #expect(small.truncated && small.paths.count == 2)
     }
 
-    /// An agent's worktree inside the folder is a separate checkout: not listed as a stray file (#133).
+    /// An agent's worktree inside the folder is a separate checkout: not listed as a stray file (#134).
     @Test func listFilesSkipsNestedWorktree() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         try t.git("worktree", "add", "-q", "-b", "aut", t.repo + "/.claude/worktrees/aut", "main", in: t.repo)

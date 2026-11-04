@@ -271,7 +271,7 @@ extension AppState {
             return SearchLaunch(executable: t.sshPath, args: args, cwd: "/", engine: .gitGrep, gitColumn: gitColumn, remote: true)
         }
         if let rg = await search.ripgrep(shell: userShell) {
-            // rg (`--hidden`) would search a nested worktree of the same repository too; git grep skips it by itself (#133).
+            // rg (`--hidden`) would search a nested worktree of the same repository too; git grep skips it by itself (#134).
             var q = q
             q.exclude += nestedCheckouts(in: target.root)
             return SearchLaunch(executable: rg, args: ripgrepArgs(q), cwd: target.root, engine: .ripgrep)

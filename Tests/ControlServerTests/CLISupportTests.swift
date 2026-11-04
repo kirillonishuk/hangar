@@ -139,7 +139,7 @@ import AgentStatus
         #expect(bad?.session == nil)
     }
 
-    /// Where the agent works now (#133): an absolute path only; anything else is no cwd.
+    /// Where the agent works now (#134): an absolute path only; anything else is no cwd.
     @Test func hookCwdIsValidated() {
         let ok = eventMessage(kind: "stop", args: [], env: env, stdin: Data(#"{"session_id":"s1","cwd":"/r/.claude/worktrees/x"}"#.utf8))
         #expect(ok?.cwd == "/r/.claude/worktrees/x")

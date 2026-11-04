@@ -78,10 +78,10 @@ func resolveDrop(_ source: PaneDragSource, at p: CGPoint, state: WorkspaceState,
     switch source {
     case .tab(let id):
         guard let tab = app.state.tasks.lazy.flatMap(\.tabs).first(where: { $0.id == id }) else { return nil }
-        return (tab.root.leaves.first.map { Icon.of($0.kind) } ?? .shell, app.tabLabel(tab))
+        return (tab.root.leaves.first.map { Icon.of($0) } ?? .shell, app.tabLabel(tab))
     case .leaf(let id):
         guard let leaf = app.leaf(id: id) else { return nil }
-        return (Icon.of(leaf.kind), app.paneTitle(leaf))
+        return (Icon.of(leaf), app.paneTitle(leaf))
     }
 }
 

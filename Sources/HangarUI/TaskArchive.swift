@@ -100,7 +100,7 @@ extension AppState {
             worktreeRemovals.finish(item)
             return .undone
         }
-        // The branch restore checks out again is the one git has there now: an agent may have renamed it (#133).
+        // The branch restore checks out again is the one git has there now: an agent may have renamed it (#134).
         if check != .missing { await followRegisteredBranch(id, path: path, git: git, project: project) }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
@@ -125,7 +125,7 @@ extension AppState {
         return failure.map { .worktreeKept($0) } ?? .archived(worktreeRemoved: true)
     }
 
-    /// The branch git has checked out at the chat's worktree now, recorded when it differs (#133); nil — not listed.
+    /// The branch git has checked out at the chat's worktree now, recorded when it differs (#134); nil — not listed.
     @discardableResult
     private func followRegisteredBranch(_ id: UUID, path: String, git: Git, project: Project) async -> String? {
         guard let list = try? await git.worktrees(),

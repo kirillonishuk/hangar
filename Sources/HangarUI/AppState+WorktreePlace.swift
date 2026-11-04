@@ -28,7 +28,7 @@ extension AppState {
     }
 
     /// Checks again (selection, agent done, window focus); the last answer stays shown until the new one. Main-folder
-    /// chats too: the list also tells where their agents work and which copies no chat uses (#133).
+    /// chats too: the list also tells where their agents work and which copies no chat uses (#134).
     func recheckWorktree(of id: UUID) {
         guard let task = state.tasks.first(where: { $0.id == id }), !isFreeChatTask(id) else { return }
         checkWorktrees(projectId: task.projectId)

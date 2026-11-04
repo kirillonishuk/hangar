@@ -31,7 +31,7 @@ extension AppState {
             if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
-            // Where the tab's agent works now (#133): its own hooks, or the installed ones of its conversation (Stop).
+            // Where the tab's agent works now (#134): its own hooks, or the installed ones of its conversation (Stop).
             if let cwd = e.cwd, leaf.kind == agent,
                own || validSessionId(e.session).map({ $0 == (statuses.status(leaf.id).sessionId ?? leaf.agentSessionId) }) == true {
                 noteAgentCwd(leaf: leaf.id, cwd)

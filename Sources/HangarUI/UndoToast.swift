@@ -71,37 +71,88 @@ import SwiftUI
 }
 
 /// Bottom-centre of the chat area (§3.15): `bg2`, `line2`, `radius.popover`, level 1; 32 high, `body`, up to one
-/// primary small button and «×». Takes no space while hidden; the pointer over it holds it.
+/// primary small button and «×». Takes no space while hidden; the pointer over it holds it. Worktree removals (#132)
+/// stack above it in the same toast style.
 struct UndoToastView: View {
     let undo: ArchiveUndo
+    let removals: WorktreeRemovals
     let restore: (UUID) -> Void
 
     var body: some View {
-        if undo.message != nil || undo.taskId != nil {
-            HStack(spacing: Theme.Space.s2) {
-                if let message = undo.message {
-                    Text(message).foregroundStyle(Theme.ui.text1)
-                } else {
-                    Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
-                    Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
-                        .buttonStyle(.hangar(.primary, .small))
-                        .help(L10n.undoArchive)
-                }
-                IconButton(icon: .close, size: .small, help: L10n.close) { undo.dismiss() }
+        let rows = removals.visible
+        if !rows.isEmpty || undo.message != nil || undo.taskId != nil {
+            VStack(spacing: Theme.Space.s2) {
+                ForEach(rows) { WorktreeRemovalToast(item: $0, removals: removals) }
+                if undo.message != nil || undo.taskId != nil { undoToast }
             }
-            .font(Theme.Typography.body.font())
+            // Room for the level-1 shadow: the hosting view is sized to its content.
+            .padding(Theme.toastShadow.radius)
+            .fixedSize()
+        }
+    }
+
+    private var undoToast: some View {
+        HStack(spacing: Theme.Space.s2) {
+            if let message = undo.message {
+                Text(message).foregroundStyle(Theme.ui.text1)
+            } else {
+                Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
+                Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }
+                    .buttonStyle(.hangar(.primary, .small))
+                    .help(L10n.undoArchive)
+            }
+            IconButton(icon: .close, size: .small, help: L10n.close) { undo.dismiss() }
+        }
+        .toastChrome()
+        .onHover { undo.hold($0) }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// «Удаление копии «x»…» with a small spinner while the folder goes; failed — the alert glyph (`failed`), the reason in
+/// the tooltip, «Повторить» (primary small), «Показать в Finder» (local) and «×». Stays until done or dismissed.
+struct WorktreeRemovalToast: View {
+    let item: WorktreeRemovals.Item
+    let removals: WorktreeRemovals
+
+    var body: some View {
+        HStack(spacing: Theme.Space.s2) {
+            if let failure = item.failure {
+                IconView(icon: .alert, size: Theme.Icon.row, tint: Theme.ui.failed)
+                Text(verbatim: L10n.removeCopyFailed(item.name)).foregroundStyle(Theme.ui.text1)
+                    .help(failure)
+                    .accessibilityHint(failure)
+                Button(L10n.retry) { removals.retry(item.id) }
+                    .buttonStyle(.hangar(.primary, .small))
+                    .help(failure)
+                if item.local {
+                    IconButton(icon: .finder, size: .small, help: L10n.showInFinder) {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.path)])
+                    }
+                }
+                IconButton(icon: .close, size: .small, help: L10n.close) { removals.dismiss(item.id) }
+            } else {
+                ProgressView().controlSize(.small)
+                Text(verbatim: L10n.removingCopy(item.name)).foregroundStyle(Theme.ui.text2)
+            }
+        }
+        .toastChrome(endsWithControl: item.failure != nil)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private extension View {
+    /// §3.15: 32 high, padding 12 (the trailing control centred), `bg2`, `line2`, `radius.popover`, level-1 shadow.
+    /// `endsWithControl`: the trailing control sits as far from the edge as from the top; plain text keeps the 12.
+    func toastChrome(endsWithControl: Bool = true) -> some View {
+        font(Theme.Typography.body.font())
             .lineLimit(1)
             .padding(.leading, Theme.Space.s3)
-            .padding(.trailing, (Theme.Height.rowLarge - Theme.Height.controlSmall) / 2)
+            .padding(.trailing, endsWithControl ? (Theme.Height.rowLarge - Theme.Height.controlSmall) / 2 : Theme.Space.s3)
             .frame(height: Theme.Height.rowLarge)
             .background(RoundedRectangle(cornerRadius: Theme.Radius.popover).fill(Theme.ui.bg2)
                 .shadow(color: .black.opacity(Theme.toastShadow.opacity), radius: Theme.toastShadow.radius, y: Theme.toastShadow.y))
             .overlay(RoundedRectangle(cornerRadius: Theme.Radius.popover).stroke(Theme.ui.line2, lineWidth: 1))
-            .onHover { undo.hold($0) }
-            // Room for the level-1 shadow: the hosting view is sized to its content.
-            .padding(Theme.toastShadow.radius)
             .fixedSize()
-            .accessibilityElement(children: .contain)
-        }
     }
 }

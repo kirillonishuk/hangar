@@ -33,7 +33,7 @@ import Testing
         defer { t.cleanup() }
         for runner in try runners(t) {
             let git = Git(repo: t.repo, runner: runner)
-            await #expect(throws: (any Error).self) { try await removeWorktreeFolder(wt + "/sub", git: git, runner: runner) }
+            await #expect(throws: (any Error).self) { try await moveWorktreeAside(wt + "/sub", git: git, runner: runner) }
             #expect(exists(wt + "/sub/s.txt") && !exists(wt + "/sub.hangar-removing"))
         }
     }
@@ -48,7 +48,7 @@ import Testing
         _ = try await t.git("worktree", "add", "-q", "-b", "y", otherWt, "main", in: other)
         for runner in try runners(t) {
             let git = Git(repo: t.repo, runner: runner)
-            await #expect(throws: (any Error).self) { try await removeWorktreeFolder(otherWt, git: git, runner: runner) }
+            await #expect(throws: (any Error).self) { try await moveWorktreeAside(otherWt, git: git, runner: runner) }
             #expect(exists(otherWt + "/o.txt") && !exists(otherWt + ".hangar-removing"))
         }
     }
@@ -60,7 +60,7 @@ import Testing
         for runner in try runners(t) {
             for main in [t.root + "/missing", "~/repo"] {
                 let git = Git(repo: main, runner: runner)
-                await #expect(throws: (any Error).self) { try await removeWorktreeFolder(wt, git: git, runner: runner) }
+                await #expect(throws: (any Error).self) { try await moveWorktreeAside(wt, git: git, runner: runner) }
                 #expect(exists(wt + "/sub/s.txt"))
             }
         }
@@ -77,12 +77,12 @@ import Testing
         try fm.createSymbolicLink(atPath: toSub, withDestinationPath: wt + "/sub")
         try fm.createSymbolicLink(atPath: toPlain, withDestinationPath: plain)
         let git = Git(repo: t.repo, runner: .local)
-        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(toSub, git: git, runner: .local) }
-        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(toPlain, git: git, runner: .local) }
+        await #expect(throws: (any Error).self) { try await moveWorktreeAside(toSub, git: git, runner: .local) }
+        await #expect(throws: (any Error).self) { try await moveWorktreeAside(toPlain, git: git, runner: .local) }
         #expect(exists(wt + "/sub/s.txt") && exists(plain + "/p.txt"))
         let link = t.root + "/link"
         try fm.createSymbolicLink(atPath: link, withDestinationPath: wt)
-        try await removeWorktreeFolder(link, git: git, runner: .local).value
+        try await deleteTombstone(try await moveWorktreeAside(link, git: git, runner: .local), runner: .local)
         #expect(!exists(wt))
         #expect(!exists(wt + ".hangar-removing"))
     }
@@ -91,7 +91,7 @@ import Testing
     private func archived() async throws -> (TempRepo, String, Git) {
         let (t, wt) = try await make()
         let git = Git(repo: t.repo, runner: .local)
-        try await removeWorktreeFolder(wt, git: git, runner: .local).value
+        try await deleteTombstone(try await moveWorktreeAside(wt, git: git, runner: .local), runner: .local)
         return (t, wt, git)
     }
 

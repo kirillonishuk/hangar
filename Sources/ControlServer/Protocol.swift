@@ -491,7 +491,7 @@ public struct SubSessionInfo: Codable, Equatable, Sendable {
     public var status: String
     public var link: String
     public var agent: TabKind?
-    /// The agent's last message, else the last lines of its screen; at most `maxMessage` characters (keeps the parent's context small).
+    /// The agent's last message, else the last lines of its screen; at most `maxMessage` characters (keeps the caller's context small).
     public var message: String?
     /// The message was cut: the whole output is `tabs_read` of `tab`.
     public var truncated: Bool?

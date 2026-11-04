@@ -10,11 +10,15 @@ import Workspace
 @MainActor func deleteTaskPermanently(_ id: UUID, alsoWorktree: Bool, ctx: ActionContext, git: Git, runner: Runner = .local) async {
     let app = ctx.app
     guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-    guard alsoWorktree, case .worktree(let path, let branch, _) = task.mode else {
+    // A folder and branch another session (open or archived) still uses stay: only the task goes (#131).
+    guard alsoWorktree, case .worktree(let path, let branch, _) = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty else {
         app.perform { $0.deleteTask(id: id) }
         return
     }
-    await app.revertProjectStatuslines(host: app.project(task.projectId)?.host, dirs: [StatuslineDir(path: path, name: task.name)])
+    let host = app.project(task.projectId)?.host
+    // An archive of this folder still moving it aside: after it (then it is simply missing).
+    await app.worktreeRemovals.untilMoved(removalKey(host: host, path: path))
+    await app.revertProjectStatuslines(host: host, dirs: [StatuslineDir(path: path, name: task.name)])
     let check: WorktreeCheck
     do {
         check = try await checkWorktree(path, git: git, runner: runner)
@@ -24,31 +28,39 @@ import Workspace
     }
     switch check {
     case .missing:
-        _ = try? await git.pruneWorktrees()
-        await finishDeletion(id, branch: branch, ctx: ctx, git: git)
+        _ = try? await git.pruneWorktrees(unlocking: path)
+        await finishDeletion(task, branch: branch, ctx: ctx, git: git)
     case let .atRisk(dirty, ignored):
         // Cancel leaves everything as it was; the forced removal continues from the confirm callback.
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) {
-            Task { await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner) }
+            Task { await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner) }
         }
     case .clean:
-        await removeWorktreeAndTask(id, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
+        await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
     }
 }
 
-@MainActor private func removeWorktreeAndTask(_ id: UUID, path: String, branch: String, ctx: ActionContext, git: Git, runner: Runner) async {
-    do {
-        // The check above asked about losses; the tombstone rename itself never refuses.
-        try await removeWorktreeFolder(path, git: git, runner: runner)
-    } catch {
-        ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
+/// The check above asked about losses; a failed rename aside keeps the task, and the removal's row offers «Повторить».
+@MainActor private func removeWorktreeAndTask(_ task: HangarTask, path: String, branch: String, ctx: ActionContext, git: Git, runner: Runner,
+                                              item: UUID? = nil) async {
+    let app = ctx.app
+    guard app.state.tasks.contains(where: { $0.id == task.id }), app.state.worktreeSharers(of: task, openOnly: false).isEmpty else {
+        if let item { app.worktreeRemovals.finish(item) }
         return
     }
-    await finishDeletion(id, branch: branch, ctx: ctx, git: git)
+    let id = item ?? app.worktreeRemovals.begin(name: task.name, path: path, local: runner.isLocal)
+    let failure = await app.removeWorktree(path, name: task.name, host: app.project(task.projectId)?.host, git: git, runner: runner, item: id) {
+        Task { await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner, item: id) }
+    }
+    guard failure == nil else { return }
+    await finishDeletion(task, branch: branch, ctx: ctx, git: git)
 }
 
-@MainActor private func finishDeletion(_ id: UUID, branch: String, ctx: ActionContext, git: Git) async {
-    ctx.app.perform { $0.deleteTask(id: id) }
+/// The branch stays while another session of the project keeps it (an archived one restores onto it).
+@MainActor private func finishDeletion(_ task: HangarTask, branch: String, ctx: ActionContext, git: Git) async {
+    let keepers = ctx.app.state.branchKeepers(of: task)
+    ctx.app.perform { $0.deleteTask(id: task.id) }
+    guard keepers.isEmpty else { return }
     do {
         try await git.deleteBranch(branch)
     } catch {

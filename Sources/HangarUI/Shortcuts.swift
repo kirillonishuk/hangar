@@ -5,7 +5,7 @@ public enum Shortcut: Equatable, CaseIterable {
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
-    /// The selected chat's last project action (#131).
+    /// The selected chat's last project action (#133).
     case runAction
     /// Palette only, no key (design system §6: what the status bar's «N работает» did); not in `allCases`, the key table.
     case nextWorking

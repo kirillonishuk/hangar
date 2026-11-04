@@ -75,7 +75,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .tasksArchive: "Archive a session. A worktree session's folder is removed and its branch kept (restoring re-creates the worktree); a worktree with uncommitted changes or ignored files (.env) is refused unless force: true. Requires yes: true."
         case .tasksRestore: "Restore an archived session. A worktree session's folder is re-created from its kept branch; fails if that branch is gone."
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
-        case .tasksSpawn: "Start a sub-session of the calling chat (or of parent): a full chat with its own terminal and agent, shown under the parent in Hangar's sidebar, started with prompt (Hangar asks it to end with a concise final result). Returns its id and hangar:// link. When it has fully finished (agent stopped and no background tasks left), needs input or failed, Hangar types a compact note (status, the agent's final summary capped at ~1500 characters, link) into the parent's agent terminal once it is idle — or, with deliver: notify, only notifies the user. Or block on sessions_wait."
+        case .tasksSpawn: "Start a sub-session of the calling chat (or of parent) to do something in parallel: a full chat with its own terminal and agent, shown under the parent in Hangar's sidebar, started with prompt (Hangar asks it to end with a concise final result). By default it works in the parent's own folder (the same worktree or main folder); worktree: true gives it a new git worktree instead. Returns its id and hangar:// link. Nothing is ever typed into the parent: when it has fully finished (agent stopped and no background tasks left), needs input or failed, the user gets a notification. To get its result, call sessions_wait."
         case .tasksWait: "Wait until sub-sessions have fully finished (agent stopped and no background tasks it started are left), need input, or failed; or until timeout. Returns per sub-session: status (done, needs-input, error, still-running), id, name, link, tab, the agent's final message (capped at ~1500 characters; truncated: true when cut). still-running means the timeout passed: call again. Without sessions: all open sub-sessions of the calling chat. Full output: tabs_read."
         case .actionsList: "List a session's project actions (named commands like Dev server or Test, from the project's settings and the repository's .hangar/actions.json in the session's folder), with whether each is running and in which tab. The repository file's problems are reported in error."
         case .actionsRun: "Run a project action in a session's folder in its own tab (like the Run button). With restart on (the default), a running copy is interrupted (Ctrl-C) and started again in the same tab; else another tab opens. An action from .hangar/actions.json whose command the user has not approved in Hangar is refused: they run it once from the app first."
@@ -143,12 +143,11 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "name", type: .string(maxBytes: Self.maxNameChars * 4), required: true, summary: "Sub-session name, 1-200 characters."),
                 ParamSpec(name: "prompt", type: .string(maxBytes: Self.maxPrompt), required: true, summary: "The sub-session agent's task."),
                 ParamSpec(name: "agent", type: .oneOf(["claude", "codex"]), required: false, summary: "Agent to run (default: Hangar's default agent)."),
-                ParamSpec(name: "worktree", type: .bool, required: false, summary: "Work in a new git worktree of the parent's project instead of its main folder."),
+                ParamSpec(name: "worktree", type: .bool, required: false,
+                          summary: "Work in a new git worktree of the parent's project instead of the parent's own folder (default: the same worktree or main folder as the parent)."),
                 ParamSpec(name: "base", type: .string(maxBytes: 255), required: false, summary: "Base branch for the worktree (only with worktree)."),
                 ParamSpec(name: "parent", type: ref, required: false,
                           summary: "Parent session id/prefix/name or a tab/leaf id; default: the calling chat (HANGAR_LEAF_ID)."),
-                ParamSpec(name: "deliver", type: .oneOf(["parent", "notify"]), required: false,
-                          summary: "parent (default): Hangar types the compact result into the parent's agent; notify: only a notification for the user, nothing reaches the parent."),
             ]
         case .tasksWait:
             return [
@@ -194,8 +193,7 @@ public enum ControlCall: Equatable, Sendable {
     case sshOpen(host: String)
     case linksCreate(kind: LinkKind, ref: String)
     /// `parent`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
-    /// `notifyOnly`: the result only notifies the user; nothing is typed into the parent (#128).
-    case tasksSpawn(parent: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool, base: String?, notifyOnly: Bool = false)
+    case tasksSpawn(parent: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool, base: String?)
     case tasksWait(sessions: [String], parent: String?, timeout: Int)
     /// `task`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
     case actionsList(task: String)
@@ -253,9 +251,8 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksRestore(task): p = ["task": task]
         case let .sshOpen(host): p = ["host": host]
         case let .linksCreate(kind, ref): p = ["kind": kind.rawValue, "ref": ref]
-        case let .tasksSpawn(parent, name, prompt, agent, worktree, base, notifyOnly):
+        case let .tasksSpawn(parent, name, prompt, agent, worktree, base):
             p = ["name": name, "prompt": prompt]
-            if notifyOnly { p["deliver"] = "notify" }
             p["parent"] = parent
             p["agent"] = agent?.rawValue
             if worktree { p["worktree"] = true }
@@ -399,7 +396,7 @@ public enum ControlCall: Equatable, Sendable {
             let prompt = v.strings["prompt"]!
             guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw bad("\"prompt\" must not be blank") }
             return .tasksSpawn(parent: v.strings["parent"], name: name, prompt: prompt, agent: v.strings["agent"].flatMap(TabKind.init(rawValue:)),
-                               worktree: worktree, base: v.strings["base"], notifyOnly: v.strings["deliver"] == "notify")
+                               worktree: worktree, base: v.strings["base"])
         case .tasksWait:
             return .tasksWait(sessions: v.lists["sessions"] ?? [], parent: v.strings["parent"], timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
         case .actionsList:

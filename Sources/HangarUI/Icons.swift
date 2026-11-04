@@ -123,7 +123,7 @@ enum Icon: CaseIterable {
         case .popOut: [.line(p(2.75, 2.75), p(13.25, 2.75)), .line(p(5.25, 10.25), p(5.25, 6), p(9.5, 6)), .line(p(5.25, 6), p(12.75, 13.5))]
         // A funnel: Search's include / exclude filters.
         case .filter: [.poly([p(2.25, 3), p(13.75, 3), p(9.25, 8.5), p(9.25, 13), p(6.75, 11.75), p(6.75, 8.5)], closed: true)]
-        // ▶ / ■: project actions (#131) — run, stop.
+        // ▶ / ■: project actions (#133) — run, stop.
         case .play: [.shape(p(4.75, 2.75, r: 1), p(13, 8, r: 1), p(4.75, 13.25, r: 1))]
         case .stop: [.rect(3.25, 3.25, 9.5, 9.5, 1.5)]
         case .claude, .codex: []  // brand logos

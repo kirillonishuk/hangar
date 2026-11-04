@@ -59,7 +59,7 @@ struct PaletteItem: Equatable, Identifiable {
     enum Kind: Equatable { case task, file, command }
     enum Target: Equatable {
         case task(UUID), file(String), command(Shortcut)
-        /// «Запустить: Dev server» — a project action of the selected chat (#131).
+        /// «Запустить: Dev server» — a project action of the selected chat (#133).
         case action(String)
     }
 

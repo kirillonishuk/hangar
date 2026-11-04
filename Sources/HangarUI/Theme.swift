@@ -44,9 +44,9 @@ public enum Theme {
     public static let tabGap: CGFloat = Space.s1
     /// Inline rename field in a tab.
     public static let tabRenameWidth: CGFloat = 140
-    /// The toolbar run button's action name (design system §3.1, #131): longer names are cut at the end.
+    /// The toolbar run button's action name (design system §3.1, #133): longer names are cut at the end.
     public static let runActionNameMax: CGFloat = 160
-    /// «Название» of a project action in Project Settings (design system §3.18, #131).
+    /// «Название» of a project action in Project Settings (design system §3.18, #133).
     public static let actionNameWidth: CGFloat = 140
     /// «Папка» of a project action (monorepo sub-app: apps/cms).
     public static let actionFolderWidth: CGFloat = 120

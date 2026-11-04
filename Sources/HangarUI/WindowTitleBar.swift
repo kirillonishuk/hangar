@@ -96,7 +96,7 @@ struct WindowTitleBar: View {
         .frame(maxWidth: .infinity, minHeight: Theme.Height.barToolbar, maxHeight: Theme.Height.barToolbar)
         .background(WindowDragArea())
         .ignoresSafeArea()
-        // `.hangar/actions.json` of the selected chat's folder: the run button shows its actions too (#131).
+        // `.hangar/actions.json` of the selected chat's folder: the run button shows its actions too (#133).
         .task(id: app.state.selectedTaskId) { if let task = app.selectedTask { await app.loadRepoActions(task) } }
     }
 

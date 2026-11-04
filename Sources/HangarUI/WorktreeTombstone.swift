@@ -6,23 +6,70 @@ import Workspace
 /// Crash-safe worktree removal (decision #59): a quit mid-way leaves only `<path>.hangar-removing`.
 let tombstoneSuffix = ".hangar-removing"
 
-/// One atomic rename to a sibling tombstone, `worktree prune`, then the tombstone is deleted in the background.
-/// Refused unless `path` resolves (`pwd -P`, so a symlink acts on the real folder) to the top folder of a linked
-/// worktree of `git`'s repo other than its main folder: a wrong task path never moves the main checkout, a subfolder
-/// or another repo. `runner`: the project's machine (argv, quoted per word over ssh). The returned task is the background delete.
-@discardableResult
-func removeWorktreeFolder(_ path: String, git: Git, runner: Runner) async throws -> Task<Void, Never> {
+/// One atomic rename to a sibling tombstone, then `worktree prune` (its lock lifted first). Returns the tombstone; deleting
+/// it is `deleteTombstone`'s (in the background, `AppState.removeWorktree`). Refused unless `path` resolves (`pwd -P`, so
+/// a symlink acts on the real folder) to the top folder of a linked worktree of `git`'s repo other than its main folder:
+/// a wrong task path never moves the main checkout, a subfolder or another repo. `runner`: the project's machine (argv,
+/// quoted per word over ssh).
+func moveWorktreeAside(_ path: String, git: Git, runner: Runner) async throws -> String {
     guard let real = try await linkedWorktree(path, mainFolder: git.repo, runner: runner) else {
         throw TombstoneError(message: "\(path) is not a linked worktree of this project, left in place")
     }
     let tomb = real + tombstoneSuffix
-    // A stale tombstone would make `mv` move the folder into it.
-    _ = try await runner.run(["rm", "-rf", "--", tomb], "/")
-    let mv = try await runner.run(["mv", "--", real, tomb], "/")
+    // A stale tombstone would make `mv` move the folder into it; one that can't be cleared stops here.
+    try await deleteTombstone(tomb, runner: runner)
+    // While the path is still there: a locked worktree's registration would survive prune.
+    await git.unlockWorktree(path: real)
+    // shortcut: a worktree that is itself a mount point makes `mv` copy (slow, not atomic); handle when one shows up.
+    let script = #"[ -e "$2" ] && { echo "$2 is in the way" >&2; exit 1; }; mv -- "$1" "$2""#
+    let mv = try await runner.run(["sh", "-c", script, "sh", real, tomb], "/")
     guard mv.status == 0 else { throw TombstoneError(message: mv.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
     // The folder is gone already; a failed prune is redone by the next restore or `worktree add`.
     _ = try? await git.pruneWorktrees()
-    return Task.detached { _ = try? await runner.run(["rm", "-rf", "--", tomb], "/") }
+    return tomb
+}
+
+/// `rm -rf` of a tombstone (nothing but `*.hangar-removing`); read-only folders (Go's module cache) and locked files
+/// (`uchg`) are made writable and it tries once more. A missing one is done. Throws with what is left in the way.
+func deleteTombstone(_ tomb: String, runner: Runner) async throws {
+    guard tomb.hasSuffix(tombstoneSuffix) else { throw TombstoneError(message: "\(tomb) is not a tombstone") }
+    let script = #"""
+    [ -e "$1" ] || [ -L "$1" ] || exit 0
+    rm -rf -- "$1" 2>/dev/null && exit 0
+    chmod -R u+w -- "$1" 2>/dev/null; chflags -R nouchg -- "$1" 2>/dev/null
+    rm -rf -- "$1" 2>&1 | head -3 >&2
+    [ ! -e "$1" ]
+    """#
+    let r = try await runner.run(["sh", "-c", script, "sh", tomb], "/")
+    guard r.status != 0 else { return }
+    let why = r.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+    throw TombstoneError(message: why.isEmpty ? "\(tomb) could not be deleted" : why)
+}
+
+/// Local processes (not Hangar) whose working folder is `path` or inside it, by `lsof`; empty when it can't tell.
+func processesWorking(in path: String) async -> [Int32] {
+    guard let resolved = realpath(path, nil) else { return [] }
+    let real = String(cString: resolved)
+    free(resolved)
+    guard let r = try? await Runner.local.run(["/usr/sbin/lsof", "-w", "-a", "-d", "cwd", "-F", "pn"], "/") else { return [] }
+    var pids: [Int32] = [], pid: Int32?
+    for line in r.stdout.split(separator: "\n") {
+        if line.hasPrefix("p") { pid = Int32(line.dropFirst()) }
+        if line.hasPrefix("n"), let p = pid, p != getpid() {
+            let dir = String(line.dropFirst())
+            if dir == real || dir.hasPrefix(real + "/") { pids.append(p) }
+        }
+    }
+    return pids
+}
+
+/// After a chat's tabs stop: their shells and agents get up to `timeout` to leave the folder before it is checked, so
+/// nothing is written after the check. Someone else's process there (an editor, a shell) is only waited for, never killed.
+func waitForProcessesToLeave(_ path: String, timeout: Duration = .seconds(3)) async {
+    let clock = ContinuousClock(), deadline = clock.now + timeout
+    while await !processesWorking(in: path).isEmpty, clock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(200))
+    }
 }
 
 /// A usable worktree: its `.git` is there (a half-deleted folder inside another repo still answers rev-parse) and git agrees.
@@ -98,8 +145,8 @@ private struct TombstoneError: LocalizedError {
 }
 
 extension AppState {
-    /// Startup (local, `host` nil) and host connect: tombstones a quit left behind go, only in the worktree roots of
-    /// known projects (the configured root and the folders of their worktree tasks).
+    /// Startup (local, `host` nil) and host connect: tombstones a quit left behind are deleted again, shown like any
+    /// removal; only in the worktree roots of known projects (the configured root and the folders of their worktree tasks).
     public func sweepTombstones(host: String?) async {
         for project in state.projects where project.host == host {
             let worktrees = state.tasks.compactMap { task -> String? in
@@ -110,8 +157,17 @@ extension AppState {
             // a deleted task waits for the next worktree task there.
             guard !worktrees.isEmpty else { continue }
             let dirs = Set(worktrees.map(parent) + [parent(worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: "x"))])
-            let script = #"for d; do for t in "$d"/*.hangar-removing; do [ -d "$t" ] && rm -rf -- "$t"; done; done; exit 0"#
-            _ = try? await runner(for: project).run(["sh", "-c", script, "sh"] + dirs.sorted(), "/")
+            let script = #"for d; do for t in "$d"/*.hangar-removing; do [ -d "$t" ] && printf '%s\n' "$t"; done; done; exit 0"#
+            let runner = runner(for: project)
+            guard let found = try? await runner.run(["sh", "-c", script, "sh"] + dirs.sorted(), "/") else { continue }
+            // One being deleted already (a reconnect mid-removal) is left to that delete.
+            for tomb in found.stdout.split(separator: "\n").map(String.init)
+            where tomb.hasSuffix(tombstoneSuffix) && !worktreeRemovals.items.contains(where: { $0.path == tomb }) {
+                let name = String((tomb as NSString).lastPathComponent.dropLast(tombstoneSuffix.count))
+                let item = worktreeRemovals.begin(name: name, path: tomb, local: runner.isLocal)
+                worktreeRemovals.moved(item, to: tomb)
+                Task { await deleteTombstoneTracked(tomb, item: item, runner: runner) }
+            }
         }
     }
 

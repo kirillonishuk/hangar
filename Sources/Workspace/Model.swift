@@ -27,7 +27,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var notifications: ProjectNotifications = .all
     /// Project actions from Project Settings («Dev server», «Test»; `ProjectActions.swift`); nil = none.
     public var actions: [ProjectAction]?
-    /// SHA-256 of `.hangar/actions.json` commands the user confirmed (#131): a repo action runs unasked only with its approved text.
+    /// SHA-256 of `.hangar/actions.json` commands the user confirmed (#133): a repo action runs unasked only with its approved text.
     public var approvedActions: [String]?
     /// The action ⌘R and the toolbar's run button start; nil = the first one.
     public var lastAction: String?
@@ -118,7 +118,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     /// The cwd its agent's conversation was recorded in before a moved worktree was relinked (#122): at the next launch
     /// the conversation is copied to where the agent looks from `cwd`, then this is cleared.
     public var relinkedFrom: String?
-    /// A project action's shell (#131): the action's name; its command is looked up again at every run.
+    /// A project action's shell (#133): the action's name; its command is looked up again at every run.
     public var action: String?
 
     /// `openLine`: the new editor's cursor line in `openFile`.
@@ -319,8 +319,6 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var parentTaskId: UUID?
     /// Its sub-chats are folded under it in the sidebar.
     public var subsCollapsed = false
-    /// How a sub-session's result reaches its parent; nil — typed into the parent's agent.
-    public var subDelivery: SubDelivery?
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -346,7 +344,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges, muted
-        case autoNamed, parentTaskId, subsCollapsed, subDelivery
+        case autoNamed, parentTaskId, subsCollapsed
     }
 
     /// `pinned`, `drawer`, `port` and the `archived…` details were added later; older files decode with the default.
@@ -366,7 +364,6 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         autoNamed = try c.decodeIfPresent(Bool.self, forKey: .autoNamed) ?? false
         parentTaskId = try c.decodeIfPresent(UUID.self, forKey: .parentTaskId)
         subsCollapsed = try c.decodeIfPresent(Bool.self, forKey: .subsCollapsed) ?? false
-        subDelivery = try? c.decodeIfPresent(SubDelivery.self, forKey: .subDelivery)
     }
 }
 

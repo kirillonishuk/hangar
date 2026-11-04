@@ -125,6 +125,7 @@ extension AppState {
                 return fail(ControlError(code: .confirmRequired, message: "worktree has \(what.joined(separator: " and ")) that archiving would delete; "
                                          + "pass --force (MCP: force: true) to archive anyway"))
             case .failed(let details): return fail(ControlError(code: .failed, message: details))
+            case .undone: return fail(ControlError(code: .failed, message: "the session was restored before its worktree was removed"))
             }
 
         case let .tabsOpen(ref, kind, prompt):
@@ -186,8 +187,8 @@ extension AppState {
             let tail = screenTail(screen, lines: lines)
             return .ok(id, ScreenResult(tab: target.tab, leaf: target.leaf, text: tail.text, lines: tail.lines, truncated: tail.truncated))
 
-        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base, notifyOnly):
-            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base, notifyOnly: notifyOnly)
+        case let .tasksSpawn(parentRef, name, prompt, agent, worktree, base):
+            return await spawn(id, parentRef: parentRef, name: name, prompt: prompt, agent: agent, worktree: worktree, base: base)
 
         case let .tasksWait(refs, parentRef, timeout):
             var ids: [UUID] = []
@@ -256,9 +257,14 @@ extension AppState {
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
 
+    /// Appended to a `sessions_spawn` prompt: its last message is what `sessions_wait` and the notification show (#128).
+    /// A sub-chat made by hand keeps the user's text as typed.
+    static let subSessionPromptSuffix = "\n\n(You run as a Hangar sub-session. When you are done, end with a concise final result: "
+        + "what you found or did, key paths and links, under 1500 characters. The chat that started you may read only that last message.)"
+
     /// `sessions_spawn` (spec sub-sessions §5): a chat under the parent, its agent started at once with the prompt.
     private func spawn(_ id: Int, parentRef: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool,
-                       base: String?, notifyOnly: Bool) async -> ControlResponse {
+                       base: String?) async -> ControlResponse {
         func fail(_ e: ControlError) -> ControlResponse { ControlResponse(id: id, body: .failure(e)) }
         guard let parentRef else { return fail(ControlError(code: .badParams, message: "not inside a Hangar chat: pass parent")) }
         let parentId: UUID
@@ -267,13 +273,13 @@ extension AppState {
         case .failure(let e): return fail(e)
         }
         let kind: LeafKind = agent == .codex ? .codex : agent == .claude ? .claude : config.defaultAgent
-        switch await spawnSubSession(parent: parentId, name: name, prompt: prompt, kind: kind, worktree: worktree, base: base,
-                                     delivery: notifyOnly ? .notify : .parent) {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines) + Self.subSessionPromptSuffix
+        switch await spawnSubSession(parent: parentId, name: name, prompt: text, kind: kind, worktree: worktree, base: base) {
         case .failure(let e): return fail(e)
         case .success(let taskId):
             guard let task = state.tasks.first(where: { $0.id == taskId }) else { return fail(ControlError(code: .failed, message: "sub-session is gone")) }
             let note = "\(kind.rawValue) may ask to trust the folder on first open; the user answers that in the tab (check with tabs read). "
-                + (notifyOnly ? "Its result only notifies the user." : "When it has fully finished, Hangar types a compact result into this chat's agent; or call sessions_wait")
+                + "It works in parallel; nothing is sent to this chat. When it has fully finished the user is notified; to get its result, call sessions_wait"
             return .ok(id, SpawnResult(task: taskInfo(task), link: subSessionLink(task.id), note: note))
         }
     }

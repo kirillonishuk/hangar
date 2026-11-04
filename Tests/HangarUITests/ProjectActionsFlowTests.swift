@@ -6,7 +6,7 @@ import TestSupport
 @testable import HangarUI
 import Workspace
 
-/// Project actions in the app (#131): runs, restarts, stops, repository approvals, CLI/MCP and the launch rules.
+/// Project actions in the app (#133): runs, restarts, stops, repository approvals, CLI/MCP and the launch rules.
 @MainActor @Suite struct ProjectActionsFlowTests {
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-actions-\(UUID())")
 

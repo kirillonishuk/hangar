@@ -90,7 +90,7 @@ private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .re
     var entries: [PopoverMenuEntry] = []
     if case .task(let id) = target, !actions.isEmpty, let task = app.state.tasks.first(where: { $0.id == id }) {
         entries.append(.header(task.branch.map { "\(task.name) · \($0)" } ?? task.name, mono: task.branch))
-        // The project's actions first (#131): the run menu's list without «Настроить действия…».
+        // The project's actions first (#133): the run menu's list without «Настроить действия…».
         if !task.archived {
             let run = actionMenuEntries(app: app, task: task, edit: false)
             if !run.isEmpty { entries += run + [.separator] }

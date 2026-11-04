@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ControlServer
 
-/// `actions list|run` over the CLI, MCP and the socket (#131).
+/// `actions list|run` over the CLI, MCP and the socket (#133).
 @Suite struct ActionsWireTests {
     let me = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 

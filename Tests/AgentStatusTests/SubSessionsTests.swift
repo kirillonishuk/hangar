@@ -86,49 +86,10 @@ import Testing
         #expect(runningBackgroundTasks(Array(repeating: ["status": "running"], count: 500)) == 99)
     }
 
-    @Test func noteLine() {
-        let id = UUID()
-        let note = SubSessionNote(task: id, name: "Re\"lease", status: .done, message: "line one\n\n  line two  ", link: "hangar://task/x")
-        #expect(note.line == "[Hangar] sub-session \"Re'lease\" finished (done): line one line two — hangar://task/x")
-        let long = SubSessionNote(task: id, name: "R", status: .error, message: String(repeating: "a", count: 4000), link: "L")
-        #expect(long.line.hasSuffix("a … [truncated; full output: tabs_read] — L"))
-        #expect(long.line.count < SubSessionNote.maxMessage + 80)
+    @Test func compactResultMarksTheCut() {
         #expect(compactResult("short", max: 10) == ("short", false))
         #expect(compactResult(nil, max: 10) == (nil, false))
-        #expect(SubSessionNote(task: id, name: "R", status: .needsInput, message: nil, link: "L").line
-                == "[Hangar] sub-session \"R\" is waiting for input (needs-input) — L")
-    }
-
-    /// The child's text is typed into the parent's terminal: nothing in it may act as a key or an escape sequence there.
-    @Test func noteLineCarriesNoControls() {
-        let hostile = "ok\u{1B}[201~rm -rf ~\r\u{03}\u{15}\u{04}\u{7F}\u{9B}31m\u{9D}0;x\u{07}\u{85}tail\tend\u{2028}last"
-        let line = SubSessionNote(task: UUID(), name: "a\u{1B}]0;t\u{07}b\tc", status: .done, message: hostile, link: "L").line
-        #expect(!line.unicodeScalars.contains { $0.properties.generalCategory == .control })
-        #expect(!line.contains { $0.isNewline })
-        #expect(line == "[Hangar] sub-session \"a]0;tb c\" finished (done): ok[201~rm -rf ~ 31m0;x tail end last — L")
-    }
-
-    @Test func parentInput() {
-        let idle = ParentInput(running: true, state: .done, screenBusy: false, draft: false, lastKey: nil)
-        #expect(idle.canDeliver(now: t0))
-        for blocked in [ParentInput(running: false, state: .idle, screenBusy: false, draft: false, lastKey: nil),
-                        ParentInput(running: true, state: .working, screenBusy: false, draft: false, lastKey: nil),
-                        ParentInput(running: true, state: .waiting, screenBusy: false, draft: false, lastKey: nil),
-                        ParentInput(running: true, state: .idle, screenBusy: true, draft: false, lastKey: nil),
-                        ParentInput(running: true, state: .idle, screenBusy: false, draft: true, lastKey: nil),
-                        ParentInput(running: true, state: .idle, screenBusy: false, draft: false, lastKey: t0 - 2)] {
-            #expect(!blocked.canDeliver(now: t0))
-        }
-        #expect(ParentInput(running: true, state: .idle, screenBusy: false, draft: false, lastKey: t0 - 6).canDeliver(now: t0))
-    }
-
-    @Test func drafts() {
-        #expect(draftAfterKey(false, keyCode: 0, control: false, command: false, printable: true))  // "a"
-        #expect(!draftAfterKey(true, keyCode: 36, control: false, command: false, printable: false))  // Return
-        #expect(!draftAfterKey(true, keyCode: 8, control: true, command: false, printable: true))  // ⌃C
-        #expect(draftAfterKey(true, keyCode: 123, control: false, command: false, printable: false))  // ← keeps it
-        #expect(!draftAfterKey(false, keyCode: 123, control: false, command: false, printable: false))
-        #expect(draftAfterKey(false, keyCode: 9, control: false, command: true, printable: true))  // ⌘V
-        #expect(!draftAfterKey(false, keyCode: 17, control: false, command: true, printable: true))  // ⌘T
+        let long = compactResult(String(repeating: "a", count: 4000), max: 1500)
+        #expect(long.truncated && long.text?.count == 1500 && long.text?.hasSuffix("a … [truncated; full output: tabs_read]") == true)
     }
 }

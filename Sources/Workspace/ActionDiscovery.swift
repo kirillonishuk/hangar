@@ -1,6 +1,6 @@
 import Foundation
 
-/// Suggested actions from the repository (#131): `package.json` scripts of the root and its workspace packages, Makefile
+/// Suggested actions from the repository (#133): `package.json` scripts of the root and its workspace packages, Makefile
 /// targets, justfile recipes. Only offered in Project Settings' «Добавить действие» picker, never added by themselves.
 /// The files come from two shell runs in the chat's folder (local or over ssh, `HangarUI`); everything here is parsing.
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// One row of «Действия» as typed (#131).
+/// One row of «Действия» as typed (#133).
 struct ActionDraft: Identifiable, Equatable {
     let id = UUID()
     var name = ""
@@ -46,7 +46,7 @@ func actionSuggestionsShown(_ groups: [ActionSuggestionGroup], rows: [ActionDraf
     }
 }
 
-/// Project Settings → «Действия» (#131): own actions (name, command, folder, «Перезапускать», ⋯ — up, down, remove), then
+/// Project Settings → «Действия» (#133): own actions (name, command, folder, «Перезапускать», ⋯ — up, down, remove), then
 /// `.hangar/actions.json`'s, read-only (⋯ — edit as own, hide / show), then «Добавить действие» with the repository's
 /// suggestions (package.json scripts of the root and workspace packages, Makefile, justfile), searched when it opens.
 struct ProjectActionsSection: View {

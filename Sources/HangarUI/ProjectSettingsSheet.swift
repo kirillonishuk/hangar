@@ -49,7 +49,7 @@ struct ProjectSettingsSheet: View {
     var onNotifications: (ProjectNotifications) -> Void = { _ in }
     /// «Хранить рядом с проектом»: applied at once (blank folder = the default one next to the project).
     var onKeepWorktreesBeside: () -> Void = {}
-    /// «Действия» (#131): own actions and hidden repository ones, applied on «Сохранить» only when changed; `loadRepo`
+    /// «Действия» (#133): own actions and hidden repository ones, applied on «Сохранить» only when changed; `loadRepo`
     /// reads the project folder's `.hangar/actions.json`, `discover` its suggestions (when the «Добавить» picker opens).
     var onActions: ([ProjectAction], [String]) -> Void = { _, _ in }
     var loadRepo: () async -> RepoActions = { RepoActions() }

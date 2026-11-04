@@ -131,7 +131,7 @@ final class FillView: NSView {
     /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
     private var missingFolder: LaunchContext?
     var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil || actionIdle }
-    /// A project action's tab (#131): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
+    /// A project action's tab (#133): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
     var isAction = false
     var onActionRun: (() -> Void)?
     /// The action was not asked to run in this terminal (restored, or hung up after a stop): ↩ runs it.

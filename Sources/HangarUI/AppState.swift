@@ -69,7 +69,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
-    /// A notify-only sub-session finished (#128): its banner (set by `Notifier.attach`).
+    /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
@@ -244,7 +244,7 @@ enum EmptyProjectRow: Hashable {
     /// A new worktree's setup leaves (#58, #127) until they end or are relaunched: never saved, so a restart brings back
     /// no dead setup tab; one that ends without its code (Ctrl-C) is still marked failed.
     @ObservationIgnored var setupLeaves: Set<UUID> = []
-    /// `.hangar/actions.json` per chat folder as last read (#131); the toolbar, menus and palette show these.
+    /// `.hangar/actions.json` per chat folder as last read (#133); the toolbar, menus and palette show these.
     var repoActions: [String: RepoActions] = [:]
     /// Action leaves being stopped by Hangar (restart, «Остановить»): their exit is not a failure; the value runs once they end.
     @ObservationIgnored var stoppingActions: [UUID: () -> Void] = [:]
@@ -260,6 +260,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
+    /// Worktree folders being removed, shown over the chat area (#132).
+    let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -328,16 +330,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var subWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
     /// The next scheduled re-evaluation of sub-sessions (one at a time; none while nothing is settling).
     @ObservationIgnored var subCheck: (at: Date, task: Task<Void, Never>)?
-    /// Notes for parents' agents not typed in yet, by parent task.
-    // shortcut: in memory only; a quit loses undelivered notes (sessions_wait still sees the status).
-    @ObservationIgnored var parentNotes: [UUID: [SubSessionNote]] = [:]
-    @ObservationIgnored var noteRetry: Task<Void, Never>?
-    /// Per terminal leaf: typed characters with no Enter / ⌃C after them, and the last key's time.
-    @ObservationIgnored var leafDrafts: [UUID: Bool] = [:]
-    @ObservationIgnored var leafLastKey: [UUID: Date] = [:]
-    /// Tests shorten them.
+    /// Tests shorten it.
     @ObservationIgnored var subPollInterval: Duration = .seconds(10)
-    @ObservationIgnored var noteRetryInterval: Duration = .seconds(5)
     /// Detached tool shells of an agent pid (`detachedChildren`); tests replace it.
     @ObservationIgnored var probeDetached: (Int32) -> Int? = detachedChildren(of:)
     /// How long `tabs send --wait` waits for the turn to start; tests shorten it.
@@ -562,7 +556,7 @@ enum EmptyProjectRow: Hashable {
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         var leaf = self.leaf(id: leaf.id) ?? leaf
-        // An action runs only when asked (#131): a restored or never-run action tab waits for ↩.
+        // An action runs only when asked (#133): a restored or never-run action tab waits for ↩.
         if leaf.action != nil, !actionLaunches(context, remote: remoteLeafHost(leaf.id) != nil) { throw LaunchError.actionNotStarted }
         if leaf.cwd == state.chatsFolder { ensureChatsFolder() }
         var mode = launchMode(for: leaf, context)

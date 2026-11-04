@@ -16,6 +16,8 @@ public enum LaunchError: Error, Equatable {
     case awaitingConsent
     /// The leaf waits for work before it starts (a relinked chat's conversation copy, #122); started again when done.
     case preparing
+    /// A project action's tab that was not asked to run (restored, or stopped for good, #133): ↩ runs it.
+    case actionNotStarted
 }
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),

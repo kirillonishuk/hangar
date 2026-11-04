@@ -6,7 +6,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// #133: seen / unseen «готово», the waiting time, status marks without colour, the split pane frame, diff tints.
+/// #135: seen / unseen «готово», the waiting time, status marks without colour, the split pane frame, diff tints.
 @MainActor @Suite(.serialized) struct StatusLookTests {
     struct Fixture {
         var app: AppState

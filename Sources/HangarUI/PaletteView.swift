@@ -238,6 +238,7 @@ struct PaletteView: View {
             StatusDot(state: task.map { app.state(of: $0) } ?? .idle, seen: task.map(app.doneSeen) ?? false)
         case .file: FileIconView(name: item.title)  // the Files tab's theme icon
         case .command(let sc): IconView(icon: paletteIcon(sc))
+        case .action: IconView(icon: .play)
         }
     }
 
@@ -262,6 +263,7 @@ struct PaletteView: View {
             }
             .foregroundStyle(on ? Theme.ui.onAccent : Theme.ui.text3)
         case .command(let sc): ShortcutHint(text: sc.label)
+        case .action: EmptyView()
         case .file: EmptyView()
         }
     }
@@ -288,6 +290,7 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .toggleDrawer: .shell
     case .limits: .limits
     case .nextAttention: .bell
+    case .runAction: .play
     case .nextWorking: .chevronDown
     case .revealInFinder: .finder
     case .copyPath: .copy

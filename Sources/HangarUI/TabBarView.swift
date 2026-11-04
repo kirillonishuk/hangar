@@ -355,7 +355,7 @@ struct TabBarView: View {
             let diff = app.diffTabs[task.id]
             var entries: [PopoverMenuEntry] = task.tabs.map { tab in
                 let state = app.displayState(of: tab)
-                let icon = tab.root.leaves.first.map { Icon.of($0.kind) } ?? .shell
+                let icon = tab.root.leaves.first.map { Icon.of($0) } ?? .shell
                 return .item(PopoverMenuItem(title: app.tabLabel(tab), icon: icon, checked: tab.id == task.activeTabId && diff?.active != true,
                                              dot: app.showsDot(tab, state: state) ? state : nil, dotSeen: app.doneSeen(tab.root.leaves)) { app.activate(tabId: tab.id) })
             }
@@ -495,8 +495,8 @@ struct TabItem: View {
             Group {
                 if let file = fileLeaf?.openFile {
                     FileIconView(name: (file as NSString).lastPathComponent, size: Theme.Icon.row)
-                } else if let kind = tab.root.leaves.first?.kind {
-                    IconView(icon: .of(kind), active: active, size: Theme.Icon.row)
+                } else if let leaf = tab.root.leaves.first {
+                    IconView(icon: .of(leaf), active: active, size: Theme.Icon.row)
                 }
             }
             .overlay(alignment: .topTrailing) {

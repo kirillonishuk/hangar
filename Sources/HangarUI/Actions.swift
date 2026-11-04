@@ -59,7 +59,7 @@ enum Action: CaseIterable {
         case .task(let id):
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
-            // Only a chat whose «готово» is already seen (#133).
+            // Only a chat whose «готово» is already seen (#135).
             let unread: [Action] = app.canMarkUnread(id) ? [.markUnread] : []
             // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
             if app.isFreeChatTask(id) {

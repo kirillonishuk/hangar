@@ -46,7 +46,7 @@ public struct ThemePalette: Sendable {
     /// Terminal ANSI 0–7 normal, 8–15 bright; used when the user's Ghostty config sets no palette.
     var ansi: [UInt32]
 
-    /// System «Increase contrast» (#133): meta text and separators one step stronger, the idle dot as visible as
+    /// System «Increase contrast» (#135): meta text and separators one step stronger, the idle dot as visible as
     /// secondary text; everything else as the theme has it.
     func contrasted(_ on: Bool) -> ThemePalette {
         guard on else { return self }

@@ -105,7 +105,7 @@ final class FillView: NSView {
     }
 }
 
-/// The frame a split pane gets (#133): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
+/// The frame a split pane gets (#135): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
 func paneFrame(_ state: AgentState, split: Bool) -> AgentState? {
     split && (state == .waiting || state == .failed) ? state : nil
 }
@@ -143,7 +143,7 @@ final class PaneFrameView: NSView {
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
     private let barFill = HoverFill { Theme.hover }
-    /// The waiting / failed frame over the whole pane, header included (#133).
+    /// The waiting / failed frame over the whole pane, header included (#135).
     private let frameView = PaneFrameView()
     var attentionFrame: AgentState? {
         didSet { if attentionFrame != oldValue { applyFrame() } }
@@ -154,7 +154,12 @@ final class PaneFrameView: NSView {
     private(set) var failed = false
     /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
     private var missingFolder: LaunchContext?
-    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil }
+    var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil || actionIdle }
+    /// A project action's tab (#133): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
+    var isAction = false
+    var onActionRun: (() -> Void)?
+    /// The action was not asked to run in this terminal (restored, or hung up after a stop): ↩ runs it.
+    private(set) var actionIdle = false
     /// A new surface replaced the old one; `keepsStatus`: the same agent goes on (reattach, a launch that never ran).
     var onRelaunch: ((_ keepsStatus: Bool) -> Void)?
     /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (#47).
@@ -288,6 +293,7 @@ final class PaneFrameView: NSView {
             waiting = nil
             waitingForConsent = false
             missingFolder = nil
+            actionIdle = false
             let (spec, mode) = try make(context)
             self.mode = mode
             setBar(mode.unlinked ? L10n.conversationNotLinked : nil)
@@ -296,6 +302,9 @@ final class PaneFrameView: NSView {
         } catch LaunchError.missingCwd(let path) {
             missingFolder = context
             setBar("\(L10n.folderMissing(path)) · \(L10n.relaunchHint)")
+        } catch LaunchError.actionNotStarted {
+            actionIdle = true
+            setBar("\(L10n.actionNotRunning) · \(L10n.actionRunHint)")
         } catch LaunchError.awaitingConsent {
             waiting = context
             waitingForConsent = true
@@ -347,6 +356,14 @@ final class PaneFrameView: NSView {
     }
 
     func childExited(_ code: Int32) {
+        if isAction, host == nil || code != 255 {
+            // Kept, with how it ended: a dev server's ⌃C is a stop, a test's non-zero code a failure.
+            exitCode = code
+            let how = code == 0 ? L10n.actionFinished : actionWasStopped(code) ? L10n.actionStopped : L10n.exitedWithCode(code)
+            setBar("\(how) · \(L10n.actionRunHint)")
+            onExit?(code)
+            return
+        }
         if code == 0 { onExit?(0); return }
         exitCode = code
         if onHookFailed?(code, surface?.hadInput ?? true) == true {
@@ -460,7 +477,7 @@ final class PaneFrameView: NSView {
 
     /// ↩ or a click on the bar: relaunch an exited/failed leaf, or reconnect the host a waiting one gave up on.
     func activateBar() {
-        if canReconnect { onReconnect?() } else { relaunch() }
+        if canReconnect { onReconnect?() } else if isAction, exitCode != nil || actionIdle, let onActionRun { onActionRun() } else { relaunch() }
     }
 
     /// The ↩ bar of an exited/failed leaf (or of one whose host gave up) is clickable.
@@ -792,7 +809,7 @@ final class PaneFrameView: NSView {
         }
     }
 
-    /// The waiting / failed frame of each pane of a split tab (#133).
+    /// The waiting / failed frame of each pane of a split tab (#135).
     private func applyPaneFrames() {
         for task in app.state.tasks where !task.archived {
             for tab in task.tabs {
@@ -865,6 +882,8 @@ final class PaneFrameView: NSView {
         case .claude, .codex, .shell: break
         }
         app.wireHost(view)
+        view.isAction = leaf.action != nil
+        if leaf.action != nil { view.onActionRun = { [weak self] in self?.app.rerunAction(leafId: leaf.id) } }
         view.onTitle = { [weak self] title in
             guard let self else { return }
             self.app.setTitle(title, leafId: leaf.id)
@@ -907,7 +926,7 @@ final class PaneFrameView: NSView {
 
     private func leafExited(_ leafId: UUID, code: Int32) {
         uiLog.info("leaf exited leaf=\(leafId.uuidString.prefix(8), privacy: .public) code=\(code)")
-        if code == 0 { app.closeLeaf(leafId) }
+        if code == 0, app.leaf(id: leafId)?.action == nil { app.closeLeaf(leafId) }
     }
 
     /// Rebuilds the split tree, reparenting existing leaf views. The new tree is attached to the window
@@ -1010,6 +1029,8 @@ final class PaneFrameView: NSView {
     }
 
     #if DEBUG
+    func debugLeafView(_ id: UUID) -> LeafView? { leafViews[id] }
+
     /// Focuses the n-th leaf of the active tab like a click would (first responder).
     func debugFocus(_ n: Int) {
         guard let tab = activeTab, tab.root.leaves.indices.contains(n) else { return }

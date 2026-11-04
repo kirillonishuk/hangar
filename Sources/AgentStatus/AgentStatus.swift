@@ -35,7 +35,7 @@ public struct LeafStatus: Equatable, Sendable {
     /// Why the leaf needs the user now; nil — it doesn't.
     public var attention: Attention?
     public var pendingPermission: PendingPermission?
-    /// A finished turn nobody has looked at yet (#133): set by every done, cleared once the leaf is on screen.
+    /// A finished turn nobody has looked at yet (#135): set by every done, cleared once the leaf is on screen.
     public var unseen = false
     public init() {}
 }

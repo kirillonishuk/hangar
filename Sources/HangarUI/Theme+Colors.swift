@@ -26,7 +26,7 @@ extension Theme {
     /// Observable holder of the chosen theme (a static stored property can't be observed).
     @Observable final class Selection: @unchecked Sendable {
         var theme: AppTheme = .darkPlus
-        /// The system's «Increase contrast» and «Differentiate without colour» (#133).
+        /// The system's «Increase contrast» and «Differentiate without colour» (#135).
         var increaseContrast = false
         var differentiateWithoutColor = false
     }
@@ -47,7 +47,7 @@ extension Theme {
 
     public static var palette: ThemePalette { ThemePalette.of(current).contrasted(store.increaseContrast) }
 
-    /// Status dots draw failure as a diamond, not only in red (#133).
+    /// Status dots draw failure as a diamond, not only in red (#135).
     static var differentiateWithoutColor: Bool { store.differentiateWithoutColor }
 
     /// Takes the system's accessibility display options; a change redraws like a theme switch.

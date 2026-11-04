@@ -250,6 +250,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
+    /// Worktree folders being removed, shown over the chat area (#131).
+    let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.

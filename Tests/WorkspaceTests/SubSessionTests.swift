@@ -102,4 +102,35 @@ import Testing
         let task = try JSONDecoder().decode(HangarTask.self, from: JSONSerialization.data(withJSONObject: dict))
         #expect(task.parentTaskId == nil && !task.subsCollapsed)
     }
+
+    /// Sharing is by place, not by spelling (#131): trailing slashes, `.`/`..` and case don't hide a sharer; another
+    /// project on the same machine counts (also one whose main folder is this worktree); another machine doesn't.
+    @Test func sharersAreFoundByPlace() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/tmp/app")
+        let again = s.addProject(name: "app2", path: "/tmp/App/")
+        let asProject = s.addProject(name: "wt", path: "/tmp/app.worktrees/feat/")
+        let remote = s.addRemoteProject(name: "srv", host: "dev", path: "/tmp/app")
+        let a = s.addTask(projectId: p, name: "A", mode: .worktree(path: "/tmp/app.worktrees/feat", branch: "feat", base: "main"))
+        let slash = s.addTask(projectId: p, name: "B", mode: .worktree(path: "/tmp/app.worktrees/feat/", branch: "feat", base: "main"))
+        let dots = s.addTask(projectId: again, name: "C", mode: .worktree(path: "/tmp/App.worktrees/x/../FEAT/.", branch: "feat", base: "main"))
+        let main = s.addTask(projectId: asProject, name: "D")
+        _ = s.addTask(projectId: remote, name: "E", mode: .worktree(path: "/tmp/app.worktrees/feat", branch: "feat", base: "main"))
+        _ = s.addTask(projectId: p, name: "F", mode: .worktree(path: "/tmp/app.worktrees/feature", branch: "feature", base: "main"))
+        _ = s.addTask(projectId: p, name: "G")
+        let task = s.tasks.first { $0.id == a }!
+        #expect(Set(s.worktreeSharers(of: task, openOnly: true).map(\.id)) == [slash, dots, main])
+        #expect(worktreeKey("//tmp/./a//b/") == "/tmp/a/b")
+    }
+
+    /// The branch is kept while another session of the project has a worktree on it (an archived one restores onto it).
+    @Test func branchKeepers() {
+        var s = WorkspaceState()
+        let p = s.addProject(name: "app", path: "/tmp/app")
+        let a = s.addTask(projectId: p, name: "A", mode: .worktree(path: "/tmp/w/a", branch: "feat", base: "main"))
+        let b = s.addTask(projectId: p, name: "B", mode: .worktree(path: "/tmp/w/b", branch: "feat", base: "main"))
+        _ = s.addTask(projectId: p, name: "C", mode: .worktree(path: "/tmp/w/c", branch: "other", base: "main"))
+        s.archiveTask(id: b)
+        #expect(s.branchKeepers(of: s.tasks.first { $0.id == a }!).map(\.id) == [b])
+    }
 }

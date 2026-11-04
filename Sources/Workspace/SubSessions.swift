@@ -32,12 +32,27 @@ extension WorkspaceState {
         return (task, addTab(taskId: task, kind: kind))
     }
 
-    /// Other sessions of the same project working in `task`'s worktree folder (a sub-chat shares its parent's, #130).
-    /// `openOnly`: archived ones are left out. Empty for a main-folder session.
+    /// Other sessions working in `task`'s worktree folder (a sub-chat shares its parent's, #130): the same machine and the
+    /// same folder, any project (one repo added twice, or this worktree added as a project of its own, whose main-folder
+    /// sessions work there too). `openOnly`: archived ones are left out. Empty for a main-folder session.
     public func worktreeSharers(of task: HangarTask, openOnly: Bool) -> [HangarTask] {
         guard case .worktree(let path, _, _) = task.mode else { return [] }
+        let host = projects.first { $0.id == task.projectId }?.host, key = worktreeKey(path)
         return tasks.filter { t in
-            guard t.id != task.id, t.projectId == task.projectId, !(openOnly && t.archived), case .worktree(path, _, _) = t.mode else { return false }
+            guard t.id != task.id, !(openOnly && t.archived), let project = projects.first(where: { $0.id == t.projectId }),
+                  project.host == host else { return false }
+            switch t.mode {
+            case .worktree(let other, _, _): return worktreeKey(other) == key
+            case .mainFolder: return worktreeKey(project.path) == key
+            }
+        }
+    }
+
+    /// Other sessions of `task`'s project keeping its worktree branch (open, or archived and waiting to check it out again).
+    public func branchKeepers(of task: HangarTask) -> [HangarTask] {
+        guard case .worktree(_, let branch, _) = task.mode else { return [] }
+        return tasks.filter { t in
+            guard t.id != task.id, t.projectId == task.projectId, case .worktree(_, branch, _) = t.mode else { return false }
             return true
         }
     }
@@ -65,4 +80,14 @@ extension WorkspaceState {
         for t in tops where !nested.contains(t.id) { add(t, 0) }
         return out
     }
+}
+
+/// A folder path compared as a place: `.`/`..`, repeated and trailing slashes dropped, case folded (APFS ignores case by
+/// default; folding on a case-sensitive server only ever keeps a folder that could have gone).
+public func worktreeKey(_ path: String) -> String {
+    var parts: [Substring] = []
+    for part in path.split(separator: "/") where part != "." {
+        if part == ".." { _ = parts.popLast() } else { parts.append(part) }
+    }
+    return ("/" + parts.joined(separator: "/")).lowercased()
 }

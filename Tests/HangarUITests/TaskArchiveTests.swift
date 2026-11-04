@@ -302,7 +302,8 @@ import TestSupport
         let leftover = t.worktrees + "/old.hangar-removing", stranger = t.root + "/other/y.hangar-removing"
         for d in [leftover + "/half", stranger] { try fm.createDirectory(atPath: d, withIntermediateDirectories: true) }
         await app.sweepTombstones(host: nil)
-        #expect(!exists(leftover))
+        // Deleted in the background, shown as a removal until done.
+        #expect(await waitUntil { !exists(leftover) && app.worktreeRemovals.items.isEmpty })
         #expect(exists(stranger) && exists(wt + "/a.txt"))
     }
 
@@ -372,11 +373,17 @@ import TestSupport
 
     /// A task whose "worktree" is the project's main checkout never gets its folder moved.
     @Test func archiveRefusesMainCheckout() async throws {
-        let (t, app, _, _, _, _, _) = try await make()
+        let (t, app, _, main, _, _, _) = try await make()
         defer { t.cleanup() }
         let pid = app.state.projects[0].id
-        var bad = UUID()
-        app.perform { bad = $0.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main")) }
+        var bad = UUID(), bad2 = UUID()
+        app.perform { s in
+            bad = s.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main"))
+            bad2 = s.addTask(projectId: pid, name: "bad2", mode: .worktree(path: t.repo + "/", branch: "main", base: "main"))
+        }
+        // The main-folder chat works there (#131): the folder is theirs, not even checked.
+        #expect(await app.archiveRemovingWorktree(bad2, force: true) == .archived(worktreeRemoved: false))
+        app.perform { $0.archiveTask(id: main) }
         let outcome = await app.archiveRemovingWorktree(bad, force: true)
         guard case .worktreeKept = outcome else { Issue.record("\(outcome)"); return }
         #expect(exists(t.repo + "/a.txt") && exists(t.repo + "/.git"))
@@ -390,13 +397,13 @@ import TestSupport
         let ssh = try FakeSSH.make(dir: t.root + "/fake")
         let runner = Runner.ssh(host: "dev", controlPath: t.root + "/cm", sshPath: ssh.path)
         let git = Git(repo: t.repo, runner: runner)
-        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(t.repo, git: git, runner: runner) }
+        await #expect(throws: (any Error).self) { try await moveWorktreeAside(t.repo, git: git, runner: runner) }
         #expect(exists(t.repo + "/a.txt") && !exists(t.repo + ".hangar-removing"))
         let plain = t.root + "/plain"
         _ = try await t.git("init", "-q", plain, in: t.root)
-        await #expect(throws: (any Error).self) { try await removeWorktreeFolder(plain, git: git, runner: runner) }
+        await #expect(throws: (any Error).self) { try await moveWorktreeAside(plain, git: git, runner: runner) }
         #expect(exists(plain + "/.git"))
-        try await removeWorktreeFolder(wt, git: git, runner: runner).value
+        try await deleteTombstone(try await moveWorktreeAside(wt, git: git, runner: runner), runner: runner)
         #expect(!exists(wt))
     }
 

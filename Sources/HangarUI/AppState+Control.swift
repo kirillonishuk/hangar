@@ -125,6 +125,7 @@ extension AppState {
                 return fail(ControlError(code: .confirmRequired, message: "worktree has \(what.joined(separator: " and ")) that archiving would delete; "
                                          + "pass --force (MCP: force: true) to archive anyway"))
             case .failed(let details): return fail(ControlError(code: .failed, message: details))
+            case .undone: return fail(ControlError(code: .failed, message: "the session was restored before its worktree was removed"))
             }
 
         case let .tabsOpen(ref, kind, prompt):

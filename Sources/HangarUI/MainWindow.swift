@@ -47,7 +47,7 @@ final class TaskColumnController: NSViewController {
         terminalArea = TerminalArea(app: app)
         let undo = ArchiveUndo()
         archiveUndo = undo
-        toast = NSHostingView(rootView: UndoToastView(undo: undo) { [weak undo] id in undo?.onUndo(id) })
+        toast = NSHostingView(rootView: UndoToastView(undo: undo, removals: app.worktreeRemovals) { [weak undo] id in undo?.onUndo(id) })
         tabBar = NSHostingView(rootView: TabBarView(app: app, ctx: ActionContext(app: app)))
         super.init(nibName: nil, bundle: nil)
     }

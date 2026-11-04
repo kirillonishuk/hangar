@@ -330,6 +330,9 @@
 "inspectorWorktreeMoved" = "Копия перенесена — обновите путь";
 "inspectorWorktreeMissing" = "Копия не найдена";
 "worktreeMovedTo" = "Копия перенесена в %@";
+"removingCopy" = "Удаление копии «%@»…";
+"removeCopyFailed" = "Не удалось удалить копию «%@»";
+"removeCopyChanged" = "В копии появились изменения — восстановите чат, чтобы их посмотреть";
 "worktreeNotFound" = "Копия не найдена: %@";
 "relinkWorktree" = "Обновить путь";
 "relinkWorktreeHelp" = "Чат Claude продолжится в новой папке: Hangar скопирует его запись туда, оригинал останется";

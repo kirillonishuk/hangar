@@ -162,8 +162,16 @@ public struct Git: Sendable {
         try await exec(["worktree", "repair", "--", path])
     }
 
-    public func pruneWorktrees() async throws {
+    /// `unlocking`: that worktree's lock goes first (best effort, "not locked" is fine): prune skips a locked one, and its
+    /// stale registration would block the restore's `worktree add` and `branch -d`.
+    public func pruneWorktrees(unlocking path: String? = nil) async throws {
+        if let path { await unlockWorktree(path: path) }
         try await exec(["worktree", "prune"])
+    }
+
+    /// Best effort: "not locked" and "not a working tree" are fine.
+    public func unlockWorktree(path: String) async {
+        _ = try? await exec(["worktree", "unlock", "--", path])
     }
 
     /// Any `status --porcelain` output, untracked files included (`worktree remove` refuses those too).

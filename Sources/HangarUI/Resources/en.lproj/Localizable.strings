@@ -330,6 +330,9 @@
 "inspectorWorktreeMoved" = "The copy was moved — update its path";
 "inspectorWorktreeMissing" = "Copy not found";
 "worktreeMovedTo" = "The copy was moved to %@";
+"removingCopy" = "Removing the copy of “%@”…";
+"removeCopyFailed" = "Couldn’t remove the copy of “%@”";
+"removeCopyChanged" = "The copy has new changes — restore the chat to look at them";
 "worktreeNotFound" = "Copy not found: %@";
 "relinkWorktree" = "Update Path";
 "relinkWorktreeHelp" = "Claude chats continue in the new folder: Hangar copies their records there and keeps the originals";

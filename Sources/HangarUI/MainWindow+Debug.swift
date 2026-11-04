@@ -226,6 +226,8 @@ extension MainWindowController {
             }
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
+        case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (#131)
+            app.worktreeRemovals.items.first { $0.failure != nil }.map { app.worktreeRemovals.retry($0.id) }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
         case "hover", "menu":
             // hover task|project <n> | hover none: the sidebar row drawn as hovered (snapshots can't hover).

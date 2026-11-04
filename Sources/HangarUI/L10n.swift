@@ -132,7 +132,7 @@ import Workspace
         case openInEditorTab, copyRelativePath, taskArchived, undoArchive, keepAwakeShort
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
-        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
+        case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -779,6 +779,9 @@ import Workspace
     static var inspectorWorktreeMoved: String { s(.inspectorWorktreeMoved) }
     static var inspectorWorktreeMissing: String { s(.inspectorWorktreeMissing) }
     static func worktreeMovedTo(_ path: String) -> String { f(.worktreeMovedTo, path) }
+    static func removingCopy(_ name: String) -> String { f(.removingCopy, name) }
+    static func removeCopyFailed(_ name: String) -> String { f(.removeCopyFailed, name) }
+    static var removeCopyChanged: String { s(.removeCopyChanged) }
     static func worktreeNotFound(_ path: String) -> String { f(.worktreeNotFound, path) }
     static var relinkWorktree: String { s(.relinkWorktree) }
     static var relinkWorktreeHelp: String { s(.relinkWorktreeHelp) }

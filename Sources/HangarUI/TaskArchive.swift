@@ -12,6 +12,8 @@ enum ArchiveOutcome: Equatable {
     case atRisk(dirty: Bool, ignored: [String])
     /// Nothing changed (host down, git error, task gone).
     case failed(String)
+    /// Restored (or a session opened in its folder) before the folder went: nothing removed, nothing to report.
+    case undone
 }
 
 enum RestoreOutcome: Equatable {
@@ -42,7 +44,7 @@ extension AppState {
                       state.tasks.first(where: { $0.id == t.parentTaskId })?.archived != false else { continue }
                 _ = await archiveOne(child, force: force, leaving: Set(descendants))
             }
-        case .atRisk, .failed: break
+        case .atRisk, .failed, .undone: break
         }
         return outcome
     }
@@ -50,6 +52,10 @@ extension AppState {
     /// `leaving`: sessions about to be archived with this one; those sharing its worktree go with it (stopped before the
     /// check, back again if it does not go ahead).
     private func archiveOne(_ id: UUID, force: Bool, leaving: Set<UUID>) async -> ArchiveOutcome {
+        // A removal of this folder still moving it aside (archived, restored, archived again): after it.
+        if let t = state.tasks.first(where: { $0.id == id }), case .worktree(let path, _, _) = t.mode, let p = project(t.projectId) {
+            await worktreeRemovals.untilMoved(removalKey(host: p.host, path: path))
+        }
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
         guard case .worktree(let path, _, _) = task.mode, let project = project(task.projectId) else {
             archive(taskId: id)
@@ -65,35 +71,84 @@ extension AppState {
         if let host = project.host, remote.hosts[host]?.state != .connected { return .failed(RemoteHostError.notConnected(host).description) }
         let group = [id] + sharers
         let selected = group.first { state.selectedTaskId == $0 }
-        for t in group { archive(taskId: t) }
-        for kill in lastKills { await kill.value }
+        let runner = runner(for: project)
+        let item = worktreeRemovals.begin(name: task.name, path: path, local: runner.isLocal)
+        var kills: [Task<Void, Never>] = []
+        for t in group {
+            archive(taskId: t)
+            kills += lastKills
+        }
+        for kill in kills { await kill.value }
+        // Closed terminals' shells and agents leave the folder before it is checked (only waited for, never killed).
+        if runner.isLocal { await waitForProcessesToLeave(path) }
         // Hangar's status line override is its own file in the worktree: out first, or it would count as at risk.
         await revertProjectStatuslines(host: project.host, dirs: [StatuslineDir(path: path, name: task.name)])
         let git = git(for: project), check: WorktreeCheck
         do {
-            check = try await checkWorktree(path, git: git, runner: runner(for: project))
+            check = try await checkWorktree(path, git: git, runner: runner)
         } catch {
+            worktreeRemovals.finish(item)
             unarchiveKept(group, selected: selected)
             return .failed(error.localizedDescription)
         }
         if case let .atRisk(dirty, ignored) = check, !force {
+            worktreeRemovals.finish(item)
             unarchiveKept(group, selected: selected)
             return .atRisk(dirty: dirty, ignored: ignored)
         }
-        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else {
+            worktreeRemovals.finish(item)
+            return .undone
+        }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
-           let stat = try? await Git(repo: path, runner: runner(for: project)).diffStat(base: base) {
+           let stat = try? await Git(repo: path, runner: runner).diffStat(base: base) {
             perform { s in for t in group { s.setArchivedChanges(id: t, LineChanges(added: stat.added, deleted: stat.deleted)) } }
         }
-        // Restored while measuring («Сессии» already lists it as closed): the folder belongs to an open session again.
-        guard group.allSatisfy({ t in state.tasks.contains { $0.id == t && $0.archived } }) else { return .failed("session not found") }
-        do {
-            if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(path, git: git, runner: runner(for: project)) }
-        } catch {
-            return .worktreeKept(error.localizedDescription)
+        // Restored while measuring («Сессии» already lists it as closed), or a session opened in this folder meanwhile:
+        // the folder belongs to an open session again.
+        guard group.allSatisfy({ t in state.tasks.contains { $0.id == t && $0.archived } }),
+              state.worktreeSharers(of: task, openOnly: true).isEmpty else {
+            worktreeRemovals.finish(item)
+            return .undone
         }
-        return .archived(worktreeRemoved: true)
+        if check == .missing {
+            worktreeRemovals.finish(item)
+            do { try await git.pruneWorktrees(unlocking: path) } catch { return .worktreeKept(error.localizedDescription) }
+            return .archived(worktreeRemoved: true)
+        }
+        let failure = await removeWorktree(path, name: task.name, host: project.host, git: git, runner: runner, item: item) { [weak self] in
+            Task { await self?.retryArchiveRemoval(id, force: force, item: item) }
+        }
+        return failure.map { .worktreeKept($0) } ?? .archived(worktreeRemoved: true)
+    }
+
+    /// «Повторить» on a failed rename aside: only while the folder is still nobody's (the session archived, no open one
+    /// in it); without `force` it is checked again, and new changes keep it (the item says so).
+    private func retryArchiveRemoval(_ id: UUID, force: Bool, item: UUID) async {
+        guard let task = state.tasks.first(where: { $0.id == id && $0.archived }), case .worktree(let path, _, _) = task.mode,
+              let project = project(task.projectId), state.worktreeSharers(of: task, openOnly: true).isEmpty else {
+            worktreeRemovals.finish(item)
+            return
+        }
+        let git = git(for: project), runner = runner(for: project)
+        let retry: @MainActor () -> Void = { [weak self] in Task { await self?.retryArchiveRemoval(id, force: force, item: item) } }
+        if !force {
+            do {
+                if case .atRisk = try await checkWorktree(path, git: git, runner: runner) {
+                    worktreeRemovals.fail(item, L10n.removeCopyChanged, retry: retry)
+                    return
+                }
+            } catch {
+                worktreeRemovals.fail(item, error.localizedDescription, retry: retry)
+                return
+            }
+        }
+        guard state.tasks.contains(where: { $0.id == id && $0.archived }), state.worktreeSharers(of: task, openOnly: true).isEmpty else {
+            worktreeRemovals.finish(item)
+            return
+        }
+        await removeWorktree(path, name: task.name, host: project.host, git: git, runner: runner, item: item, retry: retry)
     }
 
     /// The archive didn't go ahead: the tasks are back (one that something else unarchived meanwhile is left as it is).
@@ -120,6 +175,8 @@ extension AppState {
             return .restored
         } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
             let git = git(for: project), runner = runner(for: project)
+            // Mid rename aside: the folder is either there or gone, never half (revive then adds it back from the branch).
+            await worktreeRemovals.untilMoved(removalKey(host: project.host, path: path))
             do {
                 let outcome = try await reviveWorktree(path, branch: branch, git: git, runner: runner)
                 switch outcome {
@@ -143,14 +200,14 @@ extension AppState {
 @MainActor func archiveTask(_ id: UUID, ctx: ActionContext, force: Bool = false) async {
     switch await ctx.app.archiveRemovingWorktree(id, force: force) {
     case .archived: ctx.didArchive(id)
-    case .worktreeKept(let details):
-        ctx.didArchive(id)
-        ctx.showError(L10n.worktreeRemoveFailed, details)
+    // The removal's own row shows the failure with «Повторить» (#131).
+    case .worktreeKept: ctx.didArchive(id)
     case let .atRisk(dirty, ignored):
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.archiveAnyway) {
             Task { await archiveTask(id, ctx: ctx, force: true) }
         }
     case .failed(let details): ctx.showError(L10n.archiveFailed, details)
+    case .undone: break
     }
 }
 

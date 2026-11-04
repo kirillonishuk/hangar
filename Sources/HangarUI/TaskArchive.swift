@@ -64,6 +64,8 @@ extension AppState {
             return .atRisk(dirty: dirty, ignored: ignored)
         }
         guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
+        // The branch restore checks out again is the one git has there now: an agent may have renamed it (#133).
+        if check != .missing { await followRegisteredBranch(id, path: path, git: git, project: project) }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
            let stat = try? await Git(repo: path, runner: runner(for: project)).diffStat(base: base) {
@@ -77,6 +79,15 @@ extension AppState {
             return .worktreeKept(error.localizedDescription)
         }
         return .archived(worktreeRemoved: true)
+    }
+
+    /// The branch git has checked out at the chat's worktree now, recorded when it differs (#133); nil — not listed.
+    @discardableResult
+    private func followRegisteredBranch(_ id: UUID, path: String, git: Git, project: Project) async -> String? {
+        guard let list = try? await git.worktrees(),
+              let now = registeredBranch(at: path, in: list, normalize: pathNormalizer(project)) else { return nil }
+        if state.tasks.first(where: { $0.id == id })?.branch != now { perform { $0.setWorktreeBranch(taskId: id, now) } }
+        return now
     }
 
     /// The archive didn't go ahead: the task is back (still archived only if something else unarchived it meanwhile).
@@ -99,8 +110,10 @@ extension AppState {
             guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .restored }
             restore(taskId: id, fresh: true)
             return .restored
-        } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
+        } else if case .worktree(let path, var branch, _) = task.mode, let project = project(task.projectId) {
             let git = git(for: project), runner = runner(for: project)
+            // A folder still registered (kept by a failed removal) is found by its path, whatever its branch is called now.
+            branch = await followRegisteredBranch(id, path: path, git: git, project: project) ?? branch
             do {
                 let outcome = try await reviveWorktree(path, branch: branch, git: git, runner: runner)
                 switch outcome {

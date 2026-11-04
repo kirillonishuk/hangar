@@ -159,6 +159,20 @@ extension MainWindowController {
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (#122)
+        case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (#133)
+        case "projectSettings": app.state.projects.first.map { ctx.projectSettings($0.id) }
+        case "spareMenu":  // spareMenu <png>: the first project's «Копии без чата» menu drawn offscreen, first item highlighted
+            guard let project = app.state.projects.first?.id else { return }
+            let panel = PopoverMenuPanel(content: PopoverMenuContent(spareCopiesMenu(project, app: app, ctx: ctx)))
+            panel.menuState.highlighted = menuStep(panel.entries, from: nil, by: 1)
+            guard let view = panel.contentView else { return }
+            view.frame.size = view.fittingSize
+            DispatchQueue.main.async {
+                guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
+                _ = panel
+            }
         case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
         // choose <kind>: the focused chooser pane's button; continue <n>: row n of «Продолжить» (chooser or empty session).
         case "choose":

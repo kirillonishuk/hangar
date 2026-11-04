@@ -98,7 +98,7 @@ import AgentStatus
         """.utf8)
         let m = eventMessage(kind: "notification", args: [], env: env, stdin: stdin)
         #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .notification, session: "s1",
-                                  notificationType: "permission_prompt", message: "Claude needs your permission to use Bash"))
+                                  notificationType: "permission_prompt", message: "Claude needs your permission to use Bash", cwd: "/x"))
         let over = eventMessage(kind: "notification", args: ["--session", "s2"], env: env, stdin: stdin)
         #expect(over?.session == "s2")
     }
@@ -139,11 +139,21 @@ import AgentStatus
         #expect(bad?.session == nil)
     }
 
+    /// Where the agent works now (#133): an absolute path only; anything else is no cwd.
+    @Test func hookCwdIsValidated() {
+        let ok = eventMessage(kind: "stop", args: [], env: env, stdin: Data(#"{"session_id":"s1","cwd":"/r/.claude/worktrees/x"}"#.utf8))
+        #expect(ok?.cwd == "/r/.claude/worktrees/x")
+        for bad in [#""relative""#, #""/a\u0007b""#, "42", #""/\#(String(repeating: "a", count: 5000))""#] {
+            let m = eventMessage(kind: "stop", args: [], env: env, stdin: Data(#"{"session_id":"s1","cwd":\#(bad)}"#.utf8))
+            #expect(m?.cwd == nil)
+        }
+    }
+
     static let codexPayload = #"{"type":"agent-turn-complete","thread-id":"t1","turn-id":"u1","cwd":"/x","input-messages":["hi"],"last-assistant-message":"ok"}"#
 
     @Test func codexPayloadFromArgv() {
         let m = eventMessage(kind: "codex-notify", args: [Self.codexPayload], env: env, stdin: nil)
-        #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .codexNotify, session: "t1", message: "ok"))
+        #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .codexNotify, session: "t1", message: "ok", cwd: "/x"))
         let other = #"{"type":"other","thread-id":"t1"}"#
         #expect(eventMessage(kind: "codex-notify", args: [other], env: env, stdin: nil) == nil)
     }

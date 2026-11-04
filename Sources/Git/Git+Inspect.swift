@@ -72,7 +72,8 @@ extension Git {
         }
         if !truncated {
             // An untracked symlink looks like a file to git: only the file system tells.
-            for p in others.split(separator: "\0", omittingEmptySubsequences: true) where !add(p, link: true) { break }
+            // `dir/`: a nested checkout git doesn't descend into (an agent's worktree, #133) — a separate checkout, not shown.
+            for p in others.split(separator: "\0", omittingEmptySubsequences: true) where !p.hasSuffix("/") && !add(p, link: true) { break }
         }
         return FileListing(paths: paths, truncated: truncated, dirLinks: dirLinks)
     }

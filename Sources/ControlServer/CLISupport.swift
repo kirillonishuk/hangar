@@ -42,6 +42,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
+    m.cwd = hookCwd(object["cwd"])
     let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]
     if let i = own.firstIndex(of: "--session"), i + 1 < own.endIndex {
         m.session = validSessionId(own[i + 1])
@@ -49,6 +50,12 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
     if let i = own.firstIndex(of: "--agent-pid"), i + 1 < own.endIndex { m.agentPid = agentPid(own[i + 1]) }
     if own.contains("--tab-agent") { m.tabAgent = true }
     return m
+}
+
+/// A payload's `cwd` (Claude hooks, Codex `notify`): an absolute path, at most 4096 bytes, no control characters; else none.
+func hookCwd(_ value: Any?) -> String? {
+    guard let s = value as? String, s.hasPrefix("/"), s.utf8.count <= 4096, !s.utf8.contains(where: { $0 < 0x20 || $0 == 0x7F }) else { return nil }
+    return s
 }
 
 /// `--agent-pid` (the hook shell's `$PPID`): digits only, a positive Int32; anything else is no pid.

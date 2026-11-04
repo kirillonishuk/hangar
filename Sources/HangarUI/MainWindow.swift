@@ -97,7 +97,7 @@ final class TaskColumnController: NSViewController {
 
     /// Shows or hides the notice row; the terminals give it its height (only when the copy's state changes).
     func syncNotice() {
-        let want: CGFloat = app.selectedWorktreeProblem == nil ? 0 : Theme.Height.barPane
+        let want: CGFloat = app.selectedWorktreeProblem == nil && app.selectedAgentElsewhere == nil ? 0 : Theme.Height.barPane
         if noticeHeight?.constant != want { noticeHeight?.constant = want }
         worktreeNotice.isHidden = want == 0
     }
@@ -1236,7 +1236,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if self?.app.selectedTask?.projectId == id { self?.app.inspector.baseChanged() }
         }, onNotifications: { [weak self] in self?.app.setProjectNotifications(id, $0) }, onKeepWorktreesBeside: { [weak self] in
             self?.app.perform { s in s.projects.firstIndex { $0.id == id }.map { s.projects[$0].worktreeRoot = nil } }
-        }, onCancel: close)
+        }, notIgnored: app.unignoredCopies[id] ?? [], onHideFromGit: { [weak self] in await self?.app.hideCopiesFromGit(id) }, onCancel: close)
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host

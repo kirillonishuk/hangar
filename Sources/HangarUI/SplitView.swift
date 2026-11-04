@@ -820,7 +820,7 @@ final class FillView: NSView {
         view.onPwd = { [weak self] path in self?.app.remoteFiles.pwd(leaf.id, path) }
         view.onHookFailed = { [weak self] code, typed in self?.app.hostShellHookFailed(leaf: leaf.id, code: code, typed: typed) ?? false }
         view.onExit = { [weak self] code in
-            self?.app.signal(.exited(code: code), leaf: leaf.id)
+            self?.app.exited(leafId: leaf.id, code: code)
             self?.leafExited(leaf.id, code: code)
         }
         view.onFocus = { [weak self] in

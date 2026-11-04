@@ -128,6 +128,48 @@ import TestSupport
         #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
+    /// A sub-chat in its parent's worktree (#130): `x` and the sub-chat share `wt`.
+    private func shared(_ app: AppState, parent: UUID) throws -> UUID {
+        var sub: UUID?
+        app.perform { sub = $0.addSubSession(parent: parent, name: "sub", kind: .shell)?.task }
+        return try #require(sub)
+    }
+
+    /// The worktree stays while another session works in it; only the last one to leave checks and removes it.
+    @Test func sharedWorktreeStaysUntilTheLastSessionLeaves() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make()
+        defer { t.cleanup() }
+        let sub = try shared(app, parent: id)
+        try "u".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
+        await archiveTask(sub, ctx: ctx)
+        #expect(archived(app, sub) && !archived(app, id))
+        #expect(exists(wt + "/untracked.txt") && calls.confirms.isEmpty)  // the parent's work: not even asked about
+        try FileManager.default.removeItem(atPath: wt + "/untracked.txt")
+        await archiveTask(id, ctx: ctx)
+        #expect(archived(app, id) && !exists(wt))
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
+    }
+
+    /// Archiving the parent takes a sub-chat sharing its worktree along: one check for both; declined, both stay open.
+    @Test func parentArchiveChecksTheSharedWorktreeOnceForBoth() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
+        defer { t.cleanup() }
+        let sub = try shared(app, parent: id)
+        app.select(taskId: sub)
+        try "u".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
+        await archiveTask(id, ctx: ctx)
+        #expect(calls.confirms == [L10n.worktreeDirty])
+        #expect(!archived(app, id) && !archived(app, sub) && exists(wt + "/untracked.txt"))
+        #expect(app.state.selectedTaskId == sub)
+        // Clean: both go, and the folder with them.
+        try FileManager.default.removeItem(atPath: wt + "/untracked.txt")
+        await archiveTask(id, ctx: ctx)
+        #expect(archived(app, id) && archived(app, sub) && !exists(wt))
+        // Restoring the parent brings the worktree back; its sub-chat stays in History.
+        await restoreArchivedTask(id, ctx: ctx)
+        #expect(!archived(app, id) && archived(app, sub) && exists(wt))
+    }
+
     /// Ignores `.env`, `node_modules`, `*.db` on branch x; the main folder has `.env` (`SECRET=1`).
     private func ignoreSetup(_ t: TempRepo, _ wt: String) async throws {
         try ".env\nnode_modules/\n*.db\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)

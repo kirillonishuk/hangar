@@ -155,7 +155,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 | `hangar doctor [--json]` | только чтение (#61): приложение и сокет, версии CLI/приложения, claude/codex с версиями, hooks в ~/.claude и ~/.codex, ресурсы Ghostty, ssh-хосты проектов (подключён, tmux, hangar-remote), keep-awake, свободное место у папки состояния; строка ok/warn/fail с подсказкой; код 1, если есть fail; MCP `doctor` |
 | `hangar ssh <host>` | открыть в приложении вкладку с обычным `ssh -t` на хосте, без проекта (#64; MCP `ssh_open`) |
 | `hangar link session\|tab\|project\|host\|sessions <ref>` | напечатать ссылку `hangar://…` с полным id (MCP `links_create`, #66, #88); `host` — имя из SSH HOSTS, `sessions` — вид «Сессии» проекта `<ref>` |
-| `hangar sessions spawn --name N --prompt T [--agent claude\|codex] [--worktree [--base B]] [--parent S]` | подчат вызывающего чата (`HANGAR_LEAF_ID`) или `--parent` (MCP `sessions_spawn`, #128) |
+| `hangar sessions spawn --name N --prompt T [--agent claude\|codex] [--worktree [--base B]] [--parent S]` | подчат вызывающего чата (`HANGAR_LEAF_ID`) или `--parent`: работает параллельно в папке родителя (`--worktree` — в новой копии), родителю ничего не печатает (MCP `sessions_spawn`, #128, #130) |
 | `hangar sessions wait [S…] [--timeout N] [--parent S]` | ждать, пока подчаты полностью закончат / попросят ввод / упадут; на таймауте `still-running` (MCP `sessions_wait`, #128) |
 | `hangar event <kind>` | событие от hooks |
 | `hangar mcp [--read-only]` | MCP-сервер (stdio) с теми же операциями; `--read-only` — только `projects_list`, `sessions_list`, `tabs_read`, `doctor`, `sessions_wait`, остальные отклоняются (#63) |

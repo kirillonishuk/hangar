@@ -233,7 +233,9 @@ enum Action: CaseIterable {
         case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-            guard case .worktree = task.mode, let project = app.project(task.projectId) else {
+            // A worktree another session works in (a sub-chat in its parent's, #130) is not this one's to delete.
+            guard case .worktree = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty,
+                  let project = app.project(task.projectId) else {
                 ctx.confirm(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete) {
                     app.perform { $0.deleteTask(id: id) }
                 }

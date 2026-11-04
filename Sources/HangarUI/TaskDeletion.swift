@@ -10,7 +10,8 @@ import Workspace
 @MainActor func deleteTaskPermanently(_ id: UUID, alsoWorktree: Bool, ctx: ActionContext, git: Git, runner: Runner = .local) async {
     let app = ctx.app
     guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-    guard alsoWorktree, case .worktree(let path, let branch, _) = task.mode else {
+    // A folder and branch another session (open or archived) still uses stay: only the task goes (#130).
+    guard alsoWorktree, case .worktree(let path, let branch, _) = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty else {
         app.perform { $0.deleteTask(id: id) }
         return
     }

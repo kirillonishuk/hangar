@@ -46,6 +46,20 @@ import TestSupport
         #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
     }
 
+    /// A worktree and branch another session still uses (a sub-chat in its parent's, #130) are never deleted with one of them.
+    @Test func sharedWorktreeAndBranchStay() async throws {
+        let (t, app, id, wt, calls, ctx) = try await make()
+        defer { t.cleanup() }
+        var sub: UUID?
+        app.perform { sub = $0.addSubSession(parent: id, name: "sub", kind: .shell)?.task }
+        let other = try #require(sub)
+        await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
+        #expect(!app.state.tasks.contains { $0.id == id })
+        #expect(exists(wt) && app.state.tasks.contains { $0.id == other })
+        #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
+        #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
+    }
+
     @Test func cleanWorktreeAndMergedBranchRemoved() async throws {
         let (t, app, id, wt, calls, ctx) = try await make()
         defer { t.cleanup() }

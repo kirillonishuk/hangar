@@ -185,7 +185,7 @@ import Workspace
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
         case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
-        case subChatDone, subChatNeedsInput, subChatError, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatDeliver, subChatDeliverParent, subChatDeliverNotify, subChatDeliverParentHint, subChatDeliverNotifyHint, subChatStart, subChatFailed
+        case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
     }
 
 
@@ -1027,23 +1027,14 @@ extension L10n {
     }
     static var subChatsShow: String { s(.subChatsShow) }
     static var subChatsHide: String { s(.subChatsHide) }
-    static func subChatResult(_ status: SubSessionStatus) -> String {
-        switch status {
-        case .needsInput: s(.subChatNeedsInput)
-        case .error: s(.subChatError)
-        case .done, .running: s(.subChatDone)
-        }
-    }
+    static var subChatDone: String { s(.subChatDone) }
     static var newSubChat: String { s(.newSubChat) }
     static func newSubChatTitle(_ parent: String) -> String { f(.newSubChatTitle, parent) }
     static var subChatTask: String { s(.subChatTask) }
     static var subChatTaskPlaceholder: String { s(.subChatTaskPlaceholder) }
     static var subChatAgent: String { s(.subChatAgent) }
-    static var subChatDeliver: String { s(.subChatDeliver) }
-    static var subChatDeliverParent: String { s(.subChatDeliverParent) }
-    static var subChatDeliverNotify: String { s(.subChatDeliverNotify) }
-    static var subChatDeliverParentHint: String { s(.subChatDeliverParentHint) }
-    static var subChatDeliverNotifyHint: String { s(.subChatDeliverNotifyHint) }
+    static var subChatWhereSame: String { s(.subChatWhereSame) }
+    static var subChatHint: String { s(.subChatHint) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }
     static var removeFromList: String { s(.removeFromList) }

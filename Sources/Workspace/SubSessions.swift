@@ -1,9 +1,5 @@
 import Foundation
 
-/// Where a finished sub-session's result goes (#128): typed into the parent's agent, or only a notification for the user
-/// (nothing reaches the parent's context).
-public enum SubDelivery: String, Codable, Sendable, CaseIterable { case parent, notify }
-
 /// Sub-sessions (spec sub-sessions §2): a chat spawned by another chat's agent, kept under it in the sidebar.
 extension WorkspaceState {
     /// Open children of `parent`, in their `order`.
@@ -17,10 +13,11 @@ extension WorkspaceState {
         return tasks.contains { $0.id == parent && !$0.archived }
     }
 
-    /// A sub-session in the parent's project (main folder or `mode`), or for a chat without a project a new such chat.
+    /// A sub-session in the parent's project, by default in the parent's own folder (its worktree or the main folder, #130),
+    /// or in `mode` (a new worktree); for a chat without a project a new such chat (the same shared folder).
     /// One `kind` tab; the selection is not changed. nil — no such parent.
-    public mutating func addSubSession(parent: UUID, name: String, kind: LeafKind, mode: TaskMode = .mainFolder,
-                                       delivery: SubDelivery = .parent, at date: Date = Date()) -> (task: UUID, tab: UUID)? {
+    public mutating func addSubSession(parent: UUID, name: String, kind: LeafKind, mode: TaskMode? = nil,
+                                       at date: Date = Date()) -> (task: UUID, tab: UUID)? {
         guard let p = tasks.first(where: { $0.id == parent }) else { return nil }
         let selected = selectedTaskId
         let task: UUID
@@ -28,12 +25,21 @@ extension WorkspaceState {
             task = addFreeChatTask(name: name, autoNamed: false, at: date)
             selectedTaskId = selected
         } else {
-            task = addTask(projectId: p.projectId, name: name, mode: mode)
+            task = addTask(projectId: p.projectId, name: name, mode: mode ?? p.mode)
         }
         guard let i = tasks.firstIndex(where: { $0.id == task }) else { return nil }
         tasks[i].parentTaskId = parent
-        tasks[i].subDelivery = delivery == .parent ? nil : delivery
         return (task, addTab(taskId: task, kind: kind))
+    }
+
+    /// Other sessions of the same project working in `task`'s worktree folder (a sub-chat shares its parent's, #130).
+    /// `openOnly`: archived ones are left out. Empty for a main-folder session.
+    public func worktreeSharers(of task: HangarTask, openOnly: Bool) -> [HangarTask] {
+        guard case .worktree(let path, _, _) = task.mode else { return [] }
+        return tasks.filter { t in
+            guard t.id != task.id, t.projectId == task.projectId, !(openOnly && t.archived), case .worktree(path, _, _) = t.mode else { return false }
+            return true
+        }
     }
 
     public mutating func setSubsCollapsed(taskId: UUID, _ collapsed: Bool) {

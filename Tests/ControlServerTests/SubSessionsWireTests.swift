@@ -15,8 +15,6 @@ import Testing
              .call(.tasksSpawn(parent: me, name: "Release", prompt: "ship 1.2", agent: nil, worktree: false, base: nil), json: false)),
             (["sessions", "spawn", "--name", "R", "--prompt", "p", "--agent", "codex", "--worktree", "--base", "main", "--parent", "chat", "--json"],
              .call(.tasksSpawn(parent: "chat", name: "R", prompt: "p", agent: .codex, worktree: true, base: "main"), json: true)),
-            (["sessions", "spawn", "--name", "R", "--prompt", "p", "--notify-only"],
-             .call(.tasksSpawn(parent: me, name: "R", prompt: "p", agent: nil, worktree: false, base: nil, notifyOnly: true), json: false)),
             (["sessions", "wait"], .call(.tasksWait(sessions: [], parent: me, timeout: ControlMethod.waitDefaultSeconds), json: false)),
             (["sessions", "wait", "a1", "b2", "--timeout", "30"], .call(.tasksWait(sessions: ["a1", "b2"], parent: me, timeout: 30), json: false)),
         ]
@@ -25,6 +23,7 @@ import Testing
             ["sessions", "spawn", "--name", "R"],
             ["sessions", "spawn", "--name", "R", "--prompt", "p", "--agent", "shell"],
             ["sessions", "spawn", "--name", "R", "--prompt", "p", "--base", "main"],
+            ["sessions", "spawn", "--name", "R", "--prompt", "p", "--notify-only"],  // gone (#130): nothing reaches the parent anyway
             ["sessions", "wait", "--timeout", "0"],
         ]
         for args in usage {
@@ -48,9 +47,8 @@ import Testing
             guard case .failure(let e) = decode("tasks.spawn", bad) else { Issue.record("accepted \(bad)"); continue }
             #expect(e.code == .badParams)
         }
-        #expect(decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"notify"}"#)
-                == .success(.tasksSpawn(parent: nil, name: "R", prompt: "go", agent: nil, worktree: false, base: nil, notifyOnly: true)))
-        guard case .failure = decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"both"}"#) else { Issue.record("deliver"); return }
+        // `deliver` is gone (#130): a sub-session never sends anything to its parent.
+        guard case .failure = decode("tasks.spawn", #"{"name":"R","prompt":"go","deliver":"notify"}"#) else { Issue.record("deliver"); return }
         #expect(decode("tasks.wait", #"{"sessions":["a","b"],"timeout":5}"#) == .success(.tasksWait(sessions: ["a", "b"], parent: nil, timeout: 5)))
         for bad in [#"{"sessions":"a"}"#, #"{"sessions":[1]}"#, #"{"sessions":[""]}"#, #"{"timeout":0}"#, #"{"timeout":3601}"#,
                     "{\"sessions\":[" + Array(repeating: "\"a\"", count: 17).joined(separator: ",") + "]}"] {
@@ -89,6 +87,7 @@ import Testing
         #expect((props?["sessions"] as? [String: Any])?["type"] as? String == "array")
         let spawn = try #require(tools.first { $0["name"] as? String == "sessions_spawn" })
         #expect(((spawn["inputSchema"] as? [String: Any])?["required"] as? [String]).map(Set.init) == ["name", "prompt"])
+        #expect(((spawn["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])?["deliver"] == nil)
     }
 
     @Test func stopCarriesRunningBackgroundTasks() {

@@ -1,18 +1,18 @@
 import SwiftUI
 import Workspace
 
-/// «Новый подчат…» (#127): a task for a separate chat under this one, its agent, where it works and where its result goes.
+/// «Новый подчат…» (#128, #130): a task for a parallel chat under this one, its agent and where it works (the chat's own
+/// folder by default).
 struct SubSessionSheet: View {
     let parentName: String
     /// A chat without a project has no repository: no copy (worktree).
     let canWorktree: Bool
     @State var agent: LeafKind
-    let onStart: (_ prompt: String, _ agent: LeafKind, _ worktree: Bool, _ delivery: SubDelivery) -> Void
+    let onStart: (_ prompt: String, _ agent: LeafKind, _ worktree: Bool) -> Void
     let onCancel: () -> Void
 
     @State private var prompt = ""
     @State private var worktree = false
-    @State private var delivery = SubDelivery.parent
     @FocusState private var focused: Bool
 
     private var ready: Bool { !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -32,16 +32,12 @@ struct SubSessionSheet: View {
                 }
                 if canWorktree {
                     CardRow(label: L10n.whereToWork) {
-                        Segmented(selection: worktree, options: [(false, L10n.whereFolder), (true, L10n.whereCopy)]) { worktree = $0 }
+                        Segmented(selection: worktree, options: [(false, L10n.subChatWhereSame), (true, L10n.whereCopy)]) { worktree = $0 }
                     }
-                }
-                CardRow(label: L10n.subChatDeliver) {
-                    Segmented(selection: delivery, options: [(SubDelivery.parent, L10n.subChatDeliverParent),
-                                                             (SubDelivery.notify, L10n.subChatDeliverNotify)]) { delivery = $0 }
                 }
             }
             .padding(.top, Theme.sheetNameTop)
-            Text(verbatim: delivery == .parent ? L10n.subChatDeliverParentHint : L10n.subChatDeliverNotifyHint)
+            Text(verbatim: L10n.subChatHint)
                 .font(Theme.Typography.secondary.font())
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(nil)
@@ -63,6 +59,6 @@ struct SubSessionSheet: View {
 
     private func start() {
         guard ready else { return }
-        onStart(prompt, agent, worktree, delivery)
+        onStart(prompt, agent, worktree)
     }
 }

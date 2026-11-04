@@ -28,27 +28,44 @@ extension AppState {
     /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
     /// unarchived again, its tabs relaunch lazily as after a restart.
     /// Its open sub-sessions follow a parent into the archive, each by the same rules (#128); one at risk stays open.
+    /// A worktree another open session still works in (a sub-chat shares its parent's, #130) is left alone: only the last
+    /// session to leave it checks and removes it; sub-sessions archived along with it count as leaving.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
-        let children = state.subSessions(of: id).map(\.id)
-        let outcome = await archiveOne(id, force: force)
+        guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
+        let descendants = state.withSubSessions([task], expandedOnly: false).dropFirst().map(\.task.id)
+        let outcome = await archiveOne(id, force: force, leaving: Set(descendants))
         switch outcome {
         case .archived, .worktreeKept:
-            for child in children { _ = await archiveRemovingWorktree(child, force: force) }
+            // Parents first; one that left with its parent's worktree is already archived, one whose parent stayed (at risk) stays too.
+            for child in descendants {
+                guard let t = state.tasks.first(where: { $0.id == child && !$0.archived }),
+                      state.tasks.first(where: { $0.id == t.parentTaskId })?.archived != false else { continue }
+                _ = await archiveOne(child, force: force, leaving: Set(descendants))
+            }
         case .atRisk, .failed: break
         }
         return outcome
     }
 
-    private func archiveOne(_ id: UUID, force: Bool) async -> ArchiveOutcome {
+    /// `leaving`: sessions about to be archived with this one; those sharing its worktree go with it (stopped before the
+    /// check, back again if it does not go ahead).
+    private func archiveOne(_ id: UUID, force: Bool, leaving: Set<UUID>) async -> ArchiveOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
         guard case .worktree(let path, _, _) = task.mode, let project = project(task.projectId) else {
             archive(taskId: id)
             return .archived(worktreeRemoved: false)
         }
+        let sharers = state.worktreeSharers(of: task, openOnly: true).map(\.id)
+        // Someone stays in the folder: it is theirs now; no check, nothing removed, the status line override stays.
+        if sharers.contains(where: { !leaving.contains($0) }) {
+            archive(taskId: id)
+            return .archived(worktreeRemoved: false)
+        }
         // Offline: the check can't run; stopping first would only queue kills for tabs that stay.
         if let host = project.host, remote.hosts[host]?.state != .connected { return .failed(RemoteHostError.notConnected(host).description) }
-        let wasSelected = state.selectedTaskId == id
-        archive(taskId: id)
+        let group = [id] + sharers
+        let selected = group.first { state.selectedTaskId == $0 }
+        for t in group { archive(taskId: t) }
         for kill in lastKills { await kill.value }
         // Hangar's status line override is its own file in the worktree: out first, or it would count as at risk.
         await revertProjectStatuslines(host: project.host, dirs: [StatuslineDir(path: path, name: task.name)])
@@ -56,21 +73,21 @@ extension AppState {
         do {
             check = try await checkWorktree(path, git: git, runner: runner(for: project))
         } catch {
-            unarchiveKept(id, wasSelected: wasSelected)
+            unarchiveKept(group, selected: selected)
             return .failed(error.localizedDescription)
         }
         if case let .atRisk(dirty, ignored) = check, !force {
-            unarchiveKept(id, wasSelected: wasSelected)
+            unarchiveKept(group, selected: selected)
             return .atRisk(dirty: dirty, ignored: ignored)
         }
         guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
            let stat = try? await Git(repo: path, runner: runner(for: project)).diffStat(base: base) {
-            perform { $0.setArchivedChanges(id: id, LineChanges(added: stat.added, deleted: stat.deleted)) }
+            perform { s in for t in group { s.setArchivedChanges(id: t, LineChanges(added: stat.added, deleted: stat.deleted)) } }
         }
         // Restored while measuring («Сессии» already lists it as closed): the folder belongs to an open session again.
-        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .failed("session not found") }
+        guard group.allSatisfy({ t in state.tasks.contains { $0.id == t && $0.archived } }) else { return .failed("session not found") }
         do {
             if check == .missing { try await git.pruneWorktrees() } else { try await removeWorktreeFolder(path, git: git, runner: runner(for: project)) }
         } catch {
@@ -79,15 +96,17 @@ extension AppState {
         return .archived(worktreeRemoved: true)
     }
 
-    /// The archive didn't go ahead: the task is back (still archived only if something else unarchived it meanwhile).
-    private func unarchiveKept(_ id: UUID, wasSelected: Bool) {
-        guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
-        let leaves = Set(state.tasks.filter { $0.id == id }.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) + [$0.drawer.leaf?.id].compactMap { $0 } })
-        // A kill that failed waits for the reconnect; these tabs are live again.
-        for host in pendingKills.keys { pendingKills[host]?.subtract(leaves) }
-        restore(taskId: id)
-        if wasSelected { select(taskId: id) }
-        syncStatuslines(task: id)
+    /// The archive didn't go ahead: the tasks are back (one that something else unarchived meanwhile is left as it is).
+    /// `selected`: the one of them that was selected.
+    private func unarchiveKept(_ ids: [UUID], selected: UUID?) {
+        for id in ids where state.tasks.contains(where: { $0.id == id && $0.archived }) {
+            let leaves = Set(state.tasks.filter { $0.id == id }.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) + [$0.drawer.leaf?.id].compactMap { $0 } })
+            // A kill that failed waits for the reconnect; these tabs are live again.
+            for host in pendingKills.keys { pendingKills[host]?.subtract(leaves) }
+            restore(taskId: id)
+            if selected == id { select(taskId: id) }
+        }
+        if let first = ids.first { syncStatuslines(task: first) }
     }
 
     /// A worktree folder that is gone (removed by archive) is added back from its branch first (`reviveWorktree`); tabs reopen on unarchive.

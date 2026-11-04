@@ -1,23 +1,16 @@
 import AgentStatus
-import AppKit
 import ControlServer
 import Foundation
 import Workspace
 
-/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128): done detection, `sessions_wait` and the parent's notes.
+/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128, #130): done detection, `sessions_wait` and the user's
+/// notification. Nothing is ever sent to the parent's terminal.
 extension AppState {
     // MARK: Model
 
     /// The leaf whose agent a sub-session runs: its first claude/codex leaf.
     func agentLeaf(of task: HangarTask) -> Leaf? {
         task.tabs.flatMap(\.root.leaves).first { $0.kind == .claude || $0.kind == .codex }
-    }
-
-    /// Where a parent's notes are typed: the active tab's focused leaf when it runs an agent, else its first agent leaf.
-    func parentAgentLeaf(of task: HangarTask) -> Leaf? {
-        if let tab = task.tabs.first(where: { $0.id == task.activeTabId }), let leaf = tab.root.leaf(id: tab.focusedLeafId),
-           leaf.kind == .claude || leaf.kind == .codex { return leaf }
-        return agentLeaf(of: task)
     }
 
     func subSessionLink(_ id: UUID) -> String { LinkTarget.task(id).link.url.absoluteString }
@@ -38,18 +31,15 @@ extension AppState {
 
     // MARK: Creation
 
-    /// Appended to every sub-session's prompt: its last message is all its parent gets (#128).
-    static let subSessionPromptSuffix = "\n\n(You run as a Hangar sub-session. When you are done, end with a concise final result: "
-        + "what you found or did, key paths and links, under 1500 characters. Only that last message goes back to the chat that started you.)"
-
     /// MCP/CLI `sessions_spawn` and the «New Sub-chat» sheet: the sub-session, its agent started at once with the prompt.
-    func spawnSubSession(parent parentId: UUID, name: String, prompt: String, kind: LeafKind, worktree: Bool, base: String?,
-                         delivery: SubDelivery) async -> Result<UUID, ControlError> {
+    /// It works in the parent's own folder (the same worktree or main folder, #130); `worktree` — in a new worktree instead.
+    func spawnSubSession(parent parentId: UUID, name: String, prompt: String, kind: LeafKind, worktree: Bool,
+                         base: String?) async -> Result<UUID, ControlError> {
         guard let parent = state.tasks.first(where: { $0.id == parentId && !$0.archived }) else {
             return .failure(ControlError(code: .notFound, message: "parent is gone"))
         }
         let free = state.isFreeChatTask(parent)
-        var mode = TaskMode.mainFolder, setup: String?
+        var mode: TaskMode?, setup: String?
         if worktree {
             guard !free, let project = project(parent.projectId) else {
                 return .failure(ControlError(code: .badParams, message: "a chat without a project has no repository for a worktree"))
@@ -63,9 +53,9 @@ extension AppState {
         if free { ensureChatsFolder() }
         var created: (task: UUID, tab: UUID)?
         var setupTab: UUID?
-        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines) + Self.subSessionPromptSuffix
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         perform { s in
-            guard let c = s.addSubSession(parent: parentId, name: name, kind: kind, mode: mode, delivery: delivery),
+            guard let c = s.addSubSession(parent: parentId, name: name, kind: kind, mode: mode),
                   let i = s.tasks.firstIndex(where: { $0.id == c.task }) else { return }
             created = c
             if let leaf = s.tasks[i].tabs.first(where: { $0.id == c.tab })?.root.leaves.first { pendingPrompts[leaf.id] = text }
@@ -84,7 +74,7 @@ extension AppState {
         subWatches[created.task] = SubSessionWatch(created: clock())
         terminals?.start(created.tab)
         if let setupTab { terminals?.start(setupTab) }
-        if mode != .mainFolder { Task { await syncProjectStatuslines(host: project(parent.projectId)?.host) } }
+        if mode != nil { Task { await syncProjectStatuslines(host: project(parent.projectId)?.host) } }
         return .success(created.task)
     }
 
@@ -100,7 +90,7 @@ extension AppState {
         return w
     }
 
-    /// A hook of `leaf` was applied: a sub-session's agent leaf updates its watch; a parent's leaf may take its notes now.
+    /// A hook of `leaf` was applied: a sub-session's agent leaf updates its watch.
     func subSessionHook(leaf: UUID, kind: HookKind, background: Int?, message: String?) {
         guard let taskId = location(ofLeaf: leaf)?.task, let task = state.tasks.first(where: { $0.id == taskId }) else { return }
         if task.parentTaskId != nil, agentLeaf(of: task)?.id == leaf {
@@ -110,7 +100,6 @@ extension AppState {
             subWatches[task.id] = w
             evaluateSubSessions()
         }
-        if parentNotes[taskId]?.isEmpty == false { deliverNotes(to: taskId) }
     }
 
     /// The agent leaf's own status changed without a hook (exit, relaunch).
@@ -136,7 +125,7 @@ extension AppState {
 
     func agentScreenBusy(_ leaf: UUID) -> Bool { codexBusy(terminals?.read(leaf)) }
 
-    /// Re-evaluates every watched sub-session: a newly settled one is reported once (its parent's note), waiters wake, and
+    /// Re-evaluates every watched sub-session: a newly settled one is reported once (the user's notification), waiters wake, and
     /// the next check is scheduled only while one is still settling.
     func evaluateSubSessions() {
         var next: Date?
@@ -182,24 +171,18 @@ extension AppState {
         })
     }
 
+    /// Fully finished (#130): the user is told, as for an agent that finished out of sight; nothing reaches the parent.
+    /// The banner takes the place of the leaf's own «done» one (same id). Needs-input and errors already have the leaf's
+    /// own banners (permission, question, failure), with their buttons.
     private func report(_ task: HangarTask, status: SubSessionStatus) {
+        guard status == .done, config.notifications, !task.muted, let leaf = agentLeaf(of: task) else { return }
         let info = subSessionInfo(task, status: status)
-        if task.subDelivery == .notify {
-            // Nothing for the parent's context: the user is told, as for an agent that finished out of sight.
-            if config.notifications, !task.muted {
-                onSubSessionNotice?(AgentNotice(id: "sub-" + task.id.uuidString, title: L10n.subChatResult(status), subtitle: task.name,
-                                                body: noticeBody(info.message ?? ""), leaf: agentLeaf(of: task)?.id, category: .open,
-                                                thread: (task.parentTaskId ?? task.id).uuidString, sound: noticeSound(config.sounds["done"])))
-            }
-            return
-        }
-        guard let parent = task.parentTaskId, state.tasks.contains(where: { $0.id == parent }) else { return }
-        parentNotes[parent, default: []].removeAll { $0.task == task.id }
-        parentNotes[parent, default: []].append(SubSessionNote(task: task.id, name: task.name, status: status, message: info.message, link: info.link))
-        deliverNotes(to: parent)
+        onSubSessionNotice?(AgentNotice(id: leaf.id.uuidString, title: L10n.subChatDone, subtitle: task.name, body: noticeBody(info.message ?? ""),
+                                        leaf: leaf.id, category: .open, thread: (task.parentTaskId ?? task.id).uuidString,
+                                        sound: noticeSound(config.sounds["done"])))
     }
 
-    /// The agent's last message, else the last lines of its screen; compact (#128): the parent's context pays for it.
+    /// The agent's last message, else the last lines of its screen; compact (#128): the caller's context pays for it.
     func subSessionInfo(_ task: HangarTask, status: SubSessionStatus) -> SubSessionInfo {
         let leaf = agentLeaf(of: task)
         var message = subWatches[task.id]?.lastMessage
@@ -238,45 +221,5 @@ extension AppState {
                 }
             }
         }
-    }
-
-    // MARK: Parent notes
-
-    /// Types the parent's queued notes into its agent leaf when that is idle and the user is not typing (§7b); else retries.
-    func deliverNotes(to parent: UUID) {
-        guard let notes = parentNotes[parent], !notes.isEmpty else { return }
-        guard let task = state.tasks.first(where: { $0.id == parent }) else { parentNotes[parent] = nil; return }
-        // Asleep / archived: its agent's next hook after waking brings the notes.
-        guard !task.archived, let leaf = parentAgentLeaf(of: task) else { return }
-        let input = ParentInput(running: terminals?.state(leaf.id) == .running, state: state(ofLeaf: leaf.id),
-                                screenBusy: agentScreenBusy(leaf.id), draft: leafDrafts[leaf.id] ?? false, lastKey: leafLastKey[leaf.id])
-        guard input.canDeliver(now: clock()) else { retryNotesLater(); return }
-        parentNotes[parent] = nil
-        terminals?.send(leaf.id, notes.map(\.line).joined(separator: "\n"), [.enter])
-    }
-
-    private func retryNotesLater() {
-        guard noteRetry == nil else { return }
-        let interval = noteRetryInterval
-        noteRetry = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: interval)
-            guard let self else { return }
-            self.noteRetry = nil
-            for parent in Array(self.parentNotes.keys) where self.state.tasks.contains(where: { $0.id == parent && !$0.archived }) {
-                self.deliverNotes(to: parent)
-            }
-        }
-    }
-
-    /// A key went on to a terminal leaf (key monitor): drafts and the typing pause for notes.
-    func keyTyped(leaf: UUID, keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) {
-        let scalar = characters?.unicodeScalars.first
-        let printable = scalar.map { $0.value >= 0x20 && $0.value != 0x7F && !(0xF700...0xF8FF).contains($0.value) } ?? false
-        let before = leafDrafts[leaf] ?? false
-        let after = draftAfterKey(before, keyCode: keyCode, control: modifiers.contains(.control), command: modifiers.contains(.command),
-                                  printable: printable)
-        if after != before { leafDrafts[leaf] = after ? true : nil }
-        leafLastKey[leaf] = clock()
-        if before && !after, !parentNotes.isEmpty { retryNotesLater() }
     }
 }

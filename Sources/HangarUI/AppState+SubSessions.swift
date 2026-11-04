@@ -123,7 +123,9 @@ extension AppState {
         // The probe only matters once the turn is over.
         let settling = w.started && (st == .done || st == .idle)
         var detached: Int?
-        if settling, let pid = statuses.status(leaf.id).agentPid { detached = probeDetached(pid) }
+        // A local, live agent only: a remote project's pid is the server's (spec §9), an exited agent's pid may be reused.
+        if settling, project(task.projectId)?.host == nil, terminals?.state(leaf.id) == .running,
+           let pid = statuses.status(leaf.id).agentPid { detached = probeDetached(pid) }
         // The screen is read only while it can matter (it is the whole terminal's text).
         return AgentStatus.subSessionStatus(w, state: st, detached: detached, screenBusy: settling && agentScreenBusy(leaf.id), now: clock())
     }

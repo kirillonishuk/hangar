@@ -1,5 +1,6 @@
 import AgentStatus
 import ControlServer
+import Exec
 import Foundation
 import Testing
 @testable import HangarUI
@@ -198,6 +199,37 @@ import Workspace
         let waited = try JSONDecoder().decode(WaitResult.self, from: data)
         #expect(waited.sessions.map(\.status) == ["still-running"] && waited.sessions.first?.message == "line 1\nline 2")
         #expect(waited.sessions.first?.agent == .claude && waited.sessions.first?.name == "Release")
+    }
+
+    /// The process probe reads the agent's pid on this Mac: never an exited agent's (reused pid) or a remote one's (spec §9).
+    @Test func processProbeOnlyForALiveLocalAgent() async throws {
+        let f = try Fixture(dir: dir)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var probed: [Int32] = []
+        f.app.probeDetached = { probed.append($0); return 1 }
+        let sub = try await f.spawn()
+        f.app.handle(.event(EventMessage(tab: sub.tab, leaf: sub.leaf, kind: .sessionStart, session: "s-\(sub.leaf.uuidString.prefix(4))",
+                                         agentPid: 4242, tabAgent: true)))
+        f.hook(.prompt, tab: sub.tab, leaf: sub.leaf)
+        f.hook(.stop, tab: sub.tab, leaf: sub.leaf, message: "ok", background: 0)
+        f.now += 60
+        let task = { f.app.state.tasks.first { $0.id == sub.task }! }
+        #expect(f.app.statuses.status(sub.leaf).agentPid == 4242)
+        #expect(f.app.subSessionStatus(of: task()) == .running)
+        #expect(!probed.isEmpty && probed.allSatisfy { $0 == 4242 })
+        let probes = probed.count
+
+        var running = false
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in running ? .running : .exited }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.subSessionStatus(of: task()) == .done && probed.count == probes)
+
+        running = true
+        f.app.remote = f.app.makeRemoteHosts(paths: SSHPaths(stateDir: dir.path), sshPath: "/usr/bin/false", isActive: { false })
+        f.app.perform { s in
+            let remote = s.addRemoteProject(name: "srv", host: "dev", path: "/srv/app")
+            if let i = s.tasks.firstIndex(where: { $0.id == sub.task }) { s.tasks[i].projectId = remote }
+        }
+        #expect(f.app.subSessionStatus(of: task()) == .done && probed.count == probes)
     }
 
     @Test func archivingTheParentArchivesItsSubSessions() async throws {

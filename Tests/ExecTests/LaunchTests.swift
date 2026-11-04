@@ -70,7 +70,15 @@ import Workspace
         #expect(try script(spec(leaf(.shell), shell: "/bin/bash"), shell: "/bin/bash") == "/bin/bash -l -i" + wrapper)
         let fish = try spec(leaf(.shell), shell: "/opt/homebrew/bin/fish")
         #expect(!fish.command.contains("ZDOTDIR"))
-        #expect(try inner(spec(leaf(.shell), prompt: "make setup")) == "make setup\n" + ghosttyZshIntegration + "/bin/zsh -l -i")
+        // A setup run, no shell after (#127).
+        #expect(try inner(spec(leaf(.shell), prompt: "make setup")) == ghosttyZshIntegration + "/bin/zsh -i -c 'make setup'")
+    }
+
+    /// The setup script's own code reaches the tab, even through its `exit` (#127).
+    @Test func setupScriptCodeIsTheTabs() throws {
+        let full = try script(spec(leaf(.shell), prompt: "echo hi\nexit 3", shell: "/bin/sh"), shell: "/bin/sh")
+        let run = try sh(full)
+        #expect(run.status == 3 && run.out.contains("\u{1B}]133;D;3\u{07}") && run.out.hasPrefix("hi\n"))
     }
 
     func zsh(_ pre: String) throws -> String {

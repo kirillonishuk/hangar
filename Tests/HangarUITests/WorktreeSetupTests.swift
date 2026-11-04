@@ -265,16 +265,60 @@ import Workspace
         let shell = try #require(task.tabs.last?.root.leaves.first)
         #expect(shell.kind == .shell && shell.cwd == wt)
         #expect(app.launchContext(for: shell.id) == .created(prompt: "npm install"))
+        // Never saved (#127): a restart brings back the agent tab only, still in front.
+        #expect(app.setupLeaves == [shell.id])
+        let saved = try #require(app.savedState.tasks.first { $0.id == created.task })
+        #expect(saved.tabs.map(\.id) == [created.tab] && saved.activeTabId == created.tab)
+        #expect(app.state.tasks.first { $0.id == created.task }?.tabs.count == 2)  // only the saved copy drops it
         // No setup: one agent tab, as before.
         let plain = app.createTask(projectId: p, name: "e", firstMessage: "", mode: .mainFolder, setup: nil)
         #expect(app.state.tasks.first { $0.id == plain.task }?.tabs.count == 1)
     }
 
-    @Test func shellRunsSetupThenStaysInteractive() {
+    /// A failed or interrupted setup stays, marked failed (-1 = no code: Ctrl-C); ↩ makes it a plain shell, saved again.
+    @Test func setupExitMarksTheTab() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-setup-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var s = WorkspaceState()
+        let p = s.addProject(name: "p", path: NSTemporaryDirectory())
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        app.keepAwake = .inert()
+        app.codexRead = nil
+        let created = app.createTask(projectId: p, name: "d", firstMessage: "", mode: .worktree(path: NSTemporaryDirectory(), branch: "d", base: "main"),
+                                     setup: "false")
+        let shell = try #require(app.state.tasks.first { $0.id == created.task }?.tabs.last?.root.leaves.first)
+        app.exited(leafId: shell.id, code: -1)
+        #expect(app.state(ofLeaf: shell.id) == .failed)
+        app.relaunched(leafId: shell.id)
+        #expect(app.setupLeaves.isEmpty)
+        #expect(app.savedState.tasks.first { $0.id == created.task }?.tabs.count == 2)
+        // Any other shell that ends without its code is not a failure.
+        var other = UUID()
+        app.perform { other = $0.addTab(taskId: created.task, kind: .shell) }
+        let leaf = try #require(app.state.tasks.first { $0.id == created.task }?.tabs.first { $0.id == other }?.root.leaves.first)
+        app.exited(leafId: leaf.id, code: -1)
+        #expect(app.state(ofLeaf: leaf.id) == .idle)
+    }
+
+    /// The setup script is the tab's whole run: its code is the tab's (0 closes it), a failed copy is never 0 (#127).
+    @Test func shellRunsOnlySetup() throws {
         let leaf = Leaf(kind: .shell, cwd: "/w")
         let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, shell: "'/bin/zsh'", restoring: false,
                                initialPrompt: "npm install")
-        #expect(cmd == "npm install\n'/bin/zsh' -l -i")
+        #expect(cmd == "'/bin/zsh' -i -c 'npm install'")
+        func code(_ script: String?) throws -> Int32 {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            p.arguments = ["-c", try #require(script)]
+            p.standardError = FileHandle.nullDevice
+            try p.run()
+            p.waitUntilExit()
+            return p.terminationStatus
+        }
+        #expect(try code(worktreeSetupScript(failures: [], command: "true")) == 0)
+        #expect(try code(worktreeSetupScript(failures: [], command: "exit 3")) == 3)
+        #expect(try code(worktreeSetupScript(failures: ["x"], command: "true")) == 1)
+        #expect(try code(worktreeSetupScript(failures: ["x"], command: nil)) == 1)
         #expect(agentCommand(for: leaf, agent: { $0.rawValue }, shell: "'/bin/zsh'", restoring: true,
                              initialPrompt: nil) == "'/bin/zsh' -l -i")
     }
@@ -283,7 +327,7 @@ import Workspace
         #expect(worktreeSetupScript(failures: [], command: nil) == nil)
         #expect(worktreeSetupScript(failures: [], command: "  ") == nil)
         let s = worktreeSetupScript(failures: ["node_modules: it's broken"], command: "npm i")
-        #expect(s == "printf '%s\\n' " + shellQuote(L10n.copyFailed("node_modules: it's broken")) + " >&2\nnpm i")
+        #expect(s == "printf '%s\\n' " + shellQuote(L10n.copyFailed("node_modules: it's broken")) + " >&2\nnpm i\nexit 1")
     }
 
     @Test func remoteCopyUsesHostRunner() async throws {

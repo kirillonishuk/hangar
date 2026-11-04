@@ -29,6 +29,7 @@ struct PlannedChange: Equatable, Identifiable {
         case .changedOnDisk?: L10n.fileChanged
         case .readOnly?: L10n.fileReadOnly
         case .otherCopy?: L10n.intOtherCopy
+        case .foreignSkill?: L10n.intSkillForeign
         case .unsupportedNotify?, .invalidTOML?: L10n.codexConfigUnsupported
         case nil: L10n.integrationWriteFailed(error.localizedDescription)
         }

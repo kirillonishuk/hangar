@@ -19,17 +19,22 @@ usage:
     parent's folder, --worktree: in a new worktree; nothing reaches the parent, the user is notified when it finishes)
   hangar sessions wait [S…] [--timeout SECONDS] [--parent S] [--json]   (until sub-sessions are done / need input / failed;
     default: all open sub-sessions of the calling chat; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
+  hangar sessions note [TEXT…] [--session S] [--json]   (a short progress note on the calling chat, from HANGAR_LEAF_ID,
+    or on S; one line, up to \(ControlMethod.maxNoteChars) characters; "" clears it)
   hangar sessions restore --session S [--json]   (an archived session; re-creates its worktree from the kept branch)
   hangar tabs open --session S --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
+  hangar tabs wait --tab T [--for idle|waiting|any] [--timeout SECONDS] [--json]   (until the tab's agent ends its turn
+    or asks for input; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
   hangar link session|tab|project|host|sessions <ref> [--json]   (prints a hangar:// link; opening it only shows, nothing runs;
     host: an SSH HOSTS name; sessions: the «Sessions» view of project <ref>)
   (S: a session id, a unique id prefix or a name; T: a tab id, a leaf id or a session's drawer leaf id from `sessions list`, or a unique prefix)
   (--json keeps the keys "tasks" and "task" for compatibility; `tasks …` and `--task` still work as aliases)
   hangar doctor [--json]   (read-only health report; exit 1 when a check fails)
-  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor, sessions_wait)
+  hangar mcp [--read-only]   (MCP server over stdio; --read-only: only projects_list, sessions_list, tabs_read, doctor, sessions_wait,
+    tabs_wait)
   hangar event <kind> [--session ID]
   hangar statusline [--then <command>]
 """
@@ -52,9 +57,11 @@ private func grammar(_ command: String) -> Grammar? {
     case "sessions archive": Grammar(values: ["--session"], flags: ["--yes", "--force"])
     case "sessions spawn": Grammar(values: ["--name", "--prompt", "--agent", "--base", "--parent"], flags: ["--worktree"])
     case "sessions wait": Grammar(values: ["--timeout", "--parent"], positionals: 0...16)
+    case "sessions note": Grammar(values: ["--session"], positionals: 0...Int.max)
     case "tabs open": Grammar(values: ["--session", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
+    case "tabs wait": Grammar(values: ["--tab", "--for", "--timeout"])
     case "ssh": Grammar(positionals: 1...1)
     case "link session", "link tab", "link project", "link host", "link sessions": Grammar(positionals: 1...1)
     default: nil
@@ -74,7 +81,8 @@ private func canonicalFlag(_ flag: String) -> String { flag == "--task" ? "--ses
 /// `ssh` is the one single-word command; the rest are `<noun> <verb>`.
 private func commandWords(_ args: [String]) -> Int { args.first == "ssh" ? 1 : 2 }
 
-/// `callerLeaf`: `HANGAR_LEAF_ID` of the terminal the CLI runs in, the default parent of `sessions spawn|wait`.
+/// `callerLeaf`: `HANGAR_LEAF_ID` of the terminal the CLI runs in, the default parent of `sessions spawn|wait` and the
+/// default session of `sessions note`.
 public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -> CLIParse {
     let args = canonicalCommand(args)
     let n = commandWords(args)
@@ -150,6 +158,27 @@ public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -
         let parent = values["--parent"] ?? callerLeaf
         guard !words.isEmpty || parent != nil else { return .usage("not inside a Hangar chat: pass sub-sessions or --parent") }
         call = .tasksWait(sessions: words, parent: parent, timeout: timeout)
+    case "sessions note":
+        guard !words.isEmpty else { return .usage("missing note (\"\" clears it)") }
+        guard let task = values["--session"] ?? callerLeaf else { return .usage("not inside a Hangar chat: pass --session") }
+        let note = words.joined(separator: " ")
+        guard note.utf8.count <= 1024 else { return .usage("note is too long (max 1024 bytes)") }
+        call = .tasksNote(task: task, note: ControlCall.noteText(note))
+    case "tabs wait":
+        guard let tab = required("tab") else { return missing("tab") }
+        var waitFor = TabWaitFor.any
+        if let raw = values["--for"] {
+            guard let f = TabWaitFor(rawValue: raw) else { return .usage("--for must be one of: idle, waiting, any") }
+            waitFor = f
+        }
+        var timeout = ControlMethod.waitDefaultSeconds
+        if let raw = values["--timeout"] {
+            guard let n = Int(raw), (1...ControlMethod.waitMaxSeconds).contains(n) else {
+                return .usage("--timeout must be an integer in 1...\(ControlMethod.waitMaxSeconds)")
+            }
+            timeout = n
+        }
+        call = .tabsWait(tab: tab, for: waitFor, timeout: timeout)
     case "sessions archive":
         guard let task = required("session") else { return missing("session") }
         guard flags.contains("--yes") else { return .confirmRequired("refusing to archive without --yes") }
@@ -197,7 +226,7 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     // A few git runs per session, possibly over ssh.
     case .tasksList(_, true): 60
     case .tasksSpawn: 300
-    case let .tasksWait(_, _, timeout): Double(timeout + 15)
+    case let .tasksWait(_, _, timeout), let .tabsWait(_, _, timeout): Double(timeout + 15)
     default: 10
     }
 }
@@ -226,6 +255,7 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
                 if let c = t.changes { head += "  +\(c.added) −\(c.removed) in \(c.files) file" + (c.files == 1 ? "" : "s") }
                 if t.dirty == true { head += "  dirty" }
                 if let a = t.ahead, let b = t.behind { head += "  ↑\(a) ↓\(b)" }
+                if let n = t.note { head += "  · \(n)" }
                 var lines = [head]
                 lines += t.tabs.map { "    \(id8($0.id))  \($0.kind.rawValue)  \($0.status)  \($0.title)" }
                 if let d = t.drawer { lines.append("    \(id8(d.id))  drawer  \(d.status)  TERMINAL") }
@@ -262,8 +292,14 @@ public func formatHuman(_ call: ControlCall, result: Data) -> String {
     case .tasksWait:
         text = (try? d.decode(WaitResult.self, from: result)).map { r in
             r.sessions.map { s in
-                "\(id8(s.id))  \(s.status)  \(s.name)  \(s.link)" + (s.message.map { "\n    " + $0.replacingOccurrences(of: "\n", with: "\n    ") } ?? "")
+                "\(id8(s.id))  \(s.status)  \(s.name)  \(s.link)" + (s.note.map { "  · " + $0 } ?? "") + (s.message.map { "\n    " + $0.replacingOccurrences(of: "\n", with: "\n    ") } ?? "")
             }.joined(separator: "\n")
+        }
+    case .tasksNote:
+        text = (try? d.decode(NoteResult.self, from: result)).map { $0.note == nil ? "note cleared" : "note set" }
+    case .tabsWait:
+        text = (try? d.decode(TabWaitResult.self, from: result)).map { r in
+            r.status + (r.message.map { "\n    " + $0.replacingOccurrences(of: "\n", with: "\n    ") } ?? "")
         }
     }
     return text ?? String(decoding: result, as: UTF8.self)

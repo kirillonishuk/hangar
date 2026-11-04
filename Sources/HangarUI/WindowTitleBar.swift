@@ -5,7 +5,7 @@ import SwiftUI
 import Workspace
 
 /// The toolbar's title (design system §3.1): the chat's name over its project; a remote one is «devbox · acme-web»,
-/// a host's terminal has only its own name («devbox · терминал»).
+/// a host's terminal has only its own name («devbox · терминал»); the agent's note follows the project.
 struct WindowTitle: Equatable {
     var title: String
     var subtitle: String?
@@ -15,9 +15,14 @@ struct WindowTitle: Equatable {
 @MainActor func windowTitle(_ s: WorkspaceState) -> WindowTitle? {
     guard let id = s.selectedTaskId, let task = s.tasks.first(where: { $0.id == id && !$0.archived }) else { return nil }
     if let host = s.hostShell(ofTask: id)?.host { return WindowTitle(title: L10n.hostTerminal(host)) }
-    if s.isFreeChatTask(task) { return WindowTitle(title: task.name, subtitle: L10n.noProject) }
+    // The agent's note (`sessions_note`) follows the project: «acme-web · Задача 3/7».
+    func withNote(_ s: String?) -> String? {
+        let parts = [s, task.note].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+    if s.isFreeChatTask(task) { return WindowTitle(title: task.name, subtitle: withNote(L10n.noProject)) }
     let project = s.projects.first { $0.id == task.projectId }
-    return WindowTitle(title: task.name, subtitle: project.map { p in p.host.map { "\($0) · \(p.name)" } ?? p.name })
+    return WindowTitle(title: task.name, subtitle: withNote(project.map { p in p.host.map { "\($0) · \(p.name)" } ?? p.name }))
 }
 
 /// Where the toolbar's parts go: the traffic lights (read from the real buttons) and the content column's left edge.

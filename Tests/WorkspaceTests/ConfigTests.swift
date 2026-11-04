@@ -324,6 +324,7 @@ import Testing
         let d = try HangarConfig.parse("")
         #expect(d.claudeIntegration == nil && d.codexIntegration == nil)
         #expect(d.claudeHooks && d.claudeLimits && d.claudeMCP && d.codexNotify && d.codexMCP)
+        #expect(!d.claudeSkill && !d.codexSkill)  // never installed unless turned on
         #expect(d.integrationHosts.isEmpty && d.integrationHostsSkipped.isEmpty)
         let c = try HangarConfig.parse("""
         claude_integration = true
@@ -333,11 +334,13 @@ import Testing
         codex_integration = false
         codex_notify = false
         codex_mcp = false
+        claude_skill = true
         integration_hosts = ["devbox", "gpu-box"]
         integration_hosts_skipped = ["lab-01"]
         """)
         #expect(c.claudeIntegration == true && c.codexIntegration == false)
         #expect(!c.claudeHooks && !c.claudeLimits && !c.claudeMCP && !c.codexNotify && !c.codexMCP)
+        #expect(c.claudeSkill && !c.codexSkill)
         #expect(c.integrationHosts == ["devbox", "gpu-box"] && c.integrationHostsSkipped == ["lab-01"])
         let text = HangarConfig.updating("", key: "integration_hosts", literal: HangarConfig.listLiteral(["a", "b.c"]))
         #expect(try HangarConfig.parse(text).integrationHosts == ["a", "b.c"])

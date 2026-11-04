@@ -2,6 +2,9 @@ import Foundation
 
 public enum TabKind: String, CaseIterable, Codable, Sendable { case claude, codex, editor, shell }
 
+/// `tabs_wait --for`: which end of the agent's turn to wait for.
+public enum TabWaitFor: String, CaseIterable, Codable, Sendable { case idle, waiting, any }
+
 public enum SendKey: String, CaseIterable, Codable, Sendable {
     case enter, escape, tab, backspace, up, down, left, right
     case ctrlC = "ctrl-c", ctrlD = "ctrl-d"
@@ -17,6 +20,8 @@ public enum ParamType: Sendable {
     case list(of: [String], max: Int)
     /// Free strings (session refs), each up to 256 bytes.
     case refs(max: Int)
+    /// A string that may be empty (`sessions_note`: empty clears).
+    case text(maxBytes: Int)
 }
 
 public struct ParamSpec: Sendable {
@@ -42,6 +47,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     case sshOpen = "ssh.open"
     case linksCreate = "links.create"
     case tasksSpawn = "tasks.spawn", tasksWait = "tasks.wait"
+    case tasksNote = "tasks.note", tabsWait = "tabs.wait"
 
     /// MCP tool name: `tasks.*` methods are `sessions_*` since the rename (#73); the socket method stays.
     public var toolName: String { legacyToolName.replacingOccurrences(of: "tasks_", with: "sessions_") }
@@ -49,7 +55,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     public var legacyToolName: String { rawValue.replacingOccurrences(of: ".", with: "_") }
 
     /// Exposed by `hangar mcp --read-only`: listings and screen reads, nothing that changes Hangar or types into a terminal.
-    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait].contains(self) }
+    public var readOnly: Bool { [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait, .tabsWait].contains(self) }
 
     public static let maxText = 32_768
     public static let maxPrompt = 16_384
@@ -60,6 +66,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
     /// `sessions_wait` default for Codex, whose MCP calls time out after 60 s.
     public static let waitCodexSeconds = 50
     public static let waitMaxSeconds = 3600
+    /// `sessions_note`: longer notes are cut (one line in a tooltip and the toolbar).
+    public static let maxNoteChars = 100
 
     public var summary: String {
         switch self {
@@ -76,6 +84,8 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .sshOpen: "Open a plain ssh shell tab on a host (no project, no tmux, no server check) in that host's terminal and show it. The shell ends when the connection drops."
         case .tasksSpawn: "Start a sub-session of the calling chat (or of parent) to do something in parallel: a full chat with its own terminal and agent, shown under the parent in Hangar's sidebar, started with prompt (Hangar asks it to end with a concise final result). By default it works in the parent's own folder (the same worktree or main folder); worktree: true gives it a new git worktree instead. Returns its id and hangar:// link. Nothing is ever typed into the parent: when it has fully finished (agent stopped and no background tasks left), needs input or failed, the user gets a notification. To get its result, call sessions_wait."
         case .tasksWait: "Wait until sub-sessions have fully finished (agent stopped and no background tasks it started are left), need input, or failed; or until timeout. Returns per sub-session: status (done, needs-input, error, still-running), id, name, link, tab, the agent's final message (capped at ~1500 characters; truncated: true when cut). still-running means the timeout passed: call again. Without sessions: all open sub-sessions of the calling chat. Full output: tabs_read."
+        case .tasksNote: "Set a short progress note on the calling chat (or session), e.g. \"Task 3/7 · review round 2\": shown in Hangar's sidebar tooltip and toolbar, and as note in sessions_list / sessions_wait. One line, up to \(Self.maxNoteChars) characters; an empty note clears it. It stays until replaced or cleared."
+        case .tabsWait: "Wait until a tab's agent has finished its turn (idle), asks for input (waiting), or either (any, default); or until timeout. Event-driven. Returns status (idle, done, waiting, failed, limit, exited, closed, or still-running when the timeout passed: call again) and the agent's last message when known (capped at ~1500 characters). After tabs_send, pass wait: true there first so the new turn has started. Full output: tabs_read."
         case .linksCreate: "Get a hangar:// link to a session, a tab, a project, an SSH host or a project's Sessions view. Clicking it in Hangar only selects and shows it; nothing runs."
         }
     }
@@ -155,6 +165,20 @@ public enum ControlMethod: String, CaseIterable, Sendable {
                 ParamSpec(name: "parent", type: ref, required: false,
                           summary: "Whose sub-sessions to wait for when sessions is omitted; default: the calling chat (HANGAR_LEAF_ID)."),
             ]
+        case .tasksNote:
+            return [
+                ParamSpec(name: "note", type: .text(maxBytes: 1024), required: true, summary: "The note, one line; \"\" clears it."),
+                ParamSpec(name: "task", type: ref, required: false,
+                          summary: "Session id/prefix/name or a tab/leaf id; default: the calling chat (HANGAR_LEAF_ID)."),
+            ]
+        case .tabsWait:
+            return [
+                ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a session's drawer leaf id from sessions_list (or unique prefix)."),
+                ParamSpec(name: "for", type: .oneOf(TabWaitFor.allCases.map(\.rawValue)), required: false,
+                          summary: "idle: the turn is over; waiting: it asks for input; any (default): either. failed, limit and exit always end the wait."),
+                ParamSpec(name: "timeout", type: .int(1...Self.waitMaxSeconds), required: false,
+                          summary: "Seconds to wait at most (default \(Self.waitDefaultSeconds); \(Self.waitCodexSeconds) under Codex)."),
+            ]
         case .linksCreate:
             return [
                 ParamSpec(name: "kind", type: .oneOf(LinkKind.allCases.map(\.rawValue)), required: true, summary: "What the link points at: task (a session), tab, project, host, sessions (a project's Sessions view)."),
@@ -183,6 +207,9 @@ public enum ControlCall: Equatable, Sendable {
     /// `parent`: a session ref or a tab/leaf id (the CLI/MCP fill in `HANGAR_LEAF_ID`).
     case tasksSpawn(parent: String?, name: String, prompt: String, agent: TabKind?, worktree: Bool, base: String?)
     case tasksWait(sessions: [String], parent: String?, timeout: Int)
+    /// `note`: already sanitised (one line, capped); nil clears. `task`: a session ref or a tab/leaf id (the caller).
+    case tasksNote(task: String?, note: String?)
+    case tabsWait(tab: String, for: TabWaitFor, timeout: Int)
 
     public static let defaultLines = 100
 
@@ -202,6 +229,8 @@ public enum ControlCall: Equatable, Sendable {
         case .linksCreate: .linksCreate
         case .tasksSpawn: .tasksSpawn
         case .tasksWait: .tasksWait
+        case .tasksNote: .tasksNote
+        case .tabsWait: .tabsWait
         }
     }
 
@@ -244,6 +273,12 @@ public enum ControlCall: Equatable, Sendable {
             p = ["timeout": timeout]
             if !sessions.isEmpty { p["sessions"] = sessions }
             p["parent"] = parent
+        case let .tasksNote(task, note):
+            p = ["note": note ?? ""]
+            p["task"] = task
+        case let .tabsWait(tab, waitFor, timeout):
+            p = ["tab": tab, "timeout": timeout]
+            if waitFor != .any { p["for"] = waitFor.rawValue }
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -322,6 +357,10 @@ public enum ControlCall: Equatable, Sendable {
                     out.append(s)
                 }
                 v.lists[n] = out
+            case let .text(maxBytes):
+                guard let s = raw as? String else { throw bad("\"\(n)\" must be a string") }
+                guard s.utf8.count <= maxBytes else { throw bad("\"\(n)\" is too long (max \(maxBytes) bytes)") }
+                v.strings[n] = s
             case let .refs(max):
                 guard let a = raw as? [Any], a.count <= max else { throw bad("\"\(n)\" must be an array of at most \(max) strings") }
                 var out: [String] = []
@@ -380,7 +419,37 @@ public enum ControlCall: Equatable, Sendable {
                                worktree: worktree, base: v.strings["base"])
         case .tasksWait:
             return .tasksWait(sessions: v.lists["sessions"] ?? [], parent: v.strings["parent"], timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
+        case .tasksNote:
+            return .tasksNote(task: v.strings["task"], note: noteText(v.strings["note"]!))
+        case .tabsWait:
+            return .tabsWait(tab: v.strings["tab"]!, for: v.strings["for"].flatMap(TabWaitFor.init(rawValue:)) ?? .any,
+                             timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
         }
+    }
+
+    /// Untrusted agent text → one display line: terminal escapes, control characters and invisible separators dropped (line breaks and tabs
+    /// become spaces), runs of spaces collapsed, cut to `maxNoteChars`; nil when nothing is left (clears the note).
+    public static func noteText(_ raw: String) -> String? {
+        var out = ""
+        var scalars = raw.unicodeScalars.makeIterator()
+        while let scalar = scalars.next() {
+            // Terminal escapes (CSI `ESC [ … final`, OSC `ESC ] … BEL`) go whole: their tails would show as text.
+            if scalar == "\u{1B}" {
+                switch scalars.next() {
+                case "["?: while let c = scalars.next(), !(0x40...0x7E).contains(c.value) {}
+                case "]"?:
+                    while let c = scalars.next(), c != "\u{07}" { if c == "\u{1B}" { _ = scalars.next(); break } }
+                default: break
+                }
+            } else if CharacterSet.whitespacesAndNewlines.contains(scalar) || scalar == "\t" {
+                if !out.isEmpty, out.last != " " { out.append(" ") }
+            } else if !CharacterSet.controlCharacters.contains(scalar), !invisibleSeparators.contains(scalar.value) {
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        let line = out.trimmingCharacters(in: .whitespaces)
+        guard !line.isEmpty else { return nil }
+        return line.count > ControlMethod.maxNoteChars ? String(line.prefix(ControlMethod.maxNoteChars - 1)) + "…" : line
     }
 
     // NSNumber from JSONSerialization: booleans and numbers share the class.

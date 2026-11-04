@@ -32,6 +32,17 @@ enum MCPStatus: Equatable {
     case failed(String)
 }
 
+/// «Скилл Hangar» on this Mac, per agent.
+enum SkillStatus: Equatable {
+    /// No bundled helper / from a DMG (nothing is written), or not synced yet.
+    case unavailable
+    /// The file follows the switch; `backup`: where the last write put the old bytes.
+    case synced(backup: String?)
+    /// `skills/hangar` is someone else's.
+    case foreign
+    case failed(String)
+}
+
 /// What the first-run sheet's switches chose.
 struct AgentChoice: Equatable {
     var hooks = true, limits = true, statusline = true, mcp = true
@@ -41,6 +52,7 @@ struct AgentChoice: Equatable {
 @MainActor @Observable final class IntegrationStatus {
     var marks: [MCPAgent: [String: MachineMark]] = [:]
     var mcp: [MCPAgent: MCPStatus] = [.claude: .checking, .codex: .checking]
+    var skill: [MCPAgent: SkillStatus] = [:]
     /// The agent's CLI on this Mac; absent key = not looked up yet, nil value = not found.
     var agentCLI: [MCPAgent: String?] = [:]
     /// The user's own status line command (kept in `--then`): what «Ваша» runs; nil = none.
@@ -110,6 +122,7 @@ func integrationMigration(_ c: HangarConfig, claude: String?, codex: String?) ->
 extension HangarConfig {
     func integration(_ agent: MCPAgent) -> Bool? { agent == .claude ? claudeIntegration : codexIntegration }
     func mcp(_ agent: MCPAgent) -> Bool { agent == .claude ? claudeMCP : codexMCP }
+    func skill(_ agent: MCPAgent) -> Bool { agent == .claude ? claudeSkill : codexSkill }
     /// Claude's `statusLine` stays wrapped while Hangar's line or the limits need it (#111).
     var wantsStatuslineWrapper: Bool { statusline == .hangar || claudeLimits }
 }
@@ -162,6 +175,7 @@ extension AppState {
             onIntegrationAnswered?()
         }
         await syncMCP()
+        await syncSkill()
         await syncProjectStatuslines(host: nil)
     }
 
@@ -269,6 +283,58 @@ extension AppState {
             status = .entry(await mcpEntry(agent, cli: cli))
         }
         integrations.mcp[agent] = status
+    }
+
+    /// The skill shipped in the bundle (`Resources/HangarSkill.md`).
+    static let hangarSkillText: String? = Bundle.module.url(forResource: "HangarSkill", withExtension: "md")
+        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+
+    /// `<agent dir>/skills/hangar/SKILL.md` of this Mac (Claude's folder, or Codex's).
+    func skillURL(_ agent: MCPAgent) async -> URL {
+        let files = await integrationFiles()
+        return hangarSkillURL(agentDir: (agent == .claude ? files.claude : files.codex).deletingLastPathComponent())
+    }
+
+    /// The same path for display, from the folders known now.
+    func skillPathNow(_ agent: MCPAgent) -> URL {
+        let file = agent == .claude ? integrationPathsCache?.claude ?? claudeSettingsURL : integrationPathsCache?.codex ?? codexConfigURL
+        return hangarSkillURL(agentDir: file.deletingLastPathComponent())
+    }
+
+    /// «Скилл Hangar»: the switch's choice, only Hangar's own file (marker) is written, updated or removed; off by default,
+    /// so nothing is ever installed without the user turning it on.
+    func syncSkill(_ only: MCPAgent? = nil) async {
+        for agent in [MCPAgent.claude, .codex] where only == nil || only == agent {
+            await serialized("skill-" + agent.rawValue) { [weak self] in await self?.syncSkillNow(agent) }.value
+        }
+    }
+
+    private func syncSkillNow(_ agent: MCPAgent) async {
+        guard let cli = integrationCLI, !installBlocked(cli: cli) else { integrations.skill[agent] = .unavailable; return }
+        let url = await skillURL(agent)
+        let backups = URL(fileURLWithPath: (socketPath as NSString).deletingLastPathComponent).appendingPathComponent("backups")
+        do {
+            guard let text = Self.hangarSkillText else { throw CocoaError(.fileReadNoSuchFile) }
+            let w = try skillApplyFile(url, bundled: config.skill(agent) ? text : nil, now: Date(), backupDir: backups)
+            if let w { uiLog.info("\(agent.rawValue, privacy: .public) skill synced, backup \(w.backup?.path ?? "-", privacy: .public)") }
+            integrations.skill[agent] = .synced(backup: w?.backup.map { tildePath($0.path) })
+        } catch IntegrationError.foreignSkill {
+            integrations.skill[agent] = .foreign
+        } catch {
+            uiLog.error("\(agent.rawValue, privacy: .public) skill: \(String(describing: error), privacy: .public)")
+            integrations.skill[agent] = .failed(IntegrationModel.describe(error))
+        }
+    }
+
+    @discardableResult func setSkill(_ agent: MCPAgent, on: Bool) -> Task<Void, Never> {
+        do {
+            try setConfig(agent == .claude ? "claude_skill" : "codex_skill", flag: on) {
+                if agent == .claude { $0.claudeSkill = on } else { $0.codexSkill = on }
+            }
+        } catch {
+            uiLog.error("config skill: \(String(describing: error), privacy: .public)")
+        }
+        return Task { await syncSkill(agent) }
     }
 
     private func mcpEntry(_ agent: MCPAgent, cli: String) async -> MCPEntry {

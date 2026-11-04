@@ -65,6 +65,9 @@ public struct HangarConfig: Equatable, Sendable {
     /// Codex's `notify`.
     public var codexNotify = true
     public var codexMCP = true
+    /// «Скилл Hangar» (`skills/hangar/SKILL.md` in the agent's folder, this Mac): never on until the user turns it on.
+    public var claudeSkill = false
+    public var codexSkill = false
     /// ssh hosts where the integration was agreed to (or found installed by an older Hangar).
     public var integrationHosts: [String] = []
     /// «Не на этом хосте».
@@ -143,7 +146,7 @@ public struct HangarConfig: Equatable, Sendable {
                 if key == "integration_hosts" { config.integrationHosts = hosts } else { config.integrationHostsSkipped = hosts }
                 continue
             }
-            let flags = ["claude_hooks", "claude_limits", "claude_mcp", "codex_notify", "codex_mcp", "notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight", "check_updates",
+            let flags = ["claude_hooks", "claude_limits", "claude_mcp", "codex_notify", "codex_mcp", "claude_skill", "codex_skill", "notifications", "limit_notifications", "keep_awake", "dock_badge", "editor_rainbow_indent", "editor_todo_highlight", "check_updates",
                          "notify_permission", "notify_question", "notify_done", "notify_failed", "notify_when_active", "allow_from_notification", "ssh_terminal_bell"]
             if section.isEmpty, flags.contains(key) {
                 let flag = try boolValue(rawValue, line: n + 1)
@@ -153,6 +156,8 @@ public struct HangarConfig: Equatable, Sendable {
                 case "claude_mcp": config.claudeMCP = flag
                 case "codex_notify": config.codexNotify = flag
                 case "codex_mcp": config.codexMCP = flag
+                case "claude_skill": config.claudeSkill = flag
+                case "codex_skill": config.codexSkill = flag
                 case "notifications": config.notifications = flag
                 case "limit_notifications": config.limitNotifications = flag
                 case "dock_badge": config.dockBadge = flag

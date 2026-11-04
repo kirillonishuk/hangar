@@ -38,6 +38,7 @@ extension AppState {
                 perform { $0.touchFreeChat(taskId: task) }
             }
             subSessionHook(leaf: leaf.id, kind: e.kind, background: e.background, message: e.message)
+            noteAgentMessage(leaf: leaf.id, kind: e.kind, message: e.message)
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
@@ -144,6 +145,7 @@ extension AppState {
         let old = statuses.status(leaf.id).attention
         statuses = board
         attentionChanged(leaf.id, from: old, to: board.status(leaf.id).attention)
+        for (token, w) in tabWaiters where w.leaf == leaf.id { tabWaiters.removeValue(forKey: token)?.wake.resume() }
         if let t {
             if t.to == .working {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }

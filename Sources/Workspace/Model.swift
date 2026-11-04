@@ -302,6 +302,8 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var parentTaskId: UUID?
     /// Its sub-chats are folded under it in the sidebar.
     public var subsCollapsed = false
+    /// Its agent's progress note (`sessions_note`, one sanitised line); kept until the agent replaces or clears it.
+    public var note: String?
 
     /// Branch of a worktree task; nil for main-folder tasks.
     public var branch: String? {
@@ -327,7 +329,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, projectId, name, mode, order, archived, tabs, activeTabId, pinned, drawer, port, archivedAt, archivedChanges, muted
-        case autoNamed, parentTaskId, subsCollapsed
+        case autoNamed, parentTaskId, subsCollapsed, note
     }
 
     /// `pinned`, `drawer`, `port` and the `archived…` details were added later; older files decode with the default.
@@ -347,6 +349,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
         autoNamed = try c.decodeIfPresent(Bool.self, forKey: .autoNamed) ?? false
         parentTaskId = try c.decodeIfPresent(UUID.self, forKey: .parentTaskId)
         subsCollapsed = try c.decodeIfPresent(Bool.self, forKey: .subsCollapsed) ?? false
+        note = try c.decodeIfPresent(String.self, forKey: .note)
     }
 }
 

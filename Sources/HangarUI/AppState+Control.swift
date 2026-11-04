@@ -209,6 +209,21 @@ extension AppState {
             }
             return .ok(id, WaitResult(sessions: await waitForSubSessions(ids, timeout: .seconds(timeout))))
 
+        case let .tasksNote(ref, note):
+            guard let ref else { return fail(ControlError(code: .badParams, message: "not inside a Hangar chat: pass session")) }
+            switch resolveParent(ref) {
+            case .success(let taskId):
+                if state.tasks.first(where: { $0.id == taskId })?.note != note { perform { $0.setNote(taskId: taskId, note) } }
+                return .ok(id, NoteResult(task: taskId, note: note))
+            case .failure(let e): return fail(e)
+            }
+
+        case let .tabsWait(ref, waitFor, timeout):
+            switch resolveLeaf(ref) {
+            case .success(let target): return .ok(id, await waitForTab(target, for: waitFor, timeout: .seconds(timeout)))
+            case .failure(let e): return fail(e)
+            }
+
         case let .linksCreate(kind, ref):
             switch linkTarget(kind, ref) {
             case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
@@ -353,6 +368,7 @@ extension AppState {
                         tabs: task.tabs.map(tabInfo),
                         drawer: task.drawer.leaf.map { LeafInfo(id: $0.id, kind: tabKind($0.kind), status: displayState(ofLeaf: $0.id, kind: $0.kind).rawValue) })
         info.parent = task.parentTaskId
+        info.note = task.note
         return info
     }
 

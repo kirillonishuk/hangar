@@ -314,6 +314,10 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
     /// `tabs send --wait` callers waiting for their leaf to turn `working`, by waiter token.
     @ObservationIgnored var workingWaiters: [UUID: (leaf: UUID, done: CheckedContinuation<Bool, Never>)] = [:]
+    /// `tabs_wait` callers, woken when their leaf's status changes, by token.
+    @ObservationIgnored var tabWaiters: [UUID: (leaf: UUID, wake: CheckedContinuation<Void, Never>)] = [:]
+    /// The agent's last message of a turn per leaf (Stop, codex notify, a question): what `tabs_wait` returns; a new prompt clears it.
+    @ObservationIgnored var lastAgentMessage: [UUID: String] = [:]
     /// Sub-sessions' done detection, by task (spec sub-sessions §6); in memory, rebuilt lazily after a restart.
     @ObservationIgnored var subWatches: [UUID: SubSessionWatch] = [:]
     /// `sessions_wait` callers, woken on every re-evaluation, by token.

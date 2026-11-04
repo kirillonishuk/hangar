@@ -89,8 +89,9 @@ The first time an agent tab starts, Hangar asks once whether to connect to that 
 | Claude Code | a `statusLine` wrapper | usage limits in the sidebar, Hangar's status line (or your own line, unchanged) |
 | Codex | `notify` in `~/.codex/config.toml` | done state and notifications |
 | both | the `hangar` MCP server (`claude mcp add` / `codex mcp add`) | agents can list chats, open tabs and read them |
+| both | the Hangar skill in `~/.claude/skills/hangar/` / `~/.codex/skills/hangar/` — **off by default**, only when you turn it on | agents know when and how to run sub-chats in parallel |
 
-Changes are additive: Hangar only adds and removes its own entries, leaves yours as they are, refuses to write a file that changed under it, and keeps a backup of the previous file. The same functions are applied on SSH servers you connect (via a small `~/.hangar/bin/hangar-remote` script); MCP is registered on this Mac only.
+Changes are additive: Hangar only adds and removes its own entries, leaves yours as they are, refuses to write a file that changed under it, and keeps a backup of the previous file. The same functions are applied on SSH servers you connect (via a small `~/.hangar/bin/hangar-remote` script); MCP and the skill are on this Mac only.
 
 ## Keyboard shortcuts
 
@@ -134,14 +135,20 @@ hangar doctor
 
 A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only (plus sub-chats): chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
 
-MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `tabs_open`, `tabs_send`, `tabs_read`, `ssh_open`, `links_create`, `doctor`.
+MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `sessions_note`, `tabs_open`, `tabs_send`, `tabs_read`, `tabs_wait`, `ssh_open`, `links_create`, `doctor`.
 
 **Sub-chats.** A sub-chat is a way to do something in parallel: a full chat with its own terminal and agent, shown under its parent in the sidebar. Start one yourself — «New Sub-chat…» in a chat's menu, or ⇧⌥⌘N — or let an agent do it with `sessions_spawn` (CLI `hangar sessions spawn --name N --prompt TEXT`). By default it works in the parent's own folder — the same worktree (or main folder), so both chats share one checkout; pick «In a separate copy» (`worktree: true` / `--worktree`) for a new worktree instead. A sub-chat never touches its parent: nothing is typed into the parent's terminal. When it has fully finished — its agent stopped and no background task it started is still running — you get a notification and the sidebar shows its status. An agent that wants the result asks for it: `sessions_wait` blocks until the sub-chats are done, need input or failed, and returns each one's compact final message (capped at ~1500 characters; `still-running` on timeout: call again). Archiving a sub-chat never removes a worktree its parent still uses; archiving the parent takes its sub-chats along.
 
 ```sh
 hangar sessions spawn --name release --prompt "Release 1.2 and wait until it is live"
 hangar sessions wait          # all open sub-chats of this chat
+hangar sessions note "Task 3/7 · review round 2"   # this chat's progress line ("" clears it)
+hangar tabs wait --tab <id> --for idle             # until that tab's agent ends its turn
 ```
+
+An agent reports its progress with `sessions_note`: one short line (up to 100 characters) on its own chat, shown in the chat's tooltip in the sidebar, after the project in the toolbar, and in `sessions_list` / `sessions_wait`; it stays until the agent replaces or clears it. `tabs_wait` blocks until a tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`), and returns its status and last message (`still-running` on timeout: call again).
+
+**Hangar skill.** Settings → Integrations → «Hangar skill» (Claude Code and Codex, this Mac, off by default) installs a short skill at `~/.claude/skills/hangar/SKILL.md` / `~/.codex/skills/hangar/SKILL.md` that teaches the agent when and how to split work into sub-chats with these tools. Nothing is installed until you turn it on; turning it off removes Hangar's own file (a backup is kept), and someone else's `skills/hangar` is never touched.
 
 ## Build from source
 

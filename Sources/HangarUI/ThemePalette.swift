@@ -46,6 +46,17 @@ public struct ThemePalette: Sendable {
     /// Terminal ANSI 0–7 normal, 8–15 bright; used when the user's Ghostty config sets no palette.
     var ansi: [UInt32]
 
+    /// System «Increase contrast» (#135): meta text and separators one step stronger, the idle dot as visible as
+    /// secondary text; everything else as the theme has it.
+    func contrasted(_ on: Bool) -> ThemePalette {
+        guard on else { return self }
+        var p = self
+        p.text3 = text2
+        p.line = line2
+        p.idle = text2
+        return p
+    }
+
     static func of(_ theme: AppTheme) -> ThemePalette {
         switch theme {
         case .darkPlus: darkPlus
@@ -62,7 +73,7 @@ public struct ThemePalette: Sendable {
         text0: 0xffffff, text1: 0xcccccc, text2: 0xa3a3a3, text3: 0x7a7a7a,
         accent: 0x0e639c, accentText: 0x3794ff, onAccent: 0xffffff,
         working: 0x4fc1ff, waiting: 0xe8a33d, done: 0x89d185, failed: 0xf14c4c, failedText: 0xf48771, idle: 0x6e6e6e,
-        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf48771, diffAdd: Hex(0x9bb955, 0.20), diffDel: Hex(0xff0000, 0.20),
+        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf48771, diffAdd: Hex(0x9bb955, 0.10), diffDel: Hex(0xff0000, 0.10),
         limOk: 0x3794ff, limTrack: 0x3c3c3c,
         edGutter: 0x858585, edGutterActive: 0xc6c6c6, edLine: 0x2a2a2a, edSel: 0x264f78, edIndent: 0x404040,
         lane1: 0x3794ff, lane2: 0xc586c0, lane3: 0x73c991, claude: 0xd97757,
@@ -77,7 +88,7 @@ public struct ThemePalette: Sendable {
         text0: 0xfbf8f3, text1: 0xe6e2dc, text2: 0xaea79e, text3: 0x7d7871,
         accent: 0xb35d22, accentText: 0xf0975a, onAccent: 0xffffff,
         working: 0x6cb0f0, waiting: 0xf0c048, done: 0x8fcf7f, failed: 0xf0605a, failedText: 0xff8a80, idle: 0x77726b,
-        gitA: 0x8fcf7f, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x8fcf7f, 0.14), diffDel: Hex(0xf0605a, 0.15),
+        gitA: 0x8fcf7f, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x8fcf7f, 0.08), diffDel: Hex(0xf0605a, 0.10),
         limOk: 0x6cb0f0, limTrack: 0x3d3b37,
         edGutter: 0x77726b, edGutterActive: 0xcfc9c0, edLine: 0x2b2a27, edSel: 0x2f4a68, edIndent: 0x3b3935,
         lane1: 0xe8853d, lane2: 0x6cb0f0, lane3: 0x8fcf7f, claude: 0xd97757,
@@ -92,7 +103,7 @@ public struct ThemePalette: Sendable {
         text0: 0xffffff, text1: 0xe3e7ef, text2: 0x9ba4b7, text3: 0x6b7489,
         accent: 0x2a6fd6, accentText: 0x5fb0ff, onAccent: 0xffffff,
         working: 0x4fc1ff, waiting: 0xffb340, done: 0x73c991, failed: 0xf14c4c, failedText: 0xff6b61, idle: 0x5f687a,
-        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x73c991, 0.13), diffDel: Hex(0xf14c4c, 0.15),
+        gitA: 0x73c991, gitM: 0xe2c08d, gitD: 0xf07a6e, diffAdd: Hex(0x73c991, 0.08), diffDel: Hex(0xf14c4c, 0.10),
         limOk: 0x5b8def, limTrack: 0x2b3444,
         edGutter: 0x5f687a, edGutterActive: 0xc6cbd6, edLine: 0x19202e, edSel: 0x264f78, edIndent: 0x262f40,
         lane1: 0x4ea1f3, lane2: 0xc586c0, lane3: 0x73c991, claude: 0xd97757,

@@ -103,14 +103,22 @@ struct SidebarView: View {
     /// One line, 28, at the project level: dot (none while asleep), name, and at the end the word that needs action or
     /// the time of last use; pin and «⋯» over that end on hover. Asleep: name `text2`; a click wakes it.
     private func freeChatRow(_ task: HangarTask, depth: Int) -> some View {
+        TimelineView(MinutesWhile(active: !task.archived && app.displayState(of: task) == .waiting)) { _ in  // the clock at drawing time: the schedule only says when to redraw
+            freeChatRow(task, depth: depth, now: Date())
+        }
+    }
+
+    private func freeChatRow(_ task: HangarTask, depth: Int, now: Date) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId
         let target = ActionTarget.task(task.id)
         let asleep = task.archived
         let dot = app.displayState(of: task)
+        let seen = app.doneSeen(task)
         // The word that needs action wins over the time («2 мин», «вчера»), which is recomputed on redraw, no timer.
         let urgent = !asleep && [.waiting, .failed, .limit].contains(dot)
-        let end = urgent ? L10n.rowStatus(dot)
-            : foldedCounter(task) ?? app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: Date()) } ?? ""
+        let end = dot == .waiting && !asleep ? rowWaitingWord(since: app.longestWait(of: task)?.attention.since, now: now)
+            : urgent ? L10n.rowStatus(dot)
+            : foldedCounter(task) ?? app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: now) } ?? ""
         let endWidth = ceil((end as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         return HoverRow(selected: selected, action: {
                             clicked(target)
@@ -122,7 +130,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, indent: subIndent(depth), trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
                 ZStack {
                     if !asleep {
-                        StatusDot(state: dot, onAccent: selected)
+                        StatusDot(state: dot, seen: seen, onAccent: selected)
                     }
                     subsChevron(task)
                 }
@@ -153,15 +161,15 @@ struct SidebarView: View {
                         .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
-                RailTile(text: monogram(task.name), state: asleep ? nil : dot, selected: selected, hover: hover,
+                RailTile(text: monogram(task.name), state: asleep ? nil : dot, seen: seen, selected: selected, hover: hover,
                          style: asleep && !selected ? RailTileStyle(fill: Theme.ui.hover2, border: .clear, text: Theme.ui.text3) : nil)
             }
             .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
-        .help(collapsed ? "\(L10n.noProject) › \(task.name)" : "")
+        .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
+        .help(collapsed ? "\(L10n.noProject) › \(task.name)" : dot == .waiting ? app.sessionStatus(of: task, now: now).text : "")
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
@@ -195,6 +203,7 @@ struct SidebarView: View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
+        let seen = app.doneSeen(task)
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.select(taskId: task.id)
@@ -202,7 +211,7 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, onAccent: selected)
+                StatusDot(state: dot, seen: seen, onAccent: selected)
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     if app.renaming == target {
@@ -219,12 +228,12 @@ struct SidebarView: View {
                 .padding(.trailing, hover ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
                 .overlay(alignment: .trailing) { taskActions(task, target: target, shown: hover && app.renaming != target) }
             } rail: {
-                RailTile(text: monogram(task.name), state: dot, selected: selected, hover: hover)
+                RailTile(text: monogram(task.name), state: dot, seen: seen, selected: selected, hover: hover)
             }
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
+        .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: Date()))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
@@ -290,12 +299,13 @@ struct SidebarView: View {
     private func hostShellRow(_ task: HangarTask, host: String) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let dot = app.displayState(of: task)
+        let seen = app.doneSeen(task)
         let name = L10n.hostTerminal(host)
         let items = [MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) },
                      MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
         return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, onAccent: selected)
+                StatusDot(state: dot, seen: seen, onAccent: selected)
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
@@ -308,13 +318,13 @@ struct SidebarView: View {
                         .allowsHitTesting(hover)
                 }
             } rail: {
-                RailTile(text: monogram(host), state: dot, selected: selected, hover: hover)
+                RailTile(text: monogram(host), state: dot, seen: seen, selected: selected, hover: hover)
             }
             .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.rowWithStatus(name, dot))
+        .accessibilityLabel(app.rowAccessibility(name, task: task, state: dot, now: Date()))
         .help(collapsed ? name : L10n.plainSSHHint)
         .popoverContextMenu { popoverEntries(items) }
     }
@@ -564,9 +574,16 @@ struct SidebarView: View {
     /// One line, 28 (§3.3): dot, name, and at the end what needs action — «ждёт ответа», «ошибка», «на лимите» —
     /// else the live branch (`mono` 11 `text3`). On hover pin and «⋯» take the end's place: nothing moves.
     private func taskRow(_ task: HangarTask, depth: Int = 0) -> some View {
+        TimelineView(MinutesWhile(active: app.displayState(of: task) == .waiting)) { _ in  // the clock at drawing time: the schedule only says when to redraw
+            taskRow(task, depth: depth, now: Date())
+        }
+    }
+
+    private func taskRow(_ task: HangarTask, depth: Int, now: Date) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «История» is the selected row while shown
         let target = ActionTarget.task(task.id)
         let dot = app.displayState(of: task)
+        let seen = app.doneSeen(task)
         // As a project whose folder is missing: the host was given up on.
         let offline = app.project(task.projectId).map { $0.host != nil && !app.isAvailable($0) } ?? false
         let handlers = app.state.attentionOnly || depth > 0 ? nil : dragHandlers(target)
@@ -581,7 +598,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent + subIndent(depth), trailing: Theme.sessionRowTrailing,
                       railReplacesMarker: true) {
                 ZStack {
-                    StatusDot(state: dot, onAccent: selected)
+                    StatusDot(state: dot, seen: seen, onAccent: selected)
                     subsChevron(task)
                 }
             } expanded: {
@@ -596,8 +613,8 @@ struct SidebarView: View {
                     Spacer(minLength: 0)
                     // One slot for the row end and, on hover, the pin and «⋯» over it: the name never moves.
                     ZStack(alignment: .trailing) {
-                        Color.clear.frame(width: Self.rowEndSlot(rowEndWidth(task, state: dot)), height: 1)
-                        rowEnd(task, state: dot, selected: selected).opacity(showActions ? 0 : 1)
+                        Color.clear.frame(width: Self.rowEndSlot(rowEndWidth(task, state: dot, now: now)), height: 1)
+                        rowEnd(task, state: dot, selected: selected, now: now).opacity(showActions ? 0 : 1)
                     }
                 }
                 .overlay(alignment: .trailing) {
@@ -605,15 +622,15 @@ struct SidebarView: View {
                         .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
-                RailTile(text: monogram(task.name), state: dot, selected: selected, hover: hover)
+                RailTile(text: monogram(task.name), state: dot, seen: seen, selected: selected, hover: hover)
             }
             .font(Theme.Typography.body.font())
             .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text1)
             .opacity(offline ? Theme.Opacity.inactive : 1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(L10n.rowWithStatus(task.name, dot))
-        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task).text)
+        .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task, now: now).text)
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .onAppear { app.requestHead(task) }
         // A window focus reloads only the rows on screen (BranchModel).
@@ -621,10 +638,10 @@ struct SidebarView: View {
     }
 
     /// The row's end: the state word when it needs action, else the branch (nothing until it is known).
-    @ViewBuilder private func rowEnd(_ task: HangarTask, state: AgentState, selected: Bool) -> some View {
+    @ViewBuilder private func rowEnd(_ task: HangarTask, state: AgentState, selected: Bool, now: Date) -> some View {
         switch state {
         case .waiting, .failed, .limit:
-            Text(L10n.rowStatus(state))
+            Text(rowWord(task, state: state, now: now))
                 .font(Theme.Typography.caption.font())
                 .foregroundStyle(selected ? Theme.ui.onAccent : state == .failed ? Theme.ui.failedText : Theme.ui.waiting)
                 .lineLimit(1)
@@ -648,6 +665,11 @@ struct SidebarView: View {
         }
     }
 
+    /// «ждёт» (with its time after 5 minutes), «ошибка», «на лимите».
+    private func rowWord(_ task: HangarTask, state: AgentState, now: Date) -> String {
+        state == .waiting ? rowWaitingWord(since: app.longestWait(of: task)?.attention.since, now: now) : L10n.rowStatus(state)
+    }
+
     /// The row end's constant width: its own (branch, state word) but at least the pin and «⋯» shown over it on
     /// hover (less the gap before it), so hovering never moves the name.
     static func rowEndSlot(_ own: CGFloat?) -> CGFloat {
@@ -655,10 +677,10 @@ struct SidebarView: View {
     }
 
     /// The width `rowEnd` takes: the state word or the branch; nil when it shows nothing.
-    private func rowEndWidth(_ task: HangarTask, state: AgentState) -> CGFloat? {
+    private func rowEndWidth(_ task: HangarTask, state: AgentState, now: Date) -> CGFloat? {
         switch state {
         case .waiting, .failed, .limit:
-            ceil((L10n.rowStatus(state) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
+            ceil((rowWord(task, state: state, now: now) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         case .working, .done, .idle:
             if let counter = foldedCounter(task) {
                 ceil((counter as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)

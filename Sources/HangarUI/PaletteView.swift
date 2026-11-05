@@ -234,7 +234,8 @@ struct PaletteView: View {
     @ViewBuilder private func marker(_ item: PaletteItem) -> some View {
         switch item.target {
         case .task(let id):
-            StatusDot(state: app.state.tasks.first { $0.id == id }.map { app.state(of: $0) } ?? .idle)
+            let task = app.state.tasks.first { $0.id == id }
+            StatusDot(state: task.map { app.state(of: $0) } ?? .idle, seen: task.map(app.doneSeen) ?? false)
         case .file: FileIconView(name: item.title)  // the Files tab's theme icon
         case .command(let sc): IconView(icon: paletteIcon(sc))
         case .action: IconView(icon: .play)

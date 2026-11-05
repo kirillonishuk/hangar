@@ -142,7 +142,7 @@ struct SessionsRow: View {
             switch isChat && item.state != .open ? nil : item.state {
             case nil: EmptyView()
             case .open:
-                if case .conversation(let r) = item, case .open(_, let leaf, _) = r.place { StatusDot(state: app.state(ofLeaf: leaf)) }
+                if case .conversation(let r) = item, case .open(_, let leaf, _) = r.place { StatusDot(state: app.state(ofLeaf: leaf), seen: !app.statuses.status(leaf).unseen) }
                 Text(L10n.sessionsMarkerOpen).foregroundStyle(Theme.ui.text1)
             case .archived:
                 IconView(icon: .archive, size: Theme.Icon.inline, tint: Theme.ui.text3)

@@ -318,23 +318,57 @@ struct IconView: View {
     }
 }
 
-/// Status dot; `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
+/// How a status dot is drawn (#135): not by colour alone. Working — a ring half filled, done — solid until seen,
+/// then a ring; idle — a smaller solid dot (a hollow one read as an empty radio button, #130); waiting, failed and
+/// limit are solid (their rows carry a word); with «Differentiate without colour» failure is a diamond, so it never
+/// reads as a done dot. All static: nothing animates but waiting's one pulse.
+enum StatusMark: Equatable {
+    case solid, small, hollow, half, diamond
+
+    static func of(_ state: AgentState, seen: Bool, differentiateWithoutColor: Bool) -> StatusMark {
+        switch state {
+        case .working: .half
+        case .done: seen ? .hollow : .solid
+        case .idle: .small
+        case .failed: differentiateWithoutColor ? .diamond : .solid
+        case .waiting, .limit: .solid
+        }
+    }
+}
+
+/// The right half of a disc: the filled part of the working mark.
+private struct HalfDisc: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        p.move(to: c)
+        p.addArc(center: c, radius: min(rect.width, rect.height) / 2, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: false)
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// Status dot (`StatusMark`); `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
     var state: AgentState = .idle
+    /// A done dot whose result was seen (#135).
+    var seen = false
     var size = Theme.Icon.statusDot
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0
-    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle has no colour to frame — a ring around the
-    /// grey dot read as an empty radio button, so it's a dim `onAccent` dot without a ring.
+    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle and a seen done have no colour to frame — a
+    /// ring around them read as an empty radio button (#130), so they are drawn in `onAccent` itself (idle at .4).
     var onAccent = false
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        let quietIdle = onAccent && state == .idle
-        let ring = onAccent && !quietIdle ? Theme.ui.onAccent : border
-        let ringWidth = onAccent ? (quietIdle ? 0 : Theme.railDotBorder) : borderWidth
-        Circle().fill(quietIdle ? Theme.ui.onAccent.opacity(Theme.Opacity.inactive) : Theme.ui.status(state))
+        let mark = StatusMark.of(state, seen: seen, differentiateWithoutColor: Theme.differentiateWithoutColor)
+        let quiet = onAccent && (mark == .hollow || mark == .small)
+        let ring = onAccent && !quiet ? Theme.ui.onAccent : border
+        let ringWidth = onAccent ? (quiet ? 0 : Theme.railDotBorder) : borderWidth
+        let color = quiet ? Theme.ui.onAccent.opacity(state == .idle ? Theme.Opacity.inactive : 1) : Theme.ui.status(state)
+        Self.shape(mark, color: color)
             .frame(width: size, height: size)
             .background {
                 if let ring { Circle().fill(ring).padding(-ringWidth) }
@@ -346,9 +380,23 @@ struct StatusDot: View {
             }
             .scaleEffect(scale)
             .accessibilityElement()
-            .accessibilityLabel(L10n.statusLabel(state))
+            .accessibilityLabel(L10n.statusLabel(state, seen: seen))
             // shortcut: no pulse on appear (it would repeat on every view re-creation); the static halo marks an already-waiting dot
             .onChange(of: state) { _, now in if now == .waiting { pulse() } }
+    }
+
+    @ViewBuilder private static func shape(_ mark: StatusMark, color: Color) -> some View {
+        switch mark {
+        case .solid: Circle().fill(color)
+        case .small: Circle().fill(color).scaleEffect(Theme.statusIdleScale)
+        case .hollow: Circle().strokeBorder(color, lineWidth: Theme.statusDotStroke)
+        case .half:
+            ZStack {
+                Circle().strokeBorder(color, lineWidth: Theme.statusDotStroke)
+                HalfDisc().fill(color)
+            }
+        case .diamond: Rectangle().fill(color).scaleEffect(Theme.statusDiamondScale).rotationEffect(.degrees(45))
+        }
     }
 
     private func pulse() {

@@ -602,6 +602,21 @@ extension MainWindowController {
             case "install": lsp.install(package)
             default: lsp.jobs[package] = nil
             }
+        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (#135)
+            let f = arg.split(separator: " ")
+            Theme.applyAccessibility(increaseContrast: f.first == "1", differentiateWithoutColor: f.count > 1 && f[1] == "1")
+        case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», #135)
+            app.screenShown = arg == "on" ? { true } : { [weak self] in self?.windowVisible ?? false }
+            app.refreshSeen()
+        case "rowHelp":  // rowHelp <file>: each sidebar chat's tooltip and VoiceOver label (snapshots can't hover)
+            let now = Date()
+            let lines = app.orderedTasks.map { t in
+                "\(t.name)\t\(app.sessionStatus(of: t, now: now).text)\t\(app.rowAccessibility(t.name, task: t, state: app.displayState(of: t), now: now))"
+            }
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "clockShift":  // clockShift <seconds>: status events are stamped that long ago (a long wait, #135); 0 resets
+            let shift = TimeInterval(arg) ?? 0
+            app.clock = { Date().addingTimeInterval(-shift) }
         case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)
             if let theme = AppTheme(rawValue: arg) {
                 do { try app.setTheme(theme) } catch { uiLog.error("theme: \(error.localizedDescription, privacy: .public)") }

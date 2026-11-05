@@ -801,8 +801,34 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func relinkWorktree(taskId: UUID, to newPath: String) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, let branch, let base) = tasks[i].mode,
               path != newPath else { return }
-        tasks[i].mode = .worktree(path: newPath, branch: branch, base: base)
-        func moved(_ p: String) -> String { p == path || p.hasPrefix(path + "/") ? newPath + p.dropFirst(path.count) : p }
+        moveTask(i, from: path, to: .worktree(path: newPath, branch: branch, base: base))
+    }
+
+    /// «Сделать чатом этой копии» (#134): the chat's agent works in another worktree (made by the agent itself); the chat,
+    /// its saved cwds and resume follow it as on a relink. Nothing on disk changes.
+    public mutating func adoptWorktree(taskId: UUID, path newPath: String, branch: String, base: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), !isFreeChatTask(tasks[i]) else { return }
+        let path = cwd(for: tasks[i])
+        guard path != newPath, !path.isEmpty else { return }
+        moveTask(i, from: path, to: .worktree(path: newPath, branch: branch, base: base))
+    }
+
+    /// git has another branch checked out in the chat's worktree (an agent's `branch -m` / `checkout -b`, #134).
+    public mutating func setWorktreeBranch(taskId: UUID, _ branch: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, let old, let base) = tasks[i].mode,
+              old != branch, !branch.isEmpty else { return }
+        tasks[i].mode = .worktree(path: path, branch: branch, base: base)
+    }
+
+    private mutating func moveTask(_ i: Int, from path: String, to mode: TaskMode) {
+        guard case .worktree(let newPath, _, _) = mode else { return }
+        tasks[i].mode = mode
+        // A path already in the new folder (nested in the old one: an agent's `.claude/worktrees/x`) stays.
+        let nested = newPath.hasPrefix(path + "/")
+        func moved(_ p: String) -> String {
+            if nested, p == newPath || p.hasPrefix(newPath + "/") { return p }
+            return p == path || p.hasPrefix(path + "/") ? newPath + p.dropFirst(path.count) : p
+        }
         func move(_ leaf: Leaf) -> Leaf {
             var leaf = leaf
             if leaf.agentSessionId != nil, leaf.relinkedFrom == nil, moved(leaf.cwd) != leaf.cwd { leaf.relinkedFrom = leaf.cwd }

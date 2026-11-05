@@ -133,6 +133,7 @@ import Workspace
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
+        case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -786,6 +787,30 @@ import Workspace
     static func worktreeNotFound(_ path: String) -> String { f(.worktreeNotFound, path) }
     static var relinkWorktree: String { s(.relinkWorktree) }
     static var relinkWorktreeHelp: String { s(.relinkWorktreeHelp) }
+    static func agentInCopy(_ path: String, branch: String?) -> String {
+        branch.map { f(.agentInCopy, path, $0) } ?? f(.agentInCopyDetached, path)
+    }
+    static var adoptCopy: String { s(.adoptCopy) }
+    static var adoptCopyHelp: String { s(.adoptCopyHelp) }
+    static var adoptCopyDetached: String { s(.adoptCopyDetached) }
+    static var hideAgentBar: String { s(.hideAgentBar) }
+    static func spareCopies(_ n: Int) -> String { f(.spareCopies, n) }
+    static var spareCopiesHelp: String { s(.spareCopiesHelp) }
+    static var openCopyAsChat: String { s(.openCopyAsChat) }
+    static var removeCopyMenu: String { s(.removeCopyMenu) }
+    static var copyLocked: String { s(.copyLocked) }
+    static func removeCopyTitle(_ path: String) -> String { f(.removeCopyTitle, path) }
+    static func removeCopyInfo(_ branch: String) -> String { f(.removeCopyInfo, branch) }
+    static var removeCopyInfoDetached: String { s(.removeCopyInfoDetached) }
+    static var removeCopyButton: String { s(.removeCopyButton) }
+    static var hideFromGitMenu: String { s(.hideFromGitMenu) }
+    static var hideFromGitTitle: String { s(.hideFromGitTitle) }
+    static func hideFromGitInfo(_ lines: String) -> String { f(.hideFromGitInfo, lines) }
+    static var hideFromGitButton: String { s(.hideFromGitButton) }
+    static var hideFromGitFailed: String { s(.hideFromGitFailed) }
+    static func worktreesNotIgnoredNotice(_ paths: String) -> String { f(.worktreesNotIgnoredNotice, paths) }
+    static func excludeWillAdd(_ lines: String) -> String { f(.excludeWillAdd, lines) }
+    static var hideFromGitButtonLong: String { s(.hideFromGitButtonLong) }
     static var notGitNoCopies: String { s(.notGitNoCopies) }
     static var preparingConversation: String { s(.preparingConversation) }
 

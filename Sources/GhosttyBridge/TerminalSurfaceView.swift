@@ -55,6 +55,8 @@ public struct ClipboardPromptText: Sendable {
     var lastPerformKeyEvent: TimeInterval?
     var suppressNextLeftMouseUp = false
     var focused = false
+    /// AXValue (whole screen text) for a moment: dictation apps query it many times per focus change.
+    var accessibilityTextCache: (text: String, at: TimeInterval)?
 
     enum Event {
         case title(String), bell, notification(title: String, body: String)

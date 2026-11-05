@@ -216,16 +216,22 @@ private let statusFixture = Data("""
         defer { s.stop() }
         let config = dir.path + "/config.toml"
         func visible(_ d: Data) -> String {
-            // A stalled runner can tick the 1h48m countdown down a few minutes between `reset` and the render.
             String(decoding: d, as: UTF8.self).replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "1h4[0-7]m", with: "1h48m", options: .regularExpression)
+        }
+        // Exact, not fuzzy: the countdown is ceil(seconds left / 60), so any render time in [t0, now] has one right answer
+        // (a floor regression would show 1h47m at t0, outside the range). A stalled runner only widens the range.
+        func countdowns(_ resetAt: Int, since t0: Date) -> Set<String> {
+            let hi = Int(((Double(resetAt) - t0.timeIntervalSince1970) / 60).rounded(.up))
+            let lo = Int(((Double(resetAt) - Date().timeIntervalSince1970) / 60).rounded(.up))
+            return Set((lo...max(lo, hi)).map { "\($0 / 60)h\($0 % 60)m" })
         }
         try "statusline = \"hangar\"\nlanguage = \"en\"\n".write(toFile: config, atomically: true, encoding: .utf8)
-        let reset = Int(Date().timeIntervalSince1970) + 107 * 60 + 30
+        let t0 = Date()
+        let reset = Int(t0.timeIntervalSince1970) + 107 * 60 + 30
         let payload = Data(#"{"model":{"id":"claude-opus-4-7[1m]","display_name":"Opus 4.7 (1M context)"},"context_window":{"used_percentage":12,"context_window_size":1000000},"rate_limits":{"five_hour":{"used_percentage":96,"resets_at":\#(reset)},"seven_day":{"used_percentage":18,"resets_at":\#(reset + 86_400)}},"cost":{"total_cost_usd":0.04}}"#.utf8)
         let r = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
         #expect(r.status == 0)
-        #expect(visible(r.out) == "Opus 4.7 1M │ ctx ━─────── 12% │ 5h ━━━━━━━━ 96% 1h48m │ wk 18%\n")
+        #expect(countdowns(reset, since: t0).map { "Opus 4.7 1M │ ctx ━─────── 12% │ 5h ━━━━━━━━ 96% \($0) │ wk 18%\n" }.contains(visible(r.out)))
         #expect(String(decoding: r.out, as: UTF8.self).contains("\u{1B}[31m96%"))
         #expect(await inbox.wait(count: 1).count == 1)
 
@@ -233,12 +239,12 @@ private let statusFixture = Data("""
         try "statusline = \"hangar\"\nlanguage = \"ru\"\n".write(toFile: config, atomically: true, encoding: .utf8)
         let early = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir),
                                          stdin: Data(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":3}}"#.utf8))
-        #expect(visible(early.out) == "Sonnet 4.6 │ ctx ━─────── 3% │ 5h ━━━━━━━━ 96% 1h48m │ wk 18%\n")
+        #expect(countdowns(reset, since: t0).map { "Sonnet 4.6 │ ctx ━─────── 3% │ 5h ━━━━━━━━ 96% \($0) │ wk 18%\n" }.contains(visible(early.out)))
 
         // The segments in the config's order (HD-110).
         try "language = \"ru\"\nstatusline_segments = [\"week\", \"5h\", \"model\"]\n".write(toFile: config, atomically: true, encoding: .utf8)
         let ordered = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
-        #expect(visible(ordered.out) == "wk 18% │ 5h ━━━━━━━━ 96% 1h48m │ Opus 4.7 1M\n")
+        #expect(countdowns(reset, since: t0).map { "wk 18% │ 5h ━━━━━━━━ 96% \($0) │ Opus 4.7 1M\n" }.contains(visible(ordered.out)))
 
         // An unreadable config is the defaults (Hangar's line); no data at all (nor an app to ask) prints nothing.
         try "statusline = 5".write(toFile: config, atomically: true, encoding: .utf8)

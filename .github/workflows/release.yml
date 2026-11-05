@@ -1,8 +1,8 @@
 name: Release
 
 # One release a day, not one per merge (decision HD-145). A release batches the PRs merged into main since the last v*
-# tag → version → Info.plist stamped in the build → tag vX.Y.Z → .app + DMG → GitHub Release → the published DMG is
-# downloaded and verified.
+# tag → version → Info.plist stamped in the build → tag vX.Y.Z → .app + DMG → draft GitHub Release → the draft's DMG is
+# downloaded and verified → the draft is published.
 # When:
 # - daily at 06:00 UTC, if main has PRs since the last tag that are not labelled no-release;
 # - on merge of a PR labelled release-now (urgent): releases main right away;
@@ -67,14 +67,16 @@ jobs:
           EVENT: ${{ github.event_name }}
           BUMP_INPUT: ${{ inputs.bump }}
         run: |
+          set -o pipefail
           SHA=$(git rev-parse HEAD)
           LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n 1 || true)
           RANGE="${LAST:+$LAST..}$SHA"
           COUNT=$(git rev-list --count "$RANGE")
           # The batch: PRs merged into main whose merge commits are on main's first-parent line since the last tag.
+          # A failed API call must fail the step: a half-empty list would give a wrong bump or silently skip the release.
           for c in $(git rev-list --first-parent "$RANGE"); do
             gh api "repos/$GITHUB_REPOSITORY/commits/$c/pulls" \
-              --jq '.[] | select(.merged_at != null and .base.ref == "main") | [.number, .title, ([.labels[].name] | join(" "))] | @tsv'
+              --jq '.[] | select(.merged_at != null and .base.ref == "main") | [.number, .title, ([.labels[].name] | join(" "))] | @tsv' || exit 1
           done | sort -t $'\t' -k1,1n -u > "$RUNNER_TEMP/prs.tsv"
           BUMP=$(cut -f2,3 "$RUNNER_TEMP/prs.tsv" | scripts/release-bump.sh)
           echo "Since ${LAST:-the start}: $COUNT commit(s), PRs:"; cat "$RUNNER_TEMP/prs.tsv"; echo "Bump: $BUMP"
@@ -219,7 +221,8 @@ jobs:
           git tag -a "v$VERSION" -m "Hangar $VERSION" HEAD
           git push origin "v$VERSION"
 
-      - name: Publish GitHub Release
+      # Draft first: users see nothing until the draft's own assets pass the checks below.
+      - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           CHANGES: ${{ needs.plan.outputs.notes }}
@@ -239,12 +242,12 @@ jobs:
 
           EOF
           printf '%s\n' "$CHANGES" >> "$RUNNER_TEMP/notes.md"
-          gh release create "v$VERSION" \
+          gh release create "v$VERSION" --draft \
             "build/Hangar-$VERSION.dmg" "build/Hangar-$VERSION.dmg.sha256" docs/assets/hangar-demo.mp4 \
             --title "Hangar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
 
-      # What users download, checked without a human: checksum, version, signature. Launching it stays with the owner.
-      - name: Verify the published release
+      # What users would download, checked without a human: checksum, version, signature. Launching it stays with the owner.
+      - name: Verify the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -256,11 +259,16 @@ jobs:
           trap 'hdiutil detach "$MNT" -quiet -force' EXIT
           APP="$MNT/Hangar.app"
           GOT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
-          [ "$GOT" = "$VERSION" ] || { echo "::error::published app is $GOT, tag is v$VERSION"; exit 1; }
+          [ "$GOT" = "$VERSION" ] || { echo "::error::draft app is $GOT, tag is v$VERSION"; exit 1; }
           codesign --verify --deep --strict "$APP"
           codesign -dvv "$APP" 2>&1 | grep -qx 'Authority=Hangar Self-Signed' ||
-            { echo "::error::published app is not signed by Hangar Self-Signed"; exit 1; }
+            { echo "::error::draft app is not signed by Hangar Self-Signed"; exit 1; }
           echo "v$VERSION verified: sha256, CFBundleShortVersionString, codesign --deep --strict, Hangar Self-Signed"
+
+      - name: Publish the verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v$VERSION" --draft=false
 
       - name: Remove signing keychain
         if: always()

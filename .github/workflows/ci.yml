@@ -77,6 +77,10 @@ jobs:
           BASE=$(cat .build/hangar-ci-commit 2>/dev/null || true)
           [ -n "$BASE" ] || { rm -rf .build; echo "No cached build"; exit 0; }
           if git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch -q --no-tags --depth=1 origin "$BASE"; then
+            # Swift keeps outputs of deleted or renamed sources (e.g. a removed resource gets bundled): drop the cache then.
+            if [ -n "$(git diff --diff-filter=DR --name-only "$BASE" HEAD)" ]; then
+              echo "::notice::files deleted or renamed since $BASE: building from scratch"; rm -rf .build; exit 0
+            fi
             git diff --name-only -z "$BASE" HEAD | while IFS= read -r -d '' f; do [ ! -e "$f" ] || touch -h "$f"; done
             echo "Cached build of $BASE; changed since: $(git diff --name-only "$BASE" HEAD | wc -l) file(s)"
           else

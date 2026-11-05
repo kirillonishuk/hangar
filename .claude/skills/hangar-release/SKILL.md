@@ -31,7 +31,7 @@ Source of truth: `docs/RELEASING.md`. Read it; this is the checklist form plus t
 - Release now without a label (owner's OK): `gh workflow run release.yml -f bump=auto` (or `patch` / `minor` / `major`).
 
 ## 4. Check the release (after the daily / `release-now` / manual run)
-The Release run verifies the published DMG itself (step «Verify the published release»: sha256, `CFBundleShortVersionString` == tag, `codesign --verify --deep --strict`, `Authority=Hangar Self-Signed`) and fails if any check fails.
+The Release run creates a draft, verifies its DMG itself (step «Verify the draft release»: sha256, `CFBundleShortVersionString` == tag, `codesign --verify --deep --strict`, `Authority=Hangar Self-Signed`) and publishes the draft only if every check passes; a failure leaves an unpublished draft (recovery: `docs/RELEASING.md` «Failed run»).
 ```sh
 gh run list -w Release -L 3                         # the run is green
 gh release view vX.Y.Z -R kirillonishuk/hangar      # assets: Hangar-X.Y.Z.dmg and .dmg.sha256; Changes list the PRs

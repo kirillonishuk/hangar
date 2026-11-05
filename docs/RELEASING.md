@@ -62,13 +62,12 @@ bump and the release notes.
 
 ## After a release: verification
 
-The Release run verifies what it published, without a human: its last step («Verify the published release») downloads
-`Hangar-X.Y.Z.dmg` and its `.sha256` from the release and fails the run unless the checksum matches,
+The Release run publishes only after verifying: it creates a draft release, its step «Verify the draft release»
+downloads `Hangar-X.Y.Z.dmg` and its `.sha256` from the draft and fails the run unless the checksum matches,
 `CFBundleShortVersionString` is the tag's version, `codesign --verify --deep --strict` passes and the signature's
-authority is `Hangar Self-Signed`. So:
+authority is `Hangar Self-Signed`; only then «Publish the verified release» turns the draft into the release. So:
 
-1. The Release run is green (a red run after «Publish GitHub Release» means a published release failed verification:
-   see «Broken release»).
+1. The Release run is green (a red run leaves a draft that users cannot see, see «Broken release»).
 2. The owner launches the new version by hand.
 
 The same check by hand, if ever needed:
@@ -100,6 +99,19 @@ one resets every user's permissions. CI on PRs signs ad-hoc.
 English. The workflow writes the Install steps and a «Changes» list: one line per PR in the release (title and
 number, `no-release` PRs left out) and a full-changelog link. Edit the release if the list needs a short human summary
 of the changes.
+
+## Failed run (draft or tag left behind)
+
+The tag `vX.Y.Z` is pushed before the release is created, so the daily «last tag» is already `vX.Y.Z` and a rerun
+cannot start from scratch (it fails on `git tag -a`, and a rerun of «Create draft» on an existing release).
+
+- **Verification failed** (draft exists, not public): fix the cause as a `fix:` PR; it ships as the next patch. To
+  publish this very draft anyway after checking it by hand (block above), run `gh release edit vX.Y.Z --draft=false`;
+  otherwise `gh release delete vX.Y.Z` (the draft only, never the tag).
+- **Tag ok, release creation or publish failed** (no draft or a good draft): do not rerun the job. If a verified draft
+  exists, publish it with `gh release edit vX.Y.Z --draft=false`. Otherwise push no new tag: run Release by hand
+  (`workflow_dispatch`) after the fix, which cuts the next patch; or, to release exactly that tag, build it from the
+  tag by hand and `gh release create` it.
 
 ## Broken release
 

@@ -35,7 +35,7 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 enum EmptyProjectRow: Hashable {
     case newChat
     case archive(count: Int)
-    /// «Копии без чата · N» (#134): under any expanded project that has such worktrees, chats or not.
+    /// «Копии без чата · N» (HD-134): under any expanded project that has such worktrees, chats or not.
     case spareCopies(count: Int)
 }
 
@@ -79,7 +79,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var requestAttention: (() -> Void)?
     /// A leaf's attention changed or went (nil): notifications follow it.
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
-    /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
+    /// A sub-session finished, needs input or failed (HD-131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
     /// The main window is on screen and the app active (set by the window controller; nil — never, as in tests).
     @ObservationIgnored var screenShown: (() -> Bool)?
@@ -93,7 +93,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored private var dockBadge = ""
     /// Sleep assertion while agents work (spec §5.2); tests swap it before the first event.
     @ObservationIgnored public lazy var keepAwake = KeepAwake()
-    /// GitHub releases (#86); its record lives next to state.json. Nothing is read until `start()` (main.swift).
+    /// GitHub releases (HD-086); its record lives next to state.json. Nothing is read until `start()` (main.swift).
     @ObservationIgnored public lazy var updates: UpdateModel = {
         let model = UpdateModel(stateDir: URL(fileURLWithPath: (socketPath as NSString).deletingLastPathComponent))
         model.enabled = { [weak self] in self?.config.checkUpdates ?? false }
@@ -109,7 +109,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var onCodexTurn: (() -> Void)?
     /// A host's master is up: waiting and detached leaves of that host launch (set by `TerminalArea`).
     @ObservationIgnored var onHostConnected: ((String) -> Void)?
-    /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the editor header), by editor leaf (#83).
+    /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the editor header), by editor leaf (HD-083).
     var editorDirty: Set<UUID> = []
     var editorLanguage: [UUID: LanguageStatus] = [:]
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
@@ -131,11 +131,11 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var tabFrames: [UUID: CGRect] = [:]
     /// A pane is dragged over the tab bar at this window x (set by the tab bar): it scrolls near its edges.
     @ObservationIgnored var tabBarAutoScroll: ((CGFloat) -> Void)?
-    /// TS/JS language features of the editors (tsserver, #82).
+    /// TS/JS language features of the editors (tsserver, HD-082).
     @ObservationIgnored lazy var languages: Languages = makeLanguages()
-    /// `node` from the login shell, looked up once (#82).
+    /// `node` from the login shell, looked up once (HD-082).
     @ObservationIgnored var localNode: Task<String?, Never>?
-    /// The login shell's PATH, looked up once (language servers, #90).
+    /// The login shell's PATH, looked up once (language servers, HD-090).
     @ObservationIgnored var loginPath: Task<String?, Never>?
     /// Asks before the diff tab drops an edited buffer (set by `TerminalArea` with the diff editor).
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
@@ -144,7 +144,7 @@ enum EmptyProjectRow: Hashable {
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.
-    /// Live HEAD of each chat (#114).
+    /// Live HEAD of each chat (HD-114).
     let branchModel = BranchModel()
     /// Where each worktree chat's copy is, by its repository's worktree list (checked, not assumed: a moved copy's old
     /// folder inside the main checkout would show the main checkout's branch and files).
@@ -153,22 +153,22 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
     /// Projects asked to check again while their check ran: it reruns once after.
     @ObservationIgnored var worktreeRechecks: Set<UUID> = []
-    /// Each project's last `git worktree list` ([] — never answered): spare copies and where agents work (#134).
+    /// Each project's last `git worktree list` ([] — never answered): spare copies and where agents work (HD-134).
     var worktreeLists: [UUID: [WorktreeEntry]] = [:]
-    /// The last `cwd` each agent leaf's hooks reported (#134).
+    /// The last `cwd` each agent leaf's hooks reported (HD-134).
     @ObservationIgnored var agentCwds: [UUID: String] = [:]
-    /// Chats whose agent works in another worktree of the project (#134), and the «Скрыть» clicks («<chat>|<path>»).
+    /// Chats whose agent works in another worktree of the project (HD-134), and the «Скрыть» clicks («<chat>|<path>»).
     var agentElsewhere: [UUID: WorktreeEntry] = [:]
     var hiddenAgentPlaces: Set<String> = []
-    /// Worktrees inside each project's repository git doesn't ignore, relative to its top level (#134).
+    /// Worktrees inside each project's repository git doesn't ignore, relative to its top level (HD-134).
     var unignoredCopies: [UUID: [String]] = [:]
-    /// Relinked claude tabs whose conversation is being copied before they launch (#122), and those whose copy failed
+    /// Relinked claude tabs whose conversation is being copied before they launch (HD-122), and those whose copy failed
     /// (they launch without it).
     @ObservationIgnored var transcriptSyncs: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored var transcriptSyncFailed: Set<UUID> = []
     /// A leaf's conversation copy finished: the window starts the waiting leaf again.
     @ObservationIgnored var onTranscriptSynced: ((UUID) -> Void)?
-    /// A remote project's last definite repository probe: its sheets open with it at once, no ssh round trip first (#122).
+    /// A remote project's last definite repository probe: its sheets open with it at once, no ssh round trip first (HD-122).
     @ObservationIgnored var repoProbes: [UUID: NewTaskModel.Probe] = [:]
     #if DEBUG
     /// Debug hook: the sidebar row drawn as hovered (snapshots can't hover).
@@ -179,13 +179,13 @@ enum EmptyProjectRow: Hashable {
     #endif
     /// The inspector's Git tab (fed by `InspectorWatch` like the inspector).
     let gitPanel = GitPanelModel()
-    /// The inspector's Search tab (find in files, #91).
+    /// The inspector's Search tab (find in files, HD-091).
     let search = SearchModel()
-    /// Files of the focused host-terminal leaf (#124).
+    /// Files of the focused host-terminal leaf (HD-124).
     let remoteFiles = RemoteFilesModel()
-    /// Host terminal leaves launched with the folder hook (#124), with the launch time.
+    /// Host terminal leaves launched with the folder hook (HD-124), with the launch time.
     @ObservationIgnored var hookedLeaves: [UUID: Date] = [:]
-    /// Host terminal leaves whose hooked login failed: they log in plain (#124).
+    /// Host terminal leaves whose hooked login failed: they log in plain (HD-124).
     @ObservationIgnored var plainLeaves: Set<UUID> = []
     /// Suspected hook failures per host in this run; the second one marks the host `noHook`.
     @ObservationIgnored var hookSuspects: [String: Int] = [:]
@@ -194,9 +194,9 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var hookClock: () -> Date = Date.init
     /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
     @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
-    /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
+    /// The temporary diff tab per task (decision HD-044); in memory only, never in `state.json`.
     var diffTabs: [UUID: DiffTab] = [:] {
-        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (#135)
+        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (HD-135)
     }
     @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
@@ -215,7 +215,7 @@ enum EmptyProjectRow: Hashable {
     var sessionsScope: SessionsScope = .all
     /// Its search text.
     var sessionsQuery = ""
-    /// «Сессии проекта», the archived hint, a link: only this project, shown as a removable chip (#107).
+    /// «Сессии проекта», the archived hint, a link: only this project, shown as a removable chip (HD-107).
     var sessionsProject: UUID?
     /// Its agent and state chips.
     var sessionsAgents: Set<HistoryAgent> = []
@@ -269,15 +269,15 @@ enum EmptyProjectRow: Hashable {
 
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String
-    /// Claude's freshest limits, shared with every control socket (Mac and hosts) so each chat's line shows them (#137).
+    /// Claude's freshest limits, shared with every control socket (Mac and hosts) so each chat's line shows them (HD-137).
     @ObservationIgnored let usageSnapshot: UsageSnapshot
     @ObservationIgnored let userShell: String
-    /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
+    /// First message from the new-task sheet, consumed when the leaf's surface starts (decision HD-029).
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
-    /// A new worktree's setup leaves (#58, #127) until they end or are relaunched: never saved, so a restart brings back
+    /// A new worktree's setup leaves (HD-058, HD-127) until they end or are relaunched: never saved, so a restart brings back
     /// no dead setup tab; one that ends without its code (Ctrl-C) is still marked failed.
     @ObservationIgnored var setupLeaves: Set<UUID> = []
-    /// `.hangar/actions.json` per chat folder as last read (#133); the toolbar, menus and palette show these.
+    /// `.hangar/actions.json` per chat folder as last read (HD-133); the toolbar, menus and palette show these.
     var repoActions: [String: RepoActions] = [:]
     /// Action leaves being stopped by Hangar (restart, «Остановить»): their exit is not a failure; the value runs once they end.
     @ObservationIgnored var stoppingActions: [UUID: () -> Void] = [:]
@@ -293,7 +293,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var restoredLeaves: Set<UUID> = []
     /// The remote tmux kills the last `perform` started.
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
-    /// Worktree folders being removed, shown over the chat area (#132).
+    /// Worktree folders being removed, shown over the chat area (HD-132).
     let worktreeRemovals = WorktreeRemovals()
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
@@ -305,7 +305,7 @@ enum EmptyProjectRow: Hashable {
     /// «Продолжить» of an empty session or a chooser: the folder's latest conversations from the last scan (in memory only).
     var recentByFolder: [String: [Conversation]] = [:]
     /// Agent integration files (Settings); DEBUG runs point them at temp copies (main.swift).
-    /// Projects whose own status line Hangar overrides (#105), with problems; Settings lists them.
+    /// Projects whose own status line Hangar overrides (HD-105), with problems; Settings lists them.
     var statuslineNotes: [StatuslineNote] = []
     /// Off in tests: syncing reads the agent's settings and writes into project folders (the launcher turns it on).
     @ObservationIgnored public var statuslineSync = false
@@ -317,11 +317,11 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored public lazy var findAgentDirs: (() async -> (claude: String?, codex: String?))? = { [userShell] in
         await resolveAgentDirs(runner: .local, shell: userShell)
     }
-    /// Integrations by function (#111): marks, MCP, the questions waiting.
+    /// Integrations by function (HD-111): marks, MCP, the questions waiting.
     let integrations = IntegrationStatus()
     /// The bundled `Contents/Helpers/hangar` the agents are pointed at; nil = nothing is written or asked (tests, `swift run`).
     @ObservationIgnored public var integrationCLI: String?
-    /// The `hangar` every claude tab's own hooks call (`--settings`, #119), whatever the integration; nil — no such hooks.
+    /// The `hangar` every claude tab's own hooks call (`--settings`, HD-119), whatever the integration; nil — no such hooks.
     @ObservationIgnored public var tabHookCLI: String?
     /// Claude's `.claude.json` (MCP); nil = from `CLAUDE_CONFIG_DIR` or home. DEBUG runs pin it (main.swift).
     @ObservationIgnored public var claudeJSONURL: URL?
@@ -344,13 +344,13 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var onIntegrationAnswered: (() -> Void)?
     /// An answer couldn't be saved: the main window says why.
     @ObservationIgnored var onIntegrationError: ((String) -> Void)?
-    /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (#96); DEBUG: only with a fake ssh.
+    /// Connect upgrades an older `hangar-remote` and the Claude hooks on the server (HD-096); DEBUG: only with a fake ssh.
     @ObservationIgnored public var autoUpgradeRemote = true
     /// ssh binary for remote hosts; DEBUG runs may point it at a fake (`HANGAR_SSH`, main.swift) before first use.
     @ObservationIgnored public var sshPath = "/usr/bin/ssh"
     /// The user's ssh config (read-only): its `Host` names fill the remote-project drop-down; DEBUG: `HANGAR_SSH_CONFIG`.
     @ObservationIgnored public var sshConfigPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh/config").path
-    /// `Host` names of the ssh config for the SSH HOSTS section (#64); read at launch and on activation.
+    /// `Host` names of the ssh config for the SSH HOSTS section (HD-064); read at launch and on activation.
     var configHostList: [String] = []
     /// Leaves whose tmux session is to be killed once their host is connected again (closed/archived while offline).
     // shortcut: in memory only; a quit or the host's removal while offline leaves those sessions on the server.
@@ -377,7 +377,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var sendWaitTimeout: Duration = .seconds(ControlMethod.sendWaitSeconds)
     /// A host's state changed (leaf bars of AppKit views; set by `TerminalArea`).
     @ObservationIgnored var onHostChange: ((String) -> Void)?
-    /// ssh hosts of remote projects (#47); tests replace it with `makeRemoteHosts(...)`.
+    /// ssh hosts of remote projects (HD-047); tests replace it with `makeRemoteHosts(...)`.
     @ObservationIgnored public lazy var remote: RemoteHosts = makeRemoteHosts(
         paths: SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent), sshPath: sshPath,
         isActive: { NSApp?.isActive ?? false })
@@ -388,7 +388,7 @@ enum EmptyProjectRow: Hashable {
         // Chats without a project run next to the state: a test or debug store gets its own folder, never the real one.
         var state = state
         state.chatsFolder = store.directory.appendingPathComponent("Chats").path
-        state.adoptOrphanFreeChats()  // saved by an older build, which drops `freeChats` (#126)
+        state.adoptOrphanFreeChats()  // saved by an older build, which drops `freeChats` (HD-126)
         self.state = state
         self.store = store
         self.config = config
@@ -458,7 +458,7 @@ enum EmptyProjectRow: Hashable {
         }
         // Another session getting selected (palette, a new or restored one) leaves «Сессии».
         if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }
-        // A chat's copy may have been moved since it was last shown (#122).
+        // A chat's copy may have been moved since it was last shown (HD-122).
         if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
         store.scheduleSave(savedState)
         didChange?()
@@ -485,7 +485,7 @@ enum EmptyProjectRow: Hashable {
 
     func project(_ id: UUID) -> Project? { state.projects.first { $0.id == id } }
 
-    /// Changes are compared with this (decision #44): a worktree task's `base`, else the project's last base or default branch.
+    /// Changes are compared with this (decision HD-044): a worktree task's `base`, else the project's last base or default branch.
     func baseBranch(of task: HangarTask) async -> String? {
         if case .worktree(_, _, let base) = task.mode { return base }
         guard let project = project(task.projectId) else { return nil }
@@ -507,7 +507,7 @@ enum EmptyProjectRow: Hashable {
     var archivedTasks: [HangarTask] { state.tasks.filter(\.archived) }
 
     /// Under an expanded project with no chats in its list (never had any, or all archived), instead of nothing:
-    /// «+ Новый чат», then «Архив · N» when some are archived (#125).
+    /// «+ Новый чат», then «Архив · N» when some are archived (HD-125).
     func emptyProjectRows(_ projectId: UUID) -> [EmptyProjectRow] {
         let spare = spareWorktrees(of: projectId).count
         let copies: [EmptyProjectRow] = spare > 0 ? [.spareCopies(count: spare)] : []
@@ -531,7 +531,7 @@ enum EmptyProjectRow: Hashable {
         }
     }
 
-    /// A file tab is its file's name (#83; «Editor» without one); others go by their terminal title.
+    /// A file tab is its file's name (HD-083; «Editor» without one); others go by their terminal title.
     func title(of leaf: Leaf) -> String {
         if leaf.kind == .editor { return leaf.openFile.map { ($0 as NSString).lastPathComponent } ?? defaultTitle(.editor) }
         if let action = leaf.action { return action }
@@ -572,7 +572,7 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
-    /// The task's `HANGAR_PORT` (#60); projects and tabs have none.
+    /// The task's `HANGAR_PORT` (HD-060); projects and tabs have none.
     func port(of target: ActionTarget) -> Int? {
         guard case .task(let id) = target else { return nil }
         return state.tasks.first { $0.id == id }?.port
@@ -603,17 +603,17 @@ enum EmptyProjectRow: Hashable {
     /// Spec for one launch of `leaf` (its current model version: cwd may have moved since the view was made).
     func spec(for leaf: Leaf, tabId: UUID, context: LaunchContext) throws -> (LaunchSpec, LaunchMode) {
         var leaf = self.leaf(id: leaf.id) ?? leaf
-        // An action runs only when asked (#133): a restored or never-run action tab waits for ↩.
+        // An action runs only when asked (HD-133): a restored or never-run action tab waits for ↩.
         if leaf.action != nil, !actionLaunches(context, remote: remoteLeafHost(leaf.id) != nil) { throw LaunchError.actionNotStarted }
         if leaf.cwd == state.chatsFolder { ensureChatsFolder() }
         var mode = launchMode(for: leaf, context)
-        // An agent resumes only by its own id (#119): without one it starts anew.
+        // An agent resumes only by its own id (HD-119): without one it starts anew.
         if mode.restoring, leaf.kind == .claude || leaf.kind == .codex, validSessionId(leaf.agentSessionId) == nil {
             mode.restoring = false
             if context == .restored { mode.unlinked = true }
         }
         var newId = leaf.kind == .claude && !mode.restoring
-        // A relinked chat's conversation is copied first, off the main thread; the leaf starts again when it is done (#122).
+        // A relinked chat's conversation is copied first, off the main thread; the leaf starts again when it is done (HD-122).
         if prepareRelinkedTranscript(leaf, restoring: mode.restoring) { throw LaunchError.preparing }
         // On this Mac the transcript decides (on a server, the launch command does): resumed only where claude finds it.
         if leaf.kind == .claude, mode.restoring, remoteLeafHost(leaf.id) == nil, let id = validSessionId(leaf.agentSessionId),
@@ -632,7 +632,7 @@ enum EmptyProjectRow: Hashable {
             leaf.agentSessionId = UUID().uuidString.lowercased()
             setAgentSessionIdQuietly(leaf)
         }
-        // Tabs and the drawer alike get the task's port (#60).
+        // Tabs and the drawer alike get the task's port (HD-060).
         let port = state.tasks.first { $0.drawer.leaf?.id == leaf.id || $0.tabs.contains { $0.root.leaf(id: leaf.id) != nil } }?.port
         if integrationGate(leaf.kind, host: nil) { throw LaunchError.awaitingConsent }
         uiLog.info("launch leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) restoring=\(mode.restoring) prompt=\(mode.initialPrompt != nil)")
@@ -704,11 +704,11 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// The new-task sheet remembers its choice (worktree toggle, base) for the next task in this project.
-    /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision #45).
+    /// `select: false` (CLI/MCP) leaves the selected task and the sheet's remembered choice as they are (decision HD-045).
     @discardableResult
     /// `setup` (a new worktree's `NewTaskModel.setupScript`) runs in a second, shell tab started at once behind the agent's;
-    /// the tab closes itself when it succeeds and stays, marked failed, when it does not (#127).
-    /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (#116).
+    /// the tab closes itself when it succeeds and stays, marked failed, when it does not (HD-127).
+    /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (HD-116).
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
                     setup: String? = nil, autoNamed: Bool = false) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
@@ -831,7 +831,7 @@ enum EmptyProjectRow: Hashable {
         }
     }
 
-    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the file's own tab in the selected task (#83) — focused if
+    /// Files, Changes, ⌘P, diff ↩, links, Go to Definition: the file's own tab in the selected task (HD-083) — focused if
     /// open, else new (`preview`: a Files click, which reuses the task's preview tab). Without a selected task — nothing.
     func openInEditor(path: String, line: Int?, column: Int? = nil, preview: Bool = false) {
         guard let task = selectedTask else { return }
@@ -955,7 +955,7 @@ enum EmptyProjectRow: Hashable {
         signal(.relaunched, leaf: leafId)
     }
 
-    /// A tab leaf's process ended (0 closes it, `SplitView`); a setup leaf without its code (-1: Ctrl-C) still failed (#127).
+    /// A tab leaf's process ended (0 closes it, `SplitView`); a setup leaf without its code (-1: Ctrl-C) still failed (HD-127).
     func exited(leafId: UUID, code: Int32) {
         if leaf(id: leafId)?.action != nil { return actionExited(leafId, code: code) }
         signal(.exited(code: code < 0 && setupLeaves.contains(leafId) ? 1 : code), leaf: leafId)

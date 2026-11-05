@@ -8,7 +8,7 @@ public enum ControlClient {
     }
 
     /// Sends and reads the first reply line within `timeout` (send and receive each); nil if the app is not there, too
-    /// slow or says nothing. For the status line, which runs often and must stay fast (#137).
+    /// slow or says nothing. For the status line, which runs often and must stay fast (HD-137).
     public static func ask(_ message: ControlMessage, to path: String, timeout: Double) -> Data? {
         exchange(message, to: path, replyTimeout: timeout).flatMap { $0.isEmpty ? nil : $0 }
     }

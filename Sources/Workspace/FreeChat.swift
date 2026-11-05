@@ -1,7 +1,7 @@
 import Foundation
 
 /// A chat with no project: its one task runs in the shared `chatsFolder` and is kept out of `projects`, like a host's
-/// terminal (#64). Open or asleep is the task's `archived`: asleep keeps its tabs and conversation ids.
+/// terminal (HD-064). Open or asleep is the task's `archived`: asleep keeps its tabs and conversation ids.
 public struct FreeChat: Codable, Identifiable, Equatable, Sendable {
     /// Its task's `projectId`.
     public var id: UUID

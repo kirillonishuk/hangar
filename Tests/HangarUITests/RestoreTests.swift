@@ -59,7 +59,7 @@ import Workspace
 
     private func storedId(_ app: AppState, tab i: Int) -> String? { app.state.tasks[0].tabs[i].root.leaves[0].agentSessionId }
 
-    /// #119: two chats in one folder without ids never pick a conversation by recency (`--continue` took the folder's
+    /// HD-119: two chats in one folder without ids never pick a conversation by recency (`--continue` took the folder's
     /// latest one: another tab's or a terminal's). Each starts its own conversation under an id stored at once.
     @Test func noIdNeverRestoresByRecency() throws {
         let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp")])
@@ -118,7 +118,7 @@ import Workspace
         #expect(!foreign.1.restoring && foreign.1.unlinked && new != id && foreign.0.command.contains("--session-id \(new)"))
     }
 
-    /// A tab saved without an id (before #119) starts anew and says where its conversation is.
+    /// A tab saved without an id (before HD-119) starts anew and says where its conversation is.
     @Test func unlinkedTabSaysSo() throws {
         let (s, _) = state([Leaf(kind: .claude, cwd: "/tmp"), Leaf(kind: .claude, cwd: "/tmp", agentSessionId: "s1")])
         let app = app(s)

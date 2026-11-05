@@ -4,7 +4,7 @@ import Integration
 import Observation
 import Workspace
 
-/// The one question a sheet asks (#111): connect Hangar to an agent (its first tab here), or to a new ssh host.
+/// The one question a sheet asks (HD-111): connect Hangar to an agent (its first tab here), or to a new ssh host.
 enum IntegrationAsk: Equatable { case agent(MCPAgent), host(String) }
 
 /// One machine of «Где установлено», per agent.
@@ -107,7 +107,7 @@ func agentExecutable(_ command: String, agent: MCPAgent) -> String {
     return first
 }
 
-/// Keys a v0.8 install maps to «on» (#111): Hangar's hooks / notify found in the agent's file, never decided before.
+/// Keys a v0.8 install maps to «on» (HD-111): Hangar's hooks / notify found in the agent's file, never decided before.
 func integrationMigration(_ c: HangarConfig, claude: String?, codex: String?) -> [(key: String, flag: Bool)] {
     var out: [(String, Bool)] = []
     if c.claudeIntegration == nil, claudeState(claude, cli: "") != .notInstalled {
@@ -123,12 +123,12 @@ extension HangarConfig {
     func integration(_ agent: MCPAgent) -> Bool? { agent == .claude ? claudeIntegration : codexIntegration }
     func mcp(_ agent: MCPAgent) -> Bool { agent == .claude ? claudeMCP : codexMCP }
     func skill(_ agent: MCPAgent) -> Bool { agent == .claude ? claudeSkill : codexSkill }
-    /// Claude's `statusLine` stays wrapped while Hangar's line or the limits need it (#111).
+    /// Claude's `statusLine` stays wrapped while Hangar's line or the limits need it (HD-111).
     var wantsStatuslineWrapper: Bool { statusline == .hangar || claudeLimits }
 }
 
-/// Integrations by function (#111): one consent, then Hangar keeps its own entries current on this Mac and every agreed
-/// host, silently (backups, Hangar's entries only, #96); MCP registered through the agents' own CLIs on this Mac.
+/// Integrations by function (HD-111): one consent, then Hangar keeps its own entries current on this Mac and every agreed
+/// host, silently (backups, Hangar's entries only, HD-096); MCP registered through the agents' own CLIs on this Mac.
 extension AppState {
     /// The launcher holds agent tabs until `integrateAtLaunch` has migrated an older install (tests never set it).
     public func holdIntegrationUntilLaunch() { integrations.migrationPending = true }
@@ -367,7 +367,7 @@ extension AppState {
             .autoUpgradeRemoteScript()
     }
 
-    /// Connect (R7, #96, #111): an older `hangar-remote` first; then a decided host follows the config, an undecided one
+    /// Connect (R7, HD-096, HD-111): an older `hangar-remote` first; then a decided host follows the config, an undecided one
     /// with an older Hangar's entries joins silently, else its sheet. Off in DEBUG runs without a fake ssh (main.swift).
     func integrateHost(_ host: String) async {
         guard autoUpgradeRemote, !integrations.deciding.contains(host) else { return }

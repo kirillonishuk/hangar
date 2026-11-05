@@ -18,11 +18,11 @@ over() { "$T/over" "$(pid)" "$R/snaps/$1.png" "$R/$1-panel.png" "$2" "$R/over.pn
 launch; sleep 5
 $C "resize 1440 900" "window back"; sleep 0.5
 scene  # common.sh: projects, chats in every state, the devbox project
-# Chats without a project (#126): one open, one asleep; `select` indices below are one more than in `scene`.
+# Chats without a project (HD-126): one open, one asleep; `select` indices below are one more than in `scene`.
 $C "chat new"; sleep 6
 $C "chat new"; sleep 6
 $C "chat sleep 0"; sleep 2
-# docs-site: no open chats, one archived → «+ New chat» and «Archive · 1» (#125).
+# docs-site: no open chats, one archived → «+ New chat» and «Archive · 1» (HD-125).
 $C "project $R/work/docs-site"; sleep 1
 $C "ptask 3 old-landing"; sleep 3
 $C "key archiveTask"; sleep 6
@@ -51,7 +51,7 @@ $C "ntCancel"; sleep 1
 $C "key sessions" "sessionsHover -1"; sleep 3; shoot history
 $C "key sessions"; sleep 1
 
-# The devbox terminal (#124): its Files panel follows the shell's folder; a dropped folder the server has → «Merge».
+# The devbox terminal (HD-124): its Files panel follows the shell's folder; a dropped folder the server has → «Merge».
 $C "hostShell devbox"; sleep 5
 $C "type cd srv/api" "type git --no-pager log --oneline"; sleep 3
 $C "inspector" "inspector files"; sleep 3
@@ -77,7 +77,7 @@ shoot main-ru
 $C "lang en"
 stop_app
 # 2× captures scaled to 2/3 (the 1440 pt window → 1920 px), then quantized to a 256-color palette (alpha kept).
-# SNAP: square corners → the window's radius (35 px at 2×, decision #123), antialiased.
+# SNAP: square corners → the window's radius (35 px at 2×, decision HD-123), antialiased.
 [ -n "${SNAP:-}" ] && for f in $R/snaps/*.png; do
   ffmpeg -loglevel error -y -i "$f" -vf "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='clip((35.5-hypot(max(0,abs(X-W/2+0.5)-(W/2-35)),max(0,abs(Y-H/2+0.5)-(H/2-35))))*255,0,255)'" "$R/rounded.png" && mv "$R/rounded.png" "$f"
 done

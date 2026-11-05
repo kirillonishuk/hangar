@@ -1,7 +1,7 @@
 import AppKit
 import Workspace
 
-/// Settings → Appearance → Editor's state (#108, #109): the hovered and edited color, the preview's sample, a color being dragged (shown
+/// Settings → Appearance → Editor's state (HD-108, HD-109): the hovered and edited color, the preview's sample, a color being dragged (shown
 /// in the preview on every frame, written and sent to the editors on release), the «Заменить свою тему?» question.
 @MainActor @Observable final class EditorSettingsModel {
     struct Draft: Equatable {

@@ -55,7 +55,7 @@ jobs:
           ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
           fetch-depth: 0
 
-      # Stable self-signed certificate: macOS keeps the app's permissions across updates (decision #129).
+      # Stable self-signed certificate: macOS keeps the app's permissions across updates (decision HD-129).
       # No secrets → no release: an ad-hoc build would silently reset every user's permissions.
       - name: Import signing certificate
         env:

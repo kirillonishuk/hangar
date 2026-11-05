@@ -16,7 +16,7 @@ import TestSupport
         #expect(r == RunResult(status: 0, stdout: "abc", stderr: "err"))
     }
 
-    /// Find in files (#91): stdout arrives in chunks; returning false stops the child, the rest is dropped.
+    /// Find in files (HD-091): stdout arrives in chunks; returning false stops the child, the rest is dropped.
     @Test func streamStopsWhenTheReaderHasEnough() async throws {
         let seen = Seen()
         let r = try await streamProcess("/bin/sh", ["-c", "exec yes"], cwd: "/", env: [:]) { seen.add($0.count) < 100_000 }
@@ -24,7 +24,7 @@ import TestSupport
         #expect(r.status != 0 && r.stdout.isEmpty)
     }
 
-    /// The remote wrapper (#91): stdin EOF (the ssh session gone) terminates the command, not just its next write.
+    /// The remote wrapper (HD-091): stdin EOF (the ssh session gone) terminates the command, not just its next write.
     @Test func watchdogKillsTheCommandOnStdinEOF() async throws {
         let dir = NSTemporaryDirectory() + "hg-watchdog-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

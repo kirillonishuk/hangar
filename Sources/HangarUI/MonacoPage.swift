@@ -1,13 +1,13 @@
 import AppKit
 import WebKit
 
-/// One WKWebView with Monaco (#80): the bundled page over `hangar-editor://`, no network (content rule list + CSP),
+/// One WKWebView with Monaco (HD-080): the bundled page over `hangar-editor://`, no network (content rule list + CSP),
 /// a non-persistent data store, and the typed bridge (`BridgeMessage` in, `EditorCommand` out).
 @MainActor final class MonacoPage: NSObject, WKNavigationDelegate {
     enum Mode: String { case editor, diff }
 
     let webView: WKWebView
-    /// The message and its file tab (`doc`, the shared editor page's tabs, #83; nil for the page or the diff).
+    /// The message and its file tab (`doc`, the shared editor page's tabs, HD-083; nil for the page or the diff).
     var onMessage: ((BridgeMessage, UUID?) -> Void)?
     private var ready = false
     /// `text(of:)` calls in flight: a torn-down page answers them with nil, so a waiting pane move never hangs.

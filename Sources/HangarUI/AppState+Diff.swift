@@ -1,7 +1,7 @@
 import AppKit
 import Git
 
-/// The temporary read-only diff tab of a task (decision #44): one per task, replaced by the next Changes click.
+/// The temporary read-only diff tab of a task (decision HD-044): one per task, replaced by the next Changes click.
 struct DiffTab: Equatable {
     var path: String
     /// Shown instead of the task's active tab.

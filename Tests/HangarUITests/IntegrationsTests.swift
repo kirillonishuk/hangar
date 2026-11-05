@@ -42,7 +42,7 @@ private final class FakeAgents: @unchecked Sendable {
     }
 }
 
-/// Temp copies only (#111): the user's real ~/.claude, ~/.claude.json and ~/.codex are never touched; the agents' CLIs are fakes.
+/// Temp copies only (HD-111): the user's real ~/.claude, ~/.claude.json and ~/.codex are never touched; the agents' CLIs are fakes.
 @MainActor @Suite struct IntegrationsTests {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-integrations-\(UUID())")
     var claudeURL: URL { dir.appendingPathComponent("claude/settings.json") }
@@ -83,7 +83,7 @@ private final class FakeAgents: @unchecked Sendable {
         #expect(integrationMigration(decided, claude: hooks, codex: notify).isEmpty)
     }
 
-    /// v0.8 → #111: installed means «on» (no sheet), the moved app's entries follow it, MCP is registered by the CLIs.
+    /// v0.8 → HD-111: installed means «on» (no sheet), the moved app's entries follow it, MCP is registered by the CLIs.
     @Test func launchMigratesRetargetsAndRegistersMCP() async throws {
         defer { try? FileManager.default.removeItem(at: dir) }
         let agents = FakeAgents(claudeJSON: claudeJSON)

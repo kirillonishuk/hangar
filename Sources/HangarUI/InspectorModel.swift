@@ -17,7 +17,7 @@ struct RefreshParts: OptionSet, Sendable {
     static let all: RefreshParts = [.status, .tree]
 }
 
-/// Files and Changes of the visible task (decision #44). One load per context (task, root, mode) at a time:
+/// Files and Changes of the visible task (decision HD-044). One load per context (task, root, mode) at a time:
 /// a refresh during a load queues exactly one rerun; only a context change cancels; stale results are dropped.
 @MainActor @Observable final class InspectorModel {
     enum Segment { case files, changes, git, search }
@@ -258,7 +258,7 @@ struct RefreshParts: OptionSet, Sendable {
             return r
         }
         do {
-            // A project in a subfolder (`prefix` "apps/web/"): git runs in it and covers only it (#44).
+            // A project in a subfolder (`prefix` "apps/web/"): git runs in it and covers only it (HD-044).
             let top: String, prefix: String
             if let known = input.top {
                 (top, prefix) = known

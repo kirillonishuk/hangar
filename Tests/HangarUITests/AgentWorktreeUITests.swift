@@ -6,7 +6,7 @@ import Git
 @testable import HangarUI
 import Workspace
 
-/// Worktrees an agent makes or renames on its own (#134): Hangar follows and offers, never changes files unasked.
+/// Worktrees an agent makes or renames on its own (HD-134): Hangar follows and offers, never changes files unasked.
 @MainActor @Suite struct AgentWorktreeUITests {
     private func real(_ path: String) -> String {
         guard let p = realpath(path, nil) else { return path }

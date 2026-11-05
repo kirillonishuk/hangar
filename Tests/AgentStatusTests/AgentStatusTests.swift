@@ -131,7 +131,7 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
         .hook(kind, session: session, notificationType: nil, source: source, detail: HookDetail(agentPid: pid))
     }
 
-    /// #119: the tab's own agent (its `--settings` hooks carry a pid) takes over the id from its first hook; its events
+    /// HD-119: the tab's own agent (its `--settings` hooks carry a pid) takes over the id from its first hook; its events
     /// only track the conversation, whatever the source (/resume, fork, a prompt after a lost SessionStart).
     @Test func tabAgentPidOwnsTheSession() {
         var s = status(.done, hooks: true, session: "main")

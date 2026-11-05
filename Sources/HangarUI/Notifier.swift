@@ -30,7 +30,7 @@ enum NoticeAction: Equatable, Sendable { case open, allow, reply(String), limits
 
 enum NoticeResult: Equatable { case reveal, send(text: String?, keys: [SendKey]), showLimits }
 
-/// S2 (#95): the key a person presses on Claude's permission dialog ("Yes" is first).
+/// S2 (HD-095): the key a person presses on Claude's permission dialog ("Yes" is first).
 let permissionApproveKeys: [SendKey] = [.enter]
 
 extension AppState {
@@ -62,7 +62,7 @@ func noticeSound(_ name: String?) -> String? {
 }
 
 extension AppState {
-    /// Reply types into the leaf: only codex (S5: Claude's question is an MCP form, #95); never a host terminal's shell.
+    /// Reply types into the leaf: only codex (S5: Claude's question is an MCP form, HD-095); never a host terminal's shell.
     func acceptsReply(leaf id: UUID) -> Bool { leaf(id: id)?.kind == .codex }
 
     /// A notification button: typing happens only for the leaf's current request in a running terminal; else Open.
@@ -176,9 +176,9 @@ extension AppState {
                 content.body = n.body
                 content.categoryIdentifier = n.category.rawValue
                 content.threadIdentifier = n.thread ?? ""
-                // S4 (#95): system sounds by name are unconfirmed, any chosen sound plays as the standard one.
+                // S4 (HD-095): system sounds by name are unconfirmed, any chosen sound plays as the standard one.
                 content.sound = n.sound == nil ? nil : .default
-                // S3 (#95): .timeSensitive needs a provisioning profile the ad-hoc bundle can't have.
+                // S3 (HD-095): .timeSensitive needs a provisioning profile the ad-hoc bundle can't have.
                 content.interruptionLevel = .active
                 var info: [String: String] = [:]
                 if let leaf = n.leaf { info["leaf"] = leaf.uuidString }

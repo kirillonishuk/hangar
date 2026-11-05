@@ -4,7 +4,7 @@ import Git
 @testable import HangarUI
 import Workspace
 
-/// The toolbar's branch switcher (spec design-system §3.2, #114): lists, what is inactive, the note, refusals.
+/// The toolbar's branch switcher (spec design-system §3.2, HD-114): lists, what is inactive, the note, refusals.
 @MainActor @Suite struct BranchSwitcherTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
     private func b(_ name: String, remote: Bool = false, days: Double) -> Branch {

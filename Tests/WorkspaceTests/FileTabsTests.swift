@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// One Hangar tab per open file (VS Code-like), with one reusable preview tab (decision #83).
+/// One Hangar tab per open file (VS Code-like), with one reusable preview tab (decision HD-083).
 @Suite struct FileTabsTests {
     private func state() -> (WorkspaceState, task: UUID) {
         var s = WorkspaceState()
@@ -75,7 +75,7 @@ import Testing
         #expect(back.tasks[0].tabs.map(\.preview) == [false, true, false])
     }
 
-    /// state.json of the multi-file editor tab (#80): each file becomes its own tab with its cursor; the active file
+    /// state.json of the multi-file editor tab (HD-080): each file becomes its own tab with its cursor; the active file
     /// keeps the original tab (and its place, its split), the others follow it in their order.
     @Test func multiFileEditorTabsSplitIntoFileTabs() throws {
         var (s, t) = state()

@@ -4,7 +4,7 @@ import History
 import Observation
 import Workspace
 
-/// «Сессии» (⌘Y, #107): the agents' past conversations and archived sessions of every project (or the scope's), by project,
+/// «Сессии» (⌘Y, HD-107): the agents' past conversations and archived sessions of every project (or the scope's), by project,
 /// in place of the session area.
 extension AppState {
     /// ⌘Y, the sidebar row «Сессии»: all projects; `projectId` (its menu, the archived hint, a link) — all projects with

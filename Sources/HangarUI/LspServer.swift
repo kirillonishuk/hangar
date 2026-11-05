@@ -1,7 +1,7 @@
 import Exec
 import Foundation
 
-/// How to start one language server (#90): a local executable on stdio, with the login shell's PATH (pyright needs
+/// How to start one language server (HD-090): a local executable on stdio, with the login shell's PATH (pyright needs
 /// `node`, gopls `go`, rust-analyzer `cargo`; an app started from Finder has none of them).
 struct LspLaunch: Equatable, Sendable {
     var executable: String

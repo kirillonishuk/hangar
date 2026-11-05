@@ -9,7 +9,7 @@ extension Theme {
     /// A chat row (§3.3): the dot 32 in from the highlight's edge (centre x 44), its name 8 after the dot.
     public static let chatIndent: CGFloat = rowInset + Space.s8 + Icon.statusDot / 2 - gutterMarkerX
     public static let chatTextX: CGFloat = gutterMarkerX + Icon.statusDot / 2 + Space.s2
-    /// Sub-chats (#128): each level 16 further in (at most two levels); the parent's disclosure triangle 16 left of its dot.
+    /// Sub-chats (HD-128): each level 16 further in (at most two levels); the parent's disclosure triangle 16 left of its dot.
     public static let subChatIndent: CGFloat = Space.s4
     public static let subChatMaxDepth = 2
     public static let subChatChevronDX: CGFloat = -Space.s4

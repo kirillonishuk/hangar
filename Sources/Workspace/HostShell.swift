@@ -1,11 +1,11 @@
 import Foundation
 
-/// A plain ssh login to a host with no project (#64): its one task, «<host> · терминал», holds ssh shell tabs.
+/// A plain ssh login to a host with no project (HD-064): its one task, «<host> · терминал», holds ssh shell tabs.
 /// Kept out of `projects`, so project lists, the remote machinery (master, check, tmux) and CLI listings never see it.
 public struct HostShell: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var host: String
-    /// A login with the folder hook failed on this host (a login shell that can't run it, #124): its tabs log in plain.
+    /// A login with the folder hook failed on this host (a login shell that can't run it, HD-124): its tabs log in plain.
     /// Kept while the host's terminal exists; closing it tries the hook again.
     public var noHook: Bool
 
@@ -68,7 +68,7 @@ extension WorkspaceState {
         hostShells.removeAll { $0.id == shell.id }
     }
 
-    /// The host's tabs log in without the folder hook from now on (#124).
+    /// The host's tabs log in without the folder hook from now on (HD-124).
     public mutating func setHostShellNoHook(host: String) {
         guard let i = hostShells.firstIndex(where: { $0.host == host }) else { return }
         hostShells[i].noHook = true

@@ -39,7 +39,7 @@ button.primary:hover { filter: brightness(1.08); }
 .monaco-scrollable-element > .scrollbar > .slider { border-radius: 5px; }
 .monaco-editor .monaco-hover, .monaco-editor .suggest-widget { font-family: -apple-system, system-ui, sans-serif; }
 
-/* The context menu (#81): Hangar's popover menu (sheet, 10 radius, 30 rows, `text3` keys), not Monaco's. */
+/* The context menu (HD-081): Hangar's popover menu (sheet, 10 radius, 30 rows, `text3` keys), not Monaco's. */
 .ctx { position: fixed; z-index: 100; min-width: var(--menu-w); box-sizing: border-box; padding: var(--menu-pad); background: var(--sheet);
   border: 1px solid var(--menu-border); border-radius: var(--menu-r); box-shadow: 0 8px 24px rgba(0,0,0,.4);
   font: var(--menu-font) -apple-system, system-ui, sans-serif; color: var(--text); }
@@ -51,7 +51,7 @@ button.primary:hover { filter: brightness(1.08); }
 .ctx .keys { margin-left: auto; color: var(--text3); font-size: var(--menu-key-font); }
 .ctx .sep { height: 1px; background: var(--line-sheet); margin: var(--menu-sep-v) var(--menu-sep-h); }
 
-/* Rainbow indents (#84): indent-rainbow's "light" look, a tinted 1px guide per level over a barely-there band,
+/* Rainbow indents (HD-084): indent-rainbow's "light" look, a tinted 1px guide per level over a barely-there band,
    so 2-space levels don't read as solid blocks. */
 .monaco-editor .ir { box-shadow: inset 1px 0 0 var(--ir-edge); background: var(--ir-band); }
 .monaco-editor .ir0 { --ir-edge: rgba(255, 255, 64, 0.28); --ir-band: rgba(255, 255, 64, 0.025); }

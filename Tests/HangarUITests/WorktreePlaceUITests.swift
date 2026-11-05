@@ -5,7 +5,7 @@ import Git
 @testable import HangarUI
 import Workspace
 
-/// A worktree chat whose copy was moved out of the main checkout (`git worktree move`) or deleted (#122).
+/// A worktree chat whose copy was moved out of the main checkout (`git worktree move`) or deleted (HD-122).
 @MainActor @Suite struct WorktreePlaceUITests {
     private func real(_ path: String) -> String {
         guard let p = realpath(path, nil) else { return path }

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 
-/// A language server's stdout is untrusted (#90): framing, message kinds, server → client requests, results mapping.
+/// A language server's stdout is untrusted (HD-090): framing, message kinds, server → client requests, results mapping.
 @Suite struct LspProtocolTests {
     private func frame(_ json: String) -> Data { Data("Content-Length: \(json.utf8.count)\r\n\r\n\(json)".utf8) }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// The chat's actions as menu items (#133): each runs (or restarts) its action; running ones get «работает» and a stop
+/// The chat's actions as menu items (HD-133): each runs (or restarts) its action; running ones get «работает» and a stop
 /// item; «Настроить действия…» last. The toolbar's run menu and the chat's context menu show the same list.
 @MainActor func actionMenuEntries(app: AppState, task: HangarTask, edit: Bool = true) -> [PopoverMenuEntry] {
     let actions = app.actions(of: task)
@@ -27,7 +27,7 @@ import Workspace
     return entries
 }
 
-/// The toolbar's run button (design system §3.1, #133), right of the branch button and only while the chat's project has
+/// The toolbar's run button (design system §3.1, HD-133), right of the branch button and only while the chat's project has
 /// actions: «▶ <last action>» runs it (⌘R), the chevron opens the list. A `control.regular` box with a `line2` border
 /// split by a `line2` divider; each half has its own hover.
 struct RunActionButton: View {

@@ -68,7 +68,7 @@ printf '%s\n' "$b"
 """#
 
 /// «Сервер <host>»: the report of the last check and the install plan (run only after «Установить»); the agents'
-/// integrations on the server, once agreed to (#111): `applyAgent`. Local ~/.claude / ~/.codex are never touched here.
+/// integrations on the server, once agreed to (HD-111): `applyAgent`. Local ~/.claude / ~/.codex are never touched here.
 @MainActor @Observable final class ServerCheckModel {
     enum Phase: Equatable { case checking, ready, installing, failed(String) }
 
@@ -176,7 +176,7 @@ printf '%s\n' "$b"
         report.map { agent == .claude ? $0.claudeDir + "/settings.json" : $0.codexHome + "/config.toml" }
     }
 
-    /// An older Hangar's entries are in the server's Claude settings or Codex config (#111: such a host joins silently).
+    /// An older Hangar's entries are in the server's Claude settings or Codex config (HD-111: such a host joins silently).
     /// An unreadable file counts as none: the host's sheet then asks.
     func hasHangarIntegration() async -> Bool {
         if report == nil { report = remote.hosts[host]?.report }
@@ -214,7 +214,7 @@ printf '%s\n' "$b"
         }
     }
 
-    /// The agent's file on the server brought to these functions (#96, #111): the same `cat` read and checked write as
+    /// The agent's file on the server brought to these functions (HD-096, HD-111): the same `cat` read and checked write as
     /// every server file (backup next to it, refused if it changed). No agent there → `.noAgent`, nothing written.
     func applyAgent(_ agent: MCPAgent, hooks: Bool, statusline: Bool) async -> MachineMark {
         if report == nil { report = remote.hosts[host]?.report }
@@ -291,7 +291,7 @@ printf '%s\n' "$b"
         }
     }
 
-    /// On connect (R7, #96): an installed but older `hangar-remote` is Hangar's own file and is replaced by this one through
+    /// On connect (R7, HD-096): an installed but older `hangar-remote` is Hangar's own file and is replaced by this one through
     /// the same checked write (backup, `cmp`, mode kept). Never installed, current or newer → untouched; then the check again.
     func autoUpgradeRemoteScript() async -> Bool {
         guard let r = remote.hosts[host]?.report, let v = r.remoteVersion, v < hangarRemoteVersion else { return false }
@@ -313,7 +313,7 @@ printf '%s\n' "$b"
         }
     }
 
-    /// Hangar's line in the host's projects (#105) through the same reads and checked writes as «Применить»; backups in
+    /// Hangar's line in the host's projects (HD-105) through the same reads and checked writes as «Применить»; backups in
     /// the server's `~/.hangar/backups`, never in the repo. The CLI is the one the server's Claude settings use for their
     /// status line (none → only Hangar's overrides are taken back). `hangar` is asked per folder: the choice may change meanwhile.
     func syncProjectStatuslines(_ dirs: [StatuslineDir], hangar: @escaping () -> Bool) async -> [StatuslineNote] {

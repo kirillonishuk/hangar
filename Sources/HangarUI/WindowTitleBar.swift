@@ -101,7 +101,7 @@ struct WindowTitleBar: View {
         .frame(maxWidth: .infinity, minHeight: Theme.Height.barToolbar, maxHeight: Theme.Height.barToolbar)
         .background(WindowDragArea())
         .ignoresSafeArea()
-        // `.hangar/actions.json` of the selected chat's folder: the run button shows its actions too (#133).
+        // `.hangar/actions.json` of the selected chat's folder: the run button shows its actions too (HD-133).
         .task(id: app.state.selectedTaskId) { if let task = app.selectedTask { await app.loadRepoActions(task) } }
     }
 
@@ -131,7 +131,7 @@ struct WindowTitleBar: View {
     }
 
     @ViewBuilder private var trailing: some View {
-        // «Обновить до 0.9.0» (#86): only while there is an offer; opens the update sheet.
+        // «Обновить до 0.9.0» (HD-086): only while there is an offer; opens the update sheet.
         if let offer = app.updates.pill {
             Button { app.updates.onShow?() } label: {
                 Text(verbatim: L10n.updateTo(offer.version))

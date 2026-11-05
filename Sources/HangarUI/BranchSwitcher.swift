@@ -3,7 +3,7 @@ import Foundation
 import Git
 import Workspace
 
-/// The toolbar's branch switcher (spec design-system §3.2, decision #114) for one chat: its lists, the new-branch
+/// The toolbar's branch switcher (spec design-system §3.2, decision HD-114) for one chat: its lists, the new-branch
 /// step, the action running, the last refusal. The menu closes after a switch or a new branch; a refusal stays in it.
 /// One per chat (`BranchModel.switchers`): an action outlives its menu — reopening shows it running, and a result that
 /// lands with the menu closed is a toast (a refusal also waits in the menu for the next open).
@@ -217,7 +217,7 @@ func branchNameTaken(_ c: BranchChoices, _ name: String) -> Bool {
 }
 
 /// A refused or failed action: uncommitted changes as the list shows them (count + what to do), the rest — the
-/// refusal's text (#114) or git's own — as a failure.
+/// refusal's text (HD-114) or git's own — as a failure.
 @MainActor func branchRefusalNote(_ error: Error, text: String, subfolder: Bool = false) -> PopoverMenuNote {
     if case .dirty(let n) = error as? BranchSwitchError {
         return PopoverMenuNote(lead: dirtyLead(n, subfolder: subfolder), text: L10n.branchDirtyHint, tone: .waiting)

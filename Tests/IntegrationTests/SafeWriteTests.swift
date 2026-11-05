@@ -83,7 +83,7 @@ private let now = Date(timeIntervalSince1970: 1_760_000_000)
     #expect(names.count == 2 && names[0] == "settings.json" && names[1].hasPrefix("settings.json.hangar-backup-"))
 }
 
-/// #105: project files back up into a folder outside the repo, newest five per file; read-only files are refused.
+/// HD-105: project files back up into a folder outside the repo, newest five per file; read-only files are refused.
 @Test func backupsGoToAFolderAndRotate() throws {
     let d = try tmpDir()
     defer { try? FileManager.default.removeItem(at: d) }

@@ -2,7 +2,7 @@ import Foundation
 
 public enum SSHFailure: Error, Equatable, Sendable {
     case auth(String), unreachable(String), exited(Int32, String)
-    /// The login shell (path) is csh/tcsh: not supported in stage 6 (#47).
+    /// The login shell (path) is csh/tcsh: not supported in stage 6 (HD-047).
     case unsupportedShell(String)
 }
 
@@ -37,7 +37,7 @@ func readyHome(_ line: Substring) -> String? {
     return home
 }
 
-/// The control master of one host: a child process of the app (#47). Ready = the marker on stdout, lost = the process
+/// The control master of one host: a child process of the app (HD-047). Ready = the marker on stdout, lost = the process
 /// exited; no polling. `connect()` right after `exit()` first waits for that `-O exit` (≤ 3 s): run later, it would
 /// stop the new master on the same socket.
 public final class SSHMaster: @unchecked Sendable {

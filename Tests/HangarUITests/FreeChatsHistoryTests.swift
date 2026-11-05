@@ -111,7 +111,7 @@ import Workspace
         let m = await model(w, scope: .all)
         #expect(m.groups.map(\.name) == [L10n.freeChatsScope, "home"])
         #expect(m.groups[1].items.map(\.id) == ["claude:" + idProject])
-        // Asleep chats are never «в архиве» (#126): the archived chip leaves them out, history keeps them.
+        // Asleep chats are never «в архиве» (HD-126): the archived chip leaves them out, history keeps them.
         m.toggle(SessionsRowState.archived)
         #expect(!m.groups.contains { $0.id == chatsGroupId })
         m.toggle(SessionsRowState.archived)

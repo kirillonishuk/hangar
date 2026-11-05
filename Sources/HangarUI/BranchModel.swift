@@ -3,7 +3,7 @@ import Git
 import Workspace
 
 /// Live HEAD of each chat's folder (branch, or short hash when detached) for the branch button and the sidebar
-/// (decision #114). Loaded when a chat first shows; reloaded on the inspector's status loads, the selected chat's
+/// (decision HD-114). Loaded when a chat first shows; reloaded on the inspector's status loads, the selected chat's
 /// HEAD file events, `done` events, the host connecting and after a switch — no polling. Coming back to the window
 /// reloads only the selected and on-screen chats, at most every `focusInterval`. One git call per folder
 /// (host + path) at a time, shared by its chats; a refresh during it reruns once. A failed load keeps the last value.
@@ -169,7 +169,7 @@ extension AppState {
                              uncommitted: try await uncommitted, elsewhere: elsewhere, subfolder: !(try await location).prefix.isEmpty)
     }
 
-    /// `git switch` in the chat's folder (decision #114). nil when done, else the message for the user.
+    /// `git switch` in the chat's folder (decision HD-114). nil when done, else the message for the user.
     func switchBranch(of task: HangarTask, to branch: Branch) async -> String? {
         await switchBranchError(of: task, to: branch).map { branchText($0, projectId: task.projectId) }
     }
@@ -203,7 +203,7 @@ extension AppState {
         return nil
     }
 
-    /// A refusal's text (#114), else git's own message.
+    /// A refusal's text (HD-114), else git's own message.
     func branchText(_ error: Error, projectId: UUID) -> String {
         (error as? BranchSwitchError).map { branchMessage($0, projectId: projectId) } ?? error.localizedDescription
     }

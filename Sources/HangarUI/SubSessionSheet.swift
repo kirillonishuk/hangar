@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// «Новый подчат…» (#128, #131): a task for a parallel chat under this one, its agent and where it works (the chat's own
+/// «Новый подчат…» (HD-128, HD-131): a task for a parallel chat under this one, its agent and where it works (the chat's own
 /// folder by default).
 struct SubSessionSheet: View {
     let parentName: String

@@ -140,7 +140,7 @@ struct SettingsView: View {
         }
     }
 
-    /// «Версия 0.8.0», the last check's outcome under it, «Проверить сейчас» on the right (#86).
+    /// «Версия 0.8.0», the last check's outcome under it, «Проверить сейчас» on the right (HD-086).
     private var versionRow: some View {
         let updates = app.updates
         let status = updateStatus(updates)
@@ -188,7 +188,7 @@ struct SettingsView: View {
         }
     }
 
-    // Settings → Advanced → language servers (#102, #109): status per language, download / remove Hangar's own copies.
+    // Settings → Advanced → language servers (HD-102, HD-109): status per language, download / remove Hangar's own copies.
     // The row: the language, where the server is (or what it needs) under it; the status and the action on the right.
     var languageServers: some View {
         CardSection(title: L10n.lspSection) {
@@ -390,7 +390,7 @@ struct SettingsView: View {
         }
     }
 
-    /// The config file; then what the editor does through tsserver / language servers (#109: not the look, so not in
+    /// The config file; then what the editor does through tsserver / language servers (HD-109: not the look, so not in
     /// «Оформление»): format on save and the servers themselves.
     private var advanced: some View {
         VStack(alignment: .leading, spacing: Theme.settingsSectionGap) {

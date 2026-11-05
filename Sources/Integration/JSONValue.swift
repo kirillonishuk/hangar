@@ -24,7 +24,7 @@ public enum IntegrationError: Error, Equatable {
     case changedOnDisk
     /// The file is not writable: Hangar leaves it as it is.
     case readOnly
-    /// Hangar's entries there belong to another copy of the app (#111): left to it, nothing written.
+    /// Hangar's entries there belong to another copy of the app (HD-111): left to it, nothing written.
     case otherCopy
     /// `skills/hangar` holds a skill that is not Hangar's: left as it is.
     case foreignSkill

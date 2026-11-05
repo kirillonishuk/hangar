@@ -13,7 +13,7 @@ public enum Head: Equatable, Sendable {
     }
 }
 
-/// Why a switch or a new branch was refused before git ran (decision #114). git's own failures stay `GitError`.
+/// Why a switch or a new branch was refused before git ran (decision HD-114). git's own failures stay `GitError`.
 public enum BranchSwitchError: Error, Equatable, Sendable {
     /// `status --porcelain` is not empty: `files` entries (untracked included).
     case dirty(files: Int)
@@ -27,7 +27,7 @@ public enum BranchSwitchError: Error, Equatable, Sendable {
     case alreadyExists(String)
 }
 
-/// Switching and creating branches (decision #114): only `git switch` / `git switch -c`, never with uncommitted
+/// Switching and creating branches (decision HD-114): only `git switch` / `git switch -c`, never with uncommitted
 /// changes (except a new branch at HEAD, which leaves the working tree as it is), never over ignored files the target
 /// tracks, never during an unfinished merge / rebase / am / cherry-pick / revert / bisect.
 extension Git {

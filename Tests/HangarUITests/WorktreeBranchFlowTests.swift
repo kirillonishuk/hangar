@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// End to end on a real repo for the user's branch shape `<type>/JS-<n>-<descr>` (#48): create → guard → archive → restore.
+/// End to end on a real repo for the user's branch shape `<type>/JS-<n>-<descr>` (HD-048): create → guard → archive → restore.
 @MainActor @Suite struct WorktreeBranchFlowTests {
     private let name = "feat/JS-12345-short-descr"
     private let slug = "feat-js-12345-short-descr"
@@ -32,7 +32,7 @@ import Workspace
         let m = NewTaskModel(project: project, git: Git(repo: projectPath), taskBranches: [])
         await m.load()
         m.name = name
-        #expect(m.branch == name)  // verbatim, not the slug (#48)
+        #expect(m.branch == name)  // verbatim, not the slug (HD-048)
         guard case .worktree(let wt, let branch, _)? = await m.create(skipFetch: false) else {
             Issue.record("worktree not created: \(m.createError ?? "-")")
             throw CancellationError()

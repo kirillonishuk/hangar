@@ -16,13 +16,13 @@ public final class ControlServer: @unchecked Sendable {
     public static let maxInFlight = 8
 
     private let path: String
-    /// The ssh host socket: one RemoteMessage per connection, no requests (decision #47).
+    /// The ssh host socket: one RemoteMessage per connection, no requests (decision HD-047).
     private let remote: Bool
     private let handler: @MainActor (ControlMessage) -> Void
     private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
-    /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (#105).
+    /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (HD-105).
     private let statusline: (@Sendable (Data, [WireWindow]) -> String?)?
-    /// Claude's freshest limits across chats: merged with every `usage`, sent back and on (#137).
+    /// Claude's freshest limits across chats: merged with every `usage`, sent back and on (HD-137).
     private let usage: UsageSnapshot
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?
@@ -285,7 +285,7 @@ public final class ControlServer: @unchecked Sendable {
         }
     }
 
-    /// A Claude `usage` merged into the snapshot: the merged windows go on to the app and back to the sender (#137).
+    /// A Claude `usage` merged into the snapshot: the merged windows go on to the app and back to the sender (HD-137).
     /// An empty one only asks (a chat before its first reply): nothing for the app.
     private func freshened(_ message: ControlMessage) -> (message: ControlMessage?, windows: [WireWindow], reply: String) {
         guard case let .usage(m) = message, m.agent == "claude" else { return (message, [], #"{"ok":true}"#) }

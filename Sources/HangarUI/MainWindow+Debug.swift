@@ -37,7 +37,7 @@ extension MainWindowController {
     }
 
     /// `rf drop <path>[|<dir>]` as files dropped from Finder (into the shown folder or `dir`), `rf target <dir>|-` the drag
-    /// highlight, `rf answer replace|skip|esc [all]` the conflict prompt, `rf toggle <dir>`, `rf cancel`, `rf dump <file>` (#124).
+    /// highlight, `rf answer replace|skip|esc [all]` the conflict prompt, `rf toggle <dir>`, `rf cancel`, `rf dump <file>` (HD-124).
     private func debugRemoteFiles(_ arg: String) {
         let m = app.remoteFiles
         let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
@@ -162,8 +162,8 @@ extension MainWindowController {
             let f = arg.split(separator: " ").map(String.init)
             guard f.count == 4, let project = app.state.projects.first?.id else { return }
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
-        case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (#122)
-        case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (#134)
+        case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (HD-122)
+        case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (HD-134)
         case "projectSettings": app.state.projects.first.map { ctx.projectSettings($0.id) }
         case "spareMenu":  // spareMenu <png>: the first project's «Копии без чата» menu drawn offscreen, first item highlighted
             guard let project = app.state.projects.first?.id else { return }
@@ -198,7 +198,7 @@ extension MainWindowController {
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()
         case "pin": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.setPinned(app.orderedTasks[n].id, true) }
-        // search <text>: the Search tab's query (#91); searchToggle case|word|regex.
+        // search <text>: the Search tab's query (HD-091); searchToggle case|word|regex.
         case "search": app.search.text = arg
         case "searchExclude": app.search.exclude = arg
         case "searchToggle":
@@ -244,7 +244,7 @@ extension MainWindowController {
             }
         case "sessionsProject": if let n = Int(arg), app.state.projects.indices.contains(n) { app.showSessionsView(projectId: app.state.projects[n].id) }
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
-        case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (#132)
+        case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (HD-132)
             app.worktreeRemovals.items.first { $0.failure != nil }.map { app.worktreeRemovals.retry($0.id) }
         case "closeSubagent": app.closeSubagentPanel()
         case "esc":  // esc: an Esc key press through the window's key routing (focus as it is)
@@ -302,7 +302,7 @@ extension MainWindowController {
             debugBranchOpen?()
             PopoverMenu.panel?.hidesOnDeactivate = false
             PopoverMenu.panel?.orderFrontRegardless()
-        case "runMenu":  // as a click on the toolbar run button's chevron (#133), kept open like `branchMenu`
+        case "runMenu":  // as a click on the toolbar run button's chevron (HD-133), kept open like `branchMenu`
             PopoverMenu.debugPinned = true
             debugRunMenuOpen?()
             PopoverMenu.panel?.hidesOnDeactivate = false
@@ -337,7 +337,7 @@ extension MainWindowController {
                 PopoverMenu.show(gitFilterMenu(chip, app: app, model: app.gitPanel), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 160))
             }
         case "project": app.addProject(path: arg)
-        case "link": if let url = URL(string: arg) { openLink(url) }  // link <url>: as a clicked hangar:// link (#88)
+        case "link": if let url = URL(string: arg) { openLink(url) }  // link <url>: as a clicked hangar:// link (HD-088)
         case "snap":
             // Chrome snapshot when the screen can't be captured (Metal terminal layers may come out blank).
             let target = arg.contains("integration") ? settings.window?.attachedSheet : arg.contains("settings") ? settings.window : arg.contains("popover") ? popoverWindow : (window?.attachedSheet ?? window)
@@ -526,9 +526,9 @@ extension MainWindowController {
                   let hit = frameView.hitTest(NSPoint(x: v[0], y: frameView.frame.height - v[1])) else { return }
             uiLog.info("hit \(String(describing: type(of: hit)), privacy: .public) frame=\(String(describing: hit.convert(hit.bounds, to: nil)), privacy: .public)")
         case "connectHost": presentConnectHost()
-        case "hostShell": app.showHostShell(arg)  // hostShell <host>: as a click on a config host's row (#64)
+        case "hostShell": app.showHostShell(arg)  // hostShell <host>: as a click on a config host's row (HD-064)
         case "rf": debugRemoteFiles(arg)
-        case "update":  // update check|show|install|later|dump <file>: the in-app updater (#86) against HANGAR_UPDATE_FEED
+        case "update":  // update check|show|install|later|dump <file>: the in-app updater (HD-086) against HANGAR_UPDATE_FEED
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             switch f.first ?? "" {
             case "check": app.updates.checkNow()
@@ -547,7 +547,7 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
-        case "statuslineMove":  // statuslineMove <segment> <index>: as a chip dropped before the index-th chip (#110)
+        case "statuslineMove":  // statuslineMove <segment> <index>: as a chip dropped before the index-th chip (HD-110)
             let a = arg.split(separator: " ")
             if a.count == 2, let s = StatuslineSegment(rawValue: String(a[0])), let i = Int(a[1]) {
                 try? app.moveStatuslineSegment(s, to: i)
@@ -598,7 +598,7 @@ extension MainWindowController {
                 if let section { ed.expanded.insert(section) }
             default: break
             }
-        case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (#102)
+        case "lsp":  // lsp <pyright|gopls|rust-analyzer> running [0…1] | failed <text> | clear | install: a Settings row's job (HD-102)
             let a = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard let package = a.first.flatMap(LspPackage.init(rawValue:)) else { return }
             let lsp = settings.model.lsp
@@ -608,10 +608,10 @@ extension MainWindowController {
             case "install": lsp.install(package)
             default: lsp.jobs[package] = nil
             }
-        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (#135)
+        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (HD-135)
             let f = arg.split(separator: " ")
             Theme.applyAccessibility(increaseContrast: f.first == "1", differentiateWithoutColor: f.count > 1 && f[1] == "1")
-        case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», #135)
+        case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», HD-135)
             app.screenShown = arg == "on" ? { true } : { [weak self] in self?.windowVisible ?? false }
             app.refreshSeen()
         case "rowHelp":  // rowHelp <file>: each sidebar chat's tooltip and VoiceOver label (snapshots can't hover)
@@ -620,7 +620,7 @@ extension MainWindowController {
                 "\(t.name)\t\(app.sessionStatus(of: t, now: now).text)\t\(app.rowAccessibility(t.name, task: t, state: app.displayState(of: t), now: now))"
             }
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        case "clockShift":  // clockShift <seconds>: status events are stamped that long ago (a long wait, #135); 0 resets
+        case "clockShift":  // clockShift <seconds>: status events are stamped that long ago (a long wait, HD-135); 0 resets
             let shift = TimeInterval(arg) ?? 0
             app.clock = { Date().addingTimeInterval(-shift) }
         case "theme":  // theme dark-plus|graphite|navy: as Settings → Оформление → Тема (live)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds build/Hangar.app (release) with Ghostty resources. Signing identity: $HANGAR_SIGN_IDENTITY (name or SHA-1,
-# "-" = ad-hoc), else "Hangar Self-Signed" from the keychain, else ad-hoc with a warning (decision #129).
+# "-" = ad-hoc), else "Hangar Self-Signed" from the keychain, else ad-hoc with a warning (decision HD-129).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -39,7 +39,7 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 
 cp -R "$SHARE/terminfo" "$APP/Contents/Resources/terminfo"
 cp -R "$SHARE/ghostty" "$APP/Contents/Resources/ghostty"
-# Dotfiles are easy to lose in CI artifacts; without .zshenv ZDOTDIR is never restored and ~/.zshrc is skipped (#98).
+# Dotfiles are easy to lose in CI artifacts; without .zshenv ZDOTDIR is never restored and ~/.zshrc is skipped (HD-098).
 for f in ghostty/shell-integration/zsh/.zshenv; do
   [ -f "$APP/Contents/Resources/$f" ] || { echo "error: $f is missing from the bundle (hidden files dropped from the Ghostty resources?)" >&2; exit 1; }
 done

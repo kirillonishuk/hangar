@@ -20,7 +20,7 @@ public func freshestWindows(_ known: [WireWindow], _ tick: [WireWindow], now: Do
 
 /// Claude's account-wide limits as the freshest seen across every chat (Mac and ssh hosts): each status line tick is
 /// merged in, and the merged set goes back to that chat's line and on to the app, so an idle chat's stale tick never
-/// lowers it (#137). Shared by every ControlServer of the app; touched on their queues, hence the lock.
+/// lowers it (HD-137). Shared by every ControlServer of the app; touched on their queues, hence the lock.
 public final class UsageSnapshot: @unchecked Sendable {
     private let lock = NSLock()
     private var windows: [WireWindow] = []

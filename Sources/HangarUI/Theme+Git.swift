@@ -84,7 +84,7 @@ extension Theme {
         static let blockGap: CGFloat = Space.s2
     }
 
-    /// Search tab (#91): fields are `Theme.Input` (#93), toggles inside the query field, file groups.
+    /// Search tab (HD-091): fields are `Theme.Input` (HD-093), toggles inside the query field, file groups.
     enum SearchTab {
         static let toggle: CGFloat = Height.controlSmall
         static let toggleGap: CGFloat = Space.s1

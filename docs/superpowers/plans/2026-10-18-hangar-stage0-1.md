@@ -27,11 +27,11 @@
 - Агент по умолчанию — `claude` (`default_agent` в конфиге).
 - Ничего не устанавливать и не менять в `~/.claude`, `~/.codex`, конфиге Ghostty без явного согласия пользователя.
 - Diff-вкладки не сохраняются (появятся на этапе 4).
-- Команды вкладок: `<shell> -l -i -c` + обёртка OSC 133 для кода выхода (решения #26, #27).
+- Команды вкладок: `<shell> -l -i -c` + обёртка OSC 133 для кода выхода (решения HD-026, HD-027).
 
 ## Review Focus
 
-1. **PATH у GUI-приложения.** Hangar, запущенный из Finder/Dock, не наследует PATH из `~/.zshrc`; `claude` лежит в `~/.local/bin`. Ожидание: вкладки claude/codex/hx стартуют так же, как из терминала. Тест — Task 4 (`launchUsesLoginShell`: `-l -i`, решение #27).
+1. **PATH у GUI-приложения.** Hangar, запущенный из Finder/Dock, не наследует PATH из `~/.zshrc`; `claude` лежит в `~/.local/bin`. Ожидание: вкладки claude/codex/hx стартуют так же, как из терминала. Тест — Task 4 (`launchUsesLoginShell`: `-l -i`, решение HD-027).
 2. **Падение посреди записи `state.json`.** Ожидание: на диске всегда либо старое, либо новое целое состояние. Тест — Task 3 (`saveIsAtomic`), плюс `corruptFileIsBackedUp`.
 3. **Папку проекта удалили/переместили между запусками.** Ожидание: проект восстанавливается с пометкой «папка не найдена», вкладки не стартуют, приложение не падает. Тест — Task 4 (`missingCwdIsReported`), UI — Task 7.
 4. **Имена задач с пробелами, кириллицей, `/`.** Ожидание: работают; id не выводятся из имён; в команды имя не подставляется без экранирования. Тест — Task 2 (`taskNamesAreNotIdentifiers`), Task 4 (`argumentsAreShellQuoted`).
@@ -75,7 +75,7 @@
 
 - [ ] **Step 1: Claude.** Временный файл настроек в `spike/claude-settings.json` со `statusLine` (команда пишет stdin в `spike/sl.json`) и hook `StopFailure` (`matcher: "rate_limit"`) — подключать через `claude --settings spike/claude-settings.json` (не трогая `~/.claude/settings.json`). Проверить: есть ли `rate_limits.five_hour/seven_day` в `spike/sl.json`; приходит ли `session_id` в hooks; `claude --resume <id>` открывает ту же сессию; есть ли `claude --continue` для «последней в cwd».
 - [ ] **Step 2: Codex** (если установлен в Task 0.1). Проверить: `codex app-server` отвечает на `account/rateLimits/read`; формат `~/.codex/hooks.json` установленной версии (события, payload, есть ли session id) — только чтение; `codex resume <id>` и `codex resume --last`.
-- [ ] **Step 3: Записать ответы.** В `docs/decisions.md` закрыть пункты «Открытые вопросы» (отметить `[x]` + короткий ответ) и добавить запись-решение «Интерфейс `GhosttyBridge`» с точными сигнатурами (см. Task 5). Если embed не работает — стоп, сообщить пользователю (возврат к выбору подхода, решение #2).
+- [ ] **Step 3: Записать ответы.** В `docs/decisions.md` закрыть пункты «Открытые вопросы» (отметить `[x]` + короткий ответ) и добавить запись-решение «Интерфейс `GhosttyBridge`» с точными сигнатурами (см. Task 5). Если embed не работает — стоп, сообщить пользователю (возврат к выбору подхода, решение HD-002).
 - [ ] **Step 4: Commit** — `git commit -am "docs: spike results (GhosttyKit API, agent CLIs)"`
 
 **Gate:** этап 1 начинается только после Task 0.3 Step 3 без блокеров.
@@ -111,7 +111,7 @@ scripts/bundle.sh         Resources/Info.plist
 
 - [ ] **Step 1:** `Package.swift`: targets `Workspace`, `Exec` (depends `Workspace`), `GhosttyBridge` (depends binaryTarget `GhosttyKit` path `vendor/GhosttyKit.xcframework`), `HangarUI` (depends все), executable `HangarApp`; test targets `WorkspaceTests`, `ExecTests`, `HangarUITests`.
 - [ ] **Step 2:** `MainWindowController` — `NSWindow` со `.fullSizeContentView`, прозрачный titlebar, без тулбара; `NSSplitViewController`: сайдбар (`Theme.sidebarWidth`, min/max) | пустая область `Theme.panel`.
-- [ ] **Step 3:** `scripts/bundle.sh`: `swift build -c release`, собирает `build/Hangar.app` (`Contents/MacOS/Hangar`, `Info.plist` с `CFBundleIdentifier = app.hangar.Hangar`, `LSMinimumSystemVersion = 14.0`), ad-hoc `codesign -s -`; копирует ресурсы Ghostty (`vendor/ghostty-src/zig-out/share/terminfo` → `Contents/Resources/terminfo`, `vendor/ghostty-src/zig-out/share/ghostty` → `Contents/Resources/ghostty`; решение #28).
+- [ ] **Step 3:** `scripts/bundle.sh`: `swift build -c release`, собирает `build/Hangar.app` (`Contents/MacOS/Hangar`, `Info.plist` с `CFBundleIdentifier = app.hangar.Hangar`, `LSMinimumSystemVersion = 14.0`), ad-hoc `codesign -s -`; копирует ресурсы Ghostty (`vendor/ghostty-src/zig-out/share/terminfo` → `Contents/Resources/terminfo`, `vendor/ghostty-src/zig-out/share/ghostty` → `Contents/Resources/ghostty`; решение HD-028).
 - [ ] **Step 4: Проверить.** Run: `scripts/bundle.sh && open build/Hangar.app`. Expected: окно со светофором над сайдбаром 220 pt, цвета `#1a1b1f` / `#282a31`; при запуске из Finder `echo $TERM` в терминале (после Task 5) = `xterm-ghostty`.
 - [ ] **Step 5: Commit** — `feat: package skeleton, theme, empty main window`
 
@@ -181,7 +181,7 @@ scripts/bundle.sh         Resources/Info.plist
   - `parsesSubset`: `default_agent = "codex"`, `editor = "nvim"`, секция `[agents]` с `claude = "claude --model opus"` → поля заполнены; комментарии `#` и пустые строки игнорируются.
   - `rejectsUnknownAgent`: `default_agent = "gpt"` → `throws`.
 - [ ] **Step 2: Тесты запуска:**
-  - `launchUsesLoginShell`: команда имеет вид `/bin/zsh -l -i -c '<inner>; c=$?; printf ...; exit $c'` (решения #26, #27; `-i` нужен, чтобы PATH был как в терминале); для shell-листа `<inner>` = `/bin/zsh -l -i`, для claude-листа `<inner>` = `claude`.
+  - `launchUsesLoginShell`: команда имеет вид `/bin/zsh -l -i -c '<inner>; c=$?; printf ...; exit $c'` (решения HD-026, HD-027; `-i` нужен, чтобы PATH был как в терминале); для shell-листа `<inner>` = `/bin/zsh -l -i`, для claude-листа `<inner>` = `claude`.
   - `exitCodeWrapperPresent`: команда содержит `c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c` и не содержит `exec`.
   - `claudeResumesById`: `agentSessionId = "abc"` → inner `claude --resume abc` (без `exec`); без id → `claude --continue`.
   - `initialPromptIsArgument`: `initialPrompt = "fix it's bug"` → inner `claude 'fix it'\''s bug'` (и аналогично для codex).
@@ -204,7 +204,7 @@ scripts/bundle.sh         Resources/Info.plist
 - Consumes: `LaunchSpec` (Task 4); точные функции C-API — из записи «Интерфейс `GhosttyBridge`» в `decisions.md` (Task 0.3).
 - Produces:
   - `@MainActor final class GhosttyApp { static let shared: GhosttyApp; func start() throws }` — один `ghostty_app_t`, конфиг пользователя.
-  - `@MainActor final class TerminalSurfaceView: NSView { init(spec: LaunchSpec); var onTitleChange: ((String) -> Void)?; var onBell: (() -> Void)?; var onDesktopNotification: ((String, String) -> Void)?; var onChildExit: ((Int32) -> Void)?; func setVisible(_ visible: Bool); func sendText(_ text: String); func sendEnter(); func screenText() -> String? }`. `setVisible(false)` ставит рендер на паузу через `ghostty_surface_set_occlusion`. `sendText` — вставка (bracketed paste), Enter — `sendEnter()`. `onChildExit(-1)` = код неизвестен (нет `COMMAND_FINISHED`); обычный код — из OSC 133 D (решение #26).
+  - `@MainActor final class TerminalSurfaceView: NSView { init(spec: LaunchSpec); var onTitleChange: ((String) -> Void)?; var onBell: (() -> Void)?; var onDesktopNotification: ((String, String) -> Void)?; var onChildExit: ((Int32) -> Void)?; func setVisible(_ visible: Bool); func sendText(_ text: String); func sendEnter(); func screenText() -> String? }`. `setVisible(false)` ставит рендер на паузу через `ghostty_surface_set_occlusion`. `sendText` — вставка (bracketed paste), Enter — `sendEnter()`. `onChildExit(-1)` = код неизвестен (нет `COMMAND_FINISHED`); обычный код — из OSC 133 D (решение HD-026).
 
 - [ ] **Step 1:** Перенести рабочий код из `spike/` в эти два файла, оставив только перечисленный интерфейс; всё, что знает о `ghostty_*`, — внутри `GhosttyBridge`.
 - [ ] **Step 2: Проверить вручную.** Временно в `MainWindowController` показать одну `TerminalSurfaceView` со spec из `launchSpec(kind: .shell)`. Run: `scripts/bundle.sh && open build/Hangar.app`. Expected: zsh работает; `echo $HANGAR_TAB_ID` печатает UUID; `which claude` находит `~/.local/bin/claude` при запуске из Finder; `exit 3` → `onChildExit(3)` (лог через `os_log`).
@@ -226,13 +226,13 @@ scripts/bundle.sh         Resources/Info.plist
 - [ ] **Step 4: Полоса вкладок** по `style-a-v2.html`: название задачи (12 semibold) слева, вкладки (11.5, активная `panel`), `+` → меню Claude / Codex / Helix / Shell; закрытие `⌘W` и ×; заголовок вкладки — из `onTitleChange`.
 - [ ] **Step 5: Сплиты.** `SplitView` строит `NSSplitView` из `SplitNode`; `⌘D` — вправо, `⌘⇧D` — вниз, новый лист — shell в cwd задачи; перетаскивание разделителя обновляет `ratio`. Выход процесса листа: код 0 — лист закрывается; ≠ 0 — лист остаётся с сообщением «процесс завершился с кодом N · ↩ перезапустить».
 - [ ] **Step 6: Видимость.** При смене задачи/вкладки все невидимые `TerminalSurfaceView` получают `setVisible(false)`, видимые — `true`. Surface создаются лениво при первом показе вкладки и не пересоздаются при переключении.
-- [ ] **Step 7: Лист новой задачи (этап 1 — без worktree)** по `new-task-v4.html`: ширина 580, название (моно 14, фокус `accent`), поле «Первое сообщение для claude»; `⌘↩` — создать: задача `.mainFolder`, одна вкладка `defaultAgent`; если сообщение не пустое — передать как `initialPrompt` в `launchSpec` (аргумент CLI, решение #29). Строки Worktree на этом этапе не показывать.
+- [ ] **Step 7: Лист новой задачи (этап 1 — без worktree)** по `new-task-v4.html`: ширина 580, название (моно 14, фокус `accent`), поле «Первое сообщение для claude»; `⌘↩` — создать: задача `.mainFolder`, одна вкладка `defaultAgent`; если сообщение не пустое — передать как `initialPrompt` в `launchSpec` (аргумент CLI, решение HD-029). Строки Worktree на этом этапе не показывать.
 - [ ] **Step 8: Проверить вручную.** Run: `scripts/bundle.sh && open build/Hangar.app`. Expected: добавить проект, две задачи, в одной — claude + codex + сплит hx; переключение задач мгновенное; всё по макету `style-a-v2.html`; клавиши работают в русской раскладке.
 - [ ] **Step 9: Commit** — `feat(ui): sidebar, task tab bar, splits, new task sheet, shortcuts`
 
 ### Task 6d: Локализация ru / en и экран настроек (минимальный)
 
-Решение пользователя: интерфейс на русском и английском, переключение в настройках. `decisions.md` — #38. Выполняется сразу после Task 6 (до 6b/6c), чтобы все новые строки шли через локализацию.
+Решение пользователя: интерфейс на русском и английском, переключение в настройках. `decisions.md` — HD-038. Выполняется сразу после Task 6 (до 6b/6c), чтобы все новые строки шли через локализацию.
 
 **Files:**
 - Create: `Sources/HangarUI/Resources/Localizable.xcstrings` (String Catalog, языки `ru` — исходный, `en`), `Sources/HangarUI/L10n.swift`, `Sources/HangarUI/SettingsWindow.swift`, `Tests/HangarUITests/L10nTests.swift`
@@ -254,7 +254,7 @@ scripts/bundle.sh         Resources/Info.plist
 
 ### Task 6b: Действия над проектами, задачами и вкладками (контекстные меню, переименование, архив)
 
-Источник: инвентаризация Pane (`pane-sidebar-actions.md` в этой же папке) + решения пользователя. Выполняется после Task 6 (сайдбар с секциями PINNED / PROJECTS / ARCHIVED уже есть). В `decisions.md` — запись #35.
+Источник: инвентаризация Pane (`pane-sidebar-actions.md` в этой же папке) + решения пользователя. Выполняется после Task 6 (сайдбар с секциями PINNED / PROJECTS / ARCHIVED уже есть). В `decisions.md` — запись HD-035.
 
 **Files:**
 - Create: `Sources/HangarUI/Actions.swift` (единый список действий: id, заголовок, иконка `Icon`, шорткат, `isEnabled(for:)`, `perform`), `Sources/HangarUI/RenameField.swift` (инлайн-редактирование), `Sources/HangarUI/ProjectSettingsSheet.swift`, `Tests/HangarUITests/ActionsTests.swift`

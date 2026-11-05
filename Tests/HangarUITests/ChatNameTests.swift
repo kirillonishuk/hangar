@@ -3,7 +3,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// The chat's name when «Название» is left empty (decision #116).
+/// The chat's name when «Название» is left empty (decision HD-116).
 @MainActor @Suite struct ChatNameTests {
     @Test func typedNameWins() {
         #expect(chatName(name: "  fix-login  ", message: "Почини логин", existing: []) == "fix-login")
@@ -57,7 +57,7 @@ import Workspace
         #expect(chatName(name: "", message: "", existing: ["Chat 1"]) == "Chat 2")
     }
 
-    /// Only the «Чат N» fallback waits for the agent's first prompt (#116); a typed name or a visible message line doesn't.
+    /// Only the «Чат N» fallback waits for the agent's first prompt (HD-116); a typed name or a visible message line doesn't.
     @Test func numberedNameIsAuto() {
         #expect(isNumberedChatName(name: " ", message: "\n```\n"))
         #expect(!isNumberedChatName(name: "fix", message: ""))

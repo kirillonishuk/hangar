@@ -119,7 +119,7 @@ import TestSupport
         #expect(m.phase == .failed(L10n.installFailed(1)))
     }
 
-    /// #111: the agent's file on the server through the checked write; off takes Hangar's entries out; no agent → nothing.
+    /// HD-111: the agent's file on the server through the checked write; off takes Hangar's entries out; no agent → nothing.
     @Test func applyAgentWritesAndRemoves() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await stub(h, "claude")
@@ -163,7 +163,7 @@ import TestSupport
         #expect(type == .typeSymbolicLink)
     }
 
-    /// The pre-#96 hook set for `cli` around a user hook: no PermissionRequest, StopFailure only for `rate_limit`.
+    /// The pre-HD-096 hook set for `cli` around a user hook: no PermissionRequest, StopFailure only for `rate_limit`.
     private func oldInstall(cli: String) throws -> String {
         let fresh = try claudeInstall(#"{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "say done"}]}]}}"#, cli: cli)
         guard case .object(var root) = try parseJSON(fresh), let i = root.firstIndex(where: { $0.key == "hooks" }),
@@ -176,7 +176,7 @@ import TestSupport
         ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasPrefix("settings.json.hangar-backup-") }
     }
 
-    /// The connect of an agreed host (#96, #111): only the missing hooks, after a backup; again: nothing written.
+    /// The connect of an agreed host (HD-096, HD-111): only the missing hooks, after a backup; again: nothing written.
     @Test func connectUpgradesInstalledClaudeHooks() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await stub(h, "claude")
@@ -225,7 +225,7 @@ import TestSupport
         try h.app.editConfig({ HangarConfig.updating($0, key: "claude_integration", literal: "true") }) { $0.claudeIntegration = true }
     }
 
-    /// #111: a new host with nothing of Hangar's asks first (nothing written); «Подключить» installs `hangar-remote` and the
+    /// HD-111: a new host with nothing of Hangar's asks first (nothing written); «Подключить» installs `hangar-remote` and the
     /// hooks and remembers the host; its waiting tabs are let go.
     @Test func newHostAsksThenConnects() async throws {
         let h = try await Harness(); defer { h.cleanup() }
@@ -301,7 +301,7 @@ import TestSupport
         let h = try await Harness(); defer { h.cleanup() }
         let old = "#!/bin/sh\n# hangar-remote \(hangarRemoteVersion - 1)\nexit 0\n"
         let path = try installScript(h, old)
-        // The host's tabs start only once the new script (with pids, #119) is in place.
+        // The host's tabs start only once the new script (with pids, HD-119) is in place.
         var scriptAtStart: String?
         h.app.onHostConnected = { _ in scriptAtStart = try? String(contentsOfFile: path, encoding: .utf8) }
         #expect(await h.remote.connect("dev") == .connected)

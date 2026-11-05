@@ -5,7 +5,7 @@ import Git
 @testable import HangarUI
 import Workspace
 
-/// Live HEAD per chat and the switcher's actions (#114) on a real repo: main-folder chats A and C, worktree chat W on `x`.
+/// Live HEAD per chat and the switcher's actions (HD-114) on a real repo: main-folder chats A and C, worktree chat W on `x`.
 @MainActor @Suite struct BranchModelTests {
     private func make() async throws -> (TempRepo, AppState, a: UUID, c: UUID, w: UUID, wt: String) {
         let t = try await TempRepo.offMain {

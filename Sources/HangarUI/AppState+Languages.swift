@@ -1,7 +1,7 @@
 import Exec
 import Foundation
 
-/// tsserver for the editors (#82): the project's TypeScript, node from the login shell (here) or the host's login PATH.
+/// tsserver for the editors (HD-082): the project's TypeScript, node from the login shell (here) or the host's login PATH.
 extension AppState {
     func makeLanguages() -> Languages {
         Languages(
@@ -44,7 +44,7 @@ extension AppState {
         }
     }
 
-    /// Where Settings installs language servers (#102).
+    /// Where Settings installs language servers (HD-102).
     var lspDir: String { LspInstaller.directory(stateDir: (socketPath as NSString).deletingLastPathComponent) }
 
     /// The login shell's PATH (nil: it didn't answer in 15 s; looked up again next time).

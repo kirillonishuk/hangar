@@ -1,6 +1,6 @@
 import Foundation
 
-// Files of «<host> · терминал» (#64, spec 2026-10-31-remote-files-design): the tab's own ssh is the master, its shell
+// Files of «<host> · терминал» (HD-064, spec 2026-10-31-remote-files-design): the tab's own ssh is the master, its shell
 // reports the folder (OSC 7), the inspector lists and uploads through that master — never a second login.
 
 extension SSHPaths {
@@ -53,7 +53,7 @@ func parseSSHOptions(_ text: String) -> [String: String] {
     return out
 }
 
-/// How a host terminal tab logs in (#124). Never worse than a plain `ssh -t` (#64):
+/// How a host terminal tab logs in (HD-124). Never worse than a plain `ssh -t` (HD-064):
 /// - `ssh -G` failed, or no master can be used → a plain login, no files panel;
 /// - the host's config has a RemoteCommand (ssh refuses a second one) or the hook failed before → no hook;
 /// - the user's own ControlMaster/ControlPath → the tab keeps theirs (no `-S`), the panel uses their socket;

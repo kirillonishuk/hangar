@@ -1,7 +1,7 @@
 import SwiftUI
 
 // shortcut: a built-in per-line lexer (keywords, strings, comments, numbers, capitalized types) instead of tree-sitter
-// grammars (#44); no nesting, interpolation, regex literals or heredocs — change when the user asks for precise highlighting.
+// grammars (HD-044); no nesting, interpolation, regex literals or heredocs — change when the user asks for precise highlighting.
 
 enum SyntaxKind: Sendable, Equatable { case keyword, string, comment, number, type }
 

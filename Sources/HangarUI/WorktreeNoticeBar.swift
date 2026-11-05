@@ -2,7 +2,7 @@ import Git
 import SwiftUI
 import Workspace
 
-/// Over the selected chat's terminals when its copy is not where the chat thinks (#122): «Копия перенесена в … ·
+/// Over the selected chat's terminals when its copy is not where the chat thinks (HD-122): «Копия перенесена в … ·
 /// Обновить путь» or «Копия не найдена: …». A `barPane` row (§2.4) like the pane header; hidden otherwise (height 0).
 struct WorktreeNoticeBar: View {
     let app: AppState
@@ -30,7 +30,7 @@ struct WorktreeNoticeBar: View {
         }
     }
 
-    /// The agent entered another worktree of the project itself (#134): informational, so no warning colour; the
+    /// The agent entered another worktree of the project itself (HD-134): informational, so no warning colour; the
     /// action only re-points the chat, «Скрыть» hides it for this chat and copy.
     private func agentBar(_ task: HangarTask, _ entry: WorktreeEntry) -> some View {
         let shown = shortCopyPath(entry.path, project: app.project(task.projectId)?.path)

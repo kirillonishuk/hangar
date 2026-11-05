@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 
-/// Open / save / external change of the editor's files, local and through the host runner (#80).
+/// Open / save / external change of the editor's files, local and through the host runner (HD-080).
 @MainActor @Suite struct EditorSessionTests {
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-ed-\(UUID())").path
 
@@ -62,7 +62,7 @@ import Testing
         #expect(s.isReadOnly(mid))
     }
 
-    /// Go to definition into node_modules (#82): shown read-only; editable TS goes on to the language server.
+    /// Go to definition into node_modules (HD-082): shown read-only; editable TS goes on to the language server.
     @Test func dependenciesOpenReadOnlyAndTextGoesToTheLanguageServer() async throws {
         try FileManager.default.createDirectory(atPath: dir + "/node_modules/lib", withIntermediateDirectories: true)
         let dep = try write("node_modules/lib/index.d.ts", "export declare const x: 1;\n")
@@ -247,7 +247,7 @@ import Testing
         #expect(diskChange(loaded: a, current: nil, dirty: false) == .none)  // deleted: the buffer stays
     }
 
-    /// A tab shown while its file still loads (#83): the disk check must not "reload" it on top of the load — that
+    /// A tab shown while its file still loads (HD-083): the disk check must not "reload" it on top of the load — that
     /// reload arrived as an edit and left a clean buffer dirty.
     @Test func diskCheckSkipsAFileStillLoading() async throws {
         let path = try write("slow.ts", "a\n")

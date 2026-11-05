@@ -8,7 +8,7 @@ import Testing
 import Workspace
 import TestSupport
 
-/// Git, inspector, worktrees and deletion of remote projects (#47), on the RemoteHostsTests harness (fake ssh only).
+/// Git, inspector, worktrees and deletion of remote projects (HD-047), on the RemoteHostsTests harness (fake ssh only).
 /// The project's path `<root>/mac/app` is a real repo on this Mac (a decoy); the fake ssh maps it to the "server"
 /// repo `<root>/server/app`. Anything that reads the Mac's copy shows the decoy's data, anything that writes it
 /// changes the decoy's snapshot.
@@ -156,7 +156,7 @@ import TestSupport
         #expect(watch.watcher == nil)
     }
 
-    /// Branch switching on the server (#114): its HEAD, refused with changes, done once clean; the decoy is untouched.
+    /// Branch switching on the server (HD-114): its HEAD, refused with changes, done once clean; the decoy is untouched.
     @Test func remoteBranchSwitch() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)
@@ -376,7 +376,7 @@ import TestSupport
         await settle(h)
         #expect(h.app.inspector.offline)
         h.app.perform { $0.inspectorVisible = false }
-        // The selected chat's HEAD (`symbolic-ref`, #114) does reload on connect: the branch button is always shown.
+        // The selected chat's HEAD (`symbolic-ref`, HD-114) does reload on connect: the branch button is always shown.
         let inspectorGit = { FakeSSH.calls(h.log).compactMap(\.last).filter { $0.contains("--no-optional-locks") && !$0.contains("symbolic-ref") }.count }
         #expect(await h.remote.connect("dev") == .connected)
         try? await Task.sleep(nanoseconds: 500_000_000)

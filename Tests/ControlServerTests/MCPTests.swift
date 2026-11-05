@@ -168,7 +168,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         #expect(Set(ControlMethod.allCases.filter(\.readOnly)) == [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait, .actionsList, .tabsWait])
     }
 
-    /// Pre-rename `tasks_*` names and the `task` argument stay callable (#73); `session` is the listed name.
+    /// Pre-rename `tasks_*` names and the `task` argument stay callable (HD-073); `session` is the listed name.
     @Test func legacyTaskNamesStillWork() throws {
         let app = FakeApp()
         app.reply = .success(Data(#"{"tasks":[]}"#.utf8))

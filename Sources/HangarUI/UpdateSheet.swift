@@ -1,7 +1,7 @@
 import SwiftUI
 import Update
 
-/// «Доступна версия X» (#86): the release notes, the download / install state, «Пропустить версию» · «Позже» · «Обновить».
+/// «Доступна версия X» (HD-086): the release notes, the download / install state, «Пропустить версию» · «Позже» · «Обновить».
 struct UpdateSheet: View {
     let model: UpdateModel
     let onClose: () -> Void

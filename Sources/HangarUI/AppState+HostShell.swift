@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Workspace
 
-/// «<host> · терминал» (#64): plain `ssh -t` shells with no project. They are local leaves running ssh:
+/// «<host> · терминал» (HD-064): plain `ssh -t` shells with no project. They are local leaves running ssh:
 /// never the host's master, server check, tmux or kill queue (`remoteLeafHost` is nil for them).
 extension AppState {
     /// A new ssh shell tab on the host, shown; nil (nothing changes) for a host ssh must not be given.
@@ -33,7 +33,7 @@ extension AppState {
 
     func isHostShellTask(_ taskId: UUID) -> Bool { state.hostShell(ofTask: taskId) != nil }
 
-    /// A host terminal leaf's launch (#124): the plan from the user's ssh config, Hangar's socket only in a safe folder
+    /// A host terminal leaf's launch (HD-124): the plan from the user's ssh config, Hangar's socket only in a safe folder
     /// (a pre-created `/tmp/hangar-<uid>` of someone else would let them pose as the master: a plain tab then, as
     /// `RemoteHosts` refuses). The files panel follows the plan's master.
     func hostShellSpec(host: String, leaf: UUID) -> LaunchSpec {
@@ -68,7 +68,7 @@ extension AppState {
         return !typed
     }
 
-    /// Where ssh sockets live (#47): beside the state, or `/tmp/hangar-<uid>` when that path is too long.
+    /// Where ssh sockets live (HD-047): beside the state, or `/tmp/hangar-<uid>` when that path is too long.
     var sshPaths: SSHPaths { SSHPaths(stateDir: (socketPath as NSString).deletingLastPathComponent) }
 
     /// The leaf whose folder the inspector shows: the focused leaf of the selected host terminal's active tab.
@@ -79,7 +79,7 @@ extension AppState {
     }
 
     /// What the inspector says instead of its data: a chat whose copy was moved or is gone. A host's terminal shows its
-    /// server's files instead (#124). No chat: the inspector is empty (§3.19).
+    /// server's files instead (HD-124). No chat: the inspector is empty (§3.19).
     var inspectorNotice: String? {
         guard let task = selectedTask else { return nil }
         switch selectedWorktreeProblem?.place {

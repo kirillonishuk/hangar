@@ -2,7 +2,7 @@ import Integration
 import SwiftUI
 import Workspace
 
-/// Settings → Интеграции (#111): one card per agent, grouped by function; every switch applies everywhere (this Mac and
+/// Settings → Интеграции (HD-111): one card per agent, grouped by function; every switch applies everywhere (this Mac and
 /// every agreed host); «Где установлено» shows where. No per-machine settings, no install buttons.
 extension SettingsView {
     var integrations: some View {

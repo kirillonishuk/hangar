@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Sub-sessions in the model (#128, #131): where they live, the sidebar order, persistence.
+/// Sub-sessions in the model (HD-128, HD-131): where they live, the sidebar order, persistence.
 @Suite struct SubSessionTests {
     private func sub(_ s: inout WorkspaceState, parent: UUID, name: String, kind: LeafKind,
                      mode: TaskMode? = nil) throws -> (task: UUID, tab: UUID) {
@@ -26,7 +26,7 @@ import Testing
         #expect(s.addSubSession(parent: UUID(), name: "x", kind: .claude) == nil)
     }
 
-    /// By default a sub-chat works in its parent's own folder (#131): the same worktree, or the main folder.
+    /// By default a sub-chat works in its parent's own folder (HD-131): the same worktree, or the main folder.
     @Test func defaultPlacementIsTheParentsFolder() throws {
         var s = WorkspaceState()
         let p = s.addProject(name: "app", path: "/tmp/app")
@@ -105,7 +105,7 @@ import Testing
         #expect(task.parentTaskId == nil && !task.subsCollapsed && task.note == nil)
     }
 
-    /// Sharing is by place, not by spelling (#132): trailing slashes, `.`/`..` and case don't hide a sharer; another
+    /// Sharing is by place, not by spelling (HD-132): trailing slashes, `.`/`..` and case don't hide a sharer; another
     /// project on the same machine counts (also one whose main folder is this worktree); another machine doesn't.
     @Test func sharersAreFoundByPlace() {
         var s = WorkspaceState()

@@ -243,7 +243,7 @@ struct SidebarView: View {
 
     // MARK: SSH hosts
 
-    /// Hosts of remote projects, typed-in terminals and the ssh config (#64); hidden when there are none.
+    /// Hosts of remote projects, typed-in terminals and the ssh config (HD-064); hidden when there are none.
     /// A row: server icon, host, state `text3` (project hosts only); a waiting dot when the server needs attention.
     /// A host's terminal («<host> · терминал») sits right under its row.
     @ViewBuilder private var hostsSection: some View {
@@ -298,7 +298,7 @@ struct SidebarView: View {
         .popoverContextMenu { popoverEntries(items) }
     }
 
-    /// «<host> · терминал»: plain ssh shells (#64); its menu opens another tab or closes them all.
+    /// «<host> · терминал»: plain ssh shells (HD-064); its menu opens another tab or closes them all.
     private func hostShellRow(_ task: HangarTask, host: String) -> some View {
         let selected = !app.sessionsViewVisible && task.id == app.state.selectedTaskId  // «Сессии» is the selected row while shown
         let dot = app.displayState(of: task)
@@ -448,7 +448,7 @@ struct SidebarView: View {
         })
     }
 
-    /// Project, 28 (§3.3): folder 16, open while expanded (the only expand indicator, #125), name `body`; folded — its
+    /// Project, 28 (§3.3): folder 16, open while expanded (the only expand indicator, HD-125), name `body`; folded — its
     /// chats' most urgent dot at the end; «⋯» and «+» on hover, on the highlight itself.
     private func projectRow(_ project: Project) -> some View {
         // Remote: gray only while the host is given up on (its disk is not stat'ed from here).
@@ -531,7 +531,7 @@ struct SidebarView: View {
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        // Its worktree list (spare copies, #134): asked once when first shown, then with its chats' checks.
+        // Its worktree list (spare copies, HD-134): asked once when first shown, then with its chats' checks.
         .onAppear { if exists, app.worktreeLists[project.id] == nil { app.checkWorktrees(projectId: project.id) } }
     }
 
@@ -545,7 +545,7 @@ struct SidebarView: View {
         collapsed || app.state.attentionOnly || project.collapsed ? [] : app.emptyProjectRows(project.id)
     }
 
-    /// «+ Новый чат» / «Архив · N» under an empty project (#125): plain rows like the old «Новая сессия» (variant B),
+    /// «+ Новый чат» / «Архив · N» under an empty project (HD-125): plain rows like the old «Новая сессия» (variant B),
     /// the icon in the chats' dot slot, the text at their names; the shortcut only in the tooltip.
     private func emptyProjectRow(_ row: EmptyProjectRow, project: Project) -> some View {
         let available = app.isAvailable(project)
@@ -711,7 +711,7 @@ struct SidebarView: View {
         return n == 0 ? 0 : 1 + (app.subagentsExpanded.contains(task.id) ? n : 0)
     }
 
-    // MARK: Sub-chats (#128)
+    // MARK: Sub-chats (HD-128)
 
     private func subIndent(_ depth: Int) -> CGFloat { CGFloat(min(depth, Theme.subChatMaxDepth)) * Theme.subChatIndent }
 

@@ -24,7 +24,7 @@ import Testing
         #expect(c.agentCommands[.codex] == "codex")
     }
 
-    /// #105, #110: the status line choice and its segments in the file's order; unknown and repeated names are skipped.
+    /// HD-105, HD-110: the status line choice and its segments in the file's order; unknown and repeated names are skipped.
     @Test func statuslineKeys() throws {
         #expect(HangarConfig().statusline == .hangar && HangarConfig().statuslineSegments == StatuslineSegment.defaults)
         let c = try HangarConfig.parse("""
@@ -42,7 +42,7 @@ import Testing
         #expect(try HangarConfig.parse(text).statuslineSegments == [.model, .context])
     }
 
-    /// #110: `statusline_order` keeps every chip's place (off ones too): unknown and repeated names skipped, missing
+    /// HD-110: `statusline_order` keeps every chip's place (off ones too): unknown and repeated names skipped, missing
     /// ones appended in the default order; the on ones fill their slots in `statusline_segments`' order.
     @Test func statuslineOrder() throws {
         #expect(HangarConfig().statuslineOrder == StatuslineSegment.allCases)
@@ -57,12 +57,12 @@ import Testing
         statusline_order = ["model", "context", "effort", "week", "5h", "branch"]
         """)
         #expect(edited.statuslineChips == [.week, .context, .effort, .model, .fiveHour, .branch])
-        // Only segments, no order (a config from before #110): the on ones take the first default slots of their set.
+        // Only segments, no order (a config from before HD-110): the on ones take the first default slots of their set.
         let old = try HangarConfig.parse(#"statusline_segments = ["week", "5h"]"#)
         #expect(old.statuslineChips == [.model, .context, .week, .fiveHour, .branch, .effort])
     }
 
-    /// #110: Settings writes the chips' order and the on ones together; both read back.
+    /// HD-110: Settings writes the chips' order and the on ones together; both read back.
     @Test func statuslineWrite() throws {
         let chips: [StatuslineSegment] = [.week, .branch, .model, .context, .fiveHour, .effort]
         let text = HangarConfig.settingStatusline("statusline = \"hangar\"\n", chips: chips, on: [.model, .week, .effort])
@@ -81,7 +81,7 @@ import Testing
         #expect(statuslineMove(all, .effort, to: 99) == all)
     }
 
-    /// The Helix-era `editor` key (#81) is ignored, so an old config still loads.
+    /// The Helix-era `editor` key (HD-081) is ignored, so an old config still loads.
     @Test func legacyEditorKeyIgnored() throws {
         #expect(try HangarConfig.parse(#"editor = "hx""#) == HangarConfig())
     }
@@ -115,7 +115,7 @@ import Testing
         #expect(HangarConfig.ParseError.syntax(line: 3, reason: "x").description.contains("line 3"))
     }
 
-    /// The terminal background is always the app theme's (#109): the old «Фон терминала» key loads silently.
+    /// The terminal background is always the app theme's (HD-109): the old «Фон терминала» key loads silently.
     @Test func oldTerminalBackgroundIsIgnored() throws {
         for value in [#""ghostty""#, #""hangar""#, #""theme""#, #""blue""#, "ghostty", "true"] {
             #expect(try HangarConfig.parse("terminal_background = \(value)\ntheme = \"navy\"") == {
@@ -266,7 +266,7 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"check_updates = "no""#) }
     }
 
-    /// Settings → Appearance: the editor theme (the app theme's own by default, #109) and the rainbow indents / TODO highlights.
+    /// Settings → Appearance: the editor theme (the app theme's own by default, HD-109) and the rainbow indents / TODO highlights.
     @Test func editorAppearanceKeys() throws {
         let d = HangarConfig()
         #expect(d.editorPalette == .theme && d.editorRainbowIndent && d.editorTodoHighlight)
@@ -319,7 +319,7 @@ import Testing
         #expect(c.sounds["permission"] == "default")
     }
 
-    /// Integration keys (#111): absent = undecided, functions on by default; hosts as plain lists; written lists parse back.
+    /// Integration keys (HD-111): absent = undecided, functions on by default; hosts as plain lists; written lists parse back.
     @Test func integrationKeys() throws {
         let d = try HangarConfig.parse("")
         #expect(d.claudeIntegration == nil && d.codexIntegration == nil)

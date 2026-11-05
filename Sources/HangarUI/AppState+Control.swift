@@ -20,7 +20,7 @@ struct TerminalAccess {
 /// happen (missing folder), so a retry will not help.
 enum LeafState { case notStarted, starting, running, exited, failed }
 
-/// Requests from the control socket (decision #45); handlers run on the main actor.
+/// Requests from the control socket (decision HD-045); handlers run on the main actor.
 extension AppState {
     public func respond(_ id: Int, _ call: ControlCall) async -> ControlResponse {
         func fail(_ e: ControlError) -> ControlResponse { ControlResponse(id: id, body: .failure(e)) }
@@ -272,7 +272,7 @@ extension AppState {
 
     private static let couldNotStart = ControlError(code: .failed, message: "tab could not start")
 
-    /// Appended to a `sessions_spawn` prompt: its last message is what `sessions_wait` and the notification show (#128).
+    /// Appended to a `sessions_spawn` prompt: its last message is what `sessions_wait` and the notification show (HD-128).
     /// A sub-chat made by hand keeps the user's text as typed.
     static let subSessionPromptSuffix = "\n\n(You run as a Hangar sub-session. When you are done, end with a concise final result: "
         + "what you found or did, key paths and links, under 1500 characters. The chat that started you may read only that last message.)"
@@ -437,8 +437,8 @@ extension AppState {
             .mapError { refError($0, ref, "project") }
     }
 
-    /// Archived tasks are never found (decision #45), except by `tasks.restore`, which finds only them.
-    /// Hosts' terminals (#64, not in `tasks list`) are never found; chats without a project only as sub-sessions.
+    /// Archived tasks are never found (decision HD-045), except by `tasks.restore`, which finds only them.
+    /// Hosts' terminals (HD-064, not in `tasks list`) are never found; chats without a project only as sub-sessions.
     func resolveTask(_ ref: String, archived: Bool = false) -> Result<UUID, ControlError> {
         resolveRef(ref, in: state.tasks.filter { t in t.archived == archived && (!isOutsideProjects(t) || t.parentTaskId != nil && state.isFreeChatTask(t)) }
             .map { RefCandidate(id: $0.id, names: [$0.name]) })
@@ -479,7 +479,7 @@ extension AppState {
         }
     }
 
-    /// The new-task sheet's path without the sheet (decision #45): fetch, branch check, worktree path, copy; a failed fetch fails.
+    /// The new-task sheet's path without the sheet (decision HD-045): fetch, branch check, worktree path, copy; a failed fetch fails.
     func worktreeMode(_ project: Project, name: String, base: String?) async -> Result<(TaskMode, setup: String?), ControlError> {
         typealias R = Result<(TaskMode, setup: String?), ControlError>
         let failed = { (message: String) in R.failure(ControlError(code: .failed, message: message)) }
@@ -547,7 +547,7 @@ func branchProblemMessage(_ branch: String, branches: [Branch]) -> String {
     return "invalid branch name \"\(branch)\""
 }
 
-/// Codex has no turn-start event (decision #43), so its working state is read off the screen.
+/// Codex has no turn-start event (decision HD-043), so its working state is read off the screen.
 /// shortcut: matches codex's status line "esc to interrupt"; change when codex gets hooks.
 func codexBusy(_ screen: String?) -> Bool {
     guard let screen else { return false }

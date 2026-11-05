@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Integration
 
-/// A settings file installed before decision #96: StopFailure with matcher `rate_limit`, no PermissionRequest,
+/// A settings file installed before decision HD-096: StopFailure with matcher `rate_limit`, no PermissionRequest,
 /// with the user's own hooks around and inside Hangar's (a user StopFailure, a mixed Notification group).
 private let oldInstall = #"""
 {

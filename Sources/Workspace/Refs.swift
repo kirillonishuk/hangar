@@ -13,7 +13,7 @@ public struct RefCandidate: Equatable, Sendable {
 
 public enum RefError: Error, Equatable, Sendable { case notFound, ambiguous([UUID]) }
 
-/// Decision #45: full UUID → exact name → case-insensitive id prefix of ≥ 4 characters; more than one match at a step is ambiguous.
+/// Decision HD-045: full UUID → exact name → case-insensitive id prefix of ≥ 4 characters; more than one match at a step is ambiguous.
 public func resolveRef(_ ref: String, in candidates: [RefCandidate]) -> Result<UUID, RefError> {
     let ref = ref.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !ref.isEmpty else { return .failure(.notFound) }

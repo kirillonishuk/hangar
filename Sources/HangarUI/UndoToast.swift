@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The «Сессия в архиве · Отменить» toast, or a plain message (a dead `hangar://` link, #88): one at a time, hides after
+/// The «Сессия в архиве · Отменить» toast, or a plain message (a dead `hangar://` link, HD-088): one at a time, hides after
 /// `delay` by a one-shot work item (no polling).
 @MainActor @Observable final class ArchiveUndo {
     private(set) var taskId: UUID?
@@ -71,7 +71,7 @@ import SwiftUI
 }
 
 /// Bottom-centre of the chat area (§3.15): `bg2`, `line2`, `radius.popover`, level 1; 32 high, `body`, up to one
-/// primary small button and «×». Takes no space while hidden; the pointer over it holds it. Worktree removals (#132)
+/// primary small button and «×». Takes no space while hidden; the pointer over it holds it. Worktree removals (HD-132)
 /// stack above it in the same toast style.
 struct UndoToastView: View {
     let undo: ArchiveUndo

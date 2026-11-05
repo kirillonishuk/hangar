@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// In-app update tokens (#86): the release-notes box of the update sheet and its progress line.
+/// In-app update tokens (HD-086): the release-notes box of the update sheet and its progress line.
 extension Theme {
     public static let updateNotesHeight: CGFloat = 240
     public static let updateNotesPadding: CGFloat = Space.s3

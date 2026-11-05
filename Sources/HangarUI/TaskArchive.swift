@@ -3,7 +3,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Archive removes a worktree task's folder and keeps its branch; restore checks the branch out again (decision #57).
+/// Archive removes a worktree task's folder and keeps its branch; restore checks the branch out again (decision HD-057).
 enum ArchiveOutcome: Equatable {
     case archived(worktreeRemoved: Bool)
     /// Archived, but moving the folder away failed: the folder is still there (restore just unarchives).
@@ -29,8 +29,8 @@ extension AppState {
     /// The task's tabs stop first (archived: surfaces close, remote tmux sessions are killed and awaited), so nothing
     /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
     /// unarchived again, its tabs relaunch lazily as after a restart.
-    /// Its open sub-sessions follow a parent into the archive, each by the same rules (#128); one at risk stays open.
-    /// A worktree another open session still works in (a sub-chat shares its parent's, #131) is left alone: only the last
+    /// Its open sub-sessions follow a parent into the archive, each by the same rules (HD-128); one at risk stays open.
+    /// A worktree another open session still works in (a sub-chat shares its parent's, HD-131) is left alone: only the last
     /// session to leave it checks and removes it; sub-sessions archived along with it count as leaving.
     func archiveRemovingWorktree(_ id: UUID, force: Bool) async -> ArchiveOutcome {
         guard let task = state.tasks.first(where: { $0.id == id && !$0.archived }) else { return .failed("session not found") }
@@ -100,7 +100,7 @@ extension AppState {
             worktreeRemovals.finish(item)
             return .undone
         }
-        // The branch restore checks out again is the one git has there now: an agent may have renamed it (#134).
+        // The branch restore checks out again is the one git has there now: an agent may have renamed it (HD-134).
         if check != .missing { await followRegisteredBranch(id, path: path, git: git, project: project) }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
@@ -125,7 +125,7 @@ extension AppState {
         return failure.map { .worktreeKept($0) } ?? .archived(worktreeRemoved: true)
     }
 
-    /// The branch git has checked out at the chat's worktree now, recorded when it differs (#134); nil — not listed.
+    /// The branch git has checked out at the chat's worktree now, recorded when it differs (HD-134); nil — not listed.
     @discardableResult
     private func followRegisteredBranch(_ id: UUID, path: String, git: Git, project: Project) async -> String? {
         guard let list = try? await git.worktrees(),
@@ -213,7 +213,7 @@ extension AppState {
 @MainActor func archiveTask(_ id: UUID, ctx: ActionContext, force: Bool = false) async {
     switch await ctx.app.archiveRemovingWorktree(id, force: force) {
     case .archived: ctx.didArchive(id)
-    // The removal's own row shows the failure with «Повторить» (#132).
+    // The removal's own row shows the failure with «Повторить» (HD-132).
     case .worktreeKept: ctx.didArchive(id)
     case let .atRisk(dirty, ignored):
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.archiveAnyway) {

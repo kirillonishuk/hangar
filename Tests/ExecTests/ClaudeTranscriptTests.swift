@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Exec
 
-/// A relinked worktree's claude conversations (#122): copied at the tab's launch to the new folder's place, preferred there.
+/// A relinked worktree's claude conversations (HD-122): copied at the tab's launch to the new folder's place, preferred there.
 @Suite struct ClaudeTranscriptTests {
     let id = "0b9e6c55-1f0e-4c1a-9d65-3f1f2d7a8b90"
 

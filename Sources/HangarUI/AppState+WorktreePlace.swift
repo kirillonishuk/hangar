@@ -28,7 +28,7 @@ extension AppState {
     }
 
     /// Checks again (selection, agent done, window focus); the last answer stays shown until the new one. Main-folder
-    /// chats too: the list also tells where their agents work and which copies no chat uses (#134).
+    /// chats too: the list also tells where their agents work and which copies no chat uses (HD-134).
     func recheckWorktree(of id: UUID) {
         guard let task = state.tasks.first(where: { $0.id == id }), !isFreeChatTask(id) else { return }
         checkWorktrees(projectId: task.projectId)
@@ -99,7 +99,7 @@ extension AppState {
         while let check = worktreeChecks.values.first { await check.value }
     }
 
-    /// «Обновить путь»: the chat follows its moved copy (decision #122). Its claude tabs remember where their
+    /// «Обновить путь»: the chat follows its moved copy (decision HD-122). Its claude tabs remember where their
     /// conversations were recorded; each is copied over when the tab next launches (`syncRelinkedTranscript`).
     func relinkWorktree(_ id: UUID) {
         guard case .moved(let path) = worktreePlaces[id] else { return }
@@ -147,11 +147,11 @@ extension AppState {
 }
 
 extension AppState {
-    /// A relinked claude tab launches to resume (#122): its conversation is copied to where claude looks from the new
+    /// A relinked claude tab launches to resume (HD-122): its conversation is copied to where claude looks from the new
     /// folder — with every turn said in the old folder up to now — on a background thread. true: the launch waits for
     /// it (`onTranscriptSynced` starts it again). Done once, then the mark goes. A launch that won't resume writes
     /// nothing and drops the mark; a failed copy keeps the mark and this launch goes on without it (a new conversation
-    /// with the note, #119).
+    /// with the note, HD-119).
     /// shortcut: a remote tab's conversation lives on the server and is not copied (the mark just goes); copy over ssh if asked.
     func prepareRelinkedTranscript(_ leaf: Leaf, restoring: Bool) -> Bool {
         guard let from = leaf.relinkedFrom else { return false }

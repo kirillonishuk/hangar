@@ -7,7 +7,7 @@ import Testing
 import Workspace
 import TestSupport
 
-/// Remote tabs in the UI layer (#47), on the RemoteHostsTests harness (fake ssh only). Surfaces are never created
+/// Remote tabs in the UI layer (HD-047), on the RemoteHostsTests harness (fake ssh only). Surfaces are never created
 /// for real here: Ghostty is not started in tests, so a launch only builds its spec.
 @MainActor @Suite struct RemoteTabsTests {
     typealias Harness = RemoteHostsTests.Harness
@@ -92,7 +92,7 @@ import TestSupport
         view.childExited(255)
         hostConnected(host: "dev", leaves: [view])
         #expect(log.contexts.last == .reattach(previous: LaunchMode(restoring: false, initialPrompt: "fix it")))
-        // A gone session resumes the tab's own conversation: its id was given at birth (#119).
+        // A gone session resumes the tab's own conversation: its id was given at birth (HD-119).
         #expect(log.modes.last == LaunchMode(restoring: true, initialPrompt: nil))
         #expect(!view.isDetached)
         // The status survives the reconnect (no `.relaunched` reset).

@@ -95,7 +95,7 @@ import TestSupport
         app.perform { $0.inspectorVisible = true }
         app.select(taskId: t)
         watch.update()
-        // The copy is checked first (#122); the window's `didChange` would update the watch.
+        // The copy is checked first (HD-122); the window's `didChange` would update the watch.
         await app.worktreeChecksIdle()
         watch.update()
         await settle(app.inspector)

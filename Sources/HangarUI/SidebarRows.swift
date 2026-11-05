@@ -49,7 +49,7 @@ struct SectionHeader: View {
     /// `+` without hover (empty state: nothing else says how to add the first project).
     var plusAlwaysVisible = false
     var plus: (() -> Void)?
-    /// «Только ждущие» toggle (#67): a status dot, `waiting`-coloured and always shown while on.
+    /// «Только ждущие» toggle (HD-067): a status dot, `waiting`-coloured and always shown while on.
     var filterOn = false
     var filterHelp = ""
     var filter: (() -> Void)?
@@ -180,11 +180,11 @@ struct MenuEntry {
     let action: () -> Void
 }
 
-/// Host row: «Открыть терминал» (a plain ssh shell, #64); a host of remote projects also «Переподключиться»
+/// Host row: «Открыть терминал» (a plain ssh shell, HD-064); a host of remote projects also «Переподключиться»
 /// (while not connected), «Проверить сервер» (connected), «Отключиться».
 @MainActor func hostMenuItems(_ host: String, app: AppState, ctx: ActionContext) -> [MenuEntry] {
     let terminal = MenuEntry(title: L10n.openTerminal, icon: .shell) { app.openHostShell(host) }
-    // `hangar://host/…` (#88): only for names a link carries as is.
+    // `hangar://host/…` (HD-088): only for names a link carries as is.
     let link = HangarLink.isLinkableHost(host) ? [MenuEntry(title: L10n.copyLink, icon: .copy) {
         ctx.pasteboard.clearContents()
         ctx.pasteboard.setString(LinkTarget.host(host).link.url.absoluteString, forType: .string)
@@ -207,7 +207,7 @@ struct MenuEntry {
     PopoverMenu.show(popoverEntries(items), at: screen)
 }
 
-/// A row's clock (#135): a tick on each minute only while `active` (a chat that waits, for «ждёт 12 м» and its tooltip);
+/// A row's clock (HD-135): a tick on each minute only while `active` (a chat that waits, for «ждёт 12 м» and its tooltip);
 /// otherwise a single entry and no updates — nothing wakes up while idle.
 struct MinutesWhile: TimelineSchedule {
     let active: Bool

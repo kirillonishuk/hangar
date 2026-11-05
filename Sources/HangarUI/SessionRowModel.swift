@@ -42,7 +42,7 @@ func pluralForm(_ n: Int) -> PluralForm {
     var text: String { "\(head) · \(tail)" }
 }
 
-/// After this many minutes a waiting row's word carries the time: «ждёт 12 м» (#135).
+/// After this many minutes a waiting row's word carries the time: «ждёт 12 м» (HD-135).
 let rowWaitingMinutes = 5
 
 /// A waiting row's end word: «ждёт» for the first minutes, then «ждёт 12 м», «ждёт 2 ч». Computed when the row is
@@ -71,7 +71,7 @@ func foldedProjectBadge(_ states: [AgentState]) -> FoldedProjectBadge? {
 
 extension AppState {
     /// The row's status line from the task's agent leaves (tabs and the TERMINAL drawer). Waiting: how long, who and
-    /// what it asks — «ждёт 4 мин · codex · Would you like to run…» (#135).
+    /// what it asks — «ждёт 4 мин · codex · Would you like to run…» (HD-135).
     func sessionStatus(of task: HangarTask, now: Date = Date()) -> SessionStatus {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
         let agents = leaves.filter { $0.kind == .claude || $0.kind == .codex }

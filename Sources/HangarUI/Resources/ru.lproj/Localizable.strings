@@ -620,7 +620,7 @@
 "lspMissingTip" = "Определения, ссылки и ошибки даёт языковой сервер (%@), если он установлен: в проекте (.venv, node_modules/.bin), в PATH логин-шелла, в Xcode или скачан в Настройки → Дополнительно. Нажмите, чтобы проверить снова";
 "lspTooltip" = "%@\nНажмите, чтобы перезапустить";
 
-/* Language servers in Settings (#102) */
+/* Language servers in Settings (HD-102) */
 "lspSection" = "Языковые серверы";
 "lspInstalledFrom" = "установлен · %@";
 "lspNotInstalled" = "не установлен";
@@ -646,7 +646,7 @@
 "downloadTooLarge" = "Файл больше ожидаемого — не установлен";
 "editorUnsavedQuit" = "Несохранённых файлов: %d. Всё равно выйти?";
 
-/* In-app updates (#86) */
+/* In-app updates (HD-086) */
 "updateTo" = "Обновить до %@";
 "updateAvailableHelp" = "Новая версия Hangar: что нового и установка";
 "updateSheetTitle" = "Доступна версия %@";
@@ -861,7 +861,7 @@
 "edsOperator" = "= > …";
 "edsText" = "всё, что не попало в группы";
 
-/* Integrations by function (#111) */
+/* Integrations by function (HD-111) */
 "intHooksTitle" = "Статусы и уведомления";
 "intHooksClaudeSub" = "работает · ждёт · готово, «Входящие»";
 "intHooksCodexSub" = "готово, «Входящие»";
@@ -939,7 +939,7 @@
 "freeTimeMinutes" = "%d мин";
 "freeTimeHours" = "%d ч";
 "removeFreeChatButton" = "Убрать";
-/* Files of a host terminal (#124) */
+/* Files of a host terminal (HD-124) */
 "remoteFilesUpload" = "Загрузить файлы";
 "remoteFilesUploadButton" = "Загрузить";
 "remoteFilesRefresh" = "Обновить";

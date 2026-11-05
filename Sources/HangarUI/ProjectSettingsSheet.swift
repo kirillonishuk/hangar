@@ -14,7 +14,7 @@ func worktreeCopyInput(_ text: String) -> [String] {
     text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 }
 
-/// The «копии внутри проекта» notice: a project whose stored folder for copies is inside it (set before #121 refused that).
+/// The «копии внутри проекта» notice: a project whose stored folder for copies is inside it (set before HD-121 refused that).
 func worktreesInsideNoticeShown(_ project: Project) -> Bool {
     guard let root = project.worktreeRoot else { return false }
     return worktreeRootInsideProject(root, project: project.path, local: project.host == nil)
@@ -49,7 +49,7 @@ struct ProjectSettingsSheet: View {
     var onNotifications: (ProjectNotifications) -> Void = { _ in }
     /// «Хранить рядом с проектом»: applied at once (blank folder = the default one next to the project).
     var onKeepWorktreesBeside: () -> Void = {}
-    /// «Действия» (#133): own actions and hidden repository ones, applied on «Сохранить» only when changed; `loadRepo`
+    /// «Действия» (HD-133): own actions and hidden repository ones, applied on «Сохранить» only when changed; `loadRepo`
     /// reads the project folder's `.hangar/actions.json`, `discover` its suggestions (when the «Добавить» picker opens).
     var onActions: ([ProjectAction], [String]) -> Void = { _, _ in }
     var loadRepo: () async -> RepoActions = { RepoActions() }
@@ -58,7 +58,7 @@ struct ProjectSettingsSheet: View {
     @State private var hiddenActions: [String]
     @State private var repo = RepoActions()
     @State private var actionsError: String?
-    /// Worktrees inside the repository git doesn't ignore (#134), and the click that hides them locally (nil — done).
+    /// Worktrees inside the repository git doesn't ignore (HD-134), and the click that hides them locally (nil — done).
     var notIgnored: [String] = []
     var onHideFromGit: () async -> String? = { nil }
     @State private var hideFromGit: HideFromGit = .offered
@@ -236,7 +236,7 @@ struct ProjectSettingsSheet: View {
         }
     }
 
-    /// Copies inside the project git doesn't ignore (#134): what it costs, the exact `info/exclude` lines, and the one
+    /// Copies inside the project git doesn't ignore (HD-134): what it costs, the exact `info/exclude` lines, and the one
     /// button that adds them — nothing is written unless it is clicked.
     private var notIgnoredNotice: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s2) {
@@ -260,7 +260,7 @@ struct ProjectSettingsSheet: View {
         .padding(.top, Theme.sheetMessageTop)
     }
 
-    /// Existing copies stay where they are: only the folder for new ones changes (moving them is not offered, see #121).
+    /// Existing copies stay where they are: only the folder for new ones changes (moving them is not offered, see HD-121).
     private var insideNotice: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s2) {
             Text(verbatim: L10n.worktreesInsideNotice).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text1)

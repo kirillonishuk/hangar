@@ -4,7 +4,7 @@ import Workspace
 @testable import Exec
 import TestSupport
 
-/// Remote tabs (#47) against a fake ssh that runs the remote command locally; tmux is the real one on an isolated
+/// Remote tabs (HD-047) against a fake ssh that runs the remote command locally; tmux is the real one on an isolated
 /// `TMUX_TMPDIR` whose server is killed at the end. Never a real host.
 @Suite struct RemoteLaunchTests {
     static let tmuxPath = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
@@ -116,7 +116,7 @@ import TestSupport
         #expect(words.contains(f.home + "/.hangar/run/" + name + ".exit"))
         #expect(words.contains(tab.uuidString) && words.contains(leaf.id.uuidString))
         #expect(words.contains(f.home + "/.hangar/hangar.sock"))
-        // The server's claude gets Hangar's own hooks through `hangar-remote` (#119), quoted as one argument.
+        // The server's claude gets Hangar's own hooks through `hangar-remote` (HD-119), quoted as one argument.
         let settings = " --settings " + shellQuote(tabAgentSettings(hookCLI: remoteHookCLI))
         #expect(words.contains("claude\(settings) 'fix it'"))
         #expect(tabAgentSettings(hookCLI: remoteHookCLI).contains(#"h=\"$HOME/.hangar/bin/hangar-remote\"; [ -x \"$h\" ]"#))
@@ -137,8 +137,8 @@ import TestSupport
         #expect(killSessionArgs(leaf.id) == ["tmux", "-L", "hangar", "kill-session", "-t", "=" + name])
     }
 
-    /// The plain login of «<host> · терминал» (#64): no tmux, no server check, no BatchMode (a password or 2FA is
-    /// typed in the tab); the login is the master of its leaf socket (#124) and its remote command only adds the folder
+    /// The plain login of «<host> · терминал» (HD-064): no tmux, no server check, no BatchMode (a password or 2FA is
+    /// typed in the tab); the login is the master of its leaf socket (HD-124) and its remote command only adds the folder
     /// hook before the login shell; ssh's own code comes back.
     @Test func plainSSHShell() async throws {
         let f = try Fixture()
@@ -166,7 +166,7 @@ import TestSupport
         #expect(lost.status == 255)
         #expect(lost.stdout.contains("\u{1b}]133;D;255"))
 
-        // The plain plan is #64's login exactly: no socket, no remote command.
+        // The plain plan is HD-064's login exactly: no socket, no remote command.
         let plain = sshShellSpec(host: "my-box", sshPath: f.ssh)
         _ = try await runProcess("/bin/sh", ["-c", plain.command], cwd: "/", env: f.env)
         let plainArgv = f.read("argv").split(separator: "\n").map(String.init)
@@ -203,7 +203,7 @@ import TestSupport
         }
     }
 
-    /// The task's port reaches the remote tab's environment, with and without tmux (#60).
+    /// The task's port reaches the remote tab's environment, with and without tmux (HD-060).
     @Test func portReachesRemoteTab() async throws { try await Fixture.with { f in
         for tmux in [false] + (RemoteLaunchTests.tmuxPath == nil ? [] : [true]) {
             let out = f.root + "/port-\(tmux)"
@@ -293,7 +293,7 @@ import TestSupport
         }
 
         // A live session wins over a file next to it: the launch attaches to the same pane and reports nothing early;
-        // the file counts only once the session is gone (attach first, #47).
+        // the file counts only once the session is gone (attach first, HD-047).
         let leaf = UUID(), name = remoteSessionName(leaf)
         let cmd = command(f, leaf: leaf, agent: "sleep 30")
         let first = Task { try await f.run(cmd) }

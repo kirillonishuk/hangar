@@ -5,7 +5,7 @@ public enum Shortcut: Equatable, CaseIterable {
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
-    /// The selected chat's last project action (#133).
+    /// The selected chat's last project action (HD-133).
     case runAction
     /// Palette only, no key (design system §6: what the status bar's «N работает» did); not in `allCases`, the key table.
     case nextWorking
@@ -24,7 +24,7 @@ public enum Shortcut: Equatable, CaseIterable {
         switch self {
         case .newTask: (.command, 45, "N")
         case .newFreeChat: ([.command, .option], 45, "N")
-        case .newSubSession: ([.command, .option, .shift], 45, "N")  // a sub-chat of the selected chat (#128)
+        case .newSubSession: ([.command, .option, .shift], 45, "N")  // a sub-chat of the selected chat (HD-128)
         case .addProject: ([.command, .shift], 45, "N")
         case .newTab: (.command, 17, "T")
         case .closeTab: (.command, 13, "W")
@@ -75,7 +75,7 @@ public enum Shortcut: Equatable, CaseIterable {
 public enum SplitDirection: Equatable, Sendable {
     case left, right, up, down
 
-    /// ⌘⌥↑/↓ switched tasks before splits had a key (decision #39): with no pane on that side they still do.
+    /// ⌘⌥↑/↓ switched tasks before splits had a key (decision HD-039): with no pane on that side they still do.
     var taskFallback: Int? {
         switch self {
         case .up: -1
@@ -101,11 +101,11 @@ private let digitKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
 /// Matches physical keys (keyCode), not characters, so shortcuts work in the Russian layout.
 public func shortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Shortcut? {
     let mods = modifiers.intersection([.command, .shift, .option, .control])
-    // ⌘B: silent alias of ⌘0, a Pane habit (decision #39); labels show ⌘0 only.
+    // ⌘B: silent alias of ⌘0, a Pane habit (decision HD-039); labels show ⌘0 only.
     if mods == .command, keyCode == 11 { return .toggleSidebar }
-    // ⌃` (physical key left of 1): silent alias of ⌘J, its original key (decision #72); labels show ⌘J only.
+    // ⌃` (physical key left of 1): silent alias of ⌘J, its original key (decision HD-072); labels show ⌘J only.
     if mods == .control, keyCode == 50 { return .toggleDrawer }
-    // ⌥⌘4: silent alias of ⇧⌘F, the fourth inspector segment after ⌥⌘1…3 (decision #91); labels show ⇧⌘F only.
+    // ⌥⌘4: silent alias of ⇧⌘F, the fourth inspector segment after ⌥⌘1…3 (decision HD-091); labels show ⇧⌘F only.
     if mods == [.command, .option], keyCode == 21 { return .findInFiles }
     return Shortcut.allCases.first { $0.key.mods == mods && $0.key.code == keyCode }
 }

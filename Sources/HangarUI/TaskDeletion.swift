@@ -3,14 +3,14 @@ import Foundation
 import Git
 import Workspace
 
-/// «Удалить навсегда» for an archived task. Without `alsoWorktree` nothing on disk is touched (decisions #39/#42).
+/// «Удалить навсегда» for an archived task. Without `alsoWorktree` nothing on disk is touched (decisions HD-039/HD-042).
 /// With it: missing folder → prune; dirty or holding ignored files → ask before forcing; remove the worktree, drop the task, then `branch -d`
 /// (an unmerged branch is kept and reported). `runner`: the project's machine — a remote worktree is checked on its server.
 /// A check that fails (host down, git error) stops here: guessing "clean" or "missing" could lose files or orphan the worktree.
 @MainActor func deleteTaskPermanently(_ id: UUID, alsoWorktree: Bool, ctx: ActionContext, git: Git, runner: Runner = .local) async {
     let app = ctx.app
     guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-    // A folder and branch another session (open or archived) still uses stay: only the task goes (#131).
+    // A folder and branch another session (open or archived) still uses stay: only the task goes (HD-131).
     guard alsoWorktree, case .worktree(let path, let branch, _) = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty else {
         app.perform { $0.deleteTask(id: id) }
         return
@@ -68,7 +68,7 @@ import Workspace
     }
 }
 
-/// What removing a worktree folder would lose; shared by delete and archive (decision #57).
+/// What removing a worktree folder would lose; shared by delete and archive (decision HD-057).
 enum WorktreeCheck: Equatable { case missing, clean, atRisk(dirty: Bool, ignored: [String]) }
 
 /// `runner`: the project's machine. Throws when the check itself fails (host down, git error).

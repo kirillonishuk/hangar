@@ -184,7 +184,7 @@ let claudeHooksRetired: [(event: String, matcher: String?, kind: String)] = [
 /// The one install the app's own updater and the DMG point at: it wins over any other copy.
 public let canonicalHelper = "/Applications/Hangar.app/Contents/Helpers/hangar"
 
-/// Which CLI paths in a user's file are this Hangar's own (#111): the current helper, or another `Hangar.app` helper
+/// Which CLI paths in a user's file are this Hangar's own (HD-111): the current helper, or another `Hangar.app` helper
 /// that no longer exists (the app moved or was re-installed elsewhere: its entries move here). A helper of another
 /// copy that still exists stays that copy's, unless this one is `/Applications/Hangar.app` (the one preferred copy):
 /// so two copies never pull the entries back and forth at every launch.
@@ -209,10 +209,10 @@ private func hangarCLI(of c: String) -> String? {
     return w[0]
 }
 
-/// The state Hangar's entries in Claude's user settings should be in (#111): `hooks` and `statusline` say which are
+/// The state Hangar's entries in Claude's user settings should be in (HD-111): `hooks` and `statusline` say which are
 /// wanted, everything else is left alone. Hangar owns a handler only if its command is exactly `<cli> event <kind>`
 /// with a CLI `ours` accepts (an older path is moved to `cli`); compound commands, user-changed matchers and the user's
-/// handlers stay (#96). Missing hooks are appended to their events; the obsolete ones (`claudeHooksRetired`) go; an
+/// handlers stay (HD-096). Missing hooks are appended to their events; the obsolete ones (`claudeHooksRetired`) go; an
 /// unwanted function's entries are removed (the wrapped status line is restored). An entry of another Hangar copy
 /// (a CLI `ours` refuses) leaves the whole file alone (`.otherCopy`). nil = nothing to write.
 public func claudeApply(_ text: String?, cli: String, hooks: Bool, statusline: Bool,

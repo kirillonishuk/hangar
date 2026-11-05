@@ -243,7 +243,7 @@ import TestSupport
     var n = 0
 }
 
-/// Settings → General → «Версия» (#99): install from Settings without the status-bar pill.
+/// Settings → General → «Версия» (HD-099): install from Settings without the status-bar pill.
 @MainActor @Suite struct UpdateSettingsButtonTests {
     @Test func buttonFollowsThePhase() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-update-settings-\(UUID().uuidString)")

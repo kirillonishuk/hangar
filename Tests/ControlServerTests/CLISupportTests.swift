@@ -77,7 +77,7 @@ import AgentStatus
             let line = ControlMessage.event(m).encoded()
             #expect(line.count < ControlServer.maxLine / 4)
             #expect(ControlMessage.decode(line.dropLast()) == .success(.event(m)))
-            // A Stop's answer is a sub-session's result (#128): kept longer than other hook texts.
+            // A Stop's answer is a sub-session's result (HD-128): kept longer than other hook texts.
             #expect((m.message ?? m.command)?.count == (kind == "stop" ? 2000 : 500))
         }
     }
@@ -109,14 +109,14 @@ import AgentStatus
         #expect(m == EventMessage(tab: tab, leaf: leaf, kind: .sessionStart, session: "s1", source: "clear"))
     }
 
-    /// UserPromptSubmit's `prompt` is the event's message (an auto-named chat's name, #116), bounded like the rest.
+    /// UserPromptSubmit's `prompt` is the event's message (an auto-named chat's name, HD-116), bounded like the rest.
     @Test func promptText() {
         let stdin = Data(#"{"session_id":"s1","prompt":"fix the bug","message":"x"}"#.utf8)
         #expect(eventMessage(kind: "prompt", args: [], env: env, stdin: stdin)?.message == "fix the bug")
         #expect(eventMessage(kind: "stop", args: [], env: env, stdin: stdin)?.message == "x")
     }
 
-    /// `--agent-pid "$PPID"` from Hangar's own `--settings` hooks (#119): digits only; never read past `--then`.
+    /// `--agent-pid "$PPID"` from Hangar's own `--settings` hooks (HD-119): digits only; never read past `--then`.
     @Test func agentPidFlag() {
         let stdin = Data(#"{"session_id":"s1","source":"resume"}"#.utf8)
         #expect(eventMessage(kind: "session-start", args: ["--agent-pid", "4242"], env: env, stdin: stdin)?.agentPid == 4242)
@@ -139,7 +139,7 @@ import AgentStatus
         #expect(bad?.session == nil)
     }
 
-    /// Where the agent works now (#134): an absolute path only; anything else is no cwd.
+    /// Where the agent works now (HD-134): an absolute path only; anything else is no cwd.
     @Test func hookCwdIsValidated() {
         let ok = eventMessage(kind: "stop", args: [], env: env, stdin: Data(#"{"session_id":"s1","cwd":"/r/.claude/worktrees/x"}"#.utf8))
         #expect(ok?.cwd == "/r/.claude/worktrees/x")

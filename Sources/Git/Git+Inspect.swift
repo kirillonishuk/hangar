@@ -12,7 +12,7 @@ extension Git {
         try await inspect(["rev-parse", "--absolute-git-dir"]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The top level and the folder's place under it: `apps/web/` for a project in a subfolder (#44), "" at the top.
+    /// The top level and the folder's place under it: `apps/web/` for a project in a subfolder (HD-044), "" at the top.
     public func location() async throws -> (top: String, prefix: String) {
         let lines = try await inspect(["rev-parse", "--show-toplevel", "--show-prefix"]).split(separator: "\n", omittingEmptySubsequences: false)
         return (String(lines.first ?? ""), lines.count > 1 ? String(lines[1]) : "")
@@ -72,7 +72,7 @@ extension Git {
         }
         if !truncated {
             // An untracked symlink looks like a file to git: only the file system tells.
-            // `dir/`: a nested checkout git doesn't descend into (an agent's worktree, #134) — a separate checkout, not shown.
+            // `dir/`: a nested checkout git doesn't descend into (an agent's worktree, HD-134) — a separate checkout, not shown.
             for p in others.split(separator: "\0", omittingEmptySubsequences: true) where !p.hasSuffix("/") && !add(p, link: true) { break }
         }
         return FileListing(paths: paths, truncated: truncated, dirLinks: dirLinks)

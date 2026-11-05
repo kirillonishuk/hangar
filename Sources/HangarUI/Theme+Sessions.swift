@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// «История» view (spec §3.17 on the v2 list of #107): sizes are design-system tokens.
+/// «История» view (spec §3.17 on the v2 list of HD-107): sizes are design-system tokens.
 extension Theme {
     /// Header (title, scope segment, search) 52; the chips' bar under it 36.
     public static let historyHeaderHeight: CGFloat = Height.barToolbar

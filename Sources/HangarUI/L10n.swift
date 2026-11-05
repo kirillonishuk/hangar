@@ -4,7 +4,7 @@ import GhosttyBridge
 import Observation
 import Workspace
 
-/// Every UI string (decision #38): `Resources/<lang>.lproj/Localizable.strings`, keys = `Key` cases.
+/// Every UI string (decision HD-038): `Resources/<lang>.lproj/Localizable.strings`, keys = `Key` cases.
 /// Reading a string inside a SwiftUI body observes `language`, so switching it redraws the UI live.
 @MainActor public enum L10n {
     /// Observable holder of the chosen language (a static stored property can't be observed).
@@ -181,7 +181,7 @@ import Workspace
         case statuslinePreview, statuslineUserPreview, statuslineParts, statuslineNeedsIntegration, statuslineChipHelp, statuslineMoveLeft, statuslineMoveRight
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
-        // Integrations by function (#111)
+        // Integrations by function (HD-111)
         case intOtherCopy, intRemoteMissing, intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, intSkillTitle, intSkillSub, intSkillForeign, intSkillHelp, awaitingIntegrationAnswer
         // Chats without a project
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
@@ -195,7 +195,7 @@ import Workspace
     }
 
 
-    // Integrations by function (#111)
+    // Integrations by function (HD-111)
     static var intOtherCopy: String { s(.intOtherCopy) }
     static var intRemoteMissing: String { s(.intRemoteMissing) }
     static var intHooksTitle: String { s(.intHooksTitle) }
@@ -258,7 +258,7 @@ import Workspace
     static func intSkillHelp(_ a: String) -> String { f(.intSkillHelp, a) }
     static var awaitingIntegrationAnswer: String { s(.awaitingIntegrationAnswer) }
 
-    // Search tab (find in files, #91)
+    // Search tab (find in files, HD-091)
     static var segmentSearch: String { s(.segmentSearch) }
     static var findInFiles: String { s(.cmdFindInFiles) }
     static var searchPlaceholder: String { s(.searchPlaceholder) }
@@ -327,7 +327,7 @@ import Workspace
     static func sessionsArchivedSince(_ date: String) -> String { f(.sessionsArchivedSince, date) }
     static var projectSessions: String { s(.projectSessions) }
     static var sessionsUnknownError: String { s(.sessionsUnknownError) }
-    /// «Архив · 3» under an empty project (#125).
+    /// «Архив · 3» under an empty project (HD-125).
     static func projectArchive(_ count: Int) -> String { f(.projectArchive, count) }
     static var sessionsUntitled: String { s(.sessionsUntitled) }
     static func sessionsTabs(_ n: Int) -> String { count(n, .sessionsTabOne, .sessionsTabFew, .sessionsTabMany) }
@@ -370,7 +370,7 @@ import Workspace
     static func limitUntil(_ clock: String) -> String { f(.limitUntil, clock) }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
     static func rowWithStatusText(_ name: String, _ status: String) -> String { f(.rowWithStatus, name, status) }
-    /// A done dot says whether its result was seen (#135); other states as `statusLabel`.
+    /// A done dot says whether its result was seen (HD-135); other states as `statusLabel`.
     static func statusLabel(_ state: AgentState, seen: Bool) -> String {
         state == .done ? s(seen ? .statusDoneSeen : .statusDoneNew) : statusLabel(state)
     }
@@ -406,7 +406,7 @@ import Workspace
     static var branchRequired: String { s(.branchRequired) }
     static var branchInvalid: String { s(.branchInvalid) }
     static func branchExists(_ name: String) -> String { f(.branchExists, name) }
-    // Branch switcher (#114): «Есть незакоммиченные изменения (3 файла).»
+    // Branch switcher (HD-114): «Есть незакоммиченные изменения (3 файла).»
     static func branchDirty(_ files: String) -> String { f(.branchDirty, files) }
     static var branchDirtyHint: String { s(.branchDirtyHint) }
     static var branchDirtyNewHint: String { s(.branchDirtyNewHint) }
@@ -894,7 +894,7 @@ import Workspace
     static var diffInline: String { s(.diffInline) }
     static var diffSideBySide: String { s(.diffSideBySide) }
     static var editorMinimap: String { s(.editorMinimap) }
-    /// The editor's context menu (#81), handed to the page by key.
+    /// The editor's context menu (HD-081), handed to the page by key.
     static var editorMenu: [String: String] {
         ["definition": s(.editorMenuDefinition), "references": s(.editorMenuReferences), "rename": s(.editorMenuRename),
          "format": s(.editorMenuFormat), "comment": s(.editorMenuComment), "cut": s(.editorMenuCut),
@@ -1000,7 +1000,7 @@ import Workspace
     static var folderEmpty: String { s(.folderEmpty) }
     static var noGitFiles: String { s(.noGitFiles) }
     static var optionalToolsLabel: String { s(.optionalToolsLabel) }
-    // «<host> · терминал» (#64)
+    // «<host> · терминал» (HD-064)
     static var connectToHost: String { s(.connectToHost) }
     static var connectHostTitle: String { s(.connectHostTitle) }
     static var openTerminal: String { s(.openTerminal) }

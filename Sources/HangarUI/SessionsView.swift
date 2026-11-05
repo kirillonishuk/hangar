@@ -14,7 +14,7 @@ struct SessionsHost: View {
     }
 }
 
-/// «История» (⌘Y; the v2 list of #107, styled per spec §3.17): title, scope segment and search; the chips; one list by project.
+/// «История» (⌘Y; the v2 list of HD-107, styled per spec §3.17): title, scope segment and search; the chips; one list by project.
 struct SessionsView: View {
     let app: AppState
     @Bindable var model: SessionsModel

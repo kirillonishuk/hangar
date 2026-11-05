@@ -3,7 +3,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Crash-safe worktree removal (decision #59): a quit mid-way leaves only `<path>.hangar-removing`.
+/// Crash-safe worktree removal (decision HD-059): a quit mid-way leaves only `<path>.hangar-removing`.
 let tombstoneSuffix = ".hangar-removing"
 
 /// One atomic rename to a sibling tombstone, then `worktree prune` (its lock lifted first). Returns the tombstone; deleting
@@ -100,7 +100,7 @@ func linkedWorktree(_ path: String, mainFolder: String, runner: Runner) async th
     return r.status == 0 && r.stdout.hasPrefix("/") ? r.stdout : nil
 }
 
-/// Restore's folder step (decision #57): a valid worktree stays; one with `.git` (even a dangling link) gets
+/// Restore's folder step (decision HD-057): a valid worktree stays; one with `.git` (even a dangling link) gets
 /// `git worktree repair` and is otherwise left untouched (`.failed`). A folder without `.git` is touched only when its
 /// name is the branch's worktree name: empty, it goes; with files, it is renamed to `<path>.hangar-orphan-<time>`
 /// (`.restoredKeeping`). Never deletes user files.

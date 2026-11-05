@@ -10,7 +10,7 @@
 
 **Tech Stack:** Swift 6.3, Swift Testing, AppKit + SwiftUI, `UserNotifications`, POSIX сокеты (`socket`/`bind`/`accept`, `DispatchSource`), `Process`, macOS 14+.
 
-**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `AgentStatus`/`Usage`/`ControlServer`/`hangar`, §4, §5, §5.1, §6 (⌘Q), §7 (только `event` и `statusline`), §8, §9, §10). Решения — `docs/decisions.md` (#12–#15, #25–#30, #26, #34, #38, #39, #41, #42; новое #43 — Task 1; открытые вопросы спайка). Дизайн — `docs/design/DESIGN.md` (статусы, ореол waiting, лимиты, «Блок/Поповер лимитов», курсор), макеты `docs/superpowers/mockups/limits.html`, `icons-sidebar.html`. Правила — `AGENTS.md`.
+**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `AgentStatus`/`Usage`/`ControlServer`/`hangar`, §4, §5, §5.1, §6 (⌘Q), §7 (только `event` и `statusline`), §8, §9, §10). Решения — `docs/decisions.md` (HD-012–HD-015, HD-025–HD-030, HD-026, HD-034, HD-038, HD-039, HD-041, HD-042; новое HD-043 — Task 1; открытые вопросы спайка). Дизайн — `docs/design/DESIGN.md` (статусы, ореол waiting, лимиты, «Блок/Поповер лимитов», курсор), макеты `docs/superpowers/mockups/limits.html`, `icons-sidebar.html`. Правила — `AGENTS.md`.
 
 ## Global Constraints
 
@@ -60,11 +60,11 @@ Sources/HangarUI/LimitsView.swift          блок лимитов + попов�
 Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
 ```
 
-### Task 1: Решение #43, спека и модуль `AgentStatus`
+### Task 1: Решение HD-043, спека и модуль `AgentStatus`
 
 **Files:**
 - Create: `Sources/AgentStatus/AgentStatus.swift`, `Tests/AgentStatusTests/AgentStatusTests.swift`
-- Modify: `Package.swift` (`.target(name: "AgentStatus")`, `.testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"])`), `docs/decisions.md` (#43), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2, §5, §5.1, §8), `docs/design/DESIGN.md` («Блок лимитов (этап 5)» → этап 3; строка задачи: точка в жёлобке, иконка worktree в конце строки, в рейке — точка в углу монограммы, как в `icons-sidebar.html`)
+- Modify: `Package.swift` (`.target(name: "AgentStatus")`, `.testTarget(name: "AgentStatusTests", dependencies: ["AgentStatus"])`), `docs/decisions.md` (HD-043), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2, §5, §5.1, §8), `docs/design/DESIGN.md` («Блок лимитов (этап 5)» → этап 3; строка задачи: точка в жёлобке, иконка worktree в конце строки, в рейке — точка в углу монограммы, как в `icons-sidebar.html`)
 
 **Interfaces:**
 - Produces:
@@ -78,7 +78,7 @@ Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
   - `public struct Transition: Equatable, Sendable { public var leaf: UUID; public var from: AgentState; public var to: AgentState }`
   - `public struct StatusBoard: Equatable, Sendable { public private(set) var leaves: [UUID: LeafStatus]; public init(); public func status(_ leaf: UUID) -> LeafStatus; public mutating func apply(_ signal: AgentSignal, leaf: UUID) -> Transition? /* nil — состояние не изменилось */; public mutating func retain(_ live: Set<UUID>); public var workingCount: Int }`
 
-- [ ] **Step 1: Запись #43 в `decisions.md`** (формат журнала). Содержание: решения контроллера (модули `AgentStatus`, `Usage`, минимальный `ControlServer` — только `event` и `usage`, остальные типы — этап 5; CLI только `event`/`statusline`; установка с согласием/diff/копией/откатом; запасные пути; уведомления; ⌘Q; лимиты — пороги 80/95, одно уведомление на пересечение, без опроса) и решения этого плана:
+- [ ] **Step 1: Запись HD-043 в `decisions.md`** (формат журнала). Содержание: решения контроллера (модули `AgentStatus`, `Usage`, минимальный `ControlServer` — только `event` и `usage`, остальные типы — этап 5; CLI только `event`/`statusline`; установка с согласием/diff/копией/откатом; запасные пути; уведомления; ⌘Q; лимиты — пороги 80/95, одно уведомление на пересечение, без опроса) и решения этого плана:
   - env `HANGAR_LEAF_ID` (id листа) рядом с `HANGAR_TAB_ID`: статус — на лист (сплиты, панель TERMINAL, где `HANGAR_TAB_ID` = id листа); событие с tab, не владеющим leaf, игнорируется.
   - CLI лежит в `Hangar.app/Contents/Helpers/hangar`, а не в `Contents/MacOS/hangar`: APFS по умолчанию нечувствительна к регистру, `MacOS/hangar` совпал бы с `MacOS/Hangar`.
   - Hooks Claude: `SessionStart` (id сессии), `UserPromptSubmit` → working, `PostToolUse` (matcher `*`) → working (выход из waiting после разрешения), `Notification` → waiting только для `permission_prompt`/`elicitation_dialog` (`idle_prompt` иначе превращал бы каждый done в waiting), `Stop` → done, `StopFailure` matcher `rate_limit` → failed + `limitReached`; у каждого `"timeout": 5`. Прерывание (Esc) не вызывает `Stop` — статус остаётся working до следующего промпта (ограничение Claude Code).
@@ -90,7 +90,7 @@ Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
   - Ключи конфига `notifications = true|false`, `limit_notifications = true|false` (по умолчанию `true`, голые bool).
   - Лимиты без таймера: прошедшее окно сбрасывается при отрисовке (а она — при сообщении, открытии поповера, активации приложения). Резервный источник Codex (rollout) и `UsageLimitExceeded` — после установки codex.
   - Отвергнуто: `MacOS/hangar`; статус на вкладку вместо листа; `JSONSerialization` (теряет порядок ключей); отдельный файл с исходной статус-лайной; таймер сброса окна; опрос `codex app-server`.
-- [ ] **Step 2: Спека.** §2: модуль `Integration` (правка файлов агентов) в таблицу; `ControlServer` на этапе 3 — типы `event`, `usage`. §5: env `HANGAR_LEAF_ID`; список hooks и правило `Notification` из #43; запасные пути — по #43. §5.1: путь CLI `Contents/Helpers/hangar`; хранение исходной статус-лайны в команде. §8: «сокет занят» — активировать существующий экземпляр по `connect` (#43).
+- [ ] **Step 2: Спека.** §2: модуль `Integration` (правка файлов агентов) в таблицу; `ControlServer` на этапе 3 — типы `event`, `usage`. §5: env `HANGAR_LEAF_ID`; список hooks и правило `Notification` из HD-043; запасные пути — по HD-043. §5.1: путь CLI `Contents/Helpers/hangar`; хранение исходной статус-лайны в команде. §8: «сокет занят» — активировать существующий экземпляр по `connect` (HD-043).
 - [ ] **Step 3: Тесты** (`AgentStatusTests`, RED):
   - `foldTable` — таблица (исходное состояние, сигнал) → ожидаемое: все строки правил из Interfaces, включая `notification` с `"idle_prompt"` → без изменений и `bell` при `claudeHooks == true` → без изменений.
   - `promptStopCycle` — `session-start(s: "abc")` → idle, `sessionId == "abc"`, `claudeHooks`; `prompt` → working; `notification("permission_prompt")` → waiting; `tool` → working; `stop` → done.
@@ -103,7 +103,7 @@ Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
 - [ ] **Step 4:** Run: `swift test --filter AgentStatusTests` — Expected: FAIL (нет модуля).
 - [ ] **Step 5: Реализовать** модуль по Interfaces.
 - [ ] **Step 6:** Run: `swift test --filter AgentStatusTests` — Expected: PASS.
-- [ ] **Step 7: Commit** — `git add Package.swift Sources/AgentStatus Tests/AgentStatusTests docs && git commit -m "feat(status): AgentStatus folding; decision #43"`
+- [ ] **Step 7: Commit** — `git add Package.swift Sources/AgentStatus Tests/AgentStatusTests docs && git commit -m "feat(status): AgentStatus folding; decision HD-043"`
 
 ### Task 2: Модуль `ControlServer` — протокол, сервер, клиент
 
@@ -192,7 +192,7 @@ Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
   - `public struct UsageAlert: Equatable, Sendable { public var agent: UsageAgent; public var kind: WindowKind?; public var level: UsageLevel /* .warn | .full */; public var percent: Double? }`
   - `public struct UsageBoard: Equatable, Sendable { public init(); public mutating func update(_ agent: UsageAgent, windows: [UsageWindow], plan: String?, now: Date) -> [UsageAlert]; public mutating func markLimitReached(_ agent: UsageAgent, now: Date) -> [UsageAlert]; public func view(_ agent: UsageAgent, now: Date) -> AgentUsage?; public func level(_ agent: UsageAgent, now: Date) -> UsageLevel? }` — `update` заменяет окна агента целиком (план — если не nil); уведомление — при росте уровня окна выше уже уведомлённого для (агент, вид, `resetsAt`); новое `resetsAt` — снова можно. `markLimitReached`: `limitReached = true`, `limitResetsAt` = `resetsAt` самого заполненного окна; один `.full` с `kind: nil` до сброса. `limitReached` снимается, когда пришло обновление со всеми окнами < 95 или `limitResetsAt` прошло. `view`: окна с `resetsAt <= now` — `usedPercent = 0`; нет данных → nil.
   - `public struct CodexUsageReader: Sendable { public init(executable: String, timeout: Duration = .seconds(10)); public func read(now: Date) async throws -> AgentUsage }` — `<executable> app-server`, в stdin строки `{"method":"initialize","id":0,"params":{"clientInfo":{"name":"hangar","title":"Hangar","version":"0.3"}}}`, `{"method":"initialized"}`, `{"method":"account/rateLimits/read","id":1}`; читает stdout построчно до ответа с `"id":1`; `result` → `codexUsage`, `error` / нет окон / таймаут / выход процесса → throw; процесс завершается (`terminate`) в любом случае (`// verify`).
-  - `public func resolveCodex(runner: Runner, shell: String) async -> String?` — `<shell> -l -i -c 'command -v codex'`, абсолютный путь или nil (#27).
+  - `public func resolveCodex(runner: Runner, shell: String) async -> String?` — `<shell> -l -i -c 'command -v codex'`, абсолютный путь или nil (HD-027).
   - `public struct CodexRefreshGate: Sendable { public init(); public mutating func begin(afterTurn: Bool, now: Date) -> Bool; public mutating func end(now: Date) }` — одновременно не больше одного чтения; после конца хода — только если прошлое завершилось ≥ 60 с назад; открытие поповера и ↻ — без минутного ограничения.
 
 - [ ] **Step 1: Тесты** (RED):
@@ -455,7 +455,7 @@ Sources/HangarUI/IntegrationModel.swift, IntegrationSheet.swift
 ### Task 13: Приёмка этапа
 
 **Files:**
-- Modify: `docs/decisions.md` (дополнение #43 по ходу этапа, «Замеры» этапа 3, открытые вопросы Codex — без изменений: «проверить, когда codex будет установлен»), `docs/superpowers/plans/2026-10-20-hangar-stage3.md` (отметки, «Нужна проверка глазами»)
+- Modify: `docs/decisions.md` (дополнение HD-043 по ходу этапа, «Замеры» этапа 3, открытые вопросы Codex — без изменений: «проверить, когда codex будет установлен»), `docs/superpowers/plans/2026-10-20-hangar-stage3.md` (отметки, «Нужна проверка глазами»)
 
 - [x] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS (показать сводку).
 - [~] **Step 2 (частично): Сценарий с настоящим Claude** без касания `~/.claude`: `scripts/bundle.sh`; DEBUG-сборка с `HANGAR_STATE_DIR=/tmp/hg-a/state HANGAR_CONFIG=/tmp/hg-a/config.toml HANGAR_CLAUDE_SETTINGS=/tmp/hg-a/claude.json`, в `/tmp/hg-a/config.toml` — `[agents] claude = "claude --settings /tmp/hg-a/claude.json"`; установить интеграцию в окне настроек (в `/tmp/hg-a/claude.json`). Задача с claude: промпт → working (голубая), запрос разрешения на Bash → waiting (ореол, импульс, уведомление при скрытой вкладке, клик — вкладка в фокусе), разрешить → working, ответ → done; ⌘Q во время работы — алерт; ⌘Q в простое → открыть → вкладка возобновилась `--resume <id>` (в логе `launch … restoring=true`, id из `state.json`); после первого ответа — блок лимитов claude с реальными процентами; исходная статус-лайна (если была в `--settings`-файле) печатается как раньше.

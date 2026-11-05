@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Git
 
-/// `show(rev:path:)`: a file's text at a revision, the original side of the Monaco diff (#80).
+/// `show(rev:path:)`: a file's text at a revision, the original side of the Monaco diff (HD-080).
 @Suite struct ShowFileTests {
     @Test func fileAtRevisionOrNil() async throws {
         let t = try TempRepo(); defer { t.cleanup() }

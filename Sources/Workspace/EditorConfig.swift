@@ -1,6 +1,6 @@
 import Foundation
 
-/// A color of the editor theme (#108): a syntax group, a part of the editor, a diff tint. The raw value is the id in
+/// A color of the editor theme (HD-108): a syntax group, a part of the editor, a diff tint. The raw value is the id in
 /// `editor_color_<id>`; «Своя» keeps only the changed ones.
 public enum EditorColor: String, Sendable, CaseIterable {
     case keyword, control, string, escape, regexp, comment, number, type, function, variable, constant
@@ -21,7 +21,7 @@ public enum EditorColor: String, Sendable, CaseIterable {
     }
 }
 
-/// Settings → Appearance options (#108): what Monaco is created and updated with.
+/// Settings → Appearance options (HD-108): what Monaco is created and updated with.
 public struct EditorOptions: Equatable, Sendable {
     /// nil: the system monospace font (SF Mono).
     public var fontFamily: String?

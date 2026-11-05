@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// «Copy into new worktrees» + setup command (decision #58), on real temp repos.
+/// «Copy into new worktrees» + setup command (decision HD-058), on real temp repos.
 @MainActor @Suite struct WorktreeSetupTests {
     /// Repo with a committed `.gitignore` and typical ignored items next to tracked / untracked-not-ignored ones.
     private func repo() async throws -> TempRepo {
@@ -265,7 +265,7 @@ import Workspace
         let shell = try #require(task.tabs.last?.root.leaves.first)
         #expect(shell.kind == .shell && shell.cwd == wt)
         #expect(app.launchContext(for: shell.id) == .created(prompt: "npm install"))
-        // Never saved (#127): a restart brings back the agent tab only, still in front.
+        // Never saved (HD-127): a restart brings back the agent tab only, still in front.
         #expect(app.setupLeaves == [shell.id])
         let saved = try #require(app.savedState.tasks.first { $0.id == created.task })
         #expect(saved.tabs.map(\.id) == [created.tab] && saved.activeTabId == created.tab)
@@ -300,7 +300,7 @@ import Workspace
         #expect(app.state(ofLeaf: leaf.id) == .idle)
     }
 
-    /// The setup script is the tab's whole run: its code is the tab's (0 closes it), a failed copy is never 0 (#127).
+    /// The setup script is the tab's whole run: its code is the tab's (0 closes it), a failed copy is never 0 (HD-127).
     @Test func shellRunsOnlySetup() throws {
         let leaf = Leaf(kind: .shell, cwd: "/w")
         let cmd = agentCommand(for: leaf, agent: { $0.rawValue }, shell: "'/bin/zsh'", restoring: false,

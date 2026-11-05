@@ -16,7 +16,7 @@ extension Theme {
 }
 
 extension Theme {
-    /// Settings window (spec §3.18): the category list (216, `bg1`) on the left, the page on the right; resizable (#109).
+    /// Settings window (spec §3.18): the category list (216, `bg1`) on the left, the page on the right; resizable (HD-109).
     public static let settingsSize = NSSize(width: 970, height: 600)
     public static let settingsMinSize = NSSize(width: 680, height: 440)
     public static let settingsSidebarWidth: CGFloat = 216
@@ -30,11 +30,11 @@ extension Theme {
     public static let settingsSectionGap: CGFloat = Space.s3
     /// A card row: `cardRow` = `controlRegular` + 6 / 6.
     public static let settingsRowPaddingV: CGFloat = (Height.cardRow - Height.controlRegular) / 2
-    /// Settings' status line preview (#105): one terminal row, faint text at half the foreground as Ghostty draws it.
+    /// Settings' status line preview (HD-105): one terminal row, faint text at half the foreground as Ghostty draws it.
     public static let statuslinePreviewHeight: CGFloat = Height.controlRegular
     public static let statuslinePreviewPaddingH: CGFloat = Space.s3
     public static let statuslineBarHeavy: CGFloat = 2
-    /// Where a dragged part's chip lands (#110).
+    /// Where a dragged part's chip lands (HD-110).
     public static let statuslineDropLine: CGFloat = 2
     /// A preview line wider than the card fades out over its last points instead of being cut.
     public static let statuslinePreviewFade: CGFloat = Space.s8
@@ -44,7 +44,7 @@ extension Theme {
     public static let themeTileRadius: CGFloat = Radius.popover
     public static let themeTileBorder: CGFloat = 2
     public static let themeTileStrip: CGFloat = 22
-    /// Integrations (#111): the agent's logo by its title, the gap under a row's title, «Где установлено» items.
+    /// Integrations (HD-111): the agent's logo by its title, the gap under a row's title, «Где установлено» items.
     public static let integrationTitleIcon: CGFloat = Icon.toolbar
     public static let integrationSubGap: CGFloat = 2
     public static let integrationWhereGap: CGFloat = Space.s3

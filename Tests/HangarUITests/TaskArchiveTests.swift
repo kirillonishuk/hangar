@@ -128,7 +128,7 @@ import TestSupport
         #expect(try await t.git("branch", "--list", "x", in: t.repo) != "")
     }
 
-    /// A sub-chat in its parent's worktree (#131): `x` and the sub-chat share `wt`.
+    /// A sub-chat in its parent's worktree (HD-131): `x` and the sub-chat share `wt`.
     private func shared(_ app: AppState, parent: UUID) throws -> UUID {
         var sub: UUID?
         app.perform { sub = $0.addSubSession(parent: parent, name: "sub", kind: .shell)?.task }
@@ -264,7 +264,7 @@ import TestSupport
         #expect(archived(app, id))
     }
 
-    /// Crash-safe archive (#59): the folder leaves its place in one rename, so a quit mid-removal
+    /// Crash-safe archive (HD-059): the folder leaves its place in one rename, so a quit mid-removal
     /// leaves only `<path>.hangar-removing`, never a half folder at `<path>`.
     @Test func archiveRenamesToTombstoneFirst() async throws {
         let (t, app, id, _, wt, _, _) = try await make()
@@ -276,7 +276,7 @@ import TestSupport
         #expect(await waitUntil { !exists(wt + ".hangar-removing") })
     }
 
-    /// #105: Hangar's status line override in the worktree is taken out first, so it does not make the archive «at risk».
+    /// HD-105: Hangar's status line override in the worktree is taken out first, so it does not make the archive «at risk».
     @Test func archiveTakesStatuslineOverrideOut() async throws {
         let (t, app, id, _, wt, _, _) = try await make()
         defer { t.cleanup() }
@@ -381,7 +381,7 @@ import TestSupport
             bad = s.addTask(projectId: pid, name: "bad", mode: .worktree(path: t.repo, branch: "main", base: "main"))
             bad2 = s.addTask(projectId: pid, name: "bad2", mode: .worktree(path: t.repo + "/", branch: "main", base: "main"))
         }
-        // The main-folder chat works there (#132): the folder is theirs, not even checked.
+        // The main-folder chat works there (HD-132): the folder is theirs, not even checked.
         #expect(await app.archiveRemovingWorktree(bad2, force: true) == .archived(worktreeRemoved: false))
         app.perform { $0.archiveTask(id: main) }
         let outcome = await app.archiveRemovingWorktree(bad, force: true)

@@ -6,7 +6,7 @@ import Workspace
 /// How long a stopped action gets after ⌃C before its terminal is closed (hang-up) anyway.
 let actionStopGrace: TimeInterval = 3
 
-/// A launch of an action leaf (#133): only a run that was asked for (its command is the prompt), a retry of a launch that
+/// A launch of an action leaf (HD-133): only a run that was asked for (its command is the prompt), a retry of a launch that
 /// never ran, or a remote reattach (its tmux session may still run it); never a restore or a plain ↩ relaunch.
 func actionLaunches(_ context: LaunchContext, remote: Bool) -> Bool {
     switch context {
@@ -29,7 +29,7 @@ enum ActionRunError: Error, Equatable {
     case missingFolder(String)
 }
 
-/// Project actions (#133): the list of a chat, runs, restarts and stops.
+/// Project actions (HD-133): the list of a chat, runs, restarts and stops.
 extension AppState {
     /// The chat's folder when it is a project's chat (not a chat without a project, not a host's terminal).
     func actionsFolder(of task: HangarTask) -> String? {

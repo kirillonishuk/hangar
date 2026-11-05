@@ -54,7 +54,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     static let initialized = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS
 
     /// Theme switch: rebuilds the config; `ghostty_app_update_config` hands it to every open surface,
-    /// which replays the same layers, so open terminals recolor too (decision #87; checked live with a user `theme`).
+    /// which replays the same layers, so open terminals recolor too (decision HD-087; checked live with a user `theme`).
     public func update(colors: TerminalColors) {
         guard let app else { return }
         let cfg = Self.buildConfig(colors, padding: padding)
@@ -86,7 +86,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
     }
 
     /// Hangar's two files: `defaults` (before the user's files, theirs win) and `overrides` (after them): background,
-    /// text and cursor are always the app theme's (#109), over the user's config and Ghostty theme.
+    /// text and cursor are always the app theme's (HD-109), over the user's config and Ghostty theme.
     static func layers(_ colors: TerminalColors, padding: (x: Int, y: Int)?, userPalette: Bool,
                        userFont: Bool) -> (defaults: String, overrides: String) {
         let defaults = defaultsConfig(padding: padding, palette: userPalette ? [] : colors.palette, font: userFont ? nil : defaultFont)
@@ -110,7 +110,7 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         return differs("palette", ghostty_config_palette_s())
     }
 
-    /// The terminal's font when the user's Ghostty config names none (#112): SF Mono, one mono with the editor and the UI.
+    /// The terminal's font when the user's Ghostty config names none (HD-112): SF Mono, one mono with the editor and the UI.
     /// By the system's own family name: "SF Mono" isn't a findable family unless installed separately (Ghostty: not found).
     static let defaultFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular).familyName ?? ".AppleSystemUIFontMonospaced"
 

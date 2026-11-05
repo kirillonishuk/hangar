@@ -4,7 +4,7 @@ import Git
 import Testing
 @testable import HangarUI
 
-/// The guard in front of `mv` + `rm -rf` (#59): only a linked worktree's top folder of this very repo goes; restore
+/// The guard in front of `mv` + `rm -rf` (HD-059): only a linked worktree's top folder of this very repo goes; restore
 /// never deletes a folder that may hold the user's files.
 @Suite struct WorktreeGuardTests {
     /// Repo with linked worktree `x` (branch x) at `<repo>.worktrees/x`, which has a `sub` folder.

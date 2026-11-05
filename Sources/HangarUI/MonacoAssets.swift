@@ -3,7 +3,7 @@ import WebKit
 import Workspace
 
 extension Theme {
-    /// The Monaco editor and diff (#80): code font and the page's own chrome (bars, buttons).
+    /// The Monaco editor and diff (HD-080): code font and the page's own chrome (bars, buttons).
     enum Editor {
         static let buttonFont: CGFloat = Theme.Typography.secondary.size
         /// The conflict / notice bar above the text.
@@ -20,7 +20,7 @@ func cssHex(_ color: NSColor, alpha: Double? = nil) -> String {
     return "#" + h(c.redComponent) + h(c.greenComponent) + h(c.blueComponent) + (alpha.map { h(CGFloat($0)) } ?? "")
 }
 
-/// Hangar's Monaco theme (#80, #84, #108): the editor theme's colors (syntax rules for Monarch tokens and tsserver's
+/// Hangar's Monaco theme (HD-080, HD-084, HD-108): the editor theme's colors (syntax rules for Monarch tokens and tsserver's
 /// semantic types, the editor's parts, diff tints) inside the app theme's chrome (widgets, menus, peek, scrollbars).
 enum MonacoTheme {
     static func json(_ t: EditorTheme) -> [String: Any] {

@@ -32,7 +32,7 @@ public enum TranscriptSync: Equatable, Sendable {
     case skipped
 }
 
-/// A relinked worktree's claude conversation `id` (#122), run when its tab next launches: the transcript (found as claude
+/// A relinked worktree's claude conversation `id` (HD-122), run when its tab next launches: the transcript (found as claude
 /// would, `projects/*/<id>.jsonl`, the folder of `recordedIn` first) is copied to the folder claude reads from `cwd`, so
 /// `--resume` continues it there. Copy only: the original stays. Lines whose top-level `cwd` is the transcript's own first
 /// `cwd` or `recordedIn` get `cwd`; every other byte is kept; the `<id>/` folder next to it (subagents) is copied as is.

@@ -71,7 +71,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 44)  // + runAction ⌘R (#133), newSubSession (#128)  // + inspectorGit (C), sessions (D), findInFiles (#91), nextAttention (#96), newFreeChat
+        #expect(Shortcut.allCases.count == 44)  // + runAction ⌘R (HD-133), newSubSession (HD-128)  // + inspectorGit (C), sessions (D), findInFiles (HD-091), nextAttention (HD-096), newFreeChat
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -81,18 +81,18 @@ import Testing
         #expect(shortcut(keyCode: 15, modifiers: [.command, .option]) == .revealInFinder)
         #expect(shortcut(keyCode: 8, modifiers: [.command, .option]) == .copyPath)
         #expect(shortcut(keyCode: 20, modifiers: [.command, .option]) == .inspectorGit)  // ⌥⌘3 (redesign v1)
-        // ⌘1/⌘2 stay tabs; ⌥⌘4 is the silent alias of ⇧⌘F (#91), ⌥⌘5…9 are free.
+        // ⌘1/⌘2 stay tabs; ⌥⌘4 is the silent alias of ⇧⌘F (HD-091), ⌥⌘5…9 are free.
         #expect(shortcut(keyCode: 18, modifiers: .command) == .tab(1))
         #expect(shortcut(keyCode: 19, modifiers: .command) == .tab(2))
         #expect(shortcut(keyCode: 21, modifiers: [.command, .option]) == .findInFiles)
         #expect(shortcut(keyCode: 23, modifiers: [.command, .option]) == nil)
-        #expect(shortcut(keyCode: 15, modifiers: .command) == .runAction)  // ⌘R: the last project action (#133)
+        #expect(shortcut(keyCode: 15, modifiers: .command) == .runAction)  // ⌘R: the last project action (HD-133)
         #expect(shortcut(keyCode: 8, modifiers: .command) == nil)  // ⌘C is the terminal's copy
         #expect(Action.revealInFinder.shortcut == .revealInFinder)
         #expect(Action.copyPath.shortcut == .copyPath)
     }
 
-    /// ⇧⌘F find in files (#91): F by keyCode (А in the Russian layout); ⌘F and ⌥⌘F keep their meaning; labels show ⇧⌘F.
+    /// ⇧⌘F find in files (HD-091): F by keyCode (А in the Russian layout); ⌘F and ⌥⌘F keep their meaning; labels show ⇧⌘F.
     @Test func findInFilesKey() {
         #expect(shortcut(keyCode: 3, modifiers: [.command, .shift]) == .findInFiles)
         #expect(shortcut(keyCode: 3, modifiers: [.command, .option]) == .attentionFilter)
@@ -104,7 +104,7 @@ import Testing
         }
     }
 
-    /// ⌘B: the silent Pane-habit alias of ⌘0 (decision #39); labels show ⌘0 only.
+    /// ⌘B: the silent Pane-habit alias of ⌘0 (decision HD-039); labels show ⌘0 only.
     @Test func sidebarAlias() {
         #expect(shortcut(keyCode: 11, modifiers: .command) == .toggleSidebar)
         #expect(Shortcut.toggleSidebar.label == "⌘0")

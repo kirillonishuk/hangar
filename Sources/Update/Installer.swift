@@ -43,7 +43,7 @@ final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable
     }
 }
 
-/// Fetching, checking and installing a release (decision #86). No UI: `UpdateModel` (HangarUI) drives it.
+/// Fetching, checking and installing a release (decision HD-086). No UI: `UpdateModel` (HangarUI) drives it.
 public enum Updater {
     /// GET with the GitHub API headers; the system proxy applies (URLSession). Non-2xx HTTP → `.http(code)`.
     public static func fetch(_ url: URL, userAgent: String,
@@ -120,7 +120,7 @@ public enum Updater {
         return apps[0]
     }
 
-    /// The new app's signature must be intact (ad-hoc releases: integrity, not identity — decision #86).
+    /// The new app's signature must be intact (ad-hoc releases: integrity, not identity — decision HD-086).
     public static func verifySignature(_ app: URL) throws {
         let out = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path])
         guard out.status == 0 else { throw UpdateError.signature(out.error) }
@@ -156,7 +156,7 @@ public enum Updater {
     /// put back if the second fails), removes quarantine, detaches `mount`, relaunches. Failures go to `errorFile`.
     public static let script = #"""
     #!/bin/sh
-    # Hangar updater (decision #86): args pid source target mount errorfile relaunch [executable]
+    # Hangar updater (decision HD-086): args pid source target mount errorfile relaunch [executable]
     # System tools by absolute path; never the user's PATH. HANGAR_UPDATE_MV / HANGAR_UPDATE_WAIT are test-only.
     PATH=/usr/bin:/bin:/usr/sbin:/sbin
     export PATH

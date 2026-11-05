@@ -79,7 +79,7 @@ public func runningBackgroundTasks(_ raw: Any?) -> Int? {
     return min(going.count, 99)
 }
 
-/// Cuts a sub-session's result for the caller's context (#128): at most `max` characters, the cut marked.
+/// Cuts a sub-session's result for the caller's context (HD-128): at most `max` characters, the cut marked.
 public func compactResult(_ text: String?, max: Int) -> (text: String?, truncated: Bool) {
     guard let text, !text.isEmpty else { return (nil, false) }
     guard text.count > max else { return (text, false) }

@@ -156,7 +156,7 @@ public func checkServer(_ runner: Runner) async -> Result<ServerReport, SSHFailu
         return .failure(.exited(-1, String("\(error)".prefix(300))))
     }
     if r.status != 255, let report = parseServerReport(r.stdout) { return .success(report) }
-    // shortcut: csh/tcsh login shells are not supported (stage 6, #47); one cheap probe names the reason.
+    // shortcut: csh/tcsh login shells are not supported (stage 6, HD-047); one cheap probe names the reason.
     if r.status != 255, let probe = try? await runner.run(["/bin/sh", "-c", #"printf %s "$SHELL""#], ""), probe.status == 0,
        let shell = absolutePath(probe.stdout), ["csh", "tcsh"].contains((shell as NSString).lastPathComponent) {
         return .failure(.unsupportedShell(shell))
@@ -240,7 +240,7 @@ public func terminalScript(_ steps: [InstallStep]) -> String {
 let installLauncher = #"HANGAR_INSTALL=$1; export HANGAR_INSTALL; exec "${SHELL:-/bin/sh}" -l -i -c 'exec /bin/sh -c "$HANGAR_INSTALL"'"#
 
 /// The install terminal: `ssh -t` through the host's master runs exactly `terminalScript(steps)`, wrapped like a tab
-/// for the OSC 133 exit code (#26). The script reaches the server as one quoted word.
+/// for the OSC 133 exit code (HD-026). The script reaches the server as one quoted word.
 public func installTerminalSpec(target: RemoteTarget, steps: [InstallStep]) -> LaunchSpec {
     let ssh = [target.sshPath, "-t", "-e", "none"] + sshBaseArgs(controlPath: target.controlPath) + ["--", target.host]
     let inner = "TERM=xterm-256color " + ssh.map(shellQuote).joined(separator: " ") + " "

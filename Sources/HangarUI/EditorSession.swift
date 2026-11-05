@@ -1,7 +1,7 @@
 import Foundation
 
 /// The files of one editor tab on the Swift side: what was loaded (stamp), dirty, read-only, conflict; it reads and
-/// saves through `EditorIO` and tells the page what to show through `send` (#80). The buffers live in Monaco.
+/// saves through `EditorIO` and tells the page what to show through `send` (HD-080). The buffers live in Monaco.
 @MainActor final class EditorSession {
     struct File {
         var stamp: FileStamp?

@@ -19,7 +19,7 @@ public func validSSHHost(_ s: String) -> String? {
 }
 
 /// Where master and host sockets live: `<stateDir>/ssh/`, or `/tmp/hangar-<uid>/` when that would not fit
-/// the 104-byte `sun_path` (NUL included) together with the 17-byte suffix ssh appends while creating the master (#47).
+/// the 104-byte `sun_path` (NUL included) together with the 17-byte suffix ssh appends while creating the master (HD-047).
 public struct SSHPaths: Sendable, Equatable {
     public var stateDir: String
 
@@ -72,7 +72,7 @@ extension Runner {
     /// Runs argv on `host` through the master at `controlPath`; a failed login is status 255 with ssh's stderr.
     /// Cancel kills the local ssh. shortcut: the remote command may outlive a cancel; ok for short git calls.
     /// `maxOutput`: past that many bytes on a stream the ssh is killed and the stream cut (untrusted server output).
-    /// `path`: the login shell's PATH from the server check (#47); nil = the non-login PATH sshd gives.
+    /// `path`: the login shell's PATH from the server check (HD-047); nil = the non-login PATH sshd gives.
     public static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh", maxOutput: Int = .max,
                            path: String? = nil) -> Runner {
         Runner { args, cwd in

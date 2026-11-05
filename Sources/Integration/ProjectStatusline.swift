@@ -1,7 +1,7 @@
 import Exec
 import Foundation
 
-/// Hangar's status line in projects that set their own (#105): Claude Code prefers a project's `.claude/settings.json`
+/// Hangar's status line in projects that set their own (HD-105): Claude Code prefers a project's `.claude/settings.json`
 /// over the user's file, so Hangar puts its command into the project's `.claude/settings.local.json` (higher still).
 /// Every command Hangar writes there carries a mark (`ProjectStatuslineMark`); only marked commands are ever changed
 /// or taken back, so a `hangar statusline --then …` the user wrote by hand stays theirs. Other keys are never touched.

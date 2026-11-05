@@ -1,7 +1,7 @@
 import Exec
 import Foundation
 
-/// Hangar's MCP server in an agent's user config (#111), as read from the agent's own file (never `claude mcp get`:
+/// Hangar's MCP server in an agent's user config (HD-111), as read from the agent's own file (never `claude mcp get`:
 /// it starts the server to test it).
 public enum MCPEntry: Equatable, Sendable {
     case absent

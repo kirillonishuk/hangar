@@ -1,6 +1,6 @@
 import Foundation
 
-/// tsserver's stdout (#82): `Content-Length: N\r\n\r\n` + N bytes of JSON. Untrusted: a message over `maxMessage` is
+/// tsserver's stdout (HD-082): `Content-Length: N\r\n\r\n` + N bytes of JSON. Untrusted: a message over `maxMessage` is
 /// skipped unread, a header block without a valid length is dropped, a runaway header is cut, non-objects are ignored.
 struct TsFramer {
     static let defaultMaxMessage = 32 << 20

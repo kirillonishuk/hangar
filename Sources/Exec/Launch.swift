@@ -12,18 +12,18 @@ public enum LaunchError: Error, Equatable {
     case missingCwd(String)
     /// A remote project's host has no live master yet; the leaf waits for `onConnected`.
     case notConnected(host: String)
-    /// An agent tab waits for the answer to «Подключить Hangar к …?» (#111): its hooks must be in place before it starts.
+    /// An agent tab waits for the answer to «Подключить Hangar к …?» (HD-111): its hooks must be in place before it starts.
     case awaitingConsent
-    /// The leaf waits for work before it starts (a relinked chat's conversation copy, #122); started again when done.
+    /// The leaf waits for work before it starts (a relinked chat's conversation copy, HD-122); started again when done.
     case preparing
-    /// A project action's tab that was not asked to run (restored, or stopped for good, #133): ↩ runs it.
+    /// A project action's tab that was not asked to run (restored, or stopped for good, HD-133): ↩ runs it.
     case actionNotStarted
 }
 
 /// Command a terminal tab is started with. Ghostty runs it via /usr/bin/login (exit code always 0),
-/// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions #26, #27).
+/// so the command is wrapped to emit OSC 133 C/D with the real exit code (decisions HD-026, HD-027).
 /// `-l -i` is needed so PATH matches the user's terminal (~/.local/bin is set in ~/.zshrc).
-/// `hookCLI`: this app's `hangar`, for the hooks every claude tab gets on its command line (#119); nil — none.
+/// `hookCLI`: this app's `hangar`, for the hooks every claude tab gets on its command line (HD-119); nil — none.
 public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socketPath: String,
                        userShell: String, restoring: Bool, initialPrompt: String?, port: Int? = nil,
                        hookCLI: String? = nil) throws -> LaunchSpec {
@@ -39,11 +39,11 @@ public func launchSpec(for leaf: Leaf, tabId: UUID, config: HangarConfig, socket
                              hookCLI: hookCLI.map(shellQuote))
     let script = inner + #"; c=$?; printf "\e]133;C\a\e]133;D;%d\a" $c; exit $c"#
     var env = ["HANGAR_TAB_ID": tabId.uuidString, "HANGAR_LEAF_ID": leaf.id.uuidString, "HANGAR_SOCKET": socketPath]
-    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (#60)
+    env["HANGAR_PORT"] = port.map(String.init)  // the task's port (HD-060)
     return LaunchSpec(command: "\(shell) -l -i -c \(shellQuote(script))", cwd: leaf.cwd, env: env)
 }
 
-/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (#71).
+/// The account's login shell (what Ghostty.app and login(1) use); `$SHELL` is only the launching process's (HD-071).
 /// A shell that is not there (a Homebrew fish/bash since uninstalled, an Intel prefix after migration) is skipped,
 /// else every tab would fail to start.
 public func resolveUserShell(passwd: String?, env: String?,
@@ -67,7 +67,7 @@ public func posixShell(_ userShell: String) -> String {
 /// What the tab runs inside its shell, for local and remote launches alike; `agent` names the CLI per kind
 /// (locally `[agents]` from the config, on a server the bare name).
 /// A conversation is only ever resumed by its own id, never by recency (`--continue` / `resume --last` took the folder's
-/// latest chat, another tab's or terminal's, #119). A new claude conversation starts under the leaf's id (`--session-id`,
+/// latest chat, another tab's or terminal's, HD-119). A new claude conversation starts under the leaf's id (`--session-id`,
 /// given by the caller); a conversation never written (nothing was said: no transcript) starts under that same id instead.
 /// `hookCLI`: a shell word for `hangar` / `hangar-remote`; claude then gets Hangar's own hooks via `--settings`.
 public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: String,
@@ -77,12 +77,12 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
     let id = validSessionId(leaf.agentSessionId)
     switch leaf.kind {
     case .shell:
-        // A new worktree's setup script (#58) is the tab's whole run: its code ends the tab (0 closes it, #127). Its own
+        // A new worktree's setup script (HD-058) is the tab's whole run: its code ends the tab (0 closes it, HD-127). Its own
         // shell, so an `exit` in it still reaches the exit-code wrapper; `-i` keeps the user's functions and aliases.
         guard let script = initialPrompt, !script.isEmpty else { return "\(shell) -l -i" }
         return "\(shell) -i -c \(shellQuote(script))"
     case .editor, .choose:
-        // The editor is Monaco (#81) and a chooser runs nothing; neither launches a terminal, a shell if one ever does.
+        // The editor is Monaco (HD-081) and a chooser runs nothing; neither launches a terminal, a shell if one ever does.
         return "\(shell) -l -i"
     case .claude:
         let claude = agent(.claude) + (hookCLI.map { " --settings " + shellQuote(tabAgentSettings(hookCLI: $0)) } ?? "")
@@ -102,7 +102,7 @@ public func agentCommand(for leaf: Leaf, agent: (LeafKind) -> String, shell: Str
     }
 }
 
-/// `--settings` JSON with the hooks Hangar's control of a tab relies on (#119): the conversation id, from the tab's own agent
+/// `--settings` JSON with the hooks Hangar's control of a tab relies on (HD-119): the conversation id, from the tab's own agent
 /// only (`$PPID` of the hook's shell is that claude; a nested `claude -p` never gets these). They only track the conversation:
 /// the installed hooks (if any) still drive the status. A missing CLI (app moved, no `hangar-remote`) is a silent no-op.
 /// `--tab-agent` marks them: with `CLAUDE_CODE_SHELL_PREFIX` each hook's `$PPID` is another wrapper process.
@@ -115,12 +115,12 @@ public func tabAgentSettings(hookCLI: String) -> String {
     return String(decoding: data, as: UTF8.self)
 }
 
-/// Where a claude conversation stands on this Mac (#119): `resume` — its transcript was recorded in `cwd`; `start` — none
+/// Where a claude conversation stands on this Mac (HD-119): `resume` — its transcript was recorded in `cwd`; `start` — none
 /// (nothing was said), start it under its id; `foreign` — recorded in another folder, so claude would never find it from here.
 public enum TranscriptChoice: Equatable, Sendable { case resume, start, foreign }
 
 /// The transcript is `<configDir>/projects/*/<id>.jsonl` — first the folder claude names after `cwd` (a copy made for a
-/// moved worktree, #122, wins over the original elsewhere), then any; its folder is the first `cwd` among its first lines
+/// moved worktree, HD-122, wins over the original elsewhere), then any; its folder is the first `cwd` among its first lines
 /// (JSON, so escaped paths compare right). No `cwd` in them → this folder.
 public func transcriptChoice(id: String, cwd: String, configDir: URL) -> TranscriptChoice {
     let projects = configDir.appendingPathComponent("projects")
@@ -175,11 +175,11 @@ private func withPrompt(_ cmd: String, _ prompt: String?) -> String {
     return "\(cmd) \(shellQuote(prompt.hasPrefix("-") ? " " + prompt : prompt))"
 }
 
-/// What a launch passes to `launchSpec`; computed anew for every launch, never reused (decision #41).
+/// What a launch passes to `launchSpec`; computed anew for every launch, never reused (decision HD-041).
 public struct LaunchMode: Equatable, Sendable {
     public var restoring: Bool
     public var initialPrompt: String?
-    /// A restored agent tab had no conversation id (saved before #119): it starts anew and says so.
+    /// A restored agent tab had no conversation id (saved before HD-119): it starts anew and says so.
     public var unlinked: Bool
     public init(restoring: Bool, initialPrompt: String?, unlinked: Bool = false) {
         self.restoring = restoring

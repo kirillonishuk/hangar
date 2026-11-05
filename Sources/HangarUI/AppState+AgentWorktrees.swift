@@ -4,7 +4,7 @@ import Foundation
 import Git
 import Workspace
 
-/// Worktrees agents make and enter on their own (decision #134). Hangar adapts to them and only offers actions: nothing
+/// Worktrees agents make and enter on their own (decision HD-134). Hangar adapts to them and only offers actions: nothing
 /// on disk changes unless the user clicks «Удалить копию…» or «Скрыть от git локально…».
 extension AppState {
     /// How this project's paths compare with git's list: real paths on this Mac, as written on a server.
@@ -79,7 +79,7 @@ extension AppState {
     }
 
     /// «Сделать чатом этой копии»: the chat becomes the worktree chat of that copy — toolbar, Changes, Files, new tabs
-    /// and resume follow; its claude conversations are copied over at their next launch, as on «Обновить путь» (#122).
+    /// and resume follow; its claude conversations are copied over at their next launch, as on «Обновить путь» (HD-122).
     /// Running terminals and every file stay as they are.
     func adoptAgentWorktree(_ id: UUID) {
         guard let entry = agentElsewhere[id], let branch = entry.branch,
@@ -173,7 +173,7 @@ extension AppState {
 }
 
 /// «Удалить копию…»: always asks; then the same checks as archive (uncommitted changes, ignored files) and the same
-/// removal (#59, #132). The branch stays. A locked copy (the agent's `git worktree lock`) is never offered.
+/// removal (HD-059, HD-132). The branch stays. A locked copy (the agent's `git worktree lock`) is never offered.
 @MainActor func removeSpareWorktree(_ entry: WorktreeEntry, projectId: UUID, ctx: ActionContext, asked: Bool = false) async {
     let app = ctx.app
     guard let project = app.project(projectId), !entry.locked else { return }
@@ -192,7 +192,7 @@ extension AppState {
         ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
         return
     }
-    // The shared removal (#132): progress and «Повторить» over the chat area; a failure stays there, not in a dialog.
+    // The shared removal (HD-132): progress and «Повторить» over the chat area; a failure stays there, not in a dialog.
     func remove() async {
         if check == .missing {
             do { try await git.pruneWorktrees() } catch { ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription) }

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 
-/// JS → Swift messages are untrusted: only well-formed, bounded ones decode (#80).
+/// JS → Swift messages are untrusted: only well-formed, bounded ones decode (HD-080).
 @Suite struct EditorBridgeTests {
     private func msg(_ json: String) -> BridgeMessage? { BridgeMessage.decode(json) }
 
@@ -27,7 +27,7 @@ import Testing
         #expect(msg(#"{"type":"changed","file":"/r/a.ts","dirty":true}"#) == .changed(file: "/r/a.ts", dirty: true))
         #expect(msg(#"{"type":"save","file":"/r/a.ts","text":"x\ny"}"#) == .save(file: "/r/a.ts", text: "x\ny"))
         #expect(msg(#"{"type":"cursor","file":"/r/a.ts","line":3,"column":7}"#) == .cursor(file: "/r/a.ts", line: 3, column: 7))
-        // The tab strip is Hangar's (#83): the page no longer activates or closes files itself.
+        // The tab strip is Hangar's (HD-083): the page no longer activates or closes files itself.
         #expect(msg(#"{"type":"activate","file":"/r/a.ts"}"#) == nil)
         #expect(msg(#"{"type":"close","file":"/r/a.ts"}"#) == nil)
         #expect(msg(#"{"type":"openAt","line":12,"column":1}"#) == .openAt(line: 12, column: 1))
@@ -85,7 +85,7 @@ import Testing
         #expect((status?["status"] as? [String: Any])?["level"] as? String == "ready")
     }
 
-    /// M2 (#82): incremental edits, the language restart, completion details by name.
+    /// M2 (HD-082): incremental edits, the language restart, completion details by name.
     @Test func languageMessages() {
         #expect(msg(#"{"type":"edit","file":"/r/a.ts","changes":[{"line":1,"column":2,"endLine":1,"endColumn":4,"text":"ab"}]}"#)
                 == .edit(file: "/r/a.ts", [EditorEdit(line: 1, column: 2, endLine: 1, endColumn: 4, text: "ab")]))
@@ -104,7 +104,7 @@ import Testing
     @Test func renameAndFormat() {
         #expect(msg(#"{"type":"request","id":7,"kind":"rename","file":"/r/a.ts","line":2,"column":3}"#)
                 == .request(ProviderRequest(id: 7, kind: .rename, file: "/r/a.ts", line: 2, column: 3)))
-        // The new name rides along for LSP servers (#90); an empty or oversized one is refused.
+        // The new name rides along for LSP servers (HD-090); an empty or oversized one is refused.
         #expect(msg(#"{"type":"request","id":8,"kind":"rename","file":"/r/a.py","line":2,"column":3,"name":"total"}"#)
                 == .request(ProviderRequest(id: 8, kind: .rename, file: "/r/a.py", line: 2, column: 3, name: "total")))
         #expect(msg(#"{"type":"request","id":8,"kind":"rename","file":"/r/a.py","line":2,"column":3,"name":""}"#) == nil)
@@ -132,7 +132,7 @@ import Testing
         #expect(rejected?["kind"] as? String == "rejected" && rejected?["reason"] as? String == "no")
     }
 
-    /// One shared page for every file tab (#83): messages name their tab (`doc`, a UUID), commands carry it back.
+    /// One shared page for every file tab (HD-083): messages name their tab (`doc`, a UUID), commands carry it back.
     @Test func docsRouteMessagesAndCommands() throws {
         let id = UUID()
         let e = try #require(BridgeMessage.envelope(#"{"type":"changed","doc":"\#(id.uuidString)","file":"/r/a.ts","dirty":true}"#))

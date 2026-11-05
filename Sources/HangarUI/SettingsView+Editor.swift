@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Settings → Appearance (#85, #108, #109, editor-theme.html): the app theme tiles, each carrying its editor theme;
+/// Settings → Appearance (HD-085, HD-108, HD-109, editor-theme.html): the app theme tiles, each carrying its editor theme;
 /// then the editor: «Как у темы / Своя», «Цвета» (the preview pinned above the list while the list scrolls) and the
 /// editor's options. Everything fits the window's minimum width.
 extension SettingsView {
@@ -234,7 +234,7 @@ extension SettingsView {
 // MARK: - Parts
 
 /// An app theme as a tile (themes-v1.html `.tcard`): a mini window in its own colours — title bar, sidebar and a few
-/// lines of code in the editor theme it carries (#109) — over its name; the chosen one is outlined in the current `accent`.
+/// lines of code in the editor theme it carries (HD-109) — over its name; the chosen one is outlined in the current `accent`.
 private struct AppThemeTile: View {
     let theme: AppTheme
     let selected: Bool

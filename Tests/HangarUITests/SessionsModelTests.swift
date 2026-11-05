@@ -6,7 +6,7 @@ import TestSupport
 @testable import HangarUI
 import Workspace
 
-/// «Сессии» (⌘Y, #107): one list by project, archived sessions as rows, scope, chips, search, state words, routing.
+/// «Сессии» (⌘Y, HD-107): one list by project, archived sessions as rows, scope, chips, search, state words, routing.
 @MainActor @Suite struct SessionsModelTests {
     private static let utc: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -360,7 +360,7 @@ import Workspace
         }
         #expect(try row(idA).place == .none)  // its folder's sessions are closed, but none of them holds it
         await m.perform(m.action(for: try row(idA)), ctx: ActionContext(app: w.app))
-        #expect(try firstCommand(idA).contains("--resume \(idA)"))  // resumes it by its transcript (#119)
+        #expect(try firstCommand(idA).contains("--resume \(idA)"))  // resumes it by its transcript (HD-119)
         #expect(w.app.state.tasks.filter(\.archived).count == 3)  // nothing restored
 
         w.app.showSessionsView()
@@ -370,7 +370,7 @@ import Workspace
         #expect(m.action(for: try row(idA)) == .focus(leaf: aLeaf))
         #expect(try row(idB).place == .none)  // not into A's session: one of its own
         await m.perform(m.action(for: try row(idB)), ctx: ActionContext(app: w.app))
-        #expect(try firstCommand(idB).contains("--resume \(idB)"))  // resumes it by its transcript (#119)
+        #expect(try firstCommand(idB).contains("--resume \(idB)"))  // resumes it by its transcript (HD-119)
         #expect(w.app.selectedTask?.id != a.id && w.app.selectedTask?.name == "JS-14485")
         #expect(w.app.state.tasks.first { $0.id == a.id }?.tabs.count == 1)  // A untouched
         let leaves = w.app.state.tasks.flatMap(\.tabs).flatMap(\.root.leaves).compactMap(\.agentSessionId)
@@ -593,7 +593,7 @@ import Workspace
         #expect(m.scope == .all && m.projects.map(\.id) == [local])
     }
 
-    /// ⌘Y lists every project (a host terminal selected too, #64); a project's menu or link scopes it, «Все» resets.
+    /// ⌘Y lists every project (a host terminal selected too, HD-064); a project's menu or link scopes it, «Все» resets.
     @Test func allProjectsByDefaultAndScopedFromAProject() async throws {
         let w = world()
         var other = UUID(), shell = UUID(), otherClosed = UUID()
@@ -778,7 +778,7 @@ import Workspace
         #expect(name.count <= 40 && name.hasPrefix("fix the"))
     }
 
-    /// Rows under an empty project (#125): «+ Новый чат» always, «Архив · N» only with archived chats; none while
+    /// Rows under an empty project (HD-125): «+ Новый чат» always, «Архив · N» only with archived chats; none while
     /// it lists a chat.
     @Test func emptyProjectRows() {
         let w = world()

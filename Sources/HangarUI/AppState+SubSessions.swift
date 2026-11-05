@@ -3,7 +3,7 @@ import ControlServer
 import Foundation
 import Workspace
 
-/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, #128, #131): done detection, `sessions_wait` and the user's
+/// Sub-sessions (spec `2026-11-04-sub-sessions-design.md`, HD-128, HD-131): done detection, `sessions_wait` and the user's
 /// notification. Nothing is ever sent to the parent's terminal.
 extension AppState {
     // MARK: Model
@@ -32,7 +32,7 @@ extension AppState {
     // MARK: Creation
 
     /// MCP/CLI `sessions_spawn` and the «New Sub-chat» sheet: the sub-session, its agent started at once with the prompt.
-    /// It works in the parent's own folder (the same worktree or main folder, #131); `worktree` — in a new worktree instead.
+    /// It works in the parent's own folder (the same worktree or main folder, HD-131); `worktree` — in a new worktree instead.
     func spawnSubSession(parent parentId: UUID, name: String, prompt: String, kind: LeafKind, worktree: Bool,
                          base: String?) async -> Result<UUID, ControlError> {
         guard let parent = state.tasks.first(where: { $0.id == parentId && !$0.archived }) else {
@@ -62,7 +62,7 @@ extension AppState {
             if let setup {
                 let shell = s.addTab(taskId: c.task, kind: .shell)
                 s.tasks[i].activeTabId = c.tab
-                // Like `createTask` (#127): closes itself on success, never saved, a ⌃C still marks it failed.
+                // Like `createTask` (HD-127): closes itself on success, never saved, a ⌃C still marks it failed.
                 if let leaf = s.tasks[i].tabs.first(where: { $0.id == shell })?.root.leaves.first {
                     pendingPrompts[leaf.id] = setup
                     setupLeaves.insert(leaf.id)
@@ -171,7 +171,7 @@ extension AppState {
         })
     }
 
-    /// Fully finished (#131): the user is told, as for an agent that finished out of sight; nothing reaches the parent.
+    /// Fully finished (HD-131): the user is told, as for an agent that finished out of sight; nothing reaches the parent.
     /// The banner takes the place of the leaf's own «done» one (same id). Needs-input and errors already have the leaf's
     /// own banners (permission, question, failure), with their buttons.
     private func report(_ task: HangarTask, status: SubSessionStatus) {
@@ -182,7 +182,7 @@ extension AppState {
                                         sound: noticeSound(config.sounds["done"])))
     }
 
-    /// The agent's last message, else the last lines of its screen; compact (#128): the caller's context pays for it.
+    /// The agent's last message, else the last lines of its screen; compact (HD-128): the caller's context pays for it.
     func subSessionInfo(_ task: HangarTask, status: SubSessionStatus) -> SubSessionInfo {
         let leaf = agentLeaf(of: task)
         var message = subWatches[task.id]?.lastMessage

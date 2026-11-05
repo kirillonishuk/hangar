@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Tab bar geometry (decision #69, as VS Code / Pane): widths, overflow, scroll-into-view, wheel.
+/// Tab bar geometry (decision HD-069, as VS Code / Pane): widths, overflow, scroll-into-view, wheel.
 enum TabStrip {
     struct Layout: Equatable {
         var widths: [CGFloat]
@@ -44,7 +44,7 @@ enum TabStrip {
     /// `width` holds the tabs and the fixed controls (`+`, and the chevron when they overflow). Tabs get their natural
     /// width within [min, max]; a crowded bar shrinks the widest first, then scrolls at min. (The status dot is a badge
     /// on the tab's icon, so it takes no title room.)
-    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, #83).
+    /// `whole[i]`: tab i is a file (or diff) tab, whose name never shrinks below its natural width (up to `fileTabMaxWidth`, HD-083).
     static func layout(natural: [CGFloat], whole: [Bool] = [], width: CGFloat) -> Layout {
         let control = Theme.tabGap + Theme.Height.controlRegular
         let floors = natural.indices.map { i in
@@ -114,7 +114,7 @@ enum TabStrip {
 
 /// The selected task's tabs, the overflow chevron and `+` (Claude / Codex / Editor / Shell). Row below the titlebar.
 /// Tabs drag sideways to reorder (as sidebar rows: `dropIndex`, a 2 pt `accent` insertion line); the order is saved.
-/// Too many tabs for the bar: it scrolls (decision #69); the chevron and `+` stay put at the right.
+/// Too many tabs for the bar: it scrolls (decision HD-069); the chevron and `+` stay put at the right.
 struct TabBarView: View {
     let app: AppState
     var ctx: ActionContext
@@ -368,7 +368,7 @@ struct TabBarView: View {
         }
     }
 
-    /// A host's terminal (#64) holds only ssh shells: its menu offers just Shell.
+    /// A host's terminal (HD-064) holds only ssh shells: its menu offers just Shell.
     private func addMenu(shellOnly: Bool) -> some View {
         PopoverMenuButton(icon: .add, size: .regular, help: L10n.help(L10n.newTabHelp, .newTab)) {
             let kinds: [(String, LeafKind)] = (shellOnly ? [] : [("Claude", .claude), ("Codex", .codex)]) + [("Shell", .shell)]
@@ -490,7 +490,7 @@ struct TabItem: View {
     var body: some View {
         HStack(spacing: 0) {
             let dot = app.displayState(of: tab)
-            // A file tab (#83): the file type's icon; a one-click preview reads in italics. The status dot is a badge
+            // A file tab (HD-083): the file type's icon; a one-click preview reads in italics. The status dot is a badge
             // on the icon (as on the rail's tiles): one marker per tab, not a dot and a logo side by side.
             Group {
                 if let file = fileLeaf?.openFile {

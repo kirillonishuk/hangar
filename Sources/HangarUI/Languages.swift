@@ -1,10 +1,10 @@
 import Foundation
 
-/// TS/JS language features of the editor (#82): one tsserver per (host, project TypeScript), started when the first
+/// TS/JS language features of the editor (HD-082): one tsserver per (host, project TypeScript), started when the first
 /// TS/JS file opens in an editor, stopped `grace` after the last one closes (one one-shot task, no polling),
 /// restarted once after a crash. Editor panes tell it what they open, edit and close; it answers their requests and
 /// pushes diagnostics and a status to them.
-/// Other languages' files go to `lsp` (#90).
+/// Other languages' files go to `lsp` (HD-090).
 @MainActor final class Languages {
     /// An editor pane that shows the file: where its markers and status go, and how to read its buffer back.
     struct Owner {
@@ -126,7 +126,7 @@ import Foundation
         relaunch(sk)
     }
 
-    /// Settings installed or removed a language server (#102).
+    /// Settings installed or removed a language server (HD-102).
     func lspServersChanged() { lsp?.serversChanged() }
 
     /// App quit.

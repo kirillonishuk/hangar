@@ -36,7 +36,7 @@ public struct HangarConfig: Equatable, Sendable {
     public var keepAwake = true
     /// Dock badge with the number of leaves needing the user (permission, question, failed), and a Dock bounce on a new request out of focus.
     public var dockBadge = true
-    /// The editor theme (#84, #108, #109): the app theme's own (default, also for configs without the key), a built-in
+    /// The editor theme (HD-084, HD-108, HD-109): the app theme's own (default, also for configs without the key), a built-in
     /// one chosen in v0.7.0, or «Своя» (a built-in `editorCustomBase` plus `editorColors`); rainbow indents and TODO pills.
     public var editorPalette: EditorPalette = .theme
     public var editorCustomBase: EditorPalette = .darkModern
@@ -45,15 +45,15 @@ public struct HangarConfig: Equatable, Sendable {
     public var editorOptions = EditorOptions()
     public var editorRainbowIndent = true
     public var editorTodoHighlight = true
-    /// Look for a new GitHub release on launch and on activation, at most hourly (#86).
+    /// Look for a new GitHub release on launch and on activation, at most hourly (HD-086).
     public var checkUpdates = true
-    /// Claude Code's status line (#105): Hangar's own line everywhere, or the user's original command.
+    /// Claude Code's status line (HD-105): Hangar's own line everywhere, or the user's original command.
     public var statusline: StatuslineMode = .hangar
     /// The segments of Hangar's line, in the order shown; unknown and repeated names in the file are skipped.
     public var statuslineSegments: [StatuslineSegment] = StatuslineSegment.defaults
-    /// Settings' row of chips, the off ones too (`statusline_order`, #110): every segment once, missing ones appended.
+    /// Settings' row of chips, the off ones too (`statusline_order`, HD-110): every segment once, missing ones appended.
     public var statuslineOrder: [StatuslineSegment] = StatuslineSegment.allCases
-    /// Hangar's integration with Claude Code (#111): nil = never decided (the first claude tab asks), false = «Не сейчас» / off.
+    /// Hangar's integration with Claude Code (HD-111): nil = never decided (the first claude tab asks), false = «Не сейчас» / off.
     public var claudeIntegration: Bool?
     /// «Статусы и уведомления»: Hangar's hooks.
     public var claudeHooks = true
@@ -83,7 +83,7 @@ public struct HangarConfig: Equatable, Sendable {
     public enum EditorPalette: String, Sendable, CaseIterable {
         case theme, darkModern = "dark-modern", darkPlus = "dark-plus", hangar, custom
 
-        /// The editor theme an app theme carries (#109). Graphite: Dark+, whose editor colors are the app theme's greys.
+        /// The editor theme an app theme carries (HD-109). Graphite: Dark+, whose editor colors are the app theme's greys.
         public static func paired(with theme: AppTheme) -> Self {
             switch theme {
             case .darkPlus: .darkModern
@@ -184,7 +184,7 @@ public struct HangarConfig: Equatable, Sendable {
                 config.statuslineOrder = order + StatuslineSegment.allCases.filter { !order.contains($0) }
                 continue
             }
-            // The terminal background is always the app theme's (#109): the old setting is ignored, whatever its value.
+            // The terminal background is always the app theme's (HD-109): the old setting is ignored, whatever its value.
             if section.isEmpty, key == "terminal_background" { continue }
             if section.isEmpty, try parseEditorKey(key, rawValue, line: n + 1, into: &config) { continue }
             let value = try stringValue(rawValue, line: n + 1)
@@ -195,7 +195,7 @@ public struct HangarConfig: Equatable, Sendable {
                 }
                 config.defaultAgent = kind
             case ("", "editor"):
-                continue  // the Helix-era terminal editor (#81): ignored, so old configs still load
+                continue  // the Helix-era terminal editor (HD-081): ignored, so old configs still load
             case ("", "theme"):
                 guard let theme = AppTheme(rawValue: value) else {
                     throw ParseError.syntax(line: n + 1, reason: #"theme must be "dark-plus", "graphite" or "navy""#)

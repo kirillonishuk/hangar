@@ -16,9 +16,9 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var command: String?
     /// StopFailure's `error` type, e.g. `rate_limit` (<= 64 characters).
     public var error: String?
-    /// `--agent-pid`: set only by the hooks Hangar passes to a tab's own agent (#119).
+    /// `--agent-pid`: set only by the hooks Hangar passes to a tab's own agent (HD-119).
     public var agentPid: Int32?
-    /// `--tab-agent`: one of Hangar's own `--settings` hooks (#119).
+    /// `--tab-agent`: one of Hangar's own `--settings` hooks (HD-119).
     public var tabAgent: Bool?
     /// Stop's running `background_tasks` (0...99); nil — the payload had no such list.
     public var background: Int?
@@ -32,7 +32,7 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var title: String?
     /// The Agent tool returned `async_launched`: a background subagent.
     public var backgrounded: Bool?
-    /// The payload's `cwd`: where the agent works now (an agent may enter another worktree, #134).
+    /// The payload's `cwd`: where the agent works now (an agent may enter another worktree, HD-134).
     public var cwd: String?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
@@ -365,7 +365,7 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     public var branch: String?
     public var base: String?
     public var tabs: [TabInfo]
-    /// The TERMINAL drawer's shell once it was first shown; its id is a `tab` ref (decision #45).
+    /// The TERMINAL drawer's shell once it was first shown; its id is a `tab` ref (decision HD-045).
     public var drawer: LeafInfo?
     /// `tasks.list` with `git: true` only (absent otherwise, or when git failed): changes against the base
     /// (merge-base, working tree included; HEAD without a base), as in the inspector's Changes.
@@ -536,7 +536,7 @@ public struct WaitResult: Codable, Equatable, Sendable {
     public init(sessions: [SubSessionInfo]) { self.sessions = sessions }
 }
 
-/// One project action of a session (`actions.list`, #133).
+/// One project action of a session (`actions.list`, HD-133).
 public struct ActionInfo: Codable, Equatable, Sendable {
     public var name: String
     public var command: String
@@ -612,7 +612,7 @@ public struct TabWaitResult: Codable, Equatable, Sendable {
     }
 }
 
-/// A turn's final answer (Stop, codex notify) is a sub-session's result (#128): longer than other hook texts.
+/// A turn's final answer (Stop, codex notify) is a sub-session's result (HD-128): longer than other hook texts.
 public func maxEventMessage(_ kind: HookKind) -> Int {
     [.stop, .codexNotify, .subagentStart, .subagentStop].contains(kind) ? 2000 : 500
 }

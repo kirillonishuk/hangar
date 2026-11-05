@@ -22,7 +22,7 @@ struct PopoverMenuItem {
     var monoSpan: String?
     /// A status dot on the icon's corner (a tab in the overflow menu).
     var dot: AgentState?
-    /// Its done was seen (#135): the dot is hollow.
+    /// Its done was seen (HD-135): the dot is hollow.
     var dotSeen = false
     /// A file's own icon instead of `icon` (a path pick).
     var file: (name: String, isDir: Bool)?
@@ -93,7 +93,7 @@ private let destructiveActions: Set<Action> = [.archive, .deletePermanently, .re
     var entries: [PopoverMenuEntry] = []
     if case .task(let id) = target, !actions.isEmpty, let task = app.state.tasks.first(where: { $0.id == id }) {
         entries.append(.header(task.branch.map { "\(task.name) · \($0)" } ?? task.name, mono: task.branch))
-        // The project's actions first (#133): the run menu's list without «Настроить действия…».
+        // The project's actions first (HD-133): the run menu's list without «Настроить действия…».
         if !task.archived {
             let run = actionMenuEntries(app: app, task: task, edit: false)
             if !run.isEmpty { entries += run + [.separator] }

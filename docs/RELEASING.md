@@ -34,7 +34,7 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
 - [ ] Independent review done.
 - [ ] UI changes: screenshots from an isolated DEBUG build (`swift run HangarApp` with `HANGAR_STATE_DIR` and
       `HANGAR_CONFIG` pointing at throwaway paths) are in the PR body, and the owner has looked at them.
-- [ ] `docs/decisions.md` or the spec is updated if behaviour changed.
+- [ ] A decision in `docs/decisions/` or the spec is updated if behaviour changed.
 - [ ] PR title, PR body and release notes are in English.
 - [ ] Every commit is authored by the owner from `git config` (no `--author` / `GIT_AUTHOR_*` overrides) and has no
       `Co-Authored-By` or other attribution trailers. CI checks this (`Commit authorship`).
@@ -71,7 +71,7 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
 
 Releases are signed with the self-signed "Hangar Self-Signed" certificate (SHA-1
 `2BC32E9E59D0A3BB47BA27D3E2410F0A86F16768`, valid to 2046) so macOS keeps users' permissions across updates
-(`docs/decisions.md` #129). The Release workflow imports it from the secrets `HANGAR_SIGN_P12` (base64 of the .p12)
+(decision HD-129, `docs/decisions/HD-129-*.md`). The Release workflow imports it from the secrets `HANGAR_SIGN_P12` (base64 of the .p12)
 and `HANGAR_SIGN_P12_PASSWORD` into a temporary keychain and fails without them. Never replace the certificate: a new
 one resets every user's permissions. CI on PRs signs ad-hoc.
 

@@ -8,7 +8,7 @@ description: How to write Swift code in Hangar — simplicity order, module boun
 Rules are in `AGENTS.md` («Простота», «Инженерные правила»); module map in spec §2 (`docs/superpowers/specs/2026-10-18-hangar-design.md`); UI in `docs/design/DESIGN.md` and the mockups. Read the section you need, not everything. Below is how to apply them.
 
 ## Before writing
-1. Check `docs/decisions.md` (`rg -n '<topic>' docs/decisions.md`) — don't reopen a decided question without new facts.
+1. Check the decisions (`rg -n '<topic>' docs/decisions/`; index `docs/decisions.md`; cite as `HD-NNN`) — don't reopen a decided question without new facts.
 2. Walk the «Простота» order: needed at all? → already in the project (`rg` for it, copy the surrounding style) → Foundation/AppKit/SwiftUI/system → minimal new code.
 3. Unsure about intent → one concrete question to the owner, not an exploration of alternatives.
 
@@ -16,10 +16,10 @@ Rules are in `AGENTS.md` («Простота», «Инженерные прав�
 - Only `GhosttyBridge` imports `GhosttyKit` / calls `ghostty_*`.
 - `Workspace`, `Git`, `AgentStatus` (and other non-UI modules: `Exec`, `Usage`, `History`, `Integration`, `Power`, `ControlServer`) import no AppKit/SwiftUI and have unit tests.
 - UI lives in `HangarUI`; `HangarApp` is the thin launcher; `hangar` is the CLI.
-- A new target or dependency → `Package.swift` + entry in `docs/decisions.md`. No third-party UI kits.
+- A new target or dependency → `Package.swift` + a decision file (`hangar-commit`). No third-party UI kits.
 
 ## UI
-- Colors, sizes, radii, fonts only from `Theme` (`Sources/HangarUI/Theme*.swift`). Colors are per-theme (`ThemePalette`, decision #85): add a token to every palette, never a literal. AppKit layers must react to `hangarThemeDidChange`.
+- Colors, sizes, radii, fonts only from `Theme` (`Sources/HangarUI/Theme*.swift`). Colors are per-theme (`ThemePalette`, decision HD-085): add a token to every palette, never a literal. AppKit layers must react to `hangarThemeDidChange`.
 - Every user-visible string through `L10n` (`Sources/HangarUI/L10n.swift`): add the `Key` case and the string in **both** `Resources/ru.lproj` and `Resources/en.lproj/Localizable.strings` (a test checks completeness). ru is the source language.
 - Hotkeys match `keyCode` (works in the Russian layout), via the `Shortcut` table; tooltips via `L10n.help`.
 - Look: match the mockup; no layout jumps (constant heights, reserved space), hand cursor on clickables.

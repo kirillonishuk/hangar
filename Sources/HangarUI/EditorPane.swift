@@ -26,6 +26,8 @@ import Workspace
     var onFocus: (() -> Void)?
     /// The image shown over the page instead of its «binary file» notice, and the file's stamp it was decoded at.
     private var image: (path: String, stamp: FileStamp?, view: ImageHostingView)?
+    /// The image file being watched; kept when a decode fails (a rewrite caught half-way), so the next change retries.
+    private var imagePath: String?
 
     /// `page`: where its model goes first (a free one when it opens beside another editor).
     init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
@@ -136,7 +138,7 @@ import Workspace
         visible = shown
         if shown {
             Task { await session.checkDisk() }
-            if let path = image?.path { showImage(path) }  // rewritten while hidden (no watcher then)
+            if let path = imagePath { showImage(path) }  // rewritten while hidden (no watcher then)
         }
         restartWatcher()
     }
@@ -205,7 +207,13 @@ import Workspace
             if let image, image.path == path, image.stamp == stamp { return }
             let decoded = await ImagePreview.load(path: path)
             guard gen == generation, app.editorLeaf(leafId)?.openFile == path else { return }
-            guard let decoded else { removeImage(); return }
+            guard let decoded else {
+                removeImage()
+                imagePath = path  // still watched: the file may be complete on the next event
+                restartWatcher()
+                return
+            }
+            imagePath = path
             let root = ImagePreviewView(name: (path as NSString).lastPathComponent, sides: [.init(id: 0, image: decoded)], showsBytes: true)
             if let view = image?.view {
                 view.rootView = root
@@ -232,6 +240,7 @@ import Workspace
     private func removeImage() {
         image?.view.removeFromSuperview()
         image = nil
+        imagePath = nil
         app.editorImage.remove(leafId)
     }
 
@@ -239,7 +248,7 @@ import Workspace
     /// is decoded again.
     private func restartWatcher() {
         var files = Set(session.files.filter { !$0.value.refused }.keys)
-        if let path = image?.path { files.insert(path) }
+        if let path = imagePath { files.insert(path) }
         let paths: Set<String> = visible && session.io.isLocal ? Set(files.map(realPath)) : []
         guard paths != watchedPaths else { return }
         watcher?.stop()
@@ -250,7 +259,7 @@ import Workspace
         watcher = FileWatcher(paths: dirs, onChange: { [weak self] _ in
             guard let self else { return }
             Task { await self.session.checkDisk() }
-            if let path = image?.path { showImage(path) }
+            if let path = imagePath { showImage(path) }
         }, classify: { events in events.contains { paths.contains($0.path) } ? .status : [] })
     }
 }

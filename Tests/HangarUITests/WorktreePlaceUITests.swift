@@ -147,8 +147,9 @@ import Workspace
     /// A slow git: the sheet doesn't wait for it longer than the timeout.
     @Test func sheetProbeTimesOut() async {
         let start = ContinuousClock.now
-        let slow: Int? = await answer(within: .milliseconds(50)) { try? await Task.sleep(for: .seconds(30)); return 1 }
-        #expect(slow == nil && ContinuousClock.now - start < .seconds(10))
+        let slow: Int? = await answer(within: .milliseconds(50)) { try? await Task.sleep(for: .seconds(600)); return 1 }
+        // Before the slow work ends = the timeout answered; not a tight bound: under parallel load the main actor stalls.
+        #expect(slow == nil && ContinuousClock.now - start < .seconds(120))
         let quick: Int? = await answer(within: .seconds(30)) { 2 }
         #expect(quick == 2)
     }

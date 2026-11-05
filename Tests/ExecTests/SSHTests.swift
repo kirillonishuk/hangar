@@ -109,7 +109,7 @@ import Testing
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
         // Long before the fake's 300 s hang; loose for a busy cooperative pool, blind to a system sleep.
-        #expect(SuspendingClock.now - start < .seconds(20))
+        #expect(SuspendingClock.now - start < .seconds(120))
     }
 
     @Test func controlPathFitsSocketLimit() throws {

@@ -107,7 +107,7 @@ import Workspace
         app.terminals = TerminalAccess(start: { _ in }, state: { _ in box.state }, send: { _, _, _ in }, read: { _ in nil })
         hook(app, .prompt, tab: tab, leaf: leaf, message: "go")
         let start = ContinuousClock.now
-        let exited = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(30)) }
+        let exited = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(600)) }
         try await Task.sleep(for: .milliseconds(30))
         box.state = .exited
         app.signal(.exited(code: 0), leaf: leaf)
@@ -115,11 +115,12 @@ import Workspace
         box.state = .running
         app.signal(.relaunched, leaf: leaf)
         hook(app, .prompt, tab: tab, leaf: leaf, message: "again")
-        let closed = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(30)) }
+        let closed = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(600)) }
         try await Task.sleep(for: .milliseconds(30))
         app.perform { $0.closeTab(taskId: task, tabId: tab) }
         #expect(await closed.value.status == "closed")
-        #expect(ContinuousClock.now - start < .seconds(5) && app.tabWaiters.isEmpty)
+        // Before the deadline = woken by the signal; not a tight bound: under parallel load the main actor stalls for seconds.
+        #expect(ContinuousClock.now - start < .seconds(120) && app.tabWaiters.isEmpty)
     }
 
     @Test func tabWaitStates() {

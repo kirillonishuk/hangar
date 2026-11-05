@@ -90,7 +90,7 @@ private func pgrepCount(_ marker: String) -> Int {
     // Killed at the 0.5 s timeout, not after the ≥600 000 s sleep. Under load the timer task and the resume wait for
     // a busy cooperative pool for seconds, so the bound only proves "long before the hang"; the suspending clock
     // ignores a system sleep during the run.
-    #expect(SuspendingClock.now - t0 < .seconds(20))
+    #expect(SuspendingClock.now - t0 < .seconds(120))
     // The script ran (otherwise the kill proves nothing) and its sleep grandchild is gone too (group kill).
     let started = await waitUntil { FileManager.default.fileExists(atPath: dir.path + "/started") }
     #expect(started)

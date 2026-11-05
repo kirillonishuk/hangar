@@ -1,9 +1,19 @@
 # Releasing Hangar
 
-Releases are cut by `.github/workflows/release.yml` when a PR is merged into `main`. CI (`.github/workflows/ci.yml`)
-runs `swift build` and `swift test` on every PR; the `Build & test` check is required by the `main` ruleset. The
-`Commit authorship` check (`scripts/check-commits.sh`) fails on commits by anyone but the owner or with
-`Co-Authored-By` trailers.
+Releases are cut by `.github/workflows/release.yml` once a day from what was merged into `main`, not on every merge
+(decision HD-145). CI (`.github/workflows/ci.yml`) runs `swift build` and `swift test` on every PR; the
+`Build & test` check is required by the `main` ruleset. The `Commit authorship` check (`scripts/check-commits.sh`)
+fails on commits by anyone but the owner or with `Co-Authored-By` trailers. CI also runs on every push to `main`, only
+to refresh the caches PRs read (GhosttyKit, SwiftPM `.build`).
+
+## When a release is cut
+
+- **Daily at 06:00 UTC**, if `main` has PRs merged since the last `v*` tag that are not labelled `no-release`. One
+  release covers all of them.
+- **Urgent:** label the PR `release-now` before merging; the merge releases `main` immediately (that PR and everything
+  merged before it).
+- **Manual:** Actions → Release → Run workflow (`workflow_dispatch`), see «Manual releases».
+- A merge without `release-now` cuts nothing by itself.
 
 ## Branches and PRs
 
@@ -12,7 +22,8 @@ runs `swift build` and `swift test` on every PR; the `Build & test` check is req
 
 ## Version
 
-The PR title is a conventional commit and sets the version bump against the last `v*` tag:
+Each PR's title is a conventional commit and sets that PR's bump; a release takes the highest bump among the PRs
+since the last `v*` tag (major > minor > patch), ignoring `no-release` PRs (`scripts/release-bump.sh`):
 
 | PR title | Bump |
 | --- | --- |
@@ -23,9 +34,10 @@ The PR title is a conventional commit and sets the version bump against the last
 Overrides, highest priority first:
 
 1. Raise `CFBundleShortVersionString` in `Resources/Info.plist` above the last tag: that exact version is released.
-2. Label `major`, `minor` or `patch` on the PR.
+2. Label `major`, `minor` or `patch` on the PR (sets that PR's bump).
 
-PRs that only touch docs, CI or chores get the `no-release` label: merging them cuts no release.
+PRs that only touch docs, CI or chores get the `no-release` label: they never cause a release and are left out of the
+bump and the release notes.
 
 ## Before merge
 
@@ -39,19 +51,26 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
 - [ ] Every commit is authored by the owner from `git config` (no `--author` / `GIT_AUTHOR_*` overrides) and has no
       `Co-Authored-By` or other attribution trailers. CI checks this (`Commit authorship`).
 - [ ] No secrets, real hostnames, usernames or home paths in the diff or screenshots.
-- [ ] Bump label or `no-release` set if the title alone is not right.
+- [ ] Bump label or `no-release` set if the title alone is not right; `release-now` only if it must ship today.
 
 ## Merge
 
 - Merge commit (no squash, no rebase). Commit title: `Merge #N: <summary>`, body: the PR title.
-- One PR at a time. Wait for the previous Release run to finish before merging the next one: release runs share one
-  concurrency group, a second waiting run replaces the first, and every run builds the current `main`.
+- PRs without `release-now` can be merged back to back: nothing is released until the daily run.
+- `release-now` PRs: one at a time. Wait for the previous Release run to finish before merging the next one: release
+  runs share one concurrency group, a second waiting run replaces the first, and every run builds the current `main`.
 
-## After merge: verify the release
+## After a release: verification
 
-1. The Release run is green.
-2. The release `vX.Y.Z` has `Hangar-X.Y.Z.dmg` and `Hangar-X.Y.Z.dmg.sha256`.
-3. Check the DMG:
+The Release run publishes only after verifying: it creates a draft release, its step «Verify the draft release»
+downloads `Hangar-X.Y.Z.dmg` and its `.sha256` from the draft and fails the run unless the checksum matches,
+`CFBundleShortVersionString` is the tag's version, `codesign --verify --deep --strict` passes and the signature's
+authority is `Hangar Self-Signed`; only then «Publish the verified release» turns the draft into the release. So:
+
+1. The Release run is green (a red run leaves a draft that users cannot see, see «Broken release»).
+2. The owner launches the new version by hand.
+
+The same check by hand, if ever needed:
 
    ```sh
    V=X.Y.Z; dir=$(mktemp -d); cd "$dir"
@@ -64,8 +83,8 @@ PRs that only touch docs, CI or chores get the `no-release` label: merging them 
    hdiutil detach "$mnt"
    ```
 
-4. Do not launch the app from automation: a release build ignores `HANGAR_STATE_DIR` and rewrites the real
-   `state.json`. The owner launches it by hand.
+Do not launch the app from automation: a release build ignores `HANGAR_STATE_DIR` and rewrites the real
+`state.json`.
 
 ## Signing
 
@@ -77,8 +96,22 @@ one resets every user's permissions. CI on PRs signs ad-hoc.
 
 ## Release notes
 
-English. The workflow writes the Install steps and appends GitHub's generated change list. Edit the release if the
-list needs a short human summary of the changes.
+English. The workflow writes the Install steps and a «Changes» list: one line per PR in the release (title and
+number, `no-release` PRs left out) and a full-changelog link. Edit the release if the list needs a short human summary
+of the changes.
+
+## Failed run (draft or tag left behind)
+
+The tag `vX.Y.Z` is pushed before the release is created, so the daily «last tag» is already `vX.Y.Z` and a rerun
+cannot start from scratch (it fails on `git tag -a`, and a rerun of «Create draft» on an existing release).
+
+- **Verification failed** (draft exists, not public): fix the cause as a `fix:` PR; it ships as the next patch. To
+  publish this very draft anyway after checking it by hand (block above), run `gh release edit vX.Y.Z --draft=false`;
+  otherwise `gh release delete vX.Y.Z` (the draft only, never the tag).
+- **Tag ok, release creation or publish failed** (no draft or a good draft): do not rerun the job. If a verified draft
+  exists, publish it with `gh release edit vX.Y.Z --draft=false`. Otherwise push no new tag: run Release by hand
+  (`workflow_dispatch`) after the fix, which cuts the next patch; or, to release exactly that tag, build it from the
+  tag by hand and `gh release create` it.
 
 ## Broken release
 
@@ -88,7 +121,8 @@ list needs a short human summary of the changes.
 
 ## Manual releases
 
-- **Actions → Release → Run workflow** (`workflow_dispatch`): releases `main` with the chosen bump (`patch`, `minor`,
-  `major`). A raised `Info.plist` version still wins over the bump.
+- **Actions → Release → Run workflow** (`workflow_dispatch`): releases `main` now. Bump `auto` (default) is the
+  highest among the PRs since the last tag (patch if all are `no-release`); `patch`, `minor`, `major` force it. A raised
+  `Info.plist` version still wins. Nothing new on `main` since the last tag → nothing is released.
 - Pushing a `v*` tag releases that tag as is: the version is the tag name and no new tag is created. The push must
   come from a person (a tag pushed with `GITHUB_TOKEN` triggers nothing), and the tag must not have a release yet.

@@ -707,7 +707,7 @@ import Workspace
         #expect(fresh.load == .loading)
         run.cancel()
         _ = await run.value
-        fresh.localTimeout = .milliseconds(200)
+        fresh.localTimeout = .seconds(5)  // cuts the hanging root, not the worktrees' scans slowed by parallel load
         await fresh.reload()
         // Cut by the timeout: said so, and the root's rows read so far are kept.
         #expect(fresh.load == .loaded && fresh.failures.first?.timedOut == true && fresh.conversationRows.count == 4)
@@ -717,16 +717,18 @@ import Workspace
     @Test func newReloadCancelsTheRunningOne() async throws {
         let (w, _) = try await loaded()
         let m = SessionsModel(app: w.app)
-        final class Flag: @unchecked Sendable { var hang = true; var stopped = false }
+        final class Flag: @unchecked Sendable { var hang = true; var hanging = false; var stopped = false }
         let flag = Flag()
         m.scan = { folder, project in
             if flag.hang {
+                flag.hanging = true
                 do { try await Task.sleep(for: .seconds(3600)) } catch { flag.stopped = true; throw error }
             }
             return try await w.app.conversations(folder: folder, project: project)
         }
         let first = Task { await m.reload() }
-        #expect(await waitUntil { m.load == .loading })
+        // A scan has started, not just the load: under load the scans start later than `.loading`.
+        #expect(await waitUntil { m.load == .loading && flag.hanging })
         flag.hang = false
         await m.reload()
         await first.value

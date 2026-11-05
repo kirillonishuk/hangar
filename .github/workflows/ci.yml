@@ -1,7 +1,11 @@
 name: CI
 
+# Pushes to main only refresh the caches every PR reads (GhosttyKit, SwiftPM .build): a cache saved by a PR run is
+# scoped to that PR, so without a run on main each PR started cold.
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -50,6 +54,39 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Toolchain key
+        id: toolchain
+        run: echo "key=$({ xcodebuild -version; swift --version; } 2>&1 | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # Saved only by pushes to main (below); PRs take the newest one for this toolchain, Package.swift and GhosttyKit.
+      - name: Restore SwiftPM build
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: swiftpm-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh', '.github/actions/ghosttykit/action.yml') }}-${{ github.sha }}
+          restore-keys: swiftpm-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh', '.github/actions/ghosttykit/action.yml') }}-
+
+      # Swift recompiles a file whose mtime differs from the one it last built, and checkout stamps every file "now".
+      # So every CI build pins tracked files to one fixed time and re-stamps only the files changed since the commit
+      # the cached .build was built from; without a usable cache the build simply starts from scratch.
+      - name: Reuse the cached build
+        run: |
+          git ls-files -z | xargs -0 touch -h -t 200001010000
+          # GhosttyKit's inputs are in the cache key, so the downloaded copy is the one the cached build used.
+          find vendor/GhosttyKit.xcframework vendor/ghostty-src/zig-out/share -exec touch -h -t 200001010000 {} +
+          BASE=$(cat .build/hangar-ci-commit 2>/dev/null || true)
+          [ -n "$BASE" ] || { rm -rf .build; echo "No cached build"; exit 0; }
+          if git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch -q --no-tags --depth=1 origin "$BASE"; then
+            # Swift keeps outputs of deleted or renamed sources (e.g. a removed resource gets bundled): drop the cache then.
+            if [ -n "$(git diff --diff-filter=DR --name-only "$BASE" HEAD)" ]; then
+              echo "::notice::files deleted or renamed since $BASE: building from scratch"; rm -rf .build; exit 0
+            fi
+            git diff --name-only -z "$BASE" HEAD | while IFS= read -r -d '' f; do [ ! -e "$f" ] || touch -h "$f"; done
+            echo "Cached build of $BASE; changed since: $(git diff --name-only "$BASE" HEAD | wc -l) file(s)"
+          else
+            echo "::warning::commit $BASE of the cached build is gone: building from scratch"; rm -rf .build
+          fi
+
       # Tests create commits in temporary repositories.
       - name: Git identity for tests
         run: |
@@ -57,25 +94,49 @@ jobs:
           git config --global user.email "ci@users.noreply.github.com"
 
       - name: Build
-        run: swift build
+        run: swift build --build-tests
 
       # The project's source language; tests pin L10n themselves and also pass under en, de and ja.
       - name: System language ru
+        if: github.event_name != 'push'
         run: defaults write -g AppleLanguages -array ru en
 
-      # Serial: hosted runners have 3 cores, and the suite's process/socket tests starve each other in parallel
-      # (20 s timeouts blown); serially the suite takes a few minutes. One retry absorbs a cold-runner hiccup.
+      # Parallel (swift-testing's default) instead of --no-parallel: a fraction of the time. One test target per process:
+      # all targets in one process share a 3-thread cooperative pool on this runner, and the UI suites' blocking waits
+      # starved the rest for over a minute. SERIAL suites hold production deadlines a loaded runner blows (language
+      # servers' 3 s stop, the doctor's 15 s login-shell probe): they run alone at the end. One retry per target absorbs
+      # a cold-runner stall and shows as a warning.
       - name: Test
+        if: github.event_name != 'push'
         run: |
-          swift test --no-parallel && exit 0
-          echo "::warning::Test run failed; retrying once"
-          swift test --no-parallel
+          SERIAL='TsLifecycleTests|LspLifecycleTests|DoctorChecksTests'
+          for target in $(ls Tests | grep 'Tests$'); do
+            echo "::group::$target"
+            swift test --skip-build --filter "^$target\." --skip "$SERIAL" || {
+              echo "::warning::$target failed; retrying once"
+              swift test --skip-build --filter "^$target\." --skip "$SERIAL"
+            }
+            echo "::endgroup::"
+          done
+          swift test --skip-build --no-parallel --filter "$SERIAL"
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
-      # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs.
+      # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs. On main this only warms the
+      # release half of the cache.
       - name: Bundle & verify
         env:
           HANGAR_SIGN_IDENTITY: "-"
         run: |
           scripts/bundle.sh
-          scripts/verify-bundle.sh build/Hangar.app
+          [ "${{ github.event_name }}" = push ] || scripts/verify-bundle.sh build/Hangar.app
+
+      - name: Mark the cached build's commit
+        if: github.event_name == 'push'
+        run: git rev-parse HEAD > .build/hangar-ci-commit
+
+      - name: Save SwiftPM build
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: swiftpm-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh', '.github/actions/ghosttykit/action.yml') }}-${{ github.sha }}

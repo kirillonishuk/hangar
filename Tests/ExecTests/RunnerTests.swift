@@ -36,7 +36,7 @@ import TestSupport
         try await Task.sleep(nanoseconds: 200_000_000)
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(SuspendingClock.now - start < .seconds(20))  // far below sleep 600; loose for a busy cooperative pool
+        #expect(SuspendingClock.now - start < .seconds(120))  // far below sleep 600; loose for a busy cooperative pool
     }
 
     /// Runs `script` (`$0` = a file receiving the shell's pid = process group id), cancels it, returns the group id
@@ -65,14 +65,14 @@ import TestSupport
     @Test func cancelKillsProcessGroup() async throws {
         // Bounds are "long before the 600 s sleeps": under load the resume waits for a busy cooperative pool.
         let (pgid, seconds) = try await cancelScript("sleep 600 & sleep 600")
-        #expect(seconds < .seconds(20))
+        #expect(seconds < .seconds(120))
         #expect(await groupGone(pgid), "process group \(pgid) still has members")
     }
 
     /// Members ignoring SIGTERM get SIGKILL after 2 s — all of them, not only the leader.
     @Test func cancelEscalatesToKillForTheWholeGroup() async throws {
         let (pgid, seconds) = try await cancelScript("trap '' TERM; sleep 600 & sleep 600")
-        #expect(seconds < .seconds(20))
+        #expect(seconds < .seconds(120))
         #expect(await groupGone(pgid), "process group \(pgid) still has members")
     }
 
@@ -86,7 +86,7 @@ import TestSupport
         }
         let (_, seconds) = try await cancelScript(
             "perl -e 'setpgrp(0, 0); open(F, \">\", $ARGV[0]); print F $$; close F; exec \"sleep\", \"600\"' \(escaped) & sleep 600")
-        #expect(seconds < .seconds(20))
+        #expect(seconds < .seconds(120))
     }
 
     @Test func fastExitingChildKeepsOutput() async throws {

@@ -1,15 +1,21 @@
 name: Release
 
-# A merged PR into main → version → Info.plist stamped in the build → tag vX.Y.Z → .app + DMG → GitHub Release.
-# Version: CFBundleShortVersionString in Resources/Info.plist when a PR raised it above the last v* tag (pick a version
-# by editing it); otherwise the last tag bumped by the PR label major/minor/patch, else by the PR title's
-# conventional-commit type (feat!: major, feat: minor), default patch.
-# Tag only, no commit back: main is protected (PR + CI) and the Actions bot cannot bypass a ruleset. No loop either:
-# the tag is pushed with GITHUB_TOKEN, which never triggers workflows.
-# Also: a pushed v* tag releases that tag as-is; workflow_dispatch releases main with a chosen bump.
-# A merged PR labelled no-release (docs/ci/chore) cuts nothing. Rules: docs/RELEASING.md.
+# One release a day, not one per merge (decision HD-145). A release batches the PRs merged into main since the last v*
+# tag → version → Info.plist stamped in the build → tag vX.Y.Z → .app + DMG → draft GitHub Release → the draft's DMG is
+# downloaded and verified → the draft is published.
+# When:
+# - daily at 06:00 UTC, if main has PRs since the last tag that are not labelled no-release;
+# - on merge of a PR labelled release-now (urgent): releases main right away;
+# - workflow_dispatch: releases main now (bump "auto" = from the PRs, patch if none count);
+# - a pushed v* tag releases that tag as is.
+# Version: CFBundleShortVersionString in Resources/Info.plist when it was raised above the last v* tag; otherwise the
+# last tag bumped by the highest bump among the batch's PRs (scripts/release-bump.sh: label major/minor/patch, else the
+# title's conventional-commit type). Tag only, no commit back: main is protected and the Actions bot cannot bypass a
+# ruleset. No loop either: the tag is pushed with GITHUB_TOKEN, which never triggers workflows. Rules: docs/RELEASING.md.
 
 on:
+  schedule:
+    - cron: "0 6 * * *"
   pull_request:
     types: [closed]
     branches: [main]
@@ -18,41 +24,129 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version bump
+        description: Version bump (auto = highest among the PRs since the last tag)
         type: choice
-        options: [patch, minor, major]
-        default: patch
+        options: [auto, patch, minor, major]
+        default: auto
 
+# Every merged PR fires this workflow; only a release-now merge joins the "release" group, so the others (skipped at
+# once) never replace a release run waiting in the group.
 concurrency:
-  group: release
+  group: >-
+    ${{ (github.event_name != 'pull_request' || (github.event.pull_request.merged == true &&
+    contains(github.event.pull_request.labels.*.name, 'release-now'))) && 'release' || format('release-skip-{0}', github.run_id) }}
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  ghosttykit:
-    name: GhosttyKit
+  plan:
+    name: Plan
     if: >-
       github.event_name != 'pull_request' ||
-      (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-release'))
+      (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release-now'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
+      tagged: ${{ steps.plan.outputs.tagged }}
+      notes: ${{ steps.plan.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+          fetch-depth: 0
+
+      - name: What to release
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BUMP_INPUT: ${{ inputs.bump }}
+        run: |
+          set -o pipefail
+          SHA=$(git rev-parse HEAD)
+          LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n 1 || true)
+          RANGE="${LAST:+$LAST..}$SHA"
+          COUNT=$(git rev-list --count "$RANGE")
+          # The batch: PRs merged into main whose merge commits are on main's first-parent line since the last tag.
+          # A failed API call must fail the step: a half-empty list would give a wrong bump or silently skip the release.
+          for c in $(git rev-list --first-parent "$RANGE"); do
+            gh api "repos/$GITHUB_REPOSITORY/commits/$c/pulls" \
+              --jq '.[] | select(.merged_at != null and .base.ref == "main") | [.number, .title, ([.labels[].name] | join(" "))] | @tsv' || exit 1
+          done | sort -t $'\t' -k1,1n -u > "$RUNNER_TEMP/prs.tsv"
+          BUMP=$(cut -f2,3 "$RUNNER_TEMP/prs.tsv" | scripts/release-bump.sh)
+          echo "Since ${LAST:-the start}: $COUNT commit(s), PRs:"; cat "$RUNNER_TEMP/prs.tsv"; echo "Bump: $BUMP"
+
+          release=true
+          if [ "$EVENT" = push ]; then
+            VERSION="${GITHUB_REF_NAME#v}"; TAGGED=true
+          else
+            TAGGED=false
+            if [ "$COUNT" = 0 ]; then
+              echo "::notice::main has nothing new since $LAST"; release=false
+            elif [ "$EVENT" = schedule ] && [ "$BUMP" = none ]; then
+              echo "::notice::only no-release PRs since $LAST"; release=false
+            fi
+            [ "$EVENT" = workflow_dispatch ] && [ "$BUMP_INPUT" != auto ] && BUMP="$BUMP_INPUT"
+            [ "$BUMP" != none ] || BUMP=patch
+            CURRENT=$(git show "$SHA:Resources/Info.plist" |
+              python3 -c 'import plistlib, sys; print(plistlib.loads(sys.stdin.buffer.read())["CFBundleShortVersionString"])')
+            NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$CURRENT" | sort -V | tail -n 1)
+            if [ -z "$LAST" ] || { [ "$NEWEST" = "$CURRENT" ] && [ "$CURRENT" != "${LAST#v}" ]; }; then
+              VERSION="$CURRENT"  # first release, or Info.plist was raised by hand
+            else
+              IFS=. read -r MA MI PA <<< "${LAST#v}"
+              case "$BUMP" in
+                major) VERSION="$((MA + 1)).0.0" ;;
+                minor) VERSION="$MA.$((MI + 1)).0" ;;
+                *)     VERSION="$MA.$MI.$((PA + 1))" ;;
+              esac
+            fi
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version '$VERSION'"; exit 1; }
+          if [ "$release" = true ] && [ "$EVENT" != push ] && git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"; exit 1
+          fi
+
+          {
+            echo "release=$release"
+            echo "sha=$SHA"
+            echo "version=$VERSION"
+            echo "tagged=$TAGGED"
+            echo "notes<<HANGAR_NOTES_EOF"
+            awk -F'\t' '(" " $3 " ") !~ / no-release / { printf "- %s (#%s)\n", $2, $1 }' "$RUNNER_TEMP/prs.tsv"
+            [ -z "$LAST" ] || printf '\n**Full changelog:** https://github.com/%s/compare/%s...v%s\n' "$GITHUB_REPOSITORY" "$LAST" "$VERSION"
+            echo "HANGAR_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+          [ "$release" = false ] || echo "Releasing $VERSION from $SHA (Info.plist: ${CURRENT:-n/a})"
+
+  ghosttykit:
+    name: GhosttyKit
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: ./.github/actions/ghosttykit
 
   release:
     name: Build & publish
-    needs: ghosttykit
+    needs: [plan, ghosttykit]
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
+          ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
 
       # Stable self-signed certificate: macOS keeps the app's permissions across updates (decision HD-129).
@@ -89,51 +183,9 @@ jobs:
           echo "Signing with $SHA1"
           echo "HANGAR_SIGN_IDENTITY=$SHA1" >> "$GITHUB_ENV"
 
-      - name: Next version
-        id: version
-        env:
-          EVENT: ${{ github.event_name }}
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
-          TITLE: ${{ github.event.pull_request.title }}
-          BUMP_INPUT: ${{ inputs.bump }}
-        run: |
-          PLIST=Resources/Info.plist
-          CURRENT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
-          if [ "$EVENT" = push ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            echo "tagged=true" >> "$GITHUB_OUTPUT"
-          else
-            LAST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n 1)
-            NEWEST=$(printf '%s\n%s\n' "${LAST#v}" "$CURRENT" | sort -V | tail -n 1)
-            if [ -z "$LAST" ] || { [ "$NEWEST" = "$CURRENT" ] && [ "$CURRENT" != "${LAST#v}" ]; }; then
-              VERSION="$CURRENT"  # first release, or Info.plist was raised by hand
-            else
-              if [ "$EVENT" = workflow_dispatch ]; then BUMP="$BUMP_INPUT"
-              elif [[ " $LABELS " == *" major "* ]]; then BUMP=major
-              elif [[ " $LABELS " == *" minor "* ]]; then BUMP=minor
-              elif [[ " $LABELS " == *" patch "* ]]; then BUMP=patch
-              elif [[ "$TITLE" =~ ^[a-z]+(\([^\)]*\))?!: ]]; then BUMP=major
-              elif [[ "$TITLE" =~ ^feat(\([^\)]*\))?: ]]; then BUMP=minor
-              else BUMP=patch; fi
-              IFS=. read -r MA MI PA <<< "${LAST#v}"
-              case "$BUMP" in
-                major) VERSION="$((MA + 1)).0.0" ;;
-                minor) VERSION="$MA.$((MI + 1)).0" ;;
-                *)     VERSION="$MA.$MI.$((PA + 1))" ;;
-              esac
-            fi
-            echo "tagged=false" >> "$GITHUB_OUTPUT"
-          fi
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version '$VERSION'"; exit 1; }
-          if [ "$EVENT" != push ] && git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-            echo "::error::tag v$VERSION already exists"; exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (Info.plist had $CURRENT)"
-
       - name: Stamp Info.plist
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Resources/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git rev-list --count HEAD)" Resources/Info.plist
 
       - uses: ./.github/actions/setup
@@ -144,37 +196,36 @@ jobs:
       - name: Verify Hangar.app
         env:
           HANGAR_VERIFY_SIGNED: "1"
-        run: scripts/verify-bundle.sh build/Hangar.app "${{ steps.version.outputs.version }}"
+        run: scripts/verify-bundle.sh build/Hangar.app "$VERSION"
 
       - name: Build DMG
         run: |
           scripts/make-dmg.sh
-          mv build/Hangar.dmg "build/Hangar-${{ steps.version.outputs.version }}.dmg"
-          cd build && shasum -a 256 "Hangar-${{ steps.version.outputs.version }}.dmg" > "Hangar-${{ steps.version.outputs.version }}.dmg.sha256"
+          mv build/Hangar.dmg "build/Hangar-$VERSION.dmg"
+          cd build && shasum -a 256 "Hangar-$VERSION.dmg" > "Hangar-$VERSION.dmg.sha256"
 
       - name: Verify DMG contents
         env:
           HANGAR_VERIFY_SIGNED: "1"
         run: |
           MNT=$(mktemp -d)
-          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "build/Hangar-${{ steps.version.outputs.version }}.dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "build/Hangar-$VERSION.dmg"
           trap 'hdiutil detach "$MNT" -quiet -force' EXIT
-          scripts/verify-bundle.sh "$MNT/Hangar.app" "${{ steps.version.outputs.version }}"
+          scripts/verify-bundle.sh "$MNT/Hangar.app" "$VERSION"
 
       - name: Tag
-        if: steps.version.outputs.tagged == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+        if: needs.plan.outputs.tagged == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$VERSION" -m "Hangar $VERSION" HEAD
           git push origin "v$VERSION"
 
-      - name: Publish GitHub Release
+      # Draft first: users see nothing until the draft's own assets pass the checks below.
+      - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          CHANGES: ${{ needs.plan.outputs.notes }}
         run: |
           cat > "$RUNNER_TEMP/notes.md" <<EOF
           ### Install
@@ -186,10 +237,38 @@ jobs:
              older ad-hoc signed build asks for them one last time.
 
           Requires macOS 14 or later on Apple silicon.
+
+          ### Changes
+
           EOF
-          gh release create "v$VERSION" \
+          printf '%s\n' "$CHANGES" >> "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" --draft \
             "build/Hangar-$VERSION.dmg" "build/Hangar-$VERSION.dmg.sha256" docs/assets/hangar-demo.mp4 \
-            --title "Hangar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes --verify-tag
+            --title "Hangar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
+      # What users would download, checked without a human: checksum, version, signature. Launching it stays with the owner.
+      - name: Verify the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DIR=$(mktemp -d); cd "$DIR"
+          gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -p "Hangar-$VERSION.dmg*"
+          shasum -a 256 -c "Hangar-$VERSION.dmg.sha256"
+          MNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "Hangar-$VERSION.dmg"
+          trap 'hdiutil detach "$MNT" -quiet -force' EXIT
+          APP="$MNT/Hangar.app"
+          GOT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
+          [ "$GOT" = "$VERSION" ] || { echo "::error::draft app is $GOT, tag is v$VERSION"; exit 1; }
+          codesign --verify --deep --strict "$APP"
+          codesign -dvv "$APP" 2>&1 | grep -qx 'Authority=Hangar Self-Signed' ||
+            { echo "::error::draft app is not signed by Hangar Self-Signed"; exit 1; }
+          echo "v$VERSION verified: sha256, CFBundleShortVersionString, codesign --deep --strict, Hangar Self-Signed"
+
+      - name: Publish the verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v$VERSION" --draft=false
 
       - name: Remove signing keychain
         if: always()

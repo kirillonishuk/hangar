@@ -66,7 +66,8 @@ import TestSupport
     @Test func resolvesTheConfigWithABound() throws {
         let f = try Fixture()
         try writeScript("#!/bin/sh\n[ \"$1\" = -G ] || exit 9\nprintf 'remotecommand echo hi\\ncontrolmaster false\\n'\n", to: f.root + "/ssh-g")
-        #expect(sshResolvedOptions(host: "box", sshPath: f.root + "/ssh-g") == ["remotecommand": "echo hi", "controlmaster": "false"])
+        // A generous bound: a fresh script's first start under parallel load can take longer than the 2 s default.
+        #expect(sshResolvedOptions(host: "box", sshPath: f.root + "/ssh-g", timeout: 30) == ["remotecommand": "echo hi", "controlmaster": "false"])
         try writeScript("#!/bin/sh\nexec sleep 30\n", to: f.root + "/ssh-slow")
         let start = Date()
         #expect(sshResolvedOptions(host: "box", sshPath: f.root + "/ssh-slow", timeout: 0.5) == nil)

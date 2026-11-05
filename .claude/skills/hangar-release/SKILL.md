@@ -1,6 +1,6 @@
 ---
 name: hangar-release
-description: PR → merge → release checklist for Hangar (version from PR title, labels, one merge at a time, DMG verification). Use when opening a PR, preparing or performing a merge to main, or checking a release.
+description: PR → merge → release checklist for Hangar (daily batched release, version from PR titles/labels, release-now for urgent fixes, automated DMG verification). Use when opening a PR, preparing or performing a merge to main, or checking a release.
 ---
 
 # Hangar PR and release flow
@@ -13,7 +13,7 @@ Source of truth: `docs/RELEASING.md`. Read it; this is the checklist form plus t
 - [ ] Branch pushed; `scripts/check-commits.sh origin/main..HEAD` passes (`hangar-commit` skill).
 - [ ] Title is a conventional commit in English — it sets the bump: `type!:` major, `feat:` minor, anything else patch.
 - [ ] Body: short English summary, what was verified (commands + results), screenshots for UI changes (isolated DEBUG build, see `hangar-test`).
-- [ ] Label: docs/CI/chore-only → `no-release`; title bump wrong → `major` / `minor` / `patch`.
+- [ ] Label: docs/CI/chore-only → `no-release`; title bump wrong → `major` / `minor` / `patch`; must ship today (urgent fix) → `release-now` (owner's call).
   `gh pr create --title "<title>" --body-file <file> --label no-release`
 
 ## 2. Before merge (all of `docs/RELEASING.md` «Before merge»)
@@ -26,13 +26,17 @@ Source of truth: `docs/RELEASING.md`. Read it; this is the checklist form plus t
 
 ## 3. Merge (owner's OK first)
 - Merge commit only: `gh pr merge <N> --merge --subject "Merge #<N>: <summary>" --body "<PR title>"`.
-- **One at a time.** Before the next merge: `gh run list -w Release -L 3` and wait until the previous run is `completed` (`gh run watch <id>`). Runs share one concurrency group; a queued run replaces the waiting one.
+- Merging does not release: the Release workflow runs daily at 06:00 UTC and batches every PR merged since the last tag (bump = highest among them, `no-release` ignored). Plain PRs can be merged back to back.
+- **`release-now` PRs: one at a time.** The merge releases immediately. Before the next one: `gh run list -w Release -L 3` and wait until the previous run is `completed` (`gh run watch <id>`). Runs share one concurrency group; a queued run replaces the waiting one.
+- Release now without a label (owner's OK): `gh workflow run release.yml -f bump=auto` (or `patch` / `minor` / `major`).
 
-## 4. Verify the release (skip for `no-release`)
+## 4. Check the release (after the daily / `release-now` / manual run)
+The Release run creates a draft, verifies its DMG itself (step «Verify the draft release»: sha256, `CFBundleShortVersionString` == tag, `codesign --verify --deep --strict`, `Authority=Hangar Self-Signed`) and publishes the draft only if every check passes; a failure leaves an unpublished draft (recovery: `docs/RELEASING.md` «Failed run»).
 ```sh
-gh release view vX.Y.Z -R kirillonishuk/hangar      # assets: Hangar-X.Y.Z.dmg and .dmg.sha256
+gh run list -w Release -L 3                         # the run is green
+gh release view vX.Y.Z -R kirillonishuk/hangar      # assets: Hangar-X.Y.Z.dmg and .dmg.sha256; Changes list the PRs
 ```
-Then run the block in `docs/RELEASING.md` «After merge» in a `mktemp -d` dir: download, `shasum -a 256 -c`, `hdiutil attach -nobrowse -readonly`, `PlistBuddy` version == tag, `codesign --verify --deep`, `hdiutil detach`. Report each result.
+Report the run and the version; the owner launches the app by hand. Manual re-check if needed: the block in `docs/RELEASING.md` «After a release».
 
 **Never launch the released Hangar.app** (or `open` the DMG's app): a release build ignores `HANGAR_STATE_DIR` and rewrites the owner's real `state.json`. The owner launches it by hand.
 

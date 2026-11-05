@@ -44,7 +44,8 @@ import TestSupport
         #expect(view.isWaitingForHost)
         // `spec` started the connection itself.
         #expect(await waitUntil { h.state() == .connected })
-        #expect(connectedHosts == ["dev"])
+        // The callback comes after the state flips, on a later main-actor turn.
+        #expect(await waitUntil { connectedHosts == ["dev"] })
 
         hostConnected(host: "dev", leaves: [view])
         #expect(!view.isWaitingForHost)
@@ -171,7 +172,8 @@ import TestSupport
         h.app.archive(taskId: h.app.location(ofLeaf: dev.leaf)!.task)
         #expect(await waitUntil { kills(h, dev.leaf) == 1 })
         try FileManager.default.removeItem(atPath: h.fakeDir + "/fail")
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        // The failed kill is queued again once its result is back: waited for, not slept (seconds under parallel load).
+        #expect(await waitUntil { h.app.pendingKills["dev"]?.contains(dev.leaf) == true })
         h.remote.disconnect("dev")
         #expect(await h.remote.connect("dev") == .connected)
         #expect(await waitUntil { kills(h, dev.leaf) == 2 })
@@ -182,8 +184,11 @@ import TestSupport
         // The fake's `-O exit` kills the last master started: "other" goes offline before "dev" connects.
         #expect(await h.remote.connect("other") == .connected)
         h.remote.disconnect("other")
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        #expect(h.remote.hosts["other"]?.state == .disconnected)
+        // `-O exit` is a background helper: until it has run, it would kill dev's master instead (seconds under load).
+        #expect(await waitUntil {
+            (try? String(contentsOfFile: h.fakeDir + "/exited", encoding: .utf8))?.contains("other") == true
+                && h.remote.hosts["other"]?.state == .disconnected
+        })
         #expect(await h.remote.connect("dev") == .connected)
         let dev = h.leaf("dev")
         let project = try #require(h.app.state.projects.first { $0.name == "dev" })

@@ -97,17 +97,24 @@ jobs:
         if: github.event_name != 'push'
         run: defaults write -g AppleLanguages -array ru en
 
-      # Parallel (swift-testing's default) instead of --no-parallel: a fraction of the time. Ts/LspLifecycleTests drive
-      # shell-script language servers against the 3 s stop deadline, which the other suites' load blows: they run alone.
-      # One retry of the parallel run absorbs a cold-runner stall (the 3-core runner holds the main actor for seconds).
+      # Parallel (swift-testing's default) instead of --no-parallel: a fraction of the time. One test target per process:
+      # all targets in one process share a 3-thread cooperative pool on this runner, and the UI suites' blocking waits
+      # starved the rest for over a minute. SERIAL suites hold production deadlines a loaded runner blows (language
+      # servers' 3 s stop, the doctor's 15 s login-shell probe): they run alone at the end. One retry per target absorbs
+      # a cold-runner stall and shows as a warning.
       - name: Test
         if: github.event_name != 'push'
         run: |
-          swift test --skip-build --skip 'TsLifecycleTests|LspLifecycleTests' || {
-            echo "::warning::Parallel test run failed; retrying once"
-            swift test --skip-build --skip 'TsLifecycleTests|LspLifecycleTests'
-          }
-          swift test --skip-build --no-parallel --filter 'TsLifecycleTests|LspLifecycleTests'
+          SERIAL='TsLifecycleTests|LspLifecycleTests|DoctorChecksTests'
+          for target in $(ls Tests | grep 'Tests$'); do
+            echo "::group::$target"
+            swift test --skip-build --filter "^$target\." --skip "$SERIAL" || {
+              echo "::warning::$target failed; retrying once"
+              swift test --skip-build --filter "^$target\." --skip "$SERIAL"
+            }
+            echo "::endgroup::"
+          done
+          swift test --skip-build --no-parallel --filter "$SERIAL"
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
       # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs. On main this only warms the

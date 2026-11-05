@@ -182,6 +182,13 @@ struct LimitsBlock: View {
     }
 }
 
+enum CodexRefreshState: Equatable { case idle, running, failed }
+
+enum LimitsRefresh {
+    /// Only Codex can be read on demand; Claude's limits arrive with its statusline (HD-012, HD-145).
+    static func canRefresh(_ agent: UsageAgent) -> Bool { agent == .codex }
+}
+
 /// The 5-hour and weekly windows are always shown (sidebar and popover), with «—» while one has no figure.
 enum LimitSlot {
     static let footer: [WindowKind] = [.session, .weekly]
@@ -224,7 +231,7 @@ struct LimitsRailTile: View {
     }
 }
 
-/// Plan, «обновлено …», each window with badge, percent, bar and reset time; ⇧⌘L hint and ↻.
+/// Plan, «обновлено …», each window with badge, percent, bar and reset time; Claude: when it updates; Codex: ↻; ⇧⌘L hint.
 struct LimitsPopover: View {
     let app: AppState
 
@@ -236,22 +243,10 @@ struct LimitsPopover: View {
                 agent(row.agent, row.usage)
                     .padding(.vertical, Theme.Limit.itemGap / 2)
             }
-            HStack {
-                Text(L10n.help(L10n.limitsShortcutHint, .limits))
-                Spacer(minLength: Theme.Limit.rowGap)
-                Button {
-                    app.refreshUsageClock()
-                    Task { await app.refreshCodexUsage(afterTurn: false) }
-                } label: {
-                    // A header action: unfilled until hovered, so it doesn't read as the `text3` hint beside it.
-                    ActionLabel(title: L10n.refresh, icon: .refresh)
-                }
-                .buttonStyle(.hangar(.plain, .small))
-                .help(L10n.refreshLimitsHelp)
-            }
-            .font(Theme.Typography.caption.font())
-            .foregroundStyle(Theme.ui.text3)
-            .padding(.top, Theme.railInset)
+            Text(L10n.help(L10n.limitsShortcutHint, .limits))
+                .font(Theme.Typography.caption.font())
+                .foregroundStyle(Theme.ui.text3)
+                .padding(.top, Theme.railInset)
         }
         .padding(.vertical, Theme.Limit.popoverPaddingV)
         .padding(.horizontal, Theme.Limit.popoverPaddingH)
@@ -276,7 +271,39 @@ struct LimitsPopover: View {
                 if let w = row.window { window(w, agent: agent, level: windowLevel(w, in: u)) }
                 else { missing(row.kind, agent: agent) }
             }
+            if LimitsRefresh.canRefresh(agent) { refreshRow } else { pushHint }
         }
+    }
+
+    /// Claude's limits come only with its statusline, so there is nothing to click: say when they update.
+    private var pushHint: some View {
+        Text(L10n.claudeLimitsHint)
+            .font(Theme.Typography.caption.font())
+            .foregroundStyle(Theme.ui.text3)
+            .help(L10n.claudeLimitsHintHelp)
+    }
+
+    /// Codex only: a spinner while reading, an error line after a failed read; the new «обновлено …» is the success.
+    private var refreshRow: some View {
+        let state = app.codexRefresh
+        return HStack(spacing: Theme.Limit.rowGap) {
+            if state == .failed {
+                Text(L10n.codexLimitsFailed).foregroundStyle(Theme.ui.failedText)
+            }
+            Spacer(minLength: 0)
+            if state == .running { ProgressView().controlSize(.mini).accessibilityHidden(true) }
+            Button {
+                app.refreshUsageClock()
+                Task { await app.refreshCodexUsage(afterTurn: false) }
+            } label: {
+                // A header action: unfilled until hovered, so it doesn't read as the `text3` hint beside it.
+                ActionLabel(title: L10n.refresh, icon: .refresh)
+            }
+            .buttonStyle(.hangar(.plain, .small))
+            .disabled(state == .running)
+            .help(L10n.refreshLimitsHelp)
+        }
+        .font(Theme.Typography.caption.font())
     }
 
     /// A main window the agent sent no figure for yet: kept in place, so the 5-hour row never just disappears.

@@ -227,6 +227,8 @@ enum EmptyProjectRow: Hashable {
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()
+    /// The popover's «обновить»: a spinner while reading, an error line after a failed read.
+    var codexRefresh = CodexRefreshState.idle
     /// Injectable for tests.
     @ObservationIgnored var clock: () -> Date = Date.init
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }

@@ -141,7 +141,7 @@ import Workspace
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp, integrationNeedsRemote, folderEmpty, noGitFiles, optionalToolsLabel
-        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
+        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp, claudeLimitsHint, claudeLimitsHintHelp, codexLimitsFailed
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
@@ -684,6 +684,9 @@ import Workspace
     static var refresh: String { s(.refresh) }
     static var limitsHelp: String { s(.limitsHelp) }
     static var refreshLimitsHelp: String { s(.refreshLimitsHelp) }
+    static var claudeLimitsHint: String { s(.claudeLimitsHint) }
+    static var claudeLimitsHintHelp: String { s(.claudeLimitsHintHelp) }
+    static var codexLimitsFailed: String { s(.codexLimitsFailed) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }

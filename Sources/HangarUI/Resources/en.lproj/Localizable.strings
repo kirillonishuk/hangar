@@ -1029,3 +1029,17 @@
 "actionNoSuggestions" = "No commands found in package.json, Makefile or justfile";
 "actionRootGroup" = "Root";
 "actionRowMenu" = "Action";
+
+"subagentsShow" = "Show subagents";
+"subagentsHide" = "Hide subagents";
+"subagentRunning" = "working";
+"subagentDone" = "done";
+"subagentFailed" = "interrupted";
+"subagentUnderMinute" = "<1 min";
+"subagentMinutes" = "%d min";
+"subagentHours" = "%d h %d min";
+"subagentPrompt" = "Prompt";
+"subagentReport" = "Result";
+"subagentRemoteNote" = "Progress is shown only for chats on this Mac.";
+"subagentPendingNote" = "Progress appears once the subagent starts.";
+"subagentRow" = "%@ · %@ · %@ · %@";

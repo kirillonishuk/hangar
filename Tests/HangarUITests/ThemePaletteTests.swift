@@ -1,3 +1,4 @@
+import AgentStatus
 import AppKit
 import Foundation
 import GhosttyBridge
@@ -39,6 +40,12 @@ import Workspace
         need(p.text3, on: p.bg1, 3, "text3/bg1")
         need(p.text3, on: p.bg2, 3, "text3/bg2")
         for s in [p.bg1, p.bg2] { need(p.failedText, on: s, 4.5, "failedText") }
+        // Status icons keep their colour on the selected row (HD-144): 3:1 there as on the chrome.
+        for state in AgentState.allCases where state != .idle {
+            for (s, sn) in [(p.selectedFocus, "selectedFocus"), (p.bg1, "bg1"), (p.selected, "selected")] {
+                need(p.status(state), on: s, 3, "\(state)/\(sn)")
+            }
+        }
     }
 
     /// §2.7's construction: `hover2` = `selected`; `bg1` one step above `bg0`, `bg2` one more; hover reads on `bg0`/`bg1`.

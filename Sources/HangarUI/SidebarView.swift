@@ -133,7 +133,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, indent: subIndent(depth), trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
                 ZStack {
                     if !asleep {
-                        StatusDot(state: dot, seen: seen, onAccent: selected)
+                        StatusDot(state: dot, seen: seen)
                     }
                     subsChevron(task)
                 }
@@ -214,7 +214,7 @@ struct SidebarView: View {
                         doubleAction: { Action.rename.perform(target, ctx) },
                         forceHover: forcedHover(target)) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.sessionRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, seen: seen, onAccent: selected)
+                StatusDot(state: dot, seen: seen)
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     if app.renaming == target {
@@ -308,7 +308,7 @@ struct SidebarView: View {
                      MenuEntry(title: L10n.closeTerminal, icon: .close) { app.closeHostShell(host) }]
         return HoverRow(selected: selected, action: { app.select(taskId: task.id) }) { hover in
             GutterRow(collapsed: collapsed, trailing: Theme.projectRowTrailing, railReplacesMarker: true) {
-                StatusDot(state: dot, seen: seen, onAccent: selected)
+                StatusDot(state: dot, seen: seen)
             } expanded: {
                 HStack(spacing: Theme.inlineGap) {
                     Text(verbatim: name).lineLimit(1).truncationMode(.middle)
@@ -606,7 +606,7 @@ struct SidebarView: View {
             GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent + subIndent(depth), trailing: Theme.sessionRowTrailing,
                       railReplacesMarker: true) {
                 ZStack {
-                    StatusDot(state: dot, seen: seen, onAccent: selected)
+                    StatusDot(state: dot, seen: seen)
                     subsChevron(task)
                 }
             } expanded: {

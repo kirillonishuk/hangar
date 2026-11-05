@@ -13,6 +13,7 @@ enum Icon: CaseIterable {
     case search
     case appearance, bell, bellSlash, plug
     case lock, question, alert, check
+    case spinner, questionMark, exclamation, hourglass
     case popOut
     case filter
     case play, stop
@@ -126,6 +127,15 @@ enum Icon: CaseIterable {
         // ▶ / ■: project actions (HD-133) — run, stop.
         case .play: [.shape(p(4.75, 2.75, r: 1), p(13, 8, r: 1), p(4.75, 13.25, r: 1))]
         case .stop: [.rect(3.25, 3.25, 9.5, 9.5, 1.5)]
+        // Status icons (HD-144), working (turns), waiting, failed, limit; done is `check`. «?» is bare (a ring around it is mush at 12 pt; its halo frames it).
+        case .spinner: [.arc(from: p(8, 1.75), to: p(1.75, 8), r: 6.25, large: true, sweep: true)]
+        case .questionMark:
+            [.arc(from: p(4.75, 5.25), to: p(11.25, 5.25), r: 3.25, large: false, sweep: true),
+             .curve(p(11.25, 5.25), p(11.25, 7.5), p(8, 7.5), p(8, 9.75)), .dot(p(8, 13.25))]
+        case .exclamation: [.circle(p(8, 8), 6.25), .line(p(8, 4.5), p(8, 8.5)), .dot(p(8, 11.25))]
+        case .hourglass:
+            [.line(p(3.75, 2.25), p(12.25, 2.25)), .line(p(3.75, 13.75), p(12.25, 13.75)),
+             .shape(p(5, 2.25), p(11, 2.25), p(8, 8)), .shape(p(8, 8), p(11, 13.75), p(5, 13.75))]
         case .claude, .codex: []  // brand logos
         }
     }
@@ -318,85 +328,67 @@ struct IconView: View {
     }
 }
 
-/// How a status dot is drawn (HD-135): not by colour alone. Working — a ring half filled, done — solid until seen,
-/// then a ring; idle — a smaller solid dot (a hollow one read as an empty radio button, HD-130); waiting, failed and
-/// limit are solid (their rows carry a word); with «Differentiate without colour» failure is a diamond, so it never
-/// reads as a done dot. All static: nothing animates but waiting's one pulse.
-enum StatusMark: Equatable {
-    case solid, small, hollow, half, diamond
-
-    static func of(_ state: AgentState, seen: Bool, differentiateWithoutColor: Bool) -> StatusMark {
+/// Which icon shows an agent state (HD-144): working — a spinner that turns, done — a check (dimmed once seen),
+/// waiting — «?», failed — «!», limit — an hourglass, idle — nothing. Shapes, not colour alone, so «Differentiate
+/// without colour» needs nothing extra.
+enum StatusMark {
+    static func icon(_ state: AgentState) -> Icon? {
         switch state {
-        case .working: .half
-        case .done: seen ? .hollow : .solid
-        case .idle: .small
-        case .failed: differentiateWithoutColor ? .diamond : .solid
-        case .waiting, .limit: .solid
+        case .working: .spinner
+        case .done: .check
+        case .waiting: .questionMark
+        case .failed: .exclamation
+        case .limit: .hourglass
+        case .idle: nil
         }
     }
-}
 
-/// The right half of a disc: the filled part of the working mark.
-private struct HalfDisc: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        p.move(to: c)
-        p.addArc(center: c, radius: min(rect.width, rect.height) / 2, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: false)
-        p.closeSubpath()
-        return p
+    /// A seen «готово» stays, quieter (HD-135).
+    static func dimmed(_ state: AgentState, seen: Bool) -> Bool { state == .done && seen }
+
+    /// The spinner turns only where it can be seen: energy — nothing runs for a hidden, minimised or covered window —
+    /// and Reduce Motion keeps it still.
+    static func spins(_ state: AgentState, reducedMotion: Bool, windowVisible: Bool) -> Bool {
+        state == .working && !reducedMotion && windowVisible
     }
 }
 
-/// Status dot (`StatusMark`); `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
+/// Status icon (`StatusMark`) in the state's own colour everywhere, the selected row included (HD-144); idle keeps
+/// the empty slot. `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms).
 struct StatusDot: View {
     var state: AgentState = .idle
-    /// A done dot whose result was seen (HD-135).
+    /// A done whose result was seen (HD-135).
     var seen = false
-    var size = Theme.Icon.statusDot
-    /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
+    var size = Theme.Icon.inline
+    /// A disc of this color behind the icon (a badge on a rail tile's or a tab icon's corner); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0
-    /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle and a seen done have no colour to frame — a
-    /// ring around them read as an empty radio button (HD-130), so they are drawn in `onAccent` itself (idle at .4).
-    var onAccent = false
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        let mark = StatusMark.of(state, seen: seen, differentiateWithoutColor: Theme.differentiateWithoutColor)
-        let quiet = onAccent && (mark == .hollow || mark == .small)
-        let ring = onAccent && !quiet ? Theme.ui.onAccent : border
-        let ringWidth = onAccent ? (quiet ? 0 : Theme.railDotBorder) : borderWidth
-        let color = quiet ? Theme.ui.onAccent.opacity(state == .idle ? Theme.Opacity.inactive : 1) : Theme.ui.status(state)
-        Self.shape(mark, color: color)
-            .frame(width: size, height: size)
-            .background {
-                if let ring { Circle().fill(ring).padding(-ringWidth) }
+        let icon = StatusMark.icon(state)
+        let color = Theme.ui.status(state).opacity(StatusMark.dimmed(state, seen: seen) ? Theme.Opacity.inactive : 1)
+        ZStack {
+            if icon == .spinner {
+                Spinner(color: NSColor(color))
+            } else if let icon {
+                Image(nsImage: icon.image(size: size)).renderingMode(.template).resizable().foregroundStyle(color)
             }
-            .background {
-                if state == .waiting {
-                    Circle().fill(Theme.ui.waiting.opacity(Theme.Opacity.ring)).padding(-(ringWidth + Theme.haloWidth))
-                }
-            }
-            .scaleEffect(scale)
-            .accessibilityElement()
-            .accessibilityLabel(L10n.statusLabel(state, seen: seen))
-            // shortcut: no pulse on appear (it would repeat on every view re-creation); the static halo marks an already-waiting dot
-            .onChange(of: state) { _, now in if now == .waiting { pulse() } }
-    }
-
-    @ViewBuilder private static func shape(_ mark: StatusMark, color: Color) -> some View {
-        switch mark {
-        case .solid: Circle().fill(color)
-        case .small: Circle().fill(color).scaleEffect(Theme.statusIdleScale)
-        case .hollow: Circle().strokeBorder(color, lineWidth: Theme.statusDotStroke)
-        case .half:
-            ZStack {
-                Circle().strokeBorder(color, lineWidth: Theme.statusDotStroke)
-                HalfDisc().fill(color)
-            }
-        case .diamond: Rectangle().fill(color).scaleEffect(Theme.statusDiamondScale).rotationEffect(.degrees(45))
         }
+        .frame(width: size, height: size)
+        .background {
+            if let border, icon != nil { Circle().fill(border).padding(-borderWidth) }
+        }
+        .background {
+            if state == .waiting {
+                Circle().fill(Theme.ui.waiting.opacity(Theme.Opacity.ring)).padding(-(borderWidth + Theme.haloWidth))
+            }
+        }
+        .scaleEffect(scale)
+        .accessibilityElement()
+        .accessibilityLabel(L10n.statusLabel(state, seen: seen))
+        // shortcut: no pulse on appear (it would repeat on every view re-creation); the static halo marks an already-waiting dot
+        .onChange(of: state) { _, now in if now == .waiting { pulse() } }
     }
 
     private func pulse() {
@@ -404,6 +396,93 @@ struct StatusDot: View {
         let half = Theme.pulseDuration / 2
         withAnimation(.easeOut(duration: half)) { scale = Theme.pulseScale } completion: {
             withAnimation(.easeIn(duration: half)) { scale = 1 }
+        }
+    }
+}
+
+/// The working spinner, one turn per `Theme.spinDuration` (HD-144). A CoreAnimation layer turns it — the render server
+/// runs the loop, no SwiftUI body or app code per frame — and only while `StatusMark.spins` says so; it re-checks on
+/// window occlusion, minimising and the accessibility options.
+private struct Spinner: NSViewRepresentable {
+    let color: NSColor
+
+    func makeNSView(context: Context) -> SpinnerView { SpinnerView() }
+    func updateNSView(_ view: SpinnerView, context: Context) { view.color = color }
+}
+
+private final class SpinnerView: NSView {
+    private let arc = CAShapeLayer()
+    private var observer: NSObjectProtocol?
+    private static let spinKey = "spin"
+
+    var color: NSColor = .clear {
+        didSet {
+            guard color != oldValue else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            arc.strokeColor = color.cgColor
+            CATransaction.commit()
+        }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        arc.fillColor = nil
+        arc.lineWidth = Theme.iconStroke
+        arc.lineCap = .round
+        layer?.addSublayer(arc)
+        observer = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.refresh() } }
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    isolated deinit {
+        observer.map(NSWorkspace.shared.notificationCenter.removeObserver)
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        arc.bounds = bounds
+        arc.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        // The glyph's 16 grid is y-down; the layer's y points up.
+        let s = bounds.width / Theme.iconGrid
+        var t = CGAffineTransform(a: s, b: 0, c: 0, d: -s, tx: 0, ty: bounds.height)
+        arc.path = Icon.spinner.outline.cgPath.copy(using: &t)
+        CATransaction.commit()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self)
+        if let window {
+            for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification,
+                         NSWindow.didDeminiaturizeNotification] {
+                NotificationCenter.default.addObserver(self, selector: #selector(windowChanged), name: name, object: window)
+            }
+        }
+        refresh()
+    }
+
+    @objc private func windowChanged() { refresh() }
+
+    private func refresh() {
+        let visible = window.map { $0.isVisible && !$0.isMiniaturized && $0.occlusionState.contains(.visible) } ?? false
+        if StatusMark.spins(.working, reducedMotion: Motion.reduced, windowVisible: visible) {
+            guard arc.animation(forKey: Self.spinKey) == nil else { return }
+            let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+            spin.fromValue = 0
+            spin.toValue = -2 * Double.pi  // clockwise: the layer's y points up
+            spin.duration = Theme.spinDuration
+            spin.repeatCount = .infinity
+            arc.add(spin, forKey: Self.spinKey)
+        } else {
+            arc.removeAnimation(forKey: Self.spinKey)
         }
     }
 }

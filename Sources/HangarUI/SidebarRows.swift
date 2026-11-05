@@ -150,7 +150,7 @@ struct RailTile: View {
             .overlay(shape.strokeBorder(style.border, lineWidth: Theme.railTileBorderWidth))
             .overlay(alignment: .topTrailing) {
                 if let state {
-                    StatusDot(state: state, seen: seen, size: Theme.railDot, border: RailTileStyle.ring(selected: selected, hover: hover),
+                    StatusDot(state: state, seen: seen, size: Theme.Icon.statusBadge, border: RailTileStyle.ring(selected: selected, hover: hover),
                               borderWidth: Theme.railDotBorder)
                         .offset(x: Theme.railDotOffset, y: -Theme.railDotOffset)
                 }

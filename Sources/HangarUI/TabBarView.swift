@@ -501,7 +501,7 @@ struct TabItem: View {
             }
             .overlay(alignment: .topTrailing) {
                 if app.showsDot(tab, state: dot) {
-                    StatusDot(state: dot, seen: app.doneSeen(tab.root.leaves), size: Theme.Icon.tabDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
+                    StatusDot(state: dot, seen: app.doneSeen(tab.root.leaves), size: Theme.Icon.statusBadge, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
                               borderWidth: Theme.railDotBorder)
                         .offset(x: Theme.tabDotOffset, y: -Theme.tabDotOffset)
                         .help(app.statusText(dot, leaves: tab.root.leaves))

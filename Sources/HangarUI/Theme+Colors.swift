@@ -26,9 +26,8 @@ extension Theme {
     /// Observable holder of the chosen theme (a static stored property can't be observed).
     @Observable final class Selection: @unchecked Sendable {
         var theme: AppTheme = .darkPlus
-        /// The system's «Increase contrast» and «Differentiate without colour» (HD-135).
+        /// The system's «Increase contrast» (HD-135).
         var increaseContrast = false
-        var differentiateWithoutColor = false
     }
     // Written on the main thread only (launch, Settings).
     nonisolated(unsafe) static let store = Selection()
@@ -47,24 +46,17 @@ extension Theme {
 
     public static var palette: ThemePalette { ThemePalette.of(current).contrasted(store.increaseContrast) }
 
-    /// Status dots draw failure as a diamond, not only in red (HD-135).
-    static var differentiateWithoutColor: Bool { store.differentiateWithoutColor }
-
-    /// Takes the system's accessibility display options; a change redraws like a theme switch.
-    static func applyAccessibility(increaseContrast: Bool, differentiateWithoutColor: Bool) {
-        guard increaseContrast != store.increaseContrast || differentiateWithoutColor != store.differentiateWithoutColor else { return }
+    /// Takes the system's «Increase contrast»; a change redraws like a theme switch. («Differentiate without colour»
+    /// needs nothing: status icons differ by shape, HD-144.)
+    static func applyAccessibility(increaseContrast: Bool) {
+        guard increaseContrast != store.increaseContrast else { return }
         store.increaseContrast = increaseContrast
-        store.differentiateWithoutColor = differentiateWithoutColor
         NotificationCenter.default.post(name: .hangarThemeDidChange, object: nil)
     }
 
-    /// Reads the options now and follows every change in System Settings (no polling); keep the token.
+    /// Reads the option now and follows every change in System Settings (no polling); keep the token.
     static func followSystemAccessibility() -> NSObjectProtocol {
-        func read() {
-            let ws = NSWorkspace.shared
-            applyAccessibility(increaseContrast: ws.accessibilityDisplayShouldIncreaseContrast,
-                               differentiateWithoutColor: ws.accessibilityDisplayShouldDifferentiateWithoutColor)
-        }
+        func read() { applyAccessibility(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast) }
         read()
         return NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
                                                                  object: nil, queue: .main) { _ in read() }
@@ -173,15 +165,6 @@ extension Theme {
         public static var railTileSelected: Color { Color(nsColor: Theme.railTileSelected) }
         public static var railTileSelectedBorder: Color { Color(nsColor: Theme.railTileSelectedBorder) }
 
-        public static func status(_ state: AgentState) -> Color {
-            switch state {
-            case .working: working
-            case .waiting: waiting
-            case .done: done
-            case .failed: failed
-            case .idle: idle
-            case .limit: waiting  // amber: the agent waits for its limit, nothing is broken
-            }
-        }
+        public static func status(_ state: AgentState) -> Color { of(Theme.palette.status(state)) }
     }
 }

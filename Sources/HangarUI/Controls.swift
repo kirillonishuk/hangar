@@ -460,7 +460,7 @@ private struct SegmentPart<Value: Hashable>: View {
                     IconView(icon: icon, size: Theme.Icon.inline, tint: tint)
                         .overlay(alignment: .bottomTrailing) {
                             if let dot = option.dot {
-                                StatusDot(state: dot, size: Theme.Icon.tabDot, border: Theme.ui.field, borderWidth: Theme.Control.segmentPadding)
+                                StatusDot(state: dot, size: Theme.Icon.statusBadge, border: Theme.ui.field, borderWidth: Theme.Control.segmentPadding)
                                     .offset(x: Theme.Control.segmentPadding, y: Theme.Control.segmentPadding)
                             }
                         }

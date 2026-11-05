@@ -195,12 +195,11 @@ import Workspace
 
     @Test func finishedRowsAreQuiet() {
         var s = Subagent(id: "t1", type: "Explore", title: "Scan", started: Date())
-        func mark() -> StatusMark { StatusMark.of(s.dotState, seen: s.dotSeen, differentiateWithoutColor: false) }
-        #expect(mark() == .half && s.dotState == .working)
+        #expect(StatusMark.icon(s.dotState) == .spinner)
         s.state = .done
-        #expect(mark() == .hollow && s.dotState == .done)
+        #expect(StatusMark.icon(s.dotState) == .check && StatusMark.dimmed(s.dotState, seen: s.dotSeen))
         s.state = .failed
-        #expect(mark() == StatusMark.of(.failed, seen: false, differentiateWithoutColor: false) && !s.dotSeen)
+        #expect(StatusMark.icon(s.dotState) == .exclamation && !s.dotSeen)
     }
 
     @Test func noFileNoTranscript() throws {

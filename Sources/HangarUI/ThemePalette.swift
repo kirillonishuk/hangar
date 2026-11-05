@@ -1,3 +1,4 @@
+import AgentStatus
 import Foundation
 import Workspace
 
@@ -57,6 +58,17 @@ public struct ThemePalette: Sendable {
         return p
     }
 
+    /// A status icon's colour; `limit` is amber: the agent waits for its limit, nothing is broken.
+    func status(_ state: AgentState) -> Hex {
+        switch state {
+        case .working: working
+        case .waiting, .limit: waiting
+        case .done: done
+        case .failed: failed
+        case .idle: idle
+        }
+    }
+
     static func of(_ theme: AppTheme) -> ThemePalette {
         switch theme {
         case .darkPlus: darkPlus
@@ -68,7 +80,7 @@ public struct ThemePalette: Sendable {
     /// VS Code Dark+ greys.
     static let darkPlus = ThemePalette(
         bg0: 0x1e1e1e, bg1: 0x252526, bg2: 0x2c2c2d, field: 0x1e1e1e,
-        hover: 0x2a2d2e, hover2: 0x37373d, selected: 0x37373d, selectedFocus: 0x0e639c,
+        hover: 0x2a2d2e, hover2: 0x37373d, selected: 0x37373d, selectedFocus: 0x04395e,
         line: 0x303030, line2: 0x3c3c3c,
         text0: 0xffffff, text1: 0xcccccc, text2: 0xa3a3a3, text3: 0x7a7a7a,
         accent: 0x0e639c, accentText: 0x3794ff, onAccent: 0xffffff,
@@ -83,7 +95,7 @@ public struct ThemePalette: Sendable {
     /// Warm grey with an amber accent, dark enough for white text; «ждёт» is yellow.
     static let graphite = ThemePalette(
         bg0: 0x232220, bg1: 0x292826, bg2: 0x302f2c, field: 0x1f1e1c,
-        hover: 0x2e2d2a, hover2: 0x3a3834, selected: 0x3a3834, selectedFocus: 0x7d4a24,
+        hover: 0x2e2d2a, hover2: 0x3a3834, selected: 0x3a3834, selectedFocus: 0x5c361a,
         line: 0x363430, line2: 0x3d3b37,
         text0: 0xfbf8f3, text1: 0xe6e2dc, text2: 0xaea79e, text3: 0x7d7871,
         accent: 0xb35d22, accentText: 0xf0975a, onAccent: 0xffffff,
@@ -98,7 +110,7 @@ public struct ThemePalette: Sendable {
     /// Navy, brought in line with Dark+.
     static let navy = ThemePalette(
         bg0: 0x121826, bg1: 0x182030, bg2: 0x1f2738, field: 0x121826,
-        hover: 0x202a3b, hover2: 0x2b3446, selected: 0x2b3446, selectedFocus: 0x2a6fd6,
+        hover: 0x202a3b, hover2: 0x2b3446, selected: 0x2b3446, selectedFocus: 0x153a70,
         line: 0x232c3d, line2: 0x2f3a4d,
         text0: 0xffffff, text1: 0xe3e7ef, text2: 0x9ba4b7, text3: 0x6b7489,
         accent: 0x2a6fd6, accentText: 0x5fb0ff, onAccent: 0xffffff,

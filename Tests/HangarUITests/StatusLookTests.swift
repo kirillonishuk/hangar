@@ -128,35 +128,44 @@ import Workspace
         #expect(waiting.next() == Date(timeIntervalSinceReferenceDate: 720))
     }
 
-    /// Shapes: working half, done solid until seen, idle hollow; failure a diamond only without colour.
-    @Test func marksDifferWithoutColour() {
-        #expect(StatusMark.of(.working, seen: false, differentiateWithoutColor: false) == .half)
-        #expect(StatusMark.of(.done, seen: false, differentiateWithoutColor: false) == .solid)
-        #expect(StatusMark.of(.done, seen: true, differentiateWithoutColor: false) == .hollow)
-        #expect(StatusMark.of(.idle, seen: false, differentiateWithoutColor: false) == .small)
-        #expect(StatusMark.of(.idle, seen: true, differentiateWithoutColor: true) == .small)  // never a ring (HD-130)
-        #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: false) == .solid)
-        #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: true) == .diamond)
-        // With the system option every state an icon-only place shows (tab, rail) has its own mark or halo.
-        let marks = [AgentState.working, .done, .idle, .failed].map { StatusMark.of($0, seen: false, differentiateWithoutColor: true) }
-            + [StatusMark.of(.done, seen: true, differentiateWithoutColor: true)]
-        #expect(Set(marks.map { "\($0)" }).count == marks.count)
+    /// Status icons (HD-144): every state but idle has its own shape; only a seen done is dimmed.
+    @Test func statusIconsDifferByShape() {
+        #expect(StatusMark.icon(.working) == .spinner)
+        #expect(StatusMark.icon(.done) == .check)
+        #expect(StatusMark.icon(.waiting) == .questionMark)
+        #expect(StatusMark.icon(.failed) == .exclamation)
+        #expect(StatusMark.icon(.limit) == .hourglass)
+        #expect(StatusMark.icon(.idle) == nil)
+        let icons = AgentState.allCases.compactMap(StatusMark.icon)
+        #expect(Set(icons).count == AgentState.allCases.count - 1)
+        #expect(StatusMark.dimmed(.done, seen: true) && !StatusMark.dimmed(.done, seen: false))
+        #expect(AgentState.allCases.filter { $0 != .done }.allSatisfy { !StatusMark.dimmed($0, seen: true) })
     }
 
-    /// The system options: Increase Contrast strengthens meta text and separators, both redraw like a theme switch.
+    /// The spinner turns only while working, on screen and without Reduce Motion (HD-144: zero work at idle).
+    @Test func spinnerTurnsOnlyWhenSeen() {
+        #expect(StatusMark.spins(.working, reducedMotion: false, windowVisible: true))
+        #expect(!StatusMark.spins(.working, reducedMotion: true, windowVisible: true))
+        #expect(!StatusMark.spins(.working, reducedMotion: false, windowVisible: false))
+        for state in AgentState.allCases where state != .working {
+            #expect(!StatusMark.spins(state, reducedMotion: false, windowVisible: true))
+        }
+    }
+
+    /// The system's Increase Contrast strengthens meta text and separators and redraws like a theme switch.
     @Test func accessibilityOptionsApply() {
-        defer { Theme.applyAccessibility(increaseContrast: false, differentiateWithoutColor: false) }
+        defer { Theme.applyAccessibility(increaseContrast: false) }
         let base = ThemePalette.of(Theme.current)
         var posted = 0
         let token = NotificationCenter.default.addObserver(forName: .hangarThemeDidChange, object: nil, queue: nil) { _ in posted += 1 }
         defer { NotificationCenter.default.removeObserver(token) }
-        Theme.applyAccessibility(increaseContrast: true, differentiateWithoutColor: false)
+        Theme.applyAccessibility(increaseContrast: true)
         #expect(Theme.palette.text3 == base.text2 && Theme.palette.line == base.line2 && Theme.palette.text1 == base.text1)
-        #expect(!Theme.differentiateWithoutColor && posted == 1)
-        Theme.applyAccessibility(increaseContrast: true, differentiateWithoutColor: false)
+        #expect(posted == 1)
+        Theme.applyAccessibility(increaseContrast: true)
         #expect(posted == 1)  // no change, no redraw
-        Theme.applyAccessibility(increaseContrast: false, differentiateWithoutColor: true)
-        #expect(Theme.palette.text3 == base.text3 && Theme.palette.line == base.line && Theme.differentiateWithoutColor && posted == 2)
+        Theme.applyAccessibility(increaseContrast: false)
+        #expect(Theme.palette.text3 == base.text3 && Theme.palette.line == base.line && posted == 2)
     }
 
     /// Only a waiting or failed pane of a split tab gets the frame.

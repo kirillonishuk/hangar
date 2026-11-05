@@ -81,7 +81,7 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
         if view.superview !== pane {
             view.frame = pane.bounds
             view.autoresizingMask = [.width, .height]
-            pane.addSubview(view)
+            pane.addSubview(view, positioned: .below, relativeTo: nil)  // under the pane's image, if it shows one
         }
         guard shown[i] != pane.leafId else { return }
         shown[i] = pane.leafId

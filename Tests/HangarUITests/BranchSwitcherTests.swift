@@ -131,7 +131,7 @@ import Workspace
         let id = s.addTask(projectId: p, name: "chat")
         let dir = URL(fileURLWithPath: t.root + "/state")
         let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("config.toml"))
-        app.requestHead(app.state.tasks[0])  // the toolbar shows it
+        app.selectedHead(app.state.tasks[0])  // the toolbar shows it
         await app.branchModel.idle()
         let m = BranchSwitcher(app: app, taskId: id)
         var toasts: [String] = []

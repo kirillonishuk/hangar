@@ -140,6 +140,8 @@ struct DiffContent {
     var added = 0
     var deleted = 0
     var isText = false
+    /// git counts no lines (`binary`): the tab tries it as an image.
+    var isBinary = false
     /// Longest line in characters (tabs as `tabWidth`): rows are this wide, so the background reaches the edge
     /// and the horizontal range doesn't change while lazily scrolling.
     var maxChars = 0
@@ -188,6 +190,7 @@ let diffHighlightMaxBytes = 1_000_000
             }
         }
         if case .loaded(.text) = state { c.isText = true }
+        if case .loaded(.binary) = state { c.isBinary = true }
         if c.isText, bytes <= diffHighlightMaxBytes, let lang = syntaxLanguage(forPath: path) {
             c.highlighter = DiffHighlighter(lang: lang, rows: c.rows)
         }
@@ -230,6 +233,8 @@ struct DiffView: View {
                     MonacoDiffView(editor: editor)
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
+                } else if content.isBinary {
+                    DiffImageView(app: app, tab: tab, version: content.version)
                 } else {
                     Spacer(minLength: 0)
                 }
@@ -241,11 +246,12 @@ struct DiffView: View {
         }
     }
 
-    /// «Переименован из …», a mode change, or the notice that replaces the diff.
+    /// «Переименован из …», a mode change, or the notice that replaces the diff (a binary file's: `DiffImageView`).
     private func notes(_ content: DiffContent) -> [String] {
         content.rows.compactMap { row in
             switch row {
-            case .meta(let s), .notice(let s): s
+            case .meta(let s): s
+            case .notice(let s): content.isBinary ? nil : s
             case .hunk, .line: nil
             }
         }
@@ -297,6 +303,44 @@ struct DiffView: View {
     private func navButton(_ icon: Icon, help: String, next: Bool) -> some View {
         IconButton(icon: icon, help: help) { editor.goChange(next: next) }
             .disabled(!editor.changes.canStep)
+    }
+}
+
+/// A binary file of the diff tab: its image(s) when they decode (HD-142), else «Бинарный файл»; nothing while loading.
+private struct DiffImageView: View {
+    let app: AppState
+    let tab: DiffTab
+    /// Bumped when the diff's state changes.
+    let version: Int
+    /// `stamp`: `diffImageStamp` of the load shown.
+    @State private var loaded: (key: String, stamp: String, sides: [ImagePreviewView.Side])?
+
+    private var key: String { tab.path + "|" + (tab.commit ?? "") }
+
+    var body: some View {
+        Group {
+            if let loaded, loaded.key == key {
+                if loaded.sides.isEmpty {
+                    Text(verbatim: L10n.diffBinary)
+                        .font(Theme.Typography.mono.font())
+                        .foregroundStyle(Theme.ui.text3)
+                        .padding(.vertical, Theme.Diff.headerPaddingV)
+                        .padding(.horizontal, Theme.Diff.headerPaddingH)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    ImagePreviewView(name: (tab.path as NSString).lastPathComponent, sides: loaded.sides)
+                }
+            } else {
+                Spacer(minLength: 0)
+            }
+        }
+        // A binary diff stays `.loaded(.binary)` when the file is rewritten: every applied load checks the stamp.
+        .task(id: "\(key)|\(version)|\(app.inspector.diffLoads)") {
+            let key = key, stamp = app.diffImageStamp(tab)
+            if let loaded, loaded.key == key, loaded.stamp == stamp { return }
+            let sides = await app.diffImages(tab)
+            if !Task.isCancelled { loaded = (key, stamp, sides) }
+        }
     }
 }
 

@@ -111,7 +111,7 @@ extension AppState {
     func openSpareWorktree(_ entry: WorktreeEntry, projectId: UUID) -> UUID? {
         guard let branch = entry.branch, let project = project(projectId) else { return nil }
         let base = project.lastBaseBranch ?? worktreeLists[projectId]?.first?.branch ?? branch
-        let id = createTask(projectId: projectId, name: branch, firstMessage: "", mode: .worktree(path: entry.path, branch: branch, base: base)).task
+        let id = createTask(projectId: projectId, name: shortChatName(branch: branch), firstMessage: "", mode: .worktree(path: entry.path, branch: branch, base: base)).task
         worktreePlaces[id] = .inPlace
         return id
     }

@@ -43,6 +43,8 @@ struct RefreshParts: OptionSet, Sendable {
     /// The listing failed: shown in Files only (Changes still load).
     private(set) var filesError: String?
     private(set) var diff: DiffState = .none
+    /// Bumped by every applied load of the open diff, even an unchanged one (a rewritten image is still `.binary`).
+    private(set) var diffLoads = 0
     /// The task's base branch from the last status load (also in uncommitted mode, for the hint); nil if unknown.
     private(set) var baseName: String?
     /// Path of the open diff (relative to the root); its Changes row is selected.
@@ -373,6 +375,7 @@ struct RefreshParts: OptionSet, Sendable {
         // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).
         if let diff = r.diff, r.diffPath == diffPath {
             self.diff = diff
+            diffLoads &+= 1
             onDiffApplied?()
         }
         if firstLoad, r.tree != nil, let changes = r.changes {

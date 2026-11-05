@@ -6,14 +6,6 @@ import Workspace
 enum LinkTarget: Equatable {
     case task(UUID), tab(task: UUID, tab: UUID), project(UUID), host(String), sessions(project: UUID)
 
-    init?(_ target: ActionTarget) {
-        switch target {
-        case .task(let id): self = .task(id)
-        case .tab(let task, let tab), .leaf(let task, let tab, _): self = .tab(task: task, tab: tab)
-        case .project(let id): self = .project(id)
-        }
-    }
-
     /// The canonical link: the full lowercased id.
     var link: HangarLink {
         switch self {

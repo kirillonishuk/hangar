@@ -100,8 +100,8 @@ import Workspace
         case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
         case urgentNotice, muteSession, unmuteSession, projectNotificationsAll, projectNotificationsUrgent, projectNotificationsOff
         case projectNotificationsTitle, notifySegmentAll, notifySegmentUrgent, notifySegmentOff, mutedSessionHelp
-        case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case copyLink, linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
+        case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -135,7 +135,7 @@ import Workspace
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
-        case diffBinary, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
+        case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
@@ -688,8 +688,6 @@ import Workspace
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
     static var copyPath: String { s(.copyPath) }
-    static func portCopy(_ port: Int) -> String { f(.portCopy, String(port)) }  // %@: a port is never digit-grouped
-    static var copyLink: String { s(.copyLink) }
     static var linkNotFound: String { s(.linkNotFound) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }
@@ -877,6 +875,8 @@ import Workspace
     static func gitFound(_ n: Int, more: Bool) -> String { f(more ? .gitFoundMore : .gitFound, Int32(clamping: n)) }
     // Diff tab
     static var diffBinary: String { s(.diffBinary) }
+    static var diffImageBefore: String { s(.diffImageBefore) }
+    static var diffImageAfter: String { s(.diffImageAfter) }
     static var editorLargeReadOnly: String { s(.editorLargeReadOnly) }
     static func editorTooLarge(_ bytes: Int64) -> String {
         f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))

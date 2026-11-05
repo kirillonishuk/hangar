@@ -29,7 +29,7 @@ import Workspace
 
     private func load(_ app: AppState, _ ids: UUID...) async {
         for id in ids {
-            app.requestHead(task(app, id))
+            app.selectedHead(task(app, id))
             await app.worktreeChecksIdle()
             await app.branchModel.idle()
         }

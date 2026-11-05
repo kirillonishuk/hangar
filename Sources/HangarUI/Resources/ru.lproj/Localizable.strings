@@ -94,8 +94,6 @@
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
-"portCopy" = "Порт: %@ (копировать)";
-"copyLink" = "Скопировать ссылку";
 "linkNotFound" = "Ссылка никуда не ведёт: её цели в Hangar нет";
 "attentionOnly" = "Только ждущие";
 "nobodyWaiting" = "Никто не ждёт";
@@ -369,6 +367,8 @@
 "preparingConversation" = "Переношу разговор в новую папку…";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
+"diffImageBefore" = "Было";
+"diffImageAfter" = "Стало";
 "diffTooLarge" = "Слишком большой diff (%d строк)";
 "diffModeChange" = "Режим %@ → %@";
 "diffRenamedFrom" = "Переименован из %@";

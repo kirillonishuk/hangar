@@ -94,8 +94,6 @@
 "saveFailed" = "Couldn't save config.toml: %@";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";
-"portCopy" = "Port: %@ (copy)";
-"copyLink" = "Copy Link";
 "linkNotFound" = "Link leads nowhere: its target is not in Hangar";
 "attentionOnly" = "Waiting only";
 "nobodyWaiting" = "Nobody is waiting";
@@ -369,6 +367,8 @@
 "preparingConversation" = "Moving the conversation to the new folder…";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";
+"diffImageBefore" = "Before";
+"diffImageAfter" = "After";
 "diffTooLarge" = "Diff too large (%d lines)";
 "diffModeChange" = "Mode %@ → %@";
 "diffRenamedFrom" = "Renamed from %@";

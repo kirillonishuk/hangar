@@ -112,6 +112,8 @@ enum EmptyProjectRow: Hashable {
     /// File tabs with unsaved edits (the tab's dot) and their tsserver status (the editor header), by editor leaf (HD-083).
     var editorDirty: Set<UUID> = []
     var editorLanguage: [UUID: LanguageStatus] = [:]
+    /// File tabs showing an image instead of Monaco (HD-142): their header has no «Миникарта».
+    var editorImage: Set<UUID> = []
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
     /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
@@ -572,12 +574,6 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
-    /// The task's `HANGAR_PORT` (HD-060); projects and tabs have none.
-    func port(of target: ActionTarget) -> Int? {
-        guard case .task(let id) = target else { return nil }
-        return state.tasks.first { $0.id == id }?.port
-    }
-
     func path(of target: ActionTarget) -> String? {
         switch target {
         case .project(let id): return project(id)?.path

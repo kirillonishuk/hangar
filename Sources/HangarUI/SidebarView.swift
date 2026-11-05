@@ -640,12 +640,10 @@ struct SidebarView: View {
         .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
         .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task, now: now).text + (task.note.map { "\n" + $0 } ?? ""))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        .onAppear { app.requestHead(task) }
-        // A window focus reloads only the rows on screen (BranchModel).
-        .onDisappear { app.hideHead(task) }
     }
 
-    /// The row's end: the state word when it needs action, else the branch (nothing until it is known).
+    /// The row's end: the state word when it needs action, else the folded sub-chats counter; the branch is only in
+    /// the toolbar (HD-141).
     @ViewBuilder private func rowEnd(_ task: HangarTask, state: AgentState, selected: Bool, now: Date) -> some View {
         switch state {
         case .waiting, .failed, .limit:
@@ -661,14 +659,6 @@ struct SidebarView: View {
                     .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
                     .lineLimit(1)
                     .fixedSize()
-            } else if let branch = app.head(of: task)?.title ?? task.branch {
-                Text(verbatim: branch)
-                    .font(Theme.Typography.monoSmall.font())
-                    .foregroundStyle(selected ? Theme.ui.onAccent : Theme.ui.text3)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    // A fixed width: the branch keeps its place, a long chat name truncates instead.
-                    .frame(width: Self.branchWidth(branch), alignment: .trailing)
             }
         }
     }
@@ -678,23 +668,19 @@ struct SidebarView: View {
         state == .waiting ? rowWaitingWord(since: app.longestWait(of: task)?.attention.since, now: now) : L10n.rowStatus(state)
     }
 
-    /// The row end's constant width: its own (branch, state word) but at least the pin and «⋯» shown over it on
+    /// The row end's constant width: its own (state word, counter) but at least the pin and «⋯» shown over it on
     /// hover (less the gap before it), so hovering never moves the name.
     static func rowEndSlot(_ own: CGFloat?) -> CGFloat {
         max(own ?? 0, 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang - Theme.rowEndGap)
     }
 
-    /// The width `rowEnd` takes: the state word or the branch; nil when it shows nothing.
+    /// The width `rowEnd` takes: the state word or the counter; nil when it shows nothing.
     private func rowEndWidth(_ task: HangarTask, state: AgentState, now: Date) -> CGFloat? {
         switch state {
         case .waiting, .failed, .limit:
             ceil((rowWord(task, state: state, now: now) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         case .working, .done, .idle:
-            if let counter = foldedCounter(task) {
-                ceil((counter as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
-            } else {
-                (app.head(of: task)?.title ?? task.branch).map(Self.branchWidth)
-            }
+            foldedCounter(task).map { ceil(($0 as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width) }
         }
     }
 
@@ -736,12 +722,6 @@ struct SidebarView: View {
             .help(help)
             .accessibilityLabel(help)
         }
-    }
-
-    /// The branch's width in a row: its own, up to `rowBranchMax` (§3.3).
-    static func branchWidth(_ branch: String) -> CGFloat {
-        let font = Theme.Typography.monoSmall.nsFont()
-        return min(ceil((branch as NSString).size(withAttributes: [.font: font]).width), Theme.rowBranchMax)
     }
 
     /// Pin and «⋯» (shown on hover, no animation); the pin is white while pinned.

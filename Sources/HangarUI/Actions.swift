@@ -46,7 +46,7 @@ enum ActionTarget: Equatable {
 
 /// Every action on projects, tasks and tabs, defined once: context menus, the `…` menu, shortcuts and the ⇧⌘P palette read it here.
 enum Action: CaseIterable {
-    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
+    case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
     case toggleMute, projectNotifications, projectSessions, removeFreeChat, newSubSession, markUnread
     // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
@@ -69,11 +69,11 @@ enum Action: CaseIterable {
                 return unread + (open ? [.newSubSession] : []) + [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
             }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + unread + [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
+            return reconnect + unread + [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath] + editor + [.archive]
         case .project:
-            return reconnect + [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
+            return reconnect + [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath] + editor + [.removeProject]
         case .tab:
-            return (app.renameable(target) ? [.rename] : []) + [.copyLink, .splitRight, .splitDown, .closeTab]
+            return (app.renameable(target) ? [.rename] : []) + [.splitRight, .splitDown, .closeTab]
         case .leaf:
             return [.splitRight, .splitDown, .detachPane] + (app.renameable(target) ? [.rename] : []) + [.closePane]
         }
@@ -117,7 +117,7 @@ enum Action: CaseIterable {
         case .togglePin: .pin
         case .projectSettings: .settings
         case .revealInFinder: .finder
-        case .copyPath, .copyPort, .copyLink: .copy
+        case .copyPath: .copy
         case .openInEditor: .openExternal
         case .archive: .archive
         case .restore, .markUnread: .restore
@@ -145,8 +145,6 @@ enum Action: CaseIterable {
         case .projectSettings: L10n.projectSettingsEllipsis
         case .revealInFinder: L10n.revealInFinder
         case .copyPath: L10n.copyPath
-        case .copyPort: L10n.portCopy(app.port(of: target) ?? 0)
-        case .copyLink: L10n.copyLink
         case .openInEditor: L10n.openIn(editorName(app.config.externalEditor ?? ""))
         case .archive: L10n.archive
         case .restore: L10n.restore
@@ -187,7 +185,6 @@ enum Action: CaseIterable {
         // Finder and the external editor see only this Mac's disk.
         case .revealInFinder, .openInEditor: app.project(of: target)?.host == nil && app.isAvailable(target)
         case .copyPath: app.path(of: target) != nil
-        case .copyPort: app.port(of: target) != nil
         case .reconnect: app.project(of: target)?.host.map { app.remote.hosts[$0]?.state != .connected } ?? false
         // As the keyboard (`drawerRoute`): the shown diff tab hides the task's tabs, a split would land in a hidden one.
         case .splitRight, .splitDown: if case .tab(let task, _) = target { app.activeDiff == nil || app.selectedTask?.id != task } else { true }
@@ -217,14 +214,6 @@ enum Action: CaseIterable {
             guard let path = app.path(of: target) else { return }
             ctx.pasteboard.clearContents()
             ctx.pasteboard.setString((app.project(of: target)?.host).map { "\($0):\(path)" } ?? path, forType: .string)
-        case (.copyPort, _):
-            guard let port = app.port(of: target) else { return }
-            ctx.pasteboard.clearContents()
-            ctx.pasteboard.setString(String(port), forType: .string)
-        case (.copyLink, _):
-            guard let link = LinkTarget(target)?.link else { return }
-            ctx.pasteboard.clearContents()
-            ctx.pasteboard.setString(link.url.absoluteString, forType: .string)
         case (.openInEditor, _):
             guard let editor = app.config.externalEditor, let path = app.path(of: target) else { return }
             openInExternalEditor(editor, path: path, shell: posixShell(app.userShell)) { details in

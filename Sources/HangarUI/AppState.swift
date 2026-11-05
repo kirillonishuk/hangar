@@ -262,6 +262,8 @@ enum EmptyProjectRow: Hashable {
 
     @ObservationIgnored private let store: StateStore
     @ObservationIgnored let socketPath: String
+    /// Claude's freshest limits, shared with every control socket (Mac and hosts) so each chat's line shows them (#137).
+    @ObservationIgnored let usageSnapshot: UsageSnapshot
     @ObservationIgnored let userShell: String
     /// First message from the new-task sheet, consumed when the leaf's surface starts (decision #29).
     @ObservationIgnored var pendingPrompts: [UUID: String] = [:]
@@ -368,7 +370,8 @@ enum EmptyProjectRow: Hashable {
         isActive: { NSApp?.isActive ?? false })
 
     public init(state: WorkspaceState, store: StateStore, config: HangarConfig, configURL: URL,
-                socketPath: String? = nil) {
+                socketPath: String? = nil, usageSnapshot: UsageSnapshot = UsageSnapshot()) {
+        self.usageSnapshot = usageSnapshot
         // Chats without a project run next to the state: a test or debug store gets its own folder, never the real one.
         var state = state
         state.chatsFolder = store.directory.appendingPathComponent("Chats").path

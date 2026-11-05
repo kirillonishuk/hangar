@@ -66,6 +66,15 @@ public struct StatuslineInput: Equatable, Sendable {
         branch = (wt ?? gw).map { clean($0, max: 32) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    /// One `rate_limits` window by its wire name, e.g. the freshest one Hangar knows (#137); others are ignored.
+    public mutating func setRateLimit(_ name: String, used: Double?, resetsAt: Double?) {
+        switch name {
+        case "five_hour": fiveHour = (used, resetsAt)
+        case "seven_day": week = (used, resetsAt)
+        default: break
+        }
+    }
+
     public static func == (a: Self, b: Self) -> Bool {
         a.model == b.model && a.contextPercent == b.contextPercent && a.contextSize == b.contextSize
             && a.fiveHour.used == b.fiveHour.used && a.fiveHour.resetsAt == b.fiveHour.resetsAt

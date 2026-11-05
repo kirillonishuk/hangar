@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bumped whenever the script below changes; the host check compares it with the installed copy's second line.
-public let hangarRemoteVersion = 6
+public let hangarRemoteVersion = 7
 
 /// `~/.hangar/bin/hangar-remote` on an ssh host: the same argv as `hangar event` / `hangar statusline`.
 /// No JSON in sh: a header line plus the raw payload bytes; the Mac parses them (RemoteMessage).
@@ -111,7 +111,8 @@ case $cmd in
     # shortcut: input above 256 KiB is truncated for the original command too (real payloads are a few KB)
     read_stdin
     # Hangar's line rendered on the Mac (a `line:` reply); no answer in time, or the user's line chosen → the original.
-    if [ -n "$p" ]; then
+    # Outside a Hangar terminal (a plain ssh shell): only the original, nothing sent.
+    if [ -n "$p" ] && uuid "$HANGAR_TAB_ID" && uuid "$HANGAR_LEAF_ID"; then
       r=$(deliver '{"v":1,"type":"statusline"' 0.5)
       nl='
 '

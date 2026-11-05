@@ -4,21 +4,35 @@ import Foundation
 public enum ControlClient {
     /// Fire-and-forget: the reply is not awaited, so a hung app never blocks a hook for more than ~1 s.
     public static func send(_ message: ControlMessage, to path: String) -> Bool {
-        guard var addr = socketAddress(path) else { return false }
+        exchange(message, to: path, replyTimeout: nil) != nil
+    }
+
+    /// Sends and reads the first reply line within `timeout` (send and receive each); nil if the app is not there, too
+    /// slow or says nothing. For the status line, which runs often and must stay fast (#137).
+    public static func ask(_ message: ControlMessage, to path: String, timeout: Double) -> Data? {
+        exchange(message, to: path, replyTimeout: timeout).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// nil: not sent; otherwise the reply line (empty when none was asked for or none came).
+    private static func exchange(_ message: ControlMessage, to path: String, replyTimeout: Double?) -> Data? {
+        guard var addr = socketAddress(path) else { return nil }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return false }
+        guard fd >= 0 else { return nil }
         defer { close(fd) }
         var on: Int32 = 1
-        var timeout = timeval(tv_sec: 1, tv_usec: 0)
+        let secs = replyTimeout ?? 1
+        var timeout = timeval(tv_sec: Int(secs), tv_usec: Int32((secs - Double(Int(secs))) * 1_000_000))
+        let tvSize = socklen_t(MemoryLayout<timeval>.size)
         guard setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size)) == 0,
-              setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size)) == 0
-        else { return false }
+              setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, tvSize) == 0,
+              setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, tvSize) == 0
+        else { return nil }
         let rc = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
         }
-        guard rc == 0 else { return false }
+        guard rc == 0 else { return nil }
         let data = message.encoded()
-        return data.withUnsafeBytes { raw in
+        let sent = data.withUnsafeBytes { raw in
             var offset = 0
             while offset < raw.count {
                 let n = write(fd, raw.baseAddress! + offset, raw.count - offset)
@@ -27,6 +41,18 @@ public enum ControlClient {
             }
             return true
         }
+        guard sent else { return nil }
+        guard replyTimeout != nil else { return Data() }
+        var reply = Data()
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        while reply.count <= 65_536 {
+            let n = read(fd, &chunk, chunk.count)
+            if n < 0 && errno == EINTR { continue }
+            if n <= 0 { return Data() }
+            reply.append(contentsOf: chunk[..<n])
+            if let nl = reply.firstIndex(of: 0x0A) { return reply.prefix(upTo: nl) }
+        }
+        return Data()
     }
 
     public static let maxReply = 2 * 1_048_576

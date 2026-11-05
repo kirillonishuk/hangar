@@ -156,7 +156,10 @@ private struct EditorHeaderItems: View {
             } else if let language = editorStatusLabel(leaf) {
                 Text(verbatim: language).foregroundStyle(Theme.ui.text3).padding(.horizontal, Theme.Space.s2)
             }
-            if !app.editorImage.contains(leaf.id) {
+            if let path = leaf.openFile, previewEligible(path: path, isText: true, local: app.remoteLeafHost(leaf.id) == nil) {
+                RenderSwitch(app: app)
+            }
+            if !app.editorImage.contains(leaf.id), !app.editorRendered.contains(leaf.id) {
                 let minimap = app.state.editorMinimap
                 Button(L10n.editorMinimap) { app.perform { $0.editorMinimap.toggle() } }
                     .buttonStyle(ChipStyle(on: minimap))

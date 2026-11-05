@@ -34,10 +34,12 @@ import Testing
         var (s, _, id) = state()
         s.setEditorCursor(leafId: id, path: "/repo/a.ts", line: 4, column: 8)
         s.diffInline = true
+        s.renderPreview = true
         let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
         #expect(back == s)
         #expect(leaf(back).editorFiles == [EditorFile(path: "/repo/a.ts", line: 4, column: 8)])
         #expect(back.diffInline)
+        #expect(back.renderPreview)
     }
 
     /// A state without `diffInline` is side by side.
@@ -46,6 +48,7 @@ import Testing
         {"projects":[],"tasks":[],"inspectorVisible":false}
         """
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8)).diffInline == false)
+        #expect(try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8)).renderPreview == false)
         #expect(Leaf(kind: .editor, cwd: "/r").editorFileList == [])
     }
 

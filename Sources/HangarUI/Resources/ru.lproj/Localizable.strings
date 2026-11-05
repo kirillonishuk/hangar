@@ -367,6 +367,15 @@
 "preparingConversation" = "Переношу разговор в новую папку…";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
+"diffViewed" = "Просмотрено";
+"diffMarkViewed" = "Отметить просмотренным и открыть следующий";
+"diffUnmarkViewed" = "Снять отметку «Просмотрено»";
+"changesViewed" = "просмотрено %d";
+"changesViewedOf" = "%d из %d просмотрено";
+"renderCode" = "Код";
+"diffPreview" = "Просмотр";
+"diffPreviewHelp" = "Показать файл страницей — без скриптов и сети";
+"diffPreviewFailed" = "Не удалось показать: файл больше 5 МБ или не читается";
 "diffImageBefore" = "Было";
 "diffImageAfter" = "Стало";
 "diffTooLarge" = "Слишком большой diff (%d строк)";

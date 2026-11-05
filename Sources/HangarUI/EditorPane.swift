@@ -28,6 +28,9 @@ import Workspace
     private var image: (path: String, stamp: FileStamp?, view: ImageHostingView)?
     /// The image file being watched; kept when a decode fails (a rewrite caught half-way), so the next change retries.
     private var imagePath: String?
+    /// «Просмотр» (HD-147): the rendered file over the page, and the stamp of the disk file it shows. Monaco stays
+    /// underneath with its buffer, so «Код» brings back unsaved edits; the page shows the saved file.
+    private var rendered: (path: String, stamp: FileStamp?, view: RenderedHostingView)?
 
     /// `page`: where its model goes first (a free one when it opens beside another editor).
     init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
@@ -52,6 +55,7 @@ import Workspace
         watcher?.stop()
         watcher = nil
         removeImage()
+        removeRendered()
         host.unregister(self)
         app.editorDirty.remove(leafId)
         app.editorLanguage[leafId] = nil
@@ -81,6 +85,7 @@ import Workspace
         Task {
             await session.open(path: path, line: cursor?.line, column: cursor?.column)
             restartWatcher()
+            syncRendered()
         }
     }
 
@@ -140,6 +145,7 @@ import Workspace
             Task { await session.checkDisk() }
             if let path = imagePath { showImage(path) }  // rewritten while hidden (no watcher then)
         }
+        syncRendered()
         restartWatcher()
     }
 
@@ -237,6 +243,47 @@ import Workspace
         }
     }
 
+    /// Shows, refreshes or removes the rendered file per «Код · Просмотр» (called on every sync, open, show and disk event).
+    func syncRendered() {
+        guard visible, app.state.renderPreview, session.io.isLocal, let leaf = app.editorLeaf(leafId), let path = leaf.openFile,
+              RenderKind(path: path) != nil, image == nil else { removeRendered(); return }
+        let io = session.io, gen = generation
+        Task { [weak self] in
+            let stamp = try? await io.stat(path)
+            guard let self, gen == generation else { return }
+            if let rendered, rendered.path == path, rendered.stamp == stamp { return }
+            let data = await readForRender(path)
+            guard gen == generation, visible, app.state.renderPreview, app.editorLeaf(leafId)?.openFile == path,
+                  let kind = RenderKind(path: path) else { return }
+            guard let data else { removeRendered(); return }  // too large or gone: Monaco's own notice
+            let (root, dir) = renderRoot(path: path, cwd: leaf.cwd)
+            let content = RenderedPreviewView(root: root, dir: dir, sides: [.init(id: 0, page: renderedPage(data, kind: kind))])
+            if let view = rendered?.view {
+                view.rootView = content
+                rendered = (path, stamp, view)
+            } else {
+                let view = RenderedHostingView(rootView: content)
+                view.frame = bounds
+                view.autoresizingMask = [.width, .height]
+                view.onMouseDown = { [weak self] in
+                    guard let self else { return }
+                    app.focused(leafId: leafId)
+                    onFocus?()
+                }
+                addSubview(view)  // over the web view, as the image
+                rendered = (path, stamp, view)
+                app.editorRendered.insert(leafId)
+            }
+        }
+    }
+
+    private func removeRendered() {
+        guard rendered != nil else { return }
+        rendered?.view.removeFromSuperview()
+        rendered = nil
+        app.editorRendered.remove(leafId)
+    }
+
     private func removeImage() {
         image?.view.removeFromSuperview()
         image = nil
@@ -260,6 +307,7 @@ import Workspace
             guard let self else { return }
             Task { await self.session.checkDisk() }
             if let path = imagePath { showImage(path) }
+            syncRendered()  // a save or an edit on disk
         }, classify: { events in events.contains { paths.contains($0.path) } ? .status : [] })
     }
 }

@@ -235,8 +235,10 @@ private struct ChangesList: View {
                     if let changes = model.changes {
                         if changes.files.isEmpty { EmptyNote(text: L10n.noChanges) }
                         let columns = ChangeColumns(changes.files)
+                        let viewed = app.viewedChanges
                         ForEach(changes.files) { file in
-                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath) { app.openDiff(path: file.path) }
+                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath,
+                                      viewed: viewed.contains(file.path)) { app.openDiff(path: file.path) }
                                 .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
                     }
@@ -261,7 +263,17 @@ private struct ChangesList: View {
             ], disabled: hasBase ? [] : [.base]) { choice in
                 if choice != model.modeChoice { model.toggleMode() }
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: Theme.Space.s2)
+            // Progress of «Просмотрено» (HD-147): the total is the segment's count, so only the viewed number here.
+            let viewed = app.viewedChanges.count
+            if viewed > 0, let total = model.changes?.files.count {
+                Text(verbatim: L10n.changesViewed(viewed))
+                    .font(Theme.Typography.caption.font())
+                    .foregroundStyle(Theme.ui.text3)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .help(L10n.changesViewedOf(viewed, total))
+            }
         }
         .padding(.horizontal, Theme.rowPaddingH)
         .frame(height: Theme.GitTab.sectionHeight)
@@ -290,6 +302,8 @@ private struct ChangeRow: View {
     let file: ChangedFile
     let columns: ChangeColumns
     let selected: Bool
+    /// «Просмотрено» (HD-147): a check instead of the file icon, the row dimmed (not hidden).
+    var viewed = false
     let action: () -> Void
 
     var body: some View {
@@ -297,7 +311,11 @@ private struct ChangeRow: View {
         let dir = (file.path as NSString).deletingLastPathComponent
         HoverRow(selected: selected, action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
-                FileIconView(name: name)
+                if viewed {
+                    IconView(icon: .check, size: Theme.Icon.toolbar, tint: Theme.ui.text2)
+                } else {
+                    FileIconView(name: name)
+                }
                 NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
                     Text(name)
                         .font(Theme.Typography.body.font())
@@ -325,10 +343,11 @@ private struct ChangeRow: View {
                     .frame(width: Theme.GitTab.badgeWidth, alignment: .center)
             }
             .font(Theme.Typography.monoSmall.font())
+            .opacity(viewed ? Theme.Opacity.inactive : 1)
             .padding(.horizontal, Theme.rowPaddingH)
             .padding(.vertical, Theme.fileRowPaddingV)
         }
-        .help(file.origPath.map { "\($0) → \(file.path)" } ?? file.path)
+        .help((file.origPath.map { "\($0) → \(file.path)" } ?? file.path) + (viewed ? " — " + L10n.diffViewed.lowercased() : ""))
     }
 }
 

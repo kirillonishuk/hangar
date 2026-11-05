@@ -400,6 +400,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var diffInline: Bool = false
     /// Editor tabs show the minimap (HD-080; off by default).
     public var editorMinimap: Bool = false
+    /// «Код · Просмотр» of HTML / Markdown / SVG files: rendered in the diff and the editor (HD-147; off by default).
+    public var renderPreview: Bool = false
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
@@ -418,7 +420,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly, diffInline, editorMinimap, freeChats
+        case attentionOnly, diffInline, editorMinimap, renderPreview, freeChats
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -435,6 +437,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
+        renderPreview = try c.decodeIfPresent(Bool.self, forKey: .renderPreview) ?? false
         freeChats = try c.decodeIfPresent([FreeChat].self, forKey: .freeChats) ?? []
         assignMissingPorts()
         splitEditorTabs()

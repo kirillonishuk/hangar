@@ -367,6 +367,15 @@
 "preparingConversation" = "Moving the conversation to the new folder…";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";
+"diffViewed" = "Viewed";
+"diffMarkViewed" = "Mark as viewed and open the next file";
+"diffUnmarkViewed" = "Unmark as viewed";
+"changesViewed" = "%d viewed";
+"changesViewedOf" = "%d of %d viewed";
+"renderCode" = "Code";
+"diffPreview" = "Preview";
+"diffPreviewHelp" = "Render the file — no scripts, no network";
+"diffPreviewFailed" = "Can't render: the file is over 5 MB or unreadable";
 "diffImageBefore" = "Before";
 "diffImageAfter" = "After";
 "diffTooLarge" = "Diff too large (%d lines)";

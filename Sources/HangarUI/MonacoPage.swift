@@ -128,7 +128,7 @@ import WebKit
     private static var compiling: [(WKContentRuleList?) -> Void]?
 
     /// http(s) and ws(s) are blocked for every load of the page (compiled once per launch into a temp store).
-    private static func withBlockList(_ then: @escaping (WKContentRuleList?) -> Void) {
+    static func withBlockList(_ then: @escaping (WKContentRuleList?) -> Void) {
         if let blockList { return then(blockList) }
         if compiling != nil { compiling?.append(then); return }
         compiling = [then]

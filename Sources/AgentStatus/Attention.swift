@@ -14,15 +14,18 @@ public struct HookDetail: Equatable, Sendable {
     public var agentPid: Int32?
     /// `--tab-agent`: the hook is one of those Hangar passes (its pid may be a `CLAUDE_CODE_SHELL_PREFIX` wrapper's).
     public var tabAgent: Bool
+    /// The hook fired inside a subagent (its payload carries `agent_id`), not in the tab's main agent.
+    public var subagent: Bool
 
     public init(tool: String? = nil, command: String? = nil, text: String? = nil, error: String? = nil, agentPid: Int32? = nil,
-                tabAgent: Bool = false) {
+                tabAgent: Bool = false, subagent: Bool = false) {
         self.tool = tool
         self.command = command
         self.text = text
         self.error = error
         self.agentPid = agentPid
         self.tabAgent = tabAgent
+        self.subagent = subagent
     }
 }
 

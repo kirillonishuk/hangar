@@ -72,11 +72,13 @@ public func waitIsOver(_ statuses: [SubSessionStatus]) -> Bool {
 /// Stop's `background_tasks` (Claude Code hooks): entries still going. An entry without a status counts as going.
 public func runningBackgroundTasks(_ raw: Any?) -> Int? {
     guard let list = raw as? [Any] else { return nil }
-    let going = list.filter { item in
-        guard let status = (item as? [String: Any])?["status"] as? String else { return true }
-        return ["running", "pending", "in_progress", "started"].contains(status.lowercased())
-    }
-    return min(going.count, 99)
+    return min(list.filter(backgroundTaskGoing).count, 99)
+}
+
+/// One `background_tasks` entry is still going (or says nothing about its status).
+public func backgroundTaskGoing(_ item: Any) -> Bool {
+    guard let status = (item as? [String: Any])?["status"] as? String else { return true }
+    return ["running", "pending", "in_progress", "started"].contains(status.lowercased())
 }
 
 /// Cuts a sub-session's result for the caller's context (HD-128): at most `max` characters, the cut marked.

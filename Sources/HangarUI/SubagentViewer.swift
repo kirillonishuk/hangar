@@ -25,9 +25,17 @@ import SwiftUI
         self.app = app
         self.leaf = leaf
         self.id = id
+        last = app.subagent(leaf: leaf, id: id)
     }
 
-    var item: Subagent? { app?.subagent(leaf: leaf, id: id) }
+    /// The row as last seen: a finished subagent leaves the sidebar (and later the list), its open view stays (HD-149).
+    private var last: Subagent?
+    var item: Subagent? { app?.subagent(leaf: leaf, id: id) ?? last }
+
+    /// Its list changed: keep the row's newest state.
+    func remember() {
+        if let live = app?.subagent(leaf: leaf, id: id) { last = live }
+    }
     var remote: Bool { app?.remoteLeafHost(leaf) != nil }
 
     /// Opens (or re-resolves after the row got its agent id): reads what is there and watches the file.
@@ -65,6 +73,10 @@ import SwiftUI
         let new = reader.read(url)
         guard !new.isEmpty else { return }
         entries += new
+        // Already read for the view: an interrupted subagent sends no SubagentStop, its transcript says so.
+        if let last = new.last, last.kind == .prompt, last.text.hasPrefix("[Request interrupted by user"), let agentId = item?.agentId {
+            app?.updateSubagents(leaf, .interrupted(agentId: agentId))
+        }
         if entries.count > Self.maxEntries { entries.removeSubrange(1..<(entries.count - Self.maxEntries + 1)) }
     }
 

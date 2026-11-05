@@ -492,6 +492,9 @@
 "subagentCountOne" = "%d субагент";
 "subagentCountFew" = "%d субагента";
 "subagentCountMany" = "%d субагентов";
+"subagentsWorkingOne" = "%d субагент работает";
+"subagentsWorkingFew" = "%d субагента работают";
+"subagentsWorkingMany" = "%d субагентов работают";
 "tabCountOne" = "%d вкладка";
 "tabCountFew" = "%d вкладки";
 "tabCountMany" = "%d вкладок";

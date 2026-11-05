@@ -41,10 +41,14 @@ public enum SubagentEvent: Equatable, Sendable {
     case returned(toolUseId: String, agentId: String?, background: Bool)
     /// SubagentStop.
     case stopped(agentId: String, result: String?)
-    /// UserPromptSubmit (also Claude's own turns): finished rows of earlier turns go.
+    /// UserPromptSubmit (also Claude's own turns): finished rows of earlier turns go; a foreground one still running was
+    /// interrupted (Esc sends no Stop).
     case turnStart
-    /// Stop / StopFailure: a foreground subagent still running there never returned (interrupted).
-    case turnEnd
+    /// Stop / StopFailure: a foreground subagent still running there never returned (interrupted). `going` — Stop's going
+    /// `background_tasks` ids: a running background subagent not among them ended without SubagentStop (interrupted).
+    case turnEnd(going: Set<String>?)
+    /// Its transcript ends with «[Request interrupted by user]» (read only while its view is on screen).
+    case interrupted(agentId: String)
     /// The agent exited: whatever ran is gone.
     case exited
     /// A new conversation (SessionStart startup/clear/resume, relaunch): nothing carries over.
@@ -108,6 +112,8 @@ public struct SubagentList: Equatable, Sendable {
         case let .stopped(agentId, result):
             if let i = items.firstIndex(where: { $0.agentId == agentId }) {
                 if let result { items[i].result = result }
+                // Its stop raced a Stop that no longer listed it: it finished, not interrupted.
+                if items[i].state == .failed { items[i].state = .done }
                 finish(i, .done, now: now)
             } else {
                 if pending[agentId] == nil { pendingOrder.append(agentId) }
@@ -115,13 +121,22 @@ public struct SubagentList: Equatable, Sendable {
                 while pendingOrder.count > Self.pendingCap { pending[pendingOrder.removeFirst()] = nil }
             }
         case .turnStart:
+            // shortcut: input typed while claude works runs after its turn (HD-062), so a foreground subagent can't outlive a
+            // prompt; change if Claude Code starts firing UserPromptSubmit mid-turn.
+            for i in items.indices where items[i].state == .running && !items[i].background { finish(i, .failed, now: now) }
             // Rows that finished after the last turn ended (a background agent waking Claude) stay for this one.
             items.removeAll { $0.state != .running && ($0.ended ?? now) <= (lastTurnEnd ?? .distantPast) }
-        case .turnEnd:
-            for i in items.indices where items[i].state == .running && !items[i].background { finish(i, .failed, now: now) }
+        case let .turnEnd(going):
+            for i in items.indices where items[i].state == .running {
+                if !items[i].background { finish(i, .failed, now: now); continue }
+                if let going, let id = items[i].agentId, !going.contains(id) { finish(i, .failed, now: now) }
+            }
             lastTurnEnd = now
             pending = [:]
             pendingOrder = []
+        case let .interrupted(agentId):
+            guard let i = items.firstIndex(where: { $0.agentId == agentId }) else { break }
+            finish(i, .failed, now: now)
         case .exited:
             for i in items.indices where items[i].state == .running { finish(i, .failed, now: now) }
             lastTurnEnd = now

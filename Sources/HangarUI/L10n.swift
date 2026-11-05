@@ -161,6 +161,7 @@ import Workspace
         case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
         case updateOtherInstance, updateUntrusted, updateBadSignature
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
+        case subagentsWorkingOne, subagentsWorkingFew, subagentsWorkingMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsViewHelp
         case segmentGit, showGit, gitBranch, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
@@ -1078,9 +1079,9 @@ extension L10n {
         count(n, .subChatsOne, .subChatsFew, .subChatsMany) + (working > 0 ? " · " + f(.subChatsWorking, Int32(clamping: working)) : "")
     }
     static var subChatsShow: String { s(.subChatsShow) }
-    /// «3 субагента · 1 работает» under a chat (spec agent-subagents §4).
-    static func subagentsCounter(_ n: Int, running: Int) -> String {
-        subagentCount(n) + (running > 0 ? " · " + f(.subChatsWorking, Int32(clamping: running)) : "")
+    /// «2 субагента работают» under a chat: the running ones only (spec agent-subagents §4, HD-149).
+    static func subagentsCounter(_ running: Int) -> String {
+        count(running, .subagentsWorkingOne, .subagentsWorkingFew, .subagentsWorkingMany)
     }
     static var subagentsShow: String { s(.subagentsShow) }
     static var subagentsHide: String { s(.subagentsHide) }

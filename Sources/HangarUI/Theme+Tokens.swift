@@ -85,6 +85,8 @@ extension Theme {
         /// Chevrons, the branch in a field, the pane header icon.
         public static let inline: CGFloat = 12
         public static let statusDot: CGFloat = 8
+        /// A status icon in a corner of a rail tile, tab or menu icon (HD-144); in rows it is `inline`.
+        public static let statusBadge: CGFloat = 10
         public static let tabDot: CGFloat = 6
     }
 

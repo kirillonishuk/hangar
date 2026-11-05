@@ -28,13 +28,13 @@ description: Hangar design system v2 (direction B, macOS-native) — tokens (spa
 | Контролы | regular 28 (листы, настройки, тулбар) · small 22 (строки, тосты, заголовки, сегменты, чипы) |
 | Строки | сайдбар 28 · список/дерево/меню 24 · история 32 · строка карточки ≥ 40 |
 | Полосы | тулбар 52 · вкладки 36 (вкладка 26) · заголовок панели / ящик / секция 28 |
-| Иконки | 16 тулбар/сайдбар · 14 строки/меню · 12 шевроны/инлайн; точка статуса 8, на вкладке 6 |
+| Иконки | 16 тулбар/сайдбар · 14 строки/меню · 12 шевроны/инлайн; статус — иконка 12, на углу плитки/вкладки 10 (HD-144) |
 | Линии | `line` 1 px разделители · `line2` 1 px рамки |
 | Глубина | 0 плоско · 1 поповер/меню/тост `bg2` + `0 8 24 .4` · 2 лист `bg2` + `0 20 50 .5` + затемнение .35 |
 | Прозрачности | .4 неактивно · .15 заливка цветом роли · .25 кольцо фокуса · .35 затемнение |
-| Движение | мгновенно; сайдбар 180 мс; «ждёт» — один пульс; Reduce Motion — ничего |
+| Движение | мгновенно; сайдбар 180 мс; «ждёт» — один пульс; «работает» — спиннер крутится (CoreAnimation, только пока окно на экране, HD-144); Reduce Motion — ничего |
 
-Имена в Swift (`Theme+Tokens.swift`): `Theme.Space.s1…s8`, `Space.iconGap` · `Theme.Typography.title/body/secondary/caption/mono/monoSmall` → `.font(.semibold)` / `.nsFont()` · `Theme.Radius.control/segmentItem/popover/window` · `Theme.Height.controlRegular/controlSmall/rowSidebar/rowList/rowLarge/barToolbar/barTabs/tab/barPane/cardRow` · `Theme.Icon.toolbar/row/inline/statusDot/tabDot` · `Theme.Badge.height/paddingH` · `Theme.Opacity.inactive/fill/ring/scrim`. Роли — `Theme.<роль>` (NSColor) и `Theme.ui.<роль>` (SwiftUI). Старых алиасов нет; числа вне токенов и разрешённые файлы — спека §7.1, литералы ловит тест-растяжка `DesignTokenGuardTests` (не доказательство — смотри и сам).
+Имена в Swift (`Theme+Tokens.swift`): `Theme.Space.s1…s8`, `Space.iconGap` · `Theme.Typography.title/body/secondary/caption/mono/monoSmall` → `.font(.semibold)` / `.nsFont()` · `Theme.Radius.control/segmentItem/popover/window` · `Theme.Height.controlRegular/controlSmall/rowSidebar/rowList/rowLarge/barToolbar/barTabs/tab/barPane/cardRow` · `Theme.Icon.toolbar/row/inline/statusDot/statusBadge/tabDot` · `Theme.Badge.height/paddingH` · `Theme.Opacity.inactive/fill/ring/scrim`. Роли — `Theme.<роль>` (NSColor) и `Theme.ui.<роль>` (SwiftUI). Старых алиасов нет; числа вне токенов и разрешённые файлы — спека §7.1, литералы ловит тест-растяжка `DesignTokenGuardTests` (не доказательство — смотри и сам).
 
 Роли цвета (каждая тема заполняет все): `bg0` контент · `bg1` хром (тулбар, оба сайдбара, вкладки, карточки) · `bg2` всплывающее · `field` · `hover` · `hover2` (нажатие, активная вкладка/сегмент) · `selected` · `selectedFocus` + `onAccent` · `line` `line2` · `text0` `text1` `text2` `text3` · `accent` `accentText` · `working` `waiting` `done` `failed` `failedText` `idle` · `gitA` `gitM` `gitD` · `diffAdd` `diffDel` · `limOk` `limTrack` · `ansi`, `editor*`.
 

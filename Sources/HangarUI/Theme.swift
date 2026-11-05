@@ -30,12 +30,6 @@ public enum Theme {
     public static let drawerMaxFraction: CGFloat = 0.7
     public static let drawerAnimation: Double = 0.18
 
-    /// Hollow and half status marks (HD-135): the icons' line, so a 6–8 pt ring keeps a visible hole.
-    public static let statusDotStroke: CGFloat = iconStroke
-    /// Idle: a solid dot this share of the others — quieter, and a different shape from the done ring (HD-135).
-    public static let statusIdleScale: CGFloat = 0.75
-    /// «Differentiate without colour» failure: a square this share of the dot, turned 45° (its corners just reach the dot's edge).
-    public static let statusDiamondScale: CGFloat = 0.75
     /// `waiting` halo: ring of `waiting` at 25%.
     public static let haloWidth: CGFloat = 3
     /// Rail monogram's corner dot and its `bg1` border.
@@ -84,6 +78,8 @@ public enum Theme {
     public static let sidebarAnimation: Double = 0.18
     public static let pulseDuration: Double = 0.4
     public static let pulseScale: CGFloat = 1.6
+    /// One turn of the working mark (HD-144): linear, endless while it is on screen.
+    public static let spinDuration: Double = 1.1
     /// Rail tiles (projects and chats): one size, 8 apart in the 28 rows, so their corner dots never reach a neighbour.
     public static let railTileSize: CGFloat = 20
     public static let railTileBorderWidth: CGFloat = 1

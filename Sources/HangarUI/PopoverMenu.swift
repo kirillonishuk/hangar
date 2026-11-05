@@ -509,7 +509,7 @@ struct PopoverMenuView: View {
                     } else if let glyph = item.icon {
                         IconView(icon: glyph, size: Theme.Icon.row, tint: icon)
                             .overlay(alignment: .bottomTrailing) {
-                                if let dot = item.dot { StatusDot(state: dot, seen: item.dotSeen, size: Theme.Icon.tabDot) }
+                                if let dot = item.dot { StatusDot(state: dot, seen: item.dotSeen, size: Theme.Icon.statusBadge) }
                             }
                     }
                 }

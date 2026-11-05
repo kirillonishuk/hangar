@@ -1,5 +1,7 @@
 #if DEBUG
+import AgentStatus
 import AppKit
+import ControlServer
 import Exec
 import Git
 import History
@@ -194,6 +196,11 @@ extension MainWindowController {
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
         case "select": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.select(taskId: app.orderedTasks[n].id) }
+        case "hook":  // hook <task index> <kind> [error]: a hook event on the chat's first leaf (status icons without an agent)
+            let f = arg.split(separator: " ").map(String.init)
+            guard f.count >= 2, let n = Int(f[0]), app.orderedTasks.indices.contains(n), let kind = HookKind(rawValue: f[1]),
+                  let tab = app.orderedTasks[n].tabs.first, let leaf = tab.root.leaves.first else { return }
+            app.handle(.event(EventMessage(tab: tab.id, leaf: leaf.id, kind: kind, error: f.count > 2 ? f[2] : nil)))
         case "type":
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()
@@ -608,9 +615,9 @@ extension MainWindowController {
             case "install": lsp.install(package)
             default: lsp.jobs[package] = nil
             }
-        case "a11y":  // a11y <contrast> <nocolor> (1/0): as the system's «Increase contrast» / «Differentiate without colour» (HD-135)
+        case "a11y":  // a11y <contrast> (1/0): as the system's «Increase contrast» (HD-135)
             let f = arg.split(separator: " ")
-            Theme.applyAccessibility(increaseContrast: f.first == "1", differentiateWithoutColor: f.count > 1 && f[1] == "1")
+            Theme.applyAccessibility(increaseContrast: f.first == "1")
         case "shown":  // shown on|off: treat the window as on screen in an inactive debug app (seen «готово», HD-135)
             app.screenShown = arg == "on" ? { true } : { [weak self] in self?.windowVisible ?? false }
             app.refreshSeen()

@@ -916,6 +916,10 @@
 "intNothingOn" = "ничего не включено";
 "intAgentOffHelp" = "Выключено: записи Hangar этого агента снимаются на Mac и серверах. MCP — своим переключателем.";
 "intMCPNote" = "MCP включается вместе с приложением на этом Mac — через CLI агента, только своя запись «hangar».";
+"intSkillTitle" = "Скилл Hangar";
+"intSkillSub" = "учит агента делить работу на подчаты и ждать их итог";
+"intSkillForeign" = "в skills/hangar чужой скилл — не трогаем";
+"intSkillHelp" = "Файл %@: ставится только этим переключателем, выкл. — удаляется (копия сохраняется).";
 "awaitingIntegrationAnswer" = "Ждёт ответа: подключить Hangar?";
 "intOtherCopy" = "записи Hangar здесь принадлежат другой копии приложения";
 "intRemoteMissing" = "не удалось установить hangar-remote — хуки не записаны";

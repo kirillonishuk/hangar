@@ -12,9 +12,10 @@ public struct MCPSession {
     private let call: (ControlCall) -> Result<Data, ControlError>
     /// `hangar mcp --read-only`: only `ControlMethod.readOnly` tools are listed or run.
     private let readOnly: Bool
-    /// `HANGAR_LEAF_ID` of the terminal the agent runs in: the default `parent` of `sessions_spawn` / `sessions_wait`.
+    /// `HANGAR_LEAF_ID` of the terminal the agent runs in: the default `parent` of `sessions_spawn` / `sessions_wait`, the
+    /// default session of `sessions_note`.
     private let callerLeaf: String?
-    /// `clientInfo.name` from `initialize`: Codex gets a `sessions_wait` default under its 60 s tool timeout.
+    /// `clientInfo.name` from `initialize`: Codex gets a `sessions_wait` / `tabs_wait` default under its 60 s tool timeout.
     private var clientName: String?
 
     public init(readOnly: Bool = false, callerLeaf: String? = nil, call: @escaping (ControlCall) -> Result<Data, ControlError>) {
@@ -75,7 +76,8 @@ public struct MCPSession {
             }
             if m == .tasksSpawn || m == .tasksWait, arguments["parent"] == nil, let callerLeaf { arguments["parent"] = callerLeaf }
             if m == .actionsList || m == .actionsRun, arguments["task"] == nil, let callerLeaf { arguments["task"] = callerLeaf }
-            if m == .tasksWait, arguments["timeout"] == nil {
+            if m == .tasksNote, arguments["task"] == nil, let callerLeaf { arguments["task"] = callerLeaf }
+            if m == .tasksWait || m == .tabsWait, arguments["timeout"] == nil {
                 arguments["timeout"] = clientName == "codex-mcp-client" ? ControlMethod.waitCodexSeconds : ControlMethod.waitDefaultSeconds
             }
             let outcome = ControlCall.decode(method: m.rawValue, params: arguments).flatMap(call)
@@ -137,7 +139,7 @@ public struct MCPSession {
         for p in m.params {
             var schema: [String: Any]
             switch p.type {
-            case let .string(maxBytes): schema = ["type": "string", "maxLength": maxBytes]
+            case let .string(maxBytes), let .text(maxBytes): schema = ["type": "string", "maxLength": maxBytes]
             case .bool: schema = ["type": "boolean"]
             case let .int(range): schema = ["type": "integer", "minimum": range.lowerBound, "maximum": range.upperBound]
             case let .oneOf(options): schema = ["type": "string", "enum": options]

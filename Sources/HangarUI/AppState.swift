@@ -350,6 +350,12 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var pendingKills: [String: Set<UUID>] = [:]
     /// `tabs send --wait` callers waiting for their leaf to turn `working`, by waiter token.
     @ObservationIgnored var workingWaiters: [UUID: (leaf: UUID, done: CheckedContinuation<Bool, Never>)] = [:]
+    /// `tabs_wait` callers, woken when their leaf's status changes, by token.
+    @ObservationIgnored var tabWaiters: [UUID: (leaf: UUID, wake: CheckedContinuation<Void, Never>)] = [:]
+    /// The agent's last message of a turn per leaf (Stop, codex notify, a question): what `tabs_wait` returns; a new prompt clears it.
+    @ObservationIgnored var lastAgentMessage: [UUID: String] = [:]
+    /// Turn ends per leaf (Stop, codex notify, a question): `tabs_wait --next` waits for a newer one.
+    @ObservationIgnored var turnEnds: [UUID: Int] = [:]
     /// Sub-sessions' done detection, by task (spec sub-sessions §6); in memory, rebuilt lazily after a restart.
     @ObservationIgnored var subWatches: [UUID: SubSessionWatch] = [:]
     /// `sessions_wait` callers, woken on every re-evaluation, by token.
@@ -431,6 +437,9 @@ enum EmptyProjectRow: Hashable {
         if !setupLeaves.isEmpty { setupLeaves.formIntersection(state.tasks.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) }) }
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
         if subagents.keys.contains(where: { !live.contains($0) }) { subagents = subagents.filter { live.contains($0.key) } }
+        if lastAgentMessage.keys.contains(where: { !live.contains($0) }) { lastAgentMessage = lastAgentMessage.filter { live.contains($0.key) } }
+        if turnEnds.keys.contains(where: { !live.contains($0) }) { turnEnds = turnEnds.filter { live.contains($0.key) } }
+        wakeTabWaiters(nil)  // a closed tab's waiters answer «closed» now
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
             statuses.retain(live)

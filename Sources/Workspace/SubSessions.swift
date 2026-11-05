@@ -57,6 +57,11 @@ extension WorkspaceState {
         }
     }
 
+    public mutating func setNote(taskId: UUID, _ note: String?) {
+        guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
+        tasks[i].note = note
+    }
+
     public mutating func setSubsCollapsed(taskId: UUID, _ collapsed: Bool) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }) else { return }
         tasks[i].subsCollapsed = collapsed

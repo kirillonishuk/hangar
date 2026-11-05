@@ -182,7 +182,7 @@ import Workspace
         case statuslineSegModel, statuslineSegContext, statuslineSegFiveHour, statuslineSegWeek, statuslineSegBranch, statuslineSegEffort
         case statuslineProjects, statuslineProjectsHelp, statuslineOverridden, statuslineNotIgnored, statuslineFailed, fileReadOnly
         // Integrations by function (#111)
-        case intOtherCopy, intRemoteMissing, intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, awaitingIntegrationAnswer
+        case intOtherCopy, intRemoteMissing, intHooksTitle, intHooksClaudeSub, intHooksCodexSub, intLimitsTitle, intLimitsSub, intStatuslineTitle, intStatuslineSub, intStatuslineSheetTitle, intStatuslineSheetSub, intMCPSub, intMCPSheetSub, intThisMacTag, intThisMacTagHelp, intWhereInstalled, intWhereTo, intThisMac, intOffline, intOnConnect, intConnectEllipsis, intNoAgentOnHost, intSkipped, intFailed, intTipUpdated, intTipCurrent, intTipBackup, intTipOffline, intTipUndecided, intTipSkipped, intTipFailed, intTipNoAgent, intNotFound, intAgentNotFound, intMCPForeign, intMCPOtherCopy, intMCPFailed, intMCPUnreadable, intMCPMissing, intSheetTitle, intSheetSubtitle, intWhatChanges, intHideChanges, intNoChanges, intNotNow, intConnect, intHostTitle, intHostSubtitle, intHostSkip, intHostRemote, intPartHooks, intPartLimits, intPartStatusline, intNothingOn, intAgentOffHelp, intMCPNote, intSkillTitle, intSkillSub, intSkillForeign, intSkillHelp, awaitingIntegrationAnswer
         // Chats without a project
         case sectionChats, newFreeChat, allFreeChats, noProject, removeFromList, removeFreeChatConfirm, removeFreeChatInfo
         case freeChatsScope, freeChatsSearch, freeChatsEmpty, today, freeTimeNow, freeTimeMinutes, freeTimeHours, removeFreeChatButton
@@ -251,6 +251,10 @@ import Workspace
     static var intNothingOn: String { s(.intNothingOn) }
     static var intAgentOffHelp: String { s(.intAgentOffHelp) }
     static var intMCPNote: String { s(.intMCPNote) }
+    static var intSkillTitle: String { s(.intSkillTitle) }
+    static var intSkillSub: String { s(.intSkillSub) }
+    static var intSkillForeign: String { s(.intSkillForeign) }
+    static func intSkillHelp(_ a: String) -> String { f(.intSkillHelp, a) }
     static var awaitingIntegrationAnswer: String { s(.awaitingIntegrationAnswer) }
 
     // Search tab (find in files, #91)

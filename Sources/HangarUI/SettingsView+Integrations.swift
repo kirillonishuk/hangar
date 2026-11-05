@@ -49,6 +49,7 @@ extension SettingsView {
                         .opacity(on ? 1 : Theme.Opacity.inactive)
                         .disabled(!on)
                     mcpRow(agent)
+                    skillRow(agent)
                     WhereRow(label: L10n.intWhereInstalled, items: whereItems(agent))
                         .opacity(on ? 1 : Theme.Opacity.inactive)
                 }
@@ -88,6 +89,23 @@ extension SettingsView {
             CardSwitch(on: app.config.mcp(agent)) { app.setMCP(agent, on: $0) }
                 .disabled(!usable)
                 .help(L10n.intMCPNote)
+        }
+    }
+
+    /// «Скилл Hangar» (this Mac): off by default; the switch is the consent, the file's path is in its tooltip.
+    private func skillRow(_ agent: MCPAgent) -> some View {
+        let status = app.integrations.skill[agent] ?? .unavailable
+        let (text, color): (String, Color) = switch status {
+        case .foreign: (L10n.intSkillForeign, Theme.ui.waiting)
+        case .failed(let why): (L10n.intMCPFailed(why), Theme.ui.failedText)
+        default: (L10n.intSkillSub, Theme.ui.text3)
+        }
+        var help = L10n.intSkillHelp(tildePath(app.skillPathNow(agent).path))
+        if case .synced(let backup?) = status { help += "\n" + L10n.intTipBackup(backup) }
+        return FunctionRow(title: L10n.intSkillTitle, subtitle: text, subtitleColor: color, tag: L10n.intThisMacTag, tagHelp: L10n.intThisMacTagHelp) {
+            CardSwitch(on: app.config.skill(agent)) { app.setSkill(agent, on: $0) }
+                .disabled(!app.integrationReady)
+                .help(help)
         }
     }
 

@@ -44,6 +44,7 @@ extension AppState {
             }
             subSessionHook(leaf: leaf.id, kind: e.kind, background: e.background, message: e.message)
             if leaf.kind == .claude { subagentHook(leaf: leaf.id, e) }
+            noteAgentTurn(leaf: leaf.id, kind: e.kind, message: e.message)
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
@@ -88,6 +89,7 @@ extension AppState {
         default: break
         }
         apply(signal, leaf: leaf)
+        wakeTabWaiters(leaf.id)  // an exit may leave the status as it was
         subSessionSignal(leaf: leaf.id)
         switch signal {
         case .exited: updateSubagents(leaf.id, .exited)
@@ -156,6 +158,7 @@ extension AppState {
         let old = statuses.status(leaf.id).attention
         statuses = board
         attentionChanged(leaf.id, from: old, to: board.status(leaf.id).attention)
+        wakeTabWaiters(leaf.id)
         if let t {
             if t.to == .working {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }

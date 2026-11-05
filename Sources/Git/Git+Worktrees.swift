@@ -7,11 +7,14 @@ public struct WorktreeEntry: Equatable, Sendable {
     public var branch: String?
     /// Registered, but its folder is gone (`prunable`): not a place to work in.
     public var prunable: Bool
+    /// `git worktree lock`: git refuses to remove or prune it, so Hangar doesn't offer to.
+    public var locked: Bool
 
-    public init(path: String, branch: String?, prunable: Bool = false) {
+    public init(path: String, branch: String?, prunable: Bool = false, locked: Bool = false) {
         self.path = path
         self.branch = branch
         self.prunable = prunable
+        self.locked = locked
     }
 }
 
@@ -54,6 +57,8 @@ func parseWorktreeList(_ out: String) -> [WorktreeEntry] {
             result[result.count - 1].branch = String(line.dropFirst("branch refs/heads/".count))
         } else if line == "prunable" || line.hasPrefix("prunable "), !result.isEmpty {
             result[result.count - 1].prunable = true
+        } else if line == "locked" || line.hasPrefix("locked "), !result.isEmpty {
+            result[result.count - 1].locked = true
         }
     }
     return result

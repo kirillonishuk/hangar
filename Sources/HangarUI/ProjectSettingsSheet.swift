@@ -58,6 +58,11 @@ struct ProjectSettingsSheet: View {
     @State private var hiddenActions: [String]
     @State private var repo = RepoActions()
     @State private var actionsError: String?
+    /// Worktrees inside the repository git doesn't ignore (#134), and the click that hides them locally (nil — done).
+    var notIgnored: [String] = []
+    var onHideFromGit: () async -> String? = { nil }
+    @State private var hideFromGit: HideFromGit = .offered
+    private enum HideFromGit: Equatable { case offered, running, done, failed(String) }
 
     @State private var name: String
     @State private var path: String
@@ -92,7 +97,10 @@ struct ProjectSettingsSheet: View {
          onActions: @escaping ([ProjectAction], [String]) -> Void = { _, _ in },
          loadRepo: @escaping () async -> RepoActions = { RepoActions() },
          discover: @escaping () async -> [ActionSuggestionGroup] = { [] },
+         notIgnored: [String] = [], onHideFromGit: @escaping () async -> String? = { nil },
          onCancel: @escaping () -> Void) {
+        self.notIgnored = notIgnored
+        self.onHideFromGit = onHideFromGit
         self.onActions = onActions
         self.loadRepo = loadRepo
         self.discover = discover
@@ -224,7 +232,32 @@ struct ProjectSettingsSheet: View {
             if suggestedCommand != nil { message(L10n.setupCommandSuggested, Theme.ui.text3) }
             if let rootError { message(rootError, Theme.ui.failed) }
             if !keptBeside, worktreesInsideNoticeShown(project) { insideNotice }
+            if !notIgnored.isEmpty, hideFromGit != .done { notIgnoredNotice }
         }
+    }
+
+    /// Copies inside the project git doesn't ignore (#134): what it costs, the exact `info/exclude` lines, and the one
+    /// button that adds them — nothing is written unless it is clicked.
+    private var notIgnoredNotice: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s2) {
+            Text(verbatim: L10n.worktreesNotIgnoredNotice(notIgnored.joined(separator: ", ")))
+                .font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text1)
+                .lineLimit(nil)  // the sheet's rows are one line; this explanation is not
+                .fixedSize(horizontal: false, vertical: true)
+            Text(verbatim: L10n.excludeWillAdd(excludeLines(for: notIgnored).joined(separator: " ")))
+                .font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+            if case .failed(let why) = hideFromGit { message(why, Theme.ui.failed) }
+            Button(L10n.hideFromGitButtonLong) {
+                hideFromGit = .running
+                Task { hideFromGit = await onHideFromGit().map { .failed($0) } ?? .done }
+            }
+            .buttonStyle(.hangar(.secondary, .small))
+            .fixedSize()
+            .disabled(hideFromGit == .running)
+        }
+        .padding(.top, Theme.sheetMessageTop)
     }
 
     /// Existing copies stay where they are: only the folder for new ones changes (moving them is not offered, see #121).

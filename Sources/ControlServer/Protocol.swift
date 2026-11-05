@@ -377,6 +377,8 @@ public struct TaskInfo: Codable, Equatable, Sendable {
     public var behind: Int?
     /// The session that spawned this one (`sessions_spawn`); nil for a top-level session.
     public var parent: UUID?
+    /// Its agent's progress note (`sessions_note`); nil when none.
+    public var note: String?
 
     public init(id: UUID, name: String, project: UUID, projectName: String, status: String, mode: String, path: String,
                 branch: String?, base: String?, tabs: [TabInfo], drawer: LeafInfo? = nil) {
@@ -514,6 +516,8 @@ public struct SubSessionInfo: Codable, Equatable, Sendable {
     public var truncated: Bool?
     /// The sub-session's agent tab, for `tabs_read`.
     public var tab: UUID?
+    /// Its own progress note (`sessions_note`): where a still-running one is.
+    public var note: String?
     public static let maxMessage = 1500
     public init(id: UUID, name: String, status: String, link: String, agent: TabKind?, message: String?, truncated: Bool? = nil, tab: UUID? = nil) {
         self.truncated = truncated
@@ -578,6 +582,33 @@ public struct ActionRunResult: Codable, Equatable, Sendable {
         self.task = task
         self.tab = tab
         self.restarted = restarted
+    }
+}
+
+public struct NoteResult: Codable, Equatable, Sendable {
+    public var task: UUID
+    /// nil: cleared.
+    public var note: String?
+    public init(task: UUID, note: String?) {
+        self.task = task
+        self.note = note
+    }
+}
+
+/// `tabs_wait`: `status` is an `AgentState` raw value, `exited`, `closed` or `still-running`.
+public struct TabWaitResult: Codable, Equatable, Sendable {
+    public var tab: UUID
+    public var leaf: UUID
+    public var status: String
+    /// The agent's last message of the turn (capped like `SubSessionInfo.message`); nil while working or unknown.
+    public var message: String?
+    public var truncated: Bool?
+    public init(tab: UUID, leaf: UUID, status: String, message: String? = nil, truncated: Bool? = nil) {
+        self.tab = tab
+        self.leaf = leaf
+        self.status = status
+        self.message = message
+        self.truncated = truncated
     }
 }
 

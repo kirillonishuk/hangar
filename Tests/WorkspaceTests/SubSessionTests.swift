@@ -91,16 +91,18 @@ import Testing
         let parent = s.addTask(projectId: p, name: "A")
         let child = try sub(&s, parent: parent, name: "S", kind: .claude).task
         s.setSubsCollapsed(taskId: parent, true)
+        s.setNote(taskId: child, "Задача 3/7")
         let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
         #expect(back.tasks.first { $0.id == child }?.parentTaskId == parent)
         #expect(back.tasks.first { $0.id == parent }?.subsCollapsed == true)
+        #expect(back.tasks.first { $0.id == child }?.note == "Задача 3/7" && back.tasks.first { $0.id == parent }?.note == nil)
         // A file from before sub-sessions reads as top-level, unfolded chats.
         let encoded = try JSONEncoder().encode(HangarTask(projectId: p, name: "x", order: 0))
         var dict = try #require(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         #expect(dict["parentTaskId"] == nil)
         dict["subsCollapsed"] = nil
         let task = try JSONDecoder().decode(HangarTask.self, from: JSONSerialization.data(withJSONObject: dict))
-        #expect(task.parentTaskId == nil && !task.subsCollapsed)
+        #expect(task.parentTaskId == nil && !task.subsCollapsed && task.note == nil)
     }
 
     /// Sharing is by place, not by spelling (#132): trailing slashes, `.`/`..` and case don't hide a sharer; another

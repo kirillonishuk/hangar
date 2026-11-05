@@ -638,7 +638,7 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
-        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task, now: now).text)
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task, now: now).text + (task.note.map { "\n" + $0 } ?? ""))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
         .onAppear { app.requestHead(task) }
         // A window focus reloads only the rows on screen (BranchModel).

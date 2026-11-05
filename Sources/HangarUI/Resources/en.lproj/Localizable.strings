@@ -916,6 +916,10 @@
 "intNothingOn" = "nothing on";
 "intAgentOffHelp" = "Off: this agent's Hangar entries are removed on the Mac and servers. MCP has its own switch.";
 "intMCPNote" = "MCP comes with the app on this Mac — through the agent's CLI, only its own “hangar” entry.";
+"intSkillTitle" = "Hangar skill";
+"intSkillSub" = "teaches the agent to split work into sub-chats and collect their results";
+"intSkillForeign" = "skills/hangar holds another skill — left alone";
+"intSkillHelp" = "File %@: installed only by this switch; off removes it (a backup is kept).";
 "awaitingIntegrationAnswer" = "Waiting for an answer: connect Hangar?";
 "intOtherCopy" = "Hangar's entries here belong to another copy of the app";
 "intRemoteMissing" = "couldn't install hangar-remote — no hooks written";

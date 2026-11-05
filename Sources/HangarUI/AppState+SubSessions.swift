@@ -193,8 +193,10 @@ extension AppState {
         let cut = compactResult(message, max: SubSessionInfo.maxMessage)
         let agent: TabKind? = leaf.map { $0.kind == .codex ? .codex : .claude }
         let tab = leaf.flatMap { l in task.tabs.first { $0.root.leaf(id: l.id) != nil }?.id }
-        return SubSessionInfo(id: task.id, name: task.name, status: status.rawValue, link: subSessionLink(task.id), agent: agent,
-                              message: cut.text, truncated: cut.truncated ? true : nil, tab: tab)
+        var info = SubSessionInfo(id: task.id, name: task.name, status: status.rawValue, link: subSessionLink(task.id), agent: agent,
+                                  message: cut.text, truncated: cut.truncated ? true : nil, tab: tab)
+        info.note = task.note
+        return info
     }
 
     // MARK: sessions_wait

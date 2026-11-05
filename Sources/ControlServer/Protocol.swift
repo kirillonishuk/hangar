@@ -32,10 +32,12 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var title: String?
     /// The Agent tool returned `async_launched`: a background subagent.
     public var backgrounded: Bool?
+    /// The payload's `cwd`: where the agent works now (an agent may enter another worktree, #134).
+    public var cwd: String?
 
     public init(tab: UUID, leaf: UUID, kind: HookKind, session: String? = nil, notificationType: String? = nil, message: String? = nil,
                 source: String? = nil, tool: String? = nil, command: String? = nil, error: String? = nil, agentPid: Int32? = nil,
-                tabAgent: Bool? = nil, background: Int? = nil) {
+                tabAgent: Bool? = nil, background: Int? = nil, cwd: String? = nil) {
         self.tab = tab
         self.leaf = leaf
         self.kind = kind
@@ -49,6 +51,7 @@ public struct EventMessage: Codable, Equatable, Sendable {
         self.agentPid = agentPid
         self.tabAgent = tabAgent
         self.background = background
+        self.cwd = cwd
     }
 }
 

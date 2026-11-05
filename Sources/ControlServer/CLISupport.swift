@@ -43,6 +43,7 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         subagentFields(&m, object)
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
+    m.cwd = hookCwd(object["cwd"])
     let own = args[..<(args.firstIndex(of: "--then") ?? args.endIndex)]
     if let i = own.firstIndex(of: "--session"), i + 1 < own.endIndex {
         m.session = validSessionId(own[i + 1])
@@ -74,6 +75,12 @@ func subagentFields(_ m: inout EventMessage, _ object: [String: Any]) {
         m.agentType = subagentType(object["agent_type"] as? String)
     default: break
     }
+}
+
+/// A payload's `cwd` (Claude hooks, Codex `notify`): an absolute path, at most 4096 bytes, no control characters; else none.
+func hookCwd(_ value: Any?) -> String? {
+    guard let s = value as? String, s.hasPrefix("/"), s.utf8.count <= 4096, !s.utf8.contains(where: { $0 < 0x20 || $0 == 0x7F }) else { return nil }
+    return s
 }
 
 /// `--agent-pid` (the hook shell's `$PPID`): digits only, a positive Int32; anything else is no pid.

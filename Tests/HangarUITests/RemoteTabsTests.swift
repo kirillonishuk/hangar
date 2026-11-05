@@ -183,11 +183,12 @@ import TestSupport
         let h = try await Harness(); defer { h.cleanup() }
         // The fake's `-O exit` kills the last master started: "other" goes offline before "dev" connects.
         #expect(await h.remote.connect("other") == .connected)
-        let pidText = try String(contentsOfFile: h.fakeDir + "/master-other.pid", encoding: .utf8)
-        let otherMaster = try #require(Int32(pidText.trimmingCharacters(in: .whitespacesAndNewlines)))
         h.remote.disconnect("other")
-        // `-O exit` runs in the background: until it has killed other's master it could still kill dev's (seconds under load).
-        #expect(await waitUntil { kill(otherMaster, 0) != 0 && h.remote.hosts["other"]?.state == .disconnected })
+        // `-O exit` is a background helper: until it has run, it would kill dev's master instead (seconds under load).
+        #expect(await waitUntil {
+            (try? String(contentsOfFile: h.fakeDir + "/exited", encoding: .utf8))?.contains("other") == true
+                && h.remote.hosts["other"]?.state == .disconnected
+        })
         #expect(await h.remote.connect("dev") == .connected)
         let dev = h.leaf("dev")
         let project = try #require(h.app.state.projects.first { $0.name == "dev" })

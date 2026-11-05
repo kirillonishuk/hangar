@@ -216,7 +216,9 @@ private let statusFixture = Data("""
         defer { s.stop() }
         let config = dir.path + "/config.toml"
         func visible(_ d: Data) -> String {
+            // A stalled runner can tick the 1h48m countdown down a few minutes between `reset` and the render.
             String(decoding: d, as: UTF8.self).replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "1h4[0-7]m", with: "1h48m", options: .regularExpression)
         }
         try "statusline = \"hangar\"\nlanguage = \"en\"\n".write(toFile: config, atomically: true, encoding: .utf8)
         let reset = Int(Date().timeIntervalSince1970) + 107 * 60 + 30

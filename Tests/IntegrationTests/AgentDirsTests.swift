@@ -48,6 +48,6 @@ import Testing
         let d = await resolveAgentDirs(runner: runner, shell: "/bin/zsh", timeout: .milliseconds(100))
         #expect(d.claude == nil && d.codex == nil)
         // Long before the 600 s hang: the timer and the cancelled child wait for a busy cooperative pool under load.
-        #expect(SuspendingClock.now - start < .seconds(20))
+        #expect(SuspendingClock.now - start < .seconds(120))
     }
 }

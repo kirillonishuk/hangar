@@ -32,6 +32,8 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var title: String?
     /// The Agent tool returned `async_launched`: a background subagent.
     public var backgrounded: Bool?
+    /// The hook fired inside a subagent (its payload has `agent_id`): its tools don't move the chat's state (HD-145).
+    public var inSubagent: Bool?
     /// The payload's `cwd`: where the agent works now (an agent may enter another worktree, HD-134).
     public var cwd: String?
 

@@ -2,9 +2,9 @@ import AgentStatus
 import SwiftUI
 import Workspace
 
-/// A chat's Claude subagents under its row (spec agent-subagents §4): one folded line «3 субагента · 1 работает» with a
-/// disclosure triangle in the dot column, unfolded — one row per subagent (dot, task, time). Nothing in the rail, nothing
-/// without subagents. Times are recomputed on redraw (minutes), no timer.
+/// A chat's running Claude subagents under its row (spec agent-subagents §4, HD-145): one folded line «2 субагента работают»
+/// with a disclosure triangle in the dot column, unfolded — one row per running subagent (icon, task, elapsed). Finished ones
+/// leave at once; nothing in the rail, nothing while none runs. Times are recomputed on redraw (minutes), no timer.
 struct SidebarSubagents: View {
     let app: AppState
     let task: HangarTask
@@ -18,13 +18,12 @@ struct SidebarSubagents: View {
         let rows = collapsed ? [] : app.subagentRows(of: task)
         if !rows.isEmpty {
             let expanded = app.subagentsExpanded.contains(task.id)
-            let running = rows.filter { $0.item.state == .running }.count
             let help = expanded ? L10n.subagentsHide : L10n.subagentsShow
             HoverRow(action: { app.toggleSubagents(task.id) }) { _ in
                 GutterRow(collapsed: false, textX: textX, indent: indent + Theme.subChatIndent, trailing: Theme.sessionRowTrailing) {
                     IconView(icon: expanded ? .chevronDown : .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text3)
                 } expanded: {
-                    Text(verbatim: L10n.subagentsCounter(rows.count, running: running))
+                    Text(verbatim: L10n.subagentsCounter(rows.count))
                         .font(Theme.Typography.secondary.font())
                         .foregroundStyle(Theme.ui.text2)
                         .lineLimit(1)

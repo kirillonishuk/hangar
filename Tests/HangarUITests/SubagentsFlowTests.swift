@@ -41,15 +41,46 @@ import Workspace
         #expect(app.subagents.isEmpty)
         hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "t1"; $0.agentType = "Explore"; $0.title = "Implement Task 2.2"; $0.message = "Do it" }
         hook(app, tab, leaf, .subagentRun) { $0.agentId = "a1"; $0.agentType = "Explore" }
-        var rows = app.subagentRows(of: task)
+        let rows = app.subagentRows(of: task)
         #expect(rows.map(\.item.title) == ["Implement Task 2.2"] && rows.first?.item.agentId == "a1" && rows.first?.leaf == leaf)
         hook(app, tab, leaf, .subagentStop) { $0.agentId = "a1"; $0.message = "Done: 3 files" }
         hook(app, tab, leaf, .tool) { $0.tool = "Agent"; $0.toolUseId = "t1"; $0.agentId = "a1" }
-        rows = app.subagentRows(of: task)
-        #expect(rows.first?.item.state == .done && rows.first?.item.result == "Done: 3 files")
+        // Finished: gone from the sidebar at once (HD-145); the list keeps it for its view until the next turn.
+        #expect(app.subagentRows(of: task).isEmpty && app.subagent(leaf: leaf, id: "t1")?.result == "Done: 3 files")
         hook(app, tab, leaf, .stop)
         hook(app, tab, leaf, .prompt)
         #expect(app.subagentRows(of: task).isEmpty && app.subagents.isEmpty)
+    }
+
+    /// HD-145: the owner's case — the agent's turn ended while a background subagent runs on.
+    @Test func backgroundSubagentAfterTheTurn() throws {
+        let (app, task, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        hook(app, tab, leaf, .prompt)
+        hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "t1"; $0.title = "Write PLAN.md" }
+        hook(app, tab, leaf, .subagentRun) { $0.agentId = "a1" }
+        hook(app, tab, leaf, .subagentStop) { $0.agentId = "a1" }
+        hook(app, tab, leaf, .tool) { $0.tool = "Agent"; $0.toolUseId = "t1"; $0.agentId = "a1" }
+        hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "t2"; $0.agentType = "decision-reviewer"; $0.title = "Decision review" }
+        hook(app, tab, leaf, .subagentRun) { $0.agentId = "a2"; $0.agentType = "decision-reviewer" }
+        hook(app, tab, leaf, .tool) { $0.tool = "Agent"; $0.toolUseId = "t2"; $0.agentId = "a2"; $0.backgrounded = true }
+        hook(app, tab, leaf, .stop)
+        hook(app, tab, leaf, .tool) { $0.tool = "Read"; $0.inSubagent = true }
+        #expect(app.state(of: task) == .done && app.statuses.status(leaf).unseen)
+        #expect(app.subagentRows(of: task).map(\.item.title) == ["Decision review"])
+        #expect(L10n.subagentsCounter(app.subagentRows(of: task).count).hasPrefix("1 "))
+        // Its view stays open after it finished and even after its row left the list.
+        app.openSubagentPanel(leaf: leaf, id: "t2")
+        hook(app, tab, leaf, .subagentStop) { $0.agentId = "a2"; $0.message = "Approved" }
+        #expect(app.subagentRows(of: task).isEmpty)
+        hook(app, tab, leaf, .prompt)
+        hook(app, tab, leaf, .stop)
+        hook(app, tab, leaf, .prompt)
+        app.syncSubagentPanel(windowVisible: true)
+        let model = try #require(app.subagentPanel)
+        #expect(app.subagents.isEmpty && model.item?.state == .done && model.report == "Approved")
+        app.closeSubagentPanel()
+        #expect(app.subagentPanel == nil)
     }
 
     /// claude's folder for the repo: every UTF-16 unit that isn't an ASCII letter or digit becomes `-`.
@@ -153,14 +184,15 @@ import Workspace
         // A row of a chat that isn't selected selects it.
         app.openSubagentPanel(leaf: leaf, id: "t1")
         #expect(app.selectedTask?.id == task.id && app.subagentPanel?.id == "t1")
-        // The row gone (the next turn after they finished): closed.
+        // The row gone (the next turn after they finished): the view stays until closed (HD-145).
         app.syncSubagentPanel(windowVisible: true)
         let fourth = try #require(app.subagentPanel)
         hook(app, tab, leaf, .subagentStop) { $0.agentId = "a1" }
         hook(app, tab, leaf, .subagentStop) { $0.agentId = "a2" }
         hook(app, tab, leaf, .stop)
         hook(app, tab, leaf, .prompt)
-        #expect(app.subagentPanel == nil && fourth.watcher == nil)
+        app.syncSubagentPanel(windowVisible: true)
+        #expect(app.subagentPanel === fourth && fourth.item?.state == .done)
     }
 
     @Test func remoteChatsShowTheHookOnlyPanel() throws {
@@ -216,7 +248,8 @@ import Workspace
         #expect(L10n.subagentElapsed(30) == "<1 мин")
         #expect(L10n.subagentElapsed(185) == "3 мин")
         #expect(L10n.subagentElapsed(3900) == "1 ч 5 мин")
-        #expect(L10n.subagentsCounter(3, running: 1) == "3 субагента · 1 работает")
-        #expect(L10n.subagentsCounter(1, running: 0) == "1 субагент")
+        #expect(L10n.subagentsCounter(1) == "1 субагент работает")
+        #expect(L10n.subagentsCounter(3) == "3 субагента работают")
+        #expect(L10n.subagentsCounter(5) == "5 субагентов работают")
     }
 }

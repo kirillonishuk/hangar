@@ -25,9 +25,17 @@ import SwiftUI
         self.app = app
         self.leaf = leaf
         self.id = id
+        last = app.subagent(leaf: leaf, id: id)
     }
 
-    var item: Subagent? { app?.subagent(leaf: leaf, id: id) }
+    /// The row as last seen: a finished subagent leaves the sidebar (and later the list), its open view stays (HD-145).
+    private var last: Subagent?
+    var item: Subagent? { app?.subagent(leaf: leaf, id: id) ?? last }
+
+    /// Its list changed: keep the row's newest state.
+    func remember() {
+        if let live = app?.subagent(leaf: leaf, id: id) { last = live }
+    }
     var remote: Bool { app?.remoteLeafHost(leaf) != nil }
 
     /// Opens (or re-resolves after the row got its agent id): reads what is there and watches the file.

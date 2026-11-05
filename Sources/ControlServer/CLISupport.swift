@@ -41,6 +41,8 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
         }
         if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
         subagentFields(&m, object)
+        // SubagentStart / SubagentStop name the subagent itself; on every other event `agent_id` means it fired inside one.
+        if kind != .subagentRun, kind != .subagentStop, subagentId(object["agent_id"] as? String) != nil { m.inSubagent = true }
         if kind == .stopFailure { m.error = (object["error"] as? String).flatMap { $0.count > 64 ? nil : $0 } }
     }
     m.cwd = hookCwd(object["cwd"])

@@ -489,6 +489,9 @@
 "subagentCountOne" = "%d subagent";
 "subagentCountFew" = "%d subagents";
 "subagentCountMany" = "%d subagents";
+"subagentsWorkingOne" = "%d subagent running";
+"subagentsWorkingFew" = "%d subagents running";
+"subagentsWorkingMany" = "%d subagents running";
 "tabCountOne" = "%d tab";
 "tabCountFew" = "%d tabs";
 "tabCountMany" = "%d tabs";

@@ -53,6 +53,25 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
         #expect(run([hook(.prompt), .bell]).attention == nil)
     }
 
+    /// HD-145: the chat shows its main agent's state; a background subagent's tools after Stop don't make it «работает».
+    @Test func backgroundSubagentKeepsADoneTurnDone() {
+        let sub = HookDetail(subagent: true)
+        let done = run([hook(.prompt), hook(.subagentStart), hook(.tool), hook(.stop, nil, HookDetail(text: "Ready"))])
+        let after = run([hook(.tool, nil, sub), hook(.subagentStart, nil, sub), hook(.subagentStop)], from: done)
+        #expect(after.state == .done && after.unseen && after.attention?.reason == .done && after.attention?.text == "Ready")
+        #expect(after.activeSubagents == 0 && !after.inTurn)
+        // Its permission prompt still needs the user; once answered (its next tool) the chat is done again, not working.
+        let asks = run([hook(.notification, "permission_prompt", HookDetail(text: "Allow?"))], from: after)
+        #expect(asks.state == .waiting && asks.attention?.reason == .permission)
+        let answered = run([hook(.tool, nil, sub)], from: asks)
+        #expect(answered.state == .done && answered.attention == nil)
+        // Inside a turn a subagent's tool is the turn's work, as before; the agent's own next turn works again.
+        let inTurn = run([hook(.prompt), hook(.notification, "permission_prompt"), hook(.tool, nil, sub)])
+        #expect(inTurn.state == .working && inTurn.inTurn)
+        let woken = run([hook(.prompt)], from: after)
+        #expect(woken.state == .working && woken.inTurn)
+    }
+
     @Test func activityClearsAttention() {
         let asking = run([hook(.notification, "permission_prompt")])
         for signal in [hook(.prompt), hook(.tool), hook(.sessionStart), hook(.subagentStart), .relaunched] {

@@ -196,11 +196,15 @@ extension MainWindowController {
         case "key":
             if let sc = shortcuts[arg] { perform(sc) } else if let n = Int(arg) { perform(.tab(n)) }
         case "select": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.select(taskId: app.orderedTasks[n].id) }
-        case "hook":  // hook <task index> <kind> [error]: a hook event on the chat's first leaf (status icons without an agent)
-            let f = arg.split(separator: " ").map(String.init)
+        case "hook":  // hook <task index> <kind> [error | {hook payload json}]: a hook event on the chat's first leaf (no agent)
+            let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard f.count >= 2, let n = Int(f[0]), app.orderedTasks.indices.contains(n), let kind = HookKind(rawValue: f[1]),
                   let tab = app.orderedTasks[n].tabs.first, let leaf = tab.root.leaves.first else { return }
-            app.handle(.event(EventMessage(tab: tab.id, leaf: leaf.id, kind: kind, error: f.count > 2 ? f[2] : nil)))
+            let rest = f.count > 2 ? f[2] : nil
+            let m = rest?.hasPrefix("{") == true
+                ? eventMessage(kind: kind.rawValue, tab: tab.id, leaf: leaf.id, args: [], payload: rest.map { Data($0.utf8) })
+                : EventMessage(tab: tab.id, leaf: leaf.id, kind: kind, error: rest)
+            if let m { app.handle(.event(m)) }
         case "type":
             column.terminalArea.focusedLeaf?.surface?.sendText(arg)
             column.terminalArea.focusedLeaf?.surface?.sendEnter()

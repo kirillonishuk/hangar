@@ -39,9 +39,10 @@ extension AppState {
         // Writing the dictionary redraws its readers: only on a real change.
         guard list.apply(event, now: clock()) else { return }
         subagents[leaf] = list.items.isEmpty ? nil : list
-        // The shown subagent got its agent id or finished: look for its transcript again; gone (a new turn) — the panel closes.
+        // The shown subagent got its agent id or finished: look for its transcript again. Gone from the list — the view stays.
         guard let panel = subagentPanel, panel.leaf == leaf else { return }
-        if panel.item == nil { closeSubagentPanel() } else { panel.itemChanged() }
+        panel.remember()
+        panel.itemChanged()
     }
 
     /// The chat whose tabs or bottom terminal hold this leaf.
@@ -69,7 +70,7 @@ extension AppState {
     }
 
     /// After any change of the selection, the inspector flag or the window (`InspectorWatch.update`): the transcript is watched
-    /// only while the panel is on screen; another chat selected (or the row gone) closes it.
+    /// only while the panel is on screen; another chat selected (or its tab gone) closes it.
     func syncSubagentPanel(windowVisible: Bool) {
         guard let panel = subagentPanel else { return }
         guard panel.item != nil, let selected = selectedTask, task(ofAgentLeaf: panel.leaf)?.id == selected.id else {
@@ -79,10 +80,11 @@ extension AppState {
         panel.setVisible(windowVisible && state.inspectorVisible && !sessionsViewVisible)
     }
 
-    /// The chat's subagents (all its agent tabs, the bottom terminal too), oldest first.
+    /// The chat's running subagents (all its agent tabs, the bottom terminal too), oldest first: a finished one leaves the
+    /// sidebar at once (HD-145); the list keeps it for its open view.
     func subagentRows(of task: HangarTask) -> [(leaf: UUID, item: Subagent)] {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
-        return leaves.flatMap { leaf in (subagents[leaf.id]?.items ?? []).map { (leaf.id, $0) } }
+        return leaves.flatMap { leaf in (subagents[leaf.id]?.items ?? []).filter { $0.state == .running }.map { (leaf.id, $0) } }
             .sorted { $0.item.started < $1.item.started }
     }
 

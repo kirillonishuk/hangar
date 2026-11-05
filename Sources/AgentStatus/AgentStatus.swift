@@ -39,6 +39,8 @@ public struct LeafStatus: Equatable, Sendable {
     public var pendingPermission: PendingPermission?
     /// A finished turn nobody has looked at yet (HD-135): set by every done, cleared once the leaf is on screen.
     public var unseen = false
+    /// The main agent's turn is on: from its prompt or own tool until Stop. A subagent's tool moves the state only then (HD-145).
+    public var inTurn = false
     public init() {}
 }
 
@@ -119,13 +121,24 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         if [.sessionStart, .prompt, .stop, .stopFailure].contains(kind) { s.activeSubagents = 0 }
         if [.sessionStart, .prompt, .tool, .stop, .stopFailure].contains(kind) { s.pendingPermission = nil }
         switch kind {
-        case .sessionStart: s.attention = nil
+        case .sessionStart:
+            s.attention = nil
+            s.inTurn = false
+        case .tool where detail.subagent && !status.inTurn, .subagentStart where detail.subagent && !status.inTurn:
+            // A background subagent works on after its agent's turn ended: the chat shows the agent's own state (HD-145).
+            // Its answered permission prompt goes back to done, not to working.
+            if s.state == .waiting {
+                s.state = .done
+                s.attention = nil
+            }
         case .prompt, .tool:
             s.state = .working
             s.attention = nil
+            s.inTurn = true
         case .subagentStart:
             s.state = .working
             s.attention = nil
+            s.inTurn = true
             s.activeSubagents = min(s.activeSubagents + 1, 99)
         case .subagentStop: s.activeSubagents = max(s.activeSubagents - 1, 0)
         case .subagentRun: break
@@ -144,10 +157,12 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
                 attend(.question, text: detail.text)
             }
         case .stop, .codexNotify:
+            s.inTurn = false
             s.state = .done
             s.unseen = true
             attend(.done, text: detail.text)
         case .stopFailure:
+            s.inTurn = false
             if detail.error == nil || detail.error == "rate_limit" {
                 s.state = .limit
                 attend(.limit, text: detail.text)
@@ -182,12 +197,14 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         }
         s.activeSubagents = 0
         s.pendingPermission = nil
+        s.inTurn = false
     case .relaunched:
         s.state = .idle
         s.claudeHooks = false
         s.sessionId = nil
         s.agentPid = nil
         s.activeSubagents = 0
+        s.inTurn = false
         s.attention = nil
         s.pendingPermission = nil
     }

@@ -47,13 +47,18 @@ func defaultSocketPath() -> String {
         ?? NSHomeDirectory() + "/Library/Application Support/Hangar/hangar.sock"
 }
 
+/// A terminal Hangar started: its tab and leaf ids and its socket. Outside one (Terminal, iTerm, a plain ssh shell)
+/// hooks and the status line act as if Hangar were not installed (#137).
+func inHangar(_ env: [String: String]) -> Bool {
+    UUID(uuidString: env["HANGAR_TAB_ID"] ?? "") != nil && UUID(uuidString: env["HANGAR_LEAF_ID"] ?? "") != nil
+        && env["HANGAR_SOCKET"] != nil
+}
+
 func runEvent(_ rest: [String]) -> Int32 {
     let env = ProcessInfo.processInfo.environment
     let args = Array(rest.dropFirst())
     let payloadIsArg = args.last?.hasPrefix("{") == true
-    let inHangar = UUID(uuidString: env["HANGAR_TAB_ID"] ?? "") != nil && UUID(uuidString: env["HANGAR_LEAF_ID"] ?? "") != nil
-        && env["HANGAR_SOCKET"] != nil
-    let stdin = payloadIsArg || !inHangar ? nil : readStdin()
+    let stdin = payloadIsArg || !inHangar(env) ? nil : readStdin()
     if let kind = rest.first, let message = eventMessage(kind: kind, args: args, env: env, stdin: stdin),
        let socket = env["HANGAR_SOCKET"] {
         _ = ControlClient.send(.event(message), to: socket)
@@ -73,18 +78,30 @@ func runEvent(_ rest: [String]) -> Int32 {
 
 func runStatusline(_ rest: [String]) -> Int32 {
     let stdin = readStdin() ?? Data()
-    let windows = statuslineWindows(stdin)
-    if !windows.isEmpty {
-        _ = ControlClient.send(.usage(UsageMessage(agent: "claude", windows: windows)), to: defaultSocketPath())
-    }
-    // Read on every run: Settings' change shows on Claude's next refresh. An unreadable config means the defaults.
     let env = ProcessInfo.processInfo.environment
+    // Outside Hangar: only the user's own line, nothing sent anywhere.
+    guard inHangar(env), let socket = env["HANGAR_SOCKET"] else { return runOriginal(rest, stdin: stdin) }
+    let windows = statuslineWindows(stdin)
+    // Read on every run: Settings' change shows on Claude's next refresh. An unreadable config means the defaults.
     let config = HangarConfig.load(from: URL(fileURLWithPath: env["HANGAR_CONFIG"] ?? NSHomeDirectory() + "/.config/hangar/config.toml")).config
-    if config.statusline == .hangar {
-        let line = renderStatusline(StatuslineInput(json: stdin), segments: config.statuslineSegments, now: Date())
-        if !line.isEmpty { FileHandle.standardOutput.write(Data((line + "\n").utf8)) }
-        return 0
+    guard config.statusline == .hangar else {
+        if !windows.isEmpty { _ = ControlClient.send(.usage(UsageMessage(agent: "claude", windows: windows)), to: socket) }
+        return runOriginal(rest, stdin: stdin)
     }
+    // The app answers with the freshest limits across all chats; not running or slow → this chat's own (#137).
+    let known = ControlClient.ask(.usage(UsageMessage(agent: "claude", windows: windows)), to: socket, timeout: 0.3)
+        .map(usageReplyWindows) ?? []
+    var input = StatuslineInput(json: stdin)
+    for w in freshestWindows(known, windows, now: Date().timeIntervalSince1970) {
+        input.setRateLimit(w.name, used: w.usedPercent, resetsAt: w.resetsAt)
+    }
+    let line = renderStatusline(input, segments: config.statuslineSegments, now: Date())
+    if !line.isEmpty { FileHandle.standardOutput.write(Data((line + "\n").utf8)) }
+    return 0
+}
+
+/// The user's own status line command (`--then`) with the same stdin; its output and exit code are ours. None → nothing.
+func runOriginal(_ rest: [String], stdin: Data) -> Int32 {
     guard let i = rest.firstIndex(of: "--then"), i + 1 < rest.count else { return 0 }
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/bin/sh")

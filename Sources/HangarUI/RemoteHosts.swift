@@ -86,7 +86,9 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     }
 
     /// Hangar's status line for a host's `hangar-remote statusline` (#105); set before the first connect.
-    @ObservationIgnored public var statusline: (@Sendable (Data) -> String?)?
+    @ObservationIgnored public var statusline: (@Sendable (Data, [WireWindow]) -> String?)?
+    /// The app's Claude limits snapshot (#137); set before the first connect.
+    @ObservationIgnored public var usage = UsageSnapshot()
 
     public init(paths: SSHPaths, sshPath: String,
                 schedule: @escaping (Duration, @escaping @MainActor () -> Void) -> (() -> Void) = KeepAwake.taskSchedule,
@@ -263,7 +265,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         var forwarding = false
         if link.server == nil {
             let server = ControlServer(path: paths.hostSocket(host), remote: true, handler: { [weak self] m in self?.onMessage(host, m) },
-                                       statusline: statusline)
+                                       statusline: statusline, usage: usage)
             do { try server.start(); link.server = server } catch { uiLog.error("host socket \(host, privacy: .public): \(String(describing: error), privacy: .public)") }
         }
         if link.server != nil {

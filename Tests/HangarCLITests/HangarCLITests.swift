@@ -227,21 +227,76 @@ private let statusFixture = Data("""
         #expect(String(decoding: r.out, as: UTF8.self).contains("\u{1B}[31m96%"))
         #expect(await inbox.wait(count: 1).count == 1)
 
-        // Before the first reply: no rate limits → only what is known. English in a Russian Hangar too (#110).
+        // Before the first reply: no rate limits of its own → the app's (#137). English in a Russian Hangar too (#110).
         try "statusline = \"hangar\"\nlanguage = \"ru\"\n".write(toFile: config, atomically: true, encoding: .utf8)
         let early = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir),
                                          stdin: Data(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":3}}"#.utf8))
-        #expect(visible(early.out) == "Sonnet 4.6 │ ctx ━─────── 3%\n")
+        #expect(visible(early.out) == "Sonnet 4.6 │ ctx ━─────── 3% │ 5h ━━━━━━━━ 96% 1h48m │ wk 18%\n")
 
         // The segments in the config's order (#110).
         try "language = \"ru\"\nstatusline_segments = [\"week\", \"5h\", \"model\"]\n".write(toFile: config, atomically: true, encoding: .utf8)
         let ordered = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
         #expect(visible(ordered.out) == "wk 18% │ 5h ━━━━━━━━ 96% 1h48m │ Opus 4.7 1M\n")
 
-        // An unreadable config is the defaults (Hangar's line); no data at all prints nothing.
+        // An unreadable config is the defaults (Hangar's line); no data at all (nor an app to ask) prints nothing.
         try "statusline = 5".write(toFile: config, atomically: true, encoding: .utf8)
-        let empty = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: Data("{}".utf8))
+        var noApp = env(dir); noApp["HANGAR_SOCKET"] = dir.path + "/missing.sock"
+        let empty = try await runOffMain(["statusline", "--then", "echo own"], env: noApp, stdin: Data("{}".utf8))
         #expect(empty.status == 0 && empty.out.isEmpty)
+    }
+
+    /// #137: every chat's line shows the freshest limits the app knows; the app unreachable → the chat's own.
+    @Test @MainActor func statuslineShowsFreshestLimits() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        try "statusline = \"hangar\"\nstatusline_segments = [\"5h\"]\n".write(toFile: dir.path + "/config.toml", atomically: true, encoding: .utf8)
+        let reset = Int(Date().timeIntervalSince1970) + 3 * 3600
+        func payload(_ p: Int, _ r: Int) -> Data { Data(#"{"rate_limits":{"five_hour":{"used_percentage":\#(p),"resets_at":\#(r)}}}"#.utf8) }
+        func percent(_ d: Data) -> String? {
+            String(decoding: d, as: UTF8.self).replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+                .split(separator: " ").first { $0.hasSuffix("%") }.map(String.init)
+        }
+        let busy = try await runOffMain(["statusline"], env: env(dir), stdin: payload(13, reset))
+        #expect(percent(busy.out) == "13%")
+        // An idle chat's older figure (same window, reset a few seconds off) shows the busy chat's.
+        let idle = try await runOffMain(["statusline"], env: env(dir), stdin: payload(7, reset + 20))
+        #expect(percent(idle.out) == "13%")
+        // The app keeps the freshest too: the idle tick reaches it as 13 %.
+        let got = await inbox.wait(count: 2)
+        #expect(got.count == 2 && got.allSatisfy { if case let .usage(u) = $0 { u.windows.map(\.usedPercent) == [13] } else { false } })
+        // A new window wins whoever reports it.
+        let next = try await runOffMain(["statusline"], env: env(dir), stdin: payload(2, reset + 5 * 3600))
+        #expect(percent(next.out) == "2%")
+        let stale = try await runOffMain(["statusline"], env: env(dir), stdin: payload(40, reset))
+        #expect(percent(stale.out) == "2%")
+        // No app: this chat's own figure, still fast.
+        var e = env(dir); e["HANGAR_SOCKET"] = dir.path + "/missing.sock"
+        let alone = try await runOffMain(["statusline", "--then", "echo own"], env: e, stdin: payload(7, reset))
+        #expect(alone.status == 0 && percent(alone.out) == "7%" && alone.seconds < 3)
+    }
+
+    /// #137: outside a Hangar terminal the user's own line runs exactly as without Hangar — same stdin bytes, its output
+    /// and exit code — and nothing reaches the app, even with Hangar's line chosen and a socket at hand.
+    @Test @MainActor func statuslineOutsideHangarIsTheOriginal() async throws {
+        let dir = TempDir(), inbox = Inbox()
+        let s = try server(dir, inbox)
+        defer { s.stop() }
+        try "statusline = \"hangar\"\n".write(toFile: dir.path + "/config.toml", atomically: true, encoding: .utf8)
+        var outside = env(dir); outside["HANGAR_TAB_ID"] = nil; outside["HANGAR_LEAF_ID"] = nil
+        var badLeaf = env(dir); badLeaf["HANGAR_LEAF_ID"] = "x"
+        let bytes = statusFixture + Data([0x0A, 0xFF, 0x00, 0x0A])
+        for e in [outside, badLeaf, ["HANGAR_CONFIG": dir.path + "/config.toml"]] {
+            let r = try await runOffMain(["statusline", "--then", "cat; exit 5"], env: e, stdin: bytes)
+            #expect(r.status == 5 && r.out == bytes && r.err.isEmpty)
+            let none = try await runOffMain(["statusline"], env: e, stdin: bytes)
+            #expect(none.status == 0 && none.out.isEmpty && none.err.isEmpty)
+        }
+        // Hooks outside Hangar: silent, exit 0, nothing sent.
+        let hook = try await runOffMain(["event", "stop"], env: outside, stdin: Data(#"{"session_id":"s1"}"#.utf8))
+        #expect(hook.status == 0 && hook.out.isEmpty && hook.err.isEmpty)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(inbox.messages.isEmpty)
     }
 
     @MainActor fileprivate func fakeApp(_ dir: TempDir, _ calls: CallLog, reply: @escaping @MainActor (Int, ControlCall) -> ControlResponse) throws -> ControlServer {

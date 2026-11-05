@@ -21,7 +21,9 @@ public final class ControlServer: @unchecked Sendable {
     private let handler: @MainActor (ControlMessage) -> Void
     private let onRequest: @MainActor (Int, ControlCall) async -> ControlResponse
     /// remote: Hangar's line for a `statusline` payload (nil = the user's line), sent back after the reply (#105).
-    private let statusline: (@Sendable (Data) -> String?)?
+    private let statusline: (@Sendable (Data, [WireWindow]) -> String?)?
+    /// Claude's freshest limits across chats: merged with every `usage`, sent back and on (#137).
+    private let usage: UsageSnapshot
     private let queue = DispatchQueue(label: "hangar.control-server")
     private var listener: DispatchSourceRead?
     private var connections: [Int32: Connection] = [:]
@@ -63,8 +65,9 @@ public final class ControlServer: @unchecked Sendable {
                 onRequest: @escaping @MainActor (Int, ControlCall) async -> ControlResponse = { id, _ in
                     ControlResponse(id: id, body: .failure(ControlError(code: .unknownMethod, message: "not supported")))
                 },
-                statusline: (@Sendable (Data) -> String?)? = nil) {
+                statusline: (@Sendable (Data, [WireWindow]) -> String?)? = nil, usage: UsageSnapshot = UsageSnapshot()) {
         self.path = path
+        self.usage = usage
         self.remote = remote
         self.statusline = statusline
         self.handler = handler
@@ -217,9 +220,10 @@ public final class ControlServer: @unchecked Sendable {
                     }
                 }
             case let .success(message):
+                let fresh = freshened(message)
                 let handler = handler
-                DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
-                reply(fd, c, #"{"ok":true}"#)
+                if let message = fresh.message { DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } } }
+                reply(fd, c, fresh.reply)
             case .failure(.badRequest):
                 let e = ControlError(code: .badRequest, message: "request needs an integer \"id\", a string \"method\" and object \"params\"")
                 respond(fd, c, ControlResponse(id: nil, body: .failure(e)))
@@ -264,17 +268,29 @@ public final class ControlServer: @unchecked Sendable {
         }
         guard let header = c.header, c.buffer.count >= c.payloadLength else { return }
         let payload = Data(c.buffer.prefix(c.payloadLength))
-        // A second reply line `line:<text>` for hangar-remote to print; rendered even when there is no usage to record.
-        let line = RemoteMessage.isStatusline(header) ? statusline?(payload).map { "line:" + $0.filter { $0 != "\n" && $0 != "\r" } } : nil
-        switch RemoteMessage.decode(header: header, payload: payload) {
-        case let .success(message):
+        let decoded = RemoteMessage.decode(header: header, payload: payload).map(freshened)
+        let fresh = decoded.successValue
+        // A second reply line `line:<text>` for hangar-remote to print; rendered even when there is no usage to record,
+        // with the freshest limits known (a chat before its first reply gets them too).
+        let line = RemoteMessage.isStatusline(header)
+            ? statusline?(payload, fresh?.windows ?? usage.merge([])).map { "line:" + $0.filter { $0 != "\n" && $0 != "\r" } } : nil
+        switch decoded {
+        case let .success(fresh):
             let handler = handler
-            DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } }
+            if let message = fresh.message { DispatchQueue.main.async { MainActor.assumeIsolated { handler(message) } } }
             reply(fd, c, #"{"ok":true}"# + (line.map { "\n" + $0 } ?? ""))
             drop(fd)
         case let .failure(error):
             if let line { reply(fd, c, #"{"ok":false,"error":"\#(error.rawValue)"}"# + "\n" + line); drop(fd) } else { refuse(error) }
         }
+    }
+
+    /// A Claude `usage` merged into the snapshot: the merged windows go on to the app and back to the sender (#137).
+    /// An empty one only asks (a chat before its first reply): nothing for the app.
+    private func freshened(_ message: ControlMessage) -> (message: ControlMessage?, windows: [WireWindow], reply: String) {
+        guard case let .usage(m) = message, m.agent == "claude" else { return (message, [], #"{"ok":true}"#) }
+        let merged = usage.merge(m.windows)
+        return (m.windows.isEmpty ? nil : .usage(UsageMessage(agent: m.agent, windows: merged)), merged, usageReply(merged))
     }
 
     /// A reply for a connection that closed meanwhile is dropped: its fd may already belong to another client.

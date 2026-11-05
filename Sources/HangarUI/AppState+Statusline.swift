@@ -1,3 +1,4 @@
+import ControlServer
 import Exec
 import Foundation
 import Integration
@@ -22,11 +23,13 @@ struct StatuslineDir: Equatable { var path: String; var name: String }
 
 /// Hangar's line for `hangar-remote statusline` (#105): rendered on the Mac from the same config file as the CLI reads,
 /// so a change in Settings reaches the next refresh on every host. nil = the user's own line («Ваша»).
-func statuslineRenderer(configURL: URL) -> @Sendable (Data) -> String? {
-    { payload in
+func statuslineRenderer(configURL: URL) -> @Sendable (Data, [WireWindow]) -> String? {
+    { payload, fresh in
         let config = HangarConfig.load(from: configURL).config
         guard config.statusline == .hangar else { return nil }
-        return renderStatusline(StatuslineInput(json: payload), segments: config.statuslineSegments, now: Date())
+        var input = StatuslineInput(json: payload)
+        for w in fresh { input.setRateLimit(w.name, used: w.usedPercent, resetsAt: w.resetsAt) }
+        return renderStatusline(input, segments: config.statuslineSegments, now: Date())
     }
 }
 

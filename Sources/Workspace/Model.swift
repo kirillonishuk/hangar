@@ -398,6 +398,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var attentionOnly: Bool
     /// Diff tab: inline instead of side by side (HD-080).
     public var diffInline: Bool = false
+    /// Diff tab: long lines wrap (HD-146; off by default).
+    public var diffWrap: Bool = false
     /// Editor tabs show the minimap (HD-080; off by default).
     public var editorMinimap: Bool = false
 
@@ -418,7 +420,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly, diffInline, editorMinimap, freeChats
+        case attentionOnly, diffInline, diffWrap, editorMinimap, freeChats
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -434,6 +436,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
                   hostShells: try c.decodeIfPresent([HostShell].self, forKey: .hostShells) ?? [],
                   attentionOnly: try c.decodeIfPresent(Bool.self, forKey: .attentionOnly) ?? false)
         diffInline = try c.decodeIfPresent(Bool.self, forKey: .diffInline) ?? false
+        diffWrap = try c.decodeIfPresent(Bool.self, forKey: .diffWrap) ?? false
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         freeChats = try c.decodeIfPresent([FreeChat].self, forKey: .freeChats) ?? []
         assignMissingPorts()

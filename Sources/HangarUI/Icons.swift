@@ -17,6 +17,7 @@ enum Icon: CaseIterable {
     case popOut
     case filter
     case play, stop
+    case wrap
     case claude, codex
 
     /// The strokes in the mockup's 16×16 SVG space (y down); copied from its `<symbol id="g-…">` path data.
@@ -127,6 +128,9 @@ enum Icon: CaseIterable {
         // ▶ / ■: project actions (HD-133) — run, stop.
         case .play: [.shape(p(4.75, 2.75, r: 1), p(13, 8, r: 1), p(4.75, 13.25, r: 1))]
         case .stop: [.rect(3.25, 3.25, 9.5, 9.5, 1.5)]
+        case .wrap:  // the diff's «Переносить строки» (HD-146): a line that turns back under itself
+            [.line(p(2.75, 4), p(13.25, 4)), .line(p(2.75, 8), p(13.25, 8, r: 2.25), p(13.25, 12.5, r: 2.25), p(8, 12.5)),
+             .line(p(9.75, 10.75), p(8, 12.5), p(9.75, 14.25)), .line(p(2.75, 12.5), p(5.25, 12.5))]
         // Status icons (HD-144), working (turns), waiting, failed, limit; done is `check`. «?» is bare (a ring around it is mush at 12 pt; its halo frames it).
         case .spinner: [.arc(from: p(8, 1.75), to: p(1.75, 8), r: 6.25, large: true, sweep: true)]
         case .questionMark:

@@ -328,6 +328,9 @@ extension DiffTabTests {
         let file = try #require(gp.details?.files.first)
         app.openCommitDiff(hash: hash, file: file)
         #expect(app.diffTabs.count == 1 && app.activeDiff?.commit == hash && app.activeDiff?.path == "c.txt")
+        // Added in that commit: one column, «новый файл» (HD-146).
+        let tab = try #require(app.activeDiff)
+        #expect(app.diffChange(of: tab) == .added && diffOneSided(app.diffChange(of: tab)))
         #expect(app.inspector.diffPath == nil)  // the Changes row is no longer selected
         while let task = gp.loadTask { await task.value }
         let lines = app.activeDiffContent.rows.compactMap { row -> DiffLine? in if case .line(let l) = row { l } else { nil } }
@@ -336,5 +339,20 @@ extension DiffTabTests {
         #expect(app.activeDiff?.path == "c.txt")  // one file only
         app.openDiff(path: "b.txt")
         #expect(app.activeDiff?.commit == nil && app.inspector.diffPath == "b.txt")
+        #expect(app.diffChange(of: try #require(app.activeDiff)) == .modified)  // from Changes: side by side stays
+    }
+
+    /// Only a file with one side is forced into one column; a rename keeps its «Переименован из …» line, no caption.
+    @Test func oneSidedLayoutByChangeKind() {
+        for change: FileChange in [.added, .untracked, .deleted] {
+            #expect(diffOneSided(change), "\(change)")
+            #expect(diffChangeLabel(change) != nil, "\(change)")
+        }
+        for change: FileChange? in [.modified, .renamed, .conflicted, nil] {
+            #expect(!diffOneSided(change), "\(String(describing: change))")
+            #expect(diffChangeLabel(change) == nil, "\(String(describing: change))")
+        }
+        #expect(diffChangeLabel(.untracked) == diffChangeLabel(.added))
+        #expect(diffChangeLabel(.deleted) != diffChangeLabel(.added))
     }
 }

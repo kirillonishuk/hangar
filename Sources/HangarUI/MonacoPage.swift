@@ -16,7 +16,7 @@ import WebKit
     private(set) var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
 
-    init(mode: Mode, inline: Bool, minimap: Bool, appearance: EditorAppearance) {
+    init(mode: Mode, inline: Bool, minimap: Bool, wrap: Bool = false, appearance: EditorAppearance) {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(MonacoSchemeHandler(), forURLScheme: monacoScheme)
         config.websiteDataStore = .nonPersistent()
@@ -24,7 +24,7 @@ import WebKit
         config.suppressesIncrementalRendering = true  // no half-styled flash while Monaco loads
         let settings: [String: Any] = [
             "mode": mode.rawValue, "appearance": appearance.json,
-            "inline": inline, "minimap": minimap, "lang": L10n.resolve(L10n.language).rawValue,
+            "inline": inline, "minimap": minimap, "wrap": wrap, "lang": L10n.resolve(L10n.language).rawValue,
             "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict],
             "menu": L10n.editorMenu,
         ]

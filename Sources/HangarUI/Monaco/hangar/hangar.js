@@ -18,7 +18,9 @@
   // Every message about a file names its tab (`doc`) and its path.
   const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
-  let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
+  let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap, wrap = !!cfg.wrap;
+  // The diff's own «Переносить строки» wins over Settings → Editor's wrap (look.options), on both sides.
+  const diffWrap = () => ({ wordWrap: wrap ? 'on' : 'off', diffWordWrap: wrap ? 'on' : 'off' });  // the base side reads `diffWordWrap`
   let look = cfg.appearance;   // { palette, rainbow, todo, themes, css, options, formatOnSave } (Settings → Editor HD-084, HD-108)
   const queue = [];
   const pending = new Map(); // provider request id → resolve
@@ -39,7 +41,13 @@
   if (cfg.lang === 'ru') {
     const s = document.createElement('script');
     s.src = '../vs/nls/lang/ru.js';
-    s.onload = s.onerror = boot;
+    s.onload = () => {
+      // The diff's fold label in Hangar's words (HD-146); the guard skips it if a Monaco update moves the message.
+      const m = globalThis._VSCODE_NLS_MESSAGES;
+      for (const i of [140, 146]) if (m && m[i] === 'Скрытые строки ({0})') m[i] = 'Строк без изменений: {0}';
+      boot();
+    };
+    s.onerror = boot;
     document.head.appendChild(s);
   } else {
     boot();
@@ -82,9 +90,13 @@
     if (cfg.mode === 'diff') {
       diff = monaco.editor.createDiffEditor($('host'), Object.assign({}, common, {
         renderSideBySide: !inline, originalEditable: false, readOnly: true, renderOverviewRuler: false,
-        hideUnchangedRegions: { enabled: false }, useInlineViewWhenSpaceIsLimited: false, ignoreTrimWhitespace: false,
-        lineDecorationsWidth: 26 }));  // the +/- marker sits centred here, clear of the number and the code
+        // Long files show only the edits: 3 lines of context, runs shorter than 6 lines stay (HD-146).
+        hideUnchangedRegions: { enabled: true, contextLineCount: 3, minimumLineCount: 6, revealLineCount: 20 },
+        useInlineViewWhenSpaceIsLimited: false, ignoreTrimWhitespace: false,
+        lineDecorationsWidth: 26 }, diffWrap()));  // the +/- marker sits centred here, clear of the number and the code
       wireDiff();
+      const raw = diff.getOriginalEditor().getRawOptions();
+      baseGutter = { lineNumbers: 'on', lineDecorationsWidth: 26, folding: raw.folding, glyphMargin: raw.glyphMargin };
       decorations(diff.getOriginalEditor());
       decorations(diff.getModifiedEditor());
     } else {
@@ -342,7 +354,7 @@
     defineThemes(c.themes);
     monaco.editor.setTheme('hangar-' + look.palette);
     if (editor) editor.updateOptions(look.options);
-    if (diff) diff.updateOptions(look.options);
+    if (diff) diff.updateOptions(Object.assign({}, look.options, diffWrap()));
     redecorate.forEach((f) => f());
   }
 
@@ -535,6 +547,17 @@
     return Math.max(1, line + delta);
   }
 
+  // A file with one side only, shown in one column (Swift forces inline for it, HD-146): no empty base gutter, and
+  // not the lone empty line Monaco marks changed on the empty side (hangar.css `one-added` / `one-deleted`).
+  let oneSide = null, baseGutter = null;
+  function fitOneSide() {
+    const kind = inline ? oneSide : null;
+    document.body.classList.toggle('one-added', kind === 'added');
+    document.body.classList.toggle('one-deleted', kind === 'deleted');
+    diff.getOriginalEditor().updateOptions(kind === 'added'
+      ? { lineNumbers: 'off', lineDecorationsWidth: 0, folding: false, glyphMargin: false } : baseGutter);
+  }
+
   function showDiff(c) {
     const old = diff.getModel();
     files.clear();
@@ -556,7 +579,9 @@
     }
     pendingLine = c.line || null;
     resetFirst();
+    oneSide = c.original === '' && c.modified !== '' ? 'added' : c.modified === '' && c.original !== '' ? 'deleted' : null;
     diff.setModel({ original, modified });
+    fitOneSide();
     diff.getModifiedEditor().updateOptions({ readOnly: !c.path });
     if (old) { old.original.dispose(); old.modified.dispose(); }
     if (pendingLine) {
@@ -779,8 +804,8 @@
       case 'resolve': { const r = pending.get(c.id); if (r) { pending.delete(c.id); r(c.result); } break; }
       case 'diff': showDiff(c); break;
       case 'options':
-        inline = c.inline; minimap = c.minimap;
-        if (diff) { diff.updateOptions({ renderSideBySide: !inline }); if (inline) { lastSide = diff.getModifiedEditor(); report(); } }
+        inline = c.inline; minimap = c.minimap; wrap = !!c.wrap;
+        if (diff) { diff.updateOptions(Object.assign({ renderSideBySide: !inline }, diffWrap())); fitOneSide(); if (inline) { lastSide = diff.getModifiedEditor(); report(); } }
         if (editor) editor.updateOptions({ minimap: { enabled: minimap } });
         break;
       case 'appearance': setLook(c); break;

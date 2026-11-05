@@ -67,3 +67,12 @@ button.primary:hover { filter: brightness(1.08); }
 
 /* Diff: room around the +/- marker so it reads "3  +  const", not "3+const". */
 .monaco-diff-editor .insert-sign, .monaco-diff-editor .delete-sign { justify-content: center; }
+
+/* One column for a one-sided file (HD-146): an added file hides the empty base (its gutter strip and the empty base
+   line Monaco shows deleted); a deleted file hides the empty working line. Monaco sets `visibility` inline. */
+body.one-added .monaco-diff-editor .editor.original { visibility: hidden !important; }
+body.one-added .monaco-diff-editor .editor.modified .view-zones,
+body.one-added .monaco-diff-editor .editor.modified .margin-view-zones { visibility: hidden !important; }
+body.one-deleted .monaco-diff-editor .editor.modified .lines-content > .view-lines,  /* not the deleted zones' */
+body.one-deleted .monaco-diff-editor .editor.modified .current-line,
+body.one-deleted .monaco-diff-editor .editor.modified .margin-view-overlays { visibility: hidden !important; }

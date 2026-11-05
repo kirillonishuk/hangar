@@ -12,8 +12,8 @@ enum FakeSSH {
         let script = """
         #!/bin/sh
         D=${0%/*}  # the script's own dir: the same content (and scan) for every test
-        for a in "$@"; do printf '%s\\n' "$a"; done >> "$D/log"
-        printf '%s\\n' '---' >> "$D/log"
+        # One record per call under a lock (freed if killed): parallel calls' lines must not interleave, `calls` splits on `---`.
+        lockf -k "$D/log.lock" /bin/sh -c 'for a; do printf "%s\\n" "$a"; done; echo ---' sh "$@" >> "$D/log"
         ctl=; fwd=; master=
         while [ $# -gt 0 ]; do
           case "$1" in

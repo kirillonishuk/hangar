@@ -46,7 +46,7 @@ struct SidebarSubagents: View {
         let label = L10n.subagentRow(s.title, s.type, L10n.subagentState(s.state), elapsed)
         return HoverRow(action: { open(leaf, s.id) }) { _ in
             GutterRow(collapsed: false, textX: textX, indent: indent + Theme.subChatIndent, trailing: Theme.sessionRowTrailing) {
-                StatusDot(state: s.dotState)
+                StatusDot(state: s.dotState, seen: s.dotSeen)
             } expanded: {
                 HStack(spacing: Theme.rowEndGap) {
                     Text(verbatim: s.title).lineLimit(1).truncationMode(.tail).foregroundStyle(Theme.ui.text1)

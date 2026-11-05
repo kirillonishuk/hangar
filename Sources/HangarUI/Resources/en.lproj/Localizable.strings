@@ -1038,4 +1038,6 @@
 "subagentReport" = "Result";
 "subagentRemoteNote" = "Progress is shown only for chats on this Mac.";
 "subagentPendingNote" = "Progress appears once the subagent starts.";
+"subagentPanelTitle" = "Subagent";
+"subagentPanelClose" = "Close (Esc)";
 "subagentRow" = "%@ · %@ · %@ · %@";

@@ -72,6 +72,7 @@ import Workspace
             updateHeadWatch()
             // A host terminal's files load only while they are on screen (#124).
             app.remoteFiles.follow(app.state.inspectorVisible && windowVisible() ? app.hostShellFocusedLeaf : nil)
+            app.syncSubagentPanel(windowVisible: windowVisible())
         }
         let task = app.selectedTask
         let want = task.flatMap { t in root(of: t).map { (t.id, $0) } }

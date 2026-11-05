@@ -67,6 +67,10 @@ enum EmptyProjectRow: Hashable {
     var subagents: [UUID: SubagentList] = [:]
     /// Chats whose subagent list is unfolded (folded by default, not persisted).
     var subagentsExpanded: Set<UUID> = []
+    /// The inspector's «Субагент» view (spec agent-subagents §5); nil — the inspector shows its segment.
+    var subagentPanel: SubagentViewerModel?
+    /// The panel was just opened by a click: Esc closes it until a key goes on to a terminal or field.
+    @ObservationIgnored var subagentPanelJustOpened = false
     /// Sets the Dock badge text ("" clears it); set by the window controller, nil in tests and `swift run` without it.
     @ObservationIgnored var onDockBadge: ((String) -> Void)?
     /// macOS's notification permission for the settings page; nil without an app bundle (no row).
@@ -255,7 +259,10 @@ enum EmptyProjectRow: Hashable {
     func chromeClicked(_ target: ActionTarget) { interaction = .chromeClick(target) }
 
     /// A key event went on to a terminal or text field (called by the key monitor).
-    func keyReachedTerminal() { if interaction != .typing { interaction = .typing } }
+    func keyReachedTerminal() {
+        if interaction != .typing { interaction = .typing }
+        subagentPanelJustOpened = false
+    }
 
     /// Hangar consumed a non-F2 shortcut (⌘T, ⌘D, …): the earlier row/tab click is no longer F2's target.
     func hangarShortcutConsumed() { keyReachedTerminal() }
@@ -837,6 +844,7 @@ enum EmptyProjectRow: Hashable {
     func showInspector(_ segment: InspectorModel.Segment) {
         guard let task = selectedTask else { return }
         if segment == .changes || segment == .git, inspector.shownTaskId == task.id, !inspector.isGit { return }
+        closeSubagentPanel()
         inspector.segment = segment
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
     }

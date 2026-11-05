@@ -1,7 +1,8 @@
 import Git
 import SwiftUI
 
-/// Right column (decision #44): segment Files / Changes N / Git (git only) / Search (#91), the lazy file tree or the changes list.
+/// Right column (decision #44): segment Files / Changes N / Git (git only) / Search (#91), the lazy file tree or the changes list;
+/// or a clicked subagent (spec agent-subagents §5).
 /// Top: under the window toolbar (§3.1), the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
     let app: AppState
@@ -13,6 +14,9 @@ struct InspectorView: View {
             // No chat: nothing to inspect, and the centre already says what to do (§3.19, #106).
             if app.selectedTask == nil {
                 Spacer(minLength: 0)
+            } else if let panel = app.subagentPanel {
+                // A subagent row was clicked: its view instead of the segment until «×» / Esc / a segment shortcut.
+                SubagentPanel(app: app, model: panel)
             } else if hostShell {
                 // «<host> · терминал»: the folder of its shell and Search there (no git, #124).
                 header

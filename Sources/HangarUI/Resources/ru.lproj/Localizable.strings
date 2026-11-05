@@ -1038,4 +1038,6 @@
 "subagentReport" = "Итог";
 "subagentRemoteNote" = "Ход работы виден только у чатов на этом Mac.";
 "subagentPendingNote" = "Ход работы появится, когда субагент начнёт.";
+"subagentPanelTitle" = "Субагент";
+"subagentPanelClose" = "Закрыть (Esc)";
 "subagentRow" = "%@ · %@ · %@ · %@";

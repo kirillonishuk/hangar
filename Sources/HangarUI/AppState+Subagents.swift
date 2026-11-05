@@ -4,7 +4,7 @@ import Foundation
 import History
 import Workspace
 
-/// Claude subagents of a chat's agent tabs (spec agent-subagents): rows from hooks, the transcript only while its viewer is open.
+/// Claude subagents of a chat's agent tabs (spec agent-subagents): rows from hooks, the transcript only while its panel is on screen.
 extension AppState {
     /// An accepted hook of a claude leaf; any other hook leaves the lists (and the sidebar) alone.
     func subagentHook(leaf: UUID, _ e: EventMessage) {
@@ -39,6 +39,44 @@ extension AppState {
         // Writing the dictionary redraws its readers: only on a real change.
         guard list.apply(event, now: clock()) else { return }
         subagents[leaf] = list.items.isEmpty ? nil : list
+        // The shown subagent got its agent id or finished: look for its transcript again; gone (a new turn) — the panel closes.
+        guard let panel = subagentPanel, panel.leaf == leaf else { return }
+        if panel.item == nil { closeSubagentPanel() } else { panel.itemChanged() }
+    }
+
+    /// The chat whose tabs or bottom terminal hold this leaf.
+    func task(ofAgentLeaf leaf: UUID) -> HangarTask? {
+        state.tasks.first { t in !t.archived && (t.tabs.contains { $0.root.leaf(id: leaf) != nil } || t.drawer.leaf?.id == leaf) }
+    }
+
+    /// A click on a subagent row: the inspector shows it (its chat gets selected, the inspector shown); another row switches it.
+    func openSubagentPanel(leaf: UUID, id: String) {
+        guard subagent(leaf: leaf, id: id) != nil, let task = task(ofAgentLeaf: leaf) else { return }
+        if subagentPanel?.leaf != leaf || subagentPanel?.id != id {
+            closeSubagentPanel()
+            subagentPanel = SubagentViewerModel(app: self, leaf: leaf, id: id)
+        }
+        subagentPanelJustOpened = true
+        if selectedTask?.id != task.id || sessionsViewVisible { select(taskId: task.id) }
+        if !state.inspectorVisible { perform { $0.inspectorVisible = true } } else { didChange?() }
+    }
+
+    func closeSubagentPanel() {
+        guard let panel = subagentPanel else { return }
+        panel.stop()
+        subagentPanel = nil
+        subagentPanelJustOpened = false
+    }
+
+    /// After any change of the selection, the inspector flag or the window (`InspectorWatch.update`): the transcript is watched
+    /// only while the panel is on screen; another chat selected (or the row gone) closes it.
+    func syncSubagentPanel(windowVisible: Bool) {
+        guard let panel = subagentPanel else { return }
+        guard panel.item != nil, let selected = selectedTask, task(ofAgentLeaf: panel.leaf)?.id == selected.id else {
+            closeSubagentPanel()
+            return
+        }
+        panel.setVisible(windowVisible && state.inspectorVisible && !sessionsViewVisible)
     }
 
     /// The chat's subagents (all its agent tabs, the bottom terminal too), oldest first.

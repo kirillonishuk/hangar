@@ -189,6 +189,7 @@ import Workspace
         case subChatsOne, subChatsFew, subChatsMany, subChatsWorking, subChatsShow, subChatsHide
         case subagentsShow, subagentsHide, subagentRunning, subagentDone, subagentFailed, subagentUnderMinute, subagentMinutes
         case subagentHours, subagentPrompt, subagentReport, subagentRemoteNote, subagentPendingNote, subagentRow
+        case subagentPanelTitle, subagentPanelClose
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
         case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
     }
@@ -1093,6 +1094,8 @@ extension L10n {
     static var subagentReport: String { s(.subagentReport) }
     static var subagentRemoteNote: String { s(.subagentRemoteNote) }
     static var subagentPendingNote: String { s(.subagentPendingNote) }
+    static var subagentPanelTitle: String { s(.subagentPanelTitle) }
+    static var subagentPanelClose: String { s(.subagentPanelClose) }
     /// Accessibility / tooltip: «Implement Task 2.2, Explore, работает, 3 мин».
     static func subagentRow(_ title: String, _ type: String, _ state: String, _ elapsed: String) -> String {
         f(.subagentRow, title, type, state, elapsed)

@@ -89,7 +89,7 @@ extension MainWindowController {
         let windows: [String] = app.usage.view(.claude, now: now)?.windows.map { "\($0.kind)=\(Int($0.usedPercent))" } ?? []
         let level: String = app.usage.level(.claude, now: now).map { "\($0)" } ?? "-"
         lines.append("agents working=\(app.workingLeafCount) usage.claude=\(windows) level=\(level)")
-        lines.append("subagentViewer=\(subagentViewer == nil ? "closed" : "open") watching=\(subagentViewer?.watcher != nil) entries=\(subagentViewer?.entries.count ?? 0)")
+        lines.append("subagentPanel=\(app.subagentPanel.map { "\($0.id)" } ?? "closed") watching=\(app.subagentPanel?.watcher != nil) entries=\(app.subagentPanel?.entries.count ?? 0)")
         lines.append("limits rows=\(app.limitRows.map(\.agent.rawValue)) popover=\(app.limitsPopoverShown) codex=\(app.codexRead != nil)")
         return lines
     }
@@ -246,13 +246,19 @@ extension MainWindowController {
         case "archive": if let n = Int(arg), app.orderedTasks.indices.contains(n) { app.archive(taskId: app.orderedTasks[n].id) }
         case "retryRemoval":  // as «Повторить» on the first failed worktree removal row (#132)
             app.worktreeRemovals.items.first { $0.failure != nil }.map { app.worktreeRemovals.retry($0.id) }
-        case "closeSubagent": closeSubagentViewer?()
+        case "closeSubagent": app.closeSubagentPanel()
+        case "esc":  // esc: an Esc key press through the window's key routing (focus as it is)
+            if let window, let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: window.windowNumber, context: nil, characters: "\u{1b}",
+                                                    charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53) {
+                if !handleKeyDown(e) { window.sendEvent(e) }
+            }
         case "subagents":  // subagents: folds/unfolds the selected chat's subagent list
             if let t = app.selectedTask { app.toggleSubagents(t.id) }
         case "subagent":  // subagent <n>: as a click on the selected chat's n-th subagent row
             if let t = app.selectedTask, let n = Int(arg) {
                 let rows = app.subagentRows(of: t)
-                if rows.indices.contains(n) { presentSubagent(leaf: rows[n].leaf, id: rows[n].item.id) }
+                if rows.indices.contains(n) { app.openSubagentPanel(leaf: rows[n].leaf, id: rows[n].item.id) }
             }
         case "fold": if let p = app.state.projects.first { app.setCollapsed(projectId: p.id, !p.collapsed) }
         case "hover", "menu":

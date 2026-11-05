@@ -15,12 +15,21 @@ public func worktree(containing path: String, in list: [WorktreeEntry], normaliz
         .max { normalize($0.path).count < normalize($1.path).count }
 }
 
+/// Claude Code's temporary per-subagent copy (HD-147): `<repo>/.claude/worktrees/agent-<hex>` AND its branch
+/// `worktree-agent-<hex>` or its lock reason `claude agent agent-<hex> ...`. A user's `.claude/worktrees/<name>` is not.
+public func isClaudeAgentWorktree(_ entry: WorktreeEntry) -> Bool {
+    guard let m = entry.path.firstMatch(of: /\/\.claude\/worktrees\/agent-([0-9a-f]+)$/) else { return false }
+    let hex = String(m.output.1)
+    if entry.branch == "worktree-agent-" + hex { return true }
+    return entry.lockReason.map { $0 == "claude agent agent-" + hex || $0.hasPrefix("claude agent agent-" + hex + " ") } ?? false
+}
+
 /// The agent reported `cwd`: the other linked worktree it works in, or nil — in the chat's own checkout (any subfolder),
 /// in the main checkout, or outside the repository.
 public func otherWorktree(cwd: String, chatFolder: String, in list: [WorktreeEntry],
                            normalize: (String) -> String = { $0 }) -> WorktreeEntry? {
     guard let at = worktree(containing: cwd, in: list, normalize: normalize), let main = list.first,
-          normalize(at.path) != normalize(main.path) else { return nil }
+          normalize(at.path) != normalize(main.path), !isClaudeAgentWorktree(at) else { return nil }
     let own = worktree(containing: chatFolder, in: list, normalize: normalize)
     return own.map { normalize($0.path) == normalize(at.path) } == true ? nil : at
 }
@@ -28,7 +37,7 @@ public func otherWorktree(cwd: String, chatFolder: String, in list: [WorktreeEnt
 /// Linked worktrees no chat uses (`used`: every chat's folder, archived ones too): made by an agent or by hand.
 public func unusedWorktrees(_ list: [WorktreeEntry], used: [String], normalize: (String) -> String = { $0 }) -> [WorktreeEntry] {
     let taken = Set(used.map(normalize))
-    return list.dropFirst().filter { !$0.prunable && !taken.contains(normalize($0.path)) }
+    return list.dropFirst().filter { !$0.prunable && !isClaudeAgentWorktree($0) && !taken.contains(normalize($0.path)) }
 }
 
 /// A chat's name for a copy's branch (HD-141): after the last `/`, and only the tracker key when it leads and is

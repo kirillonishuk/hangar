@@ -33,9 +33,42 @@ import Testing
         #expect(parseWorktreeList(out) == [
             WorktreeEntry(path: "/r", branch: "main"),
             WorktreeEntry(path: "/r/.claude/worktrees/a", branch: nil, locked: true),
-            WorktreeEntry(path: "/r/.claude/worktrees/b", branch: "b", locked: true),
+            WorktreeEntry(path: "/r/.claude/worktrees/b", branch: "b", locked: true, lockReason: "agent is working"),
             WorktreeEntry(path: "/r.worktrees/gone", branch: "gone", prunable: true),
         ])
+    }
+
+    @Test func claudeSubagentCopiesAreHidden() {
+        let out = """
+        worktree /r
+        HEAD 1111
+        branch refs/heads/main
+
+        worktree /r/.claude/worktrees/agent-a455e2aaf34333597
+        HEAD 2222
+        branch refs/heads/ci/faster
+        locked claude agent agent-a455e2aaf34333597 (pid 61221 start Wed Nov  4 13:14:11 2026)
+
+        worktree /r/.claude/worktrees/agent-af7d0e31520ebdac6
+        HEAD 3333
+        branch refs/heads/worktree-agent-af7d0e31520ebdac6
+
+        worktree /r/.claude/worktrees/aut-1076
+        HEAD 4444
+        branch refs/heads/aut-1076
+
+        worktree /r/.claude/worktrees/agent-abc123
+        HEAD 5555
+        branch refs/heads/mine
+        locked by hand
+
+        """
+        let l = parseWorktreeList(out)
+        #expect(l[1].lockReason == "claude agent agent-a455e2aaf34333597 (pid 61221 start Wed Nov  4 13:14:11 2026)")
+        #expect(l.map(isClaudeAgentWorktree) == [false, true, true, false, false])
+        #expect(unusedWorktrees(l, used: []).map(\.branch) == ["aut-1076", "mine"])
+        #expect(otherWorktree(cwd: "/r/.claude/worktrees/agent-a455e2aaf34333597/src", chatFolder: "/r", in: l) == nil)
+        #expect(otherWorktree(cwd: "/r/.claude/worktrees/aut-1076", chatFolder: "/r", in: l)?.branch == "aut-1076")
     }
 
     @Test func agentInAnotherWorktree() {

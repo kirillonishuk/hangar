@@ -156,11 +156,13 @@ private struct EditorHeaderItems: View {
             } else if let language = editorStatusLabel(leaf) {
                 Text(verbatim: language).foregroundStyle(Theme.ui.text3).padding(.horizontal, Theme.Space.s2)
             }
-            let minimap = app.state.editorMinimap
-            Button(L10n.editorMinimap) { app.perform { $0.editorMinimap.toggle() } }
-                .buttonStyle(ChipStyle(on: minimap))
-                .help(L10n.editorMinimap)
-                .accessibilityAddTraits(minimap ? .isSelected : [])
+            if !app.editorImage.contains(leaf.id) {
+                let minimap = app.state.editorMinimap
+                Button(L10n.editorMinimap) { app.perform { $0.editorMinimap.toggle() } }
+                    .buttonStyle(ChipStyle(on: minimap))
+                    .help(L10n.editorMinimap)
+                    .accessibilityAddTraits(minimap ? .isSelected : [])
+            }
         }
         .padding(.leading, Theme.rowEndGap)
     }

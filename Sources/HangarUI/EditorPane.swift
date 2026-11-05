@@ -24,8 +24,8 @@ import Workspace
     /// Language requests in flight, by the page's id (a `cancel` from the page stops one).
     private var requests: [Int: Task<Void, Never>] = [:]
     var onFocus: (() -> Void)?
-    /// The image shown over the page instead of its «binary file» notice.
-    private var imageView: NSView?
+    /// The image shown over the page instead of its «binary file» notice, and the file's stamp it was decoded at.
+    private var image: (path: String, stamp: FileStamp?, view: ImageHostingView)?
 
     /// `page`: where its model goes first (a free one when it opens beside another editor).
     init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
@@ -49,6 +49,7 @@ import Workspace
         app.languages.closedAll(owner: leafId)
         watcher?.stop()
         watcher = nil
+        removeImage()
         host.unregister(self)
         app.editorDirty.remove(leafId)
         app.editorLanguage[leafId] = nil
@@ -67,6 +68,7 @@ import Workspace
         // shortcut: a save still writing when the move ends keeps the old stamp (a false conflict bar on the next save); rare.
         let latest = moved.flatMap { session.files[$0.path] }
         session = makeSession(io: session.io, limits: session.limits)
+        removeImage()  // the new session shows it again if the file is still an image
         guard let leaf = app.editorLeaf(leafId), let path = leaf.openFile else { return }
         let cursor = leaf.editorFileList.first { $0.path == path }
         if let moved, moved.path == path {
@@ -132,7 +134,10 @@ import Workspace
         if shown { host.show(self, page: shownPage ?? page) }
         guard shown != visible else { return }
         visible = shown
-        if shown { Task { await session.checkDisk() } }
+        if shown {
+            Task { await session.checkDisk() }
+            if let path = image?.path { showImage(path) }  // rewritten while hidden (no watcher then)
+        }
         restartWatcher()
     }
 
@@ -189,23 +194,53 @@ import Workspace
     }
 
     /// A binary (or too large for the editor) file that decodes as an image covers the page's notice, read-only (HD-142).
+    /// Also on a change of the shown image's file: decoded again only when its stamp moved; gone → the notice.
     private func showImage(_ path: String) {
         // shortcut: a server's image keeps the notice — EditorIO reads text only; add a byte read when asked for.
-        guard session.io.isLocal, imageView == nil else { return }
+        guard session.io.isLocal else { return }
+        let io = session.io, gen = generation
         Task { [weak self] in
-            guard let image = await ImagePreview.load(path: path), let self, imageView == nil,
-                  app.editorLeaf(leafId)?.openFile == path else { return }
-            let view = NSHostingView(rootView: ImagePreviewView(sides: [.init(id: 0, image: image)], showsBytes: true))
-            view.frame = bounds
-            view.autoresizingMask = [.width, .height]
-            addSubview(view)  // over the web view (`EditorHost.show` keeps that one at the bottom)
-            imageView = view
+            let stamp = try? await io.stat(path)
+            guard let self, gen == generation else { return }
+            if let image, image.path == path, image.stamp == stamp { return }
+            let decoded = await ImagePreview.load(path: path)
+            guard gen == generation, app.editorLeaf(leafId)?.openFile == path else { return }
+            guard let decoded else { removeImage(); return }
+            let root = ImagePreviewView(name: (path as NSString).lastPathComponent, sides: [.init(id: 0, image: decoded)], showsBytes: true)
+            if let view = image?.view {
+                view.rootView = root
+                image = (path, stamp, view)
+            } else {
+                let view = ImageHostingView(rootView: root)
+                view.frame = bounds
+                view.autoresizingMask = [.width, .height]
+                // A click focuses the pane, as one in Monaco does.
+                view.onMouseDown = { [weak self] in
+                    guard let self else { return }
+                    window?.makeFirstResponder(webView)
+                    app.focused(leafId: leafId)
+                    onFocus?()
+                }
+                addSubview(view)  // over the web view (`EditorHost.show` keeps that one at the bottom)
+                image = (path, stamp, view)
+                app.editorImage.insert(leafId)
+            }
+            restartWatcher()
         }
     }
 
-    /// FSEvents on the folder of the file (local), only while shown; a clean buffer reloads, a dirty one asks.
+    private func removeImage() {
+        image?.view.removeFromSuperview()
+        image = nil
+        app.editorImage.remove(leafId)
+    }
+
+    /// FSEvents on the folder of the file (local), only while shown; a clean buffer reloads, a dirty one asks, an image
+    /// is decoded again.
     private func restartWatcher() {
-        let paths: Set<String> = visible && session.io.isLocal ? Set(session.files.filter { !$0.value.refused }.keys.map(realPath)) : []
+        var files = Set(session.files.filter { !$0.value.refused }.keys)
+        if let path = image?.path { files.insert(path) }
+        let paths: Set<String> = visible && session.io.isLocal ? Set(files.map(realPath)) : []
         guard paths != watchedPaths else { return }
         watcher?.stop()
         watcher = nil
@@ -215,6 +250,17 @@ import Workspace
         watcher = FileWatcher(paths: dirs, onChange: { [weak self] _ in
             guard let self else { return }
             Task { await self.session.checkDisk() }
+            if let path = image?.path { showImage(path) }
         }, classify: { events in events.contains { paths.contains($0.path) } ? .status : [] })
+    }
+}
+
+/// The editor's image (HD-142); `onMouseDown` focuses its pane.
+final class ImageHostingView: NSHostingView<ImagePreviewView> {
+    var onMouseDown: (() -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
+        super.mouseDown(with: event)
     }
 }

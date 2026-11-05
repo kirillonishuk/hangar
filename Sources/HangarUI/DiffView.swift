@@ -310,9 +310,10 @@ struct DiffView: View {
 private struct DiffImageView: View {
     let app: AppState
     let tab: DiffTab
-    /// Bumped by every reload of the diff (the file changed on disk).
+    /// Bumped when the diff's state changes.
     let version: Int
-    @State private var loaded: (key: String, sides: [ImagePreviewView.Side])?
+    /// `stamp`: `diffImageStamp` of the load shown.
+    @State private var loaded: (key: String, stamp: String, sides: [ImagePreviewView.Side])?
 
     private var key: String { tab.path + "|" + (tab.commit ?? "") }
 
@@ -327,16 +328,18 @@ private struct DiffImageView: View {
                         .padding(.horizontal, Theme.Diff.headerPaddingH)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
-                    ImagePreviewView(sides: loaded.sides)
+                    ImagePreviewView(name: (tab.path as NSString).lastPathComponent, sides: loaded.sides)
                 }
             } else {
                 Spacer(minLength: 0)
             }
         }
-        .task(id: "\(key)|\(version)") {
-            let key = key
+        // A binary diff stays `.loaded(.binary)` when the file is rewritten: every applied load checks the stamp.
+        .task(id: "\(key)|\(version)|\(app.inspector.diffLoads)") {
+            let key = key, stamp = app.diffImageStamp(tab)
+            if let loaded, loaded.key == key, loaded.stamp == stamp { return }
             let sides = await app.diffImages(tab)
-            if !Task.isCancelled { loaded = (key, sides) }
+            if !Task.isCancelled { loaded = (key, stamp, sides) }
         }
     }
 }

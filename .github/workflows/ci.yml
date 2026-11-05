@@ -127,11 +127,11 @@ jobs:
           [ "${{ github.event_name }}" = push ] || scripts/verify-bundle.sh build/Hangar.app
 
       - name: Mark the cached build's commit
-        if: github.event_name == 'push' || github.head_ref == 'ci/faster-ci-daily-release' # TEMP: measure warm PR runs
+        if: github.event_name == 'push'
         run: git rev-parse HEAD > .build/hangar-ci-commit
 
       - name: Save SwiftPM build
-        if: github.event_name == 'push' || github.head_ref == 'ci/faster-ci-daily-release' # TEMP: measure warm PR runs
+        if: github.event_name == 'push'
         uses: actions/cache/save@v4
         with:
           path: .build

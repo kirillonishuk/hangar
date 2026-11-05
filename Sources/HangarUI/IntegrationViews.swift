@@ -2,7 +2,7 @@ import ControlServer
 import Integration
 import SwiftUI
 
-/// A function of an agent's integration (#111): title, a `text3` line under it, an optional tag, then its control.
+/// A function of an agent's integration (HD-111): title, a `text3` line under it, an optional tag, then its control.
 struct FunctionRow<Trailing: View>: View {
     let title: String
     let subtitle: String
@@ -239,7 +239,7 @@ private struct AskFooter: View {
     }
 }
 
-/// «Подключить Hangar к Claude Code?» (#111): before the agent's first tab starts; the switches are its functions.
+/// «Подключить Hangar к Claude Code?» (HD-111): before the agent's first tab starts; the switches are its functions.
 struct IntegrationAgentSheet: View {
     let agent: MCPAgent
     /// Read in `body`: a language switch while the sheet is up redraws them.
@@ -290,7 +290,7 @@ struct IntegrationAgentSheet: View {
     }
 }
 
-/// «Подключить Hangar на <host>?» (#111): the shared choice, listed; no switches.
+/// «Подключить Hangar на <host>?» (HD-111): the shared choice, listed; no switches.
 struct IntegrationHostSheet: View {
     let host: String
     /// The connected agents and their functions as a phrase (read in `body`, like the agent sheet's machines).

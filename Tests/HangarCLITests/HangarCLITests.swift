@@ -209,7 +209,7 @@ private let statusFixture = Data("""
         #expect(r2.status == 0 && String(decoding: r2.out, as: UTF8.self) == "hi\n")
     }
 
-    /// #105: Hangar's line from the CLI itself (config read on each run), usage still forwarded, the chained command not run.
+    /// HD-105: Hangar's line from the CLI itself (config read on each run), usage still forwarded, the chained command not run.
     @Test @MainActor func statuslineRendersHangarLine() async throws {
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)
@@ -227,13 +227,13 @@ private let statusFixture = Data("""
         #expect(String(decoding: r.out, as: UTF8.self).contains("\u{1B}[31m96%"))
         #expect(await inbox.wait(count: 1).count == 1)
 
-        // Before the first reply: no rate limits of its own → the app's (#137). English in a Russian Hangar too (#110).
+        // Before the first reply: no rate limits of its own → the app's (HD-137). English in a Russian Hangar too (HD-110).
         try "statusline = \"hangar\"\nlanguage = \"ru\"\n".write(toFile: config, atomically: true, encoding: .utf8)
         let early = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir),
                                          stdin: Data(#"{"model":{"display_name":"Sonnet 4.6"},"context_window":{"used_percentage":3}}"#.utf8))
         #expect(visible(early.out) == "Sonnet 4.6 │ ctx ━─────── 3% │ 5h ━━━━━━━━ 96% 1h48m │ wk 18%\n")
 
-        // The segments in the config's order (#110).
+        // The segments in the config's order (HD-110).
         try "language = \"ru\"\nstatusline_segments = [\"week\", \"5h\", \"model\"]\n".write(toFile: config, atomically: true, encoding: .utf8)
         let ordered = try await runOffMain(["statusline", "--then", "echo own"], env: env(dir), stdin: payload)
         #expect(visible(ordered.out) == "wk 18% │ 5h ━━━━━━━━ 96% 1h48m │ Opus 4.7 1M\n")
@@ -245,7 +245,7 @@ private let statusFixture = Data("""
         #expect(empty.status == 0 && empty.out.isEmpty)
     }
 
-    /// #137: every chat's line shows the freshest limits the app knows; the app unreachable → the chat's own.
+    /// HD-137: every chat's line shows the freshest limits the app knows; the app unreachable → the chat's own.
     @Test @MainActor func statuslineShowsFreshestLimits() async throws {
         let dir = TempDir(), inbox = Inbox()
         let s = try server(dir, inbox)
@@ -276,7 +276,7 @@ private let statusFixture = Data("""
         #expect(alone.status == 0 && percent(alone.out) == "7%" && alone.seconds < 3)
     }
 
-    /// #137: outside a Hangar terminal the user's own line runs exactly as without Hangar — same stdin bytes, its output
+    /// HD-137: outside a Hangar terminal the user's own line runs exactly as without Hangar — same stdin bytes, its output
     /// and exit code — and nothing reaches the app, even with Hangar's line chosen and a socket at hand.
     @Test @MainActor func statuslineOutsideHangarIsTheOriginal() async throws {
         let dir = TempDir(), inbox = Inbox()
@@ -334,7 +334,7 @@ private let statusFixture = Data("""
         #expect(r.seconds < 5)
     }
 
-    /// `hangar doctor` (#61): the app's checks plus the CLI's lines; a fail → exit 1, warnings alone → 0.
+    /// `hangar doctor` (HD-061): the app's checks plus the CLI's lines; a fail → exit 1, warnings alone → 0.
     @Test @MainActor func doctorReportsAndExitCodes() async throws {
         let dir = TempDir(), calls = CallLog()
         let warn = DoctorCheck(name: "codex", level: .warn, detail: "`codex` not found", fix: "Install codex")

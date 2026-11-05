@@ -10,7 +10,7 @@ public struct RunResult: Equatable, Sendable {
     }
 }
 
-/// Runs a command (argv, never a shell string) and collects its output. A closure, not a protocol (decisions #42);
+/// Runs a command (argv, never a shell string) and collects its output. A closure, not a protocol (decisions HD-042);
 /// `Runner.ssh` (SSH.swift) is another value of this type.
 public struct Runner: Sendable {
     public var run: @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult

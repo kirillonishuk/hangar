@@ -7,7 +7,7 @@ import Workspace
 
 private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
 
-/// #105: Hangar's line in projects with their own; temp folders only, never the user's real files.
+/// HD-105: Hangar's line in projects with their own; temp folders only, never the user's real files.
 @MainActor @Suite struct StatuslineSyncTests {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-statusline-\(UUID())")
 
@@ -184,7 +184,7 @@ private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
         #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8), []) == nil)
     }
 
-    /// #110: a chip dropped in a gap lands there; off the row or back in its own place, nothing moves.
+    /// HD-110: a chip dropped in a gap lands there; off the row or back in its own place, nothing moves.
     @Test func chipDropTarget() {
         let chips = StatuslineSegment.allCases  // model, context, 5h, week, branch, effort
         var frames: [StatuslineSegment: CGRect] = [:]

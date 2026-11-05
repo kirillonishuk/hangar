@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// Every icon in the UI (icons-v2.html, decision #56): line glyphs drawn in code on a 16 grid, 1.5 pt stroke at every
+/// Every icon in the UI (icons-v2.html, decision HD-056): line glyphs drawn in code on a 16 grid, 1.5 pt stroke at every
 /// size, round caps and joins; only the agents keep their brand logos. No glyph data outside this file.
 enum Icon: CaseIterable {
     case sidebarLeft, sidebarRight, add, project, projectOpen, branch, sshHost, mac, editor, shell, diff, keepAwake, limits, settings
@@ -26,7 +26,7 @@ enum Icon: CaseIterable {
         case .add: [.line(p(8, 3), p(8, 13)), .line(p(3, 8), p(13, 8))]
         case .project:
             [.shape(p(1.75, 2.75, r: 2), p(6.35, 2.75), p(7.95, 4.5), p(14.25, 4.5, r: 2), p(14.25, 13.25, r: 2), p(1.75, 13.25, r: 2))]
-        case .projectOpen:  // expanded project (#125): the back of `.project` and a front flap tilted open
+        case .projectOpen:  // expanded project (HD-125): the back of `.project` and a front flap tilted open
             [.line(p(3.25, 11), p(5.1, 7.25, r: 1.25), p(14.5, 7.25, r: 1.25), p(12.85, 13.25, r: 1.5), p(1.75, 13.25, r: 2),
                    p(1.75, 2.75, r: 2), p(6.35, 2.75), p(7.95, 4.5), p(12.25, 4.5, r: 1.5), p(12.25, 6.5))]
         case .branch:
@@ -123,7 +123,7 @@ enum Icon: CaseIterable {
         case .popOut: [.line(p(2.75, 2.75), p(13.25, 2.75)), .line(p(5.25, 10.25), p(5.25, 6), p(9.5, 6)), .line(p(5.25, 6), p(12.75, 13.5))]
         // A funnel: Search's include / exclude filters.
         case .filter: [.poly([p(2.25, 3), p(13.75, 3), p(9.25, 8.5), p(9.25, 13), p(6.75, 11.75), p(6.75, 8.5)], closed: true)]
-        // ▶ / ■: project actions (#133) — run, stop.
+        // ▶ / ■: project actions (HD-133) — run, stop.
         case .play: [.shape(p(4.75, 2.75, r: 1), p(13, 8, r: 1), p(4.75, 13.25, r: 1))]
         case .stop: [.rect(3.25, 3.25, 9.5, 9.5, 1.5)]
         case .claude, .codex: []  // brand logos
@@ -160,7 +160,7 @@ enum Icon: CaseIterable {
     /// A project action's tab shows ▶ instead of the shell's prompt.
     static func of(_ leaf: Leaf) -> Icon { leaf.action == nil ? of(leaf.kind) : .play }
 
-    /// Agents use their brand logos drawn from embedded path data (BrandLogos.swift, decision #33), pre-tinted.
+    /// Agents use their brand logos drawn from embedded path data (BrandLogos.swift, decision HD-033), pre-tinted.
     private var brand: (data: String, tint: NSColor)? {
         switch self {
         case .claude: (BrandLogo.claude, Theme.claudeBrand)
@@ -318,8 +318,8 @@ struct IconView: View {
     }
 }
 
-/// How a status dot is drawn (#135): not by colour alone. Working — a ring half filled, done — solid until seen,
-/// then a ring; idle — a smaller solid dot (a hollow one read as an empty radio button, #130); waiting, failed and
+/// How a status dot is drawn (HD-135): not by colour alone. Working — a ring half filled, done — solid until seen,
+/// then a ring; idle — a smaller solid dot (a hollow one read as an empty radio button, HD-130); waiting, failed and
 /// limit are solid (their rows carry a word); with «Differentiate without colour» failure is a diamond, so it never
 /// reads as a done dot. All static: nothing animates but waiting's one pulse.
 enum StatusMark: Equatable {
@@ -351,14 +351,14 @@ private struct HalfDisc: Shape {
 /// Status dot (`StatusMark`); `waiting` has a halo and pulses once when it turns on (scale 1 → 1.6 → 1, 400 ms). Never loops.
 struct StatusDot: View {
     var state: AgentState = .idle
-    /// A done dot whose result was seen (#135).
+    /// A done dot whose result was seen (HD-135).
     var seen = false
     var size = Theme.Icon.statusDot
     /// Ring of this color around the dot (rail corner dot); the halo sits outside it.
     var border: Color?
     var borderWidth: CGFloat = 0
     /// On a selected (accent) row: an `onAccent` ring 1.5 (spec §2.8); idle and a seen done have no colour to frame — a
-    /// ring around them read as an empty radio button (#130), so they are drawn in `onAccent` itself (idle at .4).
+    /// ring around them read as an empty radio button (HD-130), so they are drawn in `onAccent` itself (idle at .4).
     var onAccent = false
     @State private var scale: CGFloat = 1
 

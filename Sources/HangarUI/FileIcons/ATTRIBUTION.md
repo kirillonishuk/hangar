@@ -4,4 +4,4 @@
 **Icons – Maintained** (`yusifaliyevpro.vscicons`, version 1.2.12) by Yusif Aliyev
 (https://github.com/yusifaliyevpro/vscode-icons), a maintained fork of the "Icons" theme by Mhammed Talhaouy (tal7aouy).
 
-License: MIT, see `LICENSE.txt`. Decision `#68` in `docs/decisions.md`.
+License: MIT, see `LICENSE.txt`. Decision `HD-068` (`docs/decisions/HD-068-*.md`).

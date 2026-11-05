@@ -118,7 +118,7 @@ private func releaseJSON(tag: String = "v0.3.0", draft: Bool = false, prerelease
 }
 
 @Suite struct UpdateRecordTests {
-    /// Hourly (#86, amended): a release published after a check shows within the hour, not a day later.
+    /// Hourly (HD-086, amended): a release published after a check shows within the hour, not a day later.
     @Test func dueEveryHour() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         #expect(UpdateRecord.interval == 3600)

@@ -88,7 +88,7 @@ import Testing
         #expect(s.tasks[0].tabs[1].root.leaves[0].cwd == "/repo.worktrees/t")
     }
 
-    /// «Сделать чатом этой копии» (#134): a main-folder chat follows the worktree its agent entered inside the project.
+    /// «Сделать чатом этой копии» (HD-134): a main-folder chat follows the worktree its agent entered inside the project.
     @Test func adoptWorktreeFromMainFolder() {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")

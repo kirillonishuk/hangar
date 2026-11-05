@@ -38,7 +38,7 @@ import TestSupport
         #expect(m.branch == "y")
     }
 
-    /// Empty «Название» (decision #116): creatable; the branch follows the message, else «Чат N».
+    /// Empty «Название» (decision HD-116): creatable; the branch follows the message, else «Чат N».
     @Test func emptyNameNamesTheChatAndItsBranch() async throws {
         let t = try await repo()
         defer { t.cleanup() }
@@ -302,7 +302,7 @@ import TestSupport
         #expect(await m.create(skipFetch: false) == .mainFolder)
     }
 
-    /// The probe answers before the sheet opens: a plain folder's sheet never starts with the copy chosen (#122).
+    /// The probe answers before the sheet opens: a plain folder's sheet never starts with the copy chosen (HD-122).
     @Test func probedPlainFolderStartsWithoutCopy() async throws {
         let dir = NSTemporaryDirectory() + "hangar-plain-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

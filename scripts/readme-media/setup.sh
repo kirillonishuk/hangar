@@ -66,7 +66,7 @@ P="${P# }"; SID=${SID:-$(uuidgen | tr A-Z a-z)}
 if [ -z "$P" ] && [ "$(basename "$PWD")" = api ]; then
   case "$PWD" in */sshd/*) P="Add created_at to orders and backfill it" ;; *) P="Add a /healthz endpoint for the load balancer" ;; esac
 fi
-# Chats without a project (#126) all start in <state>/Chats without a prompt: each takes the next question.
+# Chats without a project (HD-126) all start in <state>/Chats without a prompt: each takes the next question.
 if [ -z "$P" ] && [ "$(basename "$PWD")" = Chats ]; then
   n=$(cat /tmp/hg-media/chat-n 2>/dev/null || echo 0); echo $((n + 1)) > /tmp/hg-media/chat-n
   case $n in
@@ -79,7 +79,7 @@ ev() {
   local j="{\"session_id\":\"$SID\"${2:+,$2}}"
   case "$PWD" in
     */sshd/*) printf %s "$j" | "$HOME/.hangar/bin/hangar-remote" event "$1" >/dev/null 2>&1 ;;
-    */Chats) "$H" event "$1" "$j" --tab-agent --agent-pid $$ >/dev/null 2>&1 ;;  # its prompt names the chat (#116)
+    */Chats) "$H" event "$1" "$j" --tab-agent --agent-pid $$ >/dev/null 2>&1 ;;  # its prompt names the chat (HD-116)
     *) "$H" event "$1" "$j" >/dev/null 2>&1 ;;
   esac
   true
@@ -324,7 +324,7 @@ git branch feat/search-bar
 git branch fix/currency-rounding
 git branch feat/discount-codes
 git branch -q -u origin/main main
-# Separate copies (worktrees) beside the project, as Hangar makes them (#121).
+# Separate copies (worktrees) beside the project, as Hangar makes them (HD-121).
 git worktree add -q "$R/work/acme-web.worktrees/search-bar" feat/search-bar
 git worktree add -q "$R/work/acme-web.worktrees/currency-rounding" fix/currency-rounding
 # Uncommitted work in progress (Changes tab / diff).
@@ -453,7 +453,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 host=$1; shift
-# ssh -G: no ControlMaster of the user's own, so a host terminal is the master of its socket (#124).
+# ssh -G: no ControlMaster of the user's own, so a host terminal is the master of its socket (HD-124).
 [ -n "$G" ] && { printf 'hostname devbox.example.com\nuser dev\ncontrolmaster false\ncontrolpath none\nremotecommand none\n'; exit 0; }
 case "$sock" in */hs-*) hs=1 ;; *) hs= ;; esac
 case "$ctl" in
@@ -473,7 +473,7 @@ if [ -n "$hs" ] && [ -n "$auto" ]; then
 fi
 exec sh -c "$cmd"
 EOF
-# The host terminal's shell (#124): a server prompt; the hook's folder is reported as /home/dev/….
+# The host terminal's shell (HD-124): a server prompt; the hook's folder is reported as /home/dev/….
 mkdir -p "$R/sshd/zdot"
 printf 'export PATH=/usr/bin:/bin:/usr/sbin:/sbin\n' > "$R/sshd/zdot/.zshenv"
 cat > "$R/sshd/zdot/.zshrc" <<'EOF'

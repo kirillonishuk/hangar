@@ -3,7 +3,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Closing a session's last tab leaves it empty (decision #99): nothing is launched, the area offers new tabs.
+/// Closing a session's last tab leaves it empty (decision HD-099): nothing is launched, the area offers new tabs.
 @MainActor @Suite struct NoTabsTests {
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-notabs-\(UUID())")
 

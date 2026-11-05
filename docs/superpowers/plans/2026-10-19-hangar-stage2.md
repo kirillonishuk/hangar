@@ -10,7 +10,7 @@
 
 **Tech Stack:** Swift 6.3, Swift Testing, AppKit + SwiftUI, `Process` + системный `git` (2.50 на машине), macOS 14+.
 
-**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `Git`/`Exec`, §3, §4 «Новая задача», §8, §10, §11 этап 2, §11.1). Решения — `docs/decisions.md` (#4, #5, #9, #10, #23, #36, #38, #39, #41; новое #42 — Task 1). Дизайн — `docs/design/DESIGN.md` («Лист новой задачи», «Раскладка», «Курсор»), макет `docs/superpowers/mockups/new-task-v4.html`. Правила — `AGENTS.md`.
+**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `Git`/`Exec`, §3, §4 «Новая задача», §8, §10, §11 этап 2, §11.1). Решения — `docs/decisions.md` (HD-004, HD-005, HD-009, HD-010, HD-023, HD-036, HD-038, HD-039, HD-041; новое HD-042 — Task 1). Дизайн — `docs/design/DESIGN.md` («Лист новой задачи», «Раскладка», «Курсор»), макет `docs/superpowers/mockups/new-task-v4.html`. Правила — `AGENTS.md`.
 
 ## Global Constraints
 
@@ -20,7 +20,7 @@
 - Все строки UI — через `L10n` (ru + en, `L10nTests.allKeysHaveRuAndEn`); иконки — `enum Icon`; цвета/размеры — `Theme`, не литералами; `.pointingHand()` на всём кликабельном.
 - Энергия: `git fetch` — только при открытии листа, по ↻ и перед созданием (если в этом открытии листа fetch ещё не прошёл); ноль таймеров и опросов. «обновлено N мин назад» пересчитывается только при перерисовке листа.
 - Ошибка git → лист не закрывается, показывает stderr git (§8).
-- Архив worktree не трогает (#39). «Удалить проект» worktree не трогает.
+- Архив worktree не трогает (HD-039). «Удалить проект» worktree не трогает.
 - Вне рамок: CLI/MCP (этап 5), инспектор Files/Changes и строка состояния (этап 4), git-действия (§1).
 
 ## Review Focus
@@ -53,11 +53,11 @@ Tests/GitTests/{TempRepo.swift, GitTests.swift, NamingTests.swift}
 Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDeletionTests.swift}
 ```
 
-### Task 1: Решение #42, спека и `Exec.Runner`
+### Task 1: Решение HD-042, спека и `Exec.Runner`
 
 **Files:**
 - Create: `Sources/Exec/Runner.swift`, `Tests/ExecTests/RunnerTests.swift`
-- Modify: `docs/decisions.md` (запись #42), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§3, §4, §7, §8)
+- Modify: `docs/decisions.md` (запись HD-042), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§3, §4, §7, §8)
 
 **Interfaces:**
 - Produces:
@@ -65,13 +65,13 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
   - `public struct Runner: Sendable { public var run: @Sendable (_ args: [String], _ cwd: String) async throws -> RunResult; public init(run:); public static let local: Runner }`
   - `Runner.local`: `/usr/bin/env` + `args` (у приложения из Finder `/usr/bin` в PATH есть), `currentDirectoryURL = cwd`, env = окружение процесса + `GIT_TERMINAL_PROMPT=0`, stdin `FileHandle.nullDevice`. Ненулевой код — не ошибка (возвращается в `status`); `throws` — только если процесс не запустился или задача отменена (`CancellationError`, процесс получает `terminate()`).
 
-- [x] **Step 1: Запись #42 в `decisions.md`** (формат журнала: решение, Почему, Отвергнуто). Содержание — решения контроллера этого плана: модуль `Git` поверх `Exec.Runner` (struct с замыканием, не протокол; `ssh` — этап 6); путь worktree `<родитель проекта>/<папка проекта>.worktrees/<slug ветки>`, настраивается в настройках проекта («Папка worktree»); slug (lowercase, транслит кириллицы по таблице Task 3, пробел и `/` → `-`, схлопывание `-`, пусто → `task`); новая ветка `--no-track` (не тянет upstream базы, `git push` не уйдёт в базовую ветку); переключатель Worktree запоминается по проекту (`Project.worktreeByDefault`), базовая ветка — `Project.lastBaseBranch`, её же правит «Ветка по умолчанию» в настройках проекта (`nil` = из `origin/HEAD`); «обновлено N мин назад» — по mtime `FETCH_HEAD` (учитывает и fetch из терминала, ничего не хранит); fetch — при открытии листа (фоном), по ↻, и перед созданием, если в этом открытии успешного fetch ещё не было; fetch только remote базовой ветки (для локальной базы — `origin`, нет remote — пропуск); архив worktree не трогает; «Удалить навсегда» — галочка «Также удалить worktree и ветку» (выкл.), грязный worktree — второе подтверждение, `--force` только после него, ветка — `branch -d` (не слита — сообщение, ветка остаётся); «Удалить из Hangar» worktree не трогает; не-git проект — строк worktree нет. Отвергнуто: протокол `GitRunner`, моки вывода git, `-D`, удаление worktree при архивации, опрос fetch.
-- [x] **Step 2: Спека.** §3 Project: + «worktree по умолчанию (вкл/выкл), папка worktree (необязательно)». §4 «Новая задача»: ссылка на #42 (fetch, валидация `check-ref-format`, ошибка «ветка уже существует», не-git — строк нет). §7: `tasks archive` — «архивировать (worktree остаётся, #42)». §8: «нет коммитов → worktree недоступен; fetch не прошёл → stderr + «Создать без fetch»».
+- [x] **Step 1: Запись HD-042 в `decisions.md`** (формат журнала: решение, Почему, Отвергнуто). Содержание — решения контроллера этого плана: модуль `Git` поверх `Exec.Runner` (struct с замыканием, не протокол; `ssh` — этап 6); путь worktree `<родитель проекта>/<папка проекта>.worktrees/<slug ветки>`, настраивается в настройках проекта («Папка worktree»); slug (lowercase, транслит кириллицы по таблице Task 3, пробел и `/` → `-`, схлопывание `-`, пусто → `task`); новая ветка `--no-track` (не тянет upstream базы, `git push` не уйдёт в базовую ветку); переключатель Worktree запоминается по проекту (`Project.worktreeByDefault`), базовая ветка — `Project.lastBaseBranch`, её же правит «Ветка по умолчанию» в настройках проекта (`nil` = из `origin/HEAD`); «обновлено N мин назад» — по mtime `FETCH_HEAD` (учитывает и fetch из терминала, ничего не хранит); fetch — при открытии листа (фоном), по ↻, и перед созданием, если в этом открытии успешного fetch ещё не было; fetch только remote базовой ветки (для локальной базы — `origin`, нет remote — пропуск); архив worktree не трогает; «Удалить навсегда» — галочка «Также удалить worktree и ветку» (выкл.), грязный worktree — второе подтверждение, `--force` только после него, ветка — `branch -d` (не слита — сообщение, ветка остаётся); «Удалить из Hangar» worktree не трогает; не-git проект — строк worktree нет. Отвергнуто: протокол `GitRunner`, моки вывода git, `-D`, удаление worktree при архивации, опрос fetch.
+- [x] **Step 2: Спека.** §3 Project: + «worktree по умолчанию (вкл/выкл), папка worktree (необязательно)». §4 «Новая задача»: ссылка на HD-042 (fetch, валидация `check-ref-format`, ошибка «ветка уже существует», не-git — строк нет). §7: `tasks archive` — «архивировать (worktree остаётся, HD-042)». §8: «нет коммитов → worktree недоступен; fetch не прошёл → stderr + «Создать без fetch»».
 - [x] **Step 3: Тесты** (`RunnerTests`, RED): `runReturnsStatusAndOutput` (`["sh","-c","echo out; echo err >&2; exit 3"]` → `status == 3`, `stdout == "out\n"`, `stderr == "err\n"`); `runUsesCwd` (`["pwd"]` в temp-папке → stdout = её путь с `/private` префиксом допускается: сравнить `resolvingSymlinksInPath`); `largeOutputDoesNotDeadlock` (`["sh","-c","head -c 300000 /dev/zero | tr '\\0' a"]` → `stdout.count == 300000`); `noPromptEnv` (`["sh","-c","echo $GIT_TERMINAL_PROMPT"]` → `"0\n"`); `cancelTerminatesProcess` (`["sleep","30"]` в `Task`, `cancel()` через 0.2 с → бросает `CancellationError`, общее время < 3 с).
 - [x] **Step 4:** Run: `swift test --filter RunnerTests` — Expected: FAIL (нет `Runner`).
 - [x] **Step 5: Реализовать `Runner.local`.** stdout и stderr читать параллельно до выхода (иначе буфер пайпа 64 КБ блокирует процесс); ожидание выхода — `terminationHandler` + continuation внутри `withTaskCancellationHandler`.
 - [x] **Step 6:** Run: `swift test --filter RunnerTests` — Expected: PASS.
-- [x] **Step 7: Commit** — `git add Sources/Exec/Runner.swift Tests/ExecTests/RunnerTests.swift docs/decisions.md docs/superpowers/specs/2026-10-18-hangar-design.md && git commit -m "feat(exec): process runner for git; decision #42"`
+- [x] **Step 7: Commit** — `git add Sources/Exec/Runner.swift Tests/ExecTests/RunnerTests.swift docs/decisions.md docs/superpowers/specs/2026-10-18-hangar-design.md && git commit -m "feat(exec): process runner for git; decision HD-042"`
 
 ### Task 2: Модуль `Git`
 
@@ -275,7 +275,7 @@ Tests/HangarUITests/{NewTaskModelTests.swift, BranchPickerTests.swift, TaskDelet
 ### Task 9: Приёмка этапа
 
 **Files:**
-- Modify: `docs/decisions.md` (если что-то в ходе этапа менялось — новая запись или дополнение #42), `docs/superpowers/plans/2026-10-19-hangar-stage2.md` (отметки, «Нужна проверка глазами»)
+- Modify: `docs/decisions.md` (если что-то в ходе этапа менялось — новая запись или дополнение HD-042), `docs/superpowers/plans/2026-10-19-hangar-stage2.md` (отметки, «Нужна проверка глазами»)
 
 - [x] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS (показать сводку).
 - [x] **Step 2: Сценарий вручную** (`scripts/bundle.sh && open build/Hangar.app`): задача с worktree → 3 вкладки (claude, ⌘T, сплит) и нижняя панель — все в папке worktree; ⌘Q → открыть → задача и вкладки в worktree восстановлены (`--continue` в cwd worktree); архив → папка на месте; восстановить → работает; архив → «Удалить навсегда» без галочки → папка на месте; с галочкой на грязном worktree → второе подтверждение; ветка с коммитами → сообщение «не слита — оставлена»; «Удалить из Hangar» → worktree на диске.

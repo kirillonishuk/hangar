@@ -105,7 +105,7 @@ final class FillView: NSView {
     }
 }
 
-/// The frame a split pane gets (#135): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
+/// The frame a split pane gets (HD-135): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
 func paneFrame(_ state: AgentState, split: Bool) -> AgentState? {
     split && (state == .waiting || state == .failed) ? state : nil
 }
@@ -127,10 +127,10 @@ final class PaneFrameView: NSView {
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
-    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (#70).
+    /// Not the editor: ⌘V with an image-only clipboard sends ⌃V (HD-070).
     var kind: LeafKind = .shell
     private(set) var surface: TerminalSurfaceView?
-    /// An editor leaf holds Monaco instead of a terminal (#80).
+    /// An editor leaf holds Monaco instead of a terminal (HD-080).
     private(set) var editor: EditorPane?
     /// What takes the keyboard in this leaf; a chooser takes it itself.
     var keyView: NSView? { surface ?? editor?.webView ?? (chooser != nil ? self : nil) }
@@ -143,7 +143,7 @@ final class PaneFrameView: NSView {
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
     private let barFill = HoverFill { Theme.hover }
-    /// The waiting / failed frame over the whole pane, header included (#135).
+    /// The waiting / failed frame over the whole pane, header included (HD-135).
     private let frameView = PaneFrameView()
     var attentionFrame: AgentState? {
         didSet { if attentionFrame != oldValue { applyFrame() } }
@@ -155,21 +155,21 @@ final class PaneFrameView: NSView {
     /// The launch that met a missing folder: ↩ (or opening a file in the editor) tries it again as it was.
     private var missingFolder: LaunchContext?
     var needsRelaunch: Bool { exitCode != nil || failed || missingFolder != nil || actionIdle }
-    /// A project action's tab (#133): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
+    /// A project action's tab (HD-133): it stays after a clean exit, and ↩ runs the action again through `onActionRun`.
     var isAction = false
     var onActionRun: (() -> Void)?
     /// The action was not asked to run in this terminal (restored, or hung up after a stop): ↩ runs it.
     private(set) var actionIdle = false
     /// A new surface replaced the old one; `keepsStatus`: the same agent goes on (reattach, a launch that never ran).
     var onRelaunch: ((_ keepsStatus: Bool) -> Void)?
-    /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (#47).
+    /// ssh host of a remote project's leaf (nil = local): its 255 means the tmux session did not end (HD-047).
     var host: String?
     /// The client of a remote session exited with 255 (connection lost, detach); ↩ or the reconnect reattaches.
     private(set) var isDetached = false
     /// The launch that met `.notConnected`, made again by `resumeIfWaiting` once the host is up.
     private var waiting: LaunchContext?
     var isWaitingForHost: Bool { waiting != nil && !waitingForConsent }
-    /// The launch waits for the integration sheet's answer (#111), made again by `integrationAnswered`.
+    /// The launch waits for the integration sheet's answer (HD-111), made again by `integrationAnswered`.
     private(set) var waitingForConsent = false
     /// Set with `host`: the bar text when the host is not on its way (given up, disconnected, retry paused) — then the
     /// waiting bar offers «Переподключиться»; nil while it is connecting.
@@ -180,7 +180,7 @@ final class PaneFrameView: NSView {
     var onExit: ((Int32) -> Void)?
     var onTitle: ((String) -> Void)?
     var onPwd: ((String) -> Void)?
-    /// A host terminal's login exited (#124): code and whether anything was typed; true = log in again at once, plain.
+    /// A host terminal's login exited (HD-124): code and whether anything was typed; true = log in again at once, plain.
     var onHookFailed: ((Int32, Bool) -> Bool)?
     var onFocus: (() -> Void)?
     /// Terminal bell / OSC 9·777 notification: the status fallback for agents without hooks.
@@ -380,7 +380,7 @@ final class PaneFrameView: NSView {
         onExit?(code)
     }
 
-    /// ↩ on an exited or failed leaf: launch again with a mode computed for this relaunch (decision #41;
+    /// ↩ on an exited or failed leaf: launch again with a mode computed for this relaunch (decision HD-041;
     /// `focus: false` for background retries).
     func relaunch(focus: Bool = true) {
         guard needsRelaunch else { return }
@@ -415,7 +415,7 @@ final class PaneFrameView: NSView {
         onRelaunch?(true)
     }
 
-    /// For CLI/MCP (decision #45); the view starts its surface on creation, so no surface means the launch could not happen.
+    /// For CLI/MCP (decision HD-045); the view starts its surface on creation, so no surface means the launch could not happen.
     var controlState: LeafState {
         if failed || surface == nil { return .failed }
         if exitCode != nil { return .exited }
@@ -535,7 +535,7 @@ final class PaneFrameView: NSView {
     private var shownFocus: UUID?
     /// Each task's diff tab, with its Monaco page, while that diff tab exists (an edited buffer survives task switches).
     private var diffHosts: [UUID: (host: DiffHostView, editor: DiffEditorController)] = [:]
-    /// The Monaco pages of the file tabs (#83, ≤ 2 for a split); made with the first file tab, gone with the last.
+    /// The Monaco pages of the file tabs (HD-083, ≤ 2 for a split); made with the first file tab, gone with the last.
     private var editorHost: EditorHost?
     /// The selected task's diff editor (F7 / ⇧F7, debug commands).
     var shownDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
@@ -549,7 +549,7 @@ final class PaneFrameView: NSView {
     private var appliedDrawerHeight: CGFloat = 0
     /// No projects yet: "+ Добавить проект" button and the ⌘⇧N hint.
     private var emptyState = NSView()
-    /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (#99).
+    /// The selected session has no tabs: «Нет вкладок» and buttons for new ones (HD-099).
     private var noTabs = NSView()
     var onAddProject: () -> Void = {}
     var onNewTask: () -> Void = {}
@@ -782,7 +782,7 @@ final class PaneFrameView: NSView {
             }
         }
 
-        // A host's terminal (#64) needs no project.
+        // A host's terminal (HD-064) needs no project.
         let nothing = state.projects.isEmpty && state.hostShells.isEmpty && state.freeChats.isEmpty
         emptyState.isHidden = !nothing
         placeholder.isHidden = app.selectedTask != nil || diffShown || nothing
@@ -809,7 +809,7 @@ final class PaneFrameView: NSView {
         }
     }
 
-    /// The waiting / failed frame of each pane of a split tab (#135).
+    /// The waiting / failed frame of each pane of a split tab (HD-135).
     private func applyPaneFrames() {
         for task in app.state.tasks where !task.archived {
             for tab in task.tabs {
@@ -912,14 +912,14 @@ final class PaneFrameView: NSView {
         uiLog.info("surface created leaf=\(leaf.id.uuidString.prefix(8), privacy: .public) kind=\(leaf.kind.rawValue, privacy: .public) tab=\(tabId.uuidString.prefix(8), privacy: .public)")
     }
 
-    /// CLI/MCP (decision #45): starts the tab's surfaces without showing it; visibility and focus stay as they are.
+    /// CLI/MCP (decision HD-045): starts the tab's surfaces without showing it; visibility and focus stay as they are.
     func startHidden(tabId: UUID) {
         guard let tab = app.state.tasks.filter({ !$0.archived }).flatMap(\.tabs).first(where: { $0.id == tabId }) else { return }
         show(tab)
         sync()
     }
 
-    /// A tab leaf or a task's drawer shell (CLI/MCP refs, decision #45).
+    /// A tab leaf or a task's drawer shell (CLI/MCP refs, decision HD-045).
     private func controlLeaf(_ leafId: UUID) -> LeafView? {
         leafViews[leafId] ?? drawer.leaves.first { $0.leafId == leafId }
     }

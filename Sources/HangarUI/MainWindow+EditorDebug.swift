@@ -2,7 +2,7 @@
 import AppKit
 import WebKit
 
-/// Debug hooks of the Monaco editor and diff (#80): snapshots (the window with the page drawn in), page scripts, state.
+/// Debug hooks of the Monaco editor and diff (HD-080): snapshots (the window with the page drawn in), page scripts, state.
 extension MainWindowController {
     /// true when `command` was an editor one.
     func debugEditor(_ command: String, _ arg: String) -> Bool {

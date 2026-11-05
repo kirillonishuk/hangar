@@ -81,7 +81,7 @@ import Workspace
     }
 
     /// The tab's own agent (its `--settings` hooks carry `--agent-pid`) sets the id restore resumes; the installed hooks'
-    /// copies (no pid) never do (#119).
+    /// copies (no pid) never do (HD-119).
     @Test func sessionIdSavedToLeaf() throws {
         let app = makeApp([.claude])
         var changes = 0
@@ -149,7 +149,7 @@ import Workspace
         #expect(app.state(ofLeaf: id) == .done)
     }
 
-    /// #116: a «Чат N» chat takes its name from the first prompt of its own agent, once; a named chat never changes.
+    /// HD-116: a «Чат N» chat takes its name from the first prompt of its own agent, once; a named chat never changes.
     @Test func autoNamedChatNamedByFirstPrompt() {
         let app = makeApp([.claude])
         let task = app.state.tasks[0].id

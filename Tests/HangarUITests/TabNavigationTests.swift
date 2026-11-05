@@ -18,7 +18,7 @@ import Testing
         #expect(shortcut(keyCode: 126, modifiers: [.command, .option]) == .focusSplit(.up))
         #expect(shortcut(keyCode: 125, modifiers: [.command, .option]) == .focusSplit(.down))
         #expect(shortcut(keyCode: 123, modifiers: .command) == nil)  // ⌘← stays with the terminal
-        // Past the edge ↑/↓ keep switching tasks (decision #39).
+        // Past the edge ↑/↓ keep switching tasks (decision HD-039).
         #expect(SplitDirection.up.taskFallback == -1)
         #expect(SplitDirection.down.taskFallback == 1)
         #expect(SplitDirection.left.taskFallback == nil)
@@ -68,7 +68,7 @@ import Testing
         #expect(undo.taskId == nil)
     }
 
-    /// A dead `hangar://` link (#88): a message without «Отменить»; an archive replaces it, and the other way round.
+    /// A dead `hangar://` link (HD-088): a message without «Отменить»; an archive replaces it, and the other way round.
     @Test func messageToastHasNothingToUndo() {
         let undo = ArchiveUndo(delay: 60)
         undo.show(message: "gone")

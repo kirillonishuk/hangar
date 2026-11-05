@@ -1,5 +1,5 @@
-// Hangar ↔ Monaco (decision #80). Swift drives through `hangar.receive(cmd)`; the page answers with
-// `post(msg)` (validated in Swift: BridgeMessage). One page is either the editor of every file tab (#83: a model per
+// Hangar ↔ Monaco (decision HD-080). Swift drives through `hangar.receive(cmd)`; the page answers with
+// `post(msg)` (validated in Swift: BridgeMessage). One page is either the editor of every file tab (HD-083: a model per
 // tab, keyed by its `doc`, the Hangar tab strip outside the page) or the diff (keyed by path).
 'use strict';
 (function () {
@@ -19,7 +19,7 @@
   const postFile = (f, m) => post(Object.assign(m, { doc: f.doc, file: f.path }));
   let editor = null, diff = null, monaco = null;
   let diffPath = null, inline = !!cfg.inline, minimap = !!cfg.minimap;
-  let look = cfg.appearance;   // { palette, rainbow, todo, themes, css, options, formatOnSave } (Settings → Editor #84, #108)
+  let look = cfg.appearance;   // { palette, rainbow, todo, themes, css, options, formatOnSave } (Settings → Editor HD-084, HD-108)
   const queue = [];
   const pending = new Map(); // provider request id → resolve
 
@@ -138,7 +138,7 @@
     if (f && f.model && !f.readOnly) formatThen(editor, () => postFile(f, { type: 'save', text: f.model.getValue() }));
   }
 
-  // «Форматировать при сохранении» (#108): the language server's format first (the menu's own action, so only files
+  // «Форматировать при сохранении» (HD-108): the language server's format first (the menu's own action, so only files
   // with a provider), then the save; a server that doesn't answer in 3 s doesn't hold the save up. Its late edits are
   // dropped (the token below): they would change the buffer just saved and mark it unsaved again.
   let saveFormat = null;   // { model, late } of the format a save is waiting for
@@ -161,7 +161,7 @@
   /// Edits of a format the save stopped waiting for: none.
   const lateFormat = (model, token) => !!token && token.model === model && token.late;
 
-  // Buffers with a language server are mirrored there (tsserver #82, LSP #90): every change goes to Swift as an
+  // Buffers with a language server are mirrored there (tsserver HD-082, LSP HD-090): every change goes to Swift as an
   // incremental edit.
   const tsLike = /\.((m|c)?[jt]sx?|pyi?|swift|go|rs)$/i;
 
@@ -252,7 +252,7 @@
     renderChrome();
   }
 
-  // MARK: Looks (#84): Dark+ tokens, rainbow indents, TODO pills
+  // MARK: Looks (HD-084): Dark+ tokens, rainbow indents, TODO pills
 
   // Monarch can't tell `import`/`return` (control flow, purple in Dark+) from `const` (blue), nor an UPPER_CASE
   // constant: the TS/JS tokenizers get both, once, from their own definitions.
@@ -348,7 +348,7 @@
 
   // MARK: Context menu
 
-  // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, #81): a fixed list,
+  // Hangar's own menu instead of Monaco's (that one lists «Command Palette» and VS Code commands, HD-081): a fixed list,
   // greyed when the editor can't run an item (no language provider yet, read-only). Labels come from Hangar's L10n.
   const MENU = [
     { action: 'editor.action.revealDefinition', label: 'definition', keys: 'F12', provider: true },
@@ -568,7 +568,7 @@
     diff.getModifiedEditor().focus();
   }
 
-  // MARK: Language features (tsserver through Swift, #82)
+  // MARK: Language features (tsserver through Swift, HD-082)
 
   let nextId = 1;
   function ask(kind, model, position, token, name, extra) {
@@ -722,7 +722,7 @@
         releaseDocumentSemanticTokens: () => {},
       });
     }
-    // Rename and format: the languages with a server (tsserver; LSP #90); others have none, so the menu greys them.
+    // Rename and format: the languages with a server (tsserver; LSP HD-090); others have none, so the menu greys them.
     for (const lang of ['typescript', 'javascript', 'python', 'swift', 'go', 'rust']) {
       ls.registerRenameProvider(lang, {
         resolveRenameLocation: (m, p, t) => ask('rename', m, p, t).then((r) => {

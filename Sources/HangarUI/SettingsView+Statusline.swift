@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// Settings → Интеграции → Claude Code → «Строка состояния» (#105, #111): which line Claude shows, a live preview from the same
+/// Settings → Интеграции → Claude Code → «Строка состояния» (HD-105, HD-111): which line Claude shows, a live preview from the same
 /// renderer as `hangar statusline`, its segments, and the projects whose own line Hangar overrides.
 extension SettingsView {
     /// The status line row of the Claude Code card: the choice, the preview with its chips, the overridden projects.
@@ -16,7 +16,7 @@ extension SettingsView {
             .help(mode == .hangar ? (integration.userStatusline == nil ? L10n.statuslineNoOwnHelp : L10n.statuslineHangarHelp)
                                   : integration.userStatusline.map(L10n.statuslineUserHelp) ?? L10n.statuslineNoOwnHelp)
         }
-        // The hint under the choice, wrapped: beside it, it was cut to «Появится, когда…» (#110).
+        // The hint under the choice, wrapped: beside it, it was cut to «Появится, когда…» (HD-110).
         if !integration.statuslineIsHangar {
             wideRow(divider: false) {
                 Text(verbatim: L10n.statuslineNeedsIntegration).foregroundStyle(Theme.ui.text3)
@@ -173,7 +173,7 @@ func statuslinePieces(_ line: String) -> [StatuslinePiece] {
     }
 }
 
-/// The preview over the parts' chips (#110): a click (or Space) turns a chip on or off, a drag, ←/→ on the focused chip or
+/// The preview over the parts' chips (HD-110): a click (or Space) turns a chip on or off, a drag, ←/→ on the focused chip or
 /// «Левее»/«Правее» in its menu move it, the off ones too. While dragging, an accent line marks where the chip lands
 /// and the preview already shows that order; the row itself does not reflow until the drop. Released outside the
 /// row, Escape, or a cancelled gesture: nothing moves.

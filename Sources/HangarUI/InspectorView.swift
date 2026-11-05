@@ -1,7 +1,7 @@
 import Git
 import SwiftUI
 
-/// Right column (decision #44): segment Files / Changes N / Git (git only) / Search (#91), the lazy file tree or the changes list;
+/// Right column (decision HD-044): segment Files / Changes N / Git (git only) / Search (HD-091), the lazy file tree or the changes list;
 /// or a clicked subagent (spec agent-subagents §5).
 /// Top: under the window toolbar (§3.1), the segment in a tab-bar-high row, so its bottom line continues the tab bar's.
 struct InspectorView: View {
@@ -11,14 +11,14 @@ struct InspectorView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: Theme.Height.barToolbar)
-            // No chat: nothing to inspect, and the centre already says what to do (§3.19, #106).
+            // No chat: nothing to inspect, and the centre already says what to do (§3.19, HD-106).
             if app.selectedTask == nil {
                 Spacer(minLength: 0)
             } else if let panel = app.subagentPanel {
                 // A subagent row was clicked: its view instead of the segment until «×» / Esc / a segment shortcut.
                 SubagentPanel(app: app, model: panel)
             } else if hostShell {
-                // «<host> · терминал»: the folder of its shell and Search there (no git, #124).
+                // «<host> · терминал»: the folder of its shell and Search there (no git, HD-124).
                 header
                 if model.segment == .search { SearchPanel(app: app) } else { RemoteFilesView(app: app) }
             } else if let text = app.inspectorNotice {
@@ -178,7 +178,7 @@ private struct FilesList: View {
             return { row.expanded ? model.collapse(entry.path) : model.expand(entry.path) }
         }
         guard entry.opensInEditor, let root = model.root else { return nil }
-        // One click previews (one reused tab), a double click keeps the tab (as in VS Code, #83).
+        // One click previews (one reused tab), a double click keeps the tab (as in VS Code, HD-083).
         return { app.openInEditor(path: root + "/" + entry.path, line: nil, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2) }
     }
 }

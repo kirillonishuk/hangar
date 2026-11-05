@@ -1,7 +1,7 @@
 import Exec
 import Foundation
 
-/// The project's own TypeScript (#82): nothing is installed, node runs its `lib/tsserver.js`.
+/// The project's own TypeScript (HD-082): nothing is installed, node runs its `lib/tsserver.js`.
 struct TsInstall: Equatable, Hashable, Sendable {
     var tsserver: String
     var version: String

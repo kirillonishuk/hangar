@@ -2,7 +2,7 @@ import Foundation
 import History
 import Workspace
 
-// «Сессии» v2 (#107, sessions-v2.html variant A): one list grouped by project; a row is a conversation or an archived
+// «Сессии» v2 (HD-107, sessions-v2.html variant A): one list grouped by project; a row is a conversation or an archived
 // session without conversations; its state is a word.
 
 /// What «Сессии» lists: every project (⌘Y), this Mac's or one host's. A project's «Сессии проекта» is «Все» plus its
@@ -95,7 +95,7 @@ struct ConversationRow: Identifiable, Equatable {
     var state: SessionsRowState {
         switch place {
         case .open: .open
-        // An asleep chat without a project is never «в архиве» (#126): it counts as history.
+        // An asleep chat without a project is never «в архиве» (HD-126): it counts as history.
         case .closed: project == chatsGroupId ? .history : .archived
         case .session, .none: .history
         }
@@ -153,7 +153,7 @@ enum SessionsNote: Equatable {
     case offline
 }
 
-/// A project's rows, newest first; the host is named in the heading only for the scope «Все» (no repeats, #106).
+/// A project's rows, newest first; the host is named in the heading only for the scope «Все» (no repeats, HD-106).
 struct SessionsGroup: Identifiable, Equatable {
     let id: UUID
     let name: String

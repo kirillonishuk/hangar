@@ -1,6 +1,6 @@
 import Foundation
 
-/// One open file of an editor tab and its cursor (1-based), restored on launch (#80).
+/// One open file of an editor tab and its cursor (1-based), restored on launch (HD-080).
 public struct EditorFile: Codable, Equatable, Sendable {
     public var path: String
     public var line: Int
@@ -42,7 +42,7 @@ extension WorkspaceState {
     }
 }
 
-// MARK: One tab per file (#83)
+// MARK: One tab per file (HD-083)
 
 extension WorkspaceState {
     /// The task's tab showing `path` (its editor leaf).
@@ -91,7 +91,7 @@ extension WorkspaceState {
         tasks[i].tabs[t].preview = false
     }
 
-    /// state.json of the multi-file editor tab (#80): every file but the active one moves to its own tab right after it.
+    /// state.json of the multi-file editor tab (HD-080): every file but the active one moves to its own tab right after it.
     mutating func splitEditorTabs() {
         for i in tasks.indices {
             var t = 0

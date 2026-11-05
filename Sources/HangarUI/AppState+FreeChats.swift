@@ -27,7 +27,7 @@ extension AppState {
         return (try? FileManager.default.createDirectory(atPath: state.chatsFolder, withIntermediateDirectories: true)) != nil
     }
 
-    /// «+» of «Чаты», ⌥⌘N: a «Чат N» with the default agent, selected; its first prompt names it (#116).
+    /// «+» of «Чаты», ⌥⌘N: a «Чат N» with the default agent, selected; its first prompt names it (HD-116).
     @discardableResult func newFreeChat() -> UUID {
         ensureChatsFolder()
         let name = chatName(name: "", message: "", existing: state.freeChatTasks.map(\.name))
@@ -40,7 +40,7 @@ extension AppState {
     /// Its agents stop; the row stays, dimmed.
     func sleepFreeChat(_ id: UUID) { perform { $0.sleepFreeChat(taskId: id) } }
 
-    /// A click on an asleep row: its agents resume their own conversations (#119).
+    /// A click on an asleep row: its agents resume their own conversations (HD-119).
     func wakeFreeChat(_ id: UUID) {
         if state.tasks.contains(where: { $0.id == id && $0.archived }) { restore(taskId: id) }
         select(taskId: id)

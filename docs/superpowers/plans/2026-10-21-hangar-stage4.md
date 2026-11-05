@@ -10,19 +10,19 @@
 
 **Tech Stack:** Swift 6.3, Swift Testing, AppKit + SwiftUI, CoreServices FSEvents, `git` CLI через `Exec.Runner`, macOS 14+.
 
-**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `Git`, §3 diff-вкладка временная, §4 «Инспектор», §8 «нет git», §9 FSEvents + debounce 300 мс только для видимой задачи, §11 этап 4, §11.1 git через `Exec`). Решения — `docs/decisions.md` (#6 только просмотр, #23 только unified, #34 шкала шрифтов, #38 L10n, #39 реестр действий и шорткаты по keyCode, #41 запуск листа, #42 `Git` поверх `Runner`; новое #44 — Task 1). Дизайн — `docs/design/DESIGN.md` («Git и diff», «Сегмент», «Дерево файлов», «Diff», «Инспектор справа: ширина 220», моно-шрифт, курсор), макет `docs/superpowers/mockups/style-a-v2.html` (экран 1 — Files, экран 2 — diff + Changes). Правила — `AGENTS.md`.
+**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md` (§2 `Git`, §3 diff-вкладка временная, §4 «Инспектор», §8 «нет git», §9 FSEvents + debounce 300 мс только для видимой задачи, §11 этап 4, §11.1 git через `Exec`). Решения — `docs/decisions.md` (HD-006 только просмотр, HD-023 только unified, HD-034 шкала шрифтов, HD-038 L10n, HD-039 реестр действий и шорткаты по keyCode, HD-041 запуск листа, HD-042 `Git` поверх `Runner`; новое HD-044 — Task 1). Дизайн — `docs/design/DESIGN.md` («Git и diff», «Сегмент», «Дерево файлов», «Diff», «Инспектор справа: ширина 220», моно-шрифт, курсор), макет `docs/superpowers/mockups/style-a-v2.html` (экран 1 — Files, экран 2 — diff + Changes). Правила — `AGENTS.md`.
 
 ## Global Constraints
 
-- macOS 14+, Apple Silicon. Без новых зависимостей (tree-sitter не подключается — #44). `Git` — без `AppKit`/`SwiftUI`, тесты на настоящих временных репозиториях (`Tests/GitTests/TempRepo.swift`, путь с пробелом и кириллицей), без моков вывода git.
-- Только чтение (#6): ни одной команды, меняющей репозиторий. Все команды инспектора идут как `git --no-optional-locks …` (иначе `status`/`diff` переписывают `.git/index` → FSEvents → бесконечный цикл обновлений).
+- macOS 14+, Apple Silicon. Без новых зависимостей (tree-sitter не подключается — HD-044). `Git` — без `AppKit`/`SwiftUI`, тесты на настоящих временных репозиториях (`Tests/GitTests/TempRepo.swift`, путь с пробелом и кириллицей), без моков вывода git.
+- Только чтение (HD-006): ни одной команды, меняющей репозиторий. Все команды инспектора идут как `git --no-optional-locks …` (иначе `status`/`diff` переписывают `.git/index` → FSEvents → бесконечный цикл обновлений).
 - Вывод git — только машинный: `-z` везде, где есть пути; `--no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ --find-renames` у `diff`; `--untracked-files=all --find-renames` у `status` (пользовательские `status.showUntrackedFiles`, `diff.external`, `diff.noprefix`, `color.ui=always` не влияют). Пути — после `--`.
 - Данные git — только через `Git`/`Runner`, не чтением `.git` с диска. `FileManager` — только для дерева не-git локального проекта (`// shortcut: локальный FileManager, этап 6 — через Exec`).
 - Лимиты: `status` и `changedFiles` — до 5 000 записей (дальше `truncated`); `listFiles` — до 200 000 путей (дальше `truncated`); ≥ 50 000 путей — дерево не раскрывается автоматически; diff файла > 20 000 изменённых строк (по `--numstat`) — состояние «слишком большой diff» без загрузки текста.
 - Энергия: ноль таймеров и опросов. FSEvents — только корень видимой задачи и её git-dir, только пока инспектор показан и окно не перекрыто/не свёрнуто; `latency` потока 0.3 с. git — вне main (nonisolated async через `Runner`), одна загрузка на контекст.
 - Все строки — через `L10n` (ru + en, `L10nTests.allKeysHaveRuAndEn`); иконки — `enum Icon`; цвета/размеры — `Theme`; `.pointingHand()` на всём кликабельном; шорткаты — по keyCode (`⌥B` = option + 11, `↑` 126, `↓` 125, `↩` 36).
 - Diff-вкладка временная: не попадает в `state.json` и `WorkspaceState`, не восстанавливается.
-- Вне рамок: подсветка синтаксиса (#44), split-diff (#23), строка состояния (`+N −M · K файлов` — отдельно, см. Task 9), `⌘K/⌘P`, ssh-проекты (этап 6), любые git-действия.
+- Вне рамок: подсветка синтаксиса (HD-044), split-diff (HD-023), строка состояния (`+N −M · K файлов` — отдельно, см. Task 9), `⌘K/⌘P`, ssh-проекты (этап 6), любые git-действия.
 
 ## Review Focus
 
@@ -53,11 +53,11 @@ Sources/HangarUI/AppState+Diff.swift   временная diff-вкладка (�
 Sources/HangarUI/DiffView.swift        строки diff, выбор строки
 ```
 
-### Task 1: Решение #44, спека, `Git.status` и `Git.listFiles`
+### Task 1: Решение HD-044, спека, `Git.status` и `Git.listFiles`
 
 **Files:**
 - Create: `Sources/Git/Git+Inspect.swift`, `Sources/Git/GitParse.swift`, `Tests/GitTests/InspectTests.swift`
-- Modify: `docs/decisions.md` (#44), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§4 «Инспектор»: tree-sitter → «подсветка синтаксиса отложена (#44)»; ⌥B — только при активной diff-вкладке, иначе клик по подсказке под Changes; §9 — `latency` 0.3 с и правило коалесцирования), `docs/design/DESIGN.md` («Git и diff»: бейджи `?` цветом A, `R` цветом M, `U` цветом D; «Дерево файлов»: строка 13 (`row`), отступ уровня 12; «Инспектор»: ширина 220, перетаскиванием 180–480, сохраняется; «Diff»: моно 12.5, колонка номеров 34 — одна колонка: новый номер у `+`/контекста, старый у `-`)
+- Modify: `docs/decisions.md` (HD-044), `docs/superpowers/specs/2026-10-18-hangar-design.md` (§4 «Инспектор»: tree-sitter → «подсветка синтаксиса отложена (HD-044)»; ⌥B — только при активной diff-вкладке, иначе клик по подсказке под Changes; §9 — `latency` 0.3 с и правило коалесцирования), `docs/design/DESIGN.md` («Git и diff»: бейджи `?` цветом A, `R` цветом M, `U` цветом D; «Дерево файлов»: строка 13 (`row`), отступ уровня 12; «Инспектор»: ширина 220, перетаскиванием 180–480, сохраняется; «Diff»: моно 12.5, колонка номеров 34 — одна колонка: новый номер у `+`/контекста, старый у `-`)
 
 **Interfaces:**
 - Produces (в `Git`, все `public`, `Sendable`, `Equatable`):
@@ -69,7 +69,7 @@ Sources/HangarUI/DiffView.swift        строки diff, выбор строк�
   - `func parseStatusV2(_ out: String, limit: Int) -> StatusResult` (internal, в `GitParse.swift`). Правила: `1 XY …` — `D` в X или Y → deleted, `A` в X → added, иначе modified; `2 …` — renamed, `origPath` из следующего NUL-поля; `u …` → conflicted; `? path` → untracked; `#` и `!` пропускаются.
 - Команды: `git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --find-renames`; `git --no-optional-locks ls-files -co --exclude-standard -z` (cwd — `toplevel`; пути относительно корня репозитория).
 
-- [ ] **Step 1: Запись #44 в `decisions.md`** (формат журнала). Решения контроллера: без tree-sitter и новых зависимостей на этапе 4 — unified diff с фоном строк `+/-`, заголовками ханков, номерами строк, моно; подсветка синтаксиса отложена (почему: цена зависимости — грамматики, сборка, размер; вернуться по слову пользователя); split-diff нет (#23). Git-чтение — в модуле `Git` через `Runner` (этап 6 подменит исполнителя): `status --porcelain=v2 -z`, `changedFiles` (merge-base с базовой веткой / незакоммиченное), `diff` с разбором `-U3`, `listFiles` через `ls-files -co --exclude-standard -z`. Files: ленивые каталоги, бейджи из status, каталоги первыми; клик — Helix (`Esc` + `:open <path>` + ↩ в существующий editor-лист, иначе новая editor-вкладка). Не-git — только Files (FileManager, без `.git`). Changes: `+N −M`, временная diff-вкладка (курсив, не сохраняется, заменяется, ⌘W), `↑/↓`, `↩` (`:goto N` / `hx path:N`), `⌥B`. Обновление: FSEvents видимой задачи, только при видимом инспекторе и неперекрытом окне, плюс `done` агента и смена задачи. Решения плана:
+- [ ] **Step 1: Запись HD-044 в `decisions.md`** (формат журнала). Решения контроллера: без tree-sitter и новых зависимостей на этапе 4 — unified diff с фоном строк `+/-`, заголовками ханков, номерами строк, моно; подсветка синтаксиса отложена (почему: цена зависимости — грамматики, сборка, размер; вернуться по слову пользователя); split-diff нет (HD-023). Git-чтение — в модуле `Git` через `Runner` (этап 6 подменит исполнителя): `status --porcelain=v2 -z`, `changedFiles` (merge-base с базовой веткой / незакоммиченное), `diff` с разбором `-U3`, `listFiles` через `ls-files -co --exclude-standard -z`. Files: ленивые каталоги, бейджи из status, каталоги первыми; клик — Helix (`Esc` + `:open <path>` + ↩ в существующий editor-лист, иначе новая editor-вкладка). Не-git — только Files (FileManager, без `.git`). Changes: `+N −M`, временная diff-вкладка (курсив, не сохраняется, заменяется, ⌘W), `↑/↓`, `↩` (`:goto N` / `hx path:N`), `⌥B`. Обновление: FSEvents видимой задачи, только при видимом инспекторе и неперекрытом окне, плюс `done` агента и смена задачи. Решения плана:
   - `--no-optional-locks` у всех команд инспектора (иначе цикл: `status` пишет index → FSEvents → `status`).
   - Debounce = `latency` 0.3 с потока FSEvents, своих таймеров нет. Новое событие во время загрузки того же контекста не отменяет её: ставится флаг «повторить», после завершения — ровно одна повторная загрузка (иначе при непрерывной записи агента загрузка не завершалась бы никогда). Смена задачи, режима `⌥B` или корня — отмена загрузки (`Task.cancel` → `Runner` убивает git).
   - События: внутри git-dir обновляют только `index`, `HEAD`, `refs/**`, `packed-refs`, `MERGE_HEAD`; `objects/`, `logs/`, `*.lock`, `FETCH_HEAD` — нет. Создание/удаление/переименование вне git-dir — перечитать и дерево, и статус; изменение содержимого — только статус. Игнорируемые файлы (сборка) тоже вызывают обновление статуса (`// shortcut: без check-ignore — коалесцирование ограничивает частоту одной загрузкой подряд; фильтровать, если сборки заметно грузят CPU`).
@@ -99,7 +99,7 @@ Sources/HangarUI/DiffView.swift        строки diff, выбор строк�
 - [ ] **Step 4:** Run: `swift test --filter InspectTests` — Expected: FAIL (нет `status`).
 - [ ] **Step 5: Реализовать** по Interfaces; приватный помощник `inspect(_ args: [String]) async throws -> String` добавляет `--no-optional-locks` и бросает `GitError` при ненулевом коде.
 - [ ] **Step 6:** Run: `swift test --filter GitTests` — Expected: PASS (старые тесты `GitTests` тоже).
-- [ ] **Step 7: Commit** — `git add Sources/Git Tests/GitTests docs && git commit -m "feat(git): status and file listing for the inspector; decision #44"`
+- [ ] **Step 7: Commit** — `git add Sources/Git Tests/GitTests docs && git commit -m "feat(git): status and file listing for the inspector; decision HD-044"`
 
 ### Task 2: `Git.changedFiles` и `Git.diff` с парсером unified diff
 
@@ -173,7 +173,7 @@ Sources/HangarUI/DiffView.swift        строки diff, выбор строк�
 - Consumes: `isHelix`, `addTab(…openFile:openLine:)`, `setOpenFile` (Task 3).
 - Produces:
   - GhosttyBridge: `public enum SurfaceKey: Sendable { case escape /* kVK_Escape 53 */, colon /* kVK_ANSI_Semicolon 41 + shift, text ":" */ }`; `TerminalSurfaceView.sendKey(_ key: SurfaceKey)` — press + release через `ghostty_surface_key`, как `sendEnter`.
-  - `func helixQuoted(_ path: String) -> String?` — правило из #44.
+  - `func helixQuoted(_ path: String) -> String?` — правило из HD-044.
   - `func helixCommands(path: String, line: Int?) -> [String]?` — `["open <quoted>"]` + `"goto N"` при строке; nil, если путь не квотируется.
   - `enum EditorRoute: Equatable { case sendKeys(tab: UUID, leaf: UUID); case launch(tab: UUID, leaf: UUID) /* лист не запущен или завершился: openFile + (пере)запуск */; case newTab }`
   - `@MainActor func editorRoute(task: HangarTask, isHelix: Bool, quotable: Bool, isLive: (UUID) -> Bool) -> EditorRoute` — editor-лист: сфокусированный лист активной вкладки, иначе первый editor-лист активной вкладки, иначе первый по порядку вкладок; нет листа, `!isHelix` или `!quotable` → `.newTab`; `isLive(leaf)` (surface есть, `exitCode == nil`, `!failed`) → `.sendKeys`, иначе `.launch`.
@@ -188,7 +188,7 @@ Sources/HangarUI/DiffView.swift        строки diff, выбор строк�
 - [ ] **Step 2:** Run: `swift test --filter EditorOpenerTests` — Expected: FAIL.
 - [ ] **Step 3: Реализовать** (C-API — только в `GhosttyBridge`).
 - [ ] **Step 4:** Run: `swift build && swift test --filter HangarUITests` — Expected: PASS.
-- [ ] **Step 5: Проверить вручную** (DEBUG, `HANGAR_DEBUG_PROJECT=<tmp-репо>`, `hx` 25.07): editor-вкладка с `README`; в Helix режим вставки, набран текст → debug `open <tmp>/dir with space/it's %{x}.txt 3` → Helix открыл файл на строке 3, в буфер ничего не вставлено, предыдущий файл не изменён (`:buffer-close` без запроса сохранения); то же при открытом пикере (`Space f`); путь с `'`, `` ` `` и `"` одновременно → новая вкладка `hx '…:3'`. Если `Esc :` всё же понят как `Alt-:` или вставка в промпт не работает — записать в #44 и перейти на печать команды через `ghostty_surface_key` по символу.
+- [ ] **Step 5: Проверить вручную** (DEBUG, `HANGAR_DEBUG_PROJECT=<tmp-репо>`, `hx` 25.07): editor-вкладка с `README`; в Helix режим вставки, набран текст → debug `open <tmp>/dir with space/it's %{x}.txt 3` → Helix открыл файл на строке 3, в буфер ничего не вставлено, предыдущий файл не изменён (`:buffer-close` без запроса сохранения); то же при открытом пикере (`Space f`); путь с `'`, `` ` `` и `"` одновременно → новая вкладка `hx '…:3'`. Если `Esc :` всё же понят как `Alt-:` или вставка в промпт не работает — записать в HD-044 и перейти на печать команды через `ghostty_surface_key` по символу.
 - [ ] **Step 6: Commit** — `git add Sources Tests && git commit -m "feat(editor): open a file in the task's Helix or a new editor tab"`
 
 ### Task 5: `FileTree` и `InspectorModel` (загрузка, отмена, режим)
@@ -309,7 +309,7 @@ Sources/HangarUI/DiffView.swift        строки diff, выбор строк�
 ### Task 9: Приёмка этапа
 
 **Files:**
-- Modify: `docs/decisions.md` (дополнения #44 по ходу этапа, «Замеры» этапа 4), `docs/superpowers/stage1-followups.md` (раздел «Этап 4 — нужна проверка глазами»; «Отложено»: строка состояния `⎇ ветка · +N −M · K файлов · статус агента` из §4 — данные уже есть в `InspectorModel.changes`, этап не назначен; подсветка синтаксиса (#44); фильтр игнорируемых путей в FSEvents), этот план (отметки)
+- Modify: `docs/decisions.md` (дополнения HD-044 по ходу этапа, «Замеры» этапа 4), `docs/superpowers/stage1-followups.md` (раздел «Этап 4 — нужна проверка глазами»; «Отложено»: строка состояния `⎇ ветка · +N −M · K файлов · статус агента` из §4 — данные уже есть в `InspectorModel.changes`, этап не назначен; подсветка синтаксиса (HD-044); фильтр игнорируемых путей в FSEvents), этот план (отметки)
 
 - [x] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS (показать сводку).
 - [ ] **Step 2: Сценарий** (DEBUG, изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG` в /tmp, worktree-задача в temp-репо, claude или shell пишет файлы): инспектор открыт → правка файла из терминала появляется в Changes и бейджем в Files за ≤ 1 с; `git commit` в терминале → файл уходит из «незакоммиченного», остаётся в base; смена задачи — данные другой задачи без мигания старых; Helix открывает файл из Files и строку из diff.

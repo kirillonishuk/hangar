@@ -23,7 +23,7 @@ extension AppState {
             guard acceptsHook(status, kind: e.kind, session: e.session, source: e.source, detail: detail,
                               agent: sessionAgent(leaf.kind), known: leaf.agentSessionId) else { return }
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
-            // The stored id (what restore resumes) moves only with the tab's own agent (#119); codex reports only its own turns.
+            // The stored id (what restore resumes) moves only with the tab's own agent (HD-119); codex reports only its own turns.
             let agent: LeafKind = e.kind == .codexNotify ? .codex : .claude
             let legacyHost = remoteLeafHost(leaf.id).map { (remote.hosts[$0]?.report?.remoteVersion ?? 0) < firstPidRemoteVersion } ?? false
             let own = e.kind == .codexNotify || fromTabAgent(status, kind: e.kind, session: e.session, source: e.source, detail: detail)
@@ -31,7 +31,7 @@ extension AppState {
             if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
-            // Where the tab's agent works now (#134): its own hooks, or the installed ones of its conversation (Stop).
+            // Where the tab's agent works now (HD-134): its own hooks, or the installed ones of its conversation (Stop).
             if let cwd = e.cwd, leaf.kind == agent,
                own || validSessionId(e.session).map({ $0 == (statuses.status(leaf.id).sessionId ?? leaf.agentSessionId) }) == true {
                 noteAgentCwd(leaf: leaf.id, cwd)
@@ -57,14 +57,14 @@ extension AppState {
             break // served by the request router (stage 5), never reaches the hook handler
         case let .usage(u):
             // shortcut: codex limits come from its app-server (Task 11), not the socket
-            // «Лимиты» off (#111): the status line still runs, its `rate_limits` are not taken.
+            // «Лимиты» off (HD-111): the status line still runs, its `rate_limits` are not taken.
             guard u.agent == UsageAgent.claude.rawValue, config.claudeLimits else { return }
             tickUsageClock()
             alert(usage.update(.claude, windows: claudeWindows(u.windows, now: usageClock), plan: nil, now: usageClock))
         }
     }
 
-    /// A «Чат N» chat (#116) is named once by its agent's first prompt: the prompt's first visible line, else (a slash
+    /// A «Чат N» chat (HD-116) is named once by its agent's first prompt: the prompt's first visible line, else (a slash
     /// command, only an image) the agent's terminal title if it set one («Claude Code» is claude's own, no name). The branch
     /// keeps its name.
     private func nameAutoNamedChat(of leaf: Leaf, prompt: String?) {

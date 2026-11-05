@@ -2,7 +2,7 @@ import AgentStatus
 import AppKit
 import SwiftUI
 
-// The one set of controls (design-system spec §3.8–3.11, decision #112): buttons regular / small, icon buttons, chips,
+// The one set of controls (design-system spec §3.8–3.11, decision HD-112): buttons regular / small, icon buttons, chips,
 // popup buttons, one segment, checkbox and switch. Sizes are tokens (`Theme.Height`, `Radius`, `Space`, `Typography`),
 // colours are roles; hover and selection are instant (§2.9), the hand only over what a click would do.
 

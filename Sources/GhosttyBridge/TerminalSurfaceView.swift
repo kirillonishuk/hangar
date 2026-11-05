@@ -246,7 +246,7 @@ public struct ClipboardPromptText: Sendable {
         case .commandFinished(let code):
             lastCommandExit = code >= 0 ? Int32(code) : nil
         case .childExited:
-            // Ghostty runs commands via login(1), so its own exit code is always 0 (decision #26).
+            // Ghostty runs commands via login(1), so its own exit code is always 0 (decision HD-026).
             let code = lastCommandExit ?? -1
             ghosttyLog.info("child exited, code=\(code)")
             onChildExit?(code)

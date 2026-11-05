@@ -1,7 +1,7 @@
 import AppKit
 import Workspace
 
-/// Size rules of the editor (#80): up to `editable` bytes a file is edited, up to `refuse` read-only, above — refused.
+/// Size rules of the editor (HD-080): up to `editable` bytes a file is edited, up to `refuse` read-only, above — refused.
 struct EditorLimits: Equatable, Sendable {
     static let editableBytes = 2 << 20
     static let refuseBytes = 5 << 20
@@ -11,7 +11,7 @@ struct EditorLimits: Equatable, Sendable {
 
 // MARK: JS → Swift
 
-/// A language-feature request from Monaco (answered by tsserver, #82, or an LSP server, #90). `details`: a completion
+/// A language-feature request from Monaco (answered by tsserver, HD-082, or an LSP server, HD-090). `details`: a completion
 /// entry's docs by `name`; `rename`: `name` is the new name (nil: where can it rename); `format`: the position is the
 /// document's end (the whole file is formatted).
 struct ProviderRequest: Equatable, Sendable {
@@ -208,7 +208,7 @@ struct EditorCompletion: Equatable, Sendable {
     struct Range: Equatable, Sendable { var start: Int, end: Int, replaceEnd: Int }
 }
 
-/// The status item of the editor's tab bar for a TS/JS file (#82).
+/// The status item of the editor's tab bar for a TS/JS file (HD-082).
 struct LanguageStatus: Equatable, Sendable {
     enum Level: String, Sendable { case ready, busy, off }
     var text: String
@@ -236,7 +236,7 @@ enum ProviderResult: Equatable, Sendable {
     case renames([EditorRename])
     /// `rename` refused, with the reason shown in the editor.
     case rejected(String)
-    /// `semantic`: start, length, type, modifiers per span (TS 2020 legend, #84).
+    /// `semantic`: start, length, type, modifiers per span (TS 2020 legend, HD-084).
     case semantic([Int])
 }
 
@@ -246,7 +246,7 @@ struct EditorRename: Equatable, Sendable {
     var prefix: String, suffix: String
 }
 
-/// Settings → Appearance (#84, #108): the editor theme, rainbow indents, TODO pills and the editor options, in the app
+/// Settings → Appearance (HD-084, HD-108): the editor theme, rainbow indents, TODO pills and the editor options, in the app
 /// theme's chrome (the page's CSS variables) — every editor and diff page, at load and live.
 struct EditorAppearance: Equatable {
     var theme: EditorTheme
@@ -324,7 +324,7 @@ enum EditorCommand: Equatable {
     case goChange(next: Bool)
     case appearance(EditorAppearance)
 
-    /// With the file tab it is for (the shared editor page, #83).
+    /// With the file tab it is for (the shared editor page, HD-083).
     func json(doc: UUID?) -> Any {
         guard var object = json as? [String: Any] else { return json }
         if let doc { object["doc"] = doc.uuidString }

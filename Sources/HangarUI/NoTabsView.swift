@@ -1,7 +1,7 @@
 import SwiftUI
 import Workspace
 
-/// What an empty session offers (decision #99): a host's terminal (#64) holds only ssh shells.
+/// What an empty session offers (decision HD-099): a host's terminal (HD-064) holds only ssh shells.
 func noTabsChoices(hostShell: Bool) -> [LeafKind] { hostShell ? [.shell] : [.claude, .codex, .shell] }
 
 extension AppState {

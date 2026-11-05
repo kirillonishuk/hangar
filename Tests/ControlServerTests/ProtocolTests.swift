@@ -77,7 +77,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
             Issue.record("long message rejected"); return
         }
         #expect(m.message?.count == 500)
-        // A Stop's answer is a sub-session's result (#128): up to 2000.
+        // A Stop's answer is a sub-session's result (HD-128): up to 2000.
         guard case let .success(.event(stop)) = ControlMessage.decode(ev(#","message":"\#(String(repeating: "m", count: 3000))""#)) else {
             Issue.record("long stop rejected"); return
         }
@@ -198,7 +198,7 @@ private let leaf = "11111111-2222-4333-8444-555555555555"
         #expect(String(decoding: ControlCall.tasksArchive(task: "t").paramsJSON(), as: UTF8.self).contains(#""yes":true"#))
     }
 
-    /// The socket keeps `tasks.*` method names and the `task` param after the UI rename to sessions (#73).
+    /// The socket keeps `tasks.*` method names and the `task` param after the UI rename to sessions (HD-073).
     @Test func socketNamesStayStable() {
         #expect(ControlCall.tasksList(project: nil).method.rawValue == "tasks.list")
         #expect(ControlCall.tasksArchive(task: "t").method.rawValue == "tasks.archive")

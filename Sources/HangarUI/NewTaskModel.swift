@@ -19,9 +19,9 @@ import Workspace
     }
     /// «Задание для …» unfolded (folded by default: the prompt can be written later, in the tab).
     var promptOpen = false
-    /// What the chat will be called (decision #116); «Чат N» against the project's chats now (another window may add one).
+    /// What the chat will be called (decision HD-116); «Чат N» against the project's chats now (another window may add one).
     var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames()) }
-    /// The chat gets «Чат N» and waits for its agent's first prompt for a name (#116).
+    /// The chat gets «Чат N» and waits for its agent's first prompt for a name (HD-116).
     var chatNameIsAuto: Bool { isNumberedChatName(name: name, message: message) }
     /// The project folder's HEAD, for «В папке проекта»; nil until loaded or outside git.
     private(set) var head: Head?
@@ -69,7 +69,7 @@ import Workspace
     @ObservationIgnored private var fetchId: UUID?
     @ObservationIgnored private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
-    /// What the sheet knows before it opens (#122): no block that appears and then goes away, no folder line that grows.
+    /// What the sheet knows before it opens (HD-122): no block that appears and then goes away, no folder line that grows.
     struct Probe: Equatable {
         var availability: Availability
         var head: Head?
@@ -299,7 +299,7 @@ import Workspace
         return nil
     }
 
-    /// `name` itself if it has `/`, is a branch name and doesn't start with a remote (`feat/JS-1`, decision #48), else its slug; if that branch (local, or
+    /// `name` itself if it has `/`, is a branch name and doesn't start with a remote (`feat/JS-1`, decision HD-048), else its slug; if that branch (local, or
     /// remote of the same name; case-insensitive, as refs on macOS' disk) or its worktree folder exists, `-2`, `-3`, …
     private func suggestBranch() {
         let trimmed = chatName
@@ -336,7 +336,7 @@ import Workspace
 /// nil = nothing to run (no tab). Newlines, not `;`: a command ending in a `#` comment would swallow what follows.
 @MainActor func worktreeSetupScript(failures: [String], command: String?) -> String? {
     let command = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    // A failed copy keeps the tab open (non-zero exit, #127); `exit 1` reads the same in sh, zsh and fish.
+    // A failed copy keeps the tab open (non-zero exit, HD-127); `exit 1` reads the same in sh, zsh and fish.
     let lines = failures.map { "printf '%s\\n' " + shellQuote(L10n.copyFailed($0)) + " >&2" } + (command.isEmpty ? [] : [command])
         + (failures.isEmpty ? [] : ["exit 1"])
     return lines.isEmpty ? nil : lines.joined(separator: "\n")

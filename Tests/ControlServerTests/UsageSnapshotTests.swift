@@ -7,7 +7,7 @@ import ControlServer
 
     private func w(_ name: String, _ p: Double?, _ r: Double?) -> WireWindow { WireWindow(name: name, usedPercent: p, resetsAt: r) }
 
-    /// #137: a later window wins, within one window (reset jitter ≤ 90 s) the higher percent; passed known windows go.
+    /// HD-137: a later window wins, within one window (reset jitter ≤ 90 s) the higher percent; passed known windows go.
     @Test func freshestPerWindow() {
         let r = now + 3600
         // An idle chat's stale tick never lowers the known figure; a busier one raises it.

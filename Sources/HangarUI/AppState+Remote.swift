@@ -20,7 +20,7 @@ extension AppState {
             inspectorHostConnected(host)
             refreshHeads(host: host)
             Task { await self.sweepTombstones(host: host) }
-            // An older `hangar-remote` is replaced before the host's tabs start: their hooks need its pids (#119).
+            // An older `hangar-remote` is replaced before the host's tabs start: their hooks need its pids (HD-119).
             guard autoUpgradeRemote, remote.hosts[host]?.report?.remoteOutdated(current: hangarRemoteVersion) == true else {
                 onHostConnected?(host)
                 Task { await self.integrateHost(host) }

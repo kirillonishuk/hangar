@@ -1,6 +1,6 @@
 import Foundation
 
-/// tsserver answers → editor results (#82). Everything here reads untrusted JSON: wrong types are skipped, lists and
+/// tsserver answers → editor results (HD-082). Everything here reads untrusted JSON: wrong types are skipped, lists and
 /// strings are capped, and a path from an answer must be inside the project (or a node_modules) to be shown.
 enum TsMap {
     static let maxItems = 1000

@@ -1,9 +1,9 @@
 import Foundation
 
-/// `sessions` is the «Сессии» view of a project (#88), not a session (that one is `task`, #73).
+/// `sessions` is the «Сессии» view of a project (HD-088), not a session (that one is `task`, HD-073).
 public enum LinkKind: String, CaseIterable, Codable, Sendable { case task, tab, project, host, sessions }
 
-/// `hangar://task|tab|project|sessions/<uuid>`, `hangar://host/<ssh host>` (#66, #88): opening one only selects/shows,
+/// `hangar://task|tab|project|sessions/<uuid>`, `hangar://host/<ssh host>` (HD-066, HD-088): opening one only selects/shows,
 /// never runs, creates or connects anything.
 public struct HangarLink: Equatable, Sendable {
     public static let scheme = "hangar"

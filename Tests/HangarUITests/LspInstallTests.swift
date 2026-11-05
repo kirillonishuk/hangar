@@ -4,7 +4,7 @@ import Testing
 import TestSupport
 import Update
 
-/// Language servers downloaded from Settings (#102): where they are found, the install commands, the rust-analyzer
+/// Language servers downloaded from Settings (HD-102): where they are found, the install commands, the rust-analyzer
 /// download from a local feed, removal of Hangar's own folders only, and the editors looking again afterwards.
 @MainActor @Suite(.serialized) struct LspInstallTests {
     static let fakeNpm = #"""

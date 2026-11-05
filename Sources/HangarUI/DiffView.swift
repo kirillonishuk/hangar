@@ -197,7 +197,7 @@ let diffHighlightMaxBytes = 1_000_000
 }
 
 /// The shown diff tab: path header with `+N −M` and the side-by-side / inline switch, then Monaco's diff editor
-/// (#80); binary, too large and failed diffs show their notice instead.
+/// (HD-080); binary, too large and failed diffs show their notice instead.
 struct DiffView: View {
     let app: AppState
     /// Its task: another task's diff never loads into this page.

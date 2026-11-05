@@ -2,7 +2,7 @@ import Foundation
 import Git
 import Workspace
 
-/// «Копии без чата · N» (#134): per copy its place and branch, «Открыть чатом» and «Удалить копию…»; at the end, when
+/// «Копии без чата · N» (HD-134): per copy its place and branch, «Открыть чатом» and «Удалить копию…»; at the end, when
 /// copies inside the project are not ignored by git, «Скрыть от git локально…». Nothing runs until an item is clicked.
 @MainActor func spareCopiesMenu(_ projectId: UUID, app: AppState, ctx: ActionContext) -> [PopoverMenuEntry] {
     let projectPath = app.project(projectId)?.path

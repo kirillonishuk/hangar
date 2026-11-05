@@ -2,7 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 import Workspace
 
-/// What ⌘V does in a leaf (#70).
+/// What ⌘V does in a leaf (HD-070).
 enum PasteAction: Equatable { case text, ctrlV }
 
 /// claude/codex read an image from the clipboard on ⌃V, not from a text paste: an image-only clipboard

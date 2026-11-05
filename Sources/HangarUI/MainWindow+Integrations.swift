@@ -2,7 +2,7 @@ import AppKit
 import Integration
 import SwiftUI
 
-/// The integration questions (#111) as sheets on the main window, one at a time.
+/// The integration questions (HD-111) as sheets on the main window, one at a time.
 extension MainWindowController {
     func presentIntegrationAsk() {
         guard integrationSheet == nil, let window, let ask = app.integrations.ask else { return }

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Settings → Appearance (#108): the editor theme, «Своя» colors and the editor options in config.toml.
+/// Settings → Appearance (HD-108): the editor theme, «Своя» colors and the editor options in config.toml.
 @Suite struct EditorConfigTests {
     @Test func defaults() {
         let c = HangarConfig()
@@ -33,7 +33,7 @@ import Testing
         #expect(throws: HangarConfig.ParseError.self) { try HangarConfig.parse(#"editor_custom_base = "theme""#) }
     }
 
-    /// #109: the app theme carries its editor theme; a missing key follows it.
+    /// HD-109: the app theme carries its editor theme; a missing key follows it.
     @Test func themePairsItsEditorTheme() throws {
         #expect(HangarConfig.EditorPalette.paired(with: .darkPlus) == .darkModern)
         #expect(HangarConfig.EditorPalette.paired(with: .navy) == .hangar)

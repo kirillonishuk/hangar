@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import Update
 
-/// In-app updates (decision #86): the GitHub release feed on launch and at most hourly on activation (no timers);
+/// In-app updates (decision HD-086): the GitHub release feed on launch and at most hourly on activation (no timers);
 /// «Обновить» downloads and checks the DMG, then quits — `applicationWillTerminate` starts the swap helper.
 @MainActor @Observable public final class UpdateModel {
     enum Phase: Equatable {

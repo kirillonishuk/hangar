@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// A file tab's restore model: its file and cursor (Monaco, decisions #80, #83).
+/// A file tab's restore model: its file and cursor (Monaco, decisions HD-080, HD-083).
 @Suite struct EditorModelTests {
     private func state() -> (WorkspaceState, task: UUID, leaf: UUID) {
         var s = WorkspaceState()

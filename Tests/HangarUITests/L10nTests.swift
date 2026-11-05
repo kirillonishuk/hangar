@@ -14,7 +14,7 @@ import Workspace
         }
     }
 
-    /// The UI says «чат» / "chat", never «сессия» / «задача» (#73, #113); code keeps `Task` identifiers.
+    /// The UI says «чат» / "chat", never «сессия» / «задача» (HD-073, HD-113); code keeps `Task` identifiers.
     @Test func chatsNotSessionsOrTasks() throws {
         for (lang, banned) in [(Language.ru, ["задач", "сесси"]), (.en, ["task", "session"])] {
             let table = try #require(L10n.table(lang))

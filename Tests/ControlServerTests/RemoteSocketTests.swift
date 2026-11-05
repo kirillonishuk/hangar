@@ -118,7 +118,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         #expect(m.session == "abcx")
     }
 
-    /// hangar-remote 6 forwards Hangar's `--agent-pid` (digits only) to the Mac (#119).
+    /// hangar-remote 6 forwards Hangar's `--agent-pid` (digits only) to the Mac (HD-119).
     @Test func agentPidForwarded() async throws {
         let r = try Remote()
         let server = try r.start()
@@ -254,7 +254,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         }
     }
 
-    /// #105: the Mac renders Hangar's line and the script prints it instead of the user's command, with every client.
+    /// HD-105: the Mac renders Hangar's line and the script prints it instead of the user's command, with every client.
     @Test func statuslineRenderedOnMac() async throws {
         let r = try Remote()
         let server = try r.start(statusline: { payload, _ in
@@ -306,7 +306,7 @@ private func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
         #expect(missing.out == "own\n")
     }
 
-    /// #137: the Mac renders with the freshest limits of all chats; a plain ssh shell (no Hangar ids) gets only its own
+    /// HD-137: the Mac renders with the freshest limits of all chats; a plain ssh shell (no Hangar ids) gets only its own
     /// line and sends nothing, even with a socket in its environment.
     @Test func statuslineFreshAndOutsideHangar() async throws {
         let r = try Remote()

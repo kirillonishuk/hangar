@@ -1,7 +1,7 @@
 import AppKit
 import Workspace
 
-/// A file tab (#83): one file of a Monaco page of `EditorHost` (`page`), shown in this view while its tab is on screen.
+/// A file tab (HD-083): one file of a Monaco page of `EditorHost` (`page`), shown in this view while its tab is on screen.
 /// The file and its cursor live in the leaf (`Leaf.editorFiles`), so the tab restores; the buffer lives in the page.
 /// Exists only while its leaf does; hidden → no watcher.
 @MainActor final class EditorPane: NSView {

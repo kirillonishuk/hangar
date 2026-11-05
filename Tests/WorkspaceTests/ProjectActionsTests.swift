@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Workspace
 
-/// Project actions (#133): the repository file, the merge with settings, approvals, restart vs a new tab, persistence.
+/// Project actions (HD-133): the repository file, the merge with settings, approvals, restart vs a new tab, persistence.
 @Suite struct ProjectActionsTests {
     @Test func repoFileParses() {
         let json = #"{"actions":[{"name":" Dev server ","command":"pnpm dev"},{"name":"Test","command":"pnpm test","restart":false}]}"#
@@ -92,7 +92,7 @@ import Testing
     }
 }
 
-/// Suggestions from the repository (#133): package.json scripts of the root and workspace packages, Makefile, justfile.
+/// Suggestions from the repository (HD-133): package.json scripts of the root and workspace packages, Makefile, justfile.
 @Suite struct ActionDiscoveryTests {
     @Test func monorepoScriptsByPackage() {
         let root: [String: String] = [

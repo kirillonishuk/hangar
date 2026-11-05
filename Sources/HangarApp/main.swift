@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     var appState: AppState?
     var server: ControlServer?
-    /// Claude's freshest limits: the local socket and every host's socket merge into it (#137).
+    /// Claude's freshest limits: the local socket and every host's socket merge into it (HD-137).
     let usageSnapshot = UsageSnapshot()
     /// `kill -TERM` (logout of a launchd job, a script): quit through `applicationWillTerminate`, never ask.
     private var sigtermReceived = false
@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// `hangar://` links (#66). A cold launch may deliver them before the window exists: kept until it does.
+    /// `hangar://` links (HD-066). A cold launch may deliver them before the window exists: kept until it does.
     private var pendingLinks: [URL] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {

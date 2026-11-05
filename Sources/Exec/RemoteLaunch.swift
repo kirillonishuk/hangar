@@ -1,7 +1,7 @@
 import Foundation
 import Workspace
 
-/// One tmux session per remote leaf (#47).
+/// One tmux session per remote leaf (HD-047).
 public func remoteSessionName(_ leaf: UUID) -> String { "hangar-" + leaf.uuidString.lowercased() }
 
 /// Runs on the host through `Runner.ssh`; `=` makes tmux match the name exactly, not as a prefix.
@@ -20,8 +20,8 @@ public func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget,
                       cwd: NSHomeDirectory(), env: [:])
 }
 
-/// «<host> · терминал» (#64): an interactive `ssh -t` login to the host — no server check, no tmux — so a password or
-/// 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again). `plan` (#124) may add Hangar's own
+/// «<host> · терминал» (HD-064): an interactive `ssh -t` login to the host — no server check, no tmux — so a password or
+/// 2FA prompt works and the tab ends with the connection (255 → ↩ logs in again). `plan` (HD-124) may add Hangar's own
 /// per-leaf master (the files panel lists and uploads through it, no second login) and the folder hook
 /// (`hostShellLoginScript` as the remote command). `host` must pass `validSSHHost`.
 /// ServerAlive ends a connection that died while the Mac slept instead of hanging.
@@ -35,9 +35,9 @@ public func sshShellSpec(host: String, sshPath: String, plan: HostShellPlan = .p
     return LaunchSpec(command: "/bin/sh -c " + shellQuote(script), cwd: NSHomeDirectory(), env: [:])
 }
 
-/// The local command line, wrapped like a local tab for the OSC 133 exit code (#26). Every value reaches the server
+/// The local command line, wrapped like a local tab for the OSC 133 exit code (HD-026). Every value reaches the server
 /// as a quoted word and is read as a positional parameter, never spliced into code.
-/// `port`: the task's `HANGAR_PORT` (#60); nil = not exported.
+/// `port`: the task's `HANGAR_PORT` (HD-060); nil = not exported.
 func remoteTabCommand(target: RemoteTarget, tabId: UUID, leafId: UUID, cwd: String, agentCommand: String, port: Int? = nil) -> String {
     let name = remoteSessionName(leafId)
     let args = [target.tmux ? remoteTmuxScript : remoteDirectScript, cwd, name, target.home + "/.hangar/run/" + name + ".exit",

@@ -53,7 +53,7 @@ import Workspace
         #expect(try inner(s) == "claude")
     }
 
-    /// The tab's shell is the account's login shell, as in Ghostty.app and login(1); `$SHELL` is the launcher's (#71).
+    /// The tab's shell is the account's login shell, as in Ghostty.app and login(1); `$SHELL` is the launcher's (HD-071).
     @Test func userShellPrefersPasswd() {
         #expect(resolveUserShell(passwd: "/bin/zsh", env: "/bin/bash") == "/bin/zsh")
         #expect(resolveUserShell(passwd: nil, env: "/bin/bash") == "/bin/bash")
@@ -70,11 +70,11 @@ import Workspace
         #expect(try script(spec(leaf(.shell), shell: "/bin/bash"), shell: "/bin/bash") == "/bin/bash -l -i" + wrapper)
         let fish = try spec(leaf(.shell), shell: "/opt/homebrew/bin/fish")
         #expect(!fish.command.contains("ZDOTDIR"))
-        // A setup run, no shell after (#127).
+        // A setup run, no shell after (HD-127).
         #expect(try inner(spec(leaf(.shell), prompt: "make setup")) == ghosttyZshIntegration + "/bin/zsh -i -c 'make setup'")
     }
 
-    /// The setup script's own code reaches the tab, even through its `exit` (#127).
+    /// The setup script's own code reaches the tab, even through its `exit` (HD-127).
     @Test func setupScriptCodeIsTheTabs() throws {
         let full = try script(spec(leaf(.shell), prompt: "echo hi\nexit 3", shell: "/bin/sh"), shell: "/bin/sh")
         let run = try sh(full)
@@ -101,7 +101,7 @@ import Workspace
         #expect(!s.command.contains("exec"))
     }
 
-    /// #119: only ever the leaf's own conversation; never `--continue` (the folder's latest chat, possibly another tab's).
+    /// HD-119: only ever the leaf's own conversation; never `--continue` (the folder's latest chat, possibly another tab's).
     @Test func claudeResumesById() throws {
         #expect(try inner(spec(leaf(.claude, id: "abc"), restoring: true)) == "claude --resume abc")
         #expect(try inner(spec(leaf(.claude), restoring: true)) == "claude")
@@ -154,7 +154,7 @@ import Workspace
         // No cwd among the first lines: this folder.
         try #"{"type":"custom-title"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
         #expect(try run().ran == "claude --resume \(id)\n")
-        // A copy in this folder's own project folder (a moved worktree, #122) wins over the original recorded elsewhere.
+        // A copy in this folder's own project folder (a moved worktree, HD-122) wins over the original recorded elsewhere.
         try #"{"type":"user","cwd":"/elsewhere"}"#.write(toFile: transcript, atomically: true, encoding: .utf8)
         let own2 = dir + "/cfg/projects/" + claudeProjectFolder(dir + "/work dir")!
         try FileManager.default.createDirectory(atPath: own2, withIntermediateDirectories: true)
@@ -232,7 +232,7 @@ import Workspace
     @Test func codexResume() throws {
         #expect(try inner(spec(leaf(.codex, id: "abc"), restoring: true)) == "codex resume abc")
         #expect(try inner(spec(leaf(.codex, id: "abc"))) == "codex")
-        #expect(try inner(spec(leaf(.codex), restoring: true)) == "codex")  // never `resume --last` (#119)
+        #expect(try inner(spec(leaf(.codex), restoring: true)) == "codex")  // never `resume --last` (HD-119)
         #expect(try inner(spec(leaf(.codex))) == "codex")
     }
 
@@ -241,7 +241,7 @@ import Workspace
         #expect(try inner(spec(leaf(.codex), prompt: "-x")) == "codex ' -x'")
     }
 
-    /// The editor is Monaco (#81): an editor leaf never runs a terminal editor, only a shell if it is ever launched.
+    /// The editor is Monaco (HD-081): an editor leaf never runs a terminal editor, only a shell if it is ever launched.
     @Test func editorLeafRunsNoTerminalEditor() throws {
         #expect(try inner(spec(leaf(.editor, file: "src/a b.ts", line: 3))) == ghosttyZshIntegration + "/bin/zsh -l -i")
     }
@@ -304,7 +304,7 @@ import Workspace
     }
 }
 
-/// One rule for how an agent leaf is (re)launched (decision #41).
+/// One rule for how an agent leaf is (re)launched (decision HD-041).
 @Suite struct LaunchModeTests {
     let claude = Leaf(kind: .claude, cwd: "/a")
     let fresh = LaunchMode(restoring: false, initialPrompt: nil)
@@ -326,7 +326,7 @@ import Workspace
         #expect(launchMode(for: Leaf(kind: .codex, cwd: "/a"), .relaunch(previous: first, exitCode: 2)).initialPrompt == nil)
     }
 
-    /// #119: a claude resume never fails for a missing chat (its command starts it instead), so any exit of a resumed chat
+    /// HD-119: a claude resume never fails for a missing chat (its command starts it instead), so any exit of a resumed chat
     /// resumes that same chat again; codex keeps the fresh fallback (else "No conversation found" loops).
     @Test func failedResumeFallsBackOnlyForCodex() {
         let withId = Leaf(kind: .claude, cwd: "/a", agentSessionId: "x")

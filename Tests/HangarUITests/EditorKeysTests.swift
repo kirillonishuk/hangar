@@ -2,7 +2,7 @@ import AppKit
 import Testing
 @testable import HangarUI
 
-/// The hotkey policy of the Monaco editor and diff (DESIGN.md «Редактор: клавиши», #80), by keyCode.
+/// The hotkey policy of the Monaco editor and diff (DESIGN.md «Редактор: клавиши», HD-080), by keyCode.
 @Suite struct EditorKeysTests {
     private let cmd: NSEvent.ModifierFlags = .command
     private let optCmd: NSEvent.ModifierFlags = [.option, .command]
@@ -22,7 +22,7 @@ import Testing
         }
     }
 
-    /// A file is a Hangar tab (#83): ⌘W is Hangar's close (it asks for unsaved), ⌥⌘←/→ Hangar's split focus.
+    /// A file is a Hangar tab (HD-083): ⌘W is Hangar's close (it asks for unsaved), ⌥⌘←/→ Hangar's split focus.
     @Test func fileTabsUseHangarKeys() {
         #expect(editorKeyRoute(keyCode: 13, modifiers: cmd, focus: .editor) == nil)       // ⌘W
         #expect(shortcut(keyCode: 13, modifiers: cmd) == .closeTab)
@@ -59,7 +59,7 @@ import Testing
         #expect(shortcut(keyCode: 2, modifiers: cmd) == .splitRight)
     }
 
-    /// ⌃- / ⌃⇧- (back / forward over jumps) and F12 / ⇧F12 reach Monaco: Hangar has no shortcut on them (#82).
+    /// ⌃- / ⌃⇧- (back / forward over jumps) and F12 / ⇧F12 reach Monaco: Hangar has no shortcut on them (HD-082).
     @Test func navigationKeysAreMonacos() {
         for mods: NSEvent.ModifierFlags in [.control, [.control, .shift]] {
             #expect(shortcut(keyCode: 27, modifiers: mods) == nil)

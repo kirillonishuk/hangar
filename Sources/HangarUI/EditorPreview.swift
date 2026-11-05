@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import Workspace
 
-/// The preview's samples (#108): static token markup, so every group shows without tsserver. `«group|text»` is a
+/// The preview's samples (HD-108): static token markup, so every group shows without tsserver. `«group|text»` is a
 /// token (`group@mark` adds the selection, a find match, or diff's added / removed text); `«caret|»` is the cursor.
 enum EditorPreviewSample: CaseIterable {
     case typescript, json, diff

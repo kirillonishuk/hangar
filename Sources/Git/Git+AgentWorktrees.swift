@@ -1,6 +1,6 @@
 import Foundation
 
-/// Worktrees an agent made or moved into on its own (decision #134): Hangar follows them, never changes them unasked.
+/// Worktrees an agent made or moved into on its own (decision HD-134): Hangar follows them, never changes them unasked.
 
 /// `path` equals `folder` or lies inside it (both normalized the same way).
 public func pathIsInside(_ path: String, folder: String) -> Bool {

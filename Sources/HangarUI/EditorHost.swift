@@ -19,7 +19,7 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
     return result
 }
 
-/// The Monaco pages of the window's file tabs (#83): up to `Tab.maxEditorPanes`, one per editor pane on screen at once
+/// The Monaco pages of the window's file tabs (HD-083): up to `Tab.maxEditorPanes`, one per editor pane on screen at once
 /// (splits). Each page holds the models of the panes bound to it and shows one of them; a pane borrows its page's web
 /// view while it is on screen. A page exists only while some pane is bound to it (or moving off it).
 @MainActor final class EditorHost {

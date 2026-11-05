@@ -27,7 +27,7 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var notifications: ProjectNotifications = .all
     /// Project actions from Project Settings («Dev server», «Test»; `ProjectActions.swift`); nil = none.
     public var actions: [ProjectAction]?
-    /// SHA-256 of `.hangar/actions.json` commands the user confirmed (#133): a repo action runs unasked only with its approved text.
+    /// SHA-256 of `.hangar/actions.json` commands the user confirmed (HD-133): a repo action runs unasked only with its approved text.
     public var approvedActions: [String]?
     /// The action ⌘R and the toolbar's run button start; nil = the first one.
     public var lastAction: String?
@@ -111,14 +111,14 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
     public var agentSessionId: String?
     /// The editor's active file.
     public var openFile: String?
-    /// Files open in an editor tab (Monaco, #80), in tab order; `openFile` is the active one.
+    /// Files open in an editor tab (Monaco, HD-080), in tab order; `openFile` is the active one.
     public var editorFiles: [EditorFile]?
     /// Set by the user (rename); wins over the automatic pane name.
     public var customTitle: String?
-    /// The cwd its agent's conversation was recorded in before a moved worktree was relinked (#122): at the next launch
+    /// The cwd its agent's conversation was recorded in before a moved worktree was relinked (HD-122): at the next launch
     /// the conversation is copied to where the agent looks from `cwd`, then this is cleared.
     public var relinkedFrom: String?
-    /// A project action's shell (#133): the action's name; its command is looked up again at every run.
+    /// A project action's shell (HD-133): the action's name; its command is looked up again at every run.
     public var action: String?
 
     /// `openLine`: the new editor's cursor line in `openFile`.
@@ -139,7 +139,7 @@ public struct Leaf: Codable, Identifiable, Equatable, Sendable {
         self.init(id: try c.decode(UUID.self, forKey: .id), kind: try c.decode(LeafKind.self, forKey: .kind),
                   cwd: try c.decode(String.self, forKey: .cwd),
                   agentSessionId: try c.decodeIfPresent(String.self, forKey: .agentSessionId),
-                  // A Helix-era editor leaf (decision #81): `openFile` + `openLine` become its one file tab.
+                  // A Helix-era editor leaf (decision HD-081): `openFile` + `openLine` become its one file tab.
                   openFile: try c.decodeIfPresent(String.self, forKey: .openFile),
                   openLine: try c.decodeIfPresent(Int.self, forKey: .openLine))
         if let files = try c.decodeIfPresent([EditorFile].self, forKey: .editorFiles) { editorFiles = files }
@@ -229,7 +229,7 @@ public struct Tab: Codable, Identifiable, Equatable, Sendable {
     public var focusedLeafId: UUID
     /// Set by the user (rename); wins over the terminal's own title.
     public var customTitle: String?
-    /// A file opened with one click (Files): the next such open reuses this tab, until it is edited or opened for real (#83).
+    /// A file opened with one click (Files): the next such open reuses this tab, until it is edited or opened for real (HD-083).
     public var preview: Bool = false
 
     public init(id: UUID = UUID(), title: String, root: SplitNode, focusedLeafId: UUID, customTitle: String? = nil) {
@@ -305,7 +305,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var activeTabId: UUID?
     public var pinned: Bool
     public var drawer: Drawer
-    /// `HANGAR_PORT` of its tabs (#60); set when the task is added or an older state loads.
+    /// `HANGAR_PORT` of its tabs (HD-060); set when the task is added or an older state loads.
     public var port: Int?
     /// When it was closed (archived); nil while open and for sessions closed before this was recorded.
     public var archivedAt: Date?
@@ -313,7 +313,7 @@ public struct HangarTask: Codable, Identifiable, Equatable, Sendable {
     public var archivedChanges: LineChanges?
     /// Notifications of this session are muted.
     public var muted = false
-    /// Named «Чат N» for want of a name or message (#116): the first prompt of its agent names it; any rename clears it.
+    /// Named «Чат N» for want of a name or message (HD-116): the first prompt of its agent names it; any rename clears it.
     public var autoNamed = false
     /// The chat whose agent spawned this one (`sessions_spawn`): shown under it in the sidebar.
     public var parentTaskId: UUID?
@@ -388,17 +388,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var sidebarCollapsed: Bool
     /// Last inspector width (clamped to 180...480 by the view).
     public var inspectorWidth: Double
-    /// Plain ssh logins without a project (#64); their tasks sit in `tasks` with the shell's id as `projectId`.
+    /// Plain ssh logins without a project (HD-064); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
     /// Chats without a project; their tasks sit in `tasks` with the chat's id as `projectId`.
     public var freeChats: [FreeChat] = []
     /// Where chats without a project run (`<state dir>/Chats`); set by the app on load, not saved.
     public var chatsFolder: String = ""
-    /// Sidebar «Требуют внимания»: only waiting/failed tasks (#67).
+    /// Sidebar «Требуют внимания»: only waiting/failed tasks (HD-067).
     public var attentionOnly: Bool
-    /// Diff tab: inline instead of side by side (#80).
+    /// Diff tab: inline instead of side by side (HD-080).
     public var diffInline: Bool = false
-    /// Editor tabs show the minimap (#80; off by default).
+    /// Editor tabs show the minimap (HD-080; off by default).
     public var editorMinimap: Bool = false
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
@@ -807,7 +807,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         moveTask(i, from: path, to: .worktree(path: newPath, branch: branch, base: base))
     }
 
-    /// «Сделать чатом этой копии» (#134): the chat's agent works in another worktree (made by the agent itself); the chat,
+    /// «Сделать чатом этой копии» (HD-134): the chat's agent works in another worktree (made by the agent itself); the chat,
     /// its saved cwds and resume follow it as on a relink. Nothing on disk changes.
     public mutating func adoptWorktree(taskId: UUID, path newPath: String, branch: String, base: String) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }), !isFreeChatTask(tasks[i]) else { return }
@@ -816,7 +816,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         moveTask(i, from: path, to: .worktree(path: newPath, branch: branch, base: base))
     }
 
-    /// git has another branch checked out in the chat's worktree (an agent's `branch -m` / `checkout -b`, #134).
+    /// git has another branch checked out in the chat's worktree (an agent's `branch -m` / `checkout -b`, HD-134).
     public mutating func setWorktreeBranch(taskId: UUID, _ branch: String) {
         guard let i = tasks.firstIndex(where: { $0.id == taskId }), case .worktree(let path, let old, let base) = tasks[i].mode,
               old != branch, !branch.isEmpty else { return }

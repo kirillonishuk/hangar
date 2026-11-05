@@ -8,7 +8,7 @@
 
 **Tech Stack:** Swift 6.3, Swift Testing, AppKit + SwiftUI, `UserNotifications` (`UNNotificationCategory`, `UNTextInputNotificationAction`, `threadIdentifier`, `interruptionLevel`), macOS 14+.
 
-**Spec:** `docs/superpowers/specs/2026-10-27-notifications-design.md` (целиком). Контекст: `docs/superpowers/specs/2026-10-18-hangar-design.md` §5 (статусы, hooks, запасные пути), `docs/decisions.md` #30 (OSC 1/сек), #43 (hooks, статус на лист, id сессии, ключи `notifications`/`limit_notifications`), #47 (`ssh -R`, `hangar-remote`), #64 (простые SSH-терминалы), #67 (фильтр «Требуют внимания»), #85 (палитры тем). Дизайн: `docs/design/DESIGN.md`, `docs/superpowers/mockups/icons-v2.html` (глиф колокольчика, тултипы), `limits.html` (вид поповера). Правила: `AGENTS.md`, `.claude/skills/hangar-code|hangar-test|hangar-commit`.
+**Spec:** `docs/superpowers/specs/2026-10-27-notifications-design.md` (целиком). Контекст: `docs/superpowers/specs/2026-10-18-hangar-design.md` §5 (статусы, hooks, запасные пути), `docs/decisions.md` HD-030 (OSC 1/сек), HD-043 (hooks, статус на лист, id сессии, ключи `notifications`/`limit_notifications`), HD-047 (`ssh -R`, `hangar-remote`), HD-064 (простые SSH-терминалы), HD-067 (фильтр «Требуют внимания»), HD-085 (палитры тем). Дизайн: `docs/design/DESIGN.md`, `docs/superpowers/mockups/icons-v2.html` (глиф колокольчика, тултипы), `limits.html` (вид поповера). Правила: `AGENTS.md`, `.claude/skills/hangar-code|hangar-test|hangar-commit`.
 
 ## Global Constraints
 
@@ -29,7 +29,7 @@
 - **Копирайт уведомлений (спека §2).** Заголовки: «Claude просит разрешение», «Claude спрашивает», «Codex закончил», «Claude: ошибка», «Claude упёрся в лимит». Подзаголовок «Проект › сессия» (+ « · host»). Тело обрезается до 160 символов (`noticeBodyLimit`, многоточие). Пустой список во «Входящих» — существующий `L10n.nobodyWaiting` («Никто не ждёт»).
 - **Порядок срочности:** permission > question > failed > limit > done, внутри причины старше выше. **Dock и колокольчик:** число = permission + question + failed.
 - **Конфиг** (корневые плоские ключи, `ConfigWriter` правит только их): `notifications` (общий выключатель баннеров), `notify_permission`, `notify_question`, `notify_done`, `notify_failed` (bool, по умолчанию `true`), причина limit = существующий `limit_notifications`; `sound_permission`, `sound_question`, `sound_done`, `sound_failed`, `sound_limit` (строка: `""` — без звука, `"default"` — стандартный, иначе имя из `/System/Library/Sounds` без `.aiff`; по умолчанию `"default"`, у done — `""`); `notify_when_active = true`, `allow_from_notification = false`, `ssh_terminal_bell = false`. `dock_badge`, `keep_awake` — как есть. Проект: `Project.notifications` (`all`/`urgent`/`off`, по умолчанию `all`), сессия: `HangarTask.muted` (по умолчанию `false`) — в `state.json`, старые файлы читаются.
-- **Решения.** Спайк → запись **#95** в `docs/decisions.md` (#94 занят PR переносимости; если и #95 окажется занят к моменту коммита — следующий свободный, и сдвинуть номер поведения). Поведение → запись **#96** «Уведомления по причинам и «Входящие»». Её создаёт Task 3, а Tasks 2, 5–8 дописывают свои пункты в том же коммите, что и код. Task 9 обновляет §5 основной спеки.
+- **Решения.** Спайк → запись **HD-095** в `docs/decisions.md` (HD-094 занят PR переносимости; если и HD-095 окажется занят к моменту коммита — следующий свободный, и сдвинуть номер поведения). Поведение → запись **HD-096** «Уведомления по причинам и «Входящие»». Её создаёт Task 3, а Tasks 2, 5–8 дописывают свои пункты в том же коммите, что и код. Task 9 обновляет §5 основной спеки.
 
 ## Review Focus
 
@@ -59,20 +59,20 @@
 
 ### Task 1: Спайк — нагрузка хуков, клавиша одобрения, `.timeSensitive`, звуки
 
-Одноразовая работа, код в репозиторий не идёт. Результат — запись #95 и ответы S1–S5, на которых ветвятся следующие задачи.
+Одноразовая работа, код в репозиторий не идёт. Результат — запись HD-095 и ответы S1–S5, на которых ветвятся следующие задачи.
 
 **Files:**
-- Modify: `docs/decisions.md` (новая запись 95; #94 занят PR переносимости — взять следующий свободный номер на момент коммита)
+- Modify: `docs/decisions.md` (новая запись 95; HD-094 занят PR переносимости — взять следующий свободный номер на момент коммита)
 
 **Interfaces:**
 - Produces: исходы **S1** (A/B), **S2** (ключи одобрения), **S3** (T-yes/T-no), **S4** (SND-yes/SND-no), **S5** (Ответить в Claude: да/нет). Дальше задачи ссылаются на них по имени.
 
-- [ ] **Step 1: S1 — откуда tool/command.** Прочитать https://code.claude.com/docs/en/hooks (WebFetch, страница длинная, читать с `offset`): разделы Notification, PermissionRequest, PermissionDenied, Stop, StopFailure. Записать поля. Ожидаемый факт: у `Notification` только `message`, `title`, `notification_type` (без инструмента). У `PermissionRequest` есть `tool_name` и `tool_input.command` (Bash/PowerShell), без `tool_use_id`. Он срабатывает перед показом диалога или при авто-отказе, и не срабатывает для сетевого запроса песочницы. У `Stop` текст в `last_assistant_message`, у `StopFailure` тип в `error` (`rate_limit`, `overloaded`, …, `unknown`). Исход **A**: tool/command берём из нового хука `PermissionRequest` (меняет `claudeHooks`, интеграция станет «устарела», переустановка из Настроек с diff по #15). Исход **B**: деталей нет, кнопки «Разрешить» нет. **Гейт:** оркестратор задаёт владельцу один вопрос: «Добавить хук PermissionRequest (вместе с StopFailure по всем ошибкам) — интеграцию Claude нужно будет обновить в Настройках?» Да → A, нет → B. Реальный `claude` не запускать.
+- [ ] **Step 1: S1 — откуда tool/command.** Прочитать https://code.claude.com/docs/en/hooks (WebFetch, страница длинная, читать с `offset`): разделы Notification, PermissionRequest, PermissionDenied, Stop, StopFailure. Записать поля. Ожидаемый факт: у `Notification` только `message`, `title`, `notification_type` (без инструмента). У `PermissionRequest` есть `tool_name` и `tool_input.command` (Bash/PowerShell), без `tool_use_id`. Он срабатывает перед показом диалога или при авто-отказе, и не срабатывает для сетевого запроса песочницы. У `Stop` текст в `last_assistant_message`, у `StopFailure` тип в `error` (`rate_limit`, `overloaded`, …, `unknown`). Исход **A**: tool/command берём из нового хука `PermissionRequest` (меняет `claudeHooks`, интеграция станет «устарела», переустановка из Настроек с diff по HD-015). Исход **B**: деталей нет, кнопки «Разрешить» нет. **Гейт:** оркестратор задаёт владельцу один вопрос: «Добавить хук PermissionRequest (вместе с StopFailure по всем ошибкам) — интеграцию Claude нужно будет обновить в Настройках?» Да → A, нет → B. Реальный `claude` не запускать.
 - [ ] **Step 2: S2 — клавиша одобрения.** По документации (permissions / interactive mode) найти, как диалог разрешения принимает ответ. По умолчанию подсвечен первый вариант «Yes», так что ожидается `Enter` (`[SendKey.enter]`). Если в документации не сказано, записать `[.enter]` с пометкой «проверить владельцу вживую». Цифра «1» через `sendText` не годится: это вставка, а не нажатие.
 - [ ] **Step 3: S3 — `.timeSensitive` при ad-hoc подписи.** По документации Apple (entitlement `com.apple.developer.usernotifications.time-sensitive`, Signing & Capabilities) выяснить, нужен ли provisioning profile на macOS. `scripts/bundle.sh` подписывает `-s -` без entitlements. Выключено ли уведомление пользователем, проверяется через `UNNotificationSettings.timeSensitiveSetting`. Если документация не даёт ответа, можно собрать в `/tmp` пустой Swift-бинарник (не Hangar) в `.app`, подписать ad-hoc с этим entitlement и проверить `codesign -d --entitlements -` и запуск: AMFI убьёт процесс, если нужен профиль. Исход **T-yes**: entitlement добавляется в `bundle.sh`. Исход **T-no**: `.active` плюс пояснение в Настройках (ожидаемый вариант).
 - [ ] **Step 4: S4 — системные звуки.** По документации `UNNotificationSound(named:)` выяснить, ищет ли macOS имена из `/System/Library/Sounds`. **SND-yes**: выбор из списка системных звуков. **SND-no**: только «Стандартный» (`.default`) и «Без звука». `NSSound` в обход центра уведомлений не годится: он игнорирует фокус-режим. Не решается по документам — SND-no, с пометкой «проверить владельцу».
 - [ ] **Step 5: S5 — «Ответить» для Claude.** `elicitation_dialog` — форма MCP-запроса. По документации выяснить, принимает ли она свободный текст + Enter. Нет или неясно — у вопросов Claude только «Открыть», «Ответить» остаётся для колокола/OSC (Codex и др.), пометка «проверить владельцу».
-- [ ] **Step 6: Записать #95** одним пунктом: даты, факты со ссылками, исходы S1–S5, что проверить владельцу. Формат как у соседних записей.
+- [ ] **Step 6: Записать HD-095** одним пунктом: даты, факты со ссылками, исходы S1–S5, что проверить владельцу. Формат как у соседних записей.
 - [ ] **Step 7: Commit + push**
 ```bash
 git add docs/decisions.md
@@ -89,7 +89,7 @@ git push
 - Modify: `Sources/ControlServer/Protocol.swift:4-24` (`EventMessage`), `:93-99` (лимиты при декоде)
 - Modify: `Sources/ControlServer/CLISupport.swift:20-41` (`eventMessage`)
 - Modify: `Sources/Integration/ClaudeIntegration.swift:11-20` (`claudeHooks`)
-- Modify: `docs/decisions.md` (#96, пункт про хуки)
+- Modify: `docs/decisions.md` (HD-096, пункт про хуки)
 - Test: `Tests/HangarCLITests` (разбор), `Tests/ControlServerTests` (декод/лимиты, путь `RemoteMessage`), `Tests/IntegrationTests` (план установки)
 
 **Interfaces:**
@@ -117,7 +117,7 @@ git push
 - [ ] **Step 2: Run (heavy):** `swift test --filter "HangarCLITests|ControlServerTests|IntegrationTests"`. Expected: FAIL (нет полей/кейса).
 - [ ] **Step 3: Implement.** В `eventMessage` для не-codex: `tool` = `tool_name`, `command` = `tool_input.command` (только строка), `error` = `error`. `message` = `message`, а если его нет — `last_assistant_message`. В `ControlMessage.decode` (event): `tool`/`error` длиннее 64 → `nil`, `command` → `prefix(500)`. Путь `RemoteMessage` получает это даром, через тот же декодер. В `claudeHooks`: `StopFailure` без matcher; ветка A — `PermissionRequest` без matcher. Хук ничего не печатает и выходит с 0, так что диалог идёт как обычно. `ClaudeIntegration` сам покажет «устарела» по несовпадению ожидаемого набора (`:208`). Ветка B: только `StopFailure` и разбор `error`/`last_assistant_message`.
 - [ ] **Step 4: Run (heavy)** те же фильтры. Expected: PASS. Плюс `swift build`.
-- [ ] **Step 5: Commit + push** — `feat(status): read tool, command and error from claude hooks` (+ пункт #96: хуки и переустановка интеграции).
+- [ ] **Step 5: Commit + push** — `feat(status): read tool, command and error from claude hooks` (+ пункт HD-096: хуки и переустановка интеграции).
 
 ---
 
@@ -126,7 +126,7 @@ git push
 **Files:**
 - Create: `Sources/AgentStatus/Attention.swift`
 - Modify: `Sources/AgentStatus/AgentStatus.swift:14-31` (`AgentSignal`, `LeafStatus`), `:57-96` (`fold`), `:117-141` (`StatusBoard`)
-- Modify: `docs/decisions.md` (создать #96)
+- Modify: `docs/decisions.md` (создать HD-096)
 - Test: `Tests/AgentStatusTests/AttentionTests.swift` (новый). Существующие `AgentStatusTests`/`SubagentTests` должны пройти без правок, кроме нового `desktopNotification(text:)`.
 
 **Interfaces:**
@@ -200,7 +200,7 @@ public func shouldBanner(_ reason: AttentionReason, _ c: BannerContext) -> Bool
 - [ ] **Step 2: Run (heavy):** `swift test --filter AgentStatusTests`. Expected: FAIL (типов нет).
 - [ ] **Step 3: Implement** по Interfaces. `fold` ставит `Attention(since: now, requestKey: placeholder)`, а `StatusBoard.apply` нормализует: при `sameRequest` со старым — старые `since`/`requestKey`, иначе `UUID()`. Окно годности `pendingPermission` — 30 с (`pendingPermissionTTL`). Существующий порядок `taskState` и правило «чужой session id» (`acceptsHook`) не менять.
 - [ ] **Step 4: Run (heavy)** `--filter AgentStatusTests`. Expected: PASS. Плюс `swift build`: вызовы `.desktopNotification` в `HangarUI` собираются с `text: nil` по умолчанию.
-- [ ] **Step 5: Commit + push** — `feat(status): attention model with reasons, request keys and banner policy` (+ запись #96: модель, источники, снятие, порядок, Dock-число).
+- [ ] **Step 5: Commit + push** — `feat(status): attention model with reasons, request keys and banner policy` (+ запись HD-096: модель, источники, снятие, порядок, Dock-число).
 
 ---
 
@@ -321,7 +321,7 @@ let permissionApproveKeys: [SendKey]   // из S2, по умолчанию [.ent
 - [ ] **Step 2: Run (heavy):** `swift test --filter NotificationsTests`. Expected: FAIL.
 - [ ] **Step 3: Implement.** Проводка в `MainWindow.enableNotifications`. `app.onAttention`: `nil` → `notifier.remove(leaf:)`; новый `requestKey` и `bannerAllowed` → `post(notice(for:))`. `app.onLeafSeen` → `remove(leaf:)`. `notifier.onAction` → `notificationAction`: `.reveal` → `reveal(leafId:)`; `.send` → `app.terminals?.send(leaf, text, keys)` без активации окна; `.showLimits` → поднять окно и `app.toggleLimitsPopover()`, если он закрыт. Клик по баннеру (`UNNotificationDefaultActionIdentifier`) = `.open`. Без бандла (`Notifier.makeIfAvailable() == nil`, DEBUG) уведомления пишутся в `debugNotices` для команды `notices`, а `noticeAction` вызывает тот же `notificationAction`. T-yes: entitlement в `bundle.sh` (`codesign --entitlements`).
 - [ ] **Step 4: Run (heavy):** `--filter "NotificationsTests|LimitsTests|L10nTests"`, затем `swift build`. Expected: PASS.
-- [ ] **Step 5: Commit + push** — `feat(notifications): reasons, guarded actions, grouping and cleanup` (+ пункт #96: категории, защита `requestKey`, клавиша из S2, срочность по S3, звуки по S4).
+- [ ] **Step 5: Commit + push** — `feat(notifications): reasons, guarded actions, grouping and cleanup` (+ пункт HD-096: категории, защита `requestKey`, клавиша из S2, срочность по S3, звуки по S4).
 
 ---
 
@@ -399,7 +399,7 @@ extension AppState { var inboxShown: Bool; var inboxClock: Date; func toggleInbo
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-10-18-hangar-design.md` §5 (ссылка на спеку уведомлений, новые ключи конфига в строке «Настройки» §4/85)
-- Modify: `docs/decisions.md` #96 (итог живой проверки и что осталось владельцу)
+- Modify: `docs/decisions.md` HD-096 (итог живой проверки и что осталось владельцу)
 - Снимки — только в `/tmp/hg-notif-out`, в репозиторий не кладутся.
 
 **Interfaces:**
@@ -418,7 +418,7 @@ extension AppState { var inboxShown: Bool; var inboxClock: Date; func toggleInbo
   - Dock-число (`dump`) = permission + question + failed.
 - [ ] **Step 4: Снимки** (`snap`, по id окна): заголовок с колокольчиком (пусто / accent / failed), открытые «Входящие» (обе секции, пусто), нижняя строка, строка сессии с перечёркнутым колокольчиком, «Настройки → Уведомления», лист настроек проекта. Каждый — в `theme dark-plus|graphite|navy` × `lang ru|en`. Сверить с `DESIGN.md`, `icons-v2.html`, `limits.html`: нет скачков, нет литеральных цветов, курсор-рука. Найденное — исправить в этой задаче отдельными `fix(ui): …` коммитами.
 - [ ] **Step 5: Остановить всё** (`kill -TERM`, поддельные агенты, ssh, `tmux -L hangar` под `/tmp/hg-notif`). Проверить, что ничего не осталось.
-- [ ] **Step 6: Документы.** §5 основной спеки и #96: итог и список «проверить владельцу вживую» (настоящие баннеры macOS в собранной `.app`, клавиша S2, звук S4, ответ S5, `.timeSensitive` S3).
+- [ ] **Step 6: Документы.** §5 основной спеки и HD-096: итог и список «проверить владельцу вживую» (настоящие баннеры macOS в собранной `.app`, клавиша S2, звук S4, ответ S5, `.timeSensitive` S3).
 - [ ] **Step 7: Commit, проверка авторства, push, PR**
 ```bash
 git add docs/

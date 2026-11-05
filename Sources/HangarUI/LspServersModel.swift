@@ -1,11 +1,11 @@
 import Foundation
 import Update
 
-/// Settings → Advanced → «Языковые серверы» (#102): where each language's server comes from, and downloads of the
+/// Settings → Advanced → «Языковые серверы» (HD-102): where each language's server comes from, and downloads of the
 /// missing ones into Hangar's folder. Computed when the page opens and after an install — no background checks.
 @MainActor @Observable final class LspServersModel {
     enum Kind: Equatable {
-        /// tsserver from the project's node_modules (#82): nothing to download.
+        /// tsserver from the project's node_modules (HD-082): nothing to download.
         case project
         /// sourcekit-lsp comes with Xcode.
         case xcode

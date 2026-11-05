@@ -31,7 +31,7 @@ import Workspace
         #expect(Action.list(for: .task(archived), app: app) == [.restore, .deletePermanently])
     }
 
-    /// «Port: 41234 (copy)» copies the task's `HANGAR_PORT` (#60); the leaf's launch env carries it.
+    /// «Port: 41234 (copy)» copies the task's `HANGAR_PORT` (HD-060); the leaf's launch env carries it.
     @Test func copyPortAndLaunchEnv() throws {
         let (app, _, a, _) = try makeApp()
         defer { cleanup() }

@@ -4,7 +4,7 @@ import Workspace
 
 /// Keeps the inspector fed with the visible task only: while the inspector is shown, the window is on screen
 /// (not occluded, not minimized) and a task is selected, it shows that task and watches its root (only the subfolder
-/// for a subfolder project, #44) and git-dir. A remote task has no FSEvents (#47): it reloads on show, when the
+/// for a subfolder project, HD-044) and git-dir. A remote task has no FSEvents (HD-047): it reloads on show, when the
 /// window becomes key and when an agent is done.
 /// Otherwise the stream is stopped — no callbacks, no loads. No timers.
 @MainActor final class InspectorWatch {
@@ -16,7 +16,7 @@ import Workspace
     var windowVisible: () -> Bool = { false }
     /// Bumped on every change of what is watched: a git-dir lookup that finishes late is dropped.
     private var generation = 0
-    /// The selected local chat's `HEAD` file alone (the branch button, #114) while the inspector's stream doesn't run
+    /// The selected local chat's `HEAD` file alone (the branch button, HD-114) while the inspector's stream doesn't run
     /// for it; with that stream on, its status loads reload the HEAD (`onStatusLoad`).
     private(set) var headWatcher: FileWatcher?
     private var headTask: UUID?
@@ -50,7 +50,7 @@ import Workspace
         let project = app.project(task.projectId)
         switch task.mode {
         case .worktree:
-            // Only a checked copy: a moved one's old folder would show the main checkout (#122).
+            // Only a checked copy: a moved one's old folder would show the main checkout (HD-122).
             guard let path = app.gitFolder(of: task.id) else { return nil }
             // A subfolder project: the same subfolder inside the worktree (local only; a remote one shows the whole worktree).
             guard let project, project.host == nil, let sub = subfolderInRepository(project.path),
@@ -70,7 +70,7 @@ import Workspace
         defer {
             app.gitPanel.setOnScreen(current != nil && app.state.inspectorVisible)
             updateHeadWatch()
-            // A host terminal's files load only while they are on screen (#124).
+            // A host terminal's files load only while they are on screen (HD-124).
             app.remoteFiles.follow(app.state.inspectorVisible && windowVisible() ? app.hostShellFocusedLeaf : nil)
             app.syncSubagentPanel(windowVisible: windowVisible())
         }

@@ -3,7 +3,7 @@ import Testing
 @testable import HangarUI
 import TestSupport
 
-/// One tsserver per project, started lazily, stopped after the last file + grace, restarted once on a crash (#82).
+/// One tsserver per project, started lazily, stopped after the last file + grace, restarted once on a crash (HD-082).
 /// A shell script plays tsserver: it logs each command and answers a few.
 @MainActor @Suite(.serialized) struct TsLifecycleTests {
     static let fake = #"""

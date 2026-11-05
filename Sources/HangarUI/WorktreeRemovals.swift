@@ -4,7 +4,7 @@ import Git
 import Observation
 import Workspace
 
-/// Worktree folders being removed (#132): each shows over the chat area while its folder goes (the risk check, the
+/// Worktree folders being removed (HD-132): each shows over the chat area while its folder goes (the risk check, the
 /// rename aside, the background delete); a failure stays with «Повторить» until it succeeds or is dismissed.
 @MainActor @Observable final class WorktreeRemovals {
     struct Item: Identifiable, Equatable {

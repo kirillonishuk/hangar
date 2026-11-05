@@ -5,7 +5,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// «<host> · терминал» in the app (#64): plain `ssh -t` shells, never the host's master, check or tmux.
+/// «<host> · терминал» in the app (HD-064): plain `ssh -t` shells, never the host's master, check or tmux.
 /// On the RemoteHostsTests harness (fake ssh only); Ghostty is not started, so a launch only builds its spec.
 @MainActor @Suite struct HostShellUITests {
     typealias Harness = RemoteHostsTests.Harness
@@ -33,7 +33,7 @@ import Workspace
         #expect(!Action.archive.isEnabled(for: .task(o.task), app: h.app))
     }
 
-    /// The inspector follows the focused leaf of a host's terminal (#124): Search runs through that leaf's master in the
+    /// The inspector follows the focused leaf of a host's terminal (HD-124): Search runs through that leaf's master in the
     /// folder its shell reported; a project chat gets the usual target again.
     @Test func inspectorFollowsTheHostShellLeaf() async throws {
         let h = try await Harness(); defer { h.cleanup() }
@@ -62,7 +62,7 @@ import Workspace
         #expect(h.app.remoteFiles.link(of: leaf.id) == nil && h.app.remoteFiles.shown == nil)
     }
 
-    /// Never worse than #64's plain login (#124): a RemoteCommand host, a user's own master, an unsafe socket folder
+    /// Never worse than HD-064's plain login (HD-124): a RemoteCommand host, a user's own master, an unsafe socket folder
     /// and a login shell that can't run the hook all fall back.
     @Test func launchFollowsTheUsersSSHConfig() async throws {
         let h = try await Harness(); defer { h.cleanup() }
@@ -80,7 +80,7 @@ import Workspace
         #expect(!(try spec().command.contains("ControlMaster=auto")))
         #expect(h.app.remoteFiles.link(of: leaf.id)?.owned == false && h.app.remoteFiles.link(of: leaf.id)?.exitArgv == nil)
 
-        h.app.sshResolve = { _, _ in nil }  // ssh -G failed: exactly #64
+        h.app.sshResolve = { _, _ in nil }  // ssh -G failed: exactly HD-064
         #expect(try spec() == sshShellSpec(host: "box", sshPath: h.app.sshPath))
         #expect(h.app.remoteFiles.link(of: leaf.id) == nil)
     }

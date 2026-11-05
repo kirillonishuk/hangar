@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// A named command of a project («Dev server» → `pnpm dev`), run in its own tab in the chat's folder (#133).
+/// A named command of a project («Dev server» → `pnpm dev`), run in its own tab in the chat's folder (HD-133).
 public struct ProjectAction: Codable, Equatable, Sendable {
     public var name: String
     public var command: String

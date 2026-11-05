@@ -204,7 +204,7 @@ import Workspace
         let shell = try #require(task.tabs.last?.root.leaves.first)
         #expect(app.launchContext(for: shell.id) == .created(prompt: "pnpm i"))
         #expect(app.setupLeaves.contains(shell.id))
-        // A sub-session's worktree gets the same setup tab, closing itself and never saved (#127, #128).
+        // A sub-session's worktree gets the same setup tab, closing itself and never saved (HD-127, HD-128).
         let sub = try await ok(app, .tasksSpawn(parent: saved.task.id.uuidString, name: "c", prompt: "go", agent: .claude, worktree: true, base: "main"),
                                SpawnResult.self)
         let subTask = try #require(app.state.tasks.first { $0.id == sub.task.id })
@@ -410,7 +410,7 @@ import Workspace
         #expect(fake.sent.count == sentCount)
     }
 
-    /// The TERMINAL drawer's shell: listed in tasks.list, its leaf id works as the `tab` ref (decision #45).
+    /// The TERMINAL drawer's shell: listed in tasks.list, its leaf id works as the `tab` ref (decision HD-045).
     @Test func drawerLeafAddressable() async throws {
         var ids = (a: UUID(), b: UUID(), drawer: UUID(), oldDrawer: UUID())
         let path = try folder("p")

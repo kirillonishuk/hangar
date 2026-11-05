@@ -4,7 +4,7 @@ import Foundation
 import Integration
 import Workspace
 
-/// A project folder (or a session's worktree) whose own status line Hangar overrides, or failed to (#105).
+/// A project folder (or a session's worktree) whose own status line Hangar overrides, or failed to (HD-105).
 struct StatuslineNote: Equatable, Identifiable {
     enum Problem: Equatable {
         /// `.claude/settings.local.json` is not ignored by git: the override could be committed.
@@ -21,7 +21,7 @@ struct StatuslineNote: Equatable, Identifiable {
 /// The folders of one machine Claude can start in: projects and their sessions' worktrees.
 struct StatuslineDir: Equatable { var path: String; var name: String }
 
-/// Hangar's line for `hangar-remote statusline` (#105): rendered on the Mac from the same config file as the CLI reads,
+/// Hangar's line for `hangar-remote statusline` (HD-105): rendered on the Mac from the same config file as the CLI reads,
 /// so a change in Settings reaches the next refresh on every host. nil = the user's own line («Ваша»).
 func statuslineRenderer(configURL: URL) -> @Sendable (Data, [WireWindow]) -> String? {
     { payload, fresh in
@@ -75,7 +75,7 @@ extension AppState {
     private func statuslineDirs(project p: Project) -> [StatuslineDir] {
         var dirs = [StatuslineDir(path: p.path, name: p.name)]
         for t in state.tasks where t.projectId == p.id && !t.archived {
-            // One entry per folder: a sub-chat may share its parent's worktree (#131).
+            // One entry per folder: a sub-chat may share its parent's worktree (HD-131).
             if case .worktree(let path, _, _) = t.mode, !dirs.contains(where: { $0.path == path }) {
                 dirs.append(StatuslineDir(path: path, name: p.name + " › " + t.name))
             }
@@ -86,7 +86,7 @@ extension AppState {
     /// Settings → «Строка состояния Claude»: saved, then every reachable project follows (overrides added or removed).
     func setStatuslineMode(_ mode: StatuslineMode) throws {
         try setConfig("statusline", mode.rawValue) { $0.statusline = mode }
-        // «Ваша» with «Лимиты» off takes Hangar's wrapper out of Claude's settings (#111): in the queue, before the
+        // «Ваша» with «Лимиты» off takes Hangar's wrapper out of Claude's settings (HD-111): in the queue, before the
         // projects follow (their sync reads the CLI from those settings).
         enqueueStatusline { [weak self] in
             guard let self else { return }
@@ -113,7 +113,7 @@ extension AppState {
         try setStatuslineChips(config.statuslineChips, on: set)
     }
 
-    /// A chip moved (drag or «Left»/«Right», #110): before the chip at `index` of the current row.
+    /// A chip moved (drag or «Left»/«Right», HD-110): before the chip at `index` of the current row.
     func moveStatuslineSegment(_ segment: StatuslineSegment, to index: Int) throws {
         let chips = statuslineMove(config.statuslineChips, segment, to: index)
         guard chips != config.statuslineChips else { return }
@@ -137,7 +137,7 @@ extension AppState {
     }
 
     /// Hangar's overrides out of these folders (all of `host`'s when nil): before a project is removed, a worktree is
-    /// archived or deleted, or the Claude integration is uninstalled (#105).
+    /// archived or deleted, or the Claude integration is uninstalled (HD-105).
     func revertProjectStatuslines(host: String?, dirs: [StatuslineDir]? = nil) async {
         await enqueueStatusline { [weak self] in await self?.runStatuslineSync(host: host, only: dirs, revert: true) }.value
     }

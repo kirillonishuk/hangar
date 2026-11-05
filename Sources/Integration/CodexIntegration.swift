@@ -290,7 +290,7 @@ public func codexUninstall(_ toml: String) throws(IntegrationError) -> String {
     return lines.joined(separator: "\n")
 }
 
-/// The state of Hangar's `notify` in Codex's config (#111): wanted → installed for `cli` (a user's notify is wrapped,
+/// The state of Hangar's `notify` in Codex's config (HD-111): wanted → installed for `cli` (a user's notify is wrapped,
 /// Hangar's own with an older path `ours` accepts moves to `cli`); not wanted → Hangar's own is taken out (the wrapped
 /// one restored). Another Hangar copy's notify is left alone (`.otherCopy`). nil = nothing to write.
 public func codexApply(_ toml: String?, cli: String, notify: Bool, ours: (String) -> Bool) throws(IntegrationError) -> String? {

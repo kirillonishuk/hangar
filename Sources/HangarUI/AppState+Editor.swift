@@ -34,7 +34,7 @@ extension AppState {
 }
 
 extension AppState {
-    /// Settings → Appearance: saved to config.toml, applied to the open pages at once (#84).
+    /// Settings → Appearance: saved to config.toml, applied to the open pages at once (HD-084).
     func setEditorAppearance(_ key: String, _ value: String? = nil, flag: Bool? = nil, apply: (inout HangarConfig) -> Void) throws {
         if let value { try setConfig(key, value, apply: apply) } else if let flag { try setConfig(key, flag: flag, apply: apply) }
         onEditorAppearance?(EditorAppearance(config))

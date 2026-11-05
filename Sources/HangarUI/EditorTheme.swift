@@ -122,7 +122,7 @@ struct EditorHSL: Equatable {
     }
 }
 
-/// One editor theme resolved to all its colors (#108, #109): the app theme's pair, a built-in one (VS Code Dark Modern
+/// One editor theme resolved to all its colors (#108, HD-109): the app theme's pair, a built-in one (VS Code Dark Modern
 /// has its own editor colors; Dark+ and Hangar take theirs from the app theme) or «Своя» = its base plus the changed colors.
 struct EditorTheme: Equatable {
     let palette: EditorPalette
@@ -190,7 +190,7 @@ struct EditorTheme: Equatable {
             .find: EditorHex.of(p.waiting, alpha: 0.35), .gutter: EditorHex.of(p.edGutter), .gutterActive: EditorHex.of(p.edGutterActive),
             .cursor: EditorHex.of(p.accentText), .indent: EditorHex.of(p.edIndent), .indentActive: EditorHex.of(p.line2),
             .whitespace: EditorHex.of(p.line2), .diffAddedLine: EditorHex.of(p.diffAdd), .diffRemovedLine: EditorHex.of(p.diffDel),
-            // Rows a pale tint, the changed characters a clear step over it (#135).
+            // Rows a pale tint, the changed characters a clear step over it (HD-135).
             .diffAddedText: EditorHex.of(p.gitA, alpha: Theme.Diff.changedChars), .diffRemovedText: EditorHex.of(p.gitD, alpha: Theme.Diff.changedChars),
         ]
         return c.merging(ui) { $1 }
@@ -213,7 +213,7 @@ extension HangarConfig {
         var c = self
         if c.editorPalette != .custom {
             let base = c.editorBase
-            // «Как у темы» starts a fresh «Своя»: colors kept for the switch's way back stay hidden (#109).
+            // «Как у темы» starts a fresh «Своя»: colors kept for the switch's way back stay hidden (HD-109).
             if c.editorPalette == .theme || c.editorCustomBase != base { c.editorColors = [:] }
             c.editorCustomBase = base
             c.editorPalette = .custom
@@ -224,7 +224,7 @@ extension HangarConfig {
     }
 
     /// Editing a v0.7.0 built-in theme would drop «Своя»'s changes made on another base: ask first. («Как у темы» drops
-    /// its hidden colors without asking: they aren't on screen, #109.)
+    /// its hidden colors without asking: they aren't on screen, HD-109.)
     var customizingReplacesColors: Bool {
         editorPalette.isBuiltIn && editorCustomBase != editorBase && !editorColors.isEmpty
     }

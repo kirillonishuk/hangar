@@ -12,7 +12,7 @@ func recentConversations(_ list: [Conversation], inner: [String], open: Set<Stri
 }
 
 extension AppState {
-    /// The session's folder; a host's terminal (#64) has none.
+    /// The session's folder; a host's terminal (HD-064) has none.
     func recentFolder(of taskId: UUID) -> String? { isHostShellTask(taskId) ? nil : path(of: .task(taskId)) }
 
     private func recentKey(_ taskId: UUID) -> (key: String, folder: String, project: Project)? {

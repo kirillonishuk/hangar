@@ -55,7 +55,7 @@ public struct PowerAssertions: Sendable {
         self.schedule = schedule
     }
 
-    /// Shown by `pmset -g assertions`; fixed English, since pmset can't show Cyrillic (decision #46).
+    /// Shown by `pmset -g assertions`; fixed English, since pmset can't show Cyrillic (decision HD-046).
     /// 0: the grace after the last agent stopped.
     static func name(_ n: Int) -> String {
         n == 0 ? "Hangar: agents finished, keeping awake briefly" : n == 1 ? "Hangar: 1 agent working" : "Hangar: \(n) agents working"

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import ControlServer
 
-/// `hangar://` links (#66, #88): the only shapes the app acts on, everything else is ignored.
+/// `hangar://` links (HD-066, HD-088): the only shapes the app acts on, everything else is ignored.
 @Suite struct LinksTests {
     private let id = "0f3a9c1e-1111-4222-8333-444455556666"
 
@@ -33,7 +33,7 @@ import ControlServer
             "hangar://pane/0f3a9c1e", "hangar://task/0f3a9c1e?run=rm", "hangar://task/0f3a9c1e#x", "hangar://u@task/0f3a9c1e",
             "hangar://task:1/0f3a9c1e", "pane://task/0f3a9c1e", "https://task/0f3a9c1e", "hangar:task/0f3a9c1e",
             "hangar://task/\(id)0", "hangar://task/0f3a%2F..",
-            // #88: ids are full UUIDs (no prefixes or names), hosts plain ASCII, nothing percent-decoded.
+            // HD-088: ids are full UUIDs (no prefixes or names), hosts plain ASCII, nothing percent-decoded.
             "hangar://task/0f3a9c1e", "hangar://project/app", "hangar://sessions", "hangar://sessions/",
             "hangar://tab/0f3a9c1e-1111-4222-8333-44445555666g", "hangar://task/0f3a9c1e111142228333444455556666",
             "hangar://host/", "hangar://host/-oProxyCommand=x", "hangar://host/me@-x", "hangar://host/a%20b",

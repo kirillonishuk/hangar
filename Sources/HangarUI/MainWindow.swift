@@ -34,7 +34,7 @@ final class TaskColumnController: NSViewController {
     /// «Сессии» (⌘Y) over the tab bar and terminals.
     let sessionsModel: SessionsModel
     let sessions: NSHostingView<SessionsHost>
-    /// «Копия перенесена / не найдена» between the tabs and the terminals (#122); 0 high without one.
+    /// «Копия перенесена / не найдена» between the tabs and the terminals (HD-122); 0 high without one.
     let worktreeNotice: NSHostingView<WorktreeNoticeBar>
     private var noticeHeight: NSLayoutConstraint?
     private let app: AppState
@@ -193,7 +193,7 @@ final class WindowRootController: NSViewController {
 }
 
 /// Traffic lights at x 20, centre y 26 in the 52 head (§3.1) without a toolbar, which on macOS 26 would give the window
-/// the larger corner radius (#123): the titlebar container grows to 52, the buttons keep their size and system spacing.
+/// the larger corner radius (HD-123): the titlebar container grows to 52, the buttons keep their size and system spacing.
 /// shortcut: re-placed only on content layout, resize and full screen; setting the window's title, subtitle,
 /// representedURL or a native tab bar resets the lights, so re-place if any of these is added.
 @MainActor enum TrafficLights {
@@ -282,7 +282,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // No NSToolbar: on macOS 26 it gives the window the larger corner radius; `TrafficLights` places the lights (#123).
+        // No NSToolbar: on macOS 26 it gives the window the larger corner radius; `TrafficLights` places the lights (HD-123).
         window.isMovableByWindowBackground = false
         window.tabbingMode = .disallowed  // a native tab bar would reset the hand-placed traffic lights
         window.backgroundColor = Theme.bg0
@@ -373,7 +373,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
         app.editActions = { [weak self] id in self?.presentProjectSettings(id) }
         app.actionFailed = { [weak self] title, details in self?.showError(title, details) }
-        // A repository command before its first run (#133): not destructive, ↩ runs it.
+        // A repository command before its first run (HD-133): not destructive, ↩ runs it.
         app.confirmActionRun = { [weak self] name, command, then in
             guard let self, let window = self.window, window.attachedSheet == nil else { return }
             sheetWindow = window.beginHangarSheet({ end in
@@ -401,11 +401,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 self?.app.refreshUsageClock()
                 // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
                 self?.app.reloadConfigHosts()
-                self?.app.updates.checkIfDue()  // at most hourly (#86)
+                self?.app.updates.checkIfDue()  // at most hourly (HD-086)
                 self?.app.refreshSeen()
             }
         }
-        // Leaving the app forgets what was on screen: coming back shows (and marks seen) the chat in view again (#135).
+        // Leaving the app forgets what was on screen: coming back shows (and marks seen) the chat in view again (HD-135).
         resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.app.refreshSeen() }
         }
@@ -435,7 +435,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         if let accessibilityObserver { NSWorkspace.shared.notificationCenter.removeObserver(accessibilityObserver) }
     }
 
-    /// Minimised, covered or shown again: what is on screen changed (#135).
+    /// Minimised, covered or shown again: what is on screen changed (HD-135).
     public func windowDidChangeOcclusionState(_ notification: Notification) { app.refreshSeen() }
 
     public override func showWindow(_ sender: Any?) {
@@ -587,7 +587,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             app.hideSessionsView()
             return true
         }
-        // Monaco has the keyboard: the keys both want (⌘D, ⌘F, ⌘W, ⌥⌘←/→ …) by the editor policy (DESIGN.md, #80).
+        // Monaco has the keyboard: the keys both want (⌘D, ⌘F, ⌘W, ⌥⌘←/→ …) by the editor policy (DESIGN.md, HD-080).
         let focus = webFocus
         if let key = editorKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, focus: focus) {
             if key == .monaco { return false }
@@ -918,7 +918,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    /// A clicked `hangar://` link (#66, #88): select and bring the window up; a tab link focuses its terminal.
+    /// A clicked `hangar://` link (HD-066, HD-088): select and bring the window up; a tab link focuses its terminal.
     /// A malformed or dead link: the window comes up with a toast, nothing else changes.
     public func openLink(_ url: URL) {
         let target = app.openLink(url)
@@ -1168,7 +1168,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, RemoteProjectSheet(model: model, windowHeight: height, onAdd: add, onCancel: { model.cancel(); close() }), on: window)
     }
 
-    /// «Доступна версия X» (#86): from the status-bar pill or Settings.
+    /// «Доступна версия X» (HD-086): from the status-bar pill or Settings.
     func presentUpdate() {
         guard let window, window.attachedSheet == nil, app.updates.offer != nil else { return }
         let sheet = makeSheet(over: window)
@@ -1182,7 +1182,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, UpdateSheet(model: app.updates, onClose: close), on: window)
     }
 
-    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (#64).
+    /// «Подключиться к хосту…»: a plain ssh shell tab on the host (HD-064).
     func presentConnectHost() {
         guard let window, window.attachedSheet == nil else { return }
         let sheet = makeSheet(over: window)
@@ -1198,7 +1198,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         begin(sheet, view, on: window)
     }
 
-    /// «Новый подчат…» (#128, #131): the sub-chat starts at once in the chat's folder (or a copy made first); a failure is an alert.
+    /// «Новый подчат…» (HD-128, HD-131): the sub-chat starts at once in the chat's folder (or a copy made first); a failure is an alert.
     func presentNewSubSession(parent id: UUID) {
         guard let window, window.attachedSheet == nil, let parent = app.state.tasks.first(where: { $0.id == id && !$0.archived }) else { return }
         let sheet = makeSheet(over: window)

@@ -21,7 +21,7 @@ Source of truth: `docs/RELEASING.md`. Read it; this is the checklist form plus t
 - [ ] Full local `swift test` run shown, not assumed.
 - [ ] Independent review done (`reviewer` agent), findings resolved.
 - [ ] UI changes: owner has looked at the screenshots.
-- [ ] Spec / `docs/decisions.md` updated if behaviour changed.
+- [ ] Spec / decisions (`docs/decisions/`, `scripts/check-decisions.sh` passes) updated if behaviour changed.
 - [ ] No secrets, hostnames, usernames, home paths in diff or screenshots.
 
 ## 3. Merge (owner's OK first)

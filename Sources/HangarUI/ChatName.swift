@@ -3,7 +3,7 @@ import Foundation
 /// A name from the first message stays a sidebar-row length.
 let chatNameMaxLength = 40
 
-/// The chat's name (decision #116): «Название» trimmed (as typed: joiners make emoji and words); left empty — the first visible line of the message (markdown
+/// The chat's name (decision HD-116): «Название» trimmed (as typed: joiners make emoji and words); left empty — the first visible line of the message (markdown
 /// markers and invisible characters dropped, whitespace collapsed, cut at a word to `chatNameMaxLength`); nothing
 /// visible — «Чат N», the project's smallest number not taken by a chat named so.
 @MainActor func chatName(name: String, message: String, existing: [String]) -> String {
@@ -16,7 +16,7 @@ let chatNameMaxLength = 40
     return L10n.chatNumbered(n)
 }
 
-/// The «Чат N» fallback: neither a name nor a visible line of the message (#116); the agent's first prompt names it later.
+/// The «Чат N» fallback: neither a name nor a visible line of the message (HD-116); the agent's first prompt names it later.
 func isNumberedChatName(name: String, message: String) -> Bool {
     name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && messageChatName(message) == nil
 }

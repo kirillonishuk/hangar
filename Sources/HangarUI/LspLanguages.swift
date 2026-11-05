@@ -1,7 +1,7 @@
 import Foundation
 
-/// Language features beyond TS/JS (#90): one LSP server per (language, project root, executable) — pyright / pylsp,
-/// sourcekit-lsp, gopls, rust-analyzer, whichever is found. Same lifecycle as tsserver (#82): started when the first file
+/// Language features beyond TS/JS (HD-090): one LSP server per (language, project root, executable) — pyright / pylsp,
+/// sourcekit-lsp, gopls, rust-analyzer, whichever is found. Same lifecycle as tsserver (HD-082): started when the first file
 /// of the language opens, stopped `grace` after the last one closes (one one-shot task, no polling), restarted once
 /// after a crash. Not found → a calm status, the editor works as before. shortcut: this Mac only — remote files get
 /// no LSP server; add an ssh launch like tsserver's when asked.
@@ -138,7 +138,7 @@ import Foundation
         }
     }
 
-    /// Settings installed or removed a server (#102): every lookup is forgotten, files without a server look again
+    /// Settings installed or removed a server (HD-102): every lookup is forgotten, files without a server look again
     /// (the new one starts without reopening them), and servers whose executable is gone are replaced.
     func serversChanged() {
         lookups = [:]

@@ -9,7 +9,7 @@ struct SearchTarget: Equatable, Sendable {
     var host: String?
     /// A remote plain folder (not a repository) gets `git grep --no-index`; a local root is probed per search.
     var remoteGit = true
-    /// A host terminal's leaf master (#124): the search runs through it, `git grep --no-index`.
+    /// A host terminal's leaf master (HD-124): the search runs through it, `git grep --no-index`.
     var link: RemoteShellLink?
 }
 
@@ -31,7 +31,7 @@ enum SearchStatus: Equatable {
     case offline(String)
 }
 
-/// The inspector's Search tab (decision #91): one search at a time — a new query, toggle or root terminates the running
+/// The inspector's Search tab (decision HD-091): one search at a time — a new query, toggle or root terminates the running
 /// process; typing is debounced. Results stream in grouped by file, capped (`SearchLimits`). Idle: no timers, no process.
 @MainActor @Observable final class SearchModel {
     var text = "" { didSet { if text != oldValue { schedule() } } }
@@ -271,7 +271,7 @@ extension AppState {
             return SearchLaunch(executable: t.sshPath, args: args, cwd: "/", engine: .gitGrep, gitColumn: gitColumn, remote: true)
         }
         if let rg = await search.ripgrep(shell: userShell) {
-            // rg (`--hidden`) would search a nested worktree of the same repository too; git grep skips it by itself (#134).
+            // rg (`--hidden`) would search a nested worktree of the same repository too; git grep skips it by itself (HD-134).
             var q = q
             q.exclude += nestedCheckouts(in: target.root)
             return SearchLaunch(executable: rg, args: ripgrepArgs(q), cwd: target.root, engine: .ripgrep)

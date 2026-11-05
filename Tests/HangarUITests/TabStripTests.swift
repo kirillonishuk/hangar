@@ -3,7 +3,7 @@ import CoreGraphics
 import Testing
 @testable import HangarUI
 
-/// Tab bar geometry (decision #69): min/max widths, overflow, scroll-into-view, wheel mapping.
+/// Tab bar geometry (decision HD-069): min/max widths, overflow, scroll-into-view, wheel mapping.
 @Suite struct TabStripTests {
     let lo = Theme.tabMinWidth, hi = Theme.tabMaxWidth, gap = Theme.tabGap
     /// `+` with its gap; the overflow chevron takes the same again.
@@ -109,7 +109,7 @@ import Testing
         #expect(tabIndex(number: 9, count: 0) == nil)
     }
 
-    /// File tabs (#83) keep their whole name, as in VS Code: as wide as the name, past the agent tabs' max, up to
+    /// File tabs (HD-083) keep their whole name, as in VS Code: as wide as the name, past the agent tabs' max, up to
     /// `fileTabMaxWidth`; a crowded strip scrolls instead of truncating "useCheckoutButton.ts" to "useCheckoutButton.…".
     /// Agent / shell tabs stop at `tabMaxWidth`.
     @Test func fileTabsKeepTheirNames() {

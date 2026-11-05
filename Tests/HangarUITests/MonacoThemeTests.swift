@@ -3,7 +3,7 @@ import Testing
 import Workspace
 @testable import HangarUI
 
-/// Editor themes (#108): VS Code Dark Modern's values, «Своя» over a base, the config changes of the color editor.
+/// Editor themes (HD-108): VS Code Dark Modern's values, «Своя» over a base, the config changes of the color editor.
 @Suite struct MonacoThemeTests {
     private func theme(_ palette: EditorPalette, base: EditorPalette = .darkModern, custom: [EditorColor: String] = [:],
                        app: AppTheme = .navy) -> EditorTheme {
@@ -141,12 +141,12 @@ import Workspace
         c.editorPalette = .custom
         c.editorColors = [.string: "#d69d85", .number: "#ffffff"]
         #expect(c.resettingColor(.string).editorColors == [.number: "#ffffff"])
-        // «Сбросить всё» returns to the app theme's editor theme (#109).
+        // «Сбросить всё» returns to the app theme's editor theme (HD-109).
         #expect(c.resettingColor(nil).editorColors.isEmpty && c.resettingColor(nil).editorPalette == .theme)
         #expect(c.resettingColor(.string).editorPalette == .custom)
     }
 
-    // MARK: «Как у темы» (#109)
+    // MARK: «Как у темы» (HD-109)
 
     /// The default follows the app theme: Dark+ → Dark Modern, Graphite → Dark+ (its greys), Navy → Hangar.
     @Test func followingTheAppTheme() throws {

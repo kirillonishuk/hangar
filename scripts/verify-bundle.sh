@@ -3,7 +3,7 @@
 # zsh integration really restores the user's ~/.zshrc, version stamped, signature valid. Usage:
 #   scripts/verify-bundle.sh path/to/Hangar.app [expected-version]
 # HANGAR_VERIFY_SIGNED=1 (releases): app and helper must be signed by the "Hangar Self-Signed" certificate
-# (SHA-1 $HANGAR_CERT_SHA1), not ad-hoc (decision #129).
+# (SHA-1 $HANGAR_CERT_SHA1), not ad-hoc (decision HD-129).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="${1:?usage: verify-bundle.sh path/to/Hangar.app [expected-version]}"

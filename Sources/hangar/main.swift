@@ -48,7 +48,7 @@ func defaultSocketPath() -> String {
 }
 
 /// A terminal Hangar started: its tab and leaf ids and its socket. Outside one (Terminal, iTerm, a plain ssh shell)
-/// hooks and the status line act as if Hangar were not installed (#137).
+/// hooks and the status line act as if Hangar were not installed (HD-137).
 func inHangar(_ env: [String: String]) -> Bool {
     UUID(uuidString: env["HANGAR_TAB_ID"] ?? "") != nil && UUID(uuidString: env["HANGAR_LEAF_ID"] ?? "") != nil
         && env["HANGAR_SOCKET"] != nil
@@ -88,7 +88,7 @@ func runStatusline(_ rest: [String]) -> Int32 {
         if !windows.isEmpty { _ = ControlClient.send(.usage(UsageMessage(agent: "claude", windows: windows)), to: socket) }
         return runOriginal(rest, stdin: stdin)
     }
-    // The app answers with the freshest limits across all chats; not running or slow → this chat's own (#137).
+    // The app answers with the freshest limits across all chats; not running or slow → this chat's own (HD-137).
     let known = ControlClient.ask(.usage(UsageMessage(agent: "claude", windows: windows)), to: socket, timeout: 0.3)
         .map(usageReplyWindows) ?? []
     var input = StatuslineInput(json: stdin)

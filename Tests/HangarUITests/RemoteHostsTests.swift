@@ -349,7 +349,7 @@ import TestSupport
         #expect(r.stdout.utf8.count == RemoteHosts.maxOutput && RemoteHosts.maxOutput == 64 << 20)
     }
 
-    /// One PATH rule (#47): commands run with the login PATH the check saw, so tools only it has are found.
+    /// One PATH rule (HD-047): commands run with the login PATH the check saw, so tools only it has are found.
     @Test func commandsUseLoginPath() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         try await h.loginTools()

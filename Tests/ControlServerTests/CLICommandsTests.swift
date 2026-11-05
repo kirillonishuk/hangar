@@ -38,7 +38,7 @@ import ControlServer
             (["sessions", "restore", "--session", "t", "--json"], .call(.tasksRestore(task: "t"), json: true)),
             (["sessions", "list", "--git"], .call(.tasksList(project: nil, git: true), json: false)),
             (["sessions", "list", "--project", "p", "--git", "--json"], .call(.tasksList(project: "p", git: true), json: true)),
-            // `hangar ssh <host>` only opens the tab in the app (#64).
+            // `hangar ssh <host>` only opens the tab in the app (HD-064).
             (["ssh", "box"], .call(.sshOpen(host: "box"), json: false)),
             (["ssh", "--json", "u@h"], .call(.sshOpen(host: "u@h"), json: true)),
             (["ssh"], .usage("missing argument")),
@@ -49,7 +49,7 @@ import ControlServer
         }
     }
 
-    /// `hangar tasks …` and `--task` are silent aliases from before the rename to sessions (#73).
+    /// `hangar tasks …` and `--task` are silent aliases from before the rename to sessions (HD-073).
     @Test func legacyTaskAliases() {
         let table: [([String], CLIParse)] = [
             (["tasks", "list", "--project", "p", "--git"], .call(.tasksList(project: "p", git: true), json: false)),

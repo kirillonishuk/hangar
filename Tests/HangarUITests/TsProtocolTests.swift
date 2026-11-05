@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import HangarUI
 
-/// tsserver's stdout is untrusted: framing, size limits, JSON validation, unknown messages ignored (#82).
+/// tsserver's stdout is untrusted: framing, size limits, JSON validation, unknown messages ignored (HD-082).
 @Suite struct TsProtocolTests {
     private func frame(_ json: String) -> Data {
         // As tsserver writes it: the length counts the trailing newline.

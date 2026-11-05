@@ -20,12 +20,12 @@ enum ActionTarget: Equatable {
     var addProject: () -> Void = {}
     var addLocalProject: () -> Void = {}
     var addRemoteProject: () -> Void = {}
-    /// «Подключиться к хосту…»: a plain ssh shell without a project (#64).
+    /// «Подключиться к хосту…»: a plain ssh shell without a project (HD-064).
     var connectHost: () -> Void = {}
     /// «Сервер <host>» sheet.
     var checkServer: (String) -> Void = { _ in }
     var newTask: (UUID?) -> Void = { _ in }  // project id; nil = selected/last project
-    /// «Новый подчат…» of this chat (#128).
+    /// «Новый подчат…» of this chat (HD-128).
     var newSubSession: (UUID) -> Void = { _ in }
     /// The read-only viewer of a chat's subagent (leaf, subagent id).
     var openSubagent: (UUID, String) -> Void = { _, _ in }
@@ -61,7 +61,7 @@ enum Action: CaseIterable {
         case .task(let id):
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
-            // Only a chat whose «готово» is already seen (#135).
+            // Only a chat whose «готово» is already seen (HD-135).
             let unread: [Action] = app.canMarkUnread(id) ? [.markUnread] : []
             // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
             if app.isFreeChatTask(id) {
@@ -239,7 +239,7 @@ enum Action: CaseIterable {
         case (.restore, .task(let id)): Task { await restoreArchivedTask(id, ctx: ctx) }
         case (.deletePermanently, .task(let id)):
             guard let task = app.state.tasks.first(where: { $0.id == id }) else { return }
-            // A worktree another session works in (a sub-chat in its parent's, #131) is not this one's to delete.
+            // A worktree another session works in (a sub-chat in its parent's, HD-131) is not this one's to delete.
             guard case .worktree = task.mode, app.state.worktreeSharers(of: task, openOnly: false).isEmpty,
                   let project = app.project(task.projectId) else {
                 ctx.confirm(L10n.deleteTaskConfirm(task.name), L10n.deleteTaskInfo, L10n.delete) {
@@ -310,7 +310,7 @@ func editorName(_ command: String) -> String {
 }
 
 /// Runs `<editor> <path>` through the user's login shell: a Finder-launched app's PATH lacks /usr/local/bin and
-/// ~/.local/bin, where `code`/`cursor`/`zed` live (decision #27). Non-zero exit → `onError` with stderr's last line.
+/// ~/.local/bin, where `code`/`cursor`/`zed` live (decision HD-027). Non-zero exit → `onError` with stderr's last line.
 @MainActor func openInExternalEditor(_ editor: String, path: String, shell: String, onError: @escaping @MainActor (String) -> Void) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: shell)

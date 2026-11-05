@@ -18,7 +18,7 @@ private let full = """
 """
 
 @Suite struct StatuslineTests {
-    /// #110: the line is English whatever Hangar's language; the renderer has no language to take.
+    /// HD-110: the line is English whatever Hangar's language; the renderer has no language to take.
     @Test func defaultLineIsEnglish() {
         let en = renderStatusline(input(full), segments: StatuslineSegment.defaults, now: now)
         #expect(plain(en) == "Opus 5.5 │ ctx ━━━───── 38% │ 5h ━━━───── 42% 1h47m │ wk 18%")
@@ -39,7 +39,7 @@ private let full = """
         #expect(plain(past) == "5h ━─────── 5%")
     }
 
-    /// #110: segments come in the configured order; effort chosen is a part of its own, in its place.
+    /// HD-110: segments come in the configured order; effort chosen is a part of its own, in its place.
     @Test func segmentsInConfiguredOrder() {
         let line = renderStatusline(input(full), segments: [.branch, .week, .model], now: now)
         #expect(plain(line) == "⎇ feat/login │ wk 18% │ Opus 5.5")

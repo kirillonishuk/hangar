@@ -2,7 +2,7 @@ import ControlServer
 import Foundation
 import Workspace
 
-/// What a `hangar://` link resolves to (#66, #88).
+/// What a `hangar://` link resolves to (HD-066, HD-088).
 enum LinkTarget: Equatable {
     case task(UUID), tab(task: UUID, tab: UUID), project(UUID), host(String), sessions(project: UUID)
 
@@ -27,7 +27,7 @@ enum LinkTarget: Equatable {
 }
 
 extension AppState {
-    /// Refs as in CLI/MCP (#45); archived tasks and their tabs are never found. A tab: its id or one of its leaves' ids.
+    /// Refs as in CLI/MCP (HD-045); archived tasks and their tabs are never found. A tab: its id or one of its leaves' ids.
     func linkTarget(_ kind: LinkKind, _ ref: String) -> Result<LinkTarget, ControlError> {
         switch kind {
         case .task: return resolveTask(ref).map { .task($0) }

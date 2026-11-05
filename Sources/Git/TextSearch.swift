@@ -1,6 +1,6 @@
 import Foundation
 
-/// Find in files (decision #91): the query and toggles of the inspector's Search tab.
+/// Find in files (decision HD-091): the query and toggles of the inspector's Search tab.
 public struct SearchQuery: Equatable, Sendable {
     public var text: String
     public var caseSensitive = false

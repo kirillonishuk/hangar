@@ -4,7 +4,7 @@ import Testing
 @testable import HangarUI
 
 /// Hangar's Ghostty defaults load before the user's config (their values win): padding and the theme's ANSI palette
-/// when the user's config (or Ghostty theme) sets none. Background, text and cursor load after theirs (#109).
+/// when the user's config (or Ghostty theme) sets none. Background, text and cursor load after theirs (HD-109).
 @MainActor @Suite struct GhosttyDefaultsTests {
     @Test func defaultsHoldPadding() {
         #expect(GhosttyApp.defaultsConfig(padding: (x: 12, y: 8)) == "window-padding-x = 12\nwindow-padding-y = 8\n")
@@ -33,7 +33,7 @@ import Testing
     }
 }
 
-/// The layering around the user's Ghostty config, through libghostty itself (decisions #87, #109): the app theme's
+/// The layering around the user's Ghostty config, through libghostty itself (decisions HD-087, HD-109): the app theme's
 /// background beats the user's `theme` and own `background`, and a rebuilt config carries the new theme (what open
 /// surfaces get on switch); the user's palette stays theirs.
 @MainActor @Suite struct GhosttyLayersTests {
@@ -61,7 +61,7 @@ import Testing
         #expect(ours.defaults.hasSuffix("font-family = \(GhosttyApp.defaultFont)\n"))
     }
 
-    /// SF Mono only where the user's Ghostty config names no font, directly or through `config-file` (#112).
+    /// SF Mono only where the user's Ghostty config names no font, directly or through `config-file` (HD-112).
     @Test func userFontIsSeenInFilesAndIncludes() throws {
         let none = try userConfig("# font-family = Menlo\nfont-size = 13\nfont-family =\n")
         defer { try? FileManager.default.removeItem(at: none.deletingLastPathComponent()) }

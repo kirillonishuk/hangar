@@ -2,7 +2,7 @@ import AppKit
 import Git
 import Workspace
 
-/// The diff tab's Monaco diff editor (#80): base on the left (read-only), the working file on the right — editable and
+/// The diff tab's Monaco diff editor (HD-080): base on the left (read-only), the working file on the right — editable and
 /// saved like the editor's files for the session's changes, read-only for a commit's file. Lives while the task has a
 /// diff tab (`TerminalArea`).
 @MainActor @Observable final class DiffEditorController {

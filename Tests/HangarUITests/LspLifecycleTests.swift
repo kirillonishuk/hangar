@@ -3,7 +3,7 @@ import Testing
 @testable import HangarUI
 import TestSupport
 
-/// LSP servers end to end (#90): a shell script plays the server — framed JSON-RPC both ways, initialize handshake,
+/// LSP servers end to end (HD-090): a shell script plays the server — framed JSON-RPC both ways, initialize handshake,
 /// a server → client request, diagnostics, request/response correlation, grace stop, one restart after a crash.
 @MainActor @Suite(.serialized) struct LspLifecycleTests {
     static let fake = #"""
@@ -264,7 +264,7 @@ import TestSupport
         langs.stopAll()
     }
 
-    /// Settings installed a server (#102): an open file with «no language server» gets it without reopening.
+    /// Settings installed a server (HD-102): an open file with «no language server» gets it without reopening.
     @Test func serversChangedStartsANewlyInstalledServer() async throws {
         final class Flag { var on = false }
         let installed = Flag()

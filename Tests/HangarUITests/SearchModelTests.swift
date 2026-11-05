@@ -6,7 +6,7 @@ import Testing
 import Workspace
 import TestSupport
 
-/// The Search tab's model (#91): streaming, one search at a time, debounce, outcomes.
+/// The Search tab's model (HD-091): streaming, one search at a time, debounce, outcomes.
 @MainActor @Suite struct SearchModelTests {
     /// A fake engine: `sh` prints git-grep-like records (`-z`) built from its arguments, no shell code from the query.
     private func printing(_ records: [(String, Int, String)]) -> SearchLaunch {

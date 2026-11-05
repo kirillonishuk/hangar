@@ -29,6 +29,9 @@ jobs:
           RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
         run: scripts/check-commits.sh "$RANGE"
 
+      - name: Decisions (docs/decisions/HD-NNN-*.md and index)
+        run: scripts/check-decisions.sh
+
   ghosttykit:
     name: GhosttyKit
     runs-on: macos-15

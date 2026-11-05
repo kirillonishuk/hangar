@@ -3,7 +3,7 @@ import Foundation
 /// Which line Claude Code shows (`statusline` in config.toml): Hangar's own, or the user's original command (`--then`).
 public enum StatuslineMode: String, Sendable, CaseIterable { case hangar, user }
 
-/// A part of Hangar's status line (`statusline_segments`), shown in the config's order (#110).
+/// A part of Hangar's status line (`statusline_segments`), shown in the config's order (HD-110).
 public enum StatuslineSegment: String, Sendable, CaseIterable {
     case model, context, fiveHour = "5h", week, branch, effort
     public static let defaults: [StatuslineSegment] = [.model, .context, .fiveHour, .week]
@@ -66,7 +66,7 @@ public struct StatuslineInput: Equatable, Sendable {
         branch = (wt ?? gw).map { clean($0, max: 32) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// One `rate_limits` window by its wire name, e.g. the freshest one Hangar knows (#137); others are ignored.
+    /// One `rate_limits` window by its wire name, e.g. the freshest one Hangar knows (HD-137); others are ignored.
     public mutating func setRateLimit(_ name: String, used: Double?, resetsAt: Double?) {
         switch name {
         case "five_hour": fiveHour = (used, resetsAt)
@@ -121,7 +121,7 @@ func shortModelName(display: String?, id: String?) -> String? {
     return d.isEmpty ? nil : d
 }
 
-/// «47m», «1h47m», «2d3h» (English in every language, #110); under a minute counts as one.
+/// «47m», «1h47m», «2d3h» (English in every language, HD-110); under a minute counts as one.
 public func compactDuration(_ seconds: Double) -> String {
     let minutes = max(1, Int((seconds / 60).rounded(.up)))
     if minutes < 60 { return "\(minutes)m" }
@@ -159,7 +159,7 @@ private func percentText(_ percent: Double) -> String {
 }
 
 /// Hangar's status line: one line, segments in the given order, a segment without its data left out (nothing at all
-/// → ""). Always English, whatever Hangar's language (#110): it lives in Claude's terminal, often on a server.
+/// → ""). Always English, whatever Hangar's language (HD-110): it lives in Claude's terminal, often on a server.
 /// Labels and separators dim, values neutral, yellow ≥ 80 %, red ≥ 95 %.
 public func renderStatusline(_ input: StatuslineInput, segments: [StatuslineSegment], now: Date) -> String {
     func label(_ s: String) -> String { styled(s, SGR.dim) }

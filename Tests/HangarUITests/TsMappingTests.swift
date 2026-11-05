@@ -3,7 +3,7 @@ import Testing
 import Exec
 @testable import HangarUI
 
-/// tsserver answers → editor results; paths from answers only inside the project or node_modules (#82).
+/// tsserver answers → editor results; paths from answers only inside the project or node_modules (HD-082).
 @Suite struct TsMappingTests {
     private let roots = ["/w/app"]
     private func span(_ file: String, _ l: Int, _ o: Int, _ el: Int, _ eo: Int) -> [String: Any] {

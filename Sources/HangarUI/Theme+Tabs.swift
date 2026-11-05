@@ -16,7 +16,7 @@ extension Theme {
     /// Tab `×`: its hover box reaches this far around the 12 pt icon (into the tab's padding), corner radius.
     public static let tabCloseInset: CGFloat = Space.s1
     public static let tabCloseRadius: CGFloat = Radius.control
-    /// Tab widths (decision #69): a crowded bar shrinks tabs to `tabMinWidth` (icon, a few letters, `×`),
+    /// Tab widths (decision HD-069): a crowded bar shrinks tabs to `tabMinWidth` (icon, a few letters, `×`),
     /// then scrolls; a roomy one stops them at `tabMaxWidth`.
     public static let tabMinWidth: CGFloat = 110
     public static let tabMaxWidth: CGFloat = 200

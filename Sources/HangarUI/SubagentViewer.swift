@@ -194,7 +194,7 @@ extension Subagent {
         }
     }
 
-    /// A finished one is quiet — the seen-done ring (#135): its result is in the panel, not something to attend to.
+    /// A finished one is quiet — the seen-done ring (HD-135): its result is in the panel, not something to attend to.
     var dotSeen: Bool { state == .done }
 
     /// Running: since the start; finished: how long it ran.

@@ -30,14 +30,14 @@ public struct LeafStatus: Equatable, Sendable {
     public var state: AgentState = .idle
     public var claudeHooks = false
     public var sessionId: String?
-    /// The tab's own agent since this launch: the first pid of a hook Hangar passed it (#119); nil — none seen yet.
+    /// The tab's own agent since this launch: the first pid of a hook Hangar passed it (HD-119); nil — none seen yet.
     public var agentPid: Int32?
     /// Subagents (Task/Agent tool) running now; never below 0, reset whenever the turn starts or ends.
     public var activeSubagents = 0
     /// Why the leaf needs the user now; nil — it doesn't.
     public var attention: Attention?
     public var pendingPermission: PendingPermission?
-    /// A finished turn nobody has looked at yet (#135): set by every done, cleared once the leaf is on screen.
+    /// A finished turn nobody has looked at yet (HD-135): set by every done, cleared once the leaf is on screen.
     public var unseen = false
     public init() {}
 }
@@ -61,7 +61,7 @@ func ownsSessionId(_ kind: HookKind, agent: SessionAgent?) -> Bool {
 }
 
 /// The hook ran in the tab's own agent: it carries the pid Hangar's `--settings` hooks pass, and it is the launch's first
-/// such pid or that same one (#119). Nested agents (`claude -p` from a tool, a teammate) never pass both. A SessionStart
+/// such pid or that same one (HD-119). Nested agents (`claude -p` from a tool, a teammate) never pass both. A SessionStart
 /// marked `--tab-agent` of a switch (/clear, compact, /resume) or of the leaf's own id moves the pid: under
 /// `CLAUDE_CODE_SHELL_PREFIX` every hook runs under another wrapper process, and a frozen id would make the installed
 /// hooks' events after /clear look nested. Never a `startup` with another id: claude forwards `--settings` to the
@@ -74,7 +74,7 @@ public func fromTabAgent(_ status: LeafStatus, kind: HookKind, session: String?,
 }
 
 /// A server whose `hangar-remote` predates pids (< `firstPidRemoteVersion`) never marks the tab agent's hooks: there the
-/// first SessionStart after a launch and the switches set the stored id, as before #119 (else the spare id of a moved
+/// first SessionStart after a launch and the switches set the stored id, as before HD-119 (else the spare id of a moved
 /// transcript would never be kept, and every restore would start anew with the note).
 public func legacyTakesId(_ status: LeafStatus, kind: HookKind, session: String?, source: String?, agentPid: Int32?) -> Bool {
     agentPid == nil && status.agentPid == nil && kind == .sessionStart && validSessionId(session) != nil
@@ -97,7 +97,7 @@ public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, 
     return status.agentPid == nil && kind == .sessionStart && ["clear", "compact", "resume", "fork"].contains(source)
 }
 
-/// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (#43).
+/// Out-of-order events are deliberately not sequenced: Esc/late events leave the last state (HD-043).
 /// Attention gets `placeholderRequestKey`; `StatusBoard.apply` assigns the real key.
 public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgent?, now: Date = Date()) -> LeafStatus {
     var s = status

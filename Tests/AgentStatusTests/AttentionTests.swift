@@ -141,7 +141,7 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
         #expect(board.status(asking).attention?.reason == .permission)
     }
 
-    /// #135: every done is new until seen; seen and unseen only exist while done; «Убрать» counts as seen.
+    /// HD-135: every done is new until seen; seen and unseen only exist while done; «Убрать» counts as seen.
     @Test func doneSeenStateMachine() {
         var board = StatusBoard()
         let leaf = UUID(), other = UUID()

@@ -6,7 +6,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// #135: seen / unseen «готово», the waiting time, status marks without colour, the split pane frame, diff tints.
+/// HD-135: seen / unseen «готово», the waiting time, status marks without colour, the split pane frame, diff tints.
 @MainActor @Suite(.serialized) struct StatusLookTests {
     struct Fixture {
         var app: AppState
@@ -134,7 +134,7 @@ import Workspace
         #expect(StatusMark.of(.done, seen: false, differentiateWithoutColor: false) == .solid)
         #expect(StatusMark.of(.done, seen: true, differentiateWithoutColor: false) == .hollow)
         #expect(StatusMark.of(.idle, seen: false, differentiateWithoutColor: false) == .small)
-        #expect(StatusMark.of(.idle, seen: true, differentiateWithoutColor: true) == .small)  // never a ring (#130)
+        #expect(StatusMark.of(.idle, seen: true, differentiateWithoutColor: true) == .small)  // never a ring (HD-130)
         #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: false) == .solid)
         #expect(StatusMark.of(.failed, seen: false, differentiateWithoutColor: true) == .diamond)
         // With the system option every state an icon-only place shows (tab, rail) has its own mark or halo.

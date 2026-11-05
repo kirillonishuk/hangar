@@ -2,7 +2,7 @@ import Exec
 import Foundation
 import Update
 
-/// A language server Settings → Advanced can download into Hangar's own folder (#102). Each lives in `<dir>/<rawValue>/`
+/// A language server Settings → Advanced can download into Hangar's own folder (HD-102). Each lives in `<dir>/<rawValue>/`
 /// with a marker file: only such folders are Hangar's and may be removed.
 enum LspPackage: String, CaseIterable, Sendable {
     case pyright, gopls, rustAnalyzer = "rust-analyzer"
@@ -40,7 +40,7 @@ enum LspInstallError: Error, Equatable {
     case notExecutable
 }
 
-/// Downloads, finds and removes the servers of `LspPackage` (#102). Nothing outside the given folder is written: npm's
+/// Downloads, finds and removes the servers of `LspPackage` (HD-102). Nothing outside the given folder is written: npm's
 /// and Go's caches go to a temporary folder next to the staging one; no shell, no sudo.
 enum LspInstaller {
     static let marker = ".hangar-lsp.json"

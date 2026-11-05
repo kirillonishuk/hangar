@@ -10,14 +10,14 @@
 
 **Tech Stack:** Swift 6.3, Swift Testing, AppKit + SwiftUI, `/usr/bin/ssh` (OpenSSH, ControlMaster, `-O forward`), tmux на сервере, POSIX sh, macOS 14+.
 
-**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md`: §11.1 целиком; §2 (`Exec`, `ControlServer`), §3 (`Project.location`), §5 (env листа, hooks, запасные пути), §5.2 (удалённые `working` держат блокировку), §6 (восстановление), §7 (CLI), §8, §9. Решения в `docs/decisions.md`: #15 (согласие и diff), #19–#21 (этап 6, tmux, `ssh -R` + `hangar-remote`), #26/#27 (обёртка OSC 133, `-l -i`), #35 (слот `SSH HOSTS`), #41 (режим запуска), #42 (`Runner`, worktree), #43 (статус на лист, hooks, id сессии), #44 (инспектор, Helix), #45 (CLI/MCP), #46. Новое решение #47 записано вместе с этим планом. Дизайн: `docs/design/DESIGN.md` (иконка `sshHost` = `server.rack`, сайдбар, листы 580, курсор). Правила: `AGENTS.md`.
+**Spec:** `docs/superpowers/specs/2026-10-18-hangar-design.md`: §11.1 целиком; §2 (`Exec`, `ControlServer`), §3 (`Project.location`), §5 (env листа, hooks, запасные пути), §5.2 (удалённые `working` держат блокировку), §6 (восстановление), §7 (CLI), §8, §9. Решения в `docs/decisions.md`: HD-015 (согласие и diff), HD-019–HD-021 (этап 6, tmux, `ssh -R` + `hangar-remote`), HD-026/HD-027 (обёртка OSC 133, `-l -i`), HD-035 (слот `SSH HOSTS`), HD-041 (режим запуска), HD-042 (`Runner`, worktree), HD-043 (статус на лист, hooks, id сессии), HD-044 (инспектор, Helix), HD-045 (CLI/MCP), HD-046. Новое решение HD-047 записано вместе с этим планом. Дизайн: `docs/design/DESIGN.md` (иконка `sshHost` = `server.rack`, сайдбар, листы 580, курсор). Правила: `AGENTS.md`.
 
 ## Global Constraints
 
 - Без новых зависимостей. Только `/usr/bin/ssh` (путь подменяется лишь в DEBUG через `HANGAR_SSH` и в тестах). `~/.ssh/**` Hangar никогда не пишет. `~/.ssh/config` читается только ради списка `Host` (DEBUG-подмена — `HANGAR_SSH_CONFIG`). Сокеты мастера лежат в `<папка состояния>/ssh/` (0700).
 - Все ssh-вызовы вне терминала идут с `-o BatchMode=yes`, `-o ControlMaster=no -S <controlPath>` (кроме самого мастера) и `--` перед хостом. Хост: 1…255 байт, не начинается с `-`, без пробелов, управляющих символов и `'"\`$;&|<>()`. Удалённый путь абсолютный (`/…`; `~/…` раскрывается по `$HOME` сервера при добавлении), ≤ 1024 байт, без управляющих символов.
 - Удалённые команды всегда `/bin/sh -c '<скрипт>' sh <аргументы…>`: аргументы приходят позиционными параметрами, а не вклеиваются в скрипт (логин-шелл сервера может быть fish). Кавычки — только `shellQuote`.
-- Установка на сервер — только после явного подтверждения в листе, где показаны точные команды. Показанный текст байт в байт совпадает с выполняемым (один источник — `InstallStep.command`). `sudo` выполняется только во вкладке-терминале внутри листа, пароль Hangar не видит. Правка файлов агентов на сервере (`settings.json`, `config.toml`) — через существующий лист согласия с diff (#15), с копией рядом. В CLI/MCP методов установки нет; будущий метод обязан требовать `yes: true`.
+- Установка на сервер — только после явного подтверждения в листе, где показаны точные команды. Показанный текст байт в байт совпадает с выполняемым (один источник — `InstallStep.command`). `sudo` выполняется только во вкладке-терминале внутри листа, пароль Hangar не видит. Правка файлов агентов на сервере (`settings.json`, `config.toml`) — через существующий лист согласия с diff (HD-015), с копией рядом. В CLI/MCP методов установки нет; будущий метод обязан требовать `yes: true`.
 - Энергия: никаких опросов хостов. Таймеры этапа: (1) переподключение с backoff 2, 4, 8, 16, 32, 60, 60… с, не больше 10 попыток, только пока приложение активно или у хоста были `working`-листья, иначе пауза до активации; (2) один таймаут 10 с на пробу `true` после пробуждения Mac; (3) задержка 600 мс после `Esc` в удалённый Helix. В простое с подключёнными хостами таймеров и процессов, кроме мастеров и вкладок, нет. Удалённый инспектор не использует FSEvents и не опрашивает.
 - Сокет хоста (`<state>/ssh/r-<id>.sock`, 0600, uid-проверка как у основного) принимает только `hook`/`statusline` (Task 4): одно сообщение на соединение, заголовок ≤ 4096 байт, `len` ≤ 262 144. Запросы `method` получают отказ `unknown-method` («not available over ssh»). Событие для листа чужого хоста или локального проекта игнорируется.
 - Тесты не ходят ни на какой реальный хост. ssh — фейковый скрипт (`Tests/ExecTests/FakeSSH.swift`, копия в `HangarUITests`): он выполняет удалённую команду локально с `HOME`, равным собственному каталогу фейка. tmux в тестах — локальный с изолированным `TMUX_TMPDIR`, тест пропускается (`.enabled(if:)`), если `tmux` нет в PATH. Ничего не устанавливается.
@@ -62,7 +62,7 @@ Tests/ExecTests/FakeSSH.swift (+ копия в Tests/HangarUITests/), SSHTests, 
 Tests/ControlServerTests/RemoteSocketTests.swift, Tests/HangarUITests/RemoteHostsTests.swift, RemoteTabsTests.swift, RemoteGitTests.swift
 ```
 
-### Task 1: Решение #47, спека, модель `Location.ssh`
+### Task 1: Решение HD-047, спека, модель `Location.ssh`
 
 **Files:**
 - Modify: `docs/decisions.md` («Открытые вопросы»: пункт SSH), спека §11.1 и §2 (строка `Exec`), `Sources/Workspace/Model.swift`, `Tests/WorkspaceTests/ModelTests.swift`
@@ -73,12 +73,12 @@ Tests/ControlServerTests/RemoteSocketTests.swift, Tests/HangarUITests/RemoteHost
   - `Project.path` — путь в обоих случаях; `Project.host: String?` (nil у локального).
   - `WorkspaceState.addRemoteProject(name: String, host: String, path: String) -> UUID`: тот же `host` + `path` уже есть → возвращает существующий id. Смена пути в настройках проекта (`Model.swift:484`) сохраняет хост.
 
-- [ ] **Step 1: Спека** — привести §11.1 и §2 к решению #47 (записано вместе с планом): мастер — дочерний процесс без `ControlPersist`; сессия `hangar-<leafId>`; отдельный сокет хоста только для событий; `hangar-remote` без разбора JSON; коды 255/254 и `reattach`; проверка при каждом подключении; таймеры переподключения. В «Открытых вопросах» `decisions.md` закрыть пункт SSH ссылкой на #47 (`rm` перед `-O forward`; версии tmux — ручная проверка).
+- [ ] **Step 1: Спека** — привести §11.1 и §2 к решению HD-047 (записано вместе с планом): мастер — дочерний процесс без `ControlPersist`; сессия `hangar-<leafId>`; отдельный сокет хоста только для событий; `hangar-remote` без разбора JSON; коды 255/254 и `reattach`; проверка при каждом подключении; таймеры переподключения. В «Открытых вопросах» `decisions.md` закрыть пункт SSH ссылкой на HD-047 (`rm` перед `-O forward`; версии tmux — ручная проверка).
 - [ ] **Step 2: Тесты** (`ModelTests`, RED): `remoteLocationRoundTrip` — проект `.ssh(host: "dev", path: "/srv/app")` переживает encode/decode, `host == "dev"`, `path == "/srv/app"`; `oldLocalStillDecodes` — JSON вида `{"local":{"path":"/a"}}` даёт `.local`; `addRemoteProjectDedupes` — два вызова с одной парой дают один id, а `"/srv/app"` на другом хосте — другой проект; `setPathKeepsHost` — смена пути у удалённого проекта даёт `.ssh(host: "dev", path: new)`.
 - [ ] **Step 3:** Run: `swift test --filter ModelTests` — Expected: FAIL.
 - [ ] **Step 4: Реализовать** по Interfaces; все `switch` по `Location` в коде доделать (компилятор покажет).
 - [ ] **Step 5:** Run: `swift build && swift test --filter "ModelTests|StoreTests"` — Expected: PASS.
-- [ ] **Step 6: Commit** — `git add docs Sources/Workspace Tests/WorkspaceTests && git commit -m "feat(workspace): ssh project location; decision #47"`
+- [ ] **Step 6: Commit** — `git add docs Sources/Workspace Tests/WorkspaceTests && git commit -m "feat(workspace): ssh project location; decision HD-047"`
 
 ### Task 2: `Runner.ssh`, проверка хоста, фейковый ssh
 
@@ -89,7 +89,7 @@ Tests/ControlServerTests/RemoteSocketTests.swift, Tests/HangarUITests/RemoteHost
 **Interfaces:**
 - Produces (`Exec`, `public`, `Sendable`):
   - `func validSSHHost(_ s: String) -> String?` — по правилам Global Constraints, `nil` = отказ.
-  - `struct SSHPaths { var stateDir: String; func controlPath(_ host: String) -> String; func hostSocket(_ host: String) -> String }` — `cm-<16 hex>` / `r-<16 hex>.sock` в `<stateDir>/ssh/` (FNV-1a 64 от хоста), запасной путь `/tmp/hangar-<uid>/` по правилу #47; `func prepare() throws` — каталог 0700.
+  - `struct SSHPaths { var stateDir: String; func controlPath(_ host: String) -> String; func hostSocket(_ host: String) -> String }` — `cm-<16 hex>` / `r-<16 hex>.sock` в `<stateDir>/ssh/` (FNV-1a 64 от хоста), запасной путь `/tmp/hangar-<uid>/` по правилу HD-047; `func prepare() throws` — каталог 0700.
   - `func sshBaseArgs(host: String, controlPath: String) -> [String]` = `["-S", cp, "-o", "ControlMaster=no", "-o", "BatchMode=yes"]`; хост всегда после `"--"`.
   - `func remoteShellArgs(script: String, _ args: [String]) -> String` = `"/bin/sh -c " + shellQuote(script) + " sh " + args.map(shellQuote).joined(" ")`.
   - `extension Runner { static func ssh(host: String, controlPath: String, sshPath: String = "/usr/bin/ssh") -> Runner }` — `ssh <base> -T -- host <remoteShellArgs(script: R, [cwd] + args)>`, где `R` = `cd "${1:-$HOME}" && shift && exec env GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes}" "$@"`. Пустой `cwd` = `$HOME`. Отмена убивает локальный ssh (как у `.local`). `isLocal == false`.
@@ -244,7 +244,7 @@ Tests/ControlServerTests/RemoteSocketTests.swift, Tests/HangarUITests/RemoteHost
   - `LaunchError` + `case notConnected(host: String)`; `LaunchContext` + `case reattach(previous: LaunchMode)` → `launchMode` = `LaunchMode(restoring: kind ∈ {claude, codex} || previous.restoring, initialPrompt: nil)`.
   - Внутренняя команда собирается одной функцией для локального и удалённого запуска: `agentCommand(for: Leaf, agent: (LeafKind) -> String, editor: String, shell: String, restoring: Bool, initialPrompt: String?) -> String`. Локально `agent` = `[agents]` из конфига, удалённо — `kind.rawValue`.
   - `func remoteSessionName(_ leaf: UUID) -> String` = `"hangar-" + uuid.lowercased()`; `func killSessionArgs(_ leaf: UUID) -> [String]` = `["tmux", "kill-session", "-t", "=" + name]`.
-  - `func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget, editor: String, restoring: Bool, initialPrompt: String?) -> LaunchSpec`: `cwd` = `NSHomeDirectory()`, `env` = `[:]`. Команда: `<posixShell> -l -i -c '<inner>; c=$?; printf OSC133 …; exit $c'`, как в #26. `inner` = `TERM=xterm-256color <sshPath> -t <sshBaseArgs> -- <host> <remoteShellArgs(script: S, [cwd, name, exitFile, envLine, agentCmd])>`, где `exitFile = home/.hangar/run/<name>.exit`, а `envLine` — строка `HANGAR_TAB_ID=… HANGAR_LEAF_ID=… HANGAR_SOCKET=<home>/.hangar/hangar.sock` для `env`. Скрипт `S` (tmux):
+  - `func remoteLaunchSpec(for leaf: Leaf, tabId: UUID, target: RemoteTarget, editor: String, restoring: Bool, initialPrompt: String?) -> LaunchSpec`: `cwd` = `NSHomeDirectory()`, `env` = `[:]`. Команда: `<posixShell> -l -i -c '<inner>; c=$?; printf OSC133 …; exit $c'`, как в HD-026. `inner` = `TERM=xterm-256color <sshPath> -t <sshBaseArgs> -- <host> <remoteShellArgs(script: S, [cwd, name, exitFile, envLine, agentCmd])>`, где `exitFile = home/.hangar/run/<name>.exit`, а `envLine` — строка `HANGAR_TAB_ID=… HANGAR_LEAF_ID=… HANGAR_SOCKET=<home>/.hangar/hangar.sock` для `env`. Скрипт `S` (tmux):
 
     ```sh
     cd "$1" 2>/dev/null || { echo "hangar: no such folder: $1" >&2; exit 254; }
@@ -340,7 +340,7 @@ Tests/ControlServerTests/RemoteSocketTests.swift, Tests/HangarUITests/RemoteHost
 ### Task 10: Приёмка этапа
 
 **Files:**
-- Modify: `docs/decisions.md` (дополнения #47 по ходу, «Замеры» этапа 6), `docs/superpowers/stage1-followups.md` (разделы «Этап 6 — нужна проверка глазами» и «Отложено (этап 6)»), этот план (отметки)
+- Modify: `docs/decisions.md` (дополнения HD-047 по ходу, «Замеры» этапа 6), `docs/superpowers/stage1-followups.md` (разделы «Этап 6 — нужна проверка глазами» и «Отложено (этап 6)»), этот план (отметки)
 
 - [x] **Step 1:** Run: `swift build && swift test` — Expected: всё PASS, 2 прогона подряд (показать сводку).
 - [x] **Step 2: Сквозной сценарий без сети.** DEBUG-сборка, изолированные `HANGAR_STATE_DIR`/`HANGAR_CONFIG`, `HANGAR_SSH` = фейк из `/tmp/hg-s6` (home фейка — `/tmp/hg-s6/home`), `TMUX_TMPDIR=/tmp/hg-s6/tmux`, `HANGAR_DEBUG_NO_ACTIVATE=1`. Фейковый claude — `<home фейка>/bin/claude` (в PATH через `<home фейка>/.zprofile`): печатает `started`, шлёт `hangar-remote event prompt`, затем ждёт в `cat`. Шаги: добавить удалённый проект `dev:/tmp/hg-s6/repo` → отчёт (tmux есть, `hangar-remote` нет) → «Установить» → скрипт в `<home фейка>/.hangar/bin` → интеграция Claude через лист diff → создать задачу → вкладка claude в `working` (точка, ☕ и `pmset` по PID). `kill` мастера → полоса «Соединение прервано», статус `working`, `TMUX_TMPDIR=/tmp/hg-s6/tmux tmux ls` показывает `hangar-<leaf>`. Переподключение → тот же pane, `started` один раз. Changes показывает правку файла в репо после `done`. ⌘W вкладки → сессии нет. ⌘Q → сессии остальных листьев живы, после запуска — `attach`. Записать результаты.

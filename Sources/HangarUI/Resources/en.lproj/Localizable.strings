@@ -620,7 +620,7 @@
 "lspMissingTip" = "Definitions, references and errors come from a language server (%@) when one is installed: in the project (.venv, node_modules/.bin), on the login shell's PATH, in Xcode or downloaded in Settings → Advanced. Click to check again";
 "lspTooltip" = "%@\nClick to restart";
 
-/* Language servers in Settings (#102) */
+/* Language servers in Settings (HD-102) */
 "lspSection" = "Language servers";
 "lspInstalledFrom" = "installed · %@";
 "lspNotInstalled" = "not installed";
@@ -646,7 +646,7 @@
 "downloadTooLarge" = "The file is larger than expected — not installed";
 "editorUnsavedQuit" = "Unsaved files: %d. Quit anyway?";
 
-/* In-app updates (#86) */
+/* In-app updates (HD-086) */
 "updateTo" = "Update to %@";
 "updateAvailableHelp" = "New Hangar version: what’s new and install";
 "updateSheetTitle" = "Hangar %@ is available";
@@ -861,7 +861,7 @@
 "edsOperator" = "= > …";
 "edsText" = "everything not in a group";
 
-/* Integrations by function (#111) */
+/* Integrations by function (HD-111) */
 "intHooksTitle" = "Statuses and notifications";
 "intHooksClaudeSub" = "working · waiting · done, Inbox";
 "intHooksCodexSub" = "done, Inbox";
@@ -939,7 +939,7 @@
 "freeTimeMinutes" = "%d min";
 "freeTimeHours" = "%d h";
 "removeFreeChatButton" = "Remove";
-/* Files of a host terminal (#124) */
+/* Files of a host terminal (HD-124) */
 "remoteFilesUpload" = "Upload Files";
 "remoteFilesUploadButton" = "Upload";
 "remoteFilesRefresh" = "Refresh";

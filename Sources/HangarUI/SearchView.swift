@@ -1,7 +1,7 @@
 import Git
 import SwiftUI
 
-/// The inspector's Search tab (decision #91): query with Aa / .* / ab toggles, include / exclude globs, a status line of
+/// The inspector's Search tab (decision HD-091): query with Aa / .* / ab toggles, include / exclude globs, a status line of
 /// constant height, results grouped by file. A click opens the line in the editor (one click previews, as in Files).
 struct SearchPanel: View {
     let app: AppState
@@ -87,7 +87,7 @@ struct SearchPanel: View {
     }
 
     private func open(_ path: String, _ hit: SearchHit) {
-        // shortcut: a host terminal's results don't open (no editor for its files yet, phase 2 of #124).
+        // shortcut: a host terminal's results don't open (no editor for its files yet, phase 2 of HD-124).
         guard let root = model.target?.root, model.target?.link == nil else { return }
         app.openInEditor(path: root + "/" + path, line: hit.line, column: hit.column, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2)
     }

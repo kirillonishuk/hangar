@@ -3,7 +3,7 @@ import AppKit
 /// Where the keyboard is: Monaco's editor tab, the Monaco diff tab, or neither.
 enum WebFocus: Equatable { case none, editor, diff }
 
-/// What the key monitor does with a key while Monaco has focus (DESIGN.md «Редактор: клавиши», #80).
+/// What the key monitor does with a key while Monaco has focus (DESIGN.md «Редактор: клавиши», HD-080).
 enum EditorKey: Equatable {
     /// Hand the event to the web view untouched (it would otherwise be a Hangar shortcut).
     case monaco

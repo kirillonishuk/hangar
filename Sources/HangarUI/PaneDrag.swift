@@ -2,7 +2,7 @@ import AppKit
 import Workspace
 
 // Dragging a tab onto a pane edge, a pane header onto a pane edge or into the tab bar (splits spec §2). One gesture mechanism at window level,
-// as the tab strip's own (#54): no NSItemProvider. Points are window points from the top-left (debug `mouse`/`hit`).
+// as the tab strip's own (HD-054): no NSItemProvider. Points are window points from the top-left (debug `mouse`/`hit`).
 
 enum PaneDragSource: Equatable { case tab(UUID), leaf(UUID) }
 

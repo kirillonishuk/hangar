@@ -3,7 +3,7 @@ import Testing
 import Workspace
 @testable import HangarUI
 
-/// The custom scheme serves only bundled files; the theme comes from Theme tokens (#80).
+/// The custom scheme serves only bundled files; the theme comes from Theme tokens (HD-080).
 @Suite struct MonacoAssetsTests {
     private let root = "/b/Monaco"
 
@@ -26,7 +26,7 @@ import Workspace
         #expect(monacoMimeType("a.bin") == "application/octet-stream")
     }
 
-    /// Dark+ and Hangar take the app theme's editor chrome; Hangar's syntax is the diff's muted one (#53).
+    /// Dark+ and Hangar take the app theme's editor chrome; Hangar's syntax is the diff's muted one (HD-053).
     @Test(arguments: AppTheme.allCases) func themeUsesHangarTokens(_ app: AppTheme) throws {
         let p = ThemePalette.of(app)
         for palette in [EditorPalette.darkPlus, .hangar] {
@@ -60,7 +60,7 @@ import Workspace
         #expect(rules.contains { $0["token"] == "comment" && $0["foreground"] == "75819a" && $0["fontStyle"] == "italic" })
     }
 
-    /// VS Code Dark+ (#84): Monarch tokens and tsserver's semantic types in Dark+'s colors.
+    /// VS Code Dark+ (HD-084): Monarch tokens and tsserver's semantic types in Dark+'s colors.
     @Test func darkPlusColors() throws {
         let t = EditorTheme(palette: .darkPlus, customBase: .darkModern, custom: [:], app: .navy)
         let rules = try #require(MonacoTheme.json(t)["rules"] as? [[String: String]])

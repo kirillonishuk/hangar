@@ -1,6 +1,6 @@
 import Foundation
 
-/// ⌘P quick open / ⇧⌘P command palette logic (decision #65): fuzzy matching and ranking, no UI.
+/// ⌘P quick open / ⇧⌘P command palette logic (decision HD-065): fuzzy matching and ranking, no UI.
 
 /// Score (higher is better) and the matched character offsets of `text`, for highlighting.
 struct FuzzyMatch: Equatable {
@@ -59,7 +59,7 @@ struct PaletteItem: Equatable, Identifiable {
     enum Kind: Equatable { case task, file, command }
     enum Target: Equatable {
         case task(UUID), file(String), command(Shortcut)
-        /// «Запустить: Dev server» — a project action of the selected chat (#133).
+        /// «Запустить: Dev server» — a project action of the selected chat (HD-133).
         case action(String)
     }
 

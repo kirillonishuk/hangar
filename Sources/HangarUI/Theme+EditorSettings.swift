@@ -1,11 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// Settings → Appearance → Editor (#108, #109, editor-theme.html): the app theme tiles, the color list with its preview,
+/// Settings → Appearance → Editor (HD-108, HD-109, editor-theme.html): the app theme tiles, the color list with its preview,
 /// the color popover. Sized for the settings window's minimum (680 pt: a 441 pt page), the preview above the list.
 extension Theme {
     enum EditorSettings {
-        // App theme tiles (#109): a mini window — title bar, sidebar, code in the editor theme the app theme carries.
+        // App theme tiles (HD-109): a mini window — title bar, sidebar, code in the editor theme the app theme carries.
         // Three in a row at the minimum page width (441 pt): ≈ 139 each, ≈ 95 of code after the sidebar strip.
         static let tileHeight: CGFloat = 92
         static let tileTitlebar: CGFloat = 10

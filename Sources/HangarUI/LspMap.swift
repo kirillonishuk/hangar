@@ -1,6 +1,6 @@
 import Foundation
 
-/// A language with LSP servers (#90): Monaco's language id, a display name, the servers to look for (in order) and the
+/// A language with LSP servers (HD-090): Monaco's language id, a display name, the servers to look for (in order) and the
 /// files that mark a project's root.
 struct LspLanguage: Equatable, Sendable {
     struct Server: Equatable, Sendable {
@@ -8,7 +8,7 @@ struct LspLanguage: Equatable, Sendable {
         var args: [String]
         /// Project folders it is conventionally installed in (a venv, the npm bin); none for toolchain servers.
         var local: [String] = []
-        /// Where Settings installs it, relative to Hangar's language-server folder (#102); nil: not downloadable.
+        /// Where Settings installs it, relative to Hangar's language-server folder (HD-102); nil: not downloadable.
         var hangar: String?
     }
 
@@ -30,7 +30,7 @@ struct LspLanguage: Equatable, Sendable {
     static let rust = LspLanguage(id: "rust", name: "Rust", servers: [Server(name: "rust-analyzer", args: [], hangar: LspPackage.rustAnalyzer.relativeExecutable)],
                                   markers: ["Cargo.toml"])
 
-    /// nil: no LSP server for this file (TS/JS go to tsserver, #82).
+    /// nil: no LSP server for this file (TS/JS go to tsserver, HD-082).
     static func of(_ path: String) -> LspLanguage? {
         switch (path as NSString).pathExtension.lowercased() {
         case "py", "pyi": python
@@ -42,13 +42,13 @@ struct LspLanguage: Equatable, Sendable {
     }
 }
 
-/// The server found for a language (#90).
+/// The server found for a language (HD-090).
 struct LspFound: Equatable, Hashable, Sendable {
     var executable: String
     var args: [String]
 }
 
-/// Language server answers → editor results (#90). Everything here reads untrusted JSON: wrong types are skipped,
+/// Language server answers → editor results (HD-090). Everything here reads untrusted JSON: wrong types are skipped,
 /// lists and strings are capped, and a path from an answer must be inside the project (or a dependency folder).
 enum LspMap {
     static let maxItems = TsMap.maxItems
@@ -59,7 +59,7 @@ enum LspMap {
 
     /// Project-local first (only where the server is conventionally installed: a venv, node_modules/.bin — the same
     /// trust as tsserver from the project's node_modules), then the login shell's PATH, then the usual install places,
-    /// then Hangar's own folder (`hangarDir`, Settings → Advanced, #102: the user's own install wins);
+    /// then Hangar's own folder (`hangarDir`, Settings → Advanced, HD-102: the user's own install wins);
     /// `toolchain(name)` last (sourcekit-lsp through `xcrun`). `/usr/bin` is skipped: its developer-tool shims open the
     /// «install command line tools» dialog on a Mac without them.
     static func find(_ language: LspLanguage, projectRoot: String, path: [String], home: String, hangarDir: String? = nil,
@@ -354,7 +354,7 @@ enum LspMap {
         }
     }
 
-    /// `WorkspaceEdit` → spans of `file` (the page writes `prefix + newName + suffix`). shortcut: as for tsserver (#82),
+    /// `WorkspaceEdit` → spans of `file` (the page writes `prefix + newName + suffix`). shortcut: as for tsserver (HD-082),
     /// a rename that reaches other files is refused; lift when the editor can apply edits to unopened files.
     @MainActor static func rename(_ result: Any?, file: String, newName: String) -> ProviderResult? {
         guard let w = result as? [String: Any] else { return nil }

@@ -4,7 +4,7 @@ import Testing
 @testable import HangarUI
 import Workspace
 
-/// Every «open file» (Files, Changes, diff ↩, palette, links, Go to Definition) lands in that file's own tab (#83).
+/// Every «open file» (Files, Changes, diff ↩, palette, links, Go to Definition) lands in that file's own tab (HD-083).
 @MainActor @Suite struct EditorRoutingTests {
     private func makeApp(_ build: (inout WorkspaceState) -> Void) -> (AppState, URL) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hg-editor-route-\(UUID().uuidString)")
@@ -13,7 +13,7 @@ import Workspace
         return (AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml")), dir)
     }
 
-    /// A file tab is titled by its file (#83); its tooltip holds the path from the session folder. A terminal title
+    /// A file tab is titled by its file (HD-083); its tooltip holds the path from the session folder. A terminal title
     /// never renames it; an editor tab without a file reads «Editor».
     @Test func fileTabTitledByItsFile() {
         var ids = (t: UUID(), tab: UUID(), plain: UUID())

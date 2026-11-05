@@ -22,7 +22,7 @@ public struct HostInfo: Equatable {
     /// `reconnecting` with no timer: the next attempt waits for the app to become active.
     public var retryPaused = false
 
-    /// Something on the server is missing or stale (sidebar warning, #47).
+    /// Something on the server is missing or stale (sidebar warning, HD-047).
     public var needsAttention: Bool {
         guard state == .connected, let r = report else { return false }
         return !r.missingRequired.isEmpty || r.remoteOutdated(current: hangarRemoteVersion) || r.socketClient == nil || !forwarding
@@ -37,7 +37,7 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
     public var errorDescription: String? { description }
 }
 
-/// Every ssh host: its master, the events-only host socket and bounded reconnect (#47). No timers while idle:
+/// Every ssh host: its master, the events-only host socket and bounded reconnect (HD-047). No timers while idle:
 /// a retry is scheduled only while the app is active or the host had working agents.
 @MainActor @Observable public final class RemoteHosts {
     public private(set) var hosts: [String: HostInfo] = [:]
@@ -85,9 +85,9 @@ public enum RemoteHostError: LocalizedError, Equatable, CustomStringConvertible 
         init(master: SSHMaster) { self.master = master }
     }
 
-    /// Hangar's status line for a host's `hangar-remote statusline` (#105); set before the first connect.
+    /// Hangar's status line for a host's `hangar-remote statusline` (HD-105); set before the first connect.
     @ObservationIgnored public var statusline: (@Sendable (Data, [WireWindow]) -> String?)?
-    /// The app's Claude limits snapshot (#137); set before the first connect.
+    /// The app's Claude limits snapshot (HD-137); set before the first connect.
     @ObservationIgnored public var usage = UsageSnapshot()
 
     public init(paths: SSHPaths, sshPath: String,

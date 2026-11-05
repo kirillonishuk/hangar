@@ -6,7 +6,7 @@
   MCP «как будто я не должен ставить сам, она вместе с апкой включается»; окно настроек узкое (≈ 970×600 pt).
   Направление владельца: группы по функциям, а не по машинам; одна функция — везде (этот Mac + каждый ssh-хост);
   один лист согласия при первом запуске агента; обновления — молча; MCP — сам, при запуске.
-  Язык контролов — B′ (controls-v2.html, #106), правило «без повторов». Темы — Navy и Dark+. Размеры: px = pt 1:1.
+  Язык контролов — B′ (controls-v2.html, HD-106), правило «без повторов». Темы — Navy и Dark+. Размеры: px = pt 1:1.
   Рендер одного кадра: integrations-v2.html?only=<id> (id у каждого .frame).
 -->
 <style>
@@ -110,7 +110,7 @@ svg.b{fill:currentColor;flex:none;display:block}
 .pill.n{color:var(--tx3);background:rgba(128,128,128,.12)}
 .tagm{font-size:11px;color:var(--tx3);border:1px solid var(--control);border-radius:5px;padding:0 5px;height:17px;display:inline-flex;align-items:center;white-space:nowrap}
 
-/* status line preview + segment chips (#105; drag-reorder slot for the parallel PR) */
+/* status line preview + segment chips (HD-105; drag-reorder slot for the parallel PR) */
 .prev{height:30px;display:flex;align-items:center;white-space:pre;padding:0 10px;background:var(--termBg);border:1px solid var(--control);border-radius:6px;font:12px var(--mono);color:var(--tx);white-space:pre;overflow:hidden}
 .prev .f{opacity:.5}.prev .bar{display:inline-block;width:8ch;height:1em;vertical-align:-2px}.prev .y{color:var(--ansiY)}
 .prev.dim{opacity:.38}
@@ -195,11 +195,11 @@ svg.b{fill:currentColor;flex:none;display:block}
 
 <section>
 <h2>Всё включено</h2>
-<p class="sub">Главный переключатель — в заголовке агента. Подпись строки — функция, под ней — что она даёт. «Где установлено» — одна строка внизу карточки, без настроек по машинам. У MCP пометка «этот Mac»: на хостах сокет Hangar принимает только статусы (#47).</p>
+<p class="sub">Главный переключатель — в заголовке агента. Подпись строки — функция, под ней — что она даёт. «Где установлено» — одна строка внизу карточки, без настроек по машинам. У MCP пометка «этот Mac»: на хостах сокет Hangar принимает только статусы (HD-047).</p>
 <div class="frame" id="all-navy" data-theme="navy" data-state="all"></div>
 <div style="height:22px"></div>
 <div class="frame" id="all-dp" data-theme="dp" data-state="all"></div>
-<p class="cap"><b>Строка состояния</b> — как в #105: «Hangar — везде» / «Ваша», образец, фишки частей. Ручка ⋮⋮ слева у фишки (подсказка «Перетащите, чтобы поменять порядок» — в тултипе) — место для параллельного PR (перестановка фишек, текст строки только по-английски). Если тот PR войдёт раньше, слот уже готов. Если позже — до него фишки без ручки.</p>
+<p class="cap"><b>Строка состояния</b> — как в HD-105: «Hangar — везде» / «Ваша», образец, фишки частей. Ручка ⋮⋮ слева у фишки (подсказка «Перетащите, чтобы поменять порядок» — в тултипе) — место для параллельного PR (перестановка фишек, текст строки только по-английски). Если тот PR войдёт раньше, слот уже готов. Если позже — до него фишки без ручки.</p>
 </section>
 
 <section>
@@ -225,7 +225,7 @@ svg.b{fill:currentColor;flex:none;display:block}
   <div><div class="frame" id="partial" data-theme="navy" data-state="partial" data-small="1"></div>
   <p class="cap"><b>Часть выключена.</b> «Лимиты» выкл. — строка Hangar остаётся, но не шлёт <code>rate_limits</code> в приложение (флаг читается при каждом запуске, файл не меняется). MCP Codex выкл. — запись <code>[mcp_servers.hangar]</code> удалена и больше не добавляется. Главный переключатель агента выкл. — строки приглушены (.38), записи Hangar сняты везде, отключённые хосты — при подключении.</p></div>
   <div><div class="frame" id="offline" data-theme="navy" data-state="offline" data-small="1"></div>
-  <p class="cap"><b>Хост без связи и новый хост.</b> gpu-box: «нет связи», применится при подключении. lab-01: подключён, но согласия ещё не было — «Подключить…» открывает лист хоста. Под курсором devbox — тултип про <b>тихое обновление</b>: когда, что и где копия. На экране отметки нет (#96: только лог), только в тултипе.</p></div>
+  <p class="cap"><b>Хост без связи и новый хост.</b> gpu-box: «нет связи», применится при подключении. lab-01: подключён, но согласия ещё не было — «Подключить…» открывает лист хоста. Под курсором devbox — тултип про <b>тихое обновление</b>: когда, что и где копия. На экране отметки нет (HD-096: только лог), только в тултипе.</p></div>
 </div>
 <div style="height:24px"></div>
 <div class="grid2">
@@ -242,7 +242,7 @@ svg.b{fill:currentColor;flex:none;display:block}
   <li><s>Строки «Claude Code / Codex» с плашкой и кнопками «Установить… / Обновить… / Удалить»</s> и лист diff из Настроек: их заменили переключатели функций. Diff живёт в «Что изменится» первого листа.</li>
   <li><s>Секция «MCP» с командами <code>claude mcp add …</code> / <code>codex mcp add …</code> и «Скопировать»</s> (<code>mcpAddCommands</code>).</li>
   <li><s>Строки интеграций в листе «Сервер»</s> (установка и удаление на хосте). Остаются инструменты (git, tmux, claude…) и <code>hangar-remote</code>.</li>
-  <li><s>Ограничение «перенос Hangar.app ломает хуки до переустановки» (#43)</s>: при запуске точные записи Hangar переводятся на новый путь.</li>
+  <li><s>Ограничение «перенос Hangar.app ломает хуки до переустановки» (HD-043)</s>: при запуске точные записи Hangar переводятся на новый путь.</li>
   <li><s>Отдельная секция «Строка состояния Claude»</s>: теперь это строка внутри карточки Claude Code.</li>
 </ul>
 </section>

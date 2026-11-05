@@ -241,11 +241,14 @@ extension AppState {
     func refreshCodexUsage(afterTurn: Bool) async {
         guard let read = codexRead, codexGate.begin(afterTurn: afterTurn, now: clock()) else { return }
         defer { codexGate.end(now: clock()) }
+        codexRefresh = .running
         do {
             let u = try await read()
+            codexRefresh = .idle
             tickUsageClock()
             alert(usage.update(.codex, windows: u.windows, plan: u.plan, now: usageClock))
         } catch {
+            codexRefresh = .failed
             uiLog.error("codex limits read failed: \(String(describing: error), privacy: .public)")
         }
     }

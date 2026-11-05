@@ -441,7 +441,10 @@
 "archiveToggleHelp" = "Archive — show/hide";
 "showFiles" = "Show files";
 "hostsMenuHelp" = "Servers from ~/.ssh/config";
-"refreshLimitsHelp" = "Refresh limits";
+"refreshLimitsHelp" = "Refresh Codex limits";
+"claudeLimitsHint" = "updates when a Claude agent takes a turn";
+"claudeLimitsHintHelp" = "Claude sends its limits through the status line while an agent works: there are no new figures between turns and they can't be requested.";
+"codexLimitsFailed" = "couldn't refresh";
 "worktreeRootHint" = "All copies of this project go here: %@/<branch>";
 "worktreeCopy" = "Bring into the copy";
 "worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";

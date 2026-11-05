@@ -50,6 +50,7 @@ It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://githu
 - **Chats without a project.** ⌥⌘N (or «+» in the Chats section) starts your default agent in one shared Chats folder, for questions that aren't about a repository. Closing such a chat puts it to sleep; a click wakes it with its own conversation. Files dropped on its Files panel are copied into the folder and mentioned in the agent's input.
 - **Agent states.** Working, waiting, done, error and at-limit, from Claude Code and Codex hooks: a dot in the sidebar, a word when a chat needs you, the bell's inbox, the Dock badge and notifications.
 - **Branch in the toolbar.** Each chat shows its live branch. The switcher checks out a local or remote branch or creates a new one, and refuses when uncommitted changes or ignored files would be lost.
+- **Project actions.** Named commands like «Dev server» → `pnpm dev`, «Test», «Lint», defined in Project Settings (optionally in a sub-folder such as `apps/cms`; «Add Action» suggests the `package.json` scripts of the root and every workspace package, plus Makefile and justfile targets) or shared with your team in `.hangar/actions.json` (entries you don't want can be hidden). ▶ in the toolbar (⌘R), the chat's menu or the command palette runs one in the chat's folder or copy, in its own tab with the chat's `HANGAR_PORT`; running it again stops the old run (⌃C) and restarts it in the same tab. A command from the repository file runs only after you confirm it once (and again whenever it changes).
 - **Inspector.** Files, Changes (not committed or the whole branch), Git (branches, graph, history with filters) and Search in files.
 - **Editor and diff.** [Monaco](https://github.com/microsoft/monaco-editor), side-by-side or inline diff. TypeScript/JavaScript go to definition, references, hover and rename via the project's `tsserver`; Python, Swift, Go and Rust via `pyright`/`pylsp`, `sourcekit-lsp`, `gopls`, `rust-analyzer` when installed.
 - **History (⌘Y).** Closed chats and past Claude and Codex conversations, searchable, with Continue. The Chats scope lists chats without a project by day and searches the text of their conversations.
@@ -119,6 +120,7 @@ Changes are additive: Hangar only adds and removes its own entries, leaves yours
 | ⇧⌘P | Command palette |
 | ⌘Y | History |
 | ⇧⌘L | Subscription limits |
+| ⌘R | Run the chat's last project action |
 | ⌥⌘R / ⌥⌘C | Reveal in Finder / copy path |
 | F2 | Rename |
 | ⌘, | Settings |
@@ -135,7 +137,7 @@ hangar doctor
 
 A chat is a `session` in the CLI and MCP (`hangar sessions …`, `sessions_list`); those names are the API and stay. They cover project chats only (plus sub-chats): chats without a project and server terminals aren't visible there. `hangar mcp` runs the MCP server over stdio (`--read-only` for the safe subset). Destructive calls require `--yes` / `yes: true`.
 
-MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `sessions_note`, `tabs_open`, `tabs_send`, `tabs_read`, `tabs_wait`, `ssh_open`, `links_create`, `doctor`.
+MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, `sessions_archive`, `sessions_restore`, `sessions_spawn`, `sessions_wait`, `sessions_note`, `tabs_open`, `tabs_send`, `tabs_read`, `tabs_wait`, `ssh_open`, `links_create`, `actions_list`, `actions_run`, `doctor`.
 
 **Sub-chats.** A sub-chat is a way to do something in parallel: a full chat with its own terminal and agent, shown under its parent in the sidebar. Start one yourself — «New Sub-chat…» in a chat's menu, or ⇧⌥⌘N — or let an agent do it with `sessions_spawn` (CLI `hangar sessions spawn --name N --prompt TEXT`). By default it works in the parent's own folder — the same worktree (or main folder), so both chats share one checkout; pick «In a separate copy» (`worktree: true` / `--worktree`) for a new worktree instead. A sub-chat never touches its parent: nothing is typed into the parent's terminal. When it has fully finished — its agent stopped and no background task it started is still running — you get a notification and the sidebar shows its status. An agent that wants the result asks for it: `sessions_wait` blocks until the sub-chats are done, need input or failed, and returns each one's compact final message (capped at ~1500 characters; `still-running` on timeout: call again). Archiving a sub-chat never removes a worktree its parent still uses; archiving the parent takes its sub-chats along.
 
@@ -149,6 +151,8 @@ hangar tabs wait --tab <id> --for idle             # until that tab's agent ends
 An agent reports its progress with `sessions_note`: one short line (up to 100 characters) on its own chat, shown in the chat's tooltip in the sidebar, after the project in the toolbar, and in `sessions_list` / `sessions_wait`; it stays until the agent replaces or clears it. `tabs_wait` blocks until a tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`), and returns its status and last message (`still-running` on timeout: call again).
 
 **Hangar skill.** Settings → Integrations → «Hangar skill» (Claude Code and Codex, this Mac, off by default) installs a short skill at `~/.claude/skills/hangar/SKILL.md` / `~/.codex/skills/hangar/SKILL.md` that teaches the agent when and how to split work into sub-chats with these tools. Nothing is installed until you turn it on; turning it off removes Hangar's own file (a backup is kept), and someone else's `skills/hangar` is never touched.
+
+**Project actions.** `hangar actions list` / `actions_list` shows the chat's actions and which are running; `hangar actions run --name "Dev server"` / `actions_run` starts one like the ▶ button (an agent can start the dev server it needs). Both default to the calling chat. A command from `.hangar/actions.json` that you haven't approved in Hangar is refused.
 
 ## Build from source
 

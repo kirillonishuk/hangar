@@ -101,6 +101,8 @@ struct WindowTitleBar: View {
         .frame(maxWidth: .infinity, minHeight: Theme.Height.barToolbar, maxHeight: Theme.Height.barToolbar)
         .background(WindowDragArea())
         .ignoresSafeArea()
+        // `.hangar/actions.json` of the selected chat's folder: the run button shows its actions too (#133).
+        .task(id: app.state.selectedTaskId) { if let task = app.selectedTask { await app.loadRepoActions(task) } }
     }
 
     @ViewBuilder private var title: some View {
@@ -121,6 +123,9 @@ struct WindowTitleBar: View {
             .allowsHitTesting(false)
             if let task = app.selectedTask, !app.isOutsideProjects(task), let branch = app.head(of: task)?.title ?? task.branch {
                 BranchButton(app: app, task: task, branch: branch)
+            }
+            if let task = app.selectedTask, let action = app.primaryAction(of: task) {
+                RunActionButton(app: app, task: task, action: action).layoutPriority(1)
             }
         }
     }

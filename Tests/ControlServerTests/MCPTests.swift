@@ -60,7 +60,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         var s = session(FakeApp())
         let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
         let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "sessions_list", "sessions_create", "tabs_open", "tabs_send", "tabs_read", "sessions_archive", "doctor", "sessions_restore", "ssh_open", "links_create", "sessions_spawn", "sessions_wait", "sessions_note", "tabs_wait"])
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "projects_add", "sessions_list", "sessions_create", "tabs_open", "tabs_send", "tabs_read", "sessions_archive", "doctor", "sessions_restore", "ssh_open", "links_create", "sessions_spawn", "sessions_wait", "actions_list", "actions_run", "sessions_note", "tabs_wait"])
         var byName: [String: [String: Any]] = [:]
         for t in tools {
             let schema = try #require(t["inputSchema"] as? [String: Any])
@@ -154,7 +154,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         }
         let r = try object(s.handle(line(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)))
         let tools = try #require((r["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.map { $0["name"] as? String } == ["projects_list", "sessions_list", "tabs_read", "doctor", "sessions_wait", "tabs_wait"])
+        #expect(tools.map { $0["name"] as? String } == ["projects_list", "sessions_list", "tabs_read", "doctor", "sessions_wait", "actions_list", "tabs_wait"])
         for name in ["sessions_archive", "tabs_send", "sessions_create", "sessions_restore", "projects_add", "tabs_open",
                      "tasks_archive", "tasks_create", "tasks_restore"] {
             let refused = try object(s.handle(call(name, #"{"task":"t","yes":true}"#)))
@@ -165,7 +165,7 @@ private func toolResult(_ r: [String: Any]) -> (text: String?, isError: Bool?) {
         _ = try object(s.handle(call("sessions_list", "{}")))
         _ = try object(s.handle(call("tasks_list", "{}")))
         #expect(app.calls == [.tasksList(project: nil), .tasksList(project: nil)])
-        #expect(Set(ControlMethod.allCases.filter(\.readOnly)) == [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait, .tabsWait])
+        #expect(Set(ControlMethod.allCases.filter(\.readOnly)) == [.projectsList, .tasksList, .tabsRead, .doctor, .tasksWait, .actionsList, .tabsWait])
     }
 
     /// Pre-rename `tasks_*` names and the `task` argument stay callable (#73); `session` is the listed name.

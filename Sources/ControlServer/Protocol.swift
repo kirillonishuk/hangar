@@ -519,6 +519,55 @@ public struct WaitResult: Codable, Equatable, Sendable {
     public init(sessions: [SubSessionInfo]) { self.sessions = sessions }
 }
 
+/// One project action of a session (`actions.list`, #133).
+public struct ActionInfo: Codable, Equatable, Sendable {
+    public var name: String
+    public var command: String
+    /// Where it runs, relative to the session's folder; nil — the folder itself.
+    public var folder: String?
+    /// "settings" (this Mac's project settings) | "repo" (`.hangar/actions.json` in the session's folder).
+    public var source: String
+    public var restart: Bool
+    /// A repo action's command was confirmed by the user (settings actions: always true).
+    public var approved: Bool
+    /// The tab running it now; nil when it is not running.
+    public var runningTab: UUID?
+
+    public init(name: String, command: String, folder: String? = nil, source: String, restart: Bool, approved: Bool, runningTab: UUID?) {
+        self.name = name
+        self.command = command
+        self.folder = folder
+        self.source = source
+        self.restart = restart
+        self.approved = approved
+        self.runningTab = runningTab
+    }
+}
+
+public struct ActionsResult: Codable, Equatable, Sendable {
+    public var task: UUID
+    public var actions: [ActionInfo]
+    /// What is wrong with `.hangar/actions.json` (its good entries are still listed); nil — fine or absent.
+    public var error: String?
+    public init(task: UUID, actions: [ActionInfo], error: String?) {
+        self.task = task
+        self.actions = actions
+        self.error = error
+    }
+}
+
+public struct ActionRunResult: Codable, Equatable, Sendable {
+    public var task: UUID
+    public var tab: TabInfo
+    /// The action's running copy was stopped and started again in its tab.
+    public var restarted: Bool
+    public init(task: UUID, tab: TabInfo, restarted: Bool) {
+        self.task = task
+        self.tab = tab
+        self.restarted = restarted
+    }
+}
+
 public struct NoteResult: Codable, Equatable, Sendable {
     public var task: UUID
     /// nil: cleared.

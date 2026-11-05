@@ -5,6 +5,8 @@ public enum Shortcut: Equatable, CaseIterable {
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
+    /// The selected chat's last project action (#133).
+    case runAction
     /// Palette only, no key (design system §6: what the status bar's «N работает» did); not in `allCases`, the key table.
     case nextWorking
 
@@ -13,7 +15,7 @@ public enum Shortcut: Equatable, CaseIterable {
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .inspectorGit, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
-            + [.attentionFilter, .sessions, .findInFiles, .nextAttention]
+            + [.attentionFilter, .sessions, .findInFiles, .nextAttention, .runAction]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -56,6 +58,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .sessions: (.command, 16, "Y")  // as Safari's History; free in Ghostty
         case .findInFiles: ([.command, .shift], 3, "F")  // as in VS Code
         case .nextAttention: ([.command, .option], 0, "A")  // the next leaf in the inbox's order
+        case .runAction: (.command, 15, "R")  // as Xcode's Run; free in Ghostty
         case .nextWorking: ([], .max, "")
         }
     }

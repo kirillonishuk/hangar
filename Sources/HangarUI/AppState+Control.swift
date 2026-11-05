@@ -229,6 +229,44 @@ extension AppState {
             case .success(let target): return .ok(id, LinkResult(url: target.link.url.absoluteString))
             case .failure(let e): return fail(e)
             }
+
+        case let .actionsList(ref):
+            let taskId: UUID
+            switch resolveParent(ref) {
+            case .success(let t): taskId = t
+            case .failure(let e): return fail(e)
+            }
+            guard let task = state.tasks.first(where: { $0.id == taskId }), actionsFolder(of: task) != nil else {
+                return fail(ControlError(code: .badParams, message: "this session has no project: no actions"))
+            }
+            let repo = await loadRepoActions(task)
+            let approved = project(task.projectId)?.approvedActions
+            let running = runningActions(of: task)
+            let infos = actions(of: task).map { a in
+                ActionInfo(name: a.name, command: a.action.command, folder: a.action.folder, source: a.source.rawValue, restart: a.action.restart,
+                           approved: !actionNeedsApproval(a, approved: approved), runningTab: running.first { $0.name == a.name }?.tab)
+            }
+            return .ok(id, ActionsResult(task: taskId, actions: infos, error: repo.error))
+
+        case let .actionsRun(ref, name):
+            let taskId: UUID
+            switch resolveParent(ref) {
+            case .success(let t): taskId = t
+            case .failure(let e): return fail(e)
+            }
+            switch await runActionFromControl(name, taskId: taskId) {
+            case .failure(.noAction(let n)): return fail(ControlError(code: .notFound, message: "no action \"\(n.prefix(64))\" in this session's project (see actions list)"))
+            case .failure(.needsApproval(let n)):
+                return fail(ControlError(code: .failed, message: "action \"\(n.prefix(64))\" comes from .hangar/actions.json and its command is not approved yet: the user runs it once in Hangar (the Run button) to approve it"))
+            case .failure(.notAvailable): return fail(ControlError(code: .badParams, message: "this session has no project: no actions"))
+            case .failure(.missingFolder(let path)):
+                return fail(ControlError(code: .notFound, message: "the action's folder is not in this session's checkout: \(path)"))
+            case .success(let started):
+                guard let tab = state.tasks.first(where: { $0.id == taskId })?.tabs.first(where: { $0.id == started.tab }) else {
+                    return fail(ControlError(code: .failed, message: "tab was not created"))
+                }
+                return .ok(id, ActionRunResult(task: taskId, tab: tabInfo(tab), restarted: started.restarted))
+            }
         }
     }
 

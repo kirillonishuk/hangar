@@ -75,6 +75,7 @@ public struct MCPSession {
                 arguments["task"] = session
             }
             if m == .tasksSpawn || m == .tasksWait, arguments["parent"] == nil, let callerLeaf { arguments["parent"] = callerLeaf }
+            if m == .actionsList || m == .actionsRun, arguments["task"] == nil, let callerLeaf { arguments["task"] = callerLeaf }
             if m == .tasksNote, arguments["task"] == nil, let callerLeaf { arguments["task"] = callerLeaf }
             if m == .tasksWait || m == .tabsWait, arguments["timeout"] == nil {
                 arguments["timeout"] = clientName == "codex-mcp-client" ? ControlMethod.waitCodexSeconds : ControlMethod.waitDefaultSeconds

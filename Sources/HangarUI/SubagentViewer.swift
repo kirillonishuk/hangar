@@ -73,6 +73,10 @@ import SwiftUI
         let new = reader.read(url)
         guard !new.isEmpty else { return }
         entries += new
+        // Already read for the view: an interrupted subagent sends no SubagentStop, its transcript says so.
+        if let last = new.last, last.kind == .prompt, last.text.hasPrefix("[Request interrupted by user"), let agentId = item?.agentId {
+            app?.updateSubagents(leaf, .interrupted(agentId: agentId))
+        }
         if entries.count > Self.maxEntries { entries.removeSubrange(1..<(entries.count - Self.maxEntries + 1)) }
     }
 

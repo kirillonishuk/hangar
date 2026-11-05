@@ -58,6 +58,31 @@ import AgentStatus
         #expect(subagentTitle(String(repeating: "й", count: 300))?.count == 200)
     }
 
+    /// Stop's `background_tasks` (hooks reference, Stop input): a subagent task's `id` is its agent id.
+    @Test func stopCarriesTheGoingBackgroundIds() throws {
+        let stop = event("stop", #"""
+        {"background_tasks":[{"id":"a2","type":"subagent","status":"running","agent_type":"general-purpose"},
+         {"id":"b9","type":"shell","status":"running"},{"id":"a1","type":"subagent","status":"completed"},{"id":"../x"}]}
+        """#)
+        #expect(stop?.backgroundIds == ["a2", "b9"] && stop?.background == 3)
+        #expect(event("stop", #"{"background_tasks":[]}"#)?.backgroundIds == [])
+        #expect(event("stop", "{}")?.backgroundIds == nil)
+        #expect(event("subagent-stop", #"{"agent_id":"a1","background_tasks":[{"id":"a2"}]}"#)?.backgroundIds == nil)
+        let many = (0..<100).map { #"{"id":"t\#($0)"}"# }.joined(separator: ",")
+        #expect(event("stop", #"{"background_tasks":[\#(many)]}"#)?.backgroundIds == nil)
+        // Checked again at the socket: a hostile id drops the whole list.
+        var bad = try #require(stop)
+        bad.backgroundIds = ["ok", "../x"]
+        guard case .success(.event(let back)) = ControlMessage.decode(ControlMessage.event(bad).encoded().dropLast()) else {
+            Issue.record("decode"); return
+        }
+        #expect(back.backgroundIds == nil)
+        guard case .success(.event(let good)) = ControlMessage.decode(ControlMessage.event(stop!).encoded().dropLast()) else {
+            Issue.record("decode"); return
+        }
+        #expect(good.backgroundIds == ["a2", "b9"])
+    }
+
     @Test func theSocketChecksTheFieldsAgain() throws {
         let line = Data(#"""
         {"v":1,"type":"event","tab":"\#(tab.uuidString)","leaf":"\#(leaf.uuidString)","kind":"subagent-start","toolUseId":"../x",

@@ -61,7 +61,7 @@ import Testing
             (.launch(toolUseId: "t1", type: "Explore", title: "Bg", prompt: nil), 1),
             (.returned(toolUseId: "t1", agentId: "a1", background: true), 2),
             (.launch(toolUseId: "t2", type: "Explore", title: "Fg", prompt: nil), 3),
-            (.turnEnd, 10),
+            (.turnEnd(going: nil), 10),
         ])
         // A foreground agent still running at Stop never returned: interrupted.
         #expect(l.items.map(\.state) == [.running, .failed])
@@ -69,15 +69,47 @@ import Testing
         // Claude's own turn after the background agent finished: the fresh result stays, the earlier failure goes.
         l.apply(.turnStart, now: at(61))
         #expect(l.items.map(\.title) == ["Bg"] && l.items.first?.state == .done)
-        l.apply(.turnEnd, now: at(70))
+        l.apply(.turnEnd(going: nil), now: at(70))
         l.apply(.turnStart, now: at(100))
         #expect(l.items.isEmpty)
     }
 
-    @Test func runningRowsSurviveATurnStart() {
-        var l = list([(.launch(toolUseId: "t1", type: nil, title: "X", prompt: nil), 0)])
-        #expect(l.apply(.turnStart, now: at(1)) == false)
-        #expect(l.items.count == 1)
+    /// Esc sends no Stop: the next prompt ends a foreground subagent still shown running; a background one runs on.
+    @Test func aPromptEndsTheForegroundOnly() {
+        var l = list([
+            (.launch(toolUseId: "fg", type: nil, title: "Fg", prompt: nil), 0),
+            (.launch(toolUseId: "bg", type: nil, title: "Bg", prompt: nil), 0),
+            (.returned(toolUseId: "bg", agentId: "b1", background: true), 1),
+        ])
+        #expect(l.apply(.turnStart, now: at(5)) == true)
+        #expect(l.items.map(\.state) == [.failed, .running] && l.items.first?.ended == at(5))
+    }
+
+    /// The owner's case: two background subagents, one interrupted (no SubagentStop); Stop lists only the other.
+    @Test func stopsBackgroundTasksEndTheUnlisted() {
+        var l = list([
+            (.launch(toolUseId: "t1", type: nil, title: "LEAD-01", prompt: nil), 0),
+            (.returned(toolUseId: "t1", agentId: "a1", background: true), 1),
+            (.launch(toolUseId: "t2", type: nil, title: "Task 6", prompt: nil), 2),
+            (.returned(toolUseId: "t2", agentId: "a2", background: true), 3),
+            (.launch(toolUseId: "t3", type: nil, title: "No id", prompt: nil), 4),
+            (.returned(toolUseId: "t3", agentId: nil, background: true), 5),
+        ])
+        // No list (older Claude Code, StopFailure): nothing is told ended.
+        l.apply(.turnEnd(going: nil), now: at(9))
+        #expect(l.running == 3)
+        l.apply(.turnEnd(going: ["a2", "shell-1"]), now: at(10))
+        #expect(l.items.map(\.state) == [.failed, .running, .running] && l.running == 2)
+        // A stop that raced the Stop: it finished, not interrupted.
+        l.apply(.stopped(agentId: "a1", result: "ok"), now: at(11))
+        #expect(l.items.first?.state == .done && l.items.first?.result == "ok" && l.items.first?.ended == at(10))
+    }
+
+    @Test func anInterruptedTranscriptEndsItsRow() {
+        var l = list([(.launch(toolUseId: "t1", type: nil, title: "X", prompt: nil), 0), (.started(agentId: "a1", type: nil), 1)])
+        #expect(l.apply(.interrupted(agentId: "other"), now: at(2)) == false)
+        l.apply(.interrupted(agentId: "a1"), now: at(3))
+        #expect(l.items.first?.state == .failed && l.items.first?.ended == at(3))
     }
 
     @Test func resumedAgentRunsAgain() {

@@ -23,7 +23,8 @@ extension AppState {
             guard let id = e.toolUseId else { return }
             event = .returned(toolUseId: id, agentId: e.agentId, background: e.backgrounded == true)
         case .prompt: event = .turnStart
-        case .stop, .stopFailure: event = .turnEnd
+        case .stop: event = .turnEnd(going: e.backgroundIds.map(Set.init))
+        case .stopFailure: event = .turnEnd(going: nil)
         case .sessionStart:
             // compact keeps the conversation and its subagents.
             guard e.source != "compact" else { return }

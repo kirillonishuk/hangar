@@ -22,6 +22,8 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var tabAgent: Bool?
     /// Stop's running `background_tasks` (0...99); nil — the payload had no such list.
     public var background: Int?
+    /// Stop's going `background_tasks` ids (<= 99): a running background subagent not among them ended (HD-145); nil — no list.
+    public var backgroundIds: [String]?
     /// Subagents (spec agent-subagents §3): the Agent tool call's `tool_use_id` (PreToolUse / PostToolUse of Agent|Task).
     public var toolUseId: String?
     /// SubagentStart / SubagentStop `agent_id`, or the Agent tool result's `agentId`.
@@ -131,6 +133,7 @@ public enum ControlMessage: Equatable, Sendable {
             m.session = validSessionId(m.session)
             if let pid = m.agentPid, pid <= 0 { m.agentPid = nil }
             if let b = m.background, !(0...99).contains(b) { m.background = nil }
+            if let ids = m.backgroundIds, ids.count > 99 || ids.contains(where: { subagentId($0) == nil }) { m.backgroundIds = nil }
             m.message = m.message.map { String($0.prefix(maxEventMessage(m.kind))) }
             // Details, not routing: an oversized one is dropped, the event itself still counts.
             if let t = m.tool, t.count > 64 { m.tool = nil }
@@ -617,6 +620,14 @@ public struct TabWaitResult: Codable, Equatable, Sendable {
 /// A turn's final answer (Stop, codex notify) is a sub-session's result (HD-128): longer than other hook texts.
 public func maxEventMessage(_ kind: HookKind) -> Int {
     [.stop, .codexNotify, .subagentStart, .subagentStop].contains(kind) ? 2000 : 500
+}
+
+/// Stop's going `background_tasks` ids (a background subagent's id is its agent id). nil — no list, or more than fit:
+/// then nothing can be told ended from it.
+public func runningBackgroundIds(_ raw: Any?) -> [String]? {
+    guard let list = raw as? [Any] else { return nil }
+    let ids = list.filter(backgroundTaskGoing).compactMap { subagentId(($0 as? [String: Any])?["id"] as? String) }
+    return ids.count > 99 ? nil : ids
 }
 
 /// A `tool_use_id` / `agent_id` from a hook (trust boundary): `[A-Za-z0-9_-]{1,128}`, else none — it names a transcript file.

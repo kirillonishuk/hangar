@@ -83,6 +83,56 @@ import Workspace
         #expect(app.subagentPanel == nil)
     }
 
+    /// The owner's case: «2 субагента работают», one of them was interrupted (no SubagentStop); the next Stop's
+    /// `background_tasks` lists only the other, so one row is left.
+    @Test func stopsBackgroundTasksEndAnInterruptedSubagent() throws {
+        let (app, task, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        hook(app, tab, leaf, .prompt)
+        for (n, title) in ["Implement LEAD-01", "Implement Task 6"].enumerated() {
+            hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "t\(n)"; $0.title = title }
+            hook(app, tab, leaf, .subagentRun) { $0.agentId = "a\(n)" }
+            hook(app, tab, leaf, .tool) { $0.tool = "Agent"; $0.toolUseId = "t\(n)"; $0.agentId = "a\(n)"; $0.backgrounded = true }
+        }
+        hook(app, tab, leaf, .stop) { $0.backgroundIds = ["a0", "a1"] }
+        #expect(app.subagentRows(of: task).count == 2)
+        hook(app, tab, leaf, .prompt)
+        hook(app, tab, leaf, .stop) { $0.backgroundIds = ["a1", "shell-7"] }
+        #expect(app.subagentRows(of: task).map(\.item.title) == ["Implement Task 6"])
+        #expect(app.subagent(leaf: leaf, id: "t0")?.state == .failed)
+    }
+
+    /// Esc sends no Stop: the next prompt ends the foreground subagent left running; the background one stays.
+    @Test func aPromptEndsAForegroundSubagentLeftRunning() throws {
+        let (app, task, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        hook(app, tab, leaf, .prompt)
+        hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "bg"; $0.title = "Background" }
+        hook(app, tab, leaf, .tool) { $0.tool = "Agent"; $0.toolUseId = "bg"; $0.agentId = "b1"; $0.backgrounded = true }
+        hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "fg"; $0.title = "Foreground" }
+        #expect(app.subagentRows(of: task).count == 2)
+        hook(app, tab, leaf, .prompt)
+        #expect(app.subagentRows(of: task).map(\.item.title) == ["Background"])
+    }
+
+    /// The open view already reads the transcript: «[Request interrupted by user]» at its end ends the row.
+    @Test func anOpenViewSeesTheInterruption() throws {
+        let (app, task, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        hook(app, tab, leaf, .subagentStart) { $0.toolUseId = "t1"; $0.title = "Scan" }
+        hook(app, tab, leaf, .subagentRun) { $0.agentId = "a1" }
+        let file = try transcript(app, agent: "a1", "Do it")
+        let h = try FileHandle(forWritingTo: file)
+        try h.seekToEnd()
+        try h.write(contentsOf: Data((#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"# + "\n").utf8))
+        try h.close()
+        app.openSubagentPanel(leaf: leaf, id: "t1")
+        app.syncSubagentPanel(windowVisible: true)
+        #expect(app.subagentRows(of: task).isEmpty && app.subagent(leaf: leaf, id: "t1")?.state == .failed)
+        #expect(app.subagentPanel?.item?.state == .failed)
+        app.closeSubagentPanel()
+    }
+
     /// claude's folder for the repo: every UTF-16 unit that isn't an ASCII letter or digit becomes `-`.
     private func transcript(_ app: AppState, agent: String, _ text: String) throws -> URL {
         let folder = String(dir.appendingPathComponent("repo").path.utf16.map { u in

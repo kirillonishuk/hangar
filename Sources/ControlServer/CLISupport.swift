@@ -39,7 +39,10 @@ public func eventMessage(kind: String, tab: UUID, leaf: UUID, args: [String], pa
             m.tool = (object["tool_name"] as? String).flatMap { $0.count > 64 ? nil : $0 }
             m.command = ((object["tool_input"] as? [String: Any])?["command"] as? String).map { String($0.prefix(500)) }
         }
-        if kind == .stop { m.background = runningBackgroundTasks(object["background_tasks"]) }
+        if kind == .stop {
+            m.background = runningBackgroundTasks(object["background_tasks"])
+            m.backgroundIds = runningBackgroundIds(object["background_tasks"])
+        }
         subagentFields(&m, object)
         // SubagentStart / SubagentStop name the subagent itself; on every other event `agent_id` means it fired inside one.
         if kind != .subagentRun, kind != .subagentStop, subagentId(object["agent_id"] as? String) != nil { m.inSubagent = true }

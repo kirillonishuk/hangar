@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-checks a bundled Hangar.app (built dir or mounted DMG): Ghostty resources complete (dotfiles included),
+# Smoke-checks a bundled Hangar.app (built dir or mounted DMG): Ghostty and HangarUI resources complete (dotfiles included),
 # zsh integration really restores the user's ~/.zshrc, version stamped, signature valid. Usage:
 #   scripts/verify-bundle.sh path/to/Hangar.app [expected-version]
 # HANGAR_VERIFY_SIGNED=1 (releases): app and helper must be signed by the "Hangar Self-Signed" certificate
@@ -21,6 +21,15 @@ for d in ghostty terminfo; do
     [ -e "$RES/$d/${f#"$SHARE/$d/"}" ] || fail "$d/${f#"$SHARE/$d/"} is missing from the bundle (dotfile dropped by an artifact/copy step?)"
   done < <(find "$SHARE/$d" -type f -o -type l)
 done
+
+# 1b. SwiftPM resources sit where the app looks (L10n.resources); `Bundle.module` would crash on launch (0.18.0).
+for f in HangarSkill.md en.lproj/Localizable.strings ru.lproj/Localizable.strings; do
+  [ -n "$(find "$RES/Hangar_HangarUI.bundle" -path "*/$f" -print -quit 2>/dev/null)" ] \
+    || fail "$f is missing from Contents/Resources/Hangar_HangarUI.bundle"
+done
+# shortcut: no smoke launch, the release build ignores HANGAR_STATE_DIR and would touch real state (AGENTS.md).
+LC_ALL=C grep -aq 'could not load resource bundle' "$APP/Contents/MacOS/Hangar" \
+  && fail "the binary contains SwiftPM's Bundle.module accessor (fatalError on launch): use L10n.resources"
 
 # 2. Reproduce the real failure: a tab's zsh must still read the user's ~/.zshrc through Ghostty's ZDOTDIR.
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

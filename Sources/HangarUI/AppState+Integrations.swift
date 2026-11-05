@@ -285,9 +285,12 @@ extension AppState {
         integrations.mcp[agent] = status
     }
 
-    /// The skill shipped in the bundle (`Resources/HangarSkill.md`).
-    static let hangarSkillText: String? = Bundle.module.url(forResource: "HangarSkill", withExtension: "md")
-        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+    /// The skill shipped in the bundle (`Resources/HangarSkill.md`); found like the strings (`L10n.resources`), nil if missing.
+    static let hangarSkillText: String? = hangarSkillText(in: L10n.resources)
+
+    nonisolated static func hangarSkillText(in resources: Bundle?) -> String? {
+        resources?.url(forResource: "HangarSkill", withExtension: "md").flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+    }
 
     /// `<agent dir>/skills/hangar/SKILL.md` of this Mac (Claude's folder, or Codex's).
     func skillURL(_ agent: MCPAgent) async -> URL {

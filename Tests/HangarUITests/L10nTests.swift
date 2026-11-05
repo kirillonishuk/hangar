@@ -140,4 +140,33 @@ import Workspace
         // The real search finds the bundle without touching SwiftPM's fatalError-ing Bundle.module.
         #expect(L10n.lookup(.sectionPinned, .en, in: L10n.resources) == "Pinned")
     }
+
+    /// 0.18.0 quit on launch: `Bundle.module` fatalErrors in the .app (bundle.sh puts the bundle in Contents/Resources).
+    @Test func skillTextFromAppLayoutOrNil() throws {
+        let app = FileManager.default.temporaryDirectory.appendingPathComponent("hangar-l10n-\(UUID().uuidString)/Hangar.app")
+        defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }
+        let res = app.appendingPathComponent("Contents/Resources")
+        let bundle = res.appendingPathComponent("Hangar_HangarUI.bundle")
+        try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+        try "---\nname: hangar\n".write(to: bundle.appendingPathComponent("HangarSkill.md"), atomically: true, encoding: .utf8)
+        let found = L10n.findResources(in: [res, app])
+        #expect(AppState.hangarSkillText(in: found) == "---\nname: hangar\n")
+        #expect(AppState.hangarSkillText(in: nil) == nil)
+        #expect(AppState.hangarSkillText(in: L10n.findResources(in: [app])) == nil)
+        #expect(AppState.hangarSkillText?.hasPrefix("---\nname: hangar\n") == true)
+    }
+
+    /// Guard: SwiftPM's generated `Bundle.module` must never be used in Sources/ (it crashes the bundled app).
+    @Test func sourcesNeverUseBundleModule() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../Sources").standardized
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var offenders: [String] = []
+        for case let url as URL in files where url.pathExtension == "swift" {
+            for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") {
+                let code = line.components(separatedBy: "//")[0]
+                if code.contains("Bundle.module") { offenders.append("\(url.lastPathComponent): \(line)") }
+            }
+        }
+        #expect(offenders.isEmpty, "Bundle.module fatalErrors in Hangar.app; use L10n.resources: \(offenders)")
+    }
 }

@@ -57,7 +57,7 @@ It is a Swift/AppKit app, not Electron. Terminals are [libghostty](https://githu
 - **Restore.** After a restart every chat reopens its tabs, splits and its own agent conversation (by id, never "the latest one in this folder").
 - **SSH servers.** Remote projects run in `tmux` on the host and survive disconnects; statuses and limits come back over the SSH connection. Any host from `~/.ssh/config` also opens as a plain terminal: its Files panel follows the terminal's current folder and uploads files and folders dropped from Finder (Skip / Replace, or Merge for a folder), over the terminal's SSH connection without a second login. When the host's config or shell doesn't allow that, the tab falls back to a plain `ssh` login.
 - **Usage limits.** Claude and Codex subscription limits (5 hours and week) in the sidebar.
-- **Claude status line.** Hangar's own line under Claude's prompt: model, context, 5-hour and weekly limits, optionally branch and effort; or keep yours.
+- **Claude status line.** Hangar's own line under Claude's prompt: model, context, 5-hour and weekly limits (the freshest of all your chats, not just this one's last reply), optionally branch and effort; or keep yours. Only inside Hangar: in Terminal or iTerm you see your own line as before.
 - **Appearance.** Hangar Navy, VS Code Dark+ and Graphite; each theme brings a matching editor theme, which you can customise color by color.
 - **Quick open (⌘P), command palette (⇧⌘P),** `hangar` CLI and MCP server.
 - English and Russian UI (follows the system by default). Shortcuts work in any keyboard layout.

@@ -100,8 +100,8 @@ import Workspace
         case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
         case urgentNotice, muteSession, unmuteSession, projectNotificationsAll, projectNotificationsUrgent, projectNotificationsOff
         case projectNotificationsTitle, notifySegmentAll, notifySegmentUrgent, notifySegmentOff, mutedSessionHelp
-        case revealInFinder, copyPath, portCopy, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
-        case copyLink, linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
+        case revealInFinder, copyPath, openIn, openFailed, deletePermanently, deleteTaskConfirm, deleteTaskInfo, delete
+        case linkNotFound, attentionOnly, nobodyWaiting, inbox, inboxRecentDone, inboxDismiss, inboxClear, cmdNextAttention
         case alsoDeleteWorktree, worktreeDirty, worktreeDirtyInfo, worktreeIgnored, worktreeIgnoredInfo, deleteAnyway, worktreeRemoveFailed, branchKept
         case projectSettingsEllipsis, projectSettings, removeFromHangar, removeProjectConfirm, removeProjectInfo, remove, splitRight, splitDown
         case drawerTitle, drawerToggle, drawerHelp
@@ -688,8 +688,6 @@ import Workspace
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
     static var copyPath: String { s(.copyPath) }
-    static func portCopy(_ port: Int) -> String { f(.portCopy, String(port)) }  // %@: a port is never digit-grouped
-    static var copyLink: String { s(.copyLink) }
     static var linkNotFound: String { s(.linkNotFound) }
     static var attentionOnly: String { s(.attentionOnly) }
     static var nobodyWaiting: String { s(.nobodyWaiting) }

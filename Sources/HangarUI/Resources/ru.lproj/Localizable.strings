@@ -94,8 +94,6 @@
 "saveFailed" = "Не удалось сохранить config.toml: %@";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
-"portCopy" = "Порт: %@ (копировать)";
-"copyLink" = "Скопировать ссылку";
 "linkNotFound" = "Ссылка никуда не ведёт: её цели в Hangar нет";
 "attentionOnly" = "Только ждущие";
 "nobodyWaiting" = "Никто не ждёт";

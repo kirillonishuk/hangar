@@ -68,6 +68,10 @@ import Testing
         #expect(shortChatName(branch: "feat/claude-md-refactor") == "claude-md-refactor")
         #expect(shortChatName(branch: "main") == "main")
         #expect(shortChatName(branch: "a/b/AUT-12") == "AUT-12")
+        #expect(shortChatName(branch: "aut-1076-epik") == "aut-1076")
+        #expect(shortChatName(branch: "aut-1076") == "aut-1076")
+        #expect(shortChatName(branch: "release-2026-11") == "release-2026-11")
+        #expect(shortChatName(branch: "v1-2-3") == "v1-2-3")
     }
 
     @Test func spareAndBranch() {

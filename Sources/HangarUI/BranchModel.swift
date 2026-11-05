@@ -87,15 +87,16 @@ extension AppState {
         refreshHead(taskId: task.id)
     }
 
-    /// Back to the window: the selected chat (a remote one only while its host is connected), at most every
-    /// `focusInterval`.
+    /// Back to the window, at most every `focusInterval`: the worktree list of every expanded project (copies removed
+    /// or moved outside, «Копии без чата» — HD-134) and the selected chat's HEAD; remote ones only while connected.
     func refreshHeadsOnFocus(now: Date = Date()) {
         if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
         branchModel.lastFocusRefresh = now
-        let ids: Set<UUID> = state.selectedTaskId.map { [$0] } ?? []
-        for projectId in Set(ids.compactMap { id in state.tasks.first { $0.id == id && $0.branch != nil }?.projectId }) {
-            checkWorktrees(projectId: projectId)
+        for project in state.projects where !project.collapsed && isAvailable(project) {
+            if let host = project.host, remote.hosts[host]?.state != .connected { continue }
+            checkWorktrees(projectId: project.id)
         }
+        let ids: Set<UUID> = state.selectedTaskId.map { [$0] } ?? []
         refreshHeads(folders: Set(ids.compactMap { id in
             guard let folder = headFolder(id) else { return nil }
             if let host = folder.host, remote.hosts[host]?.state != .connected { return nil }

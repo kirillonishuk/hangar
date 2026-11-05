@@ -31,11 +31,11 @@ public func unusedWorktrees(_ list: [WorktreeEntry], used: [String], normalize: 
     return list.dropFirst().filter { !$0.prunable && !taken.contains(normalize($0.path)) }
 }
 
-/// A chat's name for a copy's branch (HD-141): after the last `/`, and only the tracker key when it leads
-/// (`user/aut-1076-epik-…` → `aut-1076`).
+/// A chat's name for a copy's branch (HD-141): after the last `/`, and only the tracker key when it leads and is
+/// followed by the end or a separator and a non-digit (`user/aut-1076-epik-…` → `aut-1076`; `release-2026-11` stays).
 public func shortChatName(branch: String) -> String {
     let rest = branch.split(separator: "/").last.map(String.init) ?? branch
-    return rest.prefixMatch(of: /^[A-Za-z]+-[0-9]+/).map { String($0.output) } ?? rest
+    return rest.prefixMatch(of: /^([A-Za-z]+-[0-9]+)(?:$|[-_.][^0-9])/).map { String($0.output.1) } ?? rest
 }
 
 /// The branch git has checked out at `path` now (an agent's `branch -m` / `checkout -b`); nil — not listed or detached.

@@ -183,13 +183,18 @@ import TestSupport
         #expect(Self.snapshot(h.root + "/mac") == before)
     }
 
-    /// Window focus: one HEAD load for the selected chat (shared by its folder's twin), throttled; none with nothing
-    /// selected or a lost host.
+    /// Window focus: one HEAD load for the selected chat (shared by its folder's twin) and one worktree list per
+    /// expanded project, selected or not (HD-134, HD-141); none for a collapsed one, all throttled; nothing with a lost host.
     @Test func remoteHeadsOnFocus() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)
         var twin = UUID()
-        h.app.perform { twin = $0.addTask(projectId: s.project, name: "twin") }
+        h.app.perform { s2 in
+            twin = s2.addTask(projectId: s.project, name: "twin")
+            _ = s2.addRemoteProject(name: "open", host: "dev", path: h.root + "/mac/open")
+            let shut = s2.addRemoteProject(name: "shut", host: "dev", path: h.root + "/mac/shut")
+            s2.setProjectCollapsed(id: shut, true)
+        }
         let chats = h.app.state.tasks.filter { $0.projectId == s.project }
         for c in chats { h.app.selectedHead(c) }
         await h.app.branchModel.idle()
@@ -197,22 +202,35 @@ import TestSupport
         h.app.perform { $0.selectedTaskId = s.task }
         await h.app.worktreeChecksIdle()
         let t0 = Date()
+        func calls(_ kind: String, in path: String? = nil) -> Int {
+            FakeSSH.calls(h.log).compactMap(\.last).filter { line in
+                line.contains(" git ") && line.contains(kind) && path.map { line.contains(" \($0) git ") } ?? true
+            }.count
+        }
+        func lists() -> [Int] {
+            [h.root + "/server/app", h.root + "/mac/open", h.root + "/mac/shut"].map { calls("worktree list", in: $0) }
+        }
+        func focus(_ seconds: TimeInterval) async {
+            h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(seconds))
+            await h.app.branchModel.idle()
+            await h.app.worktreeChecksIdle()
+        }
+        var l = lists(), heads = calls("symbolic-ref")
+        await focus(0)
+        #expect(calls("symbolic-ref") == heads + 1)  // one folder, one `symbolic-ref`
+        #expect(lists() == [l[0] + 1, l[1] + 1, l[2]])
         var n = gitCalls(h)
-        h.app.refreshHeadsOnFocus(now: t0)
-        await h.app.branchModel.idle()
-        #expect(gitCalls(h) == n + 1)  // one folder, one `symbolic-ref`
-        n = gitCalls(h)
-        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(1))
-        await h.app.branchModel.idle()
+        await focus(1)
         #expect(gitCalls(h) == n)
         h.app.perform { $0.selectedTaskId = nil }
-        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(10))
-        await h.app.branchModel.idle()
-        #expect(gitCalls(h) == n)
+        l = lists(); heads = calls("symbolic-ref")
+        await focus(10)
+        #expect(calls("symbolic-ref") == heads)
+        #expect(lists() == [l[0] + 1, l[1] + 1, l[2]])
         h.app.perform { $0.selectedTaskId = s.task }
         h.app.remote.disconnect("dev")
-        h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(20))
-        await h.app.branchModel.idle()
+        n = gitCalls(h)
+        await focus(20)
         #expect(gitCalls(h) == n)
     }
 

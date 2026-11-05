@@ -28,6 +28,8 @@ import Foundation
     var onDirty: ((String, Bool) -> Void)?
     /// An editable text file is now in the page (path, text): the language server gets it.
     var onOpened: ((String, String) -> Void)?
+    /// A binary or too large file got its notice: the pane may show it as an image instead (HD-142).
+    var onNotText: ((String) -> Void)?
 
     init(io: EditorIO, limits: EditorLimits = EditorLimits(), send: @escaping (EditorCommand) -> Void) {
         self.io = io
@@ -49,6 +51,7 @@ import Foundation
         files[path] = File(readOnly: true, refused: true)
         var open = EditorOpen(path: path, text: nil, readOnly: true, notice: nil, line: line ?? 1, column: column ?? 1)
         var file = File(readOnly: true, refused: true)
+        var notText = false
         do {
             switch try await io.read(path, limits.refuse) {
             case .text(let text, let stamp):
@@ -59,8 +62,8 @@ import Foundation
                 open.readOnly = large || dependency
                 open.notice = large ? L10n.editorLargeReadOnly : dependency ? L10n.editorDependencyReadOnly : nil
                 file = File(stamp: stamp, readOnly: large || dependency)
-            case .tooLarge(let size): open.notice = L10n.editorTooLarge(size)
-            case .binary: open.notice = L10n.editorBinary
+            case .tooLarge(let size): open.notice = L10n.editorTooLarge(size); notText = true
+            case .binary: open.notice = L10n.editorBinary; notText = true
             case .missing: open.notice = L10n.editorMissing
             }
         } catch {
@@ -70,6 +73,7 @@ import Foundation
         files[path] = file
         send(.open(open))
         if let text = open.text, text.utf8.count <= limits.editable { onOpened?(path, text) }
+        if notText { onNotText?(path) }
     }
 
     /// The diff's working side: read here and tracked like an open file (the page gets it inside `.diff`).

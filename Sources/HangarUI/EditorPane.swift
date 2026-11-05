@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Workspace
 
 /// A file tab (HD-083): one file of a Monaco page of `EditorHost` (`page`), shown in this view while its tab is on screen.
@@ -23,6 +24,10 @@ import Workspace
     /// Language requests in flight, by the page's id (a `cancel` from the page stops one).
     private var requests: [Int: Task<Void, Never>] = [:]
     var onFocus: (() -> Void)?
+    /// The image shown over the page instead of its «binary file» notice, and the file's stamp it was decoded at.
+    private var image: (path: String, stamp: FileStamp?, view: ImageHostingView)?
+    /// The image file being watched; kept when a decode fails (a rewrite caught half-way), so the next change retries.
+    private var imagePath: String?
 
     /// `page`: where its model goes first (a free one when it opens beside another editor).
     init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
@@ -46,6 +51,7 @@ import Workspace
         app.languages.closedAll(owner: leafId)
         watcher?.stop()
         watcher = nil
+        removeImage()
         host.unregister(self)
         app.editorDirty.remove(leafId)
         app.editorLanguage[leafId] = nil
@@ -64,6 +70,7 @@ import Workspace
         // shortcut: a save still writing when the move ends keeps the old stamp (a false conflict bar on the next save); rare.
         let latest = moved.flatMap { session.files[$0.path] }
         session = makeSession(io: session.io, limits: session.limits)
+        removeImage()  // the new session shows it again if the file is still an image
         guard let leaf = app.editorLeaf(leafId), let path = leaf.openFile else { return }
         let cursor = leaf.editorFileList.first { $0.path == path }
         if let moved, moved.path == path {
@@ -129,7 +136,10 @@ import Workspace
         if shown { host.show(self, page: shownPage ?? page) }
         guard shown != visible else { return }
         visible = shown
-        if shown { Task { await session.checkDisk() } }
+        if shown {
+            Task { await session.checkDisk() }
+            if let path = imagePath { showImage(path) }  // rewritten while hidden (no watcher then)
+        }
         restartWatcher()
     }
 
@@ -174,6 +184,7 @@ import Workspace
         let current = { [weak self] in self?.page == index && self?.generation == gen }
         let session = EditorSession(io: io, limits: limits) { if current() { page.send($0, doc: doc) } }
         session.onDirty = { [weak self] _, dirty in if current() { self?.app.editorDirtyChanged(leafId: doc, dirty: dirty) } }
+        session.onNotText = { [weak self] path in if current() { self?.showImage(path) } }
         session.onOpened = { [weak self] path, text in
             guard let self, current() else { return }
             let owner = Languages.Owner(id: doc, root: app.editorLeaf(doc)?.cwd ?? "/", send: { [weak self] cmd in
@@ -184,9 +195,61 @@ import Workspace
         return session
     }
 
-    /// FSEvents on the folder of the file (local), only while shown; a clean buffer reloads, a dirty one asks.
+    /// A binary (or too large for the editor) file that decodes as an image covers the page's notice, read-only (HD-142).
+    /// Also on a change of the shown image's file: decoded again only when its stamp moved; gone → the notice.
+    private func showImage(_ path: String) {
+        // shortcut: a server's image keeps the notice — EditorIO reads text only; add a byte read when asked for.
+        guard session.io.isLocal else { return }
+        let io = session.io, gen = generation
+        Task { [weak self] in
+            let stamp = try? await io.stat(path)
+            guard let self, gen == generation else { return }
+            if let image, image.path == path, image.stamp == stamp { return }
+            let decoded = await ImagePreview.load(path: path)
+            guard gen == generation, app.editorLeaf(leafId)?.openFile == path else { return }
+            guard let decoded else {
+                removeImage()
+                imagePath = path  // still watched: the file may be complete on the next event
+                restartWatcher()
+                return
+            }
+            imagePath = path
+            let root = ImagePreviewView(name: (path as NSString).lastPathComponent, sides: [.init(id: 0, image: decoded)], showsBytes: true)
+            if let view = image?.view {
+                view.rootView = root
+                image = (path, stamp, view)
+            } else {
+                let view = ImageHostingView(rootView: root)
+                view.frame = bounds
+                view.autoresizingMask = [.width, .height]
+                // A click focuses the pane, as one in Monaco does.
+                view.onMouseDown = { [weak self] in
+                    guard let self else { return }
+                    window?.makeFirstResponder(webView)
+                    app.focused(leafId: leafId)
+                    onFocus?()
+                }
+                addSubview(view)  // over the web view (`EditorHost.show` keeps that one at the bottom)
+                image = (path, stamp, view)
+                app.editorImage.insert(leafId)
+            }
+            restartWatcher()
+        }
+    }
+
+    private func removeImage() {
+        image?.view.removeFromSuperview()
+        image = nil
+        imagePath = nil
+        app.editorImage.remove(leafId)
+    }
+
+    /// FSEvents on the folder of the file (local), only while shown; a clean buffer reloads, a dirty one asks, an image
+    /// is decoded again.
     private func restartWatcher() {
-        let paths: Set<String> = visible && session.io.isLocal ? Set(session.files.filter { !$0.value.refused }.keys.map(realPath)) : []
+        var files = Set(session.files.filter { !$0.value.refused }.keys)
+        if let path = imagePath { files.insert(path) }
+        let paths: Set<String> = visible && session.io.isLocal ? Set(files.map(realPath)) : []
         guard paths != watchedPaths else { return }
         watcher?.stop()
         watcher = nil
@@ -196,6 +259,17 @@ import Workspace
         watcher = FileWatcher(paths: dirs, onChange: { [weak self] _ in
             guard let self else { return }
             Task { await self.session.checkDisk() }
+            if let path = imagePath { showImage(path) }
         }, classify: { events in events.contains { paths.contains($0.path) } ? .status : [] })
+    }
+}
+
+/// The editor's image (HD-142); `onMouseDown` focuses its pane.
+final class ImageHostingView: NSHostingView<ImagePreviewView> {
+    var onMouseDown: (() -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
+        super.mouseDown(with: event)
     }
 }

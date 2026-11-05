@@ -367,6 +367,8 @@
 "preparingConversation" = "Moving the conversation to the new folder…";
 "baseMissingUnknown" = "Base branch not found — showing what's not committed";
 "diffBinary" = "Binary file";
+"diffImageBefore" = "Before";
+"diffImageAfter" = "After";
 "diffTooLarge" = "Diff too large (%d lines)";
 "diffModeChange" = "Mode %@ → %@";
 "diffRenamedFrom" = "Renamed from %@";

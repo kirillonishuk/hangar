@@ -44,7 +44,8 @@ import TestSupport
         #expect(view.isWaitingForHost)
         // `spec` started the connection itself.
         #expect(await waitUntil { h.state() == .connected })
-        #expect(connectedHosts == ["dev"])
+        // The callback comes after the state flips, on a later main-actor turn.
+        #expect(await waitUntil { connectedHosts == ["dev"] })
 
         hostConnected(host: "dev", leaves: [view])
         #expect(!view.isWaitingForHost)

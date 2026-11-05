@@ -3,6 +3,7 @@ import ControlServer
 import Foundation
 import Testing
 import Git
+import TestSupport
 @testable import HangarUI
 import Workspace
 
@@ -147,9 +148,8 @@ import Workspace
         var ctx = ActionContext(app: app)
         ctx.confirm = { m, _, _, then in asked.append(m); then() }
         await removeSpareWorktree(spare, projectId: p, ctx: ctx)
-        for _ in 0..<200 where FileManager.default.fileExists(atPath: nested) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(await waitUntil { !FileManager.default.fileExists(atPath: nested) })
         #expect(asked.count == 1)
-        #expect(!FileManager.default.fileExists(atPath: nested))
         #expect(try await t.git("branch", "--list", "aut", in: t.repo) != "")
     }
 

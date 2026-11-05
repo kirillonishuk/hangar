@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import Git
 @testable import HangarUI
+import TestSupport
 import Workspace
 
 /// Live HEAD per chat and the switcher's actions (HD-114) on a real repo: main-folder chats A and C, worktree chat W on `x`.
@@ -88,14 +89,12 @@ import Workspace
         watch.update()
         await app.branchModel.idle()
         #expect(app.head(of: task(app, a)) == .branch("main"))
-        try await Task.sleep(nanoseconds: 500_000_000)  // the git-dir lookup and the stream start
+        // The git-dir lookup and the stream start; polled, not slept: under parallel load they take seconds.
+        #expect(await waitUntil { watch.watcher != nil || watch.headWatcher != nil })
         #expect((watch.watcher != nil) == inspector)
         #expect((watch.headWatcher != nil) == !inspector)
         try await t.git("switch", "-q", "-c", "from-terminal", in: t.repo)
-        for _ in 0..<50 where app.head(of: task(app, a)) != .branch("from-terminal") {
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        #expect(app.head(of: task(app, a)) == .branch("from-terminal"))
+        #expect(await waitUntil { app.head(of: task(app, a)) == .branch("from-terminal") })
     }
 
     @Test func safetyRefusalsAreMessages() async throws {

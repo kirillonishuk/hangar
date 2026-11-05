@@ -135,7 +135,7 @@ import TestSupport
         defer { t.cleanup() }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        p.arguments = ["30"]
+        p.arguments = ["600"]  // outlives the archive even under parallel load (terminated below)
         p.currentDirectoryURL = URL(fileURLWithPath: wt)
         try p.run()
         defer { p.terminate() }

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Workspace
 
 /// A file tab (HD-083): one file of a Monaco page of `EditorHost` (`page`), shown in this view while its tab is on screen.
@@ -23,6 +24,8 @@ import Workspace
     /// Language requests in flight, by the page's id (a `cancel` from the page stops one).
     private var requests: [Int: Task<Void, Never>] = [:]
     var onFocus: (() -> Void)?
+    /// The image shown over the page instead of its «binary file» notice.
+    private var imageView: NSView?
 
     /// `page`: where its model goes first (a free one when it opens beside another editor).
     init(leafId: UUID, app: AppState, host: EditorHost, page: Int = 0) {
@@ -174,6 +177,7 @@ import Workspace
         let current = { [weak self] in self?.page == index && self?.generation == gen }
         let session = EditorSession(io: io, limits: limits) { if current() { page.send($0, doc: doc) } }
         session.onDirty = { [weak self] _, dirty in if current() { self?.app.editorDirtyChanged(leafId: doc, dirty: dirty) } }
+        session.onNotText = { [weak self] path in if current() { self?.showImage(path) } }
         session.onOpened = { [weak self] path, text in
             guard let self, current() else { return }
             let owner = Languages.Owner(id: doc, root: app.editorLeaf(doc)?.cwd ?? "/", send: { [weak self] cmd in
@@ -182,6 +186,21 @@ import Workspace
             app.languages.opened(path, text: text, host: remoteHost, owner: owner)
         }
         return session
+    }
+
+    /// A binary (or too large for the editor) file that decodes as an image covers the page's notice, read-only (HD-142).
+    private func showImage(_ path: String) {
+        // shortcut: a server's image keeps the notice — EditorIO reads text only; add a byte read when asked for.
+        guard session.io.isLocal, imageView == nil else { return }
+        Task { [weak self] in
+            guard let image = await ImagePreview.load(path: path), let self, imageView == nil,
+                  app.editorLeaf(leafId)?.openFile == path else { return }
+            let view = NSHostingView(rootView: ImagePreviewView(sides: [.init(id: 0, image: image)], showsBytes: true))
+            view.frame = bounds
+            view.autoresizingMask = [.width, .height]
+            addSubview(view)  // over the web view (`EditorHost.show` keeps that one at the bottom)
+            imageView = view
+        }
     }
 
     /// FSEvents on the folder of the file (local), only while shown; a clean buffer reloads, a dirty one asks.

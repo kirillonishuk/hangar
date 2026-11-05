@@ -369,6 +369,8 @@
 "preparingConversation" = "Переношу разговор в новую папку…";
 "baseMissingUnknown" = "Базовая ветка не найдена — показано то, что не в коммите";
 "diffBinary" = "Бинарный файл";
+"diffImageBefore" = "Было";
+"diffImageAfter" = "Стало";
 "diffTooLarge" = "Слишком большой diff (%d строк)";
 "diffModeChange" = "Режим %@ → %@";
 "diffRenamedFrom" = "Переименован из %@";

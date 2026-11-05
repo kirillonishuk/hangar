@@ -209,6 +209,12 @@
 "statusWorking" = "working";
 "statusWaiting" = "waiting for you";
 "statusDone" = "done";
+"statusDoneSeen" = "done, seen";
+"statusDoneNew" = "done, unread";
+"markUnread" = "Mark as Unread";
+"rowWaitingMin" = "waiting %ldm";
+"rowWaitingHour" = "waiting %ldh";
+"waitingFor" = "waiting %@";
 "statusFailed" = "error";
 "statusLimit" = "at limit";
 "limitUntil" = "limit · until %@";

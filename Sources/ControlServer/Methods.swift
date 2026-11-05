@@ -88,7 +88,7 @@ public enum ControlMethod: String, CaseIterable, Sendable {
         case .actionsList: "List a session's project actions (named commands like Dev server or Test, from the project's settings and the repository's .hangar/actions.json in the session's folder), with whether each is running and in which tab. The repository file's problems are reported in error."
         case .actionsRun: "Run a project action in a session's folder in its own tab (like the Run button). With restart on (the default), a running copy is interrupted (Ctrl-C) and started again in the same tab; else another tab opens. An action from .hangar/actions.json whose command the user has not approved in Hangar is refused: they run it once from the app first."
         case .tasksNote: "Set a short progress note on the calling chat (or session), e.g. \"Task 3/7 · review round 2\": shown in Hangar's sidebar tooltip and toolbar, and as note in sessions_list / sessions_wait. One line, up to \(Self.maxNoteChars) characters; an empty note clears it. It stays until replaced or cleared."
-        case .tabsWait: "Wait until a tab's agent has finished its turn (idle), asks for input (waiting), or either (any, default); or until timeout. Event-driven. Returns status (idle, done, waiting, failed, limit, exited, closed, or still-running when the timeout passed: call again) and the agent's last message when known (capped at ~1500 characters). After tabs_send, pass wait: true there first so the new turn has started. Full output: tabs_read."
+        case .tabsWait: "Wait until a tab's agent has finished its turn (idle), asks for input (waiting), or either (any, default); or until timeout. Event-driven. Returns status (idle, done, waiting, failed, limit, exited, closed, or still-running when the timeout passed: call again) and the agent's last message when known (capped at ~1500 characters). After tabs_send, pass next: true so the state before your message does not count. Full output: tabs_read."
         case .linksCreate: "Get a hangar:// link to a session, a tab, a project, an SSH host or a project's Sessions view. Clicking it in Hangar only selects and shows it; nothing runs."
         }
     }
@@ -187,7 +187,9 @@ public enum ControlMethod: String, CaseIterable, Sendable {
             return [
                 ParamSpec(name: "tab", type: ref, required: true, summary: "Tab id, leaf id or a session's drawer leaf id from sessions_list (or unique prefix)."),
                 ParamSpec(name: "for", type: .oneOf(TabWaitFor.allCases.map(\.rawValue)), required: false,
-                          summary: "idle: the turn is over; waiting: it asks for input; any (default): either. failed, limit and exit always end the wait."),
+                          summary: "idle: the turn is over; waiting: it asks for input; any (default): either. failed, limit, exit and closing the tab always end the wait."),
+                ParamSpec(name: "next", type: .bool, required: false,
+                          summary: "Ignore the current state and wait for the next turn to end (use right after tabs_send)."),
                 ParamSpec(name: "timeout", type: .int(1...Self.waitMaxSeconds), required: false,
                           summary: "Seconds to wait at most (default \(Self.waitDefaultSeconds); \(Self.waitCodexSeconds) under Codex)."),
             ]
@@ -224,7 +226,8 @@ public enum ControlCall: Equatable, Sendable {
     case actionsRun(task: String, name: String)
     /// `note`: already sanitised (one line, capped); nil clears. `task`: a session ref or a tab/leaf id (the caller).
     case tasksNote(task: String?, note: String?)
-    case tabsWait(tab: String, for: TabWaitFor, timeout: Int)
+    /// `next`: the current settled state does not count, only the next turn end.
+    case tabsWait(tab: String, for: TabWaitFor, next: Bool = false, timeout: Int)
 
     public static let defaultLines = 100
 
@@ -295,9 +298,10 @@ public enum ControlCall: Equatable, Sendable {
         case let .tasksNote(task, note):
             p = ["note": note ?? ""]
             p["task"] = task
-        case let .tabsWait(tab, waitFor, timeout):
+        case let .tabsWait(tab, waitFor, next, timeout):
             p = ["tab": tab, "timeout": timeout]
             if waitFor != .any { p["for"] = waitFor.rawValue }
+            if next { p["next"] = true }
         }
         return (try? JSONSerialization.data(withJSONObject: p, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data("{}".utf8)
     }
@@ -450,7 +454,7 @@ public enum ControlCall: Equatable, Sendable {
             return .tasksNote(task: v.strings["task"], note: noteText(v.strings["note"]!))
         case .tabsWait:
             return .tabsWait(tab: v.strings["tab"]!, for: v.strings["for"].flatMap(TabWaitFor.init(rawValue:)) ?? .any,
-                             timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
+                             next: v.bools["next"] ?? false, timeout: v.ints["timeout"] ?? ControlMethod.waitDefaultSeconds)
         }
     }
 

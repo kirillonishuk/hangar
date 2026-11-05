@@ -141,6 +141,34 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
         #expect(board.status(asking).attention?.reason == .permission)
     }
 
+    /// #135: every done is new until seen; seen and unseen only exist while done; «Убрать» counts as seen.
+    @Test func doneSeenStateMachine() {
+        var board = StatusBoard()
+        let leaf = UUID(), other = UUID()
+        _ = board.apply(hook(.prompt), leaf: leaf, agent: .claude, now: t0)
+        let unseenWhileWorking = board.markUnseen(leaf)
+        #expect(!board.status(leaf).unseen && !unseenWhileWorking)  // working: nothing to mark
+        _ = board.apply(hook(.stop), leaf: leaf, agent: .claude, now: t0)
+        #expect(board.status(leaf).unseen)
+        let seen = board.markSeen(leaf), seenAgain = board.markSeen(leaf)
+        #expect(seen && !seenAgain && !board.status(leaf).unseen)
+        let unseen = board.markUnseen(leaf), unseenAgain = board.markUnseen(leaf)
+        #expect(unseen && !unseenAgain && board.status(leaf).unseen)
+        #expect(board.status(leaf).attention?.reason == .done)  // the inbox record is kept for «Отметить непрочитанным»
+        _ = board.apply(hook(.prompt), leaf: leaf, agent: .claude, now: t0)
+        #expect(!board.status(leaf).unseen)  // the next turn: no longer done
+        _ = board.apply(hook(.stop), leaf: leaf, agent: .claude, now: t0)
+        _ = board.markSeen(leaf)
+        _ = board.apply(hook(.stop), leaf: leaf, agent: .claude, now: t0)
+        #expect(board.status(leaf).unseen)  // another finished turn is news again
+        _ = board.apply(hook(.stop), leaf: other, agent: .claude, now: t0)
+        let dismissed = board.dismissDone(other)
+        #expect(dismissed && !board.status(other).unseen)
+        _ = board.apply(.exited(code: 0), leaf: other, agent: .claude, now: t0)
+        let idleUnseen = board.markUnseen(other)
+        #expect(!idleUnseen)
+    }
+
     @Test func orderAndSections() {
         let oldDone = item(.done, since: 0), newDone = item(.done, since: 50)
         let limit = item(.limit, since: 1), failed = item(.failed, since: 2)

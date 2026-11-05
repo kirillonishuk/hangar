@@ -82,6 +82,46 @@ import Workspace
         #expect(app.lastAgentMessage[leaf] == nil)
     }
 
+    /// `next`: the settled state before the call does not count; a turn that starts and ends between wakes still does.
+    @Test func tabWaitNextWaitsForTheNextTurnEnd() async throws {
+        let (app, _, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        hook(app, .prompt, tab: tab, leaf: leaf, message: "one")
+        hook(app, .stop, tab: tab, leaf: leaf, message: "old")
+        #expect(await app.waitForTab((tab, leaf), for: .any, timeout: .seconds(5)).message == "old")
+        #expect(await app.waitForTab((tab, leaf), for: .any, next: true, timeout: .milliseconds(60)).status == "still-running")
+        let waiter = Task { await app.waitForTab((tab, leaf), for: .idle, next: true, timeout: .seconds(10)) }
+        try await Task.sleep(for: .milliseconds(30))
+        // Both before the waiter runs again.
+        hook(app, .prompt, tab: tab, leaf: leaf, message: "two")
+        hook(app, .stop, tab: tab, leaf: leaf, message: "new")
+        let r = await waiter.value
+        #expect(r.status == "done" && r.message == "new")
+    }
+
+    @Test func closingOrExitingWakesAtOnce() async throws {
+        let (app, task, tab, leaf) = try makeApp()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        final class Box { var state: LeafState = .running }
+        let box = Box()
+        app.terminals = TerminalAccess(start: { _ in }, state: { _ in box.state }, send: { _, _, _ in }, read: { _ in nil })
+        hook(app, .prompt, tab: tab, leaf: leaf, message: "go")
+        let start = ContinuousClock.now
+        let exited = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(30)) }
+        try await Task.sleep(for: .milliseconds(30))
+        box.state = .exited
+        app.signal(.exited(code: 0), leaf: leaf)
+        #expect(await exited.value.status == "exited")
+        box.state = .running
+        app.signal(.relaunched, leaf: leaf)
+        hook(app, .prompt, tab: tab, leaf: leaf, message: "again")
+        let closed = Task { await app.waitForTab((tab, leaf), for: .idle, timeout: .seconds(30)) }
+        try await Task.sleep(for: .milliseconds(30))
+        app.perform { $0.closeTab(taskId: task, tabId: tab) }
+        #expect(await closed.value.status == "closed")
+        #expect(ContinuousClock.now - start < .seconds(5) && app.tabWaiters.isEmpty)
+    }
+
     @Test func tabWaitStates() {
         #expect(tabWaitOver(.waiting, for: .any) && tabWaitOver(.waiting, for: .waiting) && !tabWaitOver(.waiting, for: .idle))
         #expect(tabWaitOver(.done, for: .idle) && tabWaitOver(.idle, for: .any) && !tabWaitOver(.idle, for: .waiting))

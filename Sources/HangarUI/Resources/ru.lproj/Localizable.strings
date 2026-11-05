@@ -209,6 +209,12 @@
 "statusWorking" = "работает";
 "statusWaiting" = "ждёт ответа";
 "statusDone" = "готово";
+"statusDoneSeen" = "готово, просмотрено";
+"statusDoneNew" = "готово, не просмотрено";
+"markUnread" = "Отметить непрочитанным";
+"rowWaitingMin" = "ждёт %ld м";
+"rowWaitingHour" = "ждёт %ld ч";
+"waitingFor" = "ждёт %@";
 "statusFailed" = "ошибка";
 "statusLimit" = "на лимите";
 "limitUntil" = "лимит · до %@";

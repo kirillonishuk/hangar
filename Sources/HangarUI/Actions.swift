@@ -46,7 +46,7 @@ enum ActionTarget: Equatable {
 enum Action: CaseIterable {
     case newTask, rename, togglePin, projectSettings, revealInFinder, copyPath, copyPort, copyLink, openInEditor
     case archive, restore, deletePermanently, removeProject, splitRight, splitDown, closeTab, toggleDrawer, reconnect
-    case toggleMute, projectNotifications, projectSessions, removeFreeChat, newSubSession
+    case toggleMute, projectNotifications, projectSessions, removeFreeChat, newSubSession, markUnread
     // After `closeTab`: ⌘W looks its action up by shortcut and must find the tab's (MainWindow routes it to panes).
     case detachPane, closePane
 
@@ -59,13 +59,15 @@ enum Action: CaseIterable {
         case .task(let id):
             // A host's terminal has its own row menu (open / close), none of a project task's actions.
             if app.isHostShellTask(id) { return [] }
+            // Only a chat whose «готово» is already seen (#135).
+            let unread: [Action] = app.canMarkUnread(id) ? [.markUnread] : []
             // A chat without a project: no folder, branch or link of its own; closing it only puts it to sleep.
             if app.isFreeChatTask(id) {
                 let open = app.state.tasks.first(where: { $0.id == id })?.archived == false
-                return (open ? [.newSubSession] : []) + [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
+                return unread + (open ? [.newSubSession] : []) + [.rename, .togglePin] + (open ? [.toggleMute] : []) + [.removeFreeChat]
             }
             if app.state.tasks.first(where: { $0.id == id })?.archived == true { return [.restore, .deletePermanently] }
-            return reconnect + [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
+            return reconnect + unread + [.newSubSession, .rename, .togglePin, .toggleMute, .revealInFinder, .copyPath, .copyPort, .copyLink] + editor + [.archive]
         case .project:
             return reconnect + [.newTask, .projectSessions, .rename, .projectSettings, .projectNotifications, .revealInFinder, .copyPath, .copyLink] + editor + [.removeProject]
         case .tab:
@@ -116,7 +118,7 @@ enum Action: CaseIterable {
         case .copyPath, .copyPort, .copyLink: .copy
         case .openInEditor: .openExternal
         case .archive: .archive
-        case .restore: .restore
+        case .restore, .markUnread: .restore
         case .deletePermanently: .trash
         case .removeProject, .removeFreeChat: .remove
         case .splitRight: .splitRight
@@ -160,6 +162,7 @@ enum Action: CaseIterable {
             if case .task(let id) = target, app.state.tasks.first(where: { $0.id == id })?.muted == true { L10n.unmuteSession } else { L10n.muteSession }
         case .projectNotifications: L10n.projectNotificationsItem(app.project(of: target)?.notifications ?? .all)
         case .projectSessions: L10n.projectSessions
+        case .markUnread: L10n.markUnread
         }
     }
 
@@ -201,6 +204,7 @@ enum Action: CaseIterable {
         case (.togglePin, .task(let id)):
             if let task = app.state.tasks.first(where: { $0.id == id }) { app.setPinned(id, !task.pinned) }
         case (.projectSettings, .project(let id)): ctx.projectSettings(id)
+        case (.markUnread, .task(let id)): app.markUnread(taskId: id)
         case (.toggleMute, .task(let id)):
             if let task = app.state.tasks.first(where: { $0.id == id }) { app.setMuted(taskId: id, !task.muted) }
         case (.projectNotifications, .project(let id)):

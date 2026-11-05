@@ -25,8 +25,8 @@ usage:
   hangar tabs open --session S --kind claude|codex|editor|shell [--prompt TEXT] [--json]
   hangar tabs send --tab T [TEXT…] [--key K]… [--enter] [--wait] [--json]   (keys: \(SendKey.allCases.map(\.rawValue).joined(separator: ", ")))
   hangar tabs read --tab T [--lines N] [--json]
-  hangar tabs wait --tab T [--for idle|waiting|any] [--timeout SECONDS] [--json]   (until the tab's agent ends its turn
-    or asks for input; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
+  hangar tabs wait --tab T [--for idle|waiting|any] [--next] [--timeout SECONDS] [--json]   (until the tab's agent ends its
+    turn or asks for input; --next: only the next turn end, after tabs send; prints still-running on timeout, default \(ControlMethod.waitDefaultSeconds) s)
   hangar actions list [--session S] [--json]   (the session's project actions; default: the calling chat)
   hangar actions run --name N [--session S] [--json]   (runs it in its own tab; a running copy is restarted unless the action opens a new tab)
   hangar ssh <host> [--json]   (opens a plain ssh shell tab in the app: no project, no tmux)
@@ -63,7 +63,7 @@ private func grammar(_ command: String) -> Grammar? {
     case "tabs open": Grammar(values: ["--session", "--kind", "--prompt"])
     case "tabs send": Grammar(values: ["--tab"], flags: ["--enter", "--wait"], repeated: ["--key"], positionals: 0...Int.max)
     case "tabs read": Grammar(values: ["--tab", "--lines"])
-    case "tabs wait": Grammar(values: ["--tab", "--for", "--timeout"])
+    case "tabs wait": Grammar(values: ["--tab", "--for", "--timeout"], flags: ["--next"])
     case "ssh": Grammar(positionals: 1...1)
     case "actions list": Grammar(values: ["--session"])
     case "actions run": Grammar(values: ["--session", "--name"])
@@ -182,7 +182,7 @@ public func parseCLI(_ args: [String], cwd: String, callerLeaf: String? = nil) -
             }
             timeout = n
         }
-        call = .tabsWait(tab: tab, for: waitFor, timeout: timeout)
+        call = .tabsWait(tab: tab, for: waitFor, next: flags.contains("--next"), timeout: timeout)
     case "sessions archive":
         guard let task = required("session") else { return missing("session") }
         guard flags.contains("--yes") else { return .confirmRequired("refusing to archive without --yes") }
@@ -237,7 +237,7 @@ public func requestTimeout(_ call: ControlCall) -> Double {
     // A few git runs per session, possibly over ssh.
     case .tasksList(_, true): 60
     case .tasksSpawn: 300
-    case let .tasksWait(_, _, timeout), let .tabsWait(_, _, timeout): Double(timeout + 15)
+    case let .tasksWait(_, _, timeout), let .tabsWait(_, _, _, timeout): Double(timeout + 15)
     // A remote session's repository file is read over ssh; a restart waits up to 3 s for the old run to stop.
     case .actionsList, .actionsRun: 30
     default: 10

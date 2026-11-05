@@ -27,7 +27,7 @@ Blocks until your sub-chats are done, need input or failed; returns each one's s
 A short stage line on your own chat, shown in Hangar, e.g. `"Task 3/7 · review round 2"`. Update at milestones; `""` clears it.
 
 ## Another tab: `tabs_wait {tab, for}`
-Waits until that tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`); returns its status and last message. `still-running`: call again. After `tabs_send`, pass `wait: true` there first.
+Waits until that tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`); returns its status and last message. `still-running`: call again. Right after `tabs_send`, pass `next: true` so the old state does not count.
 
 ## Rules
 - Never type into your own or your parent's terminal; sub-chats never write to you either: pull results with `sessions_wait`.

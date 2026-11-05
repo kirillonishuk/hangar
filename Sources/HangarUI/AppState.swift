@@ -73,6 +73,10 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var onAttention: ((UUID, Attention?) -> Void)?
     /// A sub-session finished, needs input or failed (#131): its banner (set by `Notifier.attach`).
     @ObservationIgnored var onSubSessionNotice: ((AgentNotice) -> Void)?
+    /// The main window is on screen and the app active (set by the window controller; nil — never, as in tests).
+    @ObservationIgnored var screenShown: (() -> Bool)?
+    /// What `refreshSeen` found on screen last time.
+    @ObservationIgnored var shownLeaves: Set<UUID> = []
     /// A leaf got focus: its delivered banner is no longer needed.
     @ObservationIgnored var onLeafSeen: ((UUID) -> Void)?
     /// Mute, project mode or a notification setting changed: delivered banners no longer allowed go.
@@ -183,7 +187,9 @@ enum EmptyProjectRow: Hashable {
     /// `ssh -G` of a host (tests and debug runs: the fake ssh's).
     @ObservationIgnored var sshResolve: (_ host: String, _ sshPath: String) -> [String: String]? = { sshResolvedOptions(host: $0, sshPath: $1) }
     /// The temporary diff tab per task (decision #44); in memory only, never in `state.json`.
-    var diffTabs: [UUID: DiffTab] = [:]
+    var diffTabs: [UUID: DiffTab] = [:] {
+        didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (#135)
+    }
     @ObservationIgnored let diffCache = DiffContentCache()
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
@@ -193,7 +199,10 @@ enum EmptyProjectRow: Hashable {
     var inboxClock = Date()
     /// «Сессии» (⌘Y) is shown instead of the session area, for `sessionsScope` (SessionsModel.swift).
     var sessionsViewVisible = false {
-        didSet { if !sessionsViewVisible { sessionsPointer = nil } }  // however it hides, no row stays hovered or chosen
+        didSet {
+            if !sessionsViewVisible { sessionsPointer = nil }  // however it hides, no row stays hovered or chosen
+            refreshSeen()
+        }
     }
     var sessionsScope: SessionsScope = .all
     /// Its search text.
@@ -339,6 +348,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var tabWaiters: [UUID: (leaf: UUID, wake: CheckedContinuation<Void, Never>)] = [:]
     /// The agent's last message of a turn per leaf (Stop, codex notify, a question): what `tabs_wait` returns; a new prompt clears it.
     @ObservationIgnored var lastAgentMessage: [UUID: String] = [:]
+    /// Turn ends per leaf (Stop, codex notify, a question): `tabs_wait --next` waits for a newer one.
+    @ObservationIgnored var turnEnds: [UUID: Int] = [:]
     /// Sub-sessions' done detection, by task (spec sub-sessions §6); in memory, rebuilt lazily after a restart.
     @ObservationIgnored var subWatches: [UUID: SubSessionWatch] = [:]
     /// `sessions_wait` callers, woken on every re-evaluation, by token.
@@ -418,6 +429,9 @@ enum EmptyProjectRow: Hashable {
         plainLeaves.formIntersection(live)
         if !setupLeaves.isEmpty { setupLeaves.formIntersection(state.tasks.flatMap { $0.tabs.flatMap(\.root.leaves).map(\.id) }) }
         if formerTabs.keys.contains(where: { !live.contains($0) }) { formerTabs = formerTabs.filter { live.contains($0.key) } }
+        if lastAgentMessage.keys.contains(where: { !live.contains($0) }) { lastAgentMessage = lastAgentMessage.filter { live.contains($0.key) } }
+        if turnEnds.keys.contains(where: { !live.contains($0) }) { turnEnds = turnEnds.filter { live.contains($0.key) } }
+        wakeTabWaiters(nil)  // a closed tab's waiters answer «closed» now
         let dropped = statuses.leaves.filter { !live.contains($0.key) }
         if !dropped.isEmpty {
             statuses.retain(live)
@@ -433,6 +447,7 @@ enum EmptyProjectRow: Hashable {
         if state.selectedTaskId != selectedBefore, let id = state.selectedTaskId { recheckWorktree(of: id) }
         store.scheduleSave(savedState)
         didChange?()
+        refreshSeen()
     }
 
     /// What state.json gets: the state without setup leaves (their tab goes when it has nothing else).

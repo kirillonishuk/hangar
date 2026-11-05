@@ -43,7 +43,7 @@ extension AppState {
                 perform { $0.touchFreeChat(taskId: task) }
             }
             subSessionHook(leaf: leaf.id, kind: e.kind, background: e.background, message: e.message)
-            noteAgentMessage(leaf: leaf.id, kind: e.kind, message: e.message)
+            noteAgentTurn(leaf: leaf.id, kind: e.kind, message: e.message)
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
@@ -88,6 +88,7 @@ extension AppState {
         default: break
         }
         apply(signal, leaf: leaf)
+        wakeTabWaiters(leaf.id)  // an exit may leave the status as it was
         subSessionSignal(leaf: leaf.id)
     }
 
@@ -145,12 +146,13 @@ extension AppState {
     private func apply(_ signal: AgentSignal, leaf: Leaf) {
         var board = statuses
         let t = board.apply(signal, leaf: leaf.id, agent: sessionAgent(leaf.kind), now: clock())
+        seenOnArrival(&board, leaf: leaf.id)
         // Writing `statuses` notifies observers even when nothing changed.
         guard board != statuses else { return }
         let old = statuses.status(leaf.id).attention
         statuses = board
         attentionChanged(leaf.id, from: old, to: board.status(leaf.id).attention)
-        for (token, w) in tabWaiters where w.leaf == leaf.id { tabWaiters.removeValue(forKey: token)?.wake.resume() }
+        wakeTabWaiters(leaf.id)
         if let t {
             if t.to == .working {
                 for (token, w) in workingWaiters where w.leaf == leaf.id { finishWaiter(token, started: true) }

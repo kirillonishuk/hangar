@@ -12,6 +12,7 @@ import Testing
             (["sessions", "note", "Task", "3/7"], .call(.tasksNote(task: me, note: "Task 3/7"), json: false)),
             (["sessions", "note", "", "--session", "s1"], .call(.tasksNote(task: "s1", note: nil), json: false)),
             (["tabs", "wait", "--tab", "ab12"], .call(.tabsWait(tab: "ab12", for: .any, timeout: ControlMethod.waitDefaultSeconds), json: false)),
+            (["tabs", "wait", "--tab", "ab12", "--next"], .call(.tabsWait(tab: "ab12", for: .any, next: true, timeout: ControlMethod.waitDefaultSeconds), json: false)),
             (["tabs", "wait", "--tab", "ab12", "--for", "idle", "--timeout", "30", "--json"], .call(.tabsWait(tab: "ab12", for: .idle, timeout: 30), json: true)),
         ]
         for (args, expected) in table { #expect(parseCLI(args, cwd: "/tmp", callerLeaf: me) == expected, "\(args)") }
@@ -38,6 +39,8 @@ import Testing
         }
         #expect(decode("tasks.note", #"{"note":"a\nb","task":"t"}"#) == .success(.tasksNote(task: "t", note: "a b")))
         #expect(decode("tasks.note", #"{"note":""}"#) == .success(.tasksNote(task: nil, note: nil)))
+        #expect(decode("tabs.wait", #"{"tab":"x","next":true}"#) == .success(.tabsWait(tab: "x", for: .any, next: true, timeout: ControlMethod.waitDefaultSeconds)))
+        guard case .failure = decode("tabs.wait", #"{"tab":"x","next":1}"#) else { Issue.record("accepted next: 1"); return }
         #expect(decode("tabs.wait", #"{"tab":"x","for":"waiting","timeout":5}"#) == .success(.tabsWait(tab: "x", for: .waiting, timeout: 5)))
         for (m, bad) in [("tasks.note", "{}"), ("tasks.note", #"{"note":1}"#), ("tasks.note", "{\"note\":\"\(String(repeating: "x", count: 1025))\"}"),
                          ("tabs.wait", "{}"), ("tabs.wait", #"{"tab":"x","for":"done"}"#), ("tabs.wait", #"{"tab":"x","timeout":0}"#)] {

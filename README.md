@@ -145,10 +145,10 @@ MCP tools: `projects_list`, `projects_add`, `sessions_list`, `sessions_create`, 
 hangar sessions spawn --name release --prompt "Release 1.2 and wait until it is live"
 hangar sessions wait          # all open sub-chats of this chat
 hangar sessions note "Task 3/7 · review round 2"   # this chat's progress line ("" clears it)
-hangar tabs wait --tab <id> --for idle             # until that tab's agent ends its turn
+hangar tabs wait --tab <id> --for idle --next      # until that tab's agent ends its next turn
 ```
 
-An agent reports its progress with `sessions_note`: one short line (up to 100 characters) on its own chat, shown in the chat's tooltip in the sidebar, after the project in the toolbar, and in `sessions_list` / `sessions_wait`; it stays until the agent replaces or clears it. `tabs_wait` blocks until a tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`), and returns its status and last message (`still-running` on timeout: call again).
+An agent reports its progress with `sessions_note`: one short line (up to 100 characters) on its own chat, shown in the chat's tooltip in the sidebar, after the project in the toolbar, and in `sessions_list` / `sessions_wait`; it stays until the agent replaces or clears it. `tabs_wait` blocks until a tab's agent ends its turn (`idle`), asks for input (`waiting`) or either (`any`), and returns its status and last message (`still-running` on timeout: call again); with `next: true` / `--next` the current state does not count — use it right after `tabs_send`.
 
 **Hangar skill.** Settings → Integrations → «Hangar skill» (Claude Code and Codex, this Mac, off by default) installs a short skill at `~/.claude/skills/hangar/SKILL.md` / `~/.codex/skills/hangar/SKILL.md` that teaches the agent when and how to split work into sub-chats with these tools. Nothing is installed until you turn it on; turning it off removes Hangar's own file (a backup is kept), and someone else's `skills/hangar` is never touched.
 

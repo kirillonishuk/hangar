@@ -105,6 +105,25 @@ final class FillView: NSView {
     }
 }
 
+/// The frame a split pane gets (#135): waiting or failed, only when the tab is split (a lone pane has its tab's dot); nil — none.
+func paneFrame(_ state: AgentState, split: Bool) -> AgentState? {
+    split && (state == .waiting || state == .failed) ? state : nil
+}
+
+/// A border on top of a pane that never takes the mouse.
+final class PaneFrameView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.borderWidth = Theme.paneFrameWidth
+        isHidden = true
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 /// One split pane: optional header (when the tab is split), the terminal surface, and an exit/error bar.
 @MainActor final class LeafView: NSView {
     let leafId: UUID
@@ -124,6 +143,11 @@ final class FillView: NSView {
     private let bar = NSTextField(labelWithString: "")
     private let barLine = NSView()
     private let barFill = HoverFill { Theme.hover }
+    /// The waiting / failed frame over the whole pane, header included (#135).
+    private let frameView = PaneFrameView()
+    var attentionFrame: AgentState? {
+        didSet { if attentionFrame != oldValue { applyFrame() } }
+    }
     /// Non-nil while the process has exited with a failure (↩ relaunches).
     private(set) var exitCode: Int32?
     /// Ghostty could not create the surface (e.g. no display); ↩ or a display wake retries.
@@ -178,7 +202,7 @@ final class FillView: NSView {
         for line in [headerLine, barLine] { line.wantsLayer = true }
         applyTheme()
         observeTheme(#selector(applyTheme))
-        [header, headerLine, barFill, bar, barLine].forEach(addSubview)
+        [header, headerLine, barFill, bar, barLine, frameView].forEach(addSubview)
         header.isHidden = true
         headerLine.isHidden = true
         setBar(nil)
@@ -201,6 +225,12 @@ final class FillView: NSView {
         layer?.backgroundColor = Theme.bg0.cgColor
         bar.textColor = Theme.text2
         for line in [headerLine, barLine] { line.layer?.backgroundColor = Theme.line.cgColor }
+        applyFrame()
+    }
+
+    private func applyFrame() {
+        frameView.isHidden = attentionFrame == nil
+        frameView.layer?.borderColor = attentionFrame.map { $0 == .failed ? Theme.failed : Theme.waiting }?.cgColor
     }
 
     /// The header's content, made once (the first time the leaf is in a split; it reads its leaf by id).
@@ -488,6 +518,7 @@ final class FillView: NSView {
             bar.frame = NSRect(x: px, y: bottom + (h - th) / 2, width: max(0, bounds.width - 2 * px), height: th)
         }
         (surface ?? editor ?? chooser)?.frame = NSRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
+        frameView.frame = bounds
         window?.invalidateCursorRects(for: self)
     }
 }
@@ -537,6 +568,7 @@ final class FillView: NSView {
         addSubview(drawer)
         drawer.onToggle = { [weak self] in if let id = self?.app.selectedTask?.id { self?.toggleDrawer(taskId: id) } }
         drawer.onReturnFocus = { [weak self] in self?.focusActiveLeaf() }
+        trackPaneFrames()
         app.onOpenInEditor = { [weak self] leaf, path, line, column in
             guard let pane = self?.leafViews[leaf]?.editor else { return }  // a never-shown tab loads its file from the model
             pane.open(path: path, line: line, column: column)
@@ -765,6 +797,26 @@ final class FillView: NSView {
                 window?.makeFirstResponder(diffHost)  // typed keys must not reach the hidden terminal
             } else if let tab = active, let leaf = leafViews[tab.focusedLeafId] {
                 window?.makeFirstResponder(leaf.keyView)
+            }
+        }
+        applyPaneFrames()  // panes made by this sync
+    }
+
+    /// Frames follow every status and layout change (observation, no polling).
+    private func trackPaneFrames() {
+        withObservationTracking { applyPaneFrames() } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.trackPaneFrames() } }
+        }
+    }
+
+    /// The waiting / failed frame of each pane of a split tab (#135).
+    private func applyPaneFrames() {
+        for task in app.state.tasks where !task.archived {
+            for tab in task.tabs {
+                let split = tab.root.leaves.count > 1
+                for leaf in tab.root.leaves {
+                    leafViews[leaf.id]?.attentionFrame = paneFrame(app.displayState(ofLeaf: leaf.id, kind: leaf.kind), split: split)
+                }
             }
         }
     }

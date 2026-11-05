@@ -218,9 +218,9 @@ extension AppState {
             case .failure(let e): return fail(e)
             }
 
-        case let .tabsWait(ref, waitFor, timeout):
+        case let .tabsWait(ref, waitFor, next, timeout):
             switch resolveLeaf(ref) {
-            case .success(let target): return .ok(id, await waitForTab(target, for: waitFor, timeout: .seconds(timeout)))
+            case .success(let target): return .ok(id, await waitForTab(target, for: waitFor, next: next, timeout: .seconds(timeout)))
             case .failure(let e): return fail(e)
             }
 

@@ -33,6 +33,7 @@ extension AppState {
             }
         }
         hosts.statusline = statuslineRenderer(configURL: configURL)
+        hosts.usage = usageSnapshot
         hosts.onChange = { [weak self] host in self?.onHostChange?(host) }
         hosts.onUnreachable = { [weak self] host in
             guard let self else { return }

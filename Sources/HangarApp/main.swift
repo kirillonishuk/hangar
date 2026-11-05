@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
     var appState: AppState?
     var server: ControlServer?
+    /// Claude's freshest limits: the local socket and every host's socket merge into it (#137).
+    let usageSnapshot = UsageSnapshot()
     /// `kill -TERM` (logout of a launchd job, a script): quit through `applicationWillTerminate`, never ask.
     private var sigtermReceived = false
     private var sigterm: DispatchSourceSignal?
@@ -62,7 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let result = store.load()
         let state: WorkspaceState
         if case .loaded(let loaded) = result { state = loaded } else { state = WorkspaceState() }
-        let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath)
+        let app = AppState(state: state, store: store, config: config, configURL: configURL, socketPath: socketPath,
+                           usageSnapshot: usageSnapshot)
         app.integrationCLI = hangarCLIPath(bundle: .main)
         app.tabHookCLI = app.integrationCLI
         app.holdIntegrationUntilLaunch()  // restored agent tabs wait for `integrateAtLaunch`'s migration
@@ -169,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                    onRequest: { [weak self] id, call in
                                        await self?.appState?.respond(id, call)
                                            ?? ControlResponse(id: id, body: .failure(ControlError(code: .failed, message: "Hangar is starting")))
-                                   })
+                                   }, usage: usageSnapshot)
         do {
             try server.start()
             self.server = server

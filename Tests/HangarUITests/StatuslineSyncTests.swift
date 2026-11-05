@@ -179,9 +179,9 @@ private let cli = "/Applications/Hangar.app/Contents/Helpers/hangar"
         let url = dir.appendingPathComponent("config.toml")
         try write("statusline = \"hangar\"\nlanguage = \"en\"\nstatusline_segments = [\"model\"]\n", url.path)
         let render = statuslineRenderer(configURL: url)
-        #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8)) == "Opus 4.7")
+        #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8), []) == "Opus 4.7")
         try write("statusline = \"user\"\n", url.path)
-        #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8)) == nil)
+        #expect(render(Data(#"{"model":{"display_name":"Opus 4.7"}}"#.utf8), []) == nil)
     }
 
     /// #110: a chip dropped in a gap lands there; off the row or back in its own place, nothing moves.

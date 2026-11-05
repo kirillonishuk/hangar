@@ -1,0 +1,11 @@
+# HD-148 — 2026-11-06 — Терминал — текстовая область для Accessibility: диктовка (MacWhisper и др.) вставляет как ⌘V
+
+Владелец: push-to-talk MacWhisper (держать правый Option, говорить, отпустить) в Ghostty.app с `claude` работает, в терминале Hangar — ничего, даже индикатора записи; Secure Input выключен. Причина: `TerminalSurfaceView` не был элементом Accessibility, и фокусным элементом приложения (`AXFocusedUIElement`) оказывался родитель — `AXSplitGroup` без текстовых атрибутов. Приложения диктовки (MacWhisper, superwhisper, Wispr Flow) начинают запись, только если в фокусе редактируемый текст. Правый Option ни при чём: локальные мониторы Hangar ловят только `keyUp` и `leftMouseDown`, `flagsChanged` лишь передаёт модификатор в Ghostty, а MacWhisper слушает глобально.
+
+Теперь, как в Ghostty.app (`SurfaceView_AppKit.swift`, коммит из `vendor/GHOSTTY_COMMIT`), поверхность — `AXTextArea`: `AXValue` — текст экрана со скроллбэком (кэш на 0.5 с, без таймера: пачка запросов читает терминал один раз), `AXSelectedText`/`AXSelectedTextRange` — выделение, `AXNumberOfCharacters`, `AXVisibleCharacterRange`, строки и подстроки по диапазону. Плюс Services (`validRequestor`, `writeSelection`, `readSelection`), как в Ghostty.
+
+Сверх Ghostty — запись: `AXSelectedText` (вставка в каретку) отправляется в pty как вставка (`ghostty_surface_text`, т. е. с bracketed paste, как ⌘V; многострочная диктовка не выполняется построчно, только если программа включила bracketed paste, иначе переводы строк срабатывают как Enter — так же в Ghostty.app, паритет принят владельцем); запись `AXValue` принимается, только если новое значение — старое с одним вставленным куском текста, и в pty уходит лишь он (чистая функция `insertedText(old:new:)`, тест); иное (удаление, переписывание) игнорируется — терминал не редактируется как документ, а целиком вставлять экран опасно.
+
+Проверка (DEBUG, изолированно, AX-скрипт по pid): до — фокус `AXSplitGroup`, нет `AXValue`/`AXSelectedText`/`AXSelectedTextRange`, запись «успешна», но в pty ничего; после — `AXTextArea` («text entry area»), `AXSelectedText` и `AXValue` записываемые, запись «hello AX» дала в pty `ESC[200~hello AX ESC[201~`.
+
+**Отвергнуто:** писать `AXValue` целиком в pty — вставило бы весь экран; синтетические нажатия клавиш для вставки — ломаются раскладкой и IME, а вставка уже есть.

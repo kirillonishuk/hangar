@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks docs/decisions/: names HD-NNN-<slug>.md, unique numbers, each file opens with its own
-# "# HD-NNN — " heading, and docs/decisions.md links every file (and only existing ones).
+# "# HD-NNN — " heading; other files there are linked from docs/decisions.md, and its links exist.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,15 +24,15 @@ for path in "$dir"/*; do
       ;;
     *)
       [[ "$name" =~ ^[a-z0-9]+(-[a-z0-9]+)*\.md$ ]] || err "$name: unexpected file name"
+      grep -qF "](decisions/$name)" "$index" || err "$name: not linked from $index"
       ;;
   esac
-  grep -qF "](decisions/$name)" "$index" || err "$name: not linked from $index"
 done
 
 dups=$(ls "$dir" | grep -o '^HD-[0-9]\{3\}' | sort | uniq -d || true)
 [ -z "$dups" ] || err "duplicate numbers: $(echo $dups)"
 
-for link in $(grep '^- \[' "$index" | grep -o '](decisions/[^)]*)' | sed 's/^](decisions\///; s/)$//'); do
+for link in $(grep -o '](decisions/[^)]*)' "$index" | sed 's/^](decisions\///; s/)$//'); do
   [ -f "$dir/$link" ] || err "$index links missing file decisions/$link"
 done
 

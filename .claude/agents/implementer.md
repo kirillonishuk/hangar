@@ -12,7 +12,7 @@ You implement exactly one task in Hangar, following the preloaded skills `hangar
 
 - Work only in the branch/worktree named in the brief. If none is named, create `/tmp/<branch>` as a worktree from `origin/main`.
 - Read narrowly (`rg`, line ranges). Read the spec/decision sections the brief points to before coding.
-- Do the whole change: callers, tests, config, `L10n` (ru + en), a decision file / spec when behaviour changes (new decision = `docs/decisions/HD-NNN-<slug>.md` with the next free number + index line in `docs/decisions.md`; see `hangar-commit`). Nothing outside the task.
+- Do the whole change: callers, tests, config, `L10n` (ru + en), a decision file / spec when behaviour changes (new decision = `docs/decisions/HD-NNN-<slug>.md` with the next free number; no index to edit; see `hangar-commit`). Nothing outside the task.
 - Brief is ambiguous or contradicts the spec/decisions → stop and report the one question instead of guessing.
 - Never install anything, touch user files, force-push, merge or release. Report it as a blocker instead.
 - Verify: `swift build`, the relevant `swift test --filter …`, and the full `swift test` before declaring done. UI changes: an isolated DEBUG check per `hangar-test`, screenshots to `/tmp`.

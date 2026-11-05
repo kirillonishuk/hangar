@@ -25,8 +25,8 @@ Policy lives in `AGENTS.md` («Не ходить по кругу», «Готов
 - Small, focused commits: one logical change each; no drive-by refactors.
 - Behaviour or scope changed → update `docs/superpowers/specs/2026-10-18-hangar-design.md` or add a decision **in the same commit**:
   - new file `docs/decisions/HD-NNN-<slug>.md` (NNN = next free number, 3 digits; slug = 1–5 lowercase ASCII words joined by `-`), first line `# HD-NNN — <date> — <title>`;
-  - one index line in `docs/decisions.md`: `- [HD-NNN](decisions/HD-NNN-<slug>.md) — <date> — <title>`, in number order;
-  - right before push: `git fetch` and `git ls-tree --name-only origin/main docs/decisions/ | grep -o 'HD-[0-9]*' | sort | tail -1` — if your number is taken, rename to the next free one (file, heading, index line, your references). Never renumber or edit others' decisions; amend one with a new decision that references it;
+  - nothing else to edit: there is no hand-kept index (`scripts/decisions-index.sh` prints one);
+  - right before push: `git fetch` and `git ls-tree --name-only origin/main docs/decisions/ | grep -o 'HD-[0-9]*' | sort | tail -1` — if your number is taken, rename to the next free one (file, heading, your references). Never renumber or edit others' decisions; amend one with a new decision that references it;
   - `scripts/check-decisions.sh` passes (CI runs it). Cite decisions as `HD-NNN`, never `#N` (GitHub turns that into a PR/issue link).
 - Before committing: `git diff --cached` contains no secrets, real hostnames, usernames or home paths (`/Users/...`); fixtures use neutral names.
 - `swift build` passes for code commits; tests per the `hangar-test` skill.

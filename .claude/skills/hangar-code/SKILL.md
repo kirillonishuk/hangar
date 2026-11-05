@@ -8,7 +8,7 @@ description: How to write Swift code in Hangar — simplicity order, module boun
 Rules are in `AGENTS.md` («Простота», «Инженерные правила»); module map in spec §2 (`docs/superpowers/specs/2026-10-18-hangar-design.md`); UI in `docs/design/DESIGN.md` and the mockups. Read the section you need, not everything. Below is how to apply them.
 
 ## Before writing
-1. Check the decisions (`rg -n '<topic>' docs/decisions/`; index `docs/decisions.md`; cite as `HD-NNN`) — don't reopen a decided question without new facts.
+1. Check the decisions (`rg -n '<topic>' docs/decisions/`; list `scripts/decisions-index.sh`; cite as `HD-NNN`) — don't reopen a decided question without new facts.
 2. Walk the «Простота» order: needed at all? → already in the project (`rg` for it, copy the surrounding style) → Foundation/AppKit/SwiftUI/system → minimal new code.
 3. Unsure about intent → one concrete question to the owner, not an exploration of alternatives.
 

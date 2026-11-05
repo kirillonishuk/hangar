@@ -13,8 +13,6 @@ extension Theme {
     public static let subChatIndent: CGFloat = Space.s4
     public static let subChatMaxDepth = 2
     public static let subChatChevronDX: CGFloat = -Space.s4
-    /// The branch at a chat row's end: `mono` 11 up to this wide, truncated at its end.
-    public static let rowBranchMax: CGFloat = 92
     public static let rowStatusGap: CGFloat = Space.s1
     /// Project row: its actions end 4 before the highlight's edge (12 from the sidebar's).
     public static let projectRowTrailing: CGFloat = Space.s3

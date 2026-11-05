@@ -232,6 +232,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let column: TaskColumnController
     nonisolated(unsafe) private var keyMonitor: Any?
     nonisolated(unsafe) private var activeObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var accessibilityObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
     private var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
@@ -392,6 +394,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         installMainMenu()
         installKeyMonitor()
         observeTheme(#selector(applyTheme))
+        accessibilityObserver = Theme.followSystemAccessibility()
         // Passed reset times and «обновлено …» are recomputed when the user comes back, not by a timer.
         activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -399,8 +402,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 // The SSH HOSTS list follows ~/.ssh/config edits made while Hangar was in the background (no watcher).
                 self?.app.reloadConfigHosts()
                 self?.app.updates.checkIfDue()  // at most hourly (#86)
+                self?.app.refreshSeen()
             }
         }
+        // Leaving the app forgets what was on screen: coming back shows (and marks seen) the chat in view again (#135).
+        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.app.refreshSeen() }
+        }
+        app.screenShown = { [weak self] in self?.windowVisible ?? false }
         app.reloadConfigHosts()
         app.updates.onShow = { [weak self] in self?.presentUpdate() }
         #if DEBUG
@@ -422,7 +431,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     deinit {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let accessibilityObserver { NSWorkspace.shared.notificationCenter.removeObserver(accessibilityObserver) }
     }
+
+    /// Minimised, covered or shown again: what is on screen changed (#135).
+    public func windowDidChangeOcclusionState(_ notification: Notification) { app.refreshSeen() }
 
     public override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
@@ -819,7 +833,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     #endif
 
     /// The app is active and the main window is on screen (a key Settings window or sheet doesn't hide it) (a notification for a hidden leaf is due otherwise).
-    private var windowVisible: Bool {
+    var windowVisible: Bool {
         guard let window else { return false }
         return NSApp.isActive && window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
     }

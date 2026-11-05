@@ -144,6 +144,7 @@ extension AppState {
     private func apply(_ signal: AgentSignal, leaf: Leaf) {
         var board = statuses
         let t = board.apply(signal, leaf: leaf.id, agent: sessionAgent(leaf.kind), now: clock())
+        seenOnArrival(&board, leaf: leaf.id)
         // Writing `statuses` notifies observers even when nothing changed.
         guard board != statuses else { return }
         let old = statuses.status(leaf.id).attention

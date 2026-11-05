@@ -357,7 +357,7 @@ struct TabBarView: View {
                 let state = app.displayState(of: tab)
                 let icon = tab.root.leaves.first.map { Icon.of($0) } ?? .shell
                 return .item(PopoverMenuItem(title: app.tabLabel(tab), icon: icon, checked: tab.id == task.activeTabId && diff?.active != true,
-                                             dot: app.showsDot(tab, state: state) ? state : nil) { app.activate(tabId: tab.id) })
+                                             dot: app.showsDot(tab, state: state) ? state : nil, dotSeen: app.doneSeen(tab.root.leaves)) { app.activate(tabId: tab.id) })
             }
             if let diff {
                 entries.append(.item(PopoverMenuItem(title: (diff.path as NSString).lastPathComponent, icon: .diff, checked: diff.active) {
@@ -501,7 +501,7 @@ struct TabItem: View {
             }
             .overlay(alignment: .topTrailing) {
                 if app.showsDot(tab, state: dot) {
-                    StatusDot(state: dot, size: Theme.Icon.tabDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
+                    StatusDot(state: dot, seen: app.doneSeen(tab.root.leaves), size: Theme.Icon.tabDot, border: active ? Theme.ui.hover2 : hover ? Theme.ui.hover : Theme.ui.bg1,
                               borderWidth: Theme.railDotBorder)
                         .offset(x: Theme.tabDotOffset, y: -Theme.tabDotOffset)
                         .help(app.statusText(dot, leaves: tab.root.leaves))

@@ -81,6 +81,7 @@ import Workspace
         case newTaskIn, addProject, addProjectEllipsis, restore, rename
         case pin, unpin, archive, folderMissing
         case statusWorking, statusWaiting, statusDone, statusFailed, statusIdle, statusLimit, limitUntil, rowWithStatus
+        case statusDoneSeen, statusDoneNew, markUnread, rowWaitingMin, rowWaitingHour, waitingFor
         case folderMissingPath, more, settings, settingsHelp, settingsEllipsis
         case collapseSidebarHelp, expandSidebarHelp, inspectorHelp, diffUnavailable, newTabHelp, closeTabHelp, allTabsHelp
         case taskNamePlaceholder, escCancel, cancel, create, configNotApplied
@@ -361,6 +362,17 @@ import Workspace
     /// «лимит · до 20:20»: the state word with the reset time.
     static func limitUntil(_ clock: String) -> String { f(.limitUntil, clock) }
     static func rowWithStatus(_ name: String, _ state: AgentState) -> String { f(.rowWithStatus, name, statusLabel(state)) }
+    static func rowWithStatusText(_ name: String, _ status: String) -> String { f(.rowWithStatus, name, status) }
+    /// A done dot says whether its result was seen (#135); other states as `statusLabel`.
+    static func statusLabel(_ state: AgentState, seen: Bool) -> String {
+        state == .done ? s(seen ? .statusDoneSeen : .statusDoneNew) : statusLabel(state)
+    }
+    static var markUnread: String { s(.markUnread) }
+    /// «ждёт 12 м», «ждёт 2 ч»: a waiting row's end after `rowWaitingMinutes`.
+    static func rowWaitingMin(_ m: Int) -> String { f(.rowWaitingMin, m) }
+    static func rowWaitingHour(_ h: Int) -> String { f(.rowWaitingHour, h) }
+    /// «ждёт 4 мин»: the row's tooltip head.
+    static func waitingFor(_ duration: String) -> String { f(.waitingFor, duration) }
     static func folderMissing(_ path: String) -> String { f(.folderMissingPath, path) }
     static func hostNotConnected(_ host: String) -> String { f(.hostNotConnected, host) }
     static func hostOffline(_ host: String) -> String { f(.hostOffline, host) }

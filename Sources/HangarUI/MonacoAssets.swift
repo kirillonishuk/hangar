@@ -88,7 +88,7 @@ enum MonacoTheme {
             "diffEditor.insertedTextBackground": c(.diffAddedText), "diffEditor.removedTextBackground": c(.diffRemovedText),
             "diffEditor.insertedLineBackground": c(.diffAddedLine), "diffEditor.removedLineBackground": c(.diffRemovedLine),
             "diffEditorGutter.insertedLineBackground": c(.diffAddedLine), "diffEditorGutter.removedLineBackground": c(.diffRemovedLine),
-            "diffEditor.diagonalFill": h(p.line), "diffEditor.border": h(p.line),
+            "diffEditor.diagonalFill": h(p.line, alpha: Theme.Diff.hatch), "diffEditor.border": h(p.line),
             "diffEditor.unchangedRegionBackground": h(p.bg1),
             "diffEditor.unchangedRegionForeground": h(p.text2),
             "peekView.border": h(p.line2),

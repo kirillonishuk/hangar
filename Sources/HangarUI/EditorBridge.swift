@@ -318,7 +318,8 @@ enum EditorCommand: Equatable {
     /// nil hides the status item for that file.
     case language(path: String, LanguageStatus?)
     case diff(EditorDiff)
-    case options(inline: Bool, minimap: Bool)
+    /// `wrap`: the diff's own «Переносить строки» (the editor tabs take wrapping from Settings).
+    case options(inline: Bool, minimap: Bool, wrap: Bool = false)
     case focus
     /// The diff: the next / previous change (wraps).
     case goChange(next: Bool)
@@ -354,7 +355,7 @@ enum EditorCommand: Equatable {
         case .diff(let d):
             return ["type": "diff", "name": d.name, "original": d.original, "modified": d.modified, "path": n(d.path),
                     "line": n(d.line)]
-        case .options(let inline, let minimap): return ["type": "options", "inline": inline, "minimap": minimap]
+        case .options(let inline, let minimap, let wrap): return ["type": "options", "inline": inline, "minimap": minimap, "wrap": wrap]
         case .focus: return ["type": "focus"]
         case .goChange(let next): return ["type": "goChange", "next": next]
         case .appearance(let a): return a.json.merging(["type": "appearance"]) { $1 }

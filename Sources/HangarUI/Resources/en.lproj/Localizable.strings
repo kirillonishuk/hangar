@@ -598,6 +598,10 @@
 "editorDontSave" = "Don't Save";
 "diffInline" = "Inline";
 "diffSideBySide" = "Side by side";
+"diffWrap" = "Wrap lines";
+"diffNewFile" = "new file";
+"diffDeletedFile" = "deleted";
+"diffOneSide" = "The file exists on one side only — one column";
 "editorMinimap" = "Minimap";
 "editorMenuDefinition" = "Go to Definition";
 "editorMenuReferences" = "Find All References";

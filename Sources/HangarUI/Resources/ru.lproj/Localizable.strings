@@ -598,6 +598,10 @@
 "editorDontSave" = "Не сохранять";
 "diffInline" = "Одной колонкой";
 "diffSideBySide" = "Рядом";
+"diffWrap" = "Переносить строки";
+"diffNewFile" = "новый файл";
+"diffDeletedFile" = "удалён";
+"diffOneSide" = "Файл есть только с одной стороны — одна колонка";
 "editorMinimap" = "Миникарта";
 "editorMenuDefinition" = "Перейти к определению";
 "editorMenuReferences" = "Найти все ссылки";

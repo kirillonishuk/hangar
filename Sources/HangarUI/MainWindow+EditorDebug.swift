@@ -26,12 +26,13 @@ extension MainWindowController {
               if (e) { e.focus(); e.trigger('debug', 'type', { text: \(t)[0] }); } })()
             """)
         case "eddiff": app.openDiff(path: arg)  // eddiff <path from the session folder>: as a Changes click
-        case "edinline": app.perform { $0.diffInline = arg == "on" }; column.terminalArea.shownDiffEditor?.setInline(arg == "on")
+        case "edinline": app.perform { $0.diffInline = arg == "on" }; column.terminalArea.shownDiffEditor?.sendOptions()
+        case "edwrap": app.perform { $0.diffWrap = arg == "on" }; column.terminalArea.shownDiffEditor?.sendOptions()
         case "edfocus": if let page { window?.makeFirstResponder(page.webView) }
         case "edsnap": snapEditor(to: arg)
         case "edstate":
             // edstate <file>: each editor leaf's files (active *, dirty, conflict) and the diff mode.
-            let lines = column.terminalArea.debugEditors() + ["diffChanges=\(column.terminalArea.shownDiffEditor.map { "\($0.changes.index)/\($0.changes.count.map(String.init) ?? "?")" } ?? "-") diffInline=\(app.state.diffInline) minimap=\(app.state.editorMinimap) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
+            let lines = column.terminalArea.debugEditors() + ["diffChanges=\(column.terminalArea.shownDiffEditor.map { "\($0.changes.index)/\($0.changes.count.map(String.init) ?? "?")" } ?? "-") diffInline=\(app.state.diffInline) diffWrap=\(app.state.diffWrap) oneSided=\(column.terminalArea.shownDiffEditor?.oneSided == true) minimap=\(app.state.editorMinimap) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
         default: return false
         }

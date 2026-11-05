@@ -12,6 +12,23 @@ struct DiffTab: Equatable {
     var commit: String? = nil
     /// The commit file's name before a rename.
     var origPath: String? = nil
+    /// The commit file's change kind (the session's comes from Changes).
+    var change: FileChange? = nil
+}
+
+/// A file with one side only (added, untracked, deleted) is one full-width column whatever the saved
+/// «Рядом / Одной колонкой» (HD-150): the other half would be empty.
+func diffOneSided(_ change: FileChange?) -> Bool {
+    change == .added || change == .untracked || change == .deleted
+}
+
+/// The header's caption for such a file; a rename already has its «Переименован из …» line under the header.
+@MainActor func diffChangeLabel(_ change: FileChange?) -> String? {
+    switch change {
+    case .added, .untracked: L10n.diffNewFile
+    case .deleted: L10n.diffDeletedFile
+    default: nil
+    }
 }
 
 extension AppState {
@@ -41,7 +58,7 @@ extension AppState {
         guard let id = selectedTask?.id else { return }
         leavingDiff { [self] in
             if diffTabs[id]?.commit == nil { inspector.loadDiff(path: nil) }  // the Changes diff is no longer shown
-            diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath)
+            diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath, change: file.change)
             gitPanel.loadDiff(hash: hash, path: file.path, origPath: file.origPath)
             didChange?()
         }
@@ -96,6 +113,11 @@ extension AppState {
     /// Row index of the selected line in the current load.
     var activeDiffSelection: Int? {
         activeDiff?.selectedRowId.flatMap { activeDiffContent.indexById[$0] }
+    }
+
+    /// The change kind of a diff tab's file (nil while Changes doesn't list it).
+    func diffChange(of tab: DiffTab) -> FileChange? {
+        tab.commit != nil ? tab.change : inspector.changes?.files.first { $0.path == tab.path }?.change
     }
 
     /// Rows of the shown diff (cached per load). A path not (yet) loaded by the inspector is still loading.

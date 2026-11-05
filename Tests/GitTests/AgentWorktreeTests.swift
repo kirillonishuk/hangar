@@ -63,6 +63,13 @@ import Testing
         #expect(otherWorktree(cwd: "/link/src", chatFolder: "/r", in: list, normalize: norm) == nil)
     }
 
+    @Test func shortChatNames() {
+        #expect(shortChatName(branch: "someone/aut-1076-epik-vitrina") == "aut-1076")
+        #expect(shortChatName(branch: "feat/claude-md-refactor") == "claude-md-refactor")
+        #expect(shortChatName(branch: "main") == "main")
+        #expect(shortChatName(branch: "a/b/AUT-12") == "AUT-12")
+    }
+
     @Test func spareAndBranch() {
         #expect(unusedWorktrees(list, used: ["/r.worktrees/feat"]).map(\.path) == ["/r/.claude/worktrees/aut-1076"])
         #expect(unusedWorktrees(list, used: []).count == 2)  // never the main checkout, never prunable

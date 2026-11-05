@@ -162,7 +162,7 @@ import TestSupport
         let s = try await setUp(h)
         let before = Self.snapshot(h.root + "/mac")
         let task = h.app.state.tasks.first { $0.id == s.task }!
-        h.app.requestHead(task)
+        h.app.selectedHead(task)
         await h.app.branchModel.idle()
         #expect(h.app.head(of: task) == .branch("main"))
         let choices = try await h.app.branchChoices(of: task)
@@ -183,16 +183,19 @@ import TestSupport
         #expect(Self.snapshot(h.root + "/mac") == before)
     }
 
-    /// Window focus: one HEAD load per folder for the shown chats, throttled; none for hidden chats or a lost host.
+    /// Window focus: one HEAD load for the selected chat (shared by its folder's twin), throttled; none with nothing
+    /// selected or a lost host.
     @Test func remoteHeadsOnFocus() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let s = try await setUp(h)
         var twin = UUID()
         h.app.perform { twin = $0.addTask(projectId: s.project, name: "twin") }
         let chats = h.app.state.tasks.filter { $0.projectId == s.project }
-        for c in chats { h.app.requestHead(c) }
+        for c in chats { h.app.selectedHead(c) }
         await h.app.branchModel.idle()
         #expect(h.app.head(of: chats.first { $0.id == twin }!) == .branch("main"))
+        h.app.perform { $0.selectedTaskId = s.task }
+        await h.app.worktreeChecksIdle()
         let t0 = Date()
         var n = gitCalls(h)
         h.app.refreshHeadsOnFocus(now: t0)
@@ -202,11 +205,11 @@ import TestSupport
         h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(1))
         await h.app.branchModel.idle()
         #expect(gitCalls(h) == n)
-        for c in chats { h.app.hideHead(c) }
+        h.app.perform { $0.selectedTaskId = nil }
         h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(10))
         await h.app.branchModel.idle()
         #expect(gitCalls(h) == n)
-        for c in chats { h.app.requestHead(c) }
+        h.app.perform { $0.selectedTaskId = s.task }
         h.app.remote.disconnect("dev")
         h.app.refreshHeadsOnFocus(now: t0.addingTimeInterval(20))
         await h.app.branchModel.idle()

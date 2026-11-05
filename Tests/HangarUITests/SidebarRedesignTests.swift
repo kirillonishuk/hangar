@@ -7,27 +7,18 @@ import Workspace
 
 /// Redesign track B: the two-line session row (status text, diff badge) and the custom popover menu.
 @MainActor @Suite struct SidebarRedesignTests {
-    // MARK: Row branch
-
-    /// A 40-character chat name never squeezes the branch: it keeps its own width, up to 92 (§3.3).
-    @Test func rowBranchKeepsItsWidth() {
-        let name = String(repeating: "x", count: 40)
-        #expect(SidebarView.branchWidth("main") > 20)
-        #expect(SidebarView.branchWidth("main") < Theme.rowBranchMax)
-        #expect(SidebarView.branchWidth("feature/\(name)") == Theme.rowBranchMax)
-        #expect(SidebarView.branchWidth("feat/oauth") > SidebarView.branchWidth("main"))
-    }
+    // MARK: Row end
 
     /// Hover shifts nothing: the row end's slot is constant and always holds the pin and «⋯» (they start where the
-    /// slot's gap ends), for a short branch, a long one, a state word or none yet.
+    /// slot's gap ends), for a state word, a wide counter or nothing.
     @Test func rowEndSlotHoldsActions() {
         let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
-        for own: CGFloat? in [nil, 0, SidebarView.branchWidth("main"), Theme.rowBranchMax] {
+        for own: CGFloat? in [nil, 0, 20, 120] {
             let slot = SidebarView.rowEndSlot(own)
             #expect(slot + Theme.rowEndGap >= actions)  // name's edge stays left of the actions: zero shift on hover
             #expect(slot >= own ?? 0)
         }
-        #expect(SidebarView.rowEndSlot(Theme.rowBranchMax) == Theme.rowBranchMax)
+        #expect(SidebarView.rowEndSlot(120) == 120)
     }
 
     // MARK: Plurals and status text

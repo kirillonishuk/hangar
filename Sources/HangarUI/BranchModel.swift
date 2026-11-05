@@ -2,20 +2,18 @@ import Foundation
 import Git
 import Workspace
 
-/// Live HEAD of each chat's folder (branch, or short hash when detached) for the branch button and the sidebar
-/// (decision HD-114). Loaded when a chat first shows; reloaded on the inspector's status loads, the selected chat's
-/// HEAD file events, `done` events, the host connecting and after a switch — no polling. Coming back to the window
-/// reloads only the selected and on-screen chats, at most every `focusInterval`. One git call per folder
+/// Live HEAD of each chat's folder (branch, or short hash when detached) for the toolbar's branch button
+/// (decisions HD-114, HD-141). Loaded when a chat is selected; reloaded on the inspector's status loads, the selected
+/// chat's HEAD file events, `done` events, the host connecting and after a switch — no polling. Coming back to the
+/// window reloads only the selected chat, at most every `focusInterval`. One git call per folder
 /// (host + path) at a time, shared by its chats; a refresh during it reruns once. A failed load keeps the last value.
 @MainActor @Observable final class BranchModel {
     typealias Load = @MainActor () async -> Head?
     static let focusInterval: TimeInterval = 5
 
     private(set) var heads: [UUID: Head] = [:]
-    /// Chats shown at least once: events reload only these.
+    /// Chats selected at least once: events reload only these.
     @ObservationIgnored private(set) var requested: Set<UUID> = []
-    /// Chats on screen now (rows report appear / disappear): with the selected one, what a window focus reloads.
-    @ObservationIgnored private(set) var shown: Set<UUID> = []
     @ObservationIgnored var lastFocusRefresh: Date?
     @ObservationIgnored private var loads: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var again: [String: (ids: [UUID], load: Load)] = [:]
@@ -24,16 +22,8 @@ import Workspace
     /// A switcher's result that landed with its menu closed (the window shows it as a toast).
     @ObservationIgnored var toast: (String) -> Void = { _ in }
 
-    /// Returns true the first time the chat shows.
-    func show(_ id: UUID) -> Bool {
-        shown.insert(id)
-        return request(id)
-    }
-
     /// Events reload it from now on; true the first time.
     func request(_ id: UUID) -> Bool { requested.insert(id).inserted }
-
-    func hide(_ id: UUID) { shown.remove(id) }
 
     /// A loaded HEAD that turned out not to be the chat's (its copy is not in place).
     func forget(_ id: UUID) { heads[id] = nil }
@@ -78,21 +68,13 @@ extension AppState {
     /// The chat's current branch or short hash; nil until loaded (or outside git).
     func head(of task: HangarTask) -> Head? { branchModel.heads[task.id] }
 
-    /// The chat's branch is on screen: its HEAD loads the first time.
-    func requestHead(_ task: HangarTask) {
-        if branchModel.show(task.id) { refreshHead(taskId: task.id) }
-    }
-
     /// The chat is selected (the toolbar's branch button): its HEAD loads now, whatever was loaded before.
     func selectedHead(_ task: HangarTask) {
         _ = branchModel.request(task.id)
         refreshHead(taskId: task.id)
     }
 
-    /// Its row left the screen: a window focus no longer reloads it.
-    func hideHead(_ task: HangarTask) { branchModel.hide(task.id) }
-
-    /// HEAD of this chat's folder may have moved: one load for every shown chat in the same folder.
+    /// HEAD of this chat's folder may have moved: one load for every loaded chat in the same folder.
     func refreshHead(taskId: UUID) {
         guard let folder = headFolder(taskId) else { return }
         refreshHeads(folders: [folder])
@@ -105,12 +87,12 @@ extension AppState {
         refreshHead(taskId: task.id)
     }
 
-    /// Back to the window: the selected and on-screen chats (a remote one only while its host is connected),
-    /// once per folder, at most every `focusInterval`.
+    /// Back to the window: the selected chat (a remote one only while its host is connected), at most every
+    /// `focusInterval`.
     func refreshHeadsOnFocus(now: Date = Date()) {
         if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
         branchModel.lastFocusRefresh = now
-        let ids = branchModel.shown.union(state.selectedTaskId.map { [$0] } ?? [])
+        let ids: Set<UUID> = state.selectedTaskId.map { [$0] } ?? []
         for projectId in Set(ids.compactMap { id in state.tasks.first { $0.id == id && $0.branch != nil }?.projectId }) {
             checkWorktrees(projectId: projectId)
         }

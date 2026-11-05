@@ -572,12 +572,6 @@ enum EmptyProjectRow: Hashable {
     }
 
     /// Folder an action opens/copies: the task's worktree or project folder.
-    /// The task's `HANGAR_PORT` (HD-060); projects and tabs have none.
-    func port(of target: ActionTarget) -> Int? {
-        guard case .task(let id) = target else { return nil }
-        return state.tasks.first { $0.id == id }?.port
-    }
-
     func path(of target: ActionTarget) -> String? {
         switch target {
         case .project(let id): return project(id)?.path

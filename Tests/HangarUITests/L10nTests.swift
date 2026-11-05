@@ -36,15 +36,6 @@ import Workspace
         #expect(L10n.sessionsTitle == "History")
     }
 
-    /// A port is an identifier, not a quantity: no digit grouping («44 351») in either language.
-    @Test func portIsNotGrouped() {
-        defer { L10n.language = .system }
-        L10n.language = .ru
-        #expect(L10n.portCopy(44351) == "Порт: 44351 (копировать)")
-        L10n.language = .en
-        #expect(L10n.portCopy(44351) == "Port: 44351 (copy)")
-    }
-
     /// English palette commands are menu titles: Title Case throughout («New Tab», not «New tab» next to «Split Right»).
     @Test func paletteCommandsAreTitleCaseInEnglish() {
         defer { L10n.language = .system }

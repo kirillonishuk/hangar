@@ -371,6 +371,12 @@ func drawerRoute(_ sc: Shortcut, drawerFocused: Bool, diffActive: Bool, sessions
 /// What holds the keyboard when F2 is pressed.
 enum FirstResponderKind { case terminal, text, other }
 
+/// Esc closes the subagent panel when focus is in the inspector, on nothing typing, or right after the row click; a focused
+/// terminal or field keeps its Esc (an agent is interrupted with it).
+func subagentEscCloses(_ kind: FirstResponderKind, inInspector: Bool, justOpened: Bool) -> Bool {
+    inInspector || justOpened || kind == .other
+}
+
 /// The diff view sits in the terminal area but is not a terminal: F2 renames, its keys are not typing — except inside
 /// Monaco (`isWeb`, the editor or the diff's editor), which types like a text field and owns F2 (rename symbol).
 func responderKind(isText: Bool, isWeb: Bool = false, inTerminalArea: Bool, isDiff: Bool) -> FirstResponderKind {

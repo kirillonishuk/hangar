@@ -244,10 +244,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// The open «Удалённый проект» / «Сервер» sheet's models (debug hooks drive them).
     private(set) var remoteProjectModel: RemoteProjectModel?
     private(set) var serverModel: ServerCheckModel?
-    /// The open subagent viewer (debug `dump` reads whether it watches).
-    private(set) var subagentViewer: SubagentViewerModel?
-    /// Closes it as its «Закрыть» does (the debug channel too).
-    private(set) var closeSubagentViewer: (() -> Void)?
     private(set) var remoteProjectAdd: ((String, String) -> Void)?
     /// The shown integration sheet's buttons and «Что изменится» (the debug channel presses them).
     var integrationSheetAnswer: ((Bool) -> Void)?
@@ -578,6 +574,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func route(_ event: NSEvent, in window: NSWindow) -> Bool {
         // The inline rename field: ↩ must reach it, not relaunch the terminal.
         let editingText = window.firstResponder is NSText
+        // Esc closes the subagent panel — not while a terminal or field has the keyboard (the agent's own Esc), unless the
+        // panel was just clicked open.
+        if app.subagentPanel != nil, event.keyCode == 53, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty,
+           subagentEscCloses(firstResponderKind, inInspector: (window.firstResponder as? NSView)?.isDescendant(of: inspectorItem.viewController.view) == true,
+                             justOpened: app.subagentPanelJustOpened) {
+            app.closeSubagentPanel()
+            return true
+        }
         // Esc leaves «Сессии» (also from its search field).
         if app.sessionsViewVisible, event.keyCode == 53, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
             app.hideSessionsView()
@@ -657,7 +661,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             checkServer: { [weak self] host in self?.presentServer(host) },
             newTask: { [weak self] id in self?.presentNewTask(projectId: id) },
             newSubSession: { [weak self] id in self?.presentNewSubSession(parent: id) },
-            openSubagent: { [weak self] leaf, id in self?.presentSubagent(leaf: leaf, id: id) },
+            openSubagent: { [weak self] leaf, id in self?.app.openSubagentPanel(leaf: leaf, id: id) },
             projectSettings: { [weak self] id in self?.presentProjectSettings(id) },
             toggleSidebar: { [weak self] in self?.toggleSidebar() },
             openSettings: { [weak self] in self?.showSettings(nil) },
@@ -1218,24 +1222,6 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }, onCancel: close)
         begin(sheet, view, on: window)
-    }
-
-    /// A subagent's read-only viewer; its transcript is watched only while the sheet is up (spec agent-subagents §5).
-    func presentSubagent(leaf: UUID, id: String) {
-        guard let window, window.attachedSheet == nil, app.subagent(leaf: leaf, id: id) != nil else { return }
-        let sheet = makeSheet(over: window)
-        let model = SubagentViewerModel(app: app, leaf: leaf, id: id)
-        let close: () -> Void = { [weak self, weak sheet] in
-            model.stop()
-            guard let self, let sheet else { return }
-            window.endSheet(sheet)
-            self.sheetWindow = nil
-            self.subagentViewer = nil
-            self.closeSubagentViewer = nil
-        }
-        subagentViewer = model
-        closeSubagentViewer = close
-        begin(sheet, SubagentSheet(model: model, windowHeight: window.contentLayoutRect.height, onClose: close), on: window)
     }
 
     /// «Сервер <host>»: the check again, the plan, installs and the server's integrations.

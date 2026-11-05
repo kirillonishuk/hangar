@@ -4,8 +4,8 @@ import History
 import Observation
 import SwiftUI
 
-/// One subagent's transcript while its sheet is open (spec agent-subagents §5): read once on open, then only the lines
-/// appended, on FSEvents of that one file. `stop()` (the sheet closed) ends the watch: nothing runs while it is closed.
+/// One subagent's transcript in the inspector's «Субагент» view (spec agent-subagents §5): read when it comes on screen, then
+/// only the lines appended, on FSEvents of that one file. Off screen (closed, inspector hidden, window covered) — no watch.
 @MainActor @Observable final class SubagentViewerModel {
     let leaf: UUID
     let id: String
@@ -15,6 +15,8 @@ import SwiftUI
     @ObservationIgnored private weak var app: AppState?
     @ObservationIgnored private var reader = TranscriptReader()
     @ObservationIgnored private(set) var watcher: FileWatcher?
+    /// On screen (`AppState.syncSubagentPanel`): only then is the transcript read and watched.
+    @ObservationIgnored private(set) var visible = false
 
     /// Entries kept: a runaway transcript shows its newest steps (the prompt is the first entry and stays).
     static let maxEntries = 2000
@@ -45,6 +47,19 @@ import SwiftUI
         watcher = nil
     }
 
+    /// Shown again: what was appended meanwhile is read once (the reader keeps its offset), then the watch resumes.
+    func setVisible(_ on: Bool) {
+        guard on != visible else { return }
+        visible = on
+        if on { start() } else { stop() }
+    }
+
+    /// The row got its agent id or finished: look for the transcript again, or read the rest — only while on screen.
+    func itemChanged() {
+        guard visible else { return }
+        if watcher == nil { start() } else { load() }
+    }
+
     func load() {
         guard let url else { return }
         let new = reader.read(url)
@@ -70,62 +85,68 @@ import SwiftUI
     }
 }
 
-/// The read-only viewer (a sheet over the window): header, the prompt, the steps as they come, the result.
-struct SubagentSheet: View {
+/// The inspector's «Субагент» view (read-only, non-modal): a header with «×», the name and type, the state, the prompt,
+/// the steps as they come, the result. Closed by «×», Esc, a segment shortcut or another chat.
+struct SubagentPanel: View {
+    let app: AppState
     @Bindable var model: SubagentViewerModel
-    let windowHeight: CGFloat
-    let onClose: () -> Void
-    @State private var chrome = SheetChrome()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SheetHeader(title: model.item?.title ?? "", subtitle: model.item?.type)
-            if let item = model.item { status(item) }
+            header
             ScrollViewReader { scroll in
                 ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: Theme.Space.s2) {
+                        if let item = model.item { title(item) }
                         if let prompt = model.prompt { block(L10n.subagentPrompt, prompt) }
                         ForEach(model.steps) { entry in row(entry) }
                         if model.url == nil {
                             Text(model.remote ? L10n.subagentRemoteNote : L10n.subagentPendingNote)
                                 .font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         if let report = model.report { block(L10n.subagentReport, report) }
                         Color.clear.frame(height: 1).id("end")
                     }
-                    .padding(.vertical, Theme.Space.s2)
+                    .padding(.horizontal, Theme.rowPaddingH)
+                    .padding(.vertical, Theme.Space.s3)
                     .textSelection(.enabled)
                 }
-                .frame(height: chrome.budget(windowHeight))
-                .measuredPart($chrome)
                 .onChange(of: model.entries.count) { _, _ in scroll.scrollTo("end", anchor: .bottom) }
             }
-            SheetFooter {
-                Button(L10n.close, action: onClose)
-                    .buttonStyle(.hangar(.primary))
-                    .keyboardShortcut(.defaultAction)
-                    .background {
-                        Button("", action: onClose).keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true)
-                    }
-            }
         }
-        .measuredSheet($chrome)
-        .sheetFrame()
-        .onAppear { model.start() }
-        .onDisappear { model.stop() }
-        // SubagentStart linked the row after the sheet opened, or it finished: look for the transcript again.
-        .onChange(of: model.item?.agentId) { _, _ in model.start() }
-        .onChange(of: model.item?.state) { _, _ in model.watcher == nil ? model.start() : model.load() }
     }
 
-    private func status(_ item: Subagent) -> some View {
+    /// The segment's row, same height and line: «Субагент» and «×».
+    private var header: some View {
         HStack(spacing: Theme.Space.iconGap) {
-            StatusDot(state: item.dotState)
-            Text(verbatim: L10n.subagentState(item.state) + " · " + L10n.subagentElapsed(item.elapsed(now: Date())))
-                .font(Theme.Typography.secondary.font())
-                .foregroundStyle(Theme.ui.text2)
+            Text(L10n.subagentPanelTitle)
+                .font(Theme.Typography.secondary.font(.semibold))
+                .foregroundStyle(Theme.ui.text1)
+            Spacer(minLength: 0)
+            IconButton(icon: .close, help: L10n.subagentPanelClose) { app.closeSubagentPanel() }
         }
-        .padding(.bottom, Theme.Space.s2)
+        .padding(.horizontal, Theme.inspectorSegmentPaddingH)
+        .frame(maxWidth: .infinity, minHeight: Theme.Height.barTabs, maxHeight: Theme.Height.barTabs)
+        .background(WindowDragArea())
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
+    }
+
+    private func title(_ item: Subagent) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s1) {
+            Text(verbatim: item.title)
+                .font(Theme.Typography.body.font(.semibold))
+                .foregroundStyle(Theme.ui.text0)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Theme.Space.iconGap) {
+                StatusDot(state: item.dotState, seen: item.dotSeen)
+                Text(verbatim: [item.type, L10n.subagentState(item.state), L10n.subagentElapsed(item.elapsed(now: Date()))].joined(separator: " · "))
+                    .font(Theme.Typography.secondary.font())
+                    .foregroundStyle(Theme.ui.text2)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+        }
+        .padding(.bottom, Theme.Space.s1)
     }
 
     private func block(_ title: String, _ text: String) -> some View {
@@ -172,6 +193,9 @@ extension Subagent {
         case .failed: .failed
         }
     }
+
+    /// A finished one is quiet — the seen-done ring (#135): its result is in the panel, not something to attend to.
+    var dotSeen: Bool { state == .done }
 
     /// Running: since the start; finished: how long it ran.
     func elapsed(now: Date) -> TimeInterval { (ended ?? now).timeIntervalSince(started) }

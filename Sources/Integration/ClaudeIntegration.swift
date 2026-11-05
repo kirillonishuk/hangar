@@ -18,6 +18,7 @@ public let claudeHooks: [(event: String, matcher: String?, kind: String)] = [
     ("SubagentStop", nil, "subagent-stop"),
     ("StopFailure", nil, "stop-failure"),
     ("PermissionRequest", nil, "permission-request"),
+    ("SubagentStart", nil, "subagent-run"),
 ]
 
 /// POSIX-sh word splitting for the subset settings files use: '…', "…", backslash. Unclosed quote → nil.

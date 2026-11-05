@@ -11,6 +11,8 @@ public enum HookKind: String, Codable, Sendable, CaseIterable {
     case permissionRequest = "permission-request"
     /// PreToolUse of the Task/Agent tool / SubagentStop.
     case subagentStart = "subagent-start", subagentStop = "subagent-stop"
+    /// SubagentStart: the subagent's `agent_id` (its transcript), not its count — that is PreToolUse's.
+    case subagentRun = "subagent-run"
 }
 
 public enum AgentSignal: Equatable, Sendable {
@@ -126,6 +128,7 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             s.attention = nil
             s.activeSubagents = min(s.activeSubagents + 1, 99)
         case .subagentStop: s.activeSubagents = max(s.activeSubagents - 1, 0)
+        case .subagentRun: break
         case .permissionRequest: s.pendingPermission = PendingPermission(tool: detail.tool, command: detail.command, at: now)
         case .notification:
             if type == "permission_prompt" {

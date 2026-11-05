@@ -22,6 +22,16 @@ public struct EventMessage: Codable, Equatable, Sendable {
     public var tabAgent: Bool?
     /// Stop's running `background_tasks` (0...99); nil — the payload had no such list.
     public var background: Int?
+    /// Subagents (spec agent-subagents §3): the Agent tool call's `tool_use_id` (PreToolUse / PostToolUse of Agent|Task).
+    public var toolUseId: String?
+    /// SubagentStart / SubagentStop `agent_id`, or the Agent tool result's `agentId`.
+    public var agentId: String?
+    /// `subagent_type` / `agent_type` (<= 64 characters).
+    public var agentType: String?
+    /// The Agent tool's `description`, one line (<= 200 characters).
+    public var title: String?
+    /// The Agent tool returned `async_launched`: a background subagent.
+    public var backgrounded: Bool?
     /// The payload's `cwd`: where the agent works now (an agent may enter another worktree, #134).
     public var cwd: String?
 
@@ -124,6 +134,10 @@ public enum ControlMessage: Equatable, Sendable {
             if let t = m.tool, t.count > 64 { m.tool = nil }
             if let t = m.error, t.count > 64 { m.error = nil }
             m.command = m.command.map { String($0.prefix(500)) }
+            m.toolUseId = subagentId(m.toolUseId)
+            m.agentId = subagentId(m.agentId)
+            m.agentType = subagentType(m.agentType)
+            m.title = subagentTitle(m.title)
             return .success(.event(m))
         case "usage":
             guard var m = try? decoder.decode(UsageMessage.self, from: line),
@@ -568,4 +582,28 @@ public struct ActionRunResult: Codable, Equatable, Sendable {
 }
 
 /// A turn's final answer (Stop, codex notify) is a sub-session's result (#128): longer than other hook texts.
-public func maxEventMessage(_ kind: HookKind) -> Int { kind == .stop || kind == .codexNotify ? 2000 : 500 }
+public func maxEventMessage(_ kind: HookKind) -> Int {
+    [.stop, .codexNotify, .subagentStart, .subagentStop].contains(kind) ? 2000 : 500
+}
+
+/// A `tool_use_id` / `agent_id` from a hook (trust boundary): `[A-Za-z0-9_-]{1,128}`, else none — it names a transcript file.
+public func subagentId(_ s: String?) -> String? {
+    guard let s, (1...128).contains(s.utf8.count),
+          s.utf8.allSatisfy({ ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || $0 == 0x5F || $0 == 0x2D })
+    else { return nil }
+    return s
+}
+
+/// An agent type (`Explore`, `my-plugin:reviewer`): <= 64 characters without control characters, else none.
+public func subagentType(_ s: String?) -> String? {
+    guard let s, !s.isEmpty, s.count <= 64, !s.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return nil }
+    return s
+}
+
+/// The tool's `description` as a row title: its first line, trimmed, <= 200 characters, control characters dropped.
+public func subagentTitle(_ s: String?) -> String? {
+    guard let line = s?.split(whereSeparator: \.isNewline).first else { return nil }
+    let clean = String(String.UnicodeScalarView(line.unicodeScalars.filter { $0.properties.generalCategory != .control }))
+        .trimmingCharacters(in: .whitespaces)
+    return clean.isEmpty ? nil : String(clean.prefix(200))
+}

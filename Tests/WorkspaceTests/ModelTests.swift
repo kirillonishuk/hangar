@@ -88,6 +88,26 @@ import Testing
         #expect(s.tasks[0].tabs[1].root.leaves[0].cwd == "/repo.worktrees/t")
     }
 
+    /// «Сделать чатом этой копии» (#134): a main-folder chat follows the worktree its agent entered inside the project.
+    @Test func adoptWorktreeFromMainFolder() {
+        var (s, p) = makeState()
+        let t = s.addTask(projectId: p, name: "t")
+        s.addTab(taskId: t, kind: .shell)
+        let root = s.projects[0].path
+        let agent = Leaf(kind: .claude, cwd: root, agentSessionId: "s1")
+        let inside = Leaf(kind: .shell, cwd: root + "/.claude/worktrees/x/src")
+        s.tasks[0].tabs[0].root = .split(axis: .horizontal, ratio: 0.5, first: .leaf(agent), second: .leaf(inside))
+        s.adoptWorktree(taskId: t, path: root + "/.claude/worktrees/x", branch: "x", base: "main")
+        #expect(s.tasks[0].mode == .worktree(path: root + "/.claude/worktrees/x", branch: "x", base: "main"))
+        let leaves = s.tasks[0].tabs[0].root.leaves
+        #expect(leaves[0].cwd == root + "/.claude/worktrees/x" && leaves[0].relinkedFrom == root)
+        #expect(leaves[1].cwd == root + "/.claude/worktrees/x/src" && leaves[1].relinkedFrom == nil)  // already there
+        s.setWorktreeBranch(taskId: t, "renamed")
+        #expect(s.tasks[0].branch == "renamed")
+        s.setWorktreeBranch(taskId: t, "")
+        #expect(s.tasks[0].branch == "renamed")
+    }
+
     @Test func closeLastLeafClosesTab() {
         var (s, p) = makeState()
         let t = s.addTask(projectId: p, name: "t")

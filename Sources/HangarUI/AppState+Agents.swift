@@ -31,6 +31,11 @@ extension AppState {
             if leaf.kind == agent, own, let id = validSessionId(e.session), leaf.agentSessionId != id {
                 perform { $0.setAgentSessionId(leafId: leaf.id, id) }
             }
+            // Where the tab's agent works now (#134): its own hooks, or the installed ones of its conversation (Stop).
+            if let cwd = e.cwd, leaf.kind == agent,
+               own || validSessionId(e.session).map({ $0 == (statuses.status(leaf.id).sessionId ?? leaf.agentSessionId) }) == true {
+                noteAgentCwd(leaf: leaf.id, cwd)
+            }
             if e.kind == .prompt, leaf.kind == .claude, own { nameAutoNamedChat(of: leaf, prompt: e.message) }
             // A chat without a project moves up on its agent's own turn, never on a click.
             if own, leaf.kind == agent, e.kind == .prompt || e.kind == .codexNotify, let task = location(ofLeaf: leaf.id)?.task,

@@ -92,6 +92,15 @@ import Exec
         #expect(small.truncated && small.paths.count == 2)
     }
 
+    /// An agent's worktree inside the folder is a separate checkout: not listed as a stray file (#134).
+    @Test func listFilesSkipsNestedWorktree() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        try t.git("worktree", "add", "-q", "-b", "aut", t.repo + "/.claude/worktrees/aut", "main", in: t.repo)
+        try write(t, "new.txt")
+        let l = try await Git(repo: t.repo).listFiles()
+        #expect(Set(l.paths) == ["a.txt", "new.txt"])
+    }
+
     @Test func ignoredPathsCollapseDirectories() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         try write(t, ".gitignore", "node_modules/\nbuild/\n*.o\n"); try write(t, "build/keep.txt")

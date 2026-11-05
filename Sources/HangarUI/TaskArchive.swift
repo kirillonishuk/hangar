@@ -100,6 +100,8 @@ extension AppState {
             worktreeRemovals.finish(item)
             return .undone
         }
+        // The branch restore checks out again is the one git has there now: an agent may have renamed it (#134).
+        if check != .missing { await followRegisteredBranch(id, path: path, git: git, project: project) }
         // «Сессии» shows the closed session's +N −M; afterwards only the branch is left.
         if check != .missing, case .worktree(_, _, let base) = task.mode,
            let stat = try? await Git(repo: path, runner: runner).diffStat(base: base) {
@@ -121,6 +123,15 @@ extension AppState {
             Task { await self?.retryArchiveRemoval(id, force: force, item: item) }
         }
         return failure.map { .worktreeKept($0) } ?? .archived(worktreeRemoved: true)
+    }
+
+    /// The branch git has checked out at the chat's worktree now, recorded when it differs (#134); nil — not listed.
+    @discardableResult
+    private func followRegisteredBranch(_ id: UUID, path: String, git: Git, project: Project) async -> String? {
+        guard let list = try? await git.worktrees(),
+              let now = registeredBranch(at: path, in: list, normalize: pathNormalizer(project)) else { return nil }
+        if state.tasks.first(where: { $0.id == id })?.branch != now { perform { $0.setWorktreeBranch(taskId: id, now) } }
+        return now
     }
 
     /// «Повторить» on a failed rename aside: only while the folder is still nobody's (the session archived, no open one
@@ -173,10 +184,12 @@ extension AppState {
             guard state.tasks.contains(where: { $0.id == id && $0.archived }) else { return .restored }
             restore(taskId: id, fresh: true)
             return .restored
-        } else if case .worktree(let path, let branch, _) = task.mode, let project = project(task.projectId) {
+        } else if case .worktree(let path, var branch, _) = task.mode, let project = project(task.projectId) {
             let git = git(for: project), runner = runner(for: project)
             // Mid rename aside: the folder is either there or gone, never half (revive then adds it back from the branch).
             await worktreeRemovals.untilMoved(removalKey(host: project.host, path: path))
+            // A folder still registered (kept by a failed removal) is found by its path, whatever its branch is called now.
+            branch = await followRegisteredBranch(id, path: path, git: git, project: project) ?? branch
             do {
                 let outcome = try await reviveWorktree(path, branch: branch, git: git, runner: runner)
                 switch outcome {

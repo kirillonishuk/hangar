@@ -28,11 +28,13 @@ extension MainWindowController {
         case "eddiff": app.openDiff(path: arg)  // eddiff <path from the session folder>: as a Changes click
         case "edinline": app.perform { $0.diffInline = arg == "on" }; column.terminalArea.shownDiffEditor?.sendOptions()
         case "edwrap": app.perform { $0.diffWrap = arg == "on" }; column.terminalArea.shownDiffEditor?.sendOptions()
+        case "edviewed": app.toggleDiffViewed()  // as ⌥V / the «Просмотрено» chip (HD-151)
+        case "edpreview": app.perform { $0.renderPreview = arg == "on" }  // edpreview on|off: «Код · Просмотр»
         case "edfocus": if let page { window?.makeFirstResponder(page.webView) }
         case "edsnap": snapEditor(to: arg)
         case "edstate":
             // edstate <file>: each editor leaf's files (active *, dirty, conflict) and the diff mode.
-            let lines = column.terminalArea.debugEditors() + ["diffChanges=\(column.terminalArea.shownDiffEditor.map { "\($0.changes.index)/\($0.changes.count.map(String.init) ?? "?")" } ?? "-") diffInline=\(app.state.diffInline) diffWrap=\(app.state.diffWrap) oneSided=\(column.terminalArea.shownDiffEditor?.oneSided == true) minimap=\(app.state.editorMinimap) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
+            let lines = column.terminalArea.debugEditors() + ["diffChanges=\(column.terminalArea.shownDiffEditor.map { "\($0.changes.index)/\($0.changes.count.map(String.init) ?? "?")" } ?? "-") diffInline=\(app.state.diffInline) diffWrap=\(app.state.diffWrap) oneSided=\(column.terminalArea.shownDiffEditor?.oneSided == true) minimap=\(app.state.editorMinimap) render=\(app.state.renderPreview)/\(app.editorRendered.count) responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"]
             try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
         default: return false
         }
@@ -43,25 +45,32 @@ extension MainWindowController {
     /// frame from its own snapshot (web content is drawn out of process, `cacheDisplay` leaves it blank).
     private func snapEditor(to path: String) {
         guard let content = window?.contentView, let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds) else { return }
-        let views = column.terminalArea.debugWebViews
+        // Plus the rendered «Просмотр» pages (HD-151), which live inside the SwiftUI diff tab.
+        func pages(_ v: NSView) -> [WKWebView] { (v as? WKWebView).map { [$0] } ?? v.subviews.flatMap(pages) }
+        let known = column.terminalArea.debugWebViews
+        let views = (known + pages(content).filter { !known.contains($0) })
+            .filter { $0.window === window && !$0.isHiddenOrHasHiddenAncestor && $0.bounds.width > 0 }
         guard !views.isEmpty else { return }
         content.cacheDisplay(in: content.bounds, to: rep)
+        // Drawn in view order once all are taken (snapshots finish in any order; a page over Monaco must stay on top).
+        var images = [NSImage?](repeating: nil, count: views.count)
         var left = views.count
-        for view in views {
-            let frame = view.convert(view.bounds, to: content)
+        for (i, view) in views.enumerated() {
             view.takeSnapshot(with: nil) { image, error in
                 MainActor.assumeIsolated {
-                    if let image {
-                        NSGraphicsContext.saveGraphicsState()
-                        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-                        let y = content.isFlipped ? content.bounds.height - frame.maxY : frame.minY
-                        image.draw(in: NSRect(x: frame.minX, y: y, width: frame.width, height: frame.height))
-                        NSGraphicsContext.restoreGraphicsState()
-                    } else {
-                        uiLog.error("edsnap: \(String(describing: error), privacy: .public)")
-                    }
+                    if image == nil { uiLog.error("edsnap: \(String(describing: error), privacy: .public)") }
+                    images[i] = image
                     left -= 1
                     guard left == 0 else { return }
+                    NSGraphicsContext.saveGraphicsState()
+                    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+                    for (view, image) in zip(views, images) {
+                        guard let image else { continue }
+                        let frame = view.convert(view.bounds, to: content)
+                        let y = content.isFlipped ? content.bounds.height - frame.maxY : frame.minY
+                        image.draw(in: NSRect(x: frame.minX, y: y, width: frame.width, height: frame.height))
+                    }
+                    NSGraphicsContext.restoreGraphicsState()
                     try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
                     uiLog.info("edsnap \(path, privacy: .public)")
                 }

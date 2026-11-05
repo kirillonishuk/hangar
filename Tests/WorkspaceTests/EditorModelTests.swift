@@ -35,11 +35,13 @@ import Testing
         s.setEditorCursor(leafId: id, path: "/repo/a.ts", line: 4, column: 8)
         s.diffInline = true
         s.diffWrap = true
+        s.renderPreview = true
         let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
         #expect(back == s)
         #expect(leaf(back).editorFiles == [EditorFile(path: "/repo/a.ts", line: 4, column: 8)])
         #expect(back.diffInline)
         #expect(back.diffWrap)
+        #expect(back.renderPreview)
     }
 
     /// A state without `diffInline` / `diffWrap` is side by side, unwrapped.
@@ -50,6 +52,7 @@ import Testing
         let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
         #expect(s.diffInline == false)
         #expect(s.diffWrap == false)
+        #expect(s.renderPreview == false)
         #expect(Leaf(kind: .editor, cwd: "/r").editorFileList == [])
     }
 

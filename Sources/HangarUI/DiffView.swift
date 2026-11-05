@@ -211,7 +211,7 @@ struct DiffView: View {
         if app.selectedTask?.id == taskId, let tab = app.activeDiff {
             let content = app.activeDiffContent
             VStack(spacing: 0) {
-                header(tab.path, commit: tab.commit, change: app.diffChange(of: tab), content)
+                header(tab, change: app.diffChange(of: tab), content)
                 ForEach(Array(notes(content).enumerated()), id: \.offset) { _, text in
                     Text(verbatim: text)
                         .font(Theme.Typography.mono.font())
@@ -229,7 +229,9 @@ struct DiffView: View {
                         .padding(.vertical, Theme.Diff.headerPaddingV)
                         .padding(.horizontal, Theme.Diff.headerPaddingH)
                 }
-                if content.isText {
+                if app.diffPreviewShown(tab, isText: content.isText) {
+                    DiffRenderView(app: app, tab: tab, version: content.version)
+                } else if content.isText {
                     MonacoDiffView(editor: editor)
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
@@ -257,7 +259,8 @@ struct DiffView: View {
         }
     }
 
-    private func header(_ path: String, commit: String?, change: FileChange?, _ content: DiffContent) -> some View {
+    private func header(_ tab: DiffTab, change: FileChange?, _ content: DiffContent) -> some View {
+        let path = tab.path, commit = tab.commit
         let oneSided = diffOneSided(change)
         return VStack(spacing: 0) {
             HStack(spacing: Theme.Diff.headerGap) {
@@ -274,7 +277,7 @@ struct DiffView: View {
                 }
                 // No «+N −M» here: the Changes (or commit) row beside it already shows the counts.
                 Spacer(minLength: 0)
-                if content.isText {
+                if content.isText, !app.diffPreviewShown(tab, isText: true) {
                     changeNav
                     IconButton(icon: .wrap, on: app.state.diffWrap, help: L10n.diffWrap) {
                         app.perform { $0.diffWrap.toggle() }
@@ -289,6 +292,7 @@ struct DiffView: View {
                     }
                     .help(oneSided ? L10n.diffOneSide : "")
                 }
+                DiffReviewControls(app: app, tab: tab, isText: content.isText)
             }
             .font(Theme.Typography.mono.font())
             .padding(.horizontal, Theme.Diff.headerPaddingH)

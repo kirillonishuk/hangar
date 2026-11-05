@@ -752,6 +752,7 @@ final class PaneFrameView: NSView {
             diffHosts[id] = (host, editor)
         }
         editorHost?.setMinimap(state.editorMinimap)
+        for view in leafViews.values { view.editor?.syncRendered() }  // «Код · Просмотр» (HD-151)
         for (id, d) in diffHosts { d.host.isHidden = !diffShown || id != app.selectedTask?.id }
         let active = activeTab
         if let tab = active { show(tab) }

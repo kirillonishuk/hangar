@@ -136,6 +136,7 @@ import Workspace
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
+        case diffViewed, diffMarkViewed, diffUnmarkViewed, changesViewed, changesViewedOf, diffPreview, diffPreviewHelp, diffPreviewFailed, renderCode
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
@@ -882,6 +883,16 @@ import Workspace
     static var diffBinary: String { s(.diffBinary) }
     static var diffImageBefore: String { s(.diffImageBefore) }
     static var diffImageAfter: String { s(.diffImageAfter) }
+    static var diffViewed: String { s(.diffViewed) }
+    static var diffMarkViewed: String { s(.diffMarkViewed) }
+    static var diffUnmarkViewed: String { s(.diffUnmarkViewed) }
+    /// «просмотрено 3» over the Changes list; the total is the segment's count (HD-106).
+    static func changesViewed(_ n: Int) -> String { f(.changesViewed, n) }
+    static func changesViewedOf(_ n: Int, _ total: Int) -> String { f(.changesViewedOf, n, total) }
+    static var diffPreview: String { s(.diffPreview) }
+    static var renderCode: String { s(.renderCode) }
+    static var diffPreviewHelp: String { s(.diffPreviewHelp) }
+    static var diffPreviewFailed: String { s(.diffPreviewFailed) }
     static var editorLargeReadOnly: String { s(.editorLargeReadOnly) }
     static func editorTooLarge(_ bytes: Int64) -> String {
         f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))

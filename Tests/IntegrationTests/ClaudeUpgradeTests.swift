@@ -174,14 +174,16 @@ private func userHandlers(_ text: String) throws -> [String] {
     let before = try handlers(oldInstall).filter { !$0.contains("stop-failure") }
     let after = try handlers(out)
     #expect(after.filter { before.contains($0) } == before)
-    #expect(Set(after).subtracting(before) == ["StopFailure||/A/hangar event stop-failure", "PermissionRequest||/A/hangar event permission-request"])
+    #expect(Set(after).subtracting(before) == ["StopFailure||/A/hangar event stop-failure", "PermissionRequest||/A/hangar event permission-request",
+                                               "SubagentStart||/A/hangar event subagent-run"])
     // Obsolete rate_limit entry migrated; user StopFailure kept before the new one.
     #expect(after.filter { $0.hasPrefix("StopFailure") } == ["StopFailure|server_error|my-alert.sh", "StopFailure||/A/hangar event stop-failure"])
     #expect(after.filter { $0.hasPrefix("PermissionRequest") } == ["PermissionRequest|Bash|my-guard.sh", "PermissionRequest||/A/hangar event permission-request"])
     // Other keys and their order untouched; the statusLine is not Hangar's business here.
     let root = try parseJSON(out), old = try parseJSON(oldInstall)
     #expect(obj(root).map(\.key) == obj(old).map(\.key))
-    #expect(obj(get(root, "hooks")).map(\.key) == obj(get(old, "hooks")).map(\.key))
+    // A new event (SubagentStart) is appended after the existing ones.
+    #expect(obj(get(root, "hooks")).map(\.key) == obj(get(old, "hooks")).map(\.key) + ["SubagentStart"])
     for key in ["model", "statusLine", "permissions"] { #expect(get(root, key) == get(old, key)) }
 }
 

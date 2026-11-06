@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -41,7 +41,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/ghosttykit
 
   build-test:
@@ -50,7 +50,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup
 
@@ -60,7 +60,7 @@ jobs:
 
       # Saved only by pushes to main (below); PRs take the newest one for this toolchain, Package.swift and GhosttyKit.
       - name: Restore SwiftPM build
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .build
           key: swiftpm-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh', '.github/actions/ghosttykit/action.yml') }}-${{ github.sha }}
@@ -93,8 +93,26 @@ jobs:
           git config --global user.name "Hangar CI"
           git config --global user.email "ci@users.noreply.github.com"
 
+      # App and test targets in one build; any warning of ours fails it (scripts/check-warnings.sh). Files the cached build
+      # doesn't recompile print nothing, so a warning is caught in the PR that introduces it.
       - name: Build
-        run: swift build --build-tests
+        run: |
+          set -o pipefail
+          swift build --build-tests 2>&1 | tee "$RUNNER_TEMP/build.log"
+          scripts/check-warnings.sh "$RUNNER_TEMP/build.log"
+
+      # Tools some tests drive for real and otherwise skip: tmux (remote launches, RemoteLaunchTests) and ripgrep (text
+      # search, TextSearchTests).
+      - name: tmux and ripgrep for tests
+        if: github.event_name != 'push'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          [ -x "$(brew --prefix)/bin/tmux" ] || brew install tmux
+          [ -x "$(brew --prefix)/bin/rg" ] || brew install ripgrep
+          "$(brew --prefix)/bin/tmux" -V
+          "$(brew --prefix)/bin/rg" --version | head -1
 
       # The project's source language; tests pin L10n themselves and also pass under en, de and ja.
       - name: System language ru
@@ -112,22 +130,24 @@ jobs:
           SERIAL='TsLifecycleTests|LspLifecycleTests|DoctorChecksTests'
           for target in $(ls Tests | grep 'Tests$'); do
             echo "::group::$target"
-            swift test --skip-build --filter "^$target\." --skip "$SERIAL" || {
+            swift test --skip-build --disable-xctest --filter "^$target\." --skip "$SERIAL" || {
               echo "::warning::$target failed; retrying once"
-              swift test --skip-build --filter "^$target\." --skip "$SERIAL"
+              swift test --skip-build --disable-xctest --filter "^$target\." --skip "$SERIAL"
             }
             echo "::endgroup::"
           done
-          swift test --skip-build --no-parallel --filter "$SERIAL"
+          swift test --skip-build --disable-xctest --no-parallel --filter "$SERIAL"
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
       # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs. On main this only warms the
-      # release half of the cache.
+      # release half of the cache. The release build passes the same warning gate as the debug one.
       - name: Bundle & verify
         env:
           HANGAR_SIGN_IDENTITY: "-"
         run: |
-          scripts/bundle.sh
+          set -o pipefail
+          scripts/bundle.sh 2>&1 | tee "$RUNNER_TEMP/bundle.log"
+          scripts/check-warnings.sh "$RUNNER_TEMP/bundle.log"
           [ "${{ github.event_name }}" = push ] || scripts/verify-bundle.sh build/Hangar.app
 
       - name: Mark the cached build's commit
@@ -136,7 +156,7 @@ jobs:
 
       - name: Save SwiftPM build
         if: github.event_name == 'push'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .build
           key: swiftpm-${{ steps.toolchain.outputs.key }}-${{ hashFiles('Package.swift', 'vendor/GHOSTTY_COMMIT', 'scripts/build-ghosttykit.sh', '.github/actions/ghosttykit/action.yml') }}-${{ github.sha }}

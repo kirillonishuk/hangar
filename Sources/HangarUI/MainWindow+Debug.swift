@@ -166,7 +166,9 @@ extension MainWindowController {
             app.createTask(projectId: project, name: f[0], firstMessage: "", mode: .worktree(path: f[1], branch: f[2], base: f[3]))
         case "relink": app.selectedTask.map { app.relinkWorktree($0.id) }  // as «Обновить путь» on the notice (HD-122)
         case "adopt": app.selectedTask.map { app.adoptAgentWorktree($0.id) }  // as «Сделать чатом этой копии» (HD-134)
-        case "projectSettings": app.state.projects.first.map { ctx.projectSettings($0.id) }
+        case "projectSettings":  // projectSettings [project index], the first project without one
+            let n = Int(arg) ?? 0
+            if app.state.projects.indices.contains(n) { ctx.projectSettings(app.state.projects[n].id) }
         case "spareMenu":  // spareMenu <png>: the first project's «Копии без чата» menu drawn offscreen, first item highlighted
             guard let project = app.state.projects.first?.id else { return }
             let panel = PopoverMenuPanel(content: PopoverMenuContent(spareCopiesMenu(project, app: app, ctx: ctx)))
@@ -339,8 +341,6 @@ extension MainWindowController {
         case "actionPicker":  // «Добавить действие» in the open Project Settings, kept open like `branchMenu`
             PopoverMenu.debugPinned = true
             debugActionPicker?()
-        case "projectSettings":  // projectSettings <project index>
-            if let n = Int(arg), app.state.projects.indices.contains(n) { ctx.projectSettings(app.state.projects[n].id) }
         case "menuPanel": debugMenu(parts[0], arg.split(separator: " ", maxSplits: 1).first.map(String.init) ?? "",
                                     arg.split(separator: " ", maxSplits: 1).dropFirst().first.map(String.init) ?? "")
         case "gitMenu":  // gitMenu branch|author|date|path: a Git filter chip's menu, 300/160 pt into the window from the right
@@ -839,7 +839,7 @@ extension MainWindowController {
         case "merge", "moveLeaf", "detach": debugMove(parts[0], arg.split(separator: " ").map(String.init))
         // Runs applicationWillTerminate like ⌘Q. From a run-loop block, not this main-queue callback: the quit sheet's
         // nested loop could not drain the main queue (the SIGTERM source) while a main-queue block is on the stack.
-        case "quit": RunLoop.main.perform { NSApp.terminate(nil) }
+        case "quit": RunLoop.main.perform { MainActor.assumeIsolated { NSApp.terminate(nil) } }
         // notices <file>: what would be on screen, one per line (no bundle in DEBUG, so no real banners).
         case "notices":
             let lines = debugNotices.enumerated().map { i, n in

@@ -119,8 +119,8 @@ import Update
             do {
                 let path = await env.path()
                 _ = try await LspInstaller.install(package, dir: env.dir, tool: tool, path: path, feed: env.feed, trusted: env.trusted) { f in
-                    Task { @MainActor [weak self] in
-                        if case .running = self?.jobs[package] { self?.jobs[package] = .running(f) }
+                    Task { @MainActor in
+                        if case .running = self.jobs[package] { self.jobs[package] = .running(f) }
                     }
                 }
                 jobs[package] = nil

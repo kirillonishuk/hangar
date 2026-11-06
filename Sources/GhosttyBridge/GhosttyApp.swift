@@ -101,13 +101,18 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
         ghostty_config_finalize(bare)
         loadUserFiles(user, userFiles)
         ghostty_config_finalize(user)
-        func differs<T>(_ key: String, _ empty: T) -> Bool {
-            var a = empty, b = empty
-            guard ghostty_config_get(bare, &a, key, UInt(key.utf8.count)),
-                  ghostty_config_get(user, &b, key, UInt(key.utf8.count)) else { return false }
-            return withUnsafeBytes(of: &a) { pa in withUnsafeBytes(of: &b) { pb in !pa.elementsEqual(pb) } }
+        let key = "palette"
+        var a = ghostty_config_palette_s(), b = ghostty_config_palette_s()
+        guard ghostty_config_get(bare, &a, key, UInt(key.utf8.count)),
+              ghostty_config_get(user, &b, key, UInt(key.utf8.count)) else { return false }
+        return paletteColors(a) != paletteColors(b)
+    }
+
+    /// The 256 entries of a C palette (imported as a tuple), as comparable RGB values.
+    private static func paletteColors(_ p: ghostty_config_palette_s) -> [UInt32] {
+        withUnsafeBytes(of: p.colors) { raw in
+            raw.assumingMemoryBound(to: ghostty_config_color_s.self).map { UInt32($0.r) << 16 | UInt32($0.g) << 8 | UInt32($0.b) }
         }
-        return differs("palette", ghostty_config_palette_s())
     }
 
     /// The terminal's font when the user's Ghostty config names none (HD-112): SF Mono, one mono with the editor and the UI.

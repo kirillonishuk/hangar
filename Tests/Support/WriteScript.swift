@@ -6,10 +6,12 @@ import Foundation
 /// queue there for minutes in a full parallel run, a link to an already-scanned file is not scanned again.
 /// Scripts find their test's files via `$0`, so the content (and the scan) is shared. Never write to `path` in
 /// place afterwards: replace it (`atomically: true`, or `writeScript` again).
-func writeScript(_ text: String, to path: String) throws {
+public func writeScript(_ text: String, to path: String) throws {
     let fm = FileManager.default
     let cache = "/tmp/hangar-test-scripts-\(getuid())"
-    try fm.createDirectory(atPath: cache, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    // mkdir with the final mode in one step: test targets run as parallel processes, and FileManager's create-then-chmod
+    // let another process see the directory still group/world-readable and refuse it below.
+    guard mkdir(cache, 0o700) == 0 || errno == EEXIST else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     // A shared /tmp: only a private directory of this user may supply executables.
     let attrs = try fm.attributesOfItem(atPath: cache)
     guard (attrs[.ownerAccountID] as? NSNumber)?.uint32Value == getuid(),

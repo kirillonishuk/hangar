@@ -46,11 +46,11 @@ let package = Package(
         .testTarget(name: "ControlServerTests", dependencies: ["TestSupport", "ControlServer", "AgentStatus"]),
         .testTarget(name: "HangarCLITests", dependencies: ["TestSupport", "hangar", "ControlServer", "AgentStatus"]),
         .testTarget(name: "UsageTests", dependencies: ["TestSupport", "Usage", "ControlServer", "Exec"]),
-        .testTarget(name: "GitTests", dependencies: ["Git", "Exec"]),
+        .testTarget(name: "GitTests", dependencies: ["TestSupport", "Git", "Exec"]),
         .testTarget(name: "IntegrationTests", dependencies: ["Integration", "Exec"]),
         .testTarget(name: "PowerTests", dependencies: ["TestSupport", "Power"]),
         .testTarget(name: "HistoryTests", dependencies: ["History", "Exec"]),
-        .testTarget(name: "UpdateTests", dependencies: ["Update"]),
+        .testTarget(name: "UpdateTests", dependencies: ["TestSupport", "Update"]),
         .testTarget(name: "HangarUITests", dependencies: ["TestSupport", "HangarUI", "Integration", "Git", "AgentStatus", "ControlServer", "Usage", "Power", "History", "Update"]),
     ]
 )

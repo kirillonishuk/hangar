@@ -2,6 +2,7 @@ import AgentStatus
 import AppKit
 import ControlServer
 import Foundation
+import os
 import Testing
 @testable import HangarUI
 import Workspace
@@ -120,9 +121,9 @@ import Workspace
     /// Minute ticks only while a row waits; otherwise one entry and nothing after it.
     @Test func minuteTicksOnlyWhileWaiting() {
         let start = Date(timeIntervalSinceReferenceDate: 600 + 15)
-        var idle = MinutesWhile(active: false).entries(from: start, mode: .normal)
+        let idle = MinutesWhile(active: false).entries(from: start, mode: .normal)
         #expect(idle.next() == start && idle.next() == nil)
-        var waiting = MinutesWhile(active: true).entries(from: start, mode: .normal)
+        let waiting = MinutesWhile(active: true).entries(from: start, mode: .normal)
         #expect(waiting.next() == start)
         #expect(waiting.next() == Date(timeIntervalSinceReferenceDate: 660))
         #expect(waiting.next() == Date(timeIntervalSinceReferenceDate: 720))
@@ -156,16 +157,16 @@ import Workspace
     @Test func accessibilityOptionsApply() {
         defer { Theme.applyAccessibility(increaseContrast: false) }
         let base = ThemePalette.of(Theme.current)
-        var posted = 0
-        let token = NotificationCenter.default.addObserver(forName: .hangarThemeDidChange, object: nil, queue: nil) { _ in posted += 1 }
+        let posted = OSAllocatedUnfairLock(initialState: 0)
+        let token = NotificationCenter.default.addObserver(forName: .hangarThemeDidChange, object: nil, queue: nil) { _ in posted.withLock { $0 += 1 } }
         defer { NotificationCenter.default.removeObserver(token) }
         Theme.applyAccessibility(increaseContrast: true)
         #expect(Theme.palette.text3 == base.text2 && Theme.palette.line == base.line2 && Theme.palette.text1 == base.text1)
-        #expect(posted == 1)
+        #expect(posted.withLock { $0 } == 1)
         Theme.applyAccessibility(increaseContrast: true)
-        #expect(posted == 1)  // no change, no redraw
+        #expect(posted.withLock { $0 } == 1)  // no change, no redraw
         Theme.applyAccessibility(increaseContrast: false)
-        #expect(Theme.palette.text3 == base.text3 && Theme.palette.line == base.line && posted == 2)
+        #expect(Theme.palette.text3 == base.text3 && Theme.palette.line == base.line && posted.withLock { $0 } == 2)
     }
 
     /// Only a waiting or failed pane of a split tab gets the frame.

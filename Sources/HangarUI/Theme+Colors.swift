@@ -23,14 +23,25 @@ extension NSObject {
 /// body observes the theme, so switching it redraws the UI live (as `L10n.language`); AppKit listens to
 /// `hangarThemeDidChange`.
 extension Theme {
-    /// Observable holder of the chosen theme (a static stored property can't be observed).
-    @Observable final class Selection: @unchecked Sendable {
-        var theme: AppTheme = .darkPlus
+    /// Observable holder of the chosen theme (a static stored property can't be observed). Written on the main thread
+    /// (launch, Settings), read from any thread (tests, SwiftUI off-main rendering), so the values sit behind a lock and
+    /// Observation is wired by hand: `@Observable`'s generated storage is unsynchronized.
+    final class Selection: Observable, Sendable {
+        private struct State { var theme: AppTheme = .darkPlus; var increaseContrast = false }
+        private let state = OSAllocatedUnfairLock(initialState: State())
+        private let registrar = ObservationRegistrar()
+
+        var theme: AppTheme {
+            get { registrar.access(self, keyPath: \.theme); return state.withLock { $0.theme } }
+            set { registrar.withMutation(of: self, keyPath: \.theme) { state.withLock { $0.theme = newValue } } }
+        }
         /// The system's «Increase contrast» (HD-135).
-        var increaseContrast = false
+        var increaseContrast: Bool {
+            get { registrar.access(self, keyPath: \.increaseContrast); return state.withLock { $0.increaseContrast } }
+            set { registrar.withMutation(of: self, keyPath: \.increaseContrast) { state.withLock { $0.increaseContrast = newValue } } }
+        }
     }
-    // Written on the main thread only (launch, Settings).
-    nonisolated(unsafe) static let store = Selection()
+    static let store = Selection()
     // Locked: tests (and SwiftUI off-main rendering) read tokens from several threads.
     private static let cache = OSAllocatedUnfairLock(initialState: [Hex: NSColor]())
 
@@ -55,11 +66,17 @@ extension Theme {
     }
 
     /// Reads the option now and follows every change in System Settings (no polling); keep the token.
-    static func followSystemAccessibility() -> NSObjectProtocol {
-        func read() { applyAccessibility(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast) }
-        read()
+    @MainActor static func followSystemAccessibility() -> NSObjectProtocol {
+        readSystemAccessibility()
+        // queue: .main delivers on the main thread.
         return NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-                                                                 object: nil, queue: .main) { _ in read() }
+                                                                 object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { readSystemAccessibility() }
+        }
+    }
+
+    @MainActor private static func readSystemAccessibility() {
+        applyAccessibility(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
     }
 
     /// One NSColor per value, so equal tokens compare equal and nothing is rebuilt on every draw.

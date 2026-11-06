@@ -57,4 +57,7 @@ nm -gU "$LIB" 2>/dev/null | grep " T _ghostty_app_new$" >/dev/null || { echo "li
 
 rm -rf "$OUT"
 cp -R "$SRC/macos/GhosttyKit.xcframework" "$OUT"
+# Headers/ghostty/ is libghostty-vt's API, which ghostty.h doesn't include and Hangar doesn't use: left in, the
+# module's umbrella header misses each of them and every importer gets an «umbrella header … does not include» warning.
+rm -rf "$OUT"/*/Headers/ghostty
 echo "built $OUT at $SHA"

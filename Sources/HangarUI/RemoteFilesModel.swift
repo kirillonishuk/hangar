@@ -267,7 +267,7 @@ import Observation
                 do {
                     let total = source.bytes, name = source.name
                     try await uploader(link, source, dir, replace) { sent in
-                        Task { @MainActor [weak self] in self?.progress(name: name, sent: min(sent, total)) }
+                        Task { @MainActor in self.progress(name: name, sent: min(sent, total)) }
                     }
                     batchDone += 1
                 } catch RemoteFileError.exists(_) where !ask {

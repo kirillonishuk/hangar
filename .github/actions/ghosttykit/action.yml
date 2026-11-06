@@ -12,7 +12,7 @@ runs:
     # Exact key only (no restore-keys): a GhosttyKit built from other inputs is never reused.
     - name: Restore GhosttyKit
       id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           vendor/GhosttyKit.xcframework
@@ -35,7 +35,7 @@ runs:
         ZIG="$RUNNER_TEMP/zig-aarch64-macos-$ZIG_VERSION/zig" scripts/build-ghosttykit.sh
 
     - name: Upload GhosttyKit
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ghosttykit
         path: |

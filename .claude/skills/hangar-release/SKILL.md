@@ -18,7 +18,7 @@ Source of truth: `docs/RELEASING.md`. Read it; this is the checklist form plus t
 
 ## 2. Before merge (all of `docs/RELEASING.md` «Before merge»)
 - [ ] `gh pr checks <N>` green (`Build & test` is required).
-- [ ] Full local `swift test` run shown, not assumed.
+- [ ] Full local `swift test --disable-xctest` run shown, not assumed.
 - [ ] Independent review done (`reviewer` agent), findings resolved.
 - [ ] UI changes: owner has looked at the screenshots.
 - [ ] Spec / decisions (`docs/decisions/`, `scripts/check-decisions.sh` passes) updated if behaviour changed.

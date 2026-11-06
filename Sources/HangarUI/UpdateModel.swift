@@ -195,7 +195,7 @@ import Update
         work = Task {
             defer { work = nil }
             do {
-                let prepared = try await prepare(offer) { p in Task { @MainActor [weak self] in self?.progress(p) } }
+                let prepared = try await prepare(offer) { p in Task { @MainActor in self.progress(p) } }
                 switch prepared {
                 case .manual: phase = .manual
                 case .staged(let s):

@@ -1,10 +1,11 @@
 # Releasing Hangar
 
 Releases are cut by `.github/workflows/release.yml` once a day from what was merged into `main`, not on every merge
-(decision HD-145). CI (`.github/workflows/ci.yml`) runs `swift build` and `swift test` on every PR; the
-`Build & test` check is required by the `main` ruleset. The `Commit authorship` check (`scripts/check-commits.sh`)
-fails on commits by anyone but the owner or with `Co-Authored-By` trailers. CI also runs on every push to `main`, only
-to refresh the caches PRs read (GhosttyKit, SwiftPM `.build`).
+(decision HD-145). CI (`.github/workflows/ci.yml`) runs `swift build` and `swift test --disable-xctest` on every PR;
+a warning of ours in the debug or release build fails it (`scripts/check-warnings.sh`). The `Build & test` check is
+required by the `main` ruleset. The `Commit authorship` check (`scripts/check-commits.sh`) fails on commits by anyone
+but the owner or with `Co-Authored-By` trailers. CI also runs on every push to `main`, only to refresh the caches PRs
+read (GhosttyKit, SwiftPM `.build`).
 
 ## When a release is cut
 
@@ -42,7 +43,7 @@ bump and the release notes.
 ## Before merge
 
 - [ ] CI is green.
-- [ ] Full `swift test` run locally.
+- [ ] Full `swift test --disable-xctest` run locally.
 - [ ] Independent review done.
 - [ ] UI changes: screenshots from an isolated DEBUG build (`swift run HangarApp` with `HANGAR_STATE_DIR` and
       `HANGAR_CONFIG` pointing at throwaway paths) are in the PR body, and the owner has looked at them.

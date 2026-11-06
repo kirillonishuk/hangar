@@ -8,9 +8,9 @@ description: Building, testing and live UI verification for Hangar — swift bui
 ## Build and unit tests
 - A fresh worktree has no `vendor/GhosttyKit.xcframework` (gitignored). Clone it from the main checkout instead of rebuilding: `cp -cR "$(git rev-parse --path-format=absolute --git-common-dir)/../vendor/GhosttyKit.xcframework" vendor/` (APFS clone, instant). Building it (`scripts/build-ghosttykit.sh`) needs Zig — an install, so ask first.
 - `swift build` — debug build (needed for live checks too).
-- `swift test` — full suite (Swift Testing: `@Suite`, `@Test`, `#expect`). Before a PR, show a full run.
-- While iterating: `swift test --filter <SuiteOrTarget>` (e.g. `--filter TaskArchiveTests`, `--filter GitTests`). Report the filtered command honestly; it is not the full run.
-- CI runs `swift test --no-parallel` under `AppleLanguages ru en` (`.github/workflows/ci.yml`). A test that passes only locally in parallel or only in one language is broken.
+- `swift test --disable-xctest` — full suite (Swift Testing only: `@Suite`, `@Test`, `#expect`; there are no XCTest tests, the flag drops the empty XCTest pass). Before a PR, show a full run.
+- While iterating: `swift test --disable-xctest --filter <SuiteOrTarget>` (e.g. `--filter TaskArchiveTests`, `--filter GitTests`). Report the filtered command honestly; it is not the full run.
+- CI (`.github/workflows/ci.yml`, step «Test») builds with `swift build --build-tests` (zero warnings: `scripts/check-warnings.sh`), then runs `swift test --skip-build --disable-xctest --filter "^<Target>\."` per test target in parallel and the SERIAL suites alone with `--no-parallel`, under `AppleLanguages ru en`. A test that passes only alone or only in one language is broken.
 
 ## Writing tests that don't flake
 - Executable scripts (fake `ssh`, fake agents, hooks): create with `writeScript(_:to:)` (`Tests/Support/WriteScript.swift`, target `TestSupport`), never `write` + `chmod`. Each new executable gets an XProtect scan on first exec; fresh per-test scripts queue for minutes in a full run. Never write to a linked script in place.

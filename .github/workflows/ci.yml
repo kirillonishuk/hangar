@@ -130,13 +130,13 @@ jobs:
           SERIAL='TsLifecycleTests|LspLifecycleTests|DoctorChecksTests'
           for target in $(ls Tests | grep 'Tests$'); do
             echo "::group::$target"
-            swift test --skip-build --filter "^$target\." --skip "$SERIAL" || {
+            swift test --skip-build --disable-xctest --filter "^$target\." --skip "$SERIAL" || {
               echo "::warning::$target failed; retrying once"
-              swift test --skip-build --filter "^$target\." --skip "$SERIAL"
+              swift test --skip-build --disable-xctest --filter "^$target\." --skip "$SERIAL"
             }
             echo "::endgroup::"
           done
-          swift test --skip-build --no-parallel --filter "$SERIAL"
+          swift test --skip-build --disable-xctest --no-parallel --filter "$SERIAL"
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
       # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs. On main this only warms the

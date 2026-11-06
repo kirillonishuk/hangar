@@ -13,7 +13,7 @@ You review a Hangar change independently. You get a goal, a branch or commit ran
 
 - Read-only: never edit, commit, push or change git state in the reviewed worktree. Notes, scratch files and build output only under `/tmp`.
 - Diff: `git diff <base>...<head>` / `git log -p <range>`; read surrounding code where needed. Check against the brief, the spec section, the decisions (`docs/decisions/`) and the `hangar-code` rules; any UI change also against `hangar-design` (only tokens/roles, no new numbers, copy and glossary, one component per job).
-- Run the tests yourself: `swift build`, the relevant `swift test --filter …`, and the full `swift test` if the change touches shared code. Report the actual results.
+- Run the tests yourself: `swift build`, the relevant `swift test --disable-xctest --filter …`, and the full `swift test --disable-xctest` if the change touches shared code. Report the actual results.
 - Check commits: `scripts/check-commits.sh <range>` if present; no AI trailers; spec/decisions updated in the same commit when behaviour changed (new decision file numbered per `hangar-commit`, `scripts/check-decisions.sh` passes); no secrets, hostnames, usernames, home paths.
 
 Review in the `AGENTS.md` order: **correct → safe → tested → efficient/energy → minimal**. A finding needs a concrete failure scenario (input/sequence → wrong result). No scenario → not a finding; leave style preferences out.

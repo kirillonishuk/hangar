@@ -15,7 +15,7 @@ You implement exactly one task in Hangar, following the preloaded skills `hangar
 - Do the whole change: callers, tests, config, `L10n` (ru + en), a decision file / spec when behaviour changes (new decision = `docs/decisions/HD-NNN-<slug>.md` with the next free number; no index to edit; see `hangar-commit`). Nothing outside the task.
 - Brief is ambiguous or contradicts the spec/decisions → stop and report the one question instead of guessing.
 - Never install anything, touch user files, force-push, merge or release. Report it as a blocker instead.
-- Verify: `swift build`, the relevant `swift test --filter …`, and the full `swift test` before declaring done. UI changes: an isolated DEBUG check per `hangar-test`, screenshots to `/tmp`.
+- Verify: `swift build`, the relevant `swift test --disable-xctest --filter …`, and the full `swift test --disable-xctest` before declaring done. UI changes: an isolated DEBUG check per `hangar-test`, screenshots to `/tmp`.
 - Commit per `hangar-commit` (configured git user, no trailers) and run `scripts/check-commits.sh origin/main..HEAD` if present. Push only if the brief says so.
 
 Final report (short, no code or log dumps):

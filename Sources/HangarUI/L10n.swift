@@ -136,17 +136,19 @@ import Workspace
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
+        case diffViewed, diffMarkViewed, diffUnmarkViewed, changesViewed, changesViewedOf, diffPreview, diffPreviewHelp, diffPreviewFailed, renderCode
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
         case add, remotePathMissing, serverTitle, toolFound, toolMissing, toolOptional, toolOutdated, socketClient
         case installPlanTitle, install, installManual, allInstalled, sudoHint, noStatusClient, forwardFailed, sshAuthFailed
         case remoteIntegration, unsupportedShell, installFailed, close, hostGaveUp, integrationNeedsRemote, folderEmpty, noGitFiles, optionalToolsLabel
-        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp
+        case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp, claudeLimitsHint, claudeLimitsHintHelp, codexLimitsFailed
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
         case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
+        case diffWrap, diffNewFile, diffDeletedFile, diffOneSide
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
         case edCustom, edAsTheme, edHintTheme, edHintCustom, edHintCustomSame, edResetAll, edColors, edSyntax, edCreated, edAllReset, edReplaceTitle, edReplaceInfo, edReplace, edReset, edResetTo, edThemeColors, edSystemPalette, edHue, edLightness, edOpacity, edFontSection, edIndentSection, edViewSection, edFont, edSize, edLineHeight, edLigatures, edTabSize, edDetect, edWrap, edLineHighlight, edCursor, edBlink, edWhitespace, edBracketColors, edBracketGuides, edIndentGuides, edFormatOnSave, edSystemFont, edPt, edLineAuto, edAuto, edSmaller, edLarger, edWrapOff, edWrapOn, edLhNone, edLhGutter, edLhLine, edLhAll, edCursorLine, edCursorBlock, edCursorUnderline, edBlinkBlink, edBlinkSmooth, edBlinkSolid, edWsNone, edWsSelection, edWsAll, edGuidesNone, edGuidesActive, edGuidesAll, edDetectTip, edFormatTip, edLineHeightTip, edLigaturesTip, edcKeyword, edcControl, edcString, edcEscape, edcRegexp, edcComment, edcNumber, edcType, edcFunction, edcVariable, edcConstant, edcJsonKey, edcPunctuation, edcOperator, edcText, edcBackground, edcLine, edcSelection, edcFind, edcGutter, edcGutterActive, edcCursor, edcIndent, edcIndentActive, edcWhitespace, edcBrackets, edcBracket1, edcBracket2, edcBracket3, edcDiffAddedLine, edcDiffRemovedLine, edcDiffAddedText, edcDiffRemovedText, edsKeyword, edsControl, edsString, edsEscape, edsComment, edsNumber, edsType, edsFunction, edsVariable, edsConstant, edsJsonKey, edsPunctuation, edsOperator, edsText
@@ -161,6 +163,7 @@ import Workspace
         case checkUpdatesTitle, versionTitle, checkNow, updateChecking, updateUpToDate, updateCheckFailed, updateDevBuild
         case updateOtherInstance, updateUntrusted, updateBadSignature
         case agentCountOne, agentCountFew, agentCountMany, subagentCountOne, subagentCountFew, subagentCountMany
+        case subagentsWorkingOne, subagentsWorkingFew, subagentsWorkingMany
         case tabCountOne, tabCountFew, tabCountMany, noAgents, rowWaiting, sessionsViewHelp
         case segmentGit, showGit, gitBranch, gitBranches, gitLocal, gitRemote, gitFetchHelp, gitSearch, gitAllBranches, gitAuthor, gitAllAuthors
         case gitFindAuthor, gitDate, gitAnyDate, gitToday, gitWeek, gitMonth, gitPath, gitPathPlaceholder, gitAnyPath, gitCommit
@@ -684,6 +687,9 @@ import Workspace
     static var refresh: String { s(.refresh) }
     static var limitsHelp: String { s(.limitsHelp) }
     static var refreshLimitsHelp: String { s(.refreshLimitsHelp) }
+    static var claudeLimitsHint: String { s(.claudeLimitsHint) }
+    static var claudeLimitsHintHelp: String { s(.claudeLimitsHintHelp) }
+    static var codexLimitsFailed: String { s(.codexLimitsFailed) }
 
     // Actions (context menus), project settings
     static var revealInFinder: String { s(.revealInFinder) }
@@ -877,6 +883,16 @@ import Workspace
     static var diffBinary: String { s(.diffBinary) }
     static var diffImageBefore: String { s(.diffImageBefore) }
     static var diffImageAfter: String { s(.diffImageAfter) }
+    static var diffViewed: String { s(.diffViewed) }
+    static var diffMarkViewed: String { s(.diffMarkViewed) }
+    static var diffUnmarkViewed: String { s(.diffUnmarkViewed) }
+    /// «просмотрено 3» over the Changes list; the total is the segment's count (HD-106).
+    static func changesViewed(_ n: Int) -> String { f(.changesViewed, n) }
+    static func changesViewedOf(_ n: Int, _ total: Int) -> String { f(.changesViewedOf, n, total) }
+    static var diffPreview: String { s(.diffPreview) }
+    static var renderCode: String { s(.renderCode) }
+    static var diffPreviewHelp: String { s(.diffPreviewHelp) }
+    static var diffPreviewFailed: String { s(.diffPreviewFailed) }
     static var editorLargeReadOnly: String { s(.editorLargeReadOnly) }
     static func editorTooLarge(_ bytes: Int64) -> String {
         f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
@@ -893,6 +909,10 @@ import Workspace
     static var editorDontSave: String { s(.editorDontSave) }
     static var diffInline: String { s(.diffInline) }
     static var diffSideBySide: String { s(.diffSideBySide) }
+    static var diffWrap: String { s(.diffWrap) }
+    static var diffNewFile: String { s(.diffNewFile) }
+    static var diffDeletedFile: String { s(.diffDeletedFile) }
+    static var diffOneSide: String { s(.diffOneSide) }
     static var editorMinimap: String { s(.editorMinimap) }
     /// The editor's context menu (HD-081), handed to the page by key.
     static var editorMenu: [String: String] {
@@ -1075,9 +1095,9 @@ extension L10n {
         count(n, .subChatsOne, .subChatsFew, .subChatsMany) + (working > 0 ? " · " + f(.subChatsWorking, Int32(clamping: working)) : "")
     }
     static var subChatsShow: String { s(.subChatsShow) }
-    /// «3 субагента · 1 работает» under a chat (spec agent-subagents §4).
-    static func subagentsCounter(_ n: Int, running: Int) -> String {
-        subagentCount(n) + (running > 0 ? " · " + f(.subChatsWorking, Int32(clamping: running)) : "")
+    /// «2 субагента работают» under a chat: the running ones only (spec agent-subagents §4, HD-149).
+    static func subagentsCounter(_ running: Int) -> String {
+        count(running, .subagentsWorkingOne, .subagentsWorkingFew, .subagentsWorkingMany)
     }
     static var subagentsShow: String { s(.subagentsShow) }
     static var subagentsHide: String { s(.subagentsHide) }

@@ -211,7 +211,7 @@ struct DiffView: View {
         if app.selectedTask?.id == taskId, let tab = app.activeDiff {
             let content = app.activeDiffContent
             VStack(spacing: 0) {
-                header(tab.path, commit: tab.commit, content)
+                header(tab, change: app.diffChange(of: tab), content)
                 ForEach(Array(notes(content).enumerated()), id: \.offset) { _, text in
                     Text(verbatim: text)
                         .font(Theme.Typography.mono.font())
@@ -229,7 +229,9 @@ struct DiffView: View {
                         .padding(.vertical, Theme.Diff.headerPaddingV)
                         .padding(.horizontal, Theme.Diff.headerPaddingH)
                 }
-                if content.isText {
+                if app.diffPreviewShown(tab, isText: content.isText) {
+                    DiffRenderView(app: app, tab: tab, version: content.version)
+                } else if content.isText {
                     MonacoDiffView(editor: editor)
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
@@ -257,8 +259,10 @@ struct DiffView: View {
         }
     }
 
-    private func header(_ path: String, commit: String?, _ content: DiffContent) -> some View {
-        VStack(spacing: 0) {
+    private func header(_ tab: DiffTab, change: FileChange?, _ content: DiffContent) -> some View {
+        let path = tab.path, commit = tab.commit
+        let oneSided = diffOneSided(change)
+        return VStack(spacing: 0) {
             HStack(spacing: Theme.Diff.headerGap) {
                 HStack(spacing: Theme.Space.iconGap) {
                     FileIconView(name: (path as NSString).lastPathComponent)
@@ -267,16 +271,28 @@ struct DiffView: View {
                 }
                 // A commit's file (Git tab): which commit, as the details show its hash.
                 if let commit { Text(verbatim: String(commit.prefix(7))).foregroundStyle(Theme.ui.accentText) }
+                // Why there is one column (HD-150).
+                if let label = diffChangeLabel(change) {
+                    Text(verbatim: label).font(Theme.Typography.caption.font()).foregroundStyle(Theme.ui.text3).lineLimit(1)
+                }
                 // No «+N −M» here: the Changes (or commit) row beside it already shows the counts.
                 Spacer(minLength: 0)
-                if content.isText {
+                if content.isText, !app.diffPreviewShown(tab, isText: true) {
                     changeNav
-                    Segmented(selection: app.state.diffInline,
-                              options: [(false, L10n.diffSideBySide), (true, L10n.diffInline)]) { inline in
-                        app.perform { $0.diffInline = inline }
-                        editor.setInline(inline)
+                    IconButton(icon: .wrap, on: app.state.diffWrap, help: L10n.diffWrap) {
+                        app.perform { $0.diffWrap.toggle() }
+                        editor.sendOptions()
                     }
+                    // A one-sided file shows one column; the saved choice stays for the next file.
+                    Segmented(selection: app.state.diffInline || oneSided,
+                              options: [(false, L10n.diffSideBySide), (true, L10n.diffInline)],
+                              disabled: oneSided ? [false] : []) { inline in
+                        app.perform { $0.diffInline = inline }
+                        editor.sendOptions()
+                    }
+                    .help(oneSided ? L10n.diffOneSide : "")
                 }
+                DiffReviewControls(app: app, tab: tab, isText: content.isText)
             }
             .font(Theme.Typography.mono.font())
             .padding(.horizontal, Theme.Diff.headerPaddingH)

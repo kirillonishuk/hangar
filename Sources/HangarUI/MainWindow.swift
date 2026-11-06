@@ -615,6 +615,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             case .down: app.diffNeighbour(1)
             case .enter: if !event.isARepeat { app.openActiveDiffInEditor() }
             case .toggleMode: if !event.isARepeat { app.inspector.toggleMode() }
+            case .toggleViewed: if !event.isARepeat { app.toggleDiffViewed() }
             case .close: if !event.isARepeat { app.closeDiff() }
             case .nextChange: column.terminalArea.shownDiffEditor?.goChange(next: true)
             case .prevChange: column.terminalArea.shownDiffEditor?.goChange(next: false)

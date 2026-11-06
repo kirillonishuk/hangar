@@ -9,12 +9,15 @@ public struct WorktreeEntry: Equatable, Sendable {
     public var prunable: Bool
     /// `git worktree lock`: git refuses to remove or prune it, so Hangar doesn't offer to.
     public var locked: Bool
+    /// Text after `locked` (Claude Code writes `claude agent agent-<hex> (pid ...)`); nil: none.
+    public var lockReason: String?
 
-    public init(path: String, branch: String?, prunable: Bool = false, locked: Bool = false) {
+    public init(path: String, branch: String?, prunable: Bool = false, locked: Bool = false, lockReason: String? = nil) {
         self.path = path
         self.branch = branch
         self.prunable = prunable
         self.locked = locked
+        self.lockReason = lockReason
     }
 }
 
@@ -59,6 +62,8 @@ func parseWorktreeList(_ out: String) -> [WorktreeEntry] {
             result[result.count - 1].prunable = true
         } else if line == "locked" || line.hasPrefix("locked "), !result.isEmpty {
             result[result.count - 1].locked = true
+            let reason = line.dropFirst("locked".count).trimmingCharacters(in: .whitespaces)
+            result[result.count - 1].lockReason = reason.isEmpty ? nil : reason
         }
     }
     return result

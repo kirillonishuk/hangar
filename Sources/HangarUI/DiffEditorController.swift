@@ -17,10 +17,13 @@ import Workspace
     private var shownKey: String?
     /// Which change the cursor is at, and how many; unknown until the page has computed the diff.
     private(set) var changes = ChangeCounter()
+    /// The shown file has one side only: one column whatever the saved setting (HD-150).
+    private(set) var oneSided = false
 
     init(app: AppState) {
         self.app = app
-        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, appearance: EditorAppearance(app.config))
+        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, wrap: app.state.diffWrap,
+                          appearance: EditorAppearance(app.config))
         page.webView.frame = container.bounds
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)
@@ -34,7 +37,10 @@ import Workspace
     /// The next / previous change (F7 / ⇧F7, the header's arrows).
     func goChange(next: Bool) { page.send(.goChange(next: next)) }
 
-    func setInline(_ inline: Bool) { page.send(.options(inline: inline, minimap: false)) }
+    /// The saved «Одной колонкой» and «Переносить строки» to the page; a one-sided file stays one column.
+    func sendOptions() {
+        page.send(.options(inline: app.state.diffInline || oneSided, minimap: false, wrap: app.state.diffWrap))
+    }
 
     /// Loads both sides of the shown diff tab and hands them to the page; a refresh of the same file keeps an edited
     /// buffer (a change on disk then shows the conflict bar instead).
@@ -69,6 +75,11 @@ import Workspace
             session = s
         }
         guard !Task.isCancelled, app.activeDiff.map({ $0.path + "|" + ($0.commit ?? "") }) == key else { return }
+        let oneSided = diffOneSided(app.diffChange(of: tab))
+        if oneSided != self.oneSided {
+            self.oneSided = oneSided
+            sendOptions()
+        }
         editablePath = diff.path
         shownKey = key
         guard diff != shown else { return }  // e.g. the refresh after our own save
@@ -79,7 +90,7 @@ import Workspace
 
     private func handle(_ m: BridgeMessage) {
         switch m {
-        case .ready: if let shown { changes = ChangeCounter(); page.send(.diff(shown)) }  // a reloaded page (the first load is queued)
+        case .ready: if let shown { changes = ChangeCounter(); sendOptions(); page.send(.diff(shown)) }  // a reloaded page (the first load is queued)
         case .changed, .save, .conflict: Task { await session?.handle(m) }
         case .changes(let index, let count): changes = ChangeCounter(index: index, count: count)
         case .focus: if let session, !session.io.isLocal { Task { await session.checkDisk() } }

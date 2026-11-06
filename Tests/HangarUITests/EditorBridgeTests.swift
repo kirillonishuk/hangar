@@ -145,6 +145,14 @@ import Testing
         #expect((EditorCommand.focus.json(doc: nil) as? [String: Any])?["doc"] == nil)
     }
 
+    /// The diff's options carry its own wrap (HD-150); editor pages send none, so it reads as off.
+    @Test func optionsCarryWrap() throws {
+        let on = try #require(EditorCommand.options(inline: true, minimap: false, wrap: true).json(doc: nil) as? [String: Any])
+        #expect(on["type"] as? String == "options" && on["inline"] as? Bool == true && on["wrap"] as? Bool == true)
+        let editor = try #require(EditorCommand.options(inline: false, minimap: true).json(doc: nil) as? [String: Any])
+        #expect(editor["wrap"] as? Bool == false && editor["minimap"] as? Bool == true)
+    }
+
     /// Semantic colors (#84): the request carries the buffer's length, the answer a flat list of spans.
     @Test func semanticRequestAndResult() throws {
         #expect(msg(#"{"type":"request","id":9,"kind":"semantic","file":"/r/a.ts","line":1,"column":1,"length":120}"#)

@@ -12,6 +12,23 @@ struct DiffTab: Equatable {
     var commit: String? = nil
     /// The commit file's name before a rename.
     var origPath: String? = nil
+    /// The commit file's change kind (the session's comes from Changes).
+    var change: FileChange? = nil
+}
+
+/// A file with one side only (added, untracked, deleted) is one full-width column whatever the saved
+/// «Рядом / Одной колонкой» (HD-150): the other half would be empty.
+func diffOneSided(_ change: FileChange?) -> Bool {
+    change == .added || change == .untracked || change == .deleted
+}
+
+/// The header's caption for such a file; a rename already has its «Переименован из …» line under the header.
+@MainActor func diffChangeLabel(_ change: FileChange?) -> String? {
+    switch change {
+    case .added, .untracked: L10n.diffNewFile
+    case .deleted: L10n.diffDeletedFile
+    default: nil
+    }
 }
 
 extension AppState {
@@ -41,7 +58,7 @@ extension AppState {
         guard let id = selectedTask?.id else { return }
         leavingDiff { [self] in
             if diffTabs[id]?.commit == nil { inspector.loadDiff(path: nil) }  // the Changes diff is no longer shown
-            diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath)
+            diffTabs[id] = DiffTab(path: file.path, active: true, selectedRowId: nil, commit: hash, origPath: file.origPath, change: file.change)
             gitPanel.loadDiff(hash: hash, path: file.path, origPath: file.origPath)
             didChange?()
         }
@@ -98,6 +115,11 @@ extension AppState {
         activeDiff?.selectedRowId.flatMap { activeDiffContent.indexById[$0] }
     }
 
+    /// The change kind of a diff tab's file (nil while Changes doesn't list it).
+    func diffChange(of tab: DiffTab) -> FileChange? {
+        tab.commit != nil ? tab.change : inspector.changes?.files.first { $0.path == tab.path }?.change
+    }
+
     /// Rows of the shown diff (cached per load). A path not (yet) loaded by the inspector is still loading.
     var activeDiffContent: DiffContent {
         guard let tab = activeDiff else { return diffCache.content(.none, origPath: nil) }
@@ -141,12 +163,14 @@ extension AppState {
     }
 }
 
-enum DiffKey: Equatable { case up, down, enter, toggleMode, close, prevChange, nextChange }
+enum DiffKey: Equatable { case up, down, enter, toggleMode, close, prevChange, nextChange, toggleViewed }
 
 /// F7 / ⇧F7 step through a diff's changes (as in VS Code); ⌥⌘↑/↓ are taken (files in the diff, split focus elsewhere).
 enum DiffChangeKey {
     static let next = "F7"
     static let prev = "⇧F7"
+    /// «Просмотрено» (HD-151): V as GitHub's, with ⌥ so Monaco's typing keeps plain V.
+    static let viewed = "⌥V"
 }
 
 /// Keys of the shown diff tab, by keyCode (any layout); only while it is shown and no text field edits.
@@ -159,6 +183,7 @@ func diffKeyRoute(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, diffActive:
     case (125, []) where !webFocused: return .down
     case (36, []) where !webFocused: return .enter
     case (11, .option): return .toggleMode
+    case (9, .option): return .toggleViewed  // ⌥V
     case (13, .command): return .close
     case (98, []): return .nextChange   // F7
     case (98, .shift): return .prevChange

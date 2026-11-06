@@ -201,6 +201,10 @@ enum EmptyProjectRow: Hashable {
         didSet { refreshSeen() }  // leaving the diff tab shows the chat's tabs again (HD-135)
     }
     @ObservationIgnored let diffCache = DiffContentCache()
+    /// «Просмотрено» marks per task: Changes path → `viewStamp` when marked (HD-151); in memory, kept while the app runs.
+    var viewedFiles: [UUID: [String: String]] = [:]
+    /// Editor panes showing a rendered HTML / Markdown / SVG file over Monaco (HD-151): no minimap switch then.
+    var editorRendered: Set<UUID> = []
     /// `now` for limits and limit-red dots: advanced on app activation, popover open, ↻ and new data — no ticking clock.
     var usageClock = Date()
     var limitsPopoverShown = false
@@ -227,6 +231,8 @@ enum EmptyProjectRow: Hashable {
     /// Reads codex limits; nil = codex not installed (no Codex row). Default: finds codex on first use.
     @ObservationIgnored var codexRead: (() async throws -> AgentUsage)?
     @ObservationIgnored var codexGate = CodexRefreshGate()
+    /// The popover's «обновить»: a spinner while reading, an error line after a failed read.
+    var codexRefresh = CodexRefreshState.idle
     /// Injectable for tests.
     @ObservationIgnored var clock: () -> Date = Date.init
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
@@ -457,6 +463,9 @@ enum EmptyProjectRow: Hashable {
         // Archived or deleted tasks drop their diff tab.
         if diffTabs.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
             diffTabs = diffTabs.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
+        }
+        if viewedFiles.keys.contains(where: { id in !state.tasks.contains { $0.id == id && !$0.archived } }) {
+            viewedFiles = viewedFiles.filter { entry in state.tasks.contains { $0.id == entry.key && !$0.archived } }
         }
         // Another session getting selected (palette, a new or restored one) leaves «Сессии».
         if state.selectedTaskId != selectedBefore, state.selectedTaskId != nil { sessionsViewVisible = false }

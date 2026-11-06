@@ -31,6 +31,16 @@ import AgentStatus
         #expect(bash?.tool == nil && bash?.toolUseId == nil && bash?.agentId == nil)
     }
 
+    /// HD-149: `agent_id` on any other event means it fired inside a subagent.
+    @Test func eventsInsideASubagentAreMarked() {
+        #expect(event("tool", #"{"tool_name":"Bash","agent_id":"a1","agent_type":"Explore"}"#)?.inSubagent == true)
+        #expect(event("subagent-start", #"{"tool_use_id":"t","agent_id":"a1"}"#)?.inSubagent == true)
+        #expect(event("tool", #"{"tool_name":"Bash"}"#)?.inSubagent == nil)
+        #expect(event("tool", #"{"tool_name":"Bash","agent_id":"../x"}"#)?.inSubagent == nil)
+        #expect(event("subagent-stop", #"{"agent_id":"a1"}"#)?.inSubagent == nil)
+        #expect(event("subagent-run", #"{"agent_id":"a1"}"#)?.inSubagent == nil)
+    }
+
     @Test func subagentStartAndStopCarryTheAgentId() {
         let run = event("subagent-run", #"{"agent_id":"agent-abc123","agent_type":"my-plugin:reviewer"}"#)
         #expect(run?.kind == .subagentRun && run?.agentId == "agent-abc123" && run?.agentType == "my-plugin:reviewer")
@@ -46,6 +56,31 @@ import AgentStatus
         #expect(subagentType(String(repeating: "t", count: 65)) == nil)
         #expect(subagentTitle("  \n") == nil && subagentTitle("a\u{1B}[31mb") == "a[31mb")
         #expect(subagentTitle(String(repeating: "й", count: 300))?.count == 200)
+    }
+
+    /// Stop's `background_tasks` (hooks reference, Stop input): a subagent task's `id` is its agent id.
+    @Test func stopCarriesTheGoingBackgroundIds() throws {
+        let stop = event("stop", #"""
+        {"background_tasks":[{"id":"a2","type":"subagent","status":"running","agent_type":"general-purpose"},
+         {"id":"b9","type":"shell","status":"running"},{"id":"a1","type":"subagent","status":"completed"},{"id":"../x"}]}
+        """#)
+        #expect(stop?.backgroundIds == ["a2", "b9"] && stop?.background == 3)
+        #expect(event("stop", #"{"background_tasks":[]}"#)?.backgroundIds == [])
+        #expect(event("stop", "{}")?.backgroundIds == nil)
+        #expect(event("subagent-stop", #"{"agent_id":"a1","background_tasks":[{"id":"a2"}]}"#)?.backgroundIds == nil)
+        let many = (0..<100).map { #"{"id":"t\#($0)"}"# }.joined(separator: ",")
+        #expect(event("stop", #"{"background_tasks":[\#(many)]}"#)?.backgroundIds == nil)
+        // Checked again at the socket: a hostile id drops the whole list.
+        var bad = try #require(stop)
+        bad.backgroundIds = ["ok", "../x"]
+        guard case .success(.event(let back)) = ControlMessage.decode(ControlMessage.event(bad).encoded().dropLast()) else {
+            Issue.record("decode"); return
+        }
+        #expect(back.backgroundIds == nil)
+        guard case .success(.event(let good)) = ControlMessage.decode(ControlMessage.event(stop!).encoded().dropLast()) else {
+            Issue.record("decode"); return
+        }
+        #expect(good.backgroundIds == ["a2", "b9"])
     }
 
     @Test func theSocketChecksTheFieldsAgain() throws {

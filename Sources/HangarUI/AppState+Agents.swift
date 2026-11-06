@@ -19,7 +19,7 @@ extension AppState {
             guard let leaf = liveLeaf(e.leaf, tab: e.tab) else { return }
             let status = statuses.status(leaf.id)
             let detail = HookDetail(tool: e.tool, command: e.command, text: e.message, error: e.error, agentPid: e.agentPid,
-                                    tabAgent: e.tabAgent == true)
+                                    tabAgent: e.tabAgent == true, subagent: e.inSubagent == true)
             guard acceptsHook(status, kind: e.kind, session: e.session, source: e.source, detail: detail,
                               agent: sessionAgent(leaf.kind), known: leaf.agentSessionId) else { return }
             apply(.hook(e.kind, session: e.session, notificationType: e.notificationType, source: e.source, detail: detail), leaf: leaf)
@@ -241,11 +241,14 @@ extension AppState {
     func refreshCodexUsage(afterTurn: Bool) async {
         guard let read = codexRead, codexGate.begin(afterTurn: afterTurn, now: clock()) else { return }
         defer { codexGate.end(now: clock()) }
+        codexRefresh = .running
         do {
             let u = try await read()
+            codexRefresh = .idle
             tickUsageClock()
             alert(usage.update(.codex, windows: u.windows, plan: u.plan, now: usageClock))
         } catch {
+            codexRefresh = .failed
             uiLog.error("codex limits read failed: \(String(describing: error), privacy: .public)")
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestSupport
 @testable import Update
 
 @Suite struct VersionTests {

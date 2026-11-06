@@ -6,7 +6,7 @@
 set -eu
 
 log=${1:?usage: check-warnings.sh <build log>}
-root=$(pwd)
+root=$(pwd -P)  # swiftc prints resolved paths (/tmp is /private/tmp)
 
 found=$(perl -pe 's/\e\[[0-9;]*m//g; s/\e\]8;;.*?\e\\//g' "$log" \
   | grep -E "^(($root/)?(Sources|Tests)/[^:]+:[0-9]+:[0-9]+: warning:|macro expansion [^:]+:[0-9]+:[0-9]+: warning:|(ld: )?warning:)" \

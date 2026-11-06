@@ -101,15 +101,18 @@ jobs:
           swift build --build-tests 2>&1 | tee "$RUNNER_TEMP/build.log"
           scripts/check-warnings.sh "$RUNNER_TEMP/build.log"
 
-      # Remote launches run in tmux on the server: without it the tmux tests (RemoteLaunchTests) skip themselves.
-      - name: tmux for tests
+      # Tools some tests drive for real and otherwise skip: tmux (remote launches, RemoteLaunchTests) and ripgrep (text
+      # search, TextSearchTests).
+      - name: tmux and ripgrep for tests
         if: github.event_name != 'push'
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
-          command -v tmux || brew install tmux
-          tmux -V
+          [ -x "$(brew --prefix)/bin/tmux" ] || brew install tmux
+          [ -x "$(brew --prefix)/bin/rg" ] || brew install ripgrep
+          "$(brew --prefix)/bin/tmux" -V
+          "$(brew --prefix)/bin/rg" --version | head -1
 
       # The project's source language; tests pin L10n themselves and also pass under en, de and ja.
       - name: System language ru
@@ -137,12 +140,14 @@ jobs:
 
       # The release path must produce a working app: bundle it and smoke-check the result (resources, zsh integration).
       # Ad-hoc: PRs (forks too) get no signing secrets; only the Release workflow signs. On main this only warms the
-      # release half of the cache.
+      # release half of the cache. The release build passes the same warning gate as the debug one.
       - name: Bundle & verify
         env:
           HANGAR_SIGN_IDENTITY: "-"
         run: |
-          scripts/bundle.sh
+          set -o pipefail
+          scripts/bundle.sh 2>&1 | tee "$RUNNER_TEMP/bundle.log"
+          scripts/check-warnings.sh "$RUNNER_TEMP/bundle.log"
           [ "${{ github.event_name }}" = push ] || scripts/verify-bundle.sh build/Hangar.app
 
       - name: Mark the cached build's commit

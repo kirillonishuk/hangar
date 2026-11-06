@@ -113,7 +113,11 @@ import Workspace
         let flag = Flag(), holder = Theme.Selection()
         withObservationTracking { _ = holder.theme } onChange: { flag.fired = true }
         holder.theme = .graphite
-        #expect(flag.fired)
+        #expect(flag.fired && holder.theme == .graphite)
+        flag.fired = false
+        withObservationTracking { _ = holder.increaseContrast } onChange: { flag.fired = true }
+        holder.increaseContrast = true
+        #expect(flag.fired && holder.increaseContrast)
         #expect(cssHex(Theme.bg0) == ThemePalette.of(Theme.current).bg0.css)
         #expect(Theme.ui.bg0 == Color(nsColor: Theme.ns(ThemePalette.of(Theme.current).bg0)))
     }

@@ -1,6 +1,7 @@
 import Exec
 import Foundation
 import Git
+import os
 import Testing
 @testable import HangarUI
 import Workspace
@@ -45,14 +46,14 @@ import TestSupport
         L10n.language = .ru
         defer { L10n.language = .system }
         let project = Project(name: "p", location: .local(path: t.repo), worktreeByDefault: true)
-        var names = ["Чат 1"]
-        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [], chatNames: { names })
+        let names = OSAllocatedUnfairLock(initialState: ["Чат 1"])
+        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [], chatNames: { names.withLock { $0 } })
         await m.load()
         #expect(m.head == .branch("main"))
         #expect(m.chatName == "Чат 2")
         #expect(m.branch == "chat-2")
         #expect(m.canCreate == true)
-        names.append("Чат 2")  // another window created one meanwhile
+        names.withLock { $0.append("Чат 2") }  // another window created one meanwhile
         #expect(m.chatName == "Чат 3")
         m.message = "Почини логин"
         #expect(m.chatName == "Почини логин")

@@ -1,6 +1,7 @@
 import Exec
 import Foundation
 import History
+import os
 import Testing
 import TestSupport
 @testable import HangarUI
@@ -676,9 +677,9 @@ import Workspace
     /// One source failing keeps the others' conversations and says why, with a retry; the load always finishes.
     @Test func failingSourceIsShownInlineAndRetried() async throws {
         let (w, m) = try await loaded()
-        var broken = true
+        let broken = OSAllocatedUnfairLock(initialState: true)
         m.scan = { folder, project in
-            if broken && folder == "/work/wt/api-cache" { throw HistoryError.remote("ssh: connect to host devbox port 22: Operation timed out") }
+            if broken.withLock({ $0 }) && folder == "/work/wt/api-cache" { throw HistoryError.remote("ssh: connect to host devbox port 22: Operation timed out") }
             return try await w.app.conversations(folder: folder, project: project)
         }
         await m.reload()
@@ -686,7 +687,7 @@ import Workspace
         #expect(m.failures.first?.message == "ssh: connect to host devbox port 22: Operation timed out")
         #expect(m.conversationRows.map(\.conversation.id).sorted() == [idB, idC, idX].sorted())
         #expect(m.localFailure?.timedOut == false)
-        broken = false
+        broken.withLock { $0 = false }
         await m.reload()
         #expect(m.load == .loaded && m.failures.isEmpty && m.conversationRows.count == 4)
     }

@@ -38,37 +38,57 @@ import Testing
         ])
     }
 
-    @Test func claudeSubagentCopiesAreHidden() {
+    @Test func claudeWorktreesDirIsHidden() {
+        // Real porcelain shapes (autoselectMonorepo): locked agent copy, unlocked one with a renamed branch, a lead's copy, a chat copy.
         let out = """
         worktree /r
         HEAD 1111
         branch refs/heads/main
 
-        worktree /r/.claude/worktrees/agent-a455e2aaf34333597
+        worktree /r/.claude/worktrees/agent-a605b4d978ee110db
         HEAD 2222
-        branch refs/heads/ci/faster
-        locked claude agent agent-a455e2aaf34333597 (pid 61221 start Wed Nov  4 13:14:11 2026)
+        branch refs/heads/aut-1076-lead10-admin
+        locked claude agent agent-a605b4d978ee110db (pid 95835 start Thu Nov  5 14:49:25 2026)
 
-        worktree /r/.claude/worktrees/agent-af7d0e31520ebdac6
+        worktree /r/.claude/worktrees/agent-a820a2326a0bbfb3c
         HEAD 3333
-        branch refs/heads/worktree-agent-af7d0e31520ebdac6
+        branch refs/heads/aut-1076-lead07-web
 
         worktree /r/.claude/worktrees/aut-1076
         HEAD 4444
-        branch refs/heads/aut-1076
+        branch refs/heads/kirillonishuk/aut-1076-epik-vitrina
+
+        worktree /r/.claude/worktrees/aut-1076-admin
+        HEAD 5555
+        branch refs/heads/aut-1076-admin
+
+        worktree /r.worktrees/x
+        HEAD 6666
+        branch refs/heads/x
 
         worktree /r/.claude/worktrees/agent-abc123
-        HEAD 5555
+        HEAD 7777
         branch refs/heads/mine
-        locked by hand
 
         """
         let l = parseWorktreeList(out)
-        #expect(l[1].lockReason == "claude agent agent-a455e2aaf34333597 (pid 61221 start Wed Nov  4 13:14:11 2026)")
-        #expect(l.map(isClaudeAgentWorktree) == [false, true, true, false, false])
-        #expect(unusedWorktrees(l, used: []).map(\.branch) == ["aut-1076", "mine"])
-        #expect(otherWorktree(cwd: "/r/.claude/worktrees/agent-a455e2aaf34333597/src", chatFolder: "/r", in: l) == nil)
-        #expect(otherWorktree(cwd: "/r/.claude/worktrees/aut-1076", chatFolder: "/r", in: l)?.branch == "aut-1076")
+        #expect(l.map { isClaudeAgentWorktree($0, root: "/r") } == [false, true, true, false, false, false, false])
+        // Nothing under .claude/worktrees is offered; the outside copy is.
+        #expect(unusedWorktrees(l, used: []).map(\.path) == ["/r.worktrees/x"])
+        #expect(unusedWorktrees(l, used: ["/r.worktrees/x"]).isEmpty)
+        // Banner: never for agent-<hex>, kept for other copies there.
+        #expect(otherWorktree(cwd: "/r/.claude/worktrees/agent-a820a2326a0bbfb3c/src", chatFolder: "/r", in: l) == nil)
+        #expect(otherWorktree(cwd: "/r/.claude/worktrees/aut-1076-admin", chatFolder: "/r", in: l)?.branch == "aut-1076-admin")
+        #expect(otherWorktree(cwd: "/r/.claude/worktrees/aut-1076", chatFolder: "/r", in: l)?.branch == "kirillonishuk/aut-1076-epik-vitrina")
+    }
+
+    @Test func claudeDirIsRelativeToRepoRoot() {
+        // A repo that merely sits under a path containing .claude/worktrees is not "inside" it.
+        let w = WorktreeEntry(path: "/p/.claude/worktrees/repo.worktrees/agent-a820a2326a0bbfb3c", branch: "b")
+        #expect(!isClaudeAgentWorktree(w, root: "/p/.claude/worktrees/repo"))
+        #expect(unusedWorktrees([WorktreeEntry(path: "/p/.claude/worktrees/repo", branch: "main"), w], used: []).count == 1)
+        let norm: (String) -> String = { $0.replacingOccurrences(of: "/link", with: "/r") }
+        #expect(isClaudeAgentWorktree(WorktreeEntry(path: "/link/.claude/worktrees/agent-a820a2326a0bbfb3c", branch: "b"), root: "/link", normalize: norm))
     }
 
     @Test func agentInAnotherWorktree() {
@@ -108,8 +128,8 @@ import Testing
     }
 
     @Test func spareAndBranch() {
-        #expect(unusedWorktrees(list, used: ["/r.worktrees/feat"]).map(\.path) == ["/r/.claude/worktrees/aut-1076"])
-        #expect(unusedWorktrees(list, used: []).count == 2)  // never the main checkout, never prunable
+        #expect(unusedWorktrees(list, used: []).map(\.path) == ["/r.worktrees/feat"])  // not main, prunable or under .claude/worktrees
+        #expect(unusedWorktrees(list, used: ["/r.worktrees/feat"]).isEmpty)
         #expect(registeredBranch(at: "/r.worktrees/feat", in: list) == "feat")
         #expect(registeredBranch(at: "/r", in: list) == nil)
         #expect(registeredBranch(at: "/r.worktrees/gone", in: list) == nil)

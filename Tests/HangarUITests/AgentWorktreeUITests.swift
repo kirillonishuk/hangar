@@ -63,11 +63,11 @@ import Workspace
         // A nested agent (another session) in the copy: not this tab's agent.
         await hook(app, tab: tab, leaf: leaf, cwd: nested, session: "other")
         #expect(app.selectedAgentElsewhere == nil)
-        // The tab's agent entered the worktree (EnterWorktree): offered; until adopted it is also a copy without a chat.
+        // The tab's agent entered the worktree (EnterWorktree): offered; under .claude/worktrees it is never a copy without a chat (HD-152).
         await hook(app, tab: tab, leaf: leaf, cwd: nested + "/src")
         #expect(app.selectedAgentElsewhere?.entry.path == nested)
         #expect(app.selectedAgentElsewhere?.entry.branch == "aut")
-        #expect(app.spareWorktrees(of: app.state.projects[0].id).map(\.path) == [nested])
+        #expect(app.spareWorktrees(of: app.state.projects[0].id).isEmpty)
         #expect(try snapshot(t) == before)  // reading only
 
         // «Скрыть»: gone for this chat and copy.
@@ -130,15 +130,20 @@ import Workspace
     }
 
     @Test func spareCopyOpensAsChatAndIsRemovedOnlyOnClick() async throws {
-        let (t, app, _, _, _, nested) = try await make()
+        let (t, app, _, _, _, inClaudeDir) = try await make()
         defer { t.cleanup() }
+        // The copy under .claude/worktrees is never spare (HD-152); one beside the repository is.
+        let nested = real(t.base) + "/spare"
+        try await t.git("worktree", "add", "-q", "-b", "spare", nested, "main", in: t.repo)
         let p = app.state.projects[0].id
         app.checkWorktrees(projectId: p)
         await app.worktreeChecksIdle()
         #expect(FileManager.default.fileExists(atPath: nested))
+        #expect(app.spareWorktrees(of: p).map(\.path) == [nested])
+        _ = inClaudeDir
         let spare = try #require(app.spareWorktrees(of: p).first)
         let id = try #require(app.openSpareWorktree(spare, projectId: p))
-        #expect(app.state.tasks.first { $0.id == id }?.mode == .worktree(path: nested, branch: "aut", base: "main"))
+        #expect(app.state.tasks.first { $0.id == id }?.mode == .worktree(path: nested, branch: "spare", base: "main"))
         #expect(app.spareWorktrees(of: p).isEmpty)
         #expect(FileManager.default.fileExists(atPath: nested))
 

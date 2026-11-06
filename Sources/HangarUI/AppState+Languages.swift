@@ -23,7 +23,7 @@ extension AppState {
                 return TsLaunch(executable: target.sshPath, args: args, cwd: "/")
             },
             lsp: LspLanguages(find: { [weak self] language, root in
-                let path = await self?.loginShellPath(), dir = await self?.lspDir
+                let path = await self?.loginShellPath(), dir = self?.lspDir
                 return await LspMap.find(language, projectRoot: root, path: (path ?? "").split(separator: ":").map(String.init),
                                          home: NSHomeDirectory(), hangarDir: dir, isExecutable: { FileManager.default.isExecutableFile(atPath: $0) },
                                          toolchain: xcrunFind)

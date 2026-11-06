@@ -55,7 +55,7 @@ jobs:
       tagged: ${{ steps.plan.outputs.tagged }}
       notes: ${{ steps.plan.outputs.notes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
           fetch-depth: 0
@@ -131,7 +131,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.sha }}
       - uses: ./.github/actions/ghosttykit
@@ -144,7 +144,7 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0

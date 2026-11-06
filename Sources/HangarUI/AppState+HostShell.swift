@@ -81,7 +81,7 @@ extension AppState {
     /// What the inspector says instead of its data: a chat whose copy was moved or is gone. A host's terminal shows its
     /// server's files instead (HD-124). No chat: the inspector is empty (§3.19).
     var inspectorNotice: String? {
-        guard let task = selectedTask else { return nil }
+        guard selectedTask != nil else { return nil }
         switch selectedWorktreeProblem?.place {
         case .moved: return L10n.inspectorWorktreeMoved
         case .missing: return L10n.inspectorWorktreeMissing

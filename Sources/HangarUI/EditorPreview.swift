@@ -344,7 +344,7 @@ struct EditorPreview: View {
     }
 
     /// Lines the preview shows for a settings page this tall: all 12 at the default size, 6 at the minimum.
-    static func visibleLines(_ pageHeight: CGFloat) -> Int {
+    nonisolated static func visibleLines(_ pageHeight: CGFloat) -> Int {
         guard pageHeight > 0 else { return Theme.EditorSettings.previewLines }
         let fit = Int(((pageHeight - Theme.EditorSettings.previewReserve) / Theme.EditorSettings.previewLineHeight).rounded(.down))
         return min(Theme.EditorSettings.previewLines, max(Theme.EditorSettings.previewMinLines, fit))

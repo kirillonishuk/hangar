@@ -122,8 +122,7 @@ extension AppState {
                 _ = startAction(action, taskId: taskId, leaf: leaf, activate: true)
                 return
             }
-            confirmActionRun?(action.name, action.action.command) { [weak self] in
-                guard let self else { return }
+            confirmActionRun?(action.name, action.action.command) { [self] in
                 perform { $0.approveAction(projectId: project.id, command: action.action.command) }
                 _ = startAction(action, taskId: taskId, leaf: leaf, activate: true)
             }

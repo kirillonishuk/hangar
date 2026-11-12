@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Testing
+import TestSupport
 @testable import HangarUI
 
 @Suite struct FuzzyMatchTests {
@@ -167,4 +168,109 @@ import Testing
         m.setQuery(">")
         #expect(m.isCommands && m.sections.map(\.kind) == [.command])
     }
+}
+
+/// HD-158: ⌘P ↔ ⇧⌘P keeps the typed text; `/…` and `~/…` list one folder of this Mac.
+@Suite struct PalettePathTests {
+    @Test func modes() {
+        #expect(paletteMode("") == .quick)
+        #expect(paletteMode("main") == .quick)
+        #expect(paletteMode("a/b") == .quick)  // a session file's path, not an absolute one
+        #expect(paletteMode(">") == .commands)
+        #expect(paletteMode(">/x") == .commands)
+        #expect(paletteMode("/") == .path)
+        #expect(paletteMode("~") == .path)
+        #expect(paletteMode("~/x") == .path)
+        #expect(paletteMode("~x") == .quick)
+    }
+
+    @Test func switchingKeepsTheText() {
+        #expect(paletteSwitched("main", toCommands: true) == ">main")
+        #expect(paletteSwitched(">set", toCommands: false) == "set")
+        #expect(paletteSwitched("", toCommands: true) == ">")
+        #expect(paletteSwitched(">", toCommands: false) == "")
+    }
+
+    @Test func pathQuerySplitsFolderAndName() {
+        #expect(palettePathQuery("main", home: "/Users/u") == nil)
+        #expect(palettePathQuery("/", home: "/Users/u")! == ("/", ""))
+        #expect(palettePathQuery("/etc/hos", home: "/Users/u")! == ("/etc/", "hos"))
+        #expect(palettePathQuery("/etc/", home: "/Users/u")! == ("/etc/", ""))
+        #expect(palettePathQuery("~", home: "/Users/u")! == ("/Users/u/", ""))
+        #expect(palettePathQuery("~/Doc", home: "/Users/u/")! == ("/Users/u/", "Doc"))
+        #expect(palettePathQuery("~/a b/Ж", home: "/Users/u")! == ("/Users/u/a b/", "Ж"))
+    }
+
+    @Test func itemsRankPrefixThenFuzzyAndHideDotFiles() {
+        let entries = [PathEntry(name: "notes.txt", isDir: false), PathEntry(name: "Node", isDir: true),
+                       PathEntry(name: ".env", isDir: false), PathEntry(name: "anno.md", isDir: false), PathEntry(name: "src", isDir: true)]
+        let all = palettePathItems(dir: "/p/", name: "", entries: entries)
+        #expect(all.map(\.title) == ["Node/", "src/", "anno.md", "notes.txt"])  // folders first, no dot-files
+        let no = palettePathItems(dir: "/p/", name: "no", entries: entries)
+        #expect(no.map(\.title) == ["Node/", "notes.txt", "anno.md"])  // prefix (any case) above a fuzzy match
+        #expect(no.first?.target == .path("/p/Node", isDir: true))
+        #expect(no.first?.positions == [0, 1])
+        #expect(palettePathItems(dir: "/p/", name: ".e", entries: entries).map(\.title) == [".env"])
+        #expect(palettePathItems(dir: "/p/", name: "zzz", entries: entries).isEmpty)
+    }
+
+    @Test func completionKeepsTheTypedForm() {
+        #expect(palettePathCompletion("~/Do", entry: "Documents", isDir: true) == "~/Documents/")
+        #expect(palettePathCompletion("~", entry: "Documents", isDir: true) == "~/Documents/")
+        #expect(palettePathCompletion("/etc/ho", entry: "hosts", isDir: false) == "/etc/hosts")
+        #expect(paletteAbbreviated("/Users/u/x/y", home: "/Users/u") == "~/x/y")
+        #expect(paletteAbbreviated("/Users/uu/x", home: "/Users/u") == "/Users/uu/x")
+    }
+
+    @Test func listsOneFolderLevel() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("palette path \(UUID().uuidString)/")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("sub/deep"), withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: dir.appendingPathComponent("файл.txt"))
+        try FileManager.default.createSymbolicLink(at: dir.appendingPathComponent("link"), withDestinationURL: dir.appendingPathComponent("sub"))
+        let root = dir.path + "/"
+        let entries = try #require(paletteListDirectory(root)).sorted { $0.name < $1.name }
+        #expect(entries == [PathEntry(name: "link", isDir: true), PathEntry(name: "sub", isDir: true), PathEntry(name: "файл.txt", isDir: false)])
+        #expect(paletteListDirectory(root + "файл.txt/") == nil)
+        #expect(paletteListDirectory(root + "missing/") == nil)
+    }
+}
+
+@MainActor @Suite struct PalettePathModelTests {
+    @Test func listsTheFolderOnceAndCompletesFolders() async throws {
+        let calls = Calls()
+        let m = PaletteModel(tasks: [], files: [], commands: [], query: "", home: "/h",
+                             listDirectory: { dir in
+                                 calls.add(dir)
+                                 return dir == "/h/" ? [PathEntry(name: "src", isDir: true), PathEntry(name: "a.txt", isDir: false)] : nil
+                             })
+        m.setQuery("~/")
+        #expect(await waitUntil { m.pathEntries != nil })
+        #expect(m.mode == .path && m.pathDir == "~/")
+        #expect(m.sections.first?.items.map(\.title) == ["src/", "a.txt"])
+        m.setQuery("~/s")
+        #expect(m.sections.first?.items.map(\.title) == ["src/"])
+        #expect(calls.all == ["/h/"])  // same folder: no second listing
+        let folder = try #require(m.highlighted)
+        #expect(m.completePath(folder))
+        #expect(m.query == "~/src/")
+        #expect(await waitUntil { m.pathMissing })
+        #expect(m.sections.isEmpty)
+        #expect(!m.completePath(PaletteItem(path: "/h/a.txt", isDir: false)))
+    }
+
+    @Test func blockedPathListsNothing() {
+        let m = PaletteModel(tasks: [], files: [], commands: [], query: "/", pathBlock: .remote, listDirectory: { _ in
+            Issue.record("listed")
+            return nil
+        })
+        #expect(m.sections.isEmpty && m.mode == .path)
+    }
+}
+
+private final class Calls: @unchecked Sendable {
+    private let lock = NSLock()
+    private var list: [String] = []
+    func add(_ s: String) { lock.withLock { list.append(s) } }
+    var all: [String] { lock.withLock { list } }
 }

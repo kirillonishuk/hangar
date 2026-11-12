@@ -754,7 +754,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func togglePalette(commands: Bool, pickFor leafId: UUID? = nil) {
         if leafId != nil, palette != nil { closePalette() }
         if let palette {
-            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
+            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(paletteSwitched(palette.model.query, toCommands: commands)) }
             return
         }
         guard let window, window.attachedSheet == nil else { return }
@@ -779,10 +779,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let model = PaletteModel(tasks: tasks, files: files, commands: (task.map { app.actions(of: $0).map { PaletteItem(action: $0.name, title: L10n.actionPalette($0.name)) } } ?? [])
                                      + paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
-                                 query: commands ? ">" : "", loadFiles: load)
+                                 query: commands ? ">" : "", loadFiles: load,
+                                 pathBlock: task == nil ? .noSession : project?.host != nil || app.isHostShellTask(task!.id) ? .remote : nil)
         paletteRoot = root
         palettePickFor = leafId
         palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            if model.completePath(item) { return }  // a folder: its entries, the palette stays
             let pickFor = self?.palettePickFor
             self?.closePalette()
             self?.choosePalette(item, pickFor: pickFor)
@@ -816,6 +818,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .file(let path):
             guard let paletteRoot else { return }
             if let leafId { app.chooseEditor(leafId, path: paletteRoot + "/" + path) } else { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .path(let path, isDir: false):
+            if let leafId { app.chooseEditor(leafId, path: path) } else { app.openInEditor(path: path, line: nil) }
+        case .path: break
         case .command(let sc): perform(sc)
         case .action(let name): if let task = app.selectedTask { app.runAction(name, taskId: task.id) }
         }

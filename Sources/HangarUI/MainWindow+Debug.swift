@@ -129,6 +129,12 @@ extension MainWindowController {
         }
     }
 
+    /// The palette's search field (debug log of its text and caret).
+    private func debugFirstField(in view: NSView) -> NSTextField? {
+        if let f = view as? NSTextField, f.isEditable { return f }
+        return view.subviews.lazy.compactMap { self.debugFirstField(in: $0) }.first
+    }
+
     /// Pane `n` of the active tab (`hover|menu|clicked|action … leaf <n>`).
     private func debugLeafTarget(_ n: Int) -> ActionTarget? {
         guard let task = app.selectedTask, let tab = task.tabs.first(where: { $0.id == task.activeTabId }),
@@ -779,13 +785,42 @@ extension MainWindowController {
             case "type": palette?.model.setQuery(rest)
             case "up": palette?.model.move(-1)
             case "down": palette?.model.move(1)
-            case "enter": if let item = palette?.model.highlighted { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
+            case "enter": if let item = palette?.model.highlighted, palette?.model.completePath(item) != true { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
             case "snap":
                 guard let view = palette?.panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
+            // keys <keyCode>:<mods>:<chars> …: real key events through the key monitor, then the panel (its field editor),
+            // as NSApp would deliver them — e.g. `35:cmd,shift:З` is ⇧⌘P in the ru layout, `0::>` types «>».
+            case "keys":
+                for spec in rest.split(separator: " ") {
+                    let p = spec.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+                    guard p.count == 3, let code = UInt16(p[0]) else { continue }
+                    var mods: NSEvent.ModifierFlags = []
+                    for m in p[1].split(separator: ",") {
+                        switch m {
+                        case "cmd": mods.insert(.command)
+                        case "shift": mods.insert(.shift)
+                        case "opt": mods.insert(.option)
+                        case "ctrl": mods.insert(.control)
+                        default: break
+                        }
+                    }
+                    // Keys AppKit reads by character: ⌫, ↩, Esc, Tab, ↑, ↓.
+                    let named: [UInt16: String] = [51: "\u{7f}", 36: "\r", 53: "\u{1b}", 48: "\t", 126: "\u{f700}", 125: "\u{f701}"]
+                    let chars = p[2] == "space" ? " " : p[2].isEmpty ? named[code] ?? "" : p[2]
+                    let target = palette?.panel ?? window
+                    guard let target, let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: 0,
+                                                                   windowNumber: target.windowNumber, context: nil, characters: chars,
+                                                                   charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code)
+                    else { continue }
+                    if !handleKeyDown(event), let panel = palette?.panel, event.window === panel { panel.sendEvent(event) }
+                }
             default: break
             }
+            let field = (palette?.panel.contentView).flatMap { debugFirstField(in: $0) }
+            let editor = field?.currentEditor()
+            uiLog.info("palette field=\(field?.stringValue ?? "-", privacy: .public) caret=\(editor.map { NSStringFromRange($0.selectedRange) } ?? "-", privacy: .public) responder=\(self.palette?.panel.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
             let rows = palette?.model.sections.map { "\($0.kind):\($0.items.map(\.title))" } ?? []
             uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) commands=\(self.palette?.model.isCommands ?? false, privacy: .public) loading=\(self.palette?.model.showsLoading ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
         case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)

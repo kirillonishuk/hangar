@@ -91,6 +91,12 @@ struct PickerSearchField: NSViewRepresentable {
     let onMove: (Int) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
+    /// Tab: true — handled (the palette completes a path); nil / false — the usual focus move.
+    var onTab: (() -> Bool)?
+
+    /// = inputPlaceholder, prose (never mono); otherwise the field's own font: an empty field is as tall as a filled one
+    /// (the palette doesn't jump).
+    private var placeholderFont: NSFont { font.isFixedPitch ? Theme.Input.nsFont() : font }
 
     func makeNSView(context: Context) -> NSTextField {
         let field = FocusingField()
@@ -100,7 +106,7 @@ struct PickerSearchField: NSViewRepresentable {
         field.font = font
         field.textColor = Theme.text0  // = Theme.ui.inputText
         field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
-            .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),  // = inputPlaceholder, prose (never mono)
+            .foregroundColor: Theme.text3, .font: placeholderFont,
         ])
         field.cell?.usesSingleLineMode = true
         field.delegate = context.coordinator
@@ -111,7 +117,7 @@ struct PickerSearchField: NSViewRepresentable {
         context.coordinator.parent = self
         if field.placeholderAttributedString?.string != placeholder {
             field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
-                .foregroundColor: Theme.text3, .font: Theme.Input.nsFont(),
+                .foregroundColor: Theme.text3, .font: placeholderFont,
             ])
         }
         if field.stringValue != text {
@@ -137,6 +143,7 @@ struct PickerSearchField: NSViewRepresentable {
             case #selector(NSResponder.moveDown(_:)): parent.onMove(1)
             case #selector(NSResponder.insertNewline(_:)): parent.onSubmit()
             case #selector(NSResponder.cancelOperation(_:)): parent.onCancel()
+            case #selector(NSResponder.insertTab(_:)): return parent.onTab?() ?? false
             default: return false
             }
             return true

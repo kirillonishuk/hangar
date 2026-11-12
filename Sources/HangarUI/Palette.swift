@@ -56,9 +56,11 @@ func fuzzyMatch(_ query: String, _ text: String) -> FuzzyMatch? {
 }
 
 struct PaletteItem: Equatable, Identifiable {
-    enum Kind: Equatable { case task, file, command }
+    enum Kind: Equatable { case task, file, command, path }
     enum Target: Equatable {
         case task(UUID), file(String), command(Shortcut)
+        /// An entry of the folder a `/…` or `~/…` query names (HD-158): an absolute path; a folder completes, a file opens.
+        case path(String, isDir: Bool)
         /// «Запустить: Dev server» — a project action of the selected chat (HD-133).
         case action(String)
     }
@@ -80,12 +82,17 @@ struct PaletteItem: Equatable, Identifiable {
     }
     init(command: Shortcut, title: String) { target = .command(command); self.title = title }
     init(action name: String, title: String) { target = .action(name); self.title = title }
+    init(path: String, isDir: Bool) {
+        target = .path(path, isDir: isDir)
+        title = (path as NSString).lastPathComponent + (isDir ? "/" : "")
+    }
 
     var kind: Kind {
         switch target {
         case .task: .task
         case .file: .file
         case .command, .action: .command
+        case .path: .path
         }
     }
 
@@ -95,6 +102,7 @@ struct PaletteItem: Equatable, Identifiable {
         case .file(let path): "f:" + path
         case .command(let sc): "c:\(sc)"
         case .action(let name): "a:" + name
+        case .path(let path, _): "p:" + path
         }
     }
 }
@@ -133,6 +141,82 @@ func paletteFiles(_ tree: FileTree, cap: Int = paletteFileCap) -> [String] {
 /// A leading `>` switches to commands (as in VS Code's ⌘P); the rest is the query.
 func paletteCommandQuery(_ query: String) -> String? {
     query.first == ">" ? String(query.dropFirst()) : nil
+}
+
+/// What the query asks for: ⌘P (chats and files of the session), `>…` commands, `/…` or `~/…` any file of this Mac.
+enum PaletteMode: Equatable { case quick, commands, path }
+
+func paletteMode(_ query: String) -> PaletteMode {
+    if paletteCommandQuery(query) != nil { return .commands }
+    return query.hasPrefix("/") || query == "~" || query.hasPrefix("~/") ? .path : .quick
+}
+
+/// ⌘P ↔ ⇧⌘P while open: the typed text stays, only the leading `>` comes or goes.
+func paletteSwitched(_ query: String, toCommands: Bool) -> String {
+    let rest = paletteCommandQuery(query) ?? query
+    return toCommands ? ">" + rest : rest
+}
+
+/// A path query split into the folder to list (absolute, ends with `/`) and the name typed after its last `/`.
+/// `~` is the home folder; `.`/`..` components are left to the file system. nil: not a path query.
+func palettePathQuery(_ query: String, home: String) -> (dir: String, name: String)? {
+    guard paletteMode(query) == .path else { return nil }
+    var path = query
+    if path == "~" { path = "~/" }
+    if path.hasPrefix("~") { path = (home.hasSuffix("/") ? String(home.dropLast()) : home) + path.dropFirst() }
+    let slash = path.lastIndex(of: "/")!  // a path query has one
+    return (String(path[...slash]), String(path[path.index(after: slash)...]))
+}
+
+/// One entry of a listed folder.
+struct PathEntry: Equatable, Sendable {
+    var name: String
+    var isDir: Bool
+}
+
+/// The folder's entries (one level, symlinks to folders count as folders); nil when it is not a readable folder.
+/// shortcut: one `contentsOfDirectory` per folder, no cap — a folder with 100k entries costs one listing off the main thread.
+func paletteListDirectory(_ dir: String) -> [PathEntry]? {
+    guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return nil }
+    return names.map { name in
+        var isDir: ObjCBool = false
+        _ = FileManager.default.fileExists(atPath: dir + name, isDirectory: &isDir)  // follows a symlink
+        return PathEntry(name: name, isDir: isDir.boolValue)
+    }
+}
+
+/// Entries matching the typed name: name prefix (any case) first, then a fuzzy match; folders before files on a tie,
+/// then by name. Dot-files only once the name starts with `.`.
+func palettePathItems(dir: String, name: String, entries: [PathEntry]) -> [PaletteItem] {
+    let showHidden = name.hasPrefix(".")
+    let scored = entries.compactMap { e -> (Int, PathEntry, [Int])? in
+        guard showHidden || !e.name.hasPrefix(".") else { return nil }
+        if name.isEmpty { return (0, e, []) }
+        if e.name.lowercased().hasPrefix(name.lowercased()) { return (1000 - e.name.count, e, Array(0..<name.count)) }
+        return fuzzyMatch(name, e.name).map { ($0.score, e, $0.positions) }
+    }
+    return scored.sorted { a, b in
+        if a.0 != b.0 { return a.0 > b.0 }
+        if a.1.isDir != b.1.isDir { return a.1.isDir }
+        return a.1.name.localizedStandardCompare(b.1.name) == .orderedAscending
+    }.prefix(paletteSectionLimit).map { score, e, positions in
+        var item = PaletteItem(path: dir + e.name, isDir: e.isDir)
+        item.positions = positions
+        return item
+    }
+}
+
+/// ↩ / Tab on a folder: the query becomes that folder (as typed: `~/…` stays `~/…`), ready for the next name.
+func palettePathCompletion(_ query: String, entry: String, isDir: Bool) -> String {
+    let base = query == "~" ? "~/" : String(query[...query.lastIndex(of: "/")!])
+    return base + entry + (isDir ? "/" : "")
+}
+
+/// `/Users/me/x` → `~/x` for display.
+func paletteAbbreviated(_ path: String, home: String) -> String {
+    let h = home.hasSuffix("/") ? String(home.dropLast()) : home
+    guard !h.isEmpty, path == h || path.hasPrefix(h + "/") else { return path }
+    return "~" + path.dropFirst(h.count)
 }
 
 /// Quick open: tasks, then files — tasks as given without a query, files once something is typed.

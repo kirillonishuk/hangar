@@ -145,7 +145,7 @@ import Workspace
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp, claudeLimitsHint, claudeLimitsHintHelp, codexLimitsFailed
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
-        case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
+        case editorLargeReadOnly, editorTooLarge, editorBinary, editorSpecialFile, editorMissing, editorReadFailed, editorSaveFailed
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case diffWrap, diffNewFile, diffDeletedFile, diffOneSide
@@ -153,7 +153,7 @@ import Workspace
         case editorMenuCut, editorMenuCopy, editorMenuPaste
         case edCustom, edAsTheme, edHintTheme, edHintCustom, edHintCustomSame, edResetAll, edColors, edSyntax, edCreated, edAllReset, edReplaceTitle, edReplaceInfo, edReplace, edReset, edResetTo, edThemeColors, edSystemPalette, edHue, edLightness, edOpacity, edFontSection, edIndentSection, edViewSection, edFont, edSize, edLineHeight, edLigatures, edTabSize, edDetect, edWrap, edLineHighlight, edCursor, edBlink, edWhitespace, edBracketColors, edBracketGuides, edIndentGuides, edFormatOnSave, edSystemFont, edPt, edLineAuto, edAuto, edSmaller, edLarger, edWrapOff, edWrapOn, edLhNone, edLhGutter, edLhLine, edLhAll, edCursorLine, edCursorBlock, edCursorUnderline, edBlinkBlink, edBlinkSmooth, edBlinkSolid, edWsNone, edWsSelection, edWsAll, edGuidesNone, edGuidesActive, edGuidesAll, edDetectTip, edFormatTip, edLineHeightTip, edLigaturesTip, edcKeyword, edcControl, edcString, edcEscape, edcRegexp, edcComment, edcNumber, edcType, edcFunction, edcVariable, edcConstant, edcJsonKey, edcPunctuation, edcOperator, edcText, edcBackground, edcLine, edcSelection, edcFind, edcGutter, edcGutterActive, edcCursor, edcIndent, edcIndentActive, edcWhitespace, edcBrackets, edcBracket1, edcBracket2, edcBracket3, edcDiffAddedLine, edcDiffRemovedLine, edcDiffAddedText, edcDiffRemovedText, edsKeyword, edsControl, edsString, edsEscape, edsComment, edsNumber, edsType, edsFunction, edsVariable, edsConstant, edsJsonKey, edsPunctuation, edsOperator, edsText
         case editorRenameOtherFiles, editorRenameRefused, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable, lspNotExecutable, downloadTooLarge
-        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
+        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, paletteNoCommand, paletteNoFolder, palettePathNoSession, palettePathRemote, paletteModeQuick, paletteModeCommands, paletteModePath, paletteHintQuick, paletteHintCommands, paletteHintPath, cmdQuickOpen, cmdCommandPalette
         case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         case thisMac, notifySectionEvents, notifySectionSystem, cmdNextWorking
@@ -897,6 +897,7 @@ import Workspace
     static func editorTooLarge(_ bytes: Int64) -> String {
         f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
     }
+    static var editorSpecialFile: String { s(.editorSpecialFile) }
     static var editorBinary: String { s(.editorBinary) }
     static var editorMissing: String { s(.editorMissing) }
     static func editorReadFailed(_ message: String) -> String { f(.editorReadFailed, message) }
@@ -1035,11 +1036,34 @@ import Workspace
     static var paletteSearch: String { s(.paletteSearch) }
     static var paletteEmpty: String { s(.paletteEmpty) }
     static var paletteLoading: String { s(.paletteLoading) }
+    static var paletteNoCommand: String { s(.paletteNoCommand) }
+    static var paletteNoFolder: String { s(.paletteNoFolder) }
+    static func palettePathBlocked(_ block: PalettePathBlock) -> String {
+        switch block {
+        case .noSession: s(.palettePathNoSession)
+        case .remote: s(.palettePathRemote)
+        }
+    }
+    static func paletteMode(_ mode: PaletteMode) -> String {
+        switch mode {
+        case .quick: s(.paletteModeQuick)
+        case .commands: s(.paletteModeCommands)
+        case .path: s(.paletteModePath)
+        }
+    }
+    static func paletteHint(_ mode: PaletteMode) -> String {
+        switch mode {
+        case .quick: s(.paletteHintQuick)
+        case .commands: s(.paletteHintCommands)
+        case .path: s(.paletteHintPath)
+        }
+    }
     static func paletteSection(_ kind: PaletteItem.Kind) -> String {
         switch kind {
         case .task: s(.paletteTasks)
         case .file: s(.paletteFiles)
         case .command: s(.paletteCommands)
+        case .path: s(.paletteFiles)
         }
     }
     /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one (en: Title Case).

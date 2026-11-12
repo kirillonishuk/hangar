@@ -107,6 +107,19 @@ import Testing
         #expect(sink.sent.filter { if case .reload = $0 { true } else { false } }.count == 1)
     }
 
+    /// ⌘P path mode reaches /dev: a device or FIFO is refused, never read (it would never end or would block).
+    @Test func specialFilesAreNotRead() async throws {
+        let fifo = dir + "/pipe"
+        #expect(mkfifo(fifo, 0o600) == 0)
+        let link = dir + "/zero-link"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: "/dev/zero")
+        for path in ["/dev/zero", fifo, link] {
+            #expect(try await EditorIO.local.read(path, 1 << 20) == .special)
+        }
+        let file = try write("plain.txt", "x")
+        #expect(!isSpecialFile(file) && !isSpecialFile(dir) && !isSpecialFile(dir + "/none"))
+    }
+
     /// An editor pane moving to the other Monaco page (splits) takes its unsaved buffer along: still dirty there.
     @Test func adoptKeepsDirtyBuffer() async throws {
         let path = try write("moved.txt", "disk\n")

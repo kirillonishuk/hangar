@@ -470,7 +470,17 @@
 "closeTerminal" = "Close Terminal";
 "hostTerminal" = "%@ · terminal";
 "plainSSHHint" = "Plain ssh — closes when the connection drops";
-"paletteSearch" = "Chats and files; > for commands";
+"paletteSearch" = "Find a chat or file";
+"paletteNoCommand" = "No such command";
+"paletteNoFolder" = "No such folder";
+"palettePathNoSession" = "Select a chat: the file opens in its editor";
+"palettePathRemote" = "This chat is on a server: a path to a file on this Mac opens only in a local chat";
+"paletteModeQuick" = "Chats and Files";
+"paletteModeCommands" = "Commands";
+"paletteModePath" = "Path";
+"paletteHintQuick" = "> for commands · / or ~ for any file by path";
+"paletteHintCommands" = "Delete > for chats and files";
+"paletteHintPath" = "↩ to open · Tab to complete · a folder shows its contents";
 "paletteTasks" = "Chats";
 "paletteFiles" = "Files";
 "paletteCommands" = "Commands";
@@ -595,6 +605,7 @@
 "optionalToolsLabel" = "Optional:";
 "editorLargeReadOnly" = "Large file — opened read-only";
 "editorTooLarge" = "The file is too large for the editor (%@)";
+"editorSpecialFile" = "This isn’t a regular file (a device, pipe or socket): the editor can’t open it.";
 "editorBinary" = "Binary file — the editor doesn't open it";
 "editorMissing" = "File not found";
 "editorReadFailed" = "Couldn't read the file: %@";

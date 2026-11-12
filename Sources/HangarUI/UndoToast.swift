@@ -8,6 +8,8 @@ import SwiftUI
     private(set) var taskId: UUID?
     /// A message without «Отменить»; nil while the archive toast (or nothing) is shown.
     private(set) var message: String?
+    /// The message's own «Вернуть» (a reverted file, HD-156); nil — a plain message.
+    private(set) var messageUndo: (() -> Void)?
     /// Set by the window: restores through `restoreArchivedTask` (it needs the window's alerts).
     @ObservationIgnored var onUndo: (UUID) -> Void = { _ in }
     @ObservationIgnored private var hide: DispatchWorkItem?
@@ -28,13 +30,14 @@ import SwiftUI
         present(taskId: id, message: nil)
     }
 
-    func show(message text: String) {
-        present(taskId: nil, message: text)
+    func show(message text: String, undo: (() -> Void)? = nil) {
+        present(taskId: nil, message: text, undo: undo)
     }
 
-    private func present(taskId id: UUID?, message text: String?) {
+    private func present(taskId id: UUID?, message text: String?, undo: (() -> Void)? = nil) {
         taskId = id
         message = text
+        messageUndo = undo
         arm()
     }
 
@@ -60,6 +63,7 @@ import SwiftUI
         held = false  // the view goes away under the pointer: no hover-exit comes
         taskId = nil
         message = nil
+        messageUndo = nil
     }
 
     /// Restores the archived task once; the toast goes away.
@@ -67,6 +71,13 @@ import SwiftUI
         guard let id = taskId else { return }
         dismiss()
         restore(id)
+    }
+
+    /// The message's «Вернуть» once; the toast goes away.
+    func undoMessage() {
+        guard let action = messageUndo else { return }
+        dismiss()
+        action()
     }
 }
 
@@ -95,6 +106,11 @@ struct UndoToastView: View {
         HStack(spacing: Theme.Space.s2) {
             if let message = undo.message {
                 Text(message).foregroundStyle(Theme.ui.text1)
+                if undo.messageUndo != nil {
+                    Button { undo.undoMessage() } label: { ActionLabel(title: L10n.revertUndo, icon: .restore) }
+                        .buttonStyle(.hangar(.primary, .small))
+                        .help(L10n.revertUndo)
+                }
             } else {
                 Text(L10n.taskArchived).foregroundStyle(Theme.ui.text1)
                 Button { undo.undo(restore) } label: { ActionLabel(title: L10n.undoArchive, icon: .restore) }

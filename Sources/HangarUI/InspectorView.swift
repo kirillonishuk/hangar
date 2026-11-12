@@ -123,6 +123,14 @@ enum FileMenuItem: Equatable, CaseIterable {
     }
 }
 
+/// «Откатить изменения…» (HD-156), the last group: only a file with uncommitted changes; a server's project — disabled.
+@MainActor func revertMenu(app: AppState, relative: String) -> [PopoverMenuEntry] {
+    guard app.canRevert(relative) else { return [] }
+    let local = app.selectedProjectIsLocal
+    return [.separator, .item(PopoverMenuItem(title: L10n.revertFile, icon: .restore, destructive: true, enabled: local,
+                                              help: local ? nil : L10n.revertRemote) { app.requestRevert(relative) })]
+}
+
 @MainActor private func remoteHost(_ app: AppState) -> String? {
     app.selectedTask.flatMap { app.project($0.projectId)?.host }
 }
@@ -239,7 +247,7 @@ private struct ChangesList: View {
                         ForEach(changes.files) { file in
                             ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath,
                                       viewed: viewed.contains(file.path)) { app.openDiff(path: file.path) }
-                                .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
+                                .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) + revertMenu(app: app, relative: file.path) }
                         }
                     }
                 }

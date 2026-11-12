@@ -13,6 +13,10 @@ struct DiffReviewControls: View {
         if previewEligible(path: tab.path, isText: isText, local: app.selectedProjectIsLocal) {
             RenderSwitch(app: app)
         }
+        if tab.commit == nil, app.selectedProjectIsLocal, app.canRevert(tab.path) {
+            // HD-156; the tooltip also points at Monaco's per-block revert arrow.
+            IconButton(icon: .restore, help: L10n.revertDiffHelp) { app.requestRevert(tab.path) }
+        }
         if tab.commit == nil, app.inspector.changes?.files.contains(where: { $0.path == tab.path }) == true {
             let viewed = app.viewedChanges.contains(tab.path)
             Chip(title: L10n.diffViewed, icon: .check, on: viewed, toggles: true) { app.toggleDiffViewed() }

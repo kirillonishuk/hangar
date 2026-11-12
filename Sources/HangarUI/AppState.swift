@@ -143,6 +143,12 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
     /// Diff tabs with an edited, unsaved working file (quitting asks).
     @ObservationIgnored var diffUnsaved: (() -> Int)?
+    /// Full paths of the diff tabs' edited, unsaved working files (a revert refuses them, HD-156).
+    @ObservationIgnored var diffUnsavedPaths: (() -> [String])?
+    /// A destructive confirmation sheet (message, info, button, then on confirm) — set by the window.
+    @ObservationIgnored var confirmDestructive: ((String, String, String, @escaping () -> Void) -> Void)?
+    /// The toast with «Вернуть» (message, then on «Вернуть») — set by the window (HD-156).
+    @ObservationIgnored var undoToast: ((String, @escaping () -> Void) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.

@@ -334,6 +334,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         app.branchModel.toast = { [weak self] in self?.column.archiveUndo.show(message: $0) }
+        app.undoToast = { [weak self] text, undo in self?.column.archiveUndo.show(message: text, undo: undo) }
+        app.confirmDestructive = { [weak self] message, info, button, then in self?.confirm(message, info, button, then) }
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
             let reselect = self.app.selectedTask == nil

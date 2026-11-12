@@ -373,7 +373,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
         app.editActions = { [weak self] id in self?.presentProjectSettings(id) }
         app.actionFailed = { [weak self] title, details in self?.showError(title, details) }
-        // A repository command before its first run (HD-133): not destructive, ↩ runs it.
+        // A repository command before its first run (HD-133): not destructive, ⌘↩ runs it.
         app.confirmActionRun = { [weak self] name, command, then in
             guard let self, let window = self.window, window.attachedSheet == nil else { return }
             sheetWindow = window.beginHangarSheet({ end in
@@ -381,8 +381,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              destructive: false, onConfirm: { _ in end(.OK); then() }, onCancel: { end(.cancel) })
             }, done: { [weak self] _ in self?.sheetWindow = nil })
         }
+        // A short title; the error itself wraps (and can be copied) below it.
         app.onIntegrationError = { [weak self] text in
-            self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }
+            self?.window?.beginHangarSheet { end in ConfirmSheet(message: L10n.integrationSaveFailed, info: text, onConfirm: { _ in end(.OK) }) }
         }
         // A restored tab may have asked while the window was being built: shown once it is up.
         DispatchQueue.main.async { [weak self] in self?.presentIntegrationAsk() }

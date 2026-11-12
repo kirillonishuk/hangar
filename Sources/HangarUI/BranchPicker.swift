@@ -57,7 +57,7 @@ struct BranchPicker: View {
 /// session's branch, age).
 @MainActor func branchMenu(selection: String?, branches: [Branch], defaultBase: String?, taskBranches: Set<String>,
                            defaultOption: String?, choose: @escaping (String?) -> Void) -> PopoverMenuContent {
-    PopoverMenuContent(search: .init(placeholder: L10n.searchBranches, mono: true, highlightFirst: true), width: Theme.menuWidthWide) { query in
+    PopoverMenuContent(search: .init(placeholder: L10n.searchBranches, mono: true, highlightFirst: true), width: Theme.menuWidthBranch) { query in
         let items = branchPickerItems(branches, query: query, defaultBase: defaultBase, taskBranches: taskBranches)
         var entries: [PopoverMenuEntry] = []
         if let defaultOption, query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -67,7 +67,7 @@ struct BranchPicker: View {
             entries.append(.header(title))
             entries += rows.map { item in
                 .item(PopoverMenuItem(title: item.branch.name, checked: item.branch.name == selection, note: branchMetaText(item.meta),
-                                      mono: true) { choose(item.branch.name) })
+                                      mono: true, help: item.branch.name, noteYields: true) { choose(item.branch.name) })
             }
         }
         return entries

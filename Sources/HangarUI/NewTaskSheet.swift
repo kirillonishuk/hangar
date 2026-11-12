@@ -236,9 +236,7 @@ struct NewTaskSheet: View {
         Text(verbatim: text)
             .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.failedText)
-            .lineLimit(Theme.errorMaxLines)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
+            .wrappingError()
     }
 
     private var createWithoutFetch: some View {

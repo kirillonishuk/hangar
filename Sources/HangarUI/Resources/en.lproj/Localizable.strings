@@ -92,6 +92,7 @@
 "sectionProjectTitle" = "Project";
 "sectionToolsTitle" = "Tools";
 "saveFailed" = "Couldn't save config.toml: %@";
+"integrationSaveFailed" = "Couldn't save the integration choice";
 "revealInFinder" = "Reveal in Finder";
 "copyPath" = "Copy Path";
 "linkNotFound" = "Link leads nowhere: its target is not in Hangar";

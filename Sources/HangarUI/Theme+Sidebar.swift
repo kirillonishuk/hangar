@@ -29,10 +29,11 @@ extension Theme {
     /// Footer (§3.3): 44 high, icon buttons 28 at 12 from the edges, 4 apart; in the rail they stack, 8 above and below.
     public static let sidebarFooterHeight: CGFloat = 44
 
-    /// `PopoverMenu` (spec §3.12): 256 wide (a branch list 320), padding 6, items `row.list` 24; a long list scrolls
-    /// past 12 items.
+    /// `PopoverMenu` (spec §3.12): 256 wide (a run-action list 320, a branch list 440), padding 6, items `row.list` 24;
+    /// a long list scrolls past 12 items.
     public static let menuWidth: CGFloat = 256
     public static let menuWidthWide: CGFloat = 320
+    public static let menuWidthBranch: CGFloat = 440
     public static let menuPadding: CGFloat = 6
     public static let menuListMaxRows = 12
     /// The menu opens this far below its button (left edges aligned).

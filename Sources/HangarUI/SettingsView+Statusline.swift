@@ -68,14 +68,14 @@ extension SettingsView {
         case .failed(let why)?: (L10n.statuslineFailed(why), Theme.ui.failedText)
         }
         let path = (note.host.map { $0 + ":" } ?? "") + tildePath(note.path)
-        return HStack(spacing: Theme.pickGap) {
+        return HStack(alignment: .firstTextBaseline, spacing: Theme.pickGap) {
             Text(verbatim: note.name).foregroundStyle(Theme.ui.text1).lineLimit(1).layoutPriority(2)
             Text(verbatim: path)
                 .font(Theme.Typography.monoSmall.font())
                 .foregroundStyle(Theme.ui.text3)
                 .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: Theme.cardRowGap)
-            Text(verbatim: text).foregroundStyle(color).lineLimit(1).layoutPriority(1)
+            Text(verbatim: text).foregroundStyle(color).wrappingError().layoutPriority(1)
         }
         .help(path + " — " + text)
     }

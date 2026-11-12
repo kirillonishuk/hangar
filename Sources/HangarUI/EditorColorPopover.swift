@@ -99,7 +99,10 @@ struct EditorColorPopover: View {
     @State private var alphaText = ""
     /// What the bars made last, so hue and saturation survive a trip to black or white.
     @State private var held: (hsl: EditorHSL, hex: String)?
-    @FocusState private var focused: Bool
+    @FocusState private var focus: Field?
+    enum Field: Error { case hex, alpha }
+    /// ↩ found the value unusable: that field stays as typed, red, until it is edited.
+    @State private var invalid: Field?
 
     private typealias S = Theme.EditorSettings
 
@@ -126,14 +129,15 @@ struct EditorColorPopover: View {
             HStack(spacing: Theme.pickGap) {
                 Text(verbatim: "HEX").foregroundStyle(Theme.ui.text3)
                 TextField("", text: $hexText)
-                    .focused($focused)
-                    .inputField(focused: focused, mono: true)
+                    .focused($focus, equals: .hex)
+                    .inputField(focused: focus == .hex, mono: true, invalid: invalid == .hex)
                     .frame(width: S.hexFieldWidth)
                     .onSubmit { commitText(color, hex) }
                 if color.translucent {
                     Text(verbatim: "α").foregroundStyle(Theme.ui.text3).help(L10n.s(.edOpacity))
                     TextField("", text: $alphaText)
-                        .inputField(focused: false, mono: true)
+                        .focused($focus, equals: .alpha)
+                        .inputField(focused: focus == .alpha, mono: true, invalid: invalid == .alpha)
                         .frame(width: S.alphaFieldWidth)
                         .onSubmit { commitText(color, hex) }
                         .help(L10n.s(.edOpacity))
@@ -175,7 +179,9 @@ struct EditorColorPopover: View {
         .frame(width: S.popoverWidth, alignment: .leading)
         .background(Theme.ui.bg2)
         .onAppear { sync(hex) }
-        .onChange(of: hex) { _, new in if !focused { sync(new) } }
+        .onChange(of: hex) { _, new in if focus == nil { sync(new) } }
+        .onChange(of: hexText) { if invalid == .hex { invalid = nil } }
+        .onChange(of: alphaText) { if invalid == .alpha { invalid = nil } }
     }
 
     private func sync(_ hex: String) {
@@ -183,14 +189,22 @@ struct EditorColorPopover: View {
         alphaText = String(Int((EditorHex.alpha(hex) * 100).rounded()))
     }
 
-    /// ↩ in HEX or α: a valid value is applied, anything else goes back to the current one.
+    /// ↩ in HEX or α: a valid value is applied; otherwise the field that is wrong turns red, as typed.
     private func commitText(_ color: EditorColor, _ current: String) {
-        let typed = hexText.hasPrefix("#") ? hexText : "#" + hexText
-        guard let rgb = HangarConfig.normalizedHex(typed.trimmingCharacters(in: .whitespaces)) else { sync(current); return }
-        // A solid color's alpha (typed as #rrggbbaa) is dropped: only colors over text are translucent.
-        let alpha = color.translucent ? (Double(alphaText.trimmingCharacters(in: .whitespaces)).map { $0 / 100 } ?? EditorHex.alpha(rgb))
-            : 1
-        model.commit(color, EditorHex.with(rgb, alpha: alpha))
+        switch Self.parse(hex: hexText, alpha: color.translucent ? alphaText : nil) {
+        case .success(let value): model.commit(color, value)
+        case .failure(let field): invalid = field
+        }
+    }
+
+    /// HEX (`#` optional) and α in % (nil: a solid color, its alpha dropped; blank: the hex's own) → the color, or the bad field.
+    static func parse(hex: String, alpha: String?) -> Result<String, Field> {
+        let typed = hex.trimmingCharacters(in: .whitespaces)
+        guard let rgb = HangarConfig.normalizedHex(typed.hasPrefix("#") ? typed : "#" + typed) else { return .failure(.hex) }
+        guard let alpha = alpha?.trimmingCharacters(in: .whitespaces) else { return .success(EditorHex.with(rgb, alpha: 1)) }
+        if alpha.isEmpty { return .success(rgb) }
+        guard let percent = Double(alpha), (0...100).contains(percent) else { return .failure(.alpha) }
+        return .success(EditorHex.with(rgb, alpha: percent / 100))
     }
 
     private var hueGradient: Gradient {

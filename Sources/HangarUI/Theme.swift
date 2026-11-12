@@ -98,8 +98,10 @@ public enum Theme {
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = Space.s1
 
-    /// Every sheet (§3.14: new chat, project settings, remote project, server, integration, update): one width.
+    /// Every sheet (§3.14: new chat, remote project, server, integration, update): one width; project settings — below.
     public static let sheetWidth: CGFloat = 520
+    /// «Настройки проекта» only (HD-157): the action rows' command needs the room.
+    public static let projectSettingsWidth: CGFloat = 640
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
     /// «В папке проекта — Ветка …»: longer names are cut in the middle so the card stays short.
@@ -199,6 +201,8 @@ extension Theme {
         public static let sectionPaddingTop: CGFloat = Space.s2
         /// More rows than this scroll inside `listHeight`.
         public static let scrollAfter = 7
+        /// A reply to an agent grows up to this many lines, then scrolls.
+        public static let replyMaxLines = 6
         public static let listHeight: CGFloat = 440
         public static let emptyHeight: CGFloat = 64
         /// «Проект › сессия · время» line; the reason icon centres on it.

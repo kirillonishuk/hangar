@@ -277,9 +277,10 @@ struct NewTaskSheet: View {
             .accessibilityAction { togglePrompt() }
             if model.promptOpen {
                 TextField("", text: $model.message, axis: .vertical)
-                    .lineLimit(2...8)
+                    .lineLimit(2...12)
                     .focused($focus, equals: .message)
-                    .inputField(focused: focus == .message, multiline: true)
+                    .inputField(focused: focus == .message, multiline: true,
+                                placeholder: model.message.isEmpty ? L10n.taskPromptPlaceholder : nil)
                     .disabled(model.creating)
             }
         }
@@ -305,6 +306,7 @@ struct NewTaskSheet: View {
                     .foregroundStyle(Theme.ui.text3).truncationMode(.middle)
             }
             Spacer(minLength: 0)
+            blockedReason
             Button(L10n.cancel, action: cancel)
                 .buttonStyle(.hangar(.secondary))
                 .keyboardShortcut(.cancelAction)
@@ -321,6 +323,18 @@ struct NewTaskSheet: View {
         .padding(.vertical, Theme.Space.s3)
         .padding(.horizontal, Theme.Space.s5)
         .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1) }
+    }
+
+    /// Why «Создать чат» is off: the repository still loading (spinner), or no base branch chosen.
+    @ViewBuilder private var blockedReason: some View {
+        if let blocked = model.createBlocked {
+            HStack(spacing: Theme.Space.iconGap) {
+                if blocked == .loading { ProgressView().controlSize(.small) }
+                Text(verbatim: blocked == .loading ? L10n.createWaitsRepo : L10n.createNeedsBase)
+                    .font(Theme.Typography.secondary.font())
+                    .foregroundStyle(Theme.ui.text3)
+            }
+        }
     }
 
     /// While creating: Esc / «Отмена» cancels the pre-create fetch (the sheet stays), `worktree add` can't be

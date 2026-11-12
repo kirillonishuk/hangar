@@ -139,23 +139,43 @@ private struct InboxRow: View {
             .environment(\.rowHighlight, RowHighlight(radius: Theme.Radius.control))
             .help(n.title)
             if replying {
-                TextField("", text: $reply)
-                    .textFieldStyle(.plain)
-                    .focused($focused)
-                    .inputField(focused: focused, placeholder: reply.isEmpty ? L10n.noticeReply : nil)
-                    .onSubmit {
-                        act(item.leafId, a.requestKey, .reply(reply))
-                        reply = ""
-                        replying = false
-                    }
-                    .onExitCommand { replying = false }
-                    .onAppear { focused = true }
-                    .padding(.horizontal, Theme.Inbox.rowPaddingH)
-                    .padding(.bottom, Theme.Inbox.rowPaddingV)
+                // Several lines: ↩ is a new line, ⌘↩ or «Отправить» sends.
+                VStack(alignment: .trailing, spacing: Theme.Inbox.lineGap) {
+                    TextField("", text: $reply, axis: .vertical)
+                        .lineLimit(1...Theme.Inbox.replyMaxLines)
+                        .textFieldStyle(.plain)
+                        .focused($focused)
+                        .inputField(focused: focused, multiline: true, placeholder: reply.isEmpty ? L10n.noticeReply : nil)
+                        .onKeyPress(.return, phases: .down) { press in
+                            if press.modifiers.contains(.command) { send(a.requestKey) } else { newLine() }
+                            return .handled
+                        }
+                        .onExitCommand { replying = false }
+                        .onAppear { focused = true }
+                    Button(L10n.noticeSend) { send(a.requestKey) }
+                        .buttonStyle(.hangar(.secondary, .small))
+                        .fixedSize()
+                        .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .help(L10n.noticeSend + " — ⌘↩")
+                }
+                .padding(.horizontal, Theme.Inbox.rowPaddingH)
+                .padding(.bottom, Theme.Inbox.rowPaddingV)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(n.title)
+    }
+
+    private func send(_ requestKey: UUID?) {
+        guard !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        act(item.leafId, requestKey, .reply(reply))
+        reply = ""
+        replying = false
+    }
+
+    /// A literal line break at the cursor: what ⌥↩ does in a text field (plain ↩ would end the editing).
+    private func newLine() {
+        NSApp.sendAction(#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: nil)
     }
 
     /// The banner's buttons under the same conditions (`notice(for:)`'s category): «Разрешить» is the row's one

@@ -19,16 +19,26 @@ struct ActionDraft: Identifiable, Equatable {
     init(_ action: ProjectAction) { self.init(name: action.name, command: action.command, folder: action.folder ?? "", restart: action.restart) }
 }
 
+/// A row «Действия» refuses, named by its number or name; `row` marks its missing fields.
+struct ActionInputError: Error, Equatable {
+    let message: String
+    var row: UUID?
+}
+
 /// «Действия» → the project's list: fully blank rows dropped; a half-filled row, a repeated name or a folder outside the
-/// project is an error (nothing saved).
-@MainActor func projectActionsInput(_ rows: [ActionDraft]) -> Result<[ProjectAction], PathInputError> {
+/// project is an error (nothing saved) that names the row.
+@MainActor func projectActionsInput(_ rows: [ActionDraft]) -> Result<[ProjectAction], ActionInputError> {
     var out: [ProjectAction] = []
-    for row in rows {
+    for (i, row) in rows.enumerated() {
         let name = row.name.trimmingCharacters(in: .whitespacesAndNewlines), command = row.command.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.isEmpty && command.isEmpty && row.folder.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-        guard let n = actionName(name), let c = actionCommand(command) else { return .failure(PathInputError(message: L10n.actionIncomplete)) }
-        guard !actionFolderInvalid(row.folder) else { return .failure(PathInputError(message: L10n.actionFolderInvalid)) }
-        guard !out.contains(where: { $0.name == n }) else { return .failure(PathInputError(message: L10n.actionDuplicate(n))) }
+        guard let n = actionName(name) else {
+            let message = actionCommand(command) == nil ? L10n.actionIncomplete(i + 1) : L10n.actionNeedsName(i + 1)
+            return .failure(ActionInputError(message: message, row: row.id))
+        }
+        guard let c = actionCommand(command) else { return .failure(ActionInputError(message: L10n.actionNeedsCommand(n), row: row.id)) }
+        guard !actionFolderInvalid(row.folder) else { return .failure(ActionInputError(message: L10n.actionFolderInvalid(n), row: row.id)) }
+        guard !out.contains(where: { $0.name == n }) else { return .failure(ActionInputError(message: L10n.actionDuplicate(n), row: row.id)) }
         out.append(ProjectAction(name: n, command: c, restart: row.restart, folder: actionFolder(row.folder)))
     }
     return .success(out)
@@ -46,14 +56,15 @@ func actionSuggestionsShown(_ groups: [ActionSuggestionGroup], rows: [ActionDraf
     }
 }
 
-/// Project Settings → «Действия» (HD-133): own actions (name, command, folder, «Перезапускать», ⋯ — up, down, remove), then
+/// Project Settings → «Действия» (HD-133): own actions (name, command, ⋯ — up, down, remove; under the command: folder and
+/// «Перезапускать», HD-157), then
 /// `.hangar/actions.json`'s, read-only (⋯ — edit as own, hide / show), then «Добавить действие» with the repository's
 /// suggestions (package.json scripts of the root and workspace packages, Makefile, justfile), searched when it opens.
 struct ProjectActionsSection: View {
     @Binding var rows: [ActionDraft]
     @Binding var hidden: [String]
     let repo: RepoActions
-    let error: String?
+    let error: ActionInputError?
     let discover: () async -> [ActionSuggestionGroup]
     let submit: () -> Void
     @FocusState private var focus: Field?
@@ -68,7 +79,7 @@ struct ProjectActionsSection: View {
                 ForEach(repoShown, id: \.name) { a in repoRow(a) }
                 addRow
             }
-            if let error { message(error, Theme.ui.failed) }
+            if let error { message(error.message, Theme.ui.failedText) }
             if let e = repo.error { message(e, Theme.ui.failed) }
             if rows.isEmpty && repo.actions.isEmpty && repo.error == nil { message(L10n.actionsHint, Theme.ui.text3) }
         }
@@ -77,33 +88,44 @@ struct ProjectActionsSection: View {
     private func ownRow(_ row: Binding<ActionDraft>) -> some View {
         let id = row.wrappedValue.id
         let index = rows.firstIndex { $0.id == id } ?? 0
-        return HStack(spacing: Theme.pickGap) {
-            TextField("", text: row.name)
-                .focused($focus, equals: .name(id))
-                .onSubmit(submit)
-                .inputField(focused: focus == .name(id), placeholder: row.wrappedValue.name.isEmpty ? L10n.actionName : nil)
-                .frame(width: Theme.actionNameWidth)
-            TextField("", text: row.command)
-                .focused($focus, equals: .command(id))
-                .onSubmit(submit)
-                .inputField(focused: focus == .command(id), mono: true, placeholder: row.wrappedValue.command.isEmpty ? L10n.actionCommand : nil)
-            TextField("", text: row.folder)
-                .focused($focus, equals: .folder(id))
-                .onSubmit(submit)
-                .inputField(focused: focus == .folder(id), mono: true, invalid: actionFolderInvalid(row.wrappedValue.folder),
-                            placeholder: row.wrappedValue.folder.isEmpty ? L10n.actionFolderPlaceholder : nil)
-                .frame(width: Theme.actionFolderWidth)
-                .help(L10n.actionFolderHelp)
-            Checkbox(L10n.actionRestart, showsLabel: false, isOn: row.restart)
-                .help(L10n.actionRestartHelp)
-            PopoverMenuButton(help: L10n.actionRowMenu) {
-                [
-                    .item(PopoverMenuItem(title: L10n.actionMoveUp, icon: .chevronUp, enabled: index > 0) { move(id, by: -1) }),
-                    .item(PopoverMenuItem(title: L10n.actionMoveDown, icon: .chevronDown, enabled: index < rows.count - 1) { move(id, by: 1) }),
-                    .separator,
-                    .item(PopoverMenuItem(title: L10n.actionRemove, icon: .trash, destructive: true) { rows.removeAll { $0.id == id } }),
-                ]
+        let marked = error?.row == id  // the row the last «Сохранить» refused: its missing fields are red
+        // Two lines (HD-157): the command gets the width; its folder and «Перезапускать» sit under it.
+        return VStack(alignment: .leading, spacing: Theme.Space.s1) {
+            HStack(spacing: Theme.pickGap) {
+                TextField("", text: row.name)
+                    .focused($focus, equals: .name(id))
+                    .onSubmit(submit)
+                    .inputField(focused: focus == .name(id), invalid: marked && actionName(row.wrappedValue.name) == nil,
+                                placeholder: row.wrappedValue.name.isEmpty ? L10n.actionName : nil)
+                    .frame(width: Theme.actionNameWidth)
+                TextField("", text: row.command)
+                    .focused($focus, equals: .command(id))
+                    .onSubmit(submit)
+                    .inputField(focused: focus == .command(id), mono: true, invalid: marked && actionCommand(row.wrappedValue.command) == nil,
+                                placeholder: row.wrappedValue.command.isEmpty ? L10n.actionCommand : nil)
+                PopoverMenuButton(help: L10n.actionRowMenu) {
+                    [
+                        .item(PopoverMenuItem(title: L10n.actionMoveUp, icon: .chevronUp, enabled: index > 0) { move(id, by: -1) }),
+                        .item(PopoverMenuItem(title: L10n.actionMoveDown, icon: .chevronDown, enabled: index < rows.count - 1) { move(id, by: 1) }),
+                        .separator,
+                        .item(PopoverMenuItem(title: L10n.actionRemove, icon: .trash, destructive: true) { rows.removeAll { $0.id == id } }),
+                    ]
+                }
             }
+            HStack(spacing: Theme.Space.s3) {
+                TextField("", text: row.folder)
+                    .focused($focus, equals: .folder(id))
+                    .onSubmit(submit)
+                    .inputField(focused: focus == .folder(id), mono: true, invalid: actionFolderInvalid(row.wrappedValue.folder),
+                                placeholder: row.wrappedValue.folder.isEmpty ? L10n.actionFolderPlaceholder : nil)
+                    .frame(width: Theme.actionFolderWidth)
+                    .help(L10n.actionFolderHelp)
+                Checkbox(L10n.actionRestart, isOn: row.restart)
+                    .help(L10n.actionRestartHelp)
+                    .fixedSize()
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, Theme.actionNameWidth + Theme.pickGap)
         }
         .modifier(ActionRowFrame(first: index == 0))
     }

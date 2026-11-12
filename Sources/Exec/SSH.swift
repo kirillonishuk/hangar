@@ -18,6 +18,13 @@ public func validSSHHost(_ s: String) -> String? {
     return s
 }
 
+/// A host as typed in a sheet: trimmed, a pasted `ssh user@host` taken as `user@host`; nil when that is not a valid host.
+public func sshHostInput(_ typed: String) -> String? {
+    var s = typed.trimmingCharacters(in: .whitespaces)
+    if s.hasPrefix("ssh "), s.count > 4 { s = String(s.dropFirst(4)).trimmingCharacters(in: .whitespaces) }
+    return validSSHHost(s)
+}
+
 /// Where master and host sockets live: `<stateDir>/ssh/`, or `/tmp/hangar-<uid>/` when that would not fit
 /// the 104-byte `sun_path` (NUL included) together with the 17-byte suffix ssh appends while creating the master (HD-047).
 public struct SSHPaths: Sendable, Equatable {

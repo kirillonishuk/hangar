@@ -22,6 +22,17 @@ import Testing
         #expect(validSSHHost(String(repeating: "a", count: 255)) != nil)
     }
 
+    @Test func hostInputTakesPastedSSHCommand() {
+        #expect(sshHostInput("  user@host  ") == "user@host")
+        #expect(sshHostInput("ssh user@host") == "user@host")
+        #expect(sshHostInput("ssh   dev ") == "dev")
+        #expect(sshHostInput("ssh") == "ssh")  // a host named ssh
+        #expect(sshHostInput("ssh ") == "ssh")
+        for bad in ["", "   ", "user@ho st", "ssh -p 22 host", "ssh user@host ls", "sshuser host", "ssh -oProxyCommand=x"] {
+            #expect(sshHostInput(bad) == nil, "\(bad)")
+        }
+    }
+
     @Test func shellQuoteSurvivesBackslashes() async throws {
         // A backslash stays outside single quotes: fish (a possible login shell) treats `\'` inside them as a quote.
         #expect(shellQuote(#"a\'b"#) == #"'a'\\''\''b'"#)

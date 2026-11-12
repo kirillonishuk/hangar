@@ -113,6 +113,7 @@ import Workspace
         case worktreeLabel, newBranch, refreshHelp
         case whereToWork, whereFolder, whereFolderBranch, whereFolderCommit, whereFolderShared, whereCopy, whereCopyHint
         case copyNeedsCommit, branchFrom, taskFor, taskLater, chatNumbered, createHelp
+        case actionNeedsName, actionNeedsCommand, worktreeFolderNote, worktreeCopyNote, setupCommandNote, setupCommandPlaceholder, createWaitsRepo, createNeedsBase, taskPromptPlaceholder, hostInvalid, remotePathPlaceholder, installCancelLocked, noticeSend, subChatNeedsTask
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case switcherSearch, switcherLocal, switcherRemote, branchCurrent, branchInChatNote, branchInFolderNote, branchNewFrom, branchCreate, branchCreateNamed
         case branchNamePrompt, branchFromCurrent, branchSwitching, branchCreating, branchesLoading, branchSwitchHint
@@ -403,6 +404,9 @@ import Workspace
     static var closeTabHelp: String { s(.closeTabHelp) }
     static var allTabsHelp: String { s(.allTabsHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
+    static var taskPromptPlaceholder: String { s(.taskPromptPlaceholder) }
+    static var createWaitsRepo: String { s(.createWaitsRepo) }
+    static var createNeedsBase: String { s(.createNeedsBase) }
     static var escCancel: String { s(.escCancel) }
     static var cancel: String { s(.cancel) }
     static var create: String { s(.create) }
@@ -591,6 +595,7 @@ import Workspace
     static var noticeOpen: String { s(.noticeOpen) }
     static var noticeAllow: String { s(.noticeAllow) }
     static var noticeReply: String { s(.noticeReply) }
+    static var noticeSend: String { s(.noticeSend) }
     static var noticeOpenLimits: String { s(.noticeOpenLimits) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
 
@@ -742,6 +747,10 @@ import Workspace
     static var worktreeCopyHelp: String { s(.worktreeCopyHelp) }
     static var setupCommand: String { s(.setupCommand) }
     static var setupCommandHelp: String { s(.setupCommandHelp) }
+    static var setupCommandNote: String { s(.setupCommandNote) }
+    static var setupCommandPlaceholder: String { s(.setupCommandPlaceholder) }
+    static var worktreeFolderNote: String { s(.worktreeFolderNote) }
+    static var worktreeCopyNote: String { s(.worktreeCopyNote) }
     static var setupCommandSuggested: String { s(.setupCommandSuggested) }
     static var afterCreate: String { s(.afterCreate) }
     static var afterCreateSuggestedHelp: String { s(.afterCreateSuggestedHelp) }
@@ -994,6 +1003,9 @@ import Workspace
     static var hostLabel: String { s(.hostLabel) }
     static var pathLabel: String { s(.pathLabel) }
     static var hostPlaceholder: String { s(.hostPlaceholder) }
+    static var hostInvalid: String { s(.hostInvalid) }
+    static var remotePathPlaceholder: String { s(.remotePathPlaceholder) }
+    static var installCancelLocked: String { s(.installCancelLocked) }
     static var connect: String { s(.connect) }
     static var add: String { s(.add) }
     static var remotePathMissing: String { s(.remotePathMissing) }
@@ -1133,6 +1145,7 @@ extension L10n {
     static var subChatAgent: String { s(.subChatAgent) }
     static var subChatWhereSame: String { s(.subChatWhereSame) }
     static var subChatHint: String { s(.subChatHint) }
+    static var subChatNeedsTask: String { s(.subChatNeedsTask) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }
     static var actionNotRunning: String { s(.actionNotRunning) }
@@ -1159,14 +1172,16 @@ extension L10n {
     static var actionFromRepo: String { s(.actionFromRepo) }
     static var actionFromRepoHelp: String { s(.actionFromRepoHelp) }
     static var actionsHint: String { s(.actionsHint) }
-    static var actionIncomplete: String { s(.actionIncomplete) }
+    static func actionIncomplete(_ n: Int) -> String { f(.actionIncomplete, n) }
+    static func actionNeedsName(_ n: Int) -> String { f(.actionNeedsName, n) }
+    static func actionNeedsCommand(_ name: String) -> String { f(.actionNeedsCommand, name) }
     static func actionDuplicate(_ value: String) -> String { f(.actionDuplicate, value) }
     static func actionNotStarted(_ value: String) -> String { f(.actionNotStarted, value) }
     static func actionFolderMissing(_ value: String) -> String { f(.actionFolderMissing, value) }
     static var actionFolder: String { s(.actionFolder) }
     static var actionFolderPlaceholder: String { s(.actionFolderPlaceholder) }
     static var actionFolderHelp: String { s(.actionFolderHelp) }
-    static var actionFolderInvalid: String { s(.actionFolderInvalid) }
+    static func actionFolderInvalid(_ name: String) -> String { f(.actionFolderInvalid, name) }
     static var actionMoveUp: String { s(.actionMoveUp) }
     static var actionMoveDown: String { s(.actionMoveDown) }
     static var actionEditOwn: String { s(.actionEditOwn) }

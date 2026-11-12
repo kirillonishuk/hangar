@@ -36,7 +36,7 @@ func worktreeRootRefused(_ root: String?, stored: String?, path: String, remote:
     return expanded.hasPrefix("/") ? .success(expanded) : .failure(PathInputError(message: L10n.pathMustBeAbsolute))
 }
 
-/// Project settings (sheet 640: the wider label column, `new-task-v4` style): name, path with «Choose…», default base branch and worktree folder (git projects only).
+/// Project settings (sheet 640, HD-157: room for the actions' command): name, path with «Choose…», default base branch and worktree folder (git projects only).
 /// A missing folder is shown as an error and nothing is saved. A remote project: paths are typed (no «Choose…»),
 /// the folder is checked on its host.
 struct ProjectSettingsSheet: View {
@@ -57,7 +57,7 @@ struct ProjectSettingsSheet: View {
     @State private var actionRows: [ActionDraft]
     @State private var hiddenActions: [String]
     @State private var repo = RepoActions()
-    @State private var actionsError: String?
+    @State private var actionsError: ActionInputError?
     /// Worktrees inside the repository git doesn't ignore (HD-134), and the click that hides them locally (nil — done).
     var notIgnored: [String] = []
     var onHideFromGit: () async -> String? = { nil }
@@ -150,7 +150,7 @@ struct ProjectSettingsSheet: View {
             }
             .padding(.top, Theme.sheetGap)
         }
-        .sheetFrame()
+        .sheetFrame(width: Theme.projectSettingsWidth)
         .onAppear { focus = .name }
         .task { await loadGit() }
         .task { repo = await loadRepo() }
@@ -177,7 +177,7 @@ struct ProjectSettingsSheet: View {
                     .onSubmit(save)
                     .inputField(focused: focus == .name)
             }
-            CardRow(label: L10n.projectPath) {
+            CardRow(label: L10n.projectPath, note: error, failed: true) {
                 pathField($path, placeholder: "", field: .path, invalid: error != nil)
                     .onChange(of: path) { error = nil }
                 if !remote { Button(L10n.chooseEllipsis, action: choose).buttonStyle(.hangar(.secondary)).fixedSize() }
@@ -189,18 +189,18 @@ struct ProjectSettingsSheet: View {
     }
 
     @ViewBuilder private var worktreeRows: some View {
-                CardRow(label: L10n.defaultBranch, first: true) {
+                CardRow(label: L10n.defaultBranch, first: true, note: branchesError, failed: true) {
                     BranchPicker(selection: $baseBranch, branches: branches, defaultBase: defaultBase, taskBranches: [],
                                  defaultOption: L10n.branchAuto(defaultBase ?? "origin/HEAD"))
                     Spacer(minLength: 0)
                 }
-                CardRow(label: L10n.worktreeFolder) {
+                CardRow(label: L10n.worktreeFolder, note: rootError ?? L10n.worktreeFolderNote, failed: rootError != nil) {
                     pathField($worktreeRoot, placeholder: defaultRootPlaceholder, field: .root, invalid: rootError != nil)
                         .onChange(of: worktreeRoot) { rootError = nil }
                     if !remote { Button(L10n.chooseEllipsis, action: chooseRoot).buttonStyle(.hangar(.secondary)).fixedSize() }
                 }
                 .help(L10n.worktreeRootHint(rootShown))
-                CardRow(label: L10n.worktreeCopy) {
+                CardRow(label: L10n.worktreeCopy, note: L10n.worktreeCopyNote) {
                     // Blank + no own list = the default list; an own empty list copies nothing (no placeholder).
                     TextField("", text: $copyText)
                         .modifier(CardPlaceholder(text: project.worktreeCopy == nil ? (defaults?.copy ?? []).joined(separator: ", ") : "",
@@ -210,10 +210,11 @@ struct ProjectSettingsSheet: View {
                         .inputField(focused: focus == .copy, mono: true)
                 }
                 .help(L10n.worktreeCopyHelp)
-                CardRow(label: L10n.setupCommand) {
+                // The lockfile's suggestion explains itself; otherwise what the command is for, and an example.
+                CardRow(label: L10n.setupCommand, note: suggestedCommand == nil ? L10n.setupCommandNote : L10n.setupCommandSuggested) {
                     // The lockfile's command is a placeholder only: it runs once typed in and saved (or turned on in the new-task sheet).
                     TextField("", text: $setupCommand)
-                        .modifier(CardPlaceholder(text: suggestedCommand ?? "", shown: setupCommand.isEmpty))
+                        .modifier(CardPlaceholder(text: suggestedCommand ?? L10n.setupCommandPlaceholder, shown: setupCommand.isEmpty))
                         .focused($focus, equals: .setup)
                         .onSubmit(save)
                         .inputField(focused: focus == .setup, mono: true)
@@ -221,16 +222,10 @@ struct ProjectSettingsSheet: View {
                 .help(L10n.setupCommandHelp)
     }
 
-    /// Under the card, as in the new-task sheet: errors and the «inside the project» hint.
+    /// Under the card: the notices (a field's own error and explanation are under that field).
     @ViewBuilder private var messages: some View {
-        if let error { message(error, Theme.ui.failed) }
         if isGit == false, let noCopiesNote { message(noCopiesNote, Theme.ui.text3) }
         if isGit == true {
-            if let branchesError { message(branchesError, Theme.ui.failed) }
-            // No «Сюда создаются все worktree…» line: it repeated the folder field above (it is that row's tooltip).
-            // Shown for as long as the command is only suggested (not while typing): no jump.
-            if suggestedCommand != nil { message(L10n.setupCommandSuggested, Theme.ui.text3) }
-            if let rootError { message(rootError, Theme.ui.failed) }
             if !keptBeside, worktreesInsideNoticeShown(project) { insideNotice }
             if !notIgnored.isEmpty, hideFromGit != .done { notIgnoredNotice }
         }
@@ -380,7 +375,7 @@ struct ProjectSettingsSheet: View {
 
     private func save() {
         guard canSave else { return }
-        if case .failure(let e) = projectActionsInput(actionRows) { actionsError = e.message; return }
+        if case .failure(let e) = projectActionsInput(actionRows) { actionsError = e; return }
         actionsError = nil
         var root: String?
         var setup = WorktreeSetup(copy: project.worktreeCopy, command: project.setupCommand)  // hidden rows keep what is stored

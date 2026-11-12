@@ -11,17 +11,19 @@ struct ConnectHostSheet: View {
     @State private var host = ""
     @FocusState private var focused: Bool
 
-    private var valid: String? { validSSHHost(host.trimmingCharacters(in: .whitespaces)) }
+    private var valid: String? { sshHostInput(host) }
+    /// Typed but not a host (a space, a whole ssh command): the field is red and says what it takes.
+    private var invalid: Bool { valid == nil && !host.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.connectHostTitle)
             CardSection {
-                CardRow(label: L10n.hostLabel, first: true) {
+                CardRow(label: L10n.hostLabel, first: true, note: invalid ? L10n.hostInvalid : nil, failed: true) {
                     TextField("", text: $host)
                         .focused($focused)
                         .onSubmit(connect)
-                        .inputField(focused: focused, placeholder: host.isEmpty ? L10n.hostPlaceholder : nil)
+                        .inputField(focused: focused, invalid: invalid, placeholder: host.isEmpty ? L10n.hostPlaceholder : nil)
                     if !configHosts.isEmpty { HostMenu(hosts: configHosts) { host = $0 } }
                 }
             }

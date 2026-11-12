@@ -336,4 +336,17 @@ import Workspace
         #expect(EditorPreviewSample.json.shows(.jsonKey) && !EditorPreviewSample.typescript.shows(.diffAddedLine))
         #expect(EditorPreviewSample.diff.lines.contains { $0.change == .added } && EditorPreviewSample.diff.lines.contains { $0.change == .removed })
     }
+
+    /// The color popover's HEX and α fields: a bad value names its field (red, kept as typed) instead of reverting.
+    @MainActor @Test func colorFieldsParse() {
+        #expect(EditorColorPopover.parse(hex: "1e1e1e", alpha: nil) == .success("#1e1e1e"))
+        #expect(EditorColorPopover.parse(hex: " #FFF ", alpha: nil) == .success("#ffffff"))
+        #expect(EditorColorPopover.parse(hex: "#11223380", alpha: nil) == .success("#112233"))  // a solid color drops alpha
+        #expect(EditorColorPopover.parse(hex: "#112233", alpha: "50") == .success("#11223380"))
+        #expect(EditorColorPopover.parse(hex: "#11223380", alpha: "") == .success("#11223380"))
+        #expect(EditorColorPopover.parse(hex: "#12", alpha: "50") == .failure(.hex))
+        #expect(EditorColorPopover.parse(hex: "zzzzzz", alpha: nil) == .failure(.hex))
+        #expect(EditorColorPopover.parse(hex: "#112233", alpha: "150") == .failure(.alpha))
+        #expect(EditorColorPopover.parse(hex: "#112233", alpha: "abc") == .failure(.alpha))
+    }
 }

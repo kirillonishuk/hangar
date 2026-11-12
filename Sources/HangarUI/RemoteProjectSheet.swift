@@ -33,11 +33,14 @@ import SwiftUI
         self.release = release
     }
 
-    private var trimmedHost: String { host.trimmingCharacters(in: .whitespaces) }
+    /// The host to dial: a pasted `ssh user@host` counts as `user@host`.
+    var trimmedHost: String { sshHostInput(host) ?? host.trimmingCharacters(in: .whitespaces) }
+    /// Typed but not a host: red before any connect, with what it takes.
+    var hostMalformed: Bool { sshHostInput(host) == nil && !host.trimmingCharacters(in: .whitespaces).isEmpty }
     private var trimmedPath: String { path.trimmingCharacters(in: .whitespaces) }
 
     private var failed: Bool { if case .failed = phase { true } else { false } }
-    var hostInvalid: Bool { failed && !failedOnPath }
+    var hostInvalid: Bool { hostMalformed || failed && !failedOnPath }
     var pathInvalid: Bool { failed && failedOnPath }
 
     var canConnect: Bool { phase != .connecting && validSSHHost(trimmedHost) != nil && !trimmedPath.isEmpty }
@@ -126,7 +129,7 @@ struct RemoteProjectSheet: View {
 
     private var card: some View {
         VStack(spacing: 0) {
-            CardRow(label: L10n.hostLabel, first: true) {
+            CardRow(label: L10n.hostLabel, first: true, note: model.hostMalformed ? L10n.hostInvalid : nil, failed: true) {
                 TextField("", text: $model.host)
                     .focused($focus, equals: .host)
                     .onSubmit { focus = .path }
@@ -140,7 +143,8 @@ struct RemoteProjectSheet: View {
                 TextField("", text: $model.path)
                     .focused($focus, equals: .path)
                     .onSubmit(primary)
-                    .inputField(focused: focus == .path, mono: true, invalid: model.pathInvalid)
+                    .inputField(focused: focus == .path, mono: true, invalid: model.pathInvalid,
+                                placeholder: model.path.isEmpty ? L10n.remotePathPlaceholder : nil)
             }
         }
         .disabled(model.phase == .connecting)
@@ -164,9 +168,20 @@ struct RemoteProjectSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
                 .padding(.top, Theme.sheetMessageTop)
-        default: EmptyView()
+        default:
+            // Why «Отмена» and Esc are off: a running install may sit at a sudo prompt.
+            if installing {
+                Text(verbatim: L10n.installCancelLocked)
+                    .font(Theme.Typography.secondary.font())
+                    .foregroundStyle(Theme.ui.text3)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Theme.sheetMessageTop)
+            }
         }
     }
+
+    private var installing: Bool { model.server?.phase == .installing }
 
     private var footer: some View {
         // Esc goes to the install terminal while it runs (as in «Сервер»).
@@ -174,9 +189,10 @@ struct RemoteProjectSheet: View {
             // A running install (maybe at a sudo prompt) is not killed by a stray click.
             Button(L10n.cancel, action: onCancel)
                 .buttonStyle(.hangar(.secondary))
-                .disabled(model.server?.phase == .installing)
+                .disabled(installing)
+                .help(installing ? L10n.installCancelLocked : "")
                 // Esc belongs to the install terminal while it runs.
-                .keyboardShortcut(model.server?.phase == .installing ? nil : .cancelAction)
+                .keyboardShortcut(installing ? nil : .cancelAction)
             let enabled = model.canAdd || model.canConnect
             Button(action: primary) {
                 // The label keeps its width under the spinner: no jump.
@@ -191,7 +207,7 @@ struct RemoteProjectSheet: View {
 
     private func primary() {
         if let path = model.foundPath {
-            onAdd(model.host.trimmingCharacters(in: .whitespaces), path)
+            onAdd(model.trimmedHost, path)
         } else if model.canConnect {
             Task { await model.connect() }
         }

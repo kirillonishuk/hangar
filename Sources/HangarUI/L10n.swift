@@ -149,6 +149,7 @@ import Workspace
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
         case diffWrap, diffNewFile, diffDeletedFile, diffOneSide
+        case revertFile, revertTitle, revertInfoCounts, revertInfoEdits, revertInfoNew, revertInfoDeleted, revertInfoRenamed, revertButton, revertDone, revertUndo, revertRemote, revertUnsavedTitle, revertUnsavedInfo, revertFailed, revertUndoFailed, revertNotAFile, revertNothing, revertDiffHelp, revertUndoChanged, revertSnapshotKept, revertChangedMeanwhile
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
         case edCustom, edAsTheme, edHintTheme, edHintCustom, edHintCustomSame, edResetAll, edColors, edSyntax, edCreated, edAllReset, edReplaceTitle, edReplaceInfo, edReplace, edReset, edResetTo, edThemeColors, edSystemPalette, edHue, edLightness, edOpacity, edFontSection, edIndentSection, edViewSection, edFont, edSize, edLineHeight, edLigatures, edTabSize, edDetect, edWrap, edLineHighlight, edCursor, edBlink, edWhitespace, edBracketColors, edBracketGuides, edIndentGuides, edFormatOnSave, edSystemFont, edPt, edLineAuto, edAuto, edSmaller, edLarger, edWrapOff, edWrapOn, edLhNone, edLhGutter, edLhLine, edLhAll, edCursorLine, edCursorBlock, edCursorUnderline, edBlinkBlink, edBlinkSmooth, edBlinkSolid, edWsNone, edWsSelection, edWsAll, edGuidesNone, edGuidesActive, edGuidesAll, edDetectTip, edFormatTip, edLineHeightTip, edLigaturesTip, edcKeyword, edcControl, edcString, edcEscape, edcRegexp, edcComment, edcNumber, edcType, edcFunction, edcVariable, edcConstant, edcJsonKey, edcPunctuation, edcOperator, edcText, edcBackground, edcLine, edcSelection, edcFind, edcGutter, edcGutterActive, edcCursor, edcIndent, edcIndentActive, edcWhitespace, edcBrackets, edcBracket1, edcBracket2, edcBracket3, edcDiffAddedLine, edcDiffRemovedLine, edcDiffAddedText, edcDiffRemovedText, edsKeyword, edsControl, edsString, edsEscape, edsComment, edsNumber, edsType, edsFunction, edsVariable, edsConstant, edsJsonKey, edsPunctuation, edsOperator, edsText
@@ -915,6 +916,27 @@ import Workspace
     static var diffNewFile: String { s(.diffNewFile) }
     static var diffDeletedFile: String { s(.diffDeletedFile) }
     static var diffOneSide: String { s(.diffOneSide) }
+    static var revertFile: String { s(.revertFile) }
+    static func revertTitle(_ a: String) -> String { f(.revertTitle, a) }
+    static func revertInfoCounts(_ a: String) -> String { f(.revertInfoCounts, a) }
+    static var revertInfoEdits: String { s(.revertInfoEdits) }
+    static var revertInfoNew: String { s(.revertInfoNew) }
+    static var revertInfoDeleted: String { s(.revertInfoDeleted) }
+    static var revertInfoRenamed: String { s(.revertInfoRenamed) }
+    static var revertButton: String { s(.revertButton) }
+    static func revertDone(_ a: String) -> String { f(.revertDone, a) }
+    static var revertUndo: String { s(.revertUndo) }
+    static var revertRemote: String { s(.revertRemote) }
+    static func revertUnsavedTitle(_ a: String) -> String { f(.revertUnsavedTitle, a) }
+    static var revertUnsavedInfo: String { s(.revertUnsavedInfo) }
+    static func revertFailed(_ a: String) -> String { f(.revertFailed, a) }
+    static func revertUndoFailed(_ a: String) -> String { f(.revertUndoFailed, a) }
+    static var revertNotAFile: String { s(.revertNotAFile) }
+    static var revertNothing: String { s(.revertNothing) }
+    static var revertDiffHelp: String { s(.revertDiffHelp) }
+    static var revertUndoChanged: String { s(.revertUndoChanged) }
+    static var revertSnapshotKept: String { s(.revertSnapshotKept) }
+    static var revertChangedMeanwhile: String { s(.revertChangedMeanwhile) }
     static var editorMinimap: String { s(.editorMinimap) }
     /// The editor's context menu (HD-081), handed to the page by key.
     static var editorMenu: [String: String] {

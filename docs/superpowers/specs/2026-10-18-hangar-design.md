@@ -33,7 +33,7 @@
 
 ### Вне рамок первой версии
 
-Git-действия (stage/commit/push/PR; исключение — переключение и создание ветки, HD-114), встроенный браузер, собственный редактор кода (кроме встроенного Monaco по слову пользователя, HD-080), онбординг, синхронизация, Linux/Windows.
+Git-действия (stage/commit/push/PR; исключения — переключение и создание ветки, HD-114, и откат файла в «Изменениях», HD-156), встроенный браузер, собственный редактор кода (кроме встроенного Monaco по слову пользователя, HD-080), онбординг, синхронизация, Linux/Windows.
 
 ## 2. Архитектура
 
@@ -43,7 +43,7 @@ Swift (AppKit + SwiftUI), один Swift Package с модулями и Xcode-п
 |---|---|---|
 | `GhosttyBridge` | Обёртка над C-API GhosttyKit: app/surface lifecycle, ввод, события (title, bell, desktop notification, child exit), чтение текста экрана, пауза рендера. Единственное место, знающее про нестабильный API. | GhosttyKit.xcframework |
 | `Workspace` | Модель Project → Task → Tab (+ сплиты), сериализация в JSON, восстановление. Чистая логика. | — |
-| `Git` | Вызов `git` CLI: default branch (`origin/HEAD`), список веток, `fetch`, `worktree add/remove`, `status --porcelain=v2`, `diff`, `switch` / `switch -c` (HD-114). | git |
+| `Git` | Вызов `git` CLI: default branch (`origin/HEAD`), список веток, `fetch`, `worktree add/remove`, `status --porcelain=v2`, `diff`, `switch` / `switch -c` (HD-114), откат файла `restore --source=HEAD` со снимком для «Вернуть» (HD-156). | git |
 | `AgentStatus` | Приём событий агентов, свёртка в статус вкладки и сессии. | — |
 | `Usage` | Лимиты подписок: приём `rate_limits` от `hangar statusline`, вызов `codex app-server`, свёртка в окна, пороги. | `ControlServer`, `Exec` |
 | `Integration` | Правка файлов агентов (`~/.claude/settings.json`, `~/.codex/config.toml`): показ diff, копия, запись, откат (HD-043). | — |

@@ -580,6 +580,7 @@ final class PaneFrameView: NSView {
             self?.diffHosts.values.forEach { $0.editor.page.send(.appearance(look)) }
         }
         app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
+        app.diffUnsavedPaths = { [weak self] in self?.diffHosts.values.compactMap(\.editor.unsavedPath) ?? [] }
         app.confirmLeaveDiff = { [weak self] then in
             if let id = self?.app.selectedTask?.id, let editor = self?.diffHosts[id]?.editor { editor.confirmLeave(then) } else { then() }
         }

@@ -33,6 +33,7 @@ import Workspace
     func tearDown() { page.tearDown() }
 
     var hasUnsaved: Bool { editablePath.map { session?.isDirty($0) == true } ?? false }
+    var unsavedPath: String? { hasUnsaved ? editablePath : nil }
 
     /// The next / previous change (F7 / ⇧F7, the header's arrows).
     func goChange(next: Bool) { page.send(.goChange(next: next)) }

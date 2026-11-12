@@ -755,6 +755,20 @@ extension MainWindowController {
             case "menu": if f.count > 1, let frame = window?.frame {
                 PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
             }
+            // changeMenu <path>: a Changes row's menu (with «Откатить изменения…», HD-156), placed as `menu`.
+            case "changeMenu": if f.count > 1, let frame = window?.frame {
+                PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true) + revertMenu(app: app, relative: f[1]),
+                                 at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
+            }
+            case "revert": if f.count > 1 { app.requestRevert(f[1]) }  // revert <path>: as the menu item (the sheet asks)
+            case "revertUndo": column.archiveUndo.undoMessage()  // the toast's «Вернуть»
+            case "sheetConfirm":  // ⌘↩ into the attached sheet's view (the inactive app gets no real key)
+                if let sheet = window?.attachedSheet, let view = sheet.contentView,
+                   let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: sheet.windowNumber, context: nil, characters: "\r",
+                                            charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
+                    uiLog.info("sheetConfirm handled=\(view.performKeyEquivalent(with: e))")
+                }
             case "diffTab": app.activateDiff()  // a click on the diff tab
             case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
             case "diffKey":

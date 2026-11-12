@@ -79,6 +79,7 @@ struct NewTaskSheet: View {
         return HStack(spacing: Theme.Space.s2) {
             RadioOption(title: L10n.whereFolder, detail: folderDetail, selected: !model.worktree,
                         focused: grouped && !model.worktree) { chooseCopy(false) }
+                .help(folderBranchHelp)
             RadioOption(title: L10n.whereCopy, detail: AttributedString(copyDetail), selected: model.worktree,
                         focused: grouped && model.worktree) { chooseCopy(true) }
                 .disabled(!copyAvailable)
@@ -124,9 +125,17 @@ struct NewTaskSheet: View {
         case .detached(let hash): (word, code) = (L10n.whereFolderCommit, hash)
         case nil: return shared
         }
-        var mono = AttributedString(code)
+        // A long branch would stretch the card to five lines: keep its start (the ticket) and end (HD-153).
+        let max = Theme.folderBranchMaxChars
+        var mono = AttributedString(code.count > max ? code.prefix(max / 2) + "…" + code.suffix(max - max / 2 - 1) : code)
         mono.font = Theme.Typography.mono.font()
         return AttributedString(word + " ") + mono + AttributedString(". ") + shared
+    }
+
+    /// The whole branch name when the card shows it cut.
+    private var folderBranchHelp: String {
+        if case .branch(let name) = model.head, name.count > Theme.folderBranchMaxChars { return name }
+        return ""
     }
 
     /// Choosable while the repo still loads: `canCreate` waits for it, and a failed load turns the copy off.
@@ -144,20 +153,22 @@ struct NewTaskSheet: View {
 
     @ViewBuilder private var copyFields: some View {
         labeled(L10n.newBranch) {
+            // The field gets the whole row: next to the base it was squeezed to a few letters by a long base name (HD-153).
+            TextField("", text: $model.branch)
+                .focused($focus, equals: .branch)
+                .onSubmit(openPrompt)
+                .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
+                .disabled(model.creating)
+            if let error = model.branchError {
+                Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+            }
             HStack(spacing: Theme.Space.s2) {
-                TextField("", text: $model.branch)
-                    .focused($focus, equals: .branch)
-                    .onSubmit(openPrompt)
-                    .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
-                    .disabled(model.creating)
                 Text(verbatim: L10n.branchFrom).foregroundStyle(Theme.ui.text2)
                 BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
                              taskBranches: model.taskBranches, defaultOption: nil)
                     .disabled(model.creating)
                 fetchButton
-            }
-            if let error = model.branchError {
-                Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+                Spacer(minLength: 0)
             }
         }
         if let command = model.setupCommand {

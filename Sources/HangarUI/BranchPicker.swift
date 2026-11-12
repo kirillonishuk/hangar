@@ -47,7 +47,9 @@ struct BranchPicker: View {
             branchMenu(selection: selection, branches: branches, defaultBase: defaultBase, taskBranches: taskBranches,
                        defaultOption: defaultOption) { selection = $0 }
         }
-        .fixedSize()
+        // Not `.fixedSize()`: a long branch name truncates in the middle (full name in the tooltip) instead of pushing
+        // the row's other controls out (HD-153).
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

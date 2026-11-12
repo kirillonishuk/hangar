@@ -102,6 +102,8 @@ public enum Theme {
     public static let sheetWidth: CGFloat = 520
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
+    /// «В папке проекта — Ветка …»: longer names are cut in the middle so the card stays short.
+    public static let folderBranchMaxChars = 28
     public static let sheetPaddingH: CGFloat = Space.s5
     public static let sheetHeaderTop: CGFloat = Space.s5
     public static let sheetHeaderBottom: CGFloat = Space.s1

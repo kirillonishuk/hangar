@@ -146,10 +146,19 @@ import Workspace
     @Test func settingsInput() {
         #expect(projectActionsInput([ActionDraft(name: " Dev ", command: "pnpm dev", folder: "./apps/cms/"), ActionDraft()])
                 == .success([ProjectAction(name: "Dev", command: "pnpm dev", folder: "apps/cms")]))
-        #expect(projectActionsInput([ActionDraft(name: "Dev", command: "x", folder: "../up")]) == .failure(PathInputError(message: L10n.actionFolderInvalid)))
-        #expect(projectActionsInput([ActionDraft(name: "Dev", command: "")]) == .failure(PathInputError(message: L10n.actionIncomplete)))
-        #expect(projectActionsInput([ActionDraft(name: "A", command: "a"), ActionDraft(name: "A", command: "b")])
-                == .failure(PathInputError(message: L10n.actionDuplicate("A"))))
+        let bad = ActionDraft(name: "Dev", command: "x", folder: "../up")
+        #expect(projectActionsInput([bad]) == .failure(ActionInputError(message: L10n.actionFolderInvalid("Dev"), row: bad.id)))
+        // The error names the row: by its name, else by its number among the rows.
+        let noCommand = ActionDraft(name: "Dev", command: "")
+        #expect(projectActionsInput([noCommand]) == .failure(ActionInputError(message: L10n.actionNeedsCommand("Dev"), row: noCommand.id)))
+        let noName = ActionDraft(name: "", command: "make")
+        #expect(projectActionsInput([ActionDraft(name: "A", command: "a"), noName])
+                == .failure(ActionInputError(message: L10n.actionNeedsName(2), row: noName.id)))
+        let folderOnly = ActionDraft(folder: "apps/web")
+        #expect(projectActionsInput([folderOnly]) == .failure(ActionInputError(message: L10n.actionIncomplete(1), row: folderOnly.id)))
+        let second = ActionDraft(name: "A", command: "b")
+        #expect(projectActionsInput([ActionDraft(name: "A", command: "a"), second])
+                == .failure(ActionInputError(message: L10n.actionDuplicate("A"), row: second.id)))
     }
 
     @Test func folderRunsAndMissingFolderRefuses() async throws {

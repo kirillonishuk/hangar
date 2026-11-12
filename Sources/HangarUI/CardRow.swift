@@ -8,6 +8,10 @@ struct CardRow<Value: View>: View {
     /// Report rows (read-only text): label and value side by side, tighter, so the whole server fits the sheet.
     var compact = false
     var first = false
+    /// One line under the control (§3.18 «пояснение — в строке, не в тултипе»): what the field is for (`text3`), or
+    /// its error (`failedText`, `failed`).
+    var note: String? = nil
+    var failed = false
     @ViewBuilder var value: Value
     @Environment(\.isEnabled) private var enabled
 
@@ -24,6 +28,14 @@ struct CardRow<Value: View>: View {
                     labelText.font((mono ? Theme.Typography.mono : Theme.Typography.secondary).font())
                     HStack(spacing: Theme.pickGap) { value }
                         .frame(maxWidth: .infinity, minHeight: Theme.cardRowMinHeight, alignment: .leading)
+                    if let note, !note.isEmpty {
+                        Text(verbatim: note)
+                            .font(Theme.Typography.secondary.font())
+                            .foregroundStyle(failed ? Theme.ui.failedText : Theme.ui.text3)
+                            .lineLimit(Theme.errorMaxLines)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
                 }
             }
         }

@@ -102,6 +102,14 @@ import Workspace
         return !worktree || (availability == .ready && base != nil && branchError == nil)
     }
 
+    /// Why «Создать чат» is off, next to it (a bad branch says so under its field; a failed load turns the copy off).
+    var createBlocked: CreateBlocked? {
+        guard !creating, worktree else { return nil }
+        if availability == .loading { return .loading }
+        return availability == .ready && base == nil ? .noBase : nil
+    }
+    enum CreateBlocked: Equatable { case loading, noBase }
+
     /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits);
     /// with the folder's HEAD. nil when git couldn't answer (the sheet loads as before).
     static func probe(_ git: Git) async -> Probe? {

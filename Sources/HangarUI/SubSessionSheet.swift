@@ -44,6 +44,10 @@ struct SubSessionSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, Theme.sheetMessageTop)
             SheetFooter {
+                // Why «Запустить» is off: the subchat starts from its task.
+                if !ready {
+                    Text(verbatim: L10n.subChatNeedsTask).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
+                }
                 Button(L10n.cancel, action: onCancel)
                     .buttonStyle(.hangar(.secondary))
                     .keyboardShortcut(.cancelAction)

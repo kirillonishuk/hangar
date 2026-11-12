@@ -119,13 +119,14 @@ extension AppState {
             case .archived(let removed): return .ok(id, ArchiveResult(task: taskId, archived: true, worktreeRemoved: removed))
             case .worktreeKept(let details):
                 return fail(ControlError(code: .failed, message: "session archived, but the worktree was not removed: \(details)"))
-            case let .atRisk(dirty, ignored):
+            case let .atRisk(dirty, ignored, _):
                 let shown = ignored.prefix(5).joined(separator: ", ") + (ignored.count > 5 ? ", …" : "")
                 let what = [dirty ? "uncommitted changes" : nil, ignored.isEmpty ? nil : "ignored files (\(shown))"].compactMap { $0 }
                 return fail(ControlError(code: .confirmRequired, message: "worktree has \(what.joined(separator: " and ")) that archiving would delete; "
                                          + "pass --force (MCP: force: true) to archive anyway"))
             case .failed(let details): return fail(ControlError(code: .failed, message: details))
             case .undone: return fail(ControlError(code: .failed, message: "the session was restored before its worktree was removed"))
+            case .inProgress: return fail(ControlError(code: .busy, message: "the session is already being archived"))
             }
 
         case let .tabsOpen(ref, kind, prompt):

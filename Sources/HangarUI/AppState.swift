@@ -303,6 +303,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Worktree folders being removed, shown over the chat area (HD-132).
     let worktreeRemovals = WorktreeRemovals()
+    /// Sessions an archive is checking or stopping right now (HD-154): a second archive of one waits for nothing, it refuses.
+    @ObservationIgnored var archivingTasks: Set<UUID> = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.

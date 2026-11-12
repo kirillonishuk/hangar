@@ -30,10 +30,24 @@ import Workspace
     case .missing:
         _ = try? await git.pruneWorktrees(unlocking: path)
         await finishDeletion(task, branch: branch, ctx: ctx, git: git)
-    case let .atRisk(dirty, ignored):
-        // Cancel leaves everything as it was; the forced removal continues from the confirm callback.
+    case let .atRisk(dirty, ignored, _):
+        // Cancel leaves everything as it was; the forced removal continues from the confirm callback — only while the
+        // session is still archived (CLI/MCP may restore it meanwhile) and the folder holds no more than was shown (HD-154).
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) {
-            Task { await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner) }
+            Task {
+                guard app.state.tasks.contains(where: { $0.id == id && $0.archived }) else { return }
+                let now: WorktreeCheck
+                do { now = try await checkWorktree(path, git: git, runner: runner) } catch {
+                    ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
+                    return
+                }
+                guard now.isCovered(by: check), app.state.tasks.contains(where: { $0.id == id && $0.archived }) else {
+                    // Something new appeared while the question was open: asked again about what is there now.
+                    await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: git, runner: runner)
+                    return
+                }
+                await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
+            }
         }
     case .clean:
         await removeWorktreeAndTask(task, path: path, branch: branch, ctx: ctx, git: git, runner: runner)
@@ -69,16 +83,28 @@ import Workspace
 }
 
 /// What removing a worktree folder would lose; shared by delete and archive (decision HD-057).
-enum WorktreeCheck: Equatable { case missing, clean, atRisk(dirty: Bool, ignored: [String]) }
+enum WorktreeCheck: Equatable {
+    /// `changes`: `Git.dirtyFingerprint` — which uncommitted paths, and their content, the check saw.
+    case missing, clean, atRisk(dirty: Bool, ignored: [String], changes: [String: String] = [:])
+
+    /// Nothing here at risk beyond `accepted` (HD-154): becoming dirty, a new or further changed uncommitted path, or a new
+    /// ignored path is not covered; the same or less is.
+    func isCovered(by accepted: WorktreeCheck?) -> Bool {
+        guard case let .atRisk(dirty, ignored, changes) = self else { return true }
+        guard case let .atRisk(okDirty, okIgnored, okChanges)? = accepted else { return false }
+        return (!dirty || okDirty) && Set(ignored).isSubset(of: okIgnored) && changes.allSatisfy { okChanges[$0.key] == $0.value }
+    }
+}
 
 /// `runner`: the project's machine. Throws when the check itself fails (host down, git error).
 /// Reinstallable folders and setup's identical copies of main-folder files are not at risk (`Git.ignoredAtRisk`).
 func checkWorktree(_ path: String, git: Git, runner: Runner) async throws -> WorktreeCheck {
     guard try await isDirectory(path, runner: runner) else { return .missing }
-    let dirty = try await git.isDirty(path: path)
+    let changes = try await git.dirtyFingerprint(path: path)
+    let dirty = !changes.isEmpty
     var ignored = try await git.ignoredFiles(path: path)
     if !ignored.isEmpty { ignored = try await git.ignoredAtRisk(ignored, worktree: path, top: try await git.toplevel()) }
-    return dirty || !ignored.isEmpty ? .atRisk(dirty: dirty, ignored: ignored) : .clean
+    return dirty || !ignored.isEmpty ? .atRisk(dirty: dirty, ignored: ignored, changes: changes) : .clean
 }
 
 /// `test -d` on the project's machine; 255 means ssh itself failed, not `test`.

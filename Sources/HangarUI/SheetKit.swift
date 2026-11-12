@@ -11,9 +11,13 @@ struct SheetHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.sheetButtonGap) {
+            // A title with a name in it («Удалить проект «…»») wraps instead of being cut by the sheet's one-line rows.
             Text(verbatim: title)
                 .font(Theme.Typography.title.font(.semibold))
                 .foregroundStyle(Theme.ui.text0)
+                .lineLimit(Theme.sheetTitleMaxLines)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(title)
             if let subtitle {
                 Text(verbatim: subtitle).font(Theme.Typography.body.font()).foregroundStyle(Theme.ui.text2)
                     .lineLimit(1).truncationMode(.middle)
@@ -85,6 +89,14 @@ struct Pill: View {
 }
 
 extension View {
+    /// An error (or a status that may carry one): wraps up to `errorMaxLines` and can be selected and copied, instead of
+    /// one line cut in the middle with the rest only in a tooltip.
+    func wrappingError() -> some View {
+        lineLimit(Theme.errorMaxLines)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+    }
+
     /// The sheet frame: side paddings, one width for every sheet, `bg2` background, one-line rows.
     func sheetFrame(width: CGFloat = Theme.sheetWidth) -> some View {
         padding(.horizontal, Theme.sheetPaddingH)
@@ -97,7 +109,8 @@ extension View {
 
 /// Confirmations and notices in the sheet style (instead of a system alert): the question, what it means, an
 /// optional switch (e.g. «also delete the branch»), «Отмена» and the primary button (destructive by default).
-/// `other` adds a middle button («Не сохранять»); `onCancel == nil` makes a notice with one «OK» (↩ or Esc).
+/// ⌘↩ runs the primary button, Esc cancels; `other` adds a middle button («Не сохранять», no key).
+/// `onCancel == nil` makes a notice with one «OK» (↩, ⌘↩ or Esc).
 struct ConfirmSheet: View {
     let message: String
     var info = ""
@@ -118,6 +131,7 @@ struct ConfirmSheet: View {
                     .foregroundStyle(Theme.ui.text2)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)  // an error in it can be copied
                     .padding(.top, Theme.sheetNameTop)
             }
             if let checkbox {

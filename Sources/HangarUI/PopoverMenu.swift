@@ -518,11 +518,16 @@ struct PopoverMenuView: View {
                           mono: Theme.Typography.mono.font()))
                 .lineLimit(1).truncationMode(.middle)
                 .foregroundStyle(text)
+                .layoutPriority(1)  // a long name (a branch) keeps its room; the note on the right is cut first
             Spacer(minLength: 0)
             if let key = item.shortcut {
-                Text(verbatim: key).font(Theme.Typography.secondary.font()).foregroundStyle(side)
+                Text(verbatim: key).font(Theme.Typography.secondary.font()).foregroundStyle(side).fixedSize()
             } else if let note = item.note {
-                Text(verbatim: note).font(Theme.Typography.caption.font()).foregroundStyle(side).lineLimit(1)
+                // Whole or not at all: a sliver of «3 мин назад» next to a long name reads as noise.
+                ViewThatFits(in: .horizontal) {
+                    Text(verbatim: note).font(Theme.Typography.caption.font()).foregroundStyle(side).lineLimit(1).fixedSize()
+                    Color.clear.frame(width: 0, height: 0)
+                }
             }
         }
         .padding(.horizontal, Theme.Space.s2)

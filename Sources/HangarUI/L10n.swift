@@ -90,7 +90,7 @@ import Workspace
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case dropRight, dropLeft, dropUp, dropDown, paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, defaultAgentHint, editor, externalEditor, externalEditorHint, externalEditorPlaceholder, updatesSection, inboxTitle, inboxEmpty, emptyNoProject
-        case appearance, themeTitle, themeGraphite, saveFailed
+        case appearance, themeTitle, themeGraphite, saveFailed, integrationSaveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
@@ -539,6 +539,7 @@ import Workspace
     static var sectionProjectTitle: String { s(.sectionProjectTitle) }
     static var sectionToolsTitle: String { s(.sectionToolsTitle) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
+    static var integrationSaveFailed: String { s(.integrationSaveFailed) }
     static var notificationsTitle: String { s(.notificationsTitle) }
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }

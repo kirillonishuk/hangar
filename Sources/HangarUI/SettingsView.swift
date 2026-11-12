@@ -92,8 +92,7 @@ struct SettingsView: View {
         if let text = model.error ?? (model.category == .appearance ? model.editorTheme.notice : nil) {
             Text(verbatim: text)
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
-                .lineLimit(1).truncationMode(.middle)
-                .help(text)
+                .wrappingError()
                 .font(Theme.Typography.secondary.font())
                 .padding(.horizontal, Theme.settingsPagePaddingH)
                 .padding(.vertical, Theme.Space.s3)
@@ -211,7 +210,8 @@ struct SettingsView: View {
         case (_, .installed(_, let executable), _): lspLine(tildePath(executable))
         case (_, .missing, .running(let fraction)?):
             lspLine(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
-        case (_, .missing, .failed(let why)?): lspLine(why, color: Theme.ui.failedText, mono: false)
+        case (_, .missing, .failed(let why)?):
+            Text(verbatim: why).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText).wrappingError()
         case (_, .missing, nil):
             if package == nil { lspLine(L10n.lspXcodeTip, mono: false) }
             else if let package, package.tool != nil, lsp.tools[package] == nil {

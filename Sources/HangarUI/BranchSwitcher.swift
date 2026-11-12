@@ -131,7 +131,7 @@ import Workspace
     search.prompt = { switcher.creating ? L10n.branchNamePrompt : nil }
     search.cancel = { switcher.back() }
     search.edited = { switcher.edited() }
-    var content = PopoverMenuContent(search: search, width: Theme.menuWidthWide) { switcher.entries($0) }
+    var content = PopoverMenuContent(search: search, width: Theme.menuWidthBranch) { switcher.entries($0) }
     content.note = { switcher.note }
     content.checkColumn = false  // the check and «+» share the icon slot (mockup)
     content.onClose = onClose
@@ -177,7 +177,9 @@ func branchSwitcherRows(_ c: BranchChoices, query: String) -> (local: [Branch], 
             let note = current ? L10n.branchCurrent
                 : taken.map { $0.hasPrefix("/") ? L10n.branchInFolderNote : L10n.branchInChatNote($0) }
                 ?? ageLabel(since: b.lastCommit, now: now)
-            let help = current ? nil : taken != nil ? note : c.uncommitted > 0 ? L10n.branchDirtyHint : nil
+            // The full name first (a long one is cut in the row), then why the row is inactive.
+            let reason = current ? nil : taken != nil ? note : c.uncommitted > 0 ? L10n.branchDirtyHint : nil
+            let help = [b.name, reason].compactMap { $0 }.joined(separator: "\n")
             entries.append(.item(PopoverMenuItem(title: b.name, enabled: !busy && (current || (taken == nil && c.uncommitted == 0)),
                                                  checked: current, note: note, mono: true, help: help,
                                                  keepsOpen: !current) { switchTo(b) }))

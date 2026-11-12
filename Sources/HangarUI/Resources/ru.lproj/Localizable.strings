@@ -92,6 +92,7 @@
 "sectionProjectTitle" = "Проект";
 "sectionToolsTitle" = "Инструменты";
 "saveFailed" = "Не удалось сохранить config.toml: %@";
+"integrationSaveFailed" = "Не удалось сохранить выбор интеграции";
 "revealInFinder" = "Открыть в Finder";
 "copyPath" = "Скопировать путь";
 "linkNotFound" = "Ссылка никуда не ведёт: её цели в Hangar нет";

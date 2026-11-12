@@ -107,6 +107,8 @@ public enum Theme {
     public static let sheetPaddingH: CGFloat = Space.s5
     public static let sheetHeaderTop: CGFloat = Space.s5
     public static let sheetHeaderBottom: CGFloat = Space.s1
+    /// A sheet title with a name in it wraps up to this many lines (full title in the tooltip).
+    public static let sheetTitleMaxLines = 3
     public static let sheetNameTop: CGFloat = Space.s2
     public static let sheetGap: CGFloat = Space.s3
     public static let sheetFooterPaddingV: CGFloat = Space.s3

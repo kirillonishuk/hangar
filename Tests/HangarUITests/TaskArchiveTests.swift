@@ -192,31 +192,82 @@ import TestSupport
     }
 
     /// A new local DB and a changed `.env` would be lost: asked, the new one listed first. Declined: the task stays
-    /// unarchived and its tabs (stopped before the check) relaunch lazily, as after a restart.
-    @Test func realLossAsksUniqueFirstAndDeclineRelaunchesLazily() async throws {
+    /// unarchived and its tabs keep running: asked before they stop (HD-154).
+    @Test func realLossAsksUniqueFirstBeforeTabsStop() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }
         try await ignoreSetup(t, wt)
         try "CHANGED=1".write(toFile: wt + "/.env", atomically: true, encoding: .utf8)
         try "db".write(toFile: wt + "/dev.db", atomically: true, encoding: .utf8)
         let leaf = try #require(app.state.tasks.first { $0.id == id }?.tabs.first?.root.leaves.first)
+        app.restoredLeaves.remove(leaf.id)  // a live tab, not one waiting to resume after a restart
         await archiveTask(id, ctx: ctx)
         #expect(calls.confirms == [L10n.worktreeIgnored])
         #expect(calls.infos.first?.contains("dev.db, .env") == true)
         #expect(calls.infos.first?.contains("node_modules") == false)
         #expect(!archived(app, id) && exists(wt + "/dev.db"))
-        #expect(app.launchContext(for: leaf.id) == .restored)
+        // Asked before anything changed (HD-154): the tabs were never stopped, so the session never left the sidebar.
+        #expect(app.launchContext(for: leaf.id) == .created(prompt: nil))
+    }
+
+    /// Claude Code's `.claude/.cache` (and other tool caches) in the copy do not ask (HD-154); `.claude/settings.local.json` does.
+    @Test func toolCachesArchiveWithoutConfirm() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
+        defer { t.cleanup() }
+        try ".claude/*\n!.claude/settings.json\n__pycache__/\n.DS_Store\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(atPath: wt + "/.claude", withIntermediateDirectories: true)
+        try "{}".write(toFile: wt + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        _ = try await t.git("add", ".gitignore", ".claude/settings.json", in: wt)
+        _ = try await t.git("commit", "-q", "-m", "ignore", in: wt)
+        for dir in [wt + "/.claude/.cache/x", wt + "/__pycache__"] {
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        }
+        try "c".write(toFile: wt + "/.claude/.cache/x/blob", atomically: true, encoding: .utf8)
+        try "p".write(toFile: wt + "/__pycache__/m.pyc", atomically: true, encoding: .utf8)
+        try "d".write(toFile: wt + "/.DS_Store", atomically: true, encoding: .utf8)
+        await archiveTask(id, ctx: ctx)
+        #expect(calls.confirms.isEmpty && calls.errors.isEmpty)
+        #expect(archived(app, id) && !exists(wt))
+    }
+
+    @Test func claudeLocalSettingsStillAsk() async throws {
+        let (t, app, id, _, wt, calls, ctx) = try await make(answer: false)
+        defer { t.cleanup() }
+        try ".claude/*\n!.claude/settings.json\n".write(toFile: wt + "/.gitignore", atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(atPath: wt + "/.claude", withIntermediateDirectories: true)
+        try "{}".write(toFile: wt + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        _ = try await t.git("add", ".gitignore", ".claude/settings.json", in: wt)
+        _ = try await t.git("commit", "-q", "-m", "ignore", in: wt)
+        try FileManager.default.createDirectory(atPath: wt + "/.claude/.cache", withIntermediateDirectories: true)
+        try "c".write(toFile: wt + "/.claude/.cache/blob", atomically: true, encoding: .utf8)
+        try "{}".write(toFile: wt + "/.claude/settings.local.json", atomically: true, encoding: .utf8)
+        await archiveTask(id, ctx: ctx)
+        #expect(calls.confirms == [L10n.worktreeIgnored])
+        #expect(calls.infos.first?.contains("settings.local.json") == true)
+        #expect(calls.infos.first?.contains(".cache") == false)
+        #expect(!archived(app, id) && exists(wt))
     }
 
     @Test func restoreRecreatesWorktreeFromBranch() async throws {
         let (t, app, id, _, wt, calls, ctx) = try await make()
         defer { t.cleanup() }
         try await t.commit(file: "work.txt", on: "x", in: wt)
+        // The chat itself lives with the agent (~/.claude/projects/<folder>), not in the copy: restore resumes it there.
+        var claude = UUID()
+        let sid = "0b6c4a52-7c1e-4c1a-9a55-3f1a2b3c4d5e"
+        app.perform { s in
+            _ = s.addTab(taskId: id, kind: .claude)
+            claude = s.tasks.first { $0.id == id }!.tabs.last!.root.leaves[0].id
+            s.setAgentSessionId(leafId: claude, sid)
+        }
         await archiveTask(id, ctx: ctx)
         #expect(!exists(wt))
         await restoreArchivedTask(id, ctx: ctx, reselect: true)
         #expect(!archived(app, id))
         #expect(exists(wt + "/work.txt"))
+        let leaf = try #require(app.state.tasks.first { $0.id == id }?.tabs.flatMap(\.root.leaves).first { $0.id == claude })
+        #expect(leaf.agentSessionId == sid && leaf.cwd == wt)
+        #expect(app.launchContext(for: claude) == .restored)
         #expect(try await t.git("symbolic-ref", "--short", "HEAD", in: wt).trimmingCharacters(in: .whitespacesAndNewlines) == "x")
         #expect(app.state.selectedTaskId == id)
         #expect(calls.errors.isEmpty)

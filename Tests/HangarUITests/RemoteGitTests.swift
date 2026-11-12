@@ -307,7 +307,7 @@ import TestSupport
         #expect(!FileManager.default.fileExists(atPath: s.server + ".worktrees/keep"))
     }
 
-    /// Archive on a host: the tab's tmux session is killed (awaited) before the server's worktree is checked; its .env
+    /// Archive on a host: the tab's tmux session is killed (awaited) before the server's worktree is checked the last time; its .env
     /// is a copy of the main folder's (`cmp` on the server), so nothing is asked; removed with the branch kept;
     /// restore re-creates the worktree there. The Mac's decoy is never touched.
     @Test func remoteArchiveRemovesServerWorktree() async throws {
@@ -336,7 +336,9 @@ import TestSupport
         #expect(await waitUntil { log(h).contains("kill-session") && log(h).contains("hangar-\(leaf.uuidString.lowercased())") })
         let lines = FakeSSH.calls(h.log).compactMap(\.last)
         let kill = try #require(lines.firstIndex { $0.contains("kill-session") })
-        let status = try #require(lines.firstIndex { $0.contains("status --porcelain") })
+        // Asked-about check first, with nothing stopped (HD-154); the deciding one after the kill.
+        let status = try #require(lines.lastIndex { $0.contains("status --porcelain") })
+        #expect(lines.firstIndex { $0.contains("status --porcelain") }! < kill)
         #expect(kill < status)  // stopped first, then checked
         #expect(try String(contentsOfFile: h.log, encoding: .utf8).contains("cmp -s"))
         #expect(FileManager.default.fileExists(atPath: s.server + "/.git/refs/heads/wip"))

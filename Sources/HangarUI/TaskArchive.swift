@@ -27,8 +27,9 @@ enum RestoreOutcome: Equatable {
 
 extension AppState {
     /// The task's tabs stop first (archived: surfaces close, remote tmux sessions are killed and awaited), so nothing
-    /// writes into the folder while it is checked. At risk without `force`, or a failed check (host down, git error):
-    /// unarchived again, its tabs relaunch lazily as after a restart.
+    /// writes into the folder while it is checked. Without `force` the folder is checked once before that, so a risk is
+    /// asked about with nothing stopped (HD-154); at risk only on the second check, or a failed check (host down, git
+    /// error): unarchived again, its tabs relaunch lazily as after a restart.
     /// Its open sub-sessions follow a parent into the archive, each by the same rules (HD-128); one at risk stays open.
     /// A worktree another open session still works in (a sub-chat shares its parent's, HD-131) is left alone: only the last
     /// session to leave it checks and removes it; sub-sessions archived along with it count as leaving.
@@ -72,6 +73,20 @@ extension AppState {
         let group = [id] + sharers
         let selected = group.first { state.selectedTaskId == $0 }
         let runner = runner(for: project)
+        // Ask before anything changes (HD-154): a session that left the sidebar and came back with the question looked lost.
+        // The check after the tabs stop stays: the agent may write in between.
+        if !force {
+            await revertProjectStatuslines(host: project.host, dirs: [StatuslineDir(path: path, name: task.name)])
+            let early: WorktreeCheck
+            do { early = try await checkWorktree(path, git: git(for: project), runner: runner) } catch {
+                syncStatuslines(task: id)
+                return .failed(error.localizedDescription)
+            }
+            if case let .atRisk(dirty, ignored) = early {
+                syncStatuslines(task: id)
+                return .atRisk(dirty: dirty, ignored: ignored)
+            }
+        }
         let item = worktreeRemovals.begin(name: task.name, path: path, local: runner.isLocal)
         var kills: [Task<Void, Never>] = []
         for t in group {

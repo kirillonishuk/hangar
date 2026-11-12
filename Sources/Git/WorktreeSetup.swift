@@ -51,14 +51,20 @@ public func matchIgnored(_ patterns: [String], _ entries: [String]) -> [String] 
     }
 }
 
-/// Ignored folders a package manager or build re-creates (`node_modules`, `.venv`, `vendor/bundle`, `.turbo`, `dist`):
+/// Ignored items a package manager, build or tool re-creates (`node_modules`, `.venv`, `vendor/bundle`, `.turbo`, `dist`;
+/// tool caches such as Claude Code's `.claude/.cache`, `__pycache__`, `.build`; Finder's `.DS_Store` — HD-154):
 /// removing a worktree's copy loses nothing.
 public func isReinstallable(_ ignored: String) -> Bool {
     var e = ignored
     while e.hasSuffix("/") { e.removeLast() }
     let name = e.split(separator: "/").last.map(String.init) ?? e
-    return ["node_modules", ".venv", ".turbo", "dist"].contains(name) || e == "vendor/bundle" || e.hasSuffix("/vendor/bundle")
+    return reinstallableNames.contains(name) || e == "vendor/bundle" || e.hasSuffix("/vendor/bundle")
 }
+
+private let reinstallableNames: Set<String> = [
+    "node_modules", ".venv", ".turbo", "dist",
+    ".cache", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".next", ".build", ".DS_Store",
+]
 
 extension Git {
     /// Ignored, untracked entries of the whole repository, relative to its top, without a trailing `/`. An ignored

@@ -131,6 +131,28 @@ import Exec
         }
     }
 
+    /// Per path: status letters and the content's hash; a further edit changes it, a deletion has no hash, a rename one key.
+    @Test func dirtyFingerprint() async throws {
+        let t = try TempRepo(); defer { t.cleanup() }
+        let g = Git(repo: t.repo)
+        #expect(try await g.dirtyFingerprint(path: t.repo).isEmpty)
+        try "one".write(toFile: t.repo + "/a.txt", atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(atPath: t.repo + "/new dir", withIntermediateDirectories: true)
+        try "n".write(toFile: t.repo + "/new dir/-x.txt", atomically: true, encoding: .utf8)
+        let first = try await g.dirtyFingerprint(path: t.repo)
+        #expect(Set(first.keys) == ["a.txt", "new dir/-x.txt"])
+        #expect(first["a.txt"]?.hasPrefix(" M ") == true && first["a.txt"]!.count > 40)
+        try "two".write(toFile: t.repo + "/a.txt", atomically: true, encoding: .utf8)
+        #expect(try await g.dirtyFingerprint(path: t.repo)["a.txt"] != first["a.txt"])
+        try t.git("checkout", "--", "a.txt", in: t.repo)
+        try t.git("mv", "a.txt", "b.txt", in: t.repo)
+        let renamed = try await g.dirtyFingerprint(path: t.repo)
+        #expect(renamed["b.txt"]?.hasPrefix("R  ") == true && renamed["a.txt"] == nil)
+        try t.git("rm", "-q", "--cached", "b.txt", in: t.repo)
+        try FileManager.default.removeItem(atPath: t.repo + "/b.txt")
+        #expect(try await g.dirtyFingerprint(path: t.repo)["a.txt"] == "D  ")
+    }
+
     @Test func dirtyAndRemove() async throws {
         let t = try TempRepo(); defer { t.cleanup() }
         let g = Git(repo: t.repo)

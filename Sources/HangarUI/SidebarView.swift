@@ -38,7 +38,7 @@ struct SidebarView: View {
     /// Row being reordered (task within its group, or project) and its vertical translation.
     @State private var drag: (target: ActionTarget, dy: CGFloat)?
 
-    private var collapsed: Bool { app.state.sidebarCollapsed }
+    private var collapsed: Bool { app.sidebarRail }
 
     var body: some View {
         GeometryReader { geo in
@@ -104,7 +104,7 @@ struct SidebarView: View {
     }
 
     /// One line, 28, at the project level: dot (none while asleep), name, and at the end the word that needs action or
-    /// the time of last use; pin and «⋯» over that end on hover. Asleep: name `text2`; a click wakes it.
+    /// the time of last use; pin and «⋯» over that end and the name's tail on hover. Asleep: name `text2`; a click wakes it.
     private func freeChatRow(_ task: HangarTask, depth: Int) -> some View {
         TimelineView(MinutesWhile(active: !task.archived && app.displayState(of: task) == .waiting)) { _ in  // the clock at drawing time: the schedule only says when to redraw
             freeChatRow(task, depth: depth, now: Date())
@@ -122,7 +122,6 @@ struct SidebarView: View {
         let end = dot == .waiting && !asleep ? rowWaitingWord(since: app.longestWait(of: task)?.attention.since, now: now)
             : urgent ? L10n.rowStatus(dot)
             : foldedCounter(task) ?? app.state.freeChat(ofTask: task.id).map { freeChatTime($0.lastUsedAt, now: now) } ?? ""
-        let endWidth = ceil((end as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
         return HoverRow(selected: selected, action: {
                             clicked(target)
                             app.wakeFreeChat(task.id)
@@ -148,8 +147,7 @@ struct SidebarView: View {
                         }
                     }
                     Spacer(minLength: 0)
-                    ZStack(alignment: .trailing) {
-                        Color.clear.frame(width: Self.rowEndSlot(endWidth), height: 1)
+                    if !end.isEmpty {
                         Text(verbatim: end)
                             .font(Theme.Typography.caption.font())
                             .foregroundStyle(selected ? Theme.ui.onAccent
@@ -160,7 +158,7 @@ struct SidebarView: View {
                     }
                 }
                 .overlay(alignment: .trailing) {
-                    taskActions(task, target: target, shown: showActions)
+                    taskActions(task, target: target, shown: showActions, selected: selected)
                         .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
@@ -172,7 +170,7 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
-        .help(collapsed ? "\(L10n.noProject) › \(task.name)" : dot == .waiting ? app.sessionStatus(of: task, now: now).text : "")
+        .help(collapsed ? "\(L10n.noProject) › \(task.name)" : rowHelp(task, now: now))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
@@ -228,8 +226,9 @@ struct SidebarView: View {
                         .layoutPriority(-1)
                     Spacer(minLength: 0)
                 }
-                .padding(.trailing, hover ? 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang : 0)
-                .overlay(alignment: .trailing) { taskActions(task, target: target, shown: hover && app.renaming != target) }
+                .overlay(alignment: .trailing) {
+                    taskActions(task, target: target, shown: hover && app.renaming != target, selected: selected)
+                }
             } rail: {
                 RailTile(text: monogram(task.name), state: dot, seen: seen, selected: selected, hover: hover)
             }
@@ -237,7 +236,7 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: Date()))
-        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : "")
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : rowHelp(task, now: Date()))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
@@ -580,7 +579,7 @@ struct SidebarView: View {
     // MARK: Sessions
 
     /// One line, 28 (§3.3): dot, name, and at the end what needs action — «ждёт ответа», «ошибка», «на лимите» —
-    /// else the live branch (`mono` 11 `text3`). On hover pin and «⋯» take the end's place: nothing moves.
+    /// else nothing (HD-141). On hover pin and «⋯» cover the end and the name's tail: nothing moves (HD-160).
     private func taskRow(_ task: HangarTask, depth: Int = 0) -> some View {
         TimelineView(MinutesWhile(active: app.displayState(of: task) == .waiting)) { _ in  // the clock at drawing time: the schedule only says when to redraw
             taskRow(task, depth: depth, now: Date())
@@ -619,14 +618,11 @@ struct SidebarView: View {
                         }
                     }
                     Spacer(minLength: 0)
-                    // One slot for the row end and, on hover, the pin and «⋯» over it: the name never moves.
-                    ZStack(alignment: .trailing) {
-                        Color.clear.frame(width: Self.rowEndSlot(rowEndWidth(task, state: dot, now: now)), height: 1)
-                        rowEnd(task, state: dot, selected: selected, now: now).opacity(showActions ? 0 : 1)
-                    }
+                    // Only the state word (or the folded counter) takes room: the name gets the rest (HD-160).
+                    rowEnd(task, state: dot, selected: selected, now: now).opacity(showActions ? 0 : 1)
                 }
                 .overlay(alignment: .trailing) {
-                    taskActions(task, target: target, shown: showActions)
+                    taskActions(task, target: target, shown: showActions, selected: selected)
                         .offset(x: Theme.rowActionsOverhang)
                 }
             } rail: {
@@ -638,7 +634,7 @@ struct SidebarView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(app.rowAccessibility(task.name, task: task, state: dot, now: now))
-        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : app.sessionStatus(of: task, now: now).text + (task.note.map { "\n" + $0 } ?? ""))
+        .help(collapsed ? "\(app.project(task.projectId)?.name ?? "") › \(task.name)" : rowHelp(task, now: now))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
     }
 
@@ -668,20 +664,13 @@ struct SidebarView: View {
         state == .waiting ? rowWaitingWord(since: app.longestWait(of: task)?.attention.since, now: now) : L10n.rowStatus(state)
     }
 
-    /// The row end's constant width: its own (state word, counter) but at least the pin and «⋯» shown over it on
-    /// hover (less the gap before it), so hovering never moves the name.
-    static func rowEndSlot(_ own: CGFloat?) -> CGFloat {
-        max(own ?? 0, 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang - Theme.rowEndGap)
+    /// The row tooltip: the full name (the row may cut it), then the status, then the agent's note.
+    private func rowHelp(_ task: HangarTask, now: Date) -> String {
+        Self.rowHelp(name: task.name, status: app.sessionStatus(of: task, now: now).text, note: task.note)
     }
 
-    /// The width `rowEnd` takes: the state word or the counter; nil when it shows nothing.
-    private func rowEndWidth(_ task: HangarTask, state: AgentState, now: Date) -> CGFloat? {
-        switch state {
-        case .waiting, .failed, .limit:
-            ceil((rowWord(task, state: state, now: now) as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width)
-        case .working, .done, .idle:
-            foldedCounter(task).map { ceil(($0 as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width) }
-        }
+    static func rowHelp(name: String, status: String, note: String?) -> String {
+        ([name, status] + [note].compactMap { $0 }).filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     // MARK: Subagents (spec agent-subagents §4)
@@ -724,14 +713,17 @@ struct SidebarView: View {
         }
     }
 
-    /// Pin and «⋯» (shown on hover, no animation); the pin is white while pinned.
-    private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool) -> some View {
+    /// Pin and «⋯» (shown on hover, no animation); the pin is white while pinned. They cover the name's tail on the
+    /// row's own colour, so the name keeps the full width when not hovered (HD-160).
+    private func taskActions(_ task: HangarTask, target: ActionTarget, shown: Bool, selected: Bool) -> some View {
         HStack(spacing: 0) {
             IconButton(icon: .pin, tint: task.pinned ? Theme.ui.text0 : nil, help: task.pinned ? L10n.unpin : L10n.pin) {
                 app.setPinned(task.id, !task.pinned)
             }
             PopoverMenuButton { actionMenu(for: target, ctx: ctx) }
         }
+        .padding(.leading, Theme.rowEndGap)
+        .background(HoverPalette.focus.background(selected: selected, hover: true, base: Theme.ui.bg1))
         .opacity(shown ? 1 : 0)
         .allowsHitTesting(shown)
     }

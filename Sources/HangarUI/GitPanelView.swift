@@ -75,6 +75,11 @@ struct GitPanelView: View {
             GitNotice(text: L10n.gitFailed(error))
         } else if model.loaded, model.commits.isEmpty {
             EmptyNote(text: model.query == GitQuery() ? L10n.gitNoCommits : L10n.gitNothingFound)
+        } else if !model.loaded, model.commits.isEmpty {
+            // The first page is on its way: a spinner where the log will be, not an empty list (§2.8).
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Theme.GitTab.noticePaddingV)
         }
     }
 }

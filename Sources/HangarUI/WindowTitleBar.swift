@@ -11,8 +11,9 @@ struct WindowTitle: Equatable {
     var subtitle: String?
 }
 
-/// Title of the selected chat; nil when none is selected.
-@MainActor func windowTitle(_ s: WorkspaceState) -> WindowTitle? {
+/// Title of the selected chat; nil when none is selected. History shown over it: only «История» (HD-160).
+@MainActor func windowTitle(_ s: WorkspaceState, history: Bool = false) -> WindowTitle? {
+    if history { return WindowTitle(title: L10n.sessionsTitle) }
     guard let id = s.selectedTaskId, let task = s.tasks.first(where: { $0.id == id && !$0.archived }) else { return nil }
     if let host = s.hostShell(ofTask: id)?.host { return WindowTitle(title: L10n.hostTerminal(host)) }
     // The agent's note (`sessions_note`) follows the project: «acme-web · Задача 3/7».
@@ -74,9 +75,11 @@ struct WindowTitleBar: View {
     let metrics: TitleBarMetrics
     let inboxAction: InboxAction
     let toggleSidebar: () -> Void
+    var openSettings: (SettingsCategory) -> Void = { _ in }
+    @State private var keepAwakeAnchor = MenuAnchor()
 
     var body: some View {
-        let collapsed = app.state.sidebarCollapsed
+        let collapsed = app.sidebarRail
         let layout = toolbarLayout(contentX: metrics.contentX, lightsMaxX: metrics.lightsCenterY == nil ? nil : metrics.lightsMaxX)
         // Collapsed, the lights stick out of the rail: the bar runs under them, across the rail.
         let barX = collapsed ? 0 : metrics.contentX
@@ -106,7 +109,8 @@ struct WindowTitleBar: View {
     }
 
     @ViewBuilder private var title: some View {
-        if let t = windowTitle(app.state) {
+        let history = app.sessionsViewVisible
+        if let t = windowTitle(app.state, history: history) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(verbatim: t.title)
                     .font(Theme.Typography.body.font(.semibold))
@@ -121,13 +125,43 @@ struct WindowTitleBar: View {
             .truncationMode(.tail)
             .padding(.trailing, Theme.Space.s1)
             .allowsHitTesting(false)
-            if let task = app.selectedTask, !app.isOutsideProjects(task), let branch = app.head(of: task)?.title ?? task.branch {
+            // The text lets clicks through to a drag area of its own: it still drags the window, shows the full name
+            // and renames on a double-click, as F2 (HD-160).
+            .background(titleDragArea(t, history: history))
+            if !history, let task = app.selectedTask, !app.isOutsideProjects(task), let branch = app.shownBranch(of: task) {
                 BranchButton(app: app, task: task, branch: branch)
             }
-            if let task = app.selectedTask, let action = app.primaryAction(of: task) {
+            if !history, let task = app.selectedTask, let action = app.primaryAction(of: task) {
                 RunActionButton(app: app, task: task, action: action).layoutPriority(1)
             }
         }
+    }
+
+    private func titleDragArea(_ t: WindowTitle, history: Bool) -> WindowDragArea {
+        history ? WindowDragArea() : WindowDragArea(toolTip: titleHelp(t), onDoubleClick: { renameSelected() })
+    }
+
+    /// The full name, the agent's note under it.
+    private func titleHelp(_ t: WindowTitle) -> String {
+        ([t.title] + [app.selectedTask?.note].compactMap { $0 }).joined(separator: "\n")
+    }
+
+    /// Double-click on the title: rename the chat like F2; false — nothing to rename (the window zooms as elsewhere).
+    private func renameSelected() -> Bool {
+        guard let task = app.selectedTask, Action.rename.isEnabled(for: .task(task.id), app: app) else { return false }
+        Action.rename.perform(.task(task.id), ActionContext(app: app))
+        return true
+    }
+
+    private func keepAwakeMenu() {
+        PopoverMenu.show([
+            .item(PopoverMenuItem(title: L10n.keepAwakeShort, checked: app.config.keepAwake) {
+                let on = !app.config.keepAwake
+                do { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } } catch { app.beep() }
+            }),
+            .separator,
+            .item(PopoverMenuItem(title: L10n.settingsEllipsis) { openSettings(.general) }),
+        ], below: keepAwakeAnchor.view)
     }
 
     @ViewBuilder private var trailing: some View {
@@ -147,17 +181,22 @@ struct WindowTitleBar: View {
             .pointingHand()
             .help(L10n.updateAvailableHelp)
         }
-        // «Не спать» only while sleep is held (the setting is in Settings → Уведомления).
+        // «Не спать» only while sleep is held; a click: turn it off or open its setting (Settings → Общие, HD-160).
         let keep = app.keepAwake
         if showsKeepAwake(enabled: app.config.keepAwake, held: keep.held) {
-            IconView(icon: .keepAwake, size: Theme.Icon.toolbar)
-                .frame(width: Theme.Height.controlRegular, height: Theme.Height.controlRegular)
-                .help(L10n.keepAwakeHelp(enabled: true, held: true, working: keep.working))
-                .accessibilityLabel(L10n.keepAwakeTitle)
+            IconButton(icon: .keepAwake, size: .regular, help: L10n.keepAwakeHelp(enabled: true, held: true, working: keep.working),
+                       action: keepAwakeMenu)
+                .background(MenuAnchorView(anchor: keepAwakeAnchor))
+                #if DEBUG
+                .onAppear { debugKeepAwakeOpen = keepAwakeMenu }
+                #endif
         }
         InboxBell(app: app, act: inboxAction)
-        IconButton(icon: .sidebarRight, size: .regular, help: L10n.help(L10n.inspectorHelp, .toggleInspector)) {
-            app.perform { $0.inspectorVisible.toggle() }
+        // History covers the chat and the inspector: no toggle for what is not there (HD-160).
+        if !app.sessionsViewVisible {
+            IconButton(icon: .sidebarRight, size: .regular, help: L10n.help(L10n.inspectorHelp, .toggleInspector)) {
+                app.toggleInspector()
+            }
         }
     }
 }
@@ -219,6 +258,8 @@ private struct BranchButton: View {
 #if DEBUG
 /// Debug channel `branchMenu`: as a click on the toolbar's branch button.
 @MainActor var debugBranchOpen: (() -> Void)?
+/// Debug channel `keepAwakeMenu`: as a click on the toolbar's «не спать».
+@MainActor var debugKeepAwakeOpen: (() -> Void)?
 #endif
 
 /// The bell (§3.1, §3.16): 16 in a 28 box; the count of what waits (permission, question, error — the Dock's number)

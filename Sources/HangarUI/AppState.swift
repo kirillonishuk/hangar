@@ -54,6 +54,15 @@ enum EmptyProjectRow: Hashable {
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
     var sidebarAnimating = false
+    /// Adaptive window (HD-162), not saved: the window is too narrow for the inspector / for the expanded sidebar.
+    var autoHidesInspector = false
+    var autoRailsSidebar = false
+    /// The user showed that panel in a window too narrow for it: it stays until hidden or until the window fits it.
+    var keepsInspector = false
+    var keepsSidebar = false
+    /// What is on screen: the saved flags, «Только чат» and the adaptive window together.
+    var inspectorShown: Bool { state.inspectorVisible && !state.chatOnly && !autoHidesInspector }
+    var sidebarRail: Bool { state.sidebarCollapsed || state.chatOnly || autoRailsSidebar }
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
@@ -116,6 +125,8 @@ enum EmptyProjectRow: Hashable {
     var editorImage: Set<UUID> = []
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// Esc in an inspector list: the keyboard goes back to the active terminal (HD-161).
+    @ObservationIgnored var focusTerminal: (() -> Void)?
     /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
     @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
     /// Settings → Appearance changed: every editor and diff page restyles (set by `TerminalArea`).
@@ -143,6 +154,12 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var confirmLeaveDiff: ((@escaping () -> Void) -> Void)?
     /// Diff tabs with an edited, unsaved working file (quitting asks).
     @ObservationIgnored var diffUnsaved: (() -> Int)?
+    /// Full paths of the diff tabs' edited, unsaved working files (a revert refuses them, HD-156).
+    @ObservationIgnored var diffUnsavedPaths: (() -> [String])?
+    /// A destructive confirmation sheet (message, info, button, then on confirm) — set by the window.
+    @ObservationIgnored var confirmDestructive: ((String, String, String, @escaping () -> Void) -> Void)?
+    /// The toast with «Вернуть» (message, then on «Вернуть») — set by the window (HD-156).
+    @ObservationIgnored var undoToast: ((String, @escaping () -> Void) -> Void)?
     /// Files / Changes of the visible task (stage 4).
     let inspector = InspectorModel()
     /// `+N −M` of the sidebar's session rows.
@@ -303,6 +320,8 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var lastKills: [Task<Void, Never>] = []
     /// Worktree folders being removed, shown over the chat area (HD-132).
     let worktreeRemovals = WorktreeRemovals()
+    /// Sessions an archive is checking or stopping right now (HD-154): a second archive of one waits for nothing, it refuses.
+    @ObservationIgnored var archivingTasks: Set<UUID> = []
     /// Called after every mutation (AppKit parts that don't use Observation sync from here).
     @ObservationIgnored var didChange: (() -> Void)?
     /// AppKit parts that build strings once (main menu) rebuild from here.
@@ -715,7 +734,7 @@ enum EmptyProjectRow: Hashable {
     /// the tab closes itself when it succeeds and stays, marked failed, when it does not (HD-127).
     /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (HD-116).
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
-                    setup: String? = nil, autoNamed: Bool = false) -> (task: UUID, tab: UUID) {
+                    setup: String? = nil, autoNamed: Bool = false, agent: LeafKind? = nil) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
         var setupTab: UUID?
         perform { s in
@@ -727,7 +746,7 @@ enum EmptyProjectRow: Hashable {
                 s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
                 s.select(taskId: task)
             }
-            let tab = s.addTab(taskId: task, kind: config.defaultAgent)
+            let tab = s.addTab(taskId: task, kind: agent ?? config.defaultAgent)
             created = (task, tab)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {
@@ -863,7 +882,42 @@ enum EmptyProjectRow: Hashable {
         if segment == .changes || segment == .git, inspector.shownTaskId == task.id, !inspector.isGit { return }
         closeSubagentPanel()
         inspector.segment = segment
-        if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
+        if !inspectorShown { revealInspector() }
+    }
+
+    /// ⌥⌘I and the toolbar button act on what is on screen: an inspector the narrow window hid comes back (HD-162).
+    func toggleInspector() {
+        if inspectorShown {
+            keepsInspector = false
+            perform { $0.inspectorVisible = false }
+        } else {
+            revealInspector()
+        }
+    }
+
+    /// Shows the inspector even in a narrow window (the sidebar goes to its rail instead) and leaves «Только чат».
+    func revealInspector() {
+        guard !inspectorShown else { didChange?(); return }
+        keepsInspector = true  // dropped by the window when it isn't needed
+        keepsSidebar = false  // the last panel asked for wins the room
+        perform {
+            $0.inspectorVisible = true
+            $0.chatOnly = false
+        }
+    }
+
+    /// «Только чат» (HD-162): the sidebar on its rail and no inspector, one key both ways.
+    func toggleChatOnly() {
+        keepsInspector = false
+        keepsSidebar = false
+        perform { $0.chatOnly.toggle() }
+    }
+
+    /// The inspector shows that segment's own list (what `InspectorView` picks): it can take the keyboard (HD-161).
+    func inspectorListShown(_ segment: InspectorModel.Segment) -> Bool {
+        guard let task = selectedTask, inspectorShown, subagentPanel == nil, !isHostShellTask(task.id), inspectorNotice == nil,
+              inspector.segment == segment else { return false }
+        return segment == .files || (segment == .changes && inspector.isGit)
     }
 
     /// ⌘1…8: n-th tab of the selected task; ⌘9: its last tab.

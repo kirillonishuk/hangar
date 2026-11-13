@@ -232,7 +232,7 @@ private struct AskFooter: View {
                 .keyboardShortcut(.cancelAction)
             Button(L10n.intConnect) { onAnswer(true) }
                 .buttonStyle(.hangar(.primary))
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.return, modifiers: .command)  // sheets confirm with ⌘↩ (DESIGN.md)
         }
         .padding(.vertical, Theme.sheetFooterPaddingV)
         .padding(.top, Theme.sheetGap)

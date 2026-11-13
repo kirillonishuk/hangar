@@ -30,19 +30,28 @@ struct GitBranchesBlock: View {
                     IconView(icon: model.branchesOpen ? .chevronDown : .chevronRight, size: Theme.GitTab.chevron, tint: Theme.ui.text3)
                     // The checked-out branch (or the detached hash) is the header; the list holds the rest.
                     IconView(icon: .branch, size: Theme.GitTab.rowIcon, tint: Theme.ui.text2)
-                    Text(verbatim: headTitle)
-                        .font(Theme.Typography.mono.font())
-                        .foregroundStyle(Theme.ui.text1)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if headTitle.isEmpty {
+                        // Not loaded yet (or failed): the block's name, and the spinner while it loads (§2.8).
+                        Text(L10n.gitBranches)
+                            .font(Theme.Typography.body.font())
+                            .foregroundStyle(Theme.ui.text2)
+                            .lineLimit(1)
+                        if model.error == nil, !model.offline { ProgressView().controlSize(.small).accessibilityHidden(true) }
+                    } else {
+                        Text(verbatim: headTitle)
+                            .font(Theme.Typography.mono.font())
+                            .foregroundStyle(Theme.ui.text1)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .pointingHand()
-            .help(L10n.gitBranches + ": " + headTitle)
-            .accessibilityLabel(L10n.gitBranches + ", " + headTitle)
+            .help(headTitle.isEmpty ? L10n.gitBranches : L10n.gitBranches + ": " + headTitle)
+            .accessibilityLabel(headTitle.isEmpty ? L10n.gitBranches : L10n.gitBranches + ", " + headTitle)
             if model.branches?.remote.isEmpty == false {
                 GitIconButton(icon: .refresh, help: L10n.gitFetchHelp, enabled: !model.fetching) { model.fetch() }
             }

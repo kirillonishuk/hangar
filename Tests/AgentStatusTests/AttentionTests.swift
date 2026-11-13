@@ -41,6 +41,14 @@ private func item(_ reason: AttentionReason, since: TimeInterval, id: UUID = UUI
 
         #expect(run([hook(.prompt), .exited(code: 2)]).attention?.reason == .failed)
         #expect(run([hook(.prompt), .exited(code: 0)]).attention == nil)
+        // HD-160: an agent's process that ended carries its code (the inbox says «процесс завершён (код N)», offers a relaunch);
+        // a failed turn does not.
+        for code: Int32 in [2, 137, -1] {
+            let crash = run([hook(.prompt), hook(.stop), .exited(code: code)])
+            #expect(crash.state == .failed && crash.attention?.reason == .failed && crash.attention?.exitCode == code, "\(code)")
+        }
+        #expect(failed.attention?.exitCode == nil)
+        #expect(run([hook(.prompt), .exited(code: 2)], agent: .codex).attention?.exitCode == 2)
         // A plain shell (no agent) exiting non-zero: the failed dot, no attention.
         let shell = run([.bell, .exited(code: 1)], agent: nil)
         #expect(shell.state == .failed && shell.attention == nil)

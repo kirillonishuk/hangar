@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Testing
 @testable import HangarUI
+import Workspace
 
 /// Tab bar geometry (decision HD-069): min/max widths, overflow, scroll-into-view, wheel mapping.
 @Suite struct TabStripTests {
@@ -167,5 +168,16 @@ import Testing
         #expect(TabStrip.shifts(widths: w, from: 3, to: 1) == [0, 90 + gap, 90 + gap, 0])
         #expect(TabStrip.slotX(widths: w, from: 3, to: 1) == 100 + gap)
         #expect(TabStrip.shifts(widths: w, from: 1, to: 1) == [0, 0, 0, 0])
+    }
+
+    /// A file tab split with a terminal stays a file tab (HD-163): its name is not cut to «Disco…».
+    @Test func splitFileTabKeepsItsName() {
+        let editor = Leaf(kind: .editor, cwd: "/p"), shell = Leaf(kind: .shell, cwd: "/p")
+        let split = SplitNode.split(axis: .horizontal, ratio: 0.5, first: .leaf(editor), second: .leaf(shell))
+        #expect(TabStrip.keepsWhole(Workspace.Tab(title: "", root: .leaf(editor), focusedLeafId: editor.id)))
+        #expect(TabStrip.keepsWhole(Workspace.Tab(title: "", root: split, focusedLeafId: shell.id)))
+        let terminalFirst = SplitNode.split(axis: .horizontal, ratio: 0.5, first: .leaf(shell), second: .leaf(editor))
+        #expect(!TabStrip.keepsWhole(Workspace.Tab(title: "", root: terminalFirst, focusedLeafId: editor.id)))
+        #expect(!TabStrip.keepsWhole(Workspace.Tab(title: "", root: split, focusedLeafId: editor.id, customTitle: "Мой")))
     }
 }

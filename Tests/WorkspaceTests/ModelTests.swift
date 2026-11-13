@@ -229,10 +229,12 @@ import Testing
         let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
         #expect(s.sidebarWidth == 256)
         #expect(s.sidebarCollapsed == false)
+        #expect(s.chatOnly == false)
         #expect(s.inspectorVisible == true)
         var changed = s
         changed.sidebarWidth = 260
         changed.sidebarCollapsed = true
+        changed.chatOnly = true
         let data = try JSONEncoder().encode(changed)
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
     }
@@ -662,5 +664,35 @@ import Testing
         #expect(back.projects[0].notifications == .urgent)
         #expect(back.tasks[0].muted)
         #expect(back == s)
+    }
+
+    /// ⌘N (HD-164): the selected chat's project, else the latest chat's, else the last project; a free chat doesn't count.
+    @Test func newChatProjectFollowsSelectionThenLatestChat() {
+        var s = WorkspaceState()
+        let a = s.addProject(name: "a", path: "/a")
+        let b = s.addProject(name: "b", path: "/b")
+        #expect(s.newChatProjectId() == b)
+        let inA = s.addTask(projectId: a, name: "x")
+        #expect(s.newChatProjectId() == a)
+        let inB = s.addTask(projectId: b, name: "y")
+        _ = s.addTask(projectId: a, name: "z")
+        #expect(s.newChatProjectId() == a)
+        s.select(taskId: inB)
+        #expect(s.newChatProjectId() == b)
+        s.select(taskId: inA)
+        #expect(s.newChatProjectId() == a)
+        let free = s.addTask(projectId: UUID(), name: "free")
+        s.select(taskId: free)
+        #expect(s.newChatProjectId() == a)
+        s.select(taskId: UUID())
+        #expect(s.newChatProjectId() == a)
+    }
+
+    @Test func newChatPromptOpenRoundTrips() throws {
+        var s = WorkspaceState()
+        #expect(!s.newChatPromptOpen)
+        s.newChatPromptOpen = true
+        let back = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(s))
+        #expect(back.newChatPromptOpen)
     }
 }

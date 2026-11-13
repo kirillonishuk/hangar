@@ -145,6 +145,8 @@ final class PaneFrameView: NSView {
     private let barFill = HoverFill { Theme.hover }
     /// The waiting / failed frame over the whole pane, header included (HD-135).
     private let frameView = PaneFrameView()
+    /// The terminal's find bar under the header while Ghostty's search is open (HD-159).
+    private var find: (model: TerminalFind, view: NSView)?
     var attentionFrame: AgentState? {
         didSet { if attentionFrame != oldValue { applyFrame() } }
     }
@@ -335,11 +337,13 @@ final class PaneFrameView: NSView {
         view.onFocus = { [weak self] in self?.onFocus?() }
         view.onBell = { [weak self] in self?.onBell?() }
         view.onDesktopNotification = { [weak self] title, body in self?.onNotification?(oscNotificationText(title: title, body: body)) }
+        view.onSearch = { [weak self] event in self?.searchChanged(event) }
         view.onPaste = { [weak self, weak view] in
             guard let self, let view, pasteAction(kind: self.kind) == .ctrlV else { return false }
             view.sendKey(.ctrlV)
             return true
         }
+        hideFind()  // the search belonged to the old surface
         if let old = surface {
             // Replacing an exited (or not yet drawn, `restart`) surface: removing it is a real close.
             old.removeFromSuperview()
@@ -353,6 +357,53 @@ final class PaneFrameView: NSView {
             uiLog.error("terminal not created leaf=\(self.leafId.uuidString.prefix(8), privacy: .public)")
             setBar(L10n.terminalCreateFailed)
         }
+    }
+
+    /// ⌘F with the keyboard in this terminal or its find bar: Ghostty opens the search and answers `.started` (HD-159).
+    func startFind() { surface?.startSearch() }
+
+    private func searchChanged(_ event: SearchEvent) {
+        switch event {
+        case .started(let needle): showFind(needle: needle)
+        case .ended: hideFind()
+        case .total(let n): find?.model.total = n
+        case .selected(let n): find?.model.selected = n
+        }
+    }
+
+    private func showFind(needle: String) {
+        if find == nil {
+            let model = TerminalFind()
+            // A late (debounced) needle of a closed bar must not start a search nobody sees.
+            model.search = { [weak self, weak model] needle in
+                guard let self, let model, self.find?.model === model else { return }
+                self.surface?.search(needle)
+            }
+            model.navigate = { [weak self] in self?.surface?.navigateSearch(next: $0) }
+            model.close = { [weak self] in self?.closeFind() }
+            let view = TerminalFindBar.hosted(model)
+            addSubview(view, positioned: .below, relativeTo: header)
+            find = (model, view)
+            needsLayout = true
+        }
+        guard let model = find?.model else { return }
+        if !needle.isEmpty { model.needle = needle }  // ⌘E: the selection
+        model.focusRequest += 1
+    }
+
+    /// × / Esc in the bar: Ghostty ends the search (its `.ended` hides the bar) and the terminal takes the keyboard.
+    private func closeFind() {
+        guard find != nil else { return }
+        surface?.endSearch()
+        hideFind()
+        window?.makeFirstResponder(surface)
+    }
+
+    private func hideFind() {
+        guard let find else { return }
+        self.find = nil
+        find.view.removeFromSuperview()
+        needsLayout = true
     }
 
     func childExited(_ code: Int32) {
@@ -473,6 +524,7 @@ final class PaneFrameView: NSView {
 
     #if DEBUG
     var barString: String? { bar.isHidden ? nil : bar.stringValue }
+    var debugFind: (model: TerminalFind, view: NSView)? { find }
     #endif
 
     /// ↩ or a click on the bar: relaunch an exited/failed leaf, or reconnect the host a waiting one gave up on.
@@ -506,6 +558,10 @@ final class PaneFrameView: NSView {
             header.frame = NSRect(x: 0, y: 0, width: bounds.width, height: h - 1)
             headerLine.frame = NSRect(x: 0, y: h - 1, width: bounds.width, height: 1)
             top = h
+        }
+        if let view = find?.view {
+            view.frame = NSRect(x: 0, y: top, width: bounds.width, height: Theme.Height.barPane)
+            top += Theme.Height.barPane
         }
         var bottom = bounds.height
         if !bar.isHidden {
@@ -580,6 +636,7 @@ final class PaneFrameView: NSView {
             self?.diffHosts.values.forEach { $0.editor.page.send(.appearance(look)) }
         }
         app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
+        app.diffUnsavedPaths = { [weak self] in self?.diffHosts.values.compactMap(\.editor.unsavedPath) ?? [] }
         app.confirmLeaveDiff = { [weak self] then in
             if let id = self?.app.selectedTask?.id, let editor = self?.diffHosts[id]?.editor { editor.confirmLeave(then) } else { then() }
         }
@@ -1021,6 +1078,9 @@ final class PaneFrameView: NSView {
         window?.makeFirstResponder(view.keyView ?? view)
         return true
     }
+
+    /// «Перезапустить» in the inbox: as ↩ on that exited leaf (HD-160).
+    func relaunch(leafId: UUID) { controlLeaf(leafId)?.relaunch() }
 
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {

@@ -7,11 +7,17 @@ import Workspace
 
 /// Empty background that drags the window (titlebar zone is covered by our content).
 struct WindowDragArea: NSViewRepresentable {
+    var toolTip: String?
+    /// A double-click's own meaning (the toolbar title renames); false — the system's.
+    var onDoubleClick: (() -> Bool)?
+
     final class DragView: NSView {
+        var onDoubleClick: (() -> Bool)?
         override var mouseDownCanMoveWindow: Bool { true }
         override func mouseDown(with event: NSEvent) {
             guard let window else { return }
             guard event.clickCount == 2 else { window.performDrag(with: event); return }
+            if onDoubleClick?() == true { return }
             // fullSizeContentView hides the real titlebar, so honour the system double-click setting here.
             switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
             case "Minimize": window.miniaturize(nil)
@@ -20,8 +26,11 @@ struct WindowDragArea: NSViewRepresentable {
             }
         }
     }
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> DragView { DragView() }
+    func updateNSView(_ view: DragView, context: Context) {
+        view.toolTip = toolTip
+        view.onDoubleClick = onDoubleClick
+    }
 }
 
 /// Tab bar row and terminal area of the selected session.
@@ -219,12 +228,7 @@ final class WindowRootController: NSViewController {
     }
 }
 
-/// The persisted inspector width within the drag limits (state.json may hold anything).
-func clampInspectorWidth(_ w: CGFloat) -> CGFloat {
-    min(max(w, Theme.inspectorMin), Theme.inspectorMax)
-}
-
-public final class MainWindowController: NSWindowController, NSWindowDelegate {
+public final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     let app: AppState
     let split = NSSplitViewController()
     let sidebarItem: NSSplitViewItem
@@ -235,8 +239,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
     nonisolated(unsafe) private var accessibilityObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
-    private var inspectorWatch: InspectorWatch?
+    private(set) var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
+    /// The open «Новый чат» model's repository load (cancelled when the sheet closes or switches project).
+    private var newTaskLoad: Task<Void, Never>?
+    /// The project last picked in the new-chat sheet's header: a slower probe of an earlier pick never replaces it.
+    private var newTaskSwitchTarget: UUID?
     /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
     /// does nothing; another sheet waits for its own answer.
     private var probingSheets: Set<String> = []
@@ -310,9 +318,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         inspectorItem = NSSplitViewItem(viewController: inspectorHost)
         inspectorItem.canCollapse = true
         inspectorItem.minimumThickness = Theme.inspectorMin
-        inspectorItem.maximumThickness = Theme.inspectorMax
+        inspectorItem.maximumThickness = inspectorMaxWidth(window: Theme.windowSize.width)
         inspectorItem.holdingPriority = .init(260)  // window resizes go to the terminal area
-        inspectorItem.isCollapsed = !app.state.inspectorVisible
+        inspectorItem.isCollapsed = !app.inspectorShown
         split.addSplitViewItem(inspectorItem)
 
         let root = WindowRootController(app: app, split: split)
@@ -330,10 +338,16 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         paneDrag = PaneDragController(app: app, area: column.terminalArea, tabBar: column.tabBar)
         root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
                                                 inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
-                                                toggleSidebar: { [weak self] in self?.toggleSidebar() })
+                                                toggleSidebar: { [weak self] in self?.toggleSidebar() },
+                                                openSettings: { [weak self] category in
+                                                    self?.showSettings(nil)
+                                                    self?.settings.model.category = category
+                                                })
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         app.branchModel.toast = { [weak self] in self?.column.archiveUndo.show(message: $0) }
+        app.undoToast = { [weak self] text, undo in self?.column.archiveUndo.show(message: text, undo: undo) }
+        app.confirmDestructive = { [weak self] message, info, button, then in self?.confirm(message, info, button, then) }
         column.archiveUndo.onUndo = { [weak self] id in
             guard let self else { return }
             let reselect = self.app.selectedTask == nil
@@ -347,6 +361,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
+        app.focusTerminal = { [weak self] in self?.column.terminalArea.focusActiveLeaf() }
         app.onChooseEditor = { [weak self] leaf in self?.togglePalette(commands: false, pickFor: leaf) }
         app.didChange = { [weak self] in
             guard let self else { return }
@@ -358,7 +373,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 self.column.terminalArea.isHidden = sessionsShown
                 if !sessionsShown { DispatchQueue.main.async { self.column.terminalArea.focusActiveLeaf() } }
             }
-            self.syncInspector()
+            self.syncPanels()
             self.column.syncNotice()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()
@@ -373,7 +388,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         app.onIntegrationAsk = { [weak self] in self?.presentIntegrationAsk() }
         app.editActions = { [weak self] id in self?.presentProjectSettings(id) }
         app.actionFailed = { [weak self] title, details in self?.showError(title, details) }
-        // A repository command before its first run (HD-133): not destructive, ↩ runs it.
+        // A repository command before its first run (HD-133): not destructive, ⌘↩ runs it.
         app.confirmActionRun = { [weak self] name, command, then in
             guard let self, let window = self.window, window.attachedSheet == nil else { return }
             sheetWindow = window.beginHangarSheet({ end in
@@ -381,8 +396,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                              destructive: false, onConfirm: { _ in end(.OK); then() }, onCancel: { end(.cancel) })
             }, done: { [weak self] _ in self?.sheetWindow = nil })
         }
+        // A short title; the error itself wraps (and can be copied) below it.
         app.onIntegrationError = { [weak self] text in
-            self?.window?.beginHangarSheet { end in ConfirmSheet(message: text, onConfirm: { _ in end(.OK) }) }
+            self?.window?.beginHangarSheet { end in ConfirmSheet(message: L10n.integrationSaveFailed, info: text, onConfirm: { _ in end(.OK) }) }
         }
         // A restored tab may have asked while the window was being built: shown once it is up.
         DispatchQueue.main.async { [weak self] in self?.presentIntegrationAsk() }
@@ -444,8 +460,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         didApplyInitialLayout = true
         // Position the divider only after the split view has its real size, else setPosition is ignored.
         window.contentView?.layoutSubtreeIfNeeded()
+        syncPanels()
         applySidebarWidth()
-        if app.state.inspectorVisible { applyInspectorWidth() }
+        if app.inspectorShown { applyInspectorWidth() }
         column.terminalArea.sync()
         inspectorWatch?.update()
         if let configWarning { showConfigWarning(configWarning) }
@@ -454,8 +471,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Sidebar width
 
     private var targetSidebarWidth: CGFloat {
-        app.state.sidebarCollapsed ? Theme.sidebarRailWidth
-            : min(max(CGFloat(app.state.sidebarWidth), Theme.sidebarMin), Theme.sidebarMax)
+        app.sidebarRail ? Theme.sidebarRailWidth : clampSidebarWidth(CGFloat(app.state.sidebarWidth))
     }
 
     private func setSidebarBounds(collapsed: Bool) {
@@ -463,13 +479,18 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         sidebarItem.maximumThickness = collapsed ? Theme.sidebarRailWidth : Theme.sidebarMax
     }
 
+    /// The rail state the split was last laid out for.
+    private var appliedRail: Bool?
+    private var togglingSidebar = false
+
     private func applySidebarWidth() {
-        setSidebarBounds(collapsed: app.state.sidebarCollapsed)
+        appliedRail = app.sidebarRail
+        setSidebarBounds(collapsed: app.sidebarRail)
         split.splitView.setPosition(targetSidebarWidth, ofDividerAt: 0)
     }
 
     private func sidebarDragEnded() {
-        guard !app.state.sidebarCollapsed else { return }
+        guard !app.sidebarRail else { return }
         let width = Double(sidebarItem.viewController.view.frame.width)
         guard abs(width - app.state.sidebarWidth) >= 1 else { return }
         uiLog.info("sidebar width \(width)")
@@ -481,31 +502,75 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func applyInspectorWidth() {
         let view = split.splitView
         view.layoutSubtreeIfNeeded()
-        let width = clampInspectorWidth(CGFloat(app.state.inspectorWidth))
+        let width = clampInspectorWidth(CGFloat(app.state.inspectorWidth), window: view.bounds.width)
         view.setPosition(view.bounds.width - width - view.dividerThickness, ofDividerAt: 1)
     }
 
-    /// Follows `inspectorVisible` (⌥⌘I, titlebar button); expanding restores the saved width.
+    /// Follows `inspectorShown` (⌥⌘I, titlebar button, the adaptive window); expanding restores the saved width.
     private func syncInspector() {
-        let collapsed = !app.state.inspectorVisible || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
+        let collapsed = !app.inspectorShown || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
         guard inspectorItem.isCollapsed != collapsed else { return }
         inspectorItem.isCollapsed = collapsed
         if !collapsed, didApplyInitialLayout { applyInspectorWidth() }
     }
 
     private func inspectorDragEnded() {
-        guard app.state.inspectorVisible, !inspectorItem.isCollapsed else { return }
+        guard app.inspectorShown, !inspectorItem.isCollapsed else { return }
         let width = Double(inspectorItem.viewController.view.frame.width)
         guard abs(width - app.state.inspectorWidth) >= 1 else { return }
         uiLog.info("inspector width \(width)")
         app.perform { $0.inspectorWidth = width }
     }
 
-    /// Animates only the width (ease-in-out); the rows keep their markers in place.
+    // MARK: Adaptive window (HD-162)
+
+    public func windowDidResize(_ notification: Notification) { syncPanels() }
+
+    /// Which panels fit the window now: sets the unsaved auto flags, the inspector's limit (half the window), then the split.
+    private func syncPanels() {
+        guard let window else { return }
+        let width = window.contentView?.bounds.width ?? window.frame.width
+        func layout(keepInspector: Bool, keepSidebar: Bool) -> PanelLayout {
+            panelLayout(window: width, sidebar: clampSidebarWidth(CGFloat(app.state.sidebarWidth)),
+                        inspector: clampInspectorWidth(CGFloat(app.state.inspectorWidth), window: width),
+                        wantsInspector: app.state.inspectorVisible, wantsRail: app.state.sidebarCollapsed, chatOnly: app.state.chatOnly,
+                        keepInspector: keepInspector, keepSidebar: keepSidebar)
+        }
+        // A kept panel the window now fits anyway is adaptive again.
+        let free = layout(keepInspector: false, keepSidebar: false)
+        if app.keepsInspector, free.inspector || !app.state.inspectorVisible { app.keepsInspector = false }
+        if app.keepsSidebar, !free.sidebarRail || app.state.sidebarCollapsed { app.keepsSidebar = false }
+        let shown = layout(keepInspector: app.keepsInspector, keepSidebar: app.keepsSidebar)
+        let autoHide = app.state.inspectorVisible && !app.state.chatOnly && !shown.inspector
+        let autoRail = !app.state.sidebarCollapsed && !app.state.chatOnly && shown.sidebarRail
+        if app.autoHidesInspector != autoHide { app.autoHidesInspector = autoHide }
+        if app.autoRailsSidebar != autoRail { app.autoRailsSidebar = autoRail }
+        let maxInspector = inspectorMaxWidth(window: width)
+        if inspectorItem.maximumThickness != maxInspector { inspectorItem.maximumThickness = maxInspector }
+        // ⌘0 animates its own change; «Только чат» and the adaptive window snap.
+        if appliedRail != app.sidebarRail, didApplyInitialLayout, !togglingSidebar, sidebarAnimation == nil { applySidebarWidth() }
+        syncInspector()
+    }
+
+    /// Animates only the width (ease-in-out); the rows keep their markers in place. In a window too narrow for the
+    /// expanded sidebar it expands anyway (the inspector goes first, HD-162); «Только чат» ends.
     private func toggleSidebar() {
         sidebarAnimation?.invalidate()
+        sidebarAnimation = nil
         let from = sidebarItem.viewController.view.frame.width
-        app.perform { $0.sidebarCollapsed.toggle() }
+        togglingSidebar = true
+        defer { togglingSidebar = false }
+        if app.sidebarRail {
+            app.keepsSidebar = true  // dropped by `syncPanels` when it isn't needed
+            app.keepsInspector = false  // the last panel asked for wins the room
+            app.perform {
+                $0.sidebarCollapsed = false
+                $0.chatOnly = false
+            }
+        } else {
+            app.keepsSidebar = false
+            app.perform { $0.sidebarCollapsed = true }
+        }
         if Motion.reduced { applySidebarWidth(); return }
         let to = targetSidebarWidth
         sidebarItem.minimumThickness = min(from, to, Theme.sidebarRailWidth)
@@ -599,16 +664,24 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             return true
         }
-        // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
+        // ⌘F with the keyboard in a terminal (or its find bar): the terminal's find bar, before the Git tab (HD-159).
         if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
-           app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
+           let leaf = terminalLeaf(of: window.firstResponder) {
+            if !event.isARepeat { leaf.startFind() }
+            return true
+        }
+        // ⌘F with the Git tab on screen and the keyboard elsewhere: its search field (HD-159).
+        if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+           app.inspectorShown, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
             app.gitPanel.searchFocusRequest += 1
             return true
         }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
+        // An inspector list has the keyboard: its ↑↓ ↩ are its own (HD-161); the diff's other keys still work.
+        let listKeys = !editingText && (window.firstResponder as? NSView)?.isDescendant(of: inspectorItem.viewController.view) == true
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText,
-                                     webFocused: focus == .diff) {
+                                     webFocused: focus == .diff), !(listKeys && [.up, .down, .enter].contains(key)) {
             app.hangarShortcutConsumed()
             switch key {
             case .up: app.diffNeighbour(-1)
@@ -623,32 +696,47 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return true
         }
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
-            if sc == .rename {
-                switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
-                case .passthrough: return false
-                // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
-                case .rename(let target) where !app.renameable(target): return false
-                case .rename(let target): Action.rename.perform(target, ctx)
-                case .ignore: break
-                }
-                return true
-            }
+            if sc == .rename { return dispatch(sc, fromMenu: false) }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention, .shortcuts]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
-                               sessionsShown: app.sessionsViewVisible) {
+            return dispatch(sc, fromMenu: false)
+        }
+        let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if event.keyCode == 36, mods.isEmpty, !editingText, !listKeys { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
+        return false
+    }
+
+    /// A matched shortcut, from its key or its menu item (HD-161): the same routing by what is on screen and has the
+    /// keyboard — ⌘W closes the shown diff, «Сессии» and the TERMINAL panel take theirs, F2 by the focus. false: the key
+    /// goes on (F2 to a terminal or Monaco); from the menu there is nothing to pass it to, so the chat is renamed.
+    private func dispatch(_ sc: Shortcut, fromMenu: Bool) -> Bool {
+        let drawerFocused = column.terminalArea.drawer.focusedLeaf != nil
+        // The key monitor's diff route had ⌘W first (`diffKeyRoute`); the menu item gets the same.
+        if fromMenu, sc == .closeTab, app.activeDiff != nil, !drawerFocused, !(window?.firstResponder is NSText) {
+            app.closeDiff()
+            return true
+        }
+        if sc == .rename {
+            switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
+            case .passthrough:
+                guard fromMenu, let id = app.selectedTask?.id else { return false }
+                Action.rename.perform(.task(id), ctx)
+            // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
+            case .rename(let target) where !app.renameable(target): return false
+            case .rename(let target): Action.rename.perform(target, ctx)
             case .ignore: break
-            case .closeSessions: app.hideSessionsView()
-            case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
-            case .perform: perform(sc)
             }
             return true
         }
-        let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        if event.keyCode == 36, mods.isEmpty, !editingText { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
-        return false
+        switch drawerRoute(sc, drawerFocused: drawerFocused, diffActive: app.activeDiff != nil, sessionsShown: app.sessionsViewVisible) {
+        case .ignore: break
+        case .closeSessions: app.hideSessionsView()
+        case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
+        case .perform: perform(sc)
+        }
+        return true
     }
 
     /// Services for `Action.perform`; built on demand (closures hold the controller weakly).
@@ -673,6 +761,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             },
             showError: { [weak self] message, info in self?.showError(message, info) },
             didArchive: { [weak self] id in self?.column.archiveUndo.show(id) })
+    }
+
+    /// The terminal leaf whose surface or find bar has the keyboard.
+    private func terminalLeaf(of responder: NSResponder?) -> LeafView? {
+        guard let view = responder as? NSView else { return nil }
+        return sequence(first: view, next: { $0.superview }).lazy.compactMap { $0 as? LeafView }.first { $0.surface != nil }
     }
 
     /// Monaco's editor or diff has the keyboard (a view inside its WKWebView is the first responder).
@@ -720,14 +814,23 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
-        case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
+        case .toggleInspector: app.toggleInspector()
+        case .chatOnly: app.toggleChatOnly()
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProjectKind()
         // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it
         // while a terminal has focus (Ghostty's default super+comma binding takes the key first). Drop this if that binding goes.
         case .settings: showSettings(nil)
-        case .inspectorFiles: app.showInspector(.files)
-        case .inspectorChanges: app.showInspector(.changes)
+        // The shown list takes the keyboard (↑↓ ↩ ←→, Esc back), as VS Code's ⇧⌘E (HD-161).
+        case .inspectorFiles, .inspectorChanges:
+            let segment: InspectorModel.Segment = sc == .inspectorFiles ? .files : .changes
+            app.showInspector(segment)
+            // Only when the list itself is on screen (not «хост · терминал»'s folder, a notice or a subagent): otherwise the
+            // terminal would let go with nothing to take the keyboard, and a stale request would grab it later.
+            if app.inspectorListShown(segment) {
+                window?.makeFirstResponder(nil)  // a terminal or Monaco lets go first: SwiftUI focus alone doesn't take it from them
+                app.inspector.requestListFocus(segment)
+            }
         case .inspectorGit: app.showInspector(.git)
         case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
@@ -741,6 +844,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .findInFiles: app.showSearch()
         case .nextWorking: app.selectNextWorking()
         case .runAction: app.runPrimaryAction()
+        case .shortcuts: showShortcuts()
         case .nextAttention:
             // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
@@ -754,7 +858,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     func togglePalette(commands: Bool, pickFor leafId: UUID? = nil) {
         if leafId != nil, palette != nil { closePalette() }
         if let palette {
-            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(commands ? ">" : "") }
+            if palette.model.isCommands == commands { closePalette() } else { palette.model.setQuery(paletteSwitched(palette.model.query, toCommands: commands)) }
             return
         }
         guard let window, window.attachedSheet == nil else { return }
@@ -779,10 +883,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         let model = PaletteModel(tasks: tasks, files: files, commands: (task.map { app.actions(of: $0).map { PaletteItem(action: $0.name, title: L10n.actionPalette($0.name)) } } ?? [])
                                      + paletteCommands.map { PaletteItem(command: $0, title: L10n.command($0)) },
-                                 query: commands ? ">" : "", loadFiles: load)
+                                 query: commands ? ">" : "", loadFiles: load,
+                                 pathBlock: task == nil ? .noSession : project?.host != nil || app.isHostShellTask(task!.id) ? .remote : nil)
         paletteRoot = root
         palettePickFor = leafId
         palette = PaletteController(app: app, model: model, parent: window, choose: { [weak self] item in
+            if model.completePath(item) { return }  // a folder: its entries, the palette stays
             let pickFor = self?.palettePickFor
             self?.closePalette()
             self?.choosePalette(item, pickFor: pickFor)
@@ -816,6 +922,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .file(let path):
             guard let paletteRoot else { return }
             if let leafId { app.chooseEditor(leafId, path: paletteRoot + "/" + path) } else { app.openInEditor(path: paletteRoot + "/" + path, line: nil) }
+        case .path(let path, isDir: false):
+            if let leafId { app.chooseEditor(leafId, path: path) } else { app.openInEditor(path: path, line: nil) }
+        case .path: break
         case .command(let sc): perform(sc)
         case .action(let name): if let task = app.selectedTask { app.runAction(name, taskId: task.id) }
         }
@@ -895,6 +1004,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if let leaf { reveal(leafId: leaf) }
         case .send(let text, let keys):
             if let leaf { app.sendAnswer(leafId: leaf, requestKey: requestKey, text: text, keys: keys) }
+        case .relaunch:
+            if let leaf {
+                reveal(leafId: leaf)
+                column.terminalArea.relaunch(leafId: leaf)
+            }
         case .showLimits:
             bringUp()
             if !app.limitsPopoverShown { app.toggleLimitsPopover() }
@@ -938,7 +1052,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
 
     /// Rebuilt on every language switch (menus keep the titles they were built with).
-    /// Quit plus a standard Edit menu, so text fields (new-task sheet, rename) get copy/paste/undo.
+    /// App menu and a standard Edit menu (text fields get copy/paste/undo); «Чат», «Вкладка», «Вид», «Справка» from the
+    /// shortcut table, their keys shown only (the key monitor matches them, HD-161); a standard «Окно» (system tiling).
     private func installMainMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -964,7 +1079,52 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         edit.addItem(withTitle: L10n.selectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
+
+        for group in ShortcutGroup.menus {
+            let menu = shortcutMenu(group, target: self, action: #selector(menuShortcut(_:)))
+            main.addItem(withTitle: menu.title, action: nil, keyEquivalent: "").submenu = menu
+        }
+
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: L10n.menuWindow)
+        windowMenu.addItem(withTitle: L10n.menuMinimize, action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.menuZoom, action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        let fullScreen = windowMenu.addItem(withTitle: L10n.menuFullScreen, action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.control, .command]
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: L10n.menuBringAllToFront, action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+
+        let helpItem = NSMenuItem()
+        let help = shortcutMenu(.help, target: self, action: #selector(menuShortcut(_:)))
+        helpItem.submenu = help
+        main.addItem(helpItem)
+
         NSApp.mainMenu = main
+        // The system adds tiling («Переместить и изменить размер») and the window list here, and the search field to «Справка».
+        NSApp.windowsMenu = windowMenu
+        NSApp.helpMenu = help
+    }
+
+    /// A «Чат» / «Вкладка» / «Вид» / «Справка» item: the same `dispatch` as its key.
+    @objc private func menuShortcut(_ sender: NSMenuItem) {
+        guard let sc = sender.representedObject as? Shortcut else { return }
+        // `ShownKeysMenu` never takes a key; if AppKit ever matched one anyway, the key monitor already had it.
+        if let e = NSApp.currentEvent, e.type == .keyDown, shortcut(keyCode: e.keyCode, modifiers: e.modifierFlags) == sc { return }
+        _ = dispatch(sc, fromMenu: true)
+    }
+
+    /// Under a sheet the keys do nothing (the monitor skips them), so neither do the menus.
+    public func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.action != #selector(menuShortcut(_:)) || window?.attachedSheet == nil
+    }
+
+    /// ⌘/ and «Справка → Сочетания клавиш».
+    private func showShortcuts() {
+        guard let window, window.attachedSheet == nil else { return }
+        window.beginHangarSheet { end in ShortcutsSheet(onClose: { end(.OK) }) }
     }
 
     // MARK: Projects, tasks
@@ -1006,7 +1166,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
+        let id = projectId ?? app.state.newChatProjectId()
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         withRepository(project, sheet: "newTask") { [weak self] known in self?.showNewTask(project, known: known) }
     }
@@ -1015,14 +1175,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     /// local project's fresh one (a few milliseconds of git; at most `sheetProbeTimeout`, then the sheet loads as
     /// before); a remote one's last answer at once, or none (loading, as before), and a fresh probe for next time.
     private func withRepository(_ project: Project, sheet: String, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
-        let app = self.app
         if project.host != nil {
-            then(app.repoProbes[project.id].map { var p = $0; p.cached = true; return p })
-            Task { _ = await app.probeRepository(project) }
+            then(remoteProbe(project))
             return
         }
         let key = project.id.uuidString + sheet
         guard probingSheets.insert(key).inserted else { return }
+        let app = self.app
         Task { [weak self] in
             let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
             guard let self else { return }
@@ -1032,45 +1191,83 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// A remote project's last repository answer (nil before any), and a fresh probe for next time.
+    private func remoteProbe(_ project: Project) -> NewTaskModel.Probe? {
+        let app = self.app
+        Task { _ = await app.probeRepository(project) }
+        return app.repoProbes[project.id].map { var p = $0; p.cached = true; return p }
+    }
+
     private func showNewTask(_ project: Project, known: NewTaskModel.Probe?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = project.id
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
-                             styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.bg2
-        sheet.appearance = window.appearance
+        let sheet = makeSheet(over: window)
         sheet.autorecalculatesKeyViewLoop = true  // Tab reaches the copy's fields, which appear after the sheet opens
-        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
-                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
-        let load = Task { await model.load() }
-        let close: () -> Void = { [weak self, weak sheet] in
-            guard let self, let sheet else { return }
-            load.cancel()
-            model.cancelFetch()
-            if let wait = sheet.attachedSheet { sheet.endSheet(wait) } // the «Создаётся worktree…» alert
-            window.endSheet(sheet)
-            self.sheetWindow = nil
-            self.newTaskModel = nil
-        }
-        let view = NewTaskSheet(model: model, projectName: project.name,
-                                agentName: app.config.defaultAgent == .codex ? "Codex" : "Claude",
-                                onCreate: { [weak self] name, message, mode in
-                                    close()
-                                    guard let app = self?.app else { return }
-                                    // Turning the suggested command on is the opt-in: it becomes the project's own.
-                                    if let command = model.commandToSave, let p = app.project(id) {
-                                        app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
-                                    }
-                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript,
-                                                   autoNamed: model.chatNameIsAuto)
-                                },
-                                onCancel: close)
-        let host = NSHostingController(rootView: view)
+        let host = NSHostingController(rootView: newTaskSheet(project, known: known, carrying: nil))
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host
         sheetWindow = sheet
-        newTaskModel = model
         window.beginSheet(sheet)
+    }
+
+    /// «Новый чат» for `project` with a fresh model; `old`: the model of the project switched away from — its name,
+    /// prompt, fold and agent carry over (HD-164).
+    private func newTaskSheet(_ project: Project, known: NewTaskModel.Probe?, carrying old: NewTaskModel?) -> NewTaskSheet {
+        let id = project.id
+        newTaskLoad?.cancel()
+        old?.cancelFetch()
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
+                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
+        model.agent = old?.agent ?? app.config.defaultAgent
+        model.promptOpen = old?.promptOpen ?? app.state.newChatPromptOpen
+        if let old {
+            model.name = old.name
+            model.message = old.message
+        }
+        newTaskModel = model
+        newTaskLoad = Task { await model.load() }
+        return NewTaskSheet(model: model, projects: app.state.projects, projectId: id,
+                            onProject: { [weak self] in self?.switchNewTask(to: $0) },
+                            onPromptOpen: { [weak app] open in app?.perform { $0.newChatPromptOpen = open } },
+                            onCreate: { [weak self] name, message, mode in
+                                self?.closeNewTask()
+                                guard let app = self?.app else { return }
+                                // Turning the suggested command on is the opt-in: it becomes the project's own.
+                                if let command = model.commandToSave, let p = app.project(id) {
+                                    app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
+                                }
+                                app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript,
+                                               autoNamed: model.chatNameIsAuto, agent: model.agent)
+                            },
+                            onCancel: { [weak self] in self?.closeNewTask() })
+    }
+
+    /// The header's project pop-up: the same sheet, a new model for that project once its repository answered.
+    func switchNewTask(to id: UUID) {
+        guard let old = newTaskModel, !old.creating, let project = app.project(id),
+              let host = sheetWindow?.contentViewController as? NSHostingController<NewTaskSheet> else { return }
+        newTaskSwitchTarget = id
+        if project.host != nil {
+            host.rootView = newTaskSheet(project, known: remoteProbe(project), carrying: old)
+            return
+        }
+        let app = self.app
+        Task { [weak self] in
+            let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
+            // Closed, switched, or another project picked meanwhile (A → B fast: B's sheet stays, whichever answers last).
+            guard let self, self.newTaskModel === old, !old.creating, self.newTaskSwitchTarget == id else { return }
+            host.rootView = self.newTaskSheet(project, known: known, carrying: old)
+        }
+    }
+
+    private func closeNewTask() {
+        guard let window, let sheet = sheetWindow, newTaskModel != nil else { return }
+        newTaskLoad?.cancel()
+        newTaskLoad = nil
+        newTaskModel?.cancelFetch()
+        if let wait = sheet.attachedSheet { sheet.endSheet(wait) }  // the «Создаётся worktree…» alert
+        window.endSheet(sheet)
+        sheetWindow = nil
+        newTaskModel = nil
     }
 
     /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.

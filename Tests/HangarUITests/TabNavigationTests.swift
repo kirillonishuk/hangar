@@ -85,6 +85,21 @@ import Testing
         #expect(undo.message == nil)
     }
 
+    /// «Откачено · Вернуть» (HD-156): the message's own undo runs once; a plain message after it has none.
+    @Test func messageUndoRunsOnce() {
+        let undo = ArchiveUndo(delay: 60)
+        var runs = 0
+        undo.show(message: "reverted") { runs += 1 }
+        undo.undoMessage()
+        undo.undoMessage()
+        #expect(runs == 1 && undo.message == nil)
+        undo.show(message: "reverted") { runs += 1 }
+        undo.show(message: "plain")
+        #expect(undo.messageUndo == nil)
+        undo.undoMessage()
+        #expect(runs == 1)
+    }
+
     @Test func newArchiveReplacesTheToast() {
         let undo = ArchiveUndo(delay: 60)
         let a = UUID(), b = UUID()

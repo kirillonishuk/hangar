@@ -99,6 +99,21 @@ import TestSupport
         #expect(m.lastFetch != nil)
     }
 
+    /// «Создать чат» off says why next to it: the repository still loading, then no base branch.
+    @Test func createBlockedSaysWhy() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        let m = model(t)
+        #expect(m.availability == .loading)
+        #expect(m.createBlocked == nil)  // the project folder needs nothing
+        m.worktree = true
+        #expect(m.createBlocked == .loading)
+        await m.load()
+        #expect(m.createBlocked == nil && m.canCreate)
+        m.base = nil
+        #expect(m.createBlocked == .noBase && !m.canCreate)
+    }
+
     @Test func existingBranchIsRejected() async throws {
         let t = try await repo()
         defer { t.cleanup() }

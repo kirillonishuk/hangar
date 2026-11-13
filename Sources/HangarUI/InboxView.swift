@@ -139,23 +139,54 @@ private struct InboxRow: View {
             .environment(\.rowHighlight, RowHighlight(radius: Theme.Radius.control))
             .help(n.title)
             if replying {
-                TextField("", text: $reply)
-                    .textFieldStyle(.plain)
-                    .focused($focused)
-                    .inputField(focused: focused, placeholder: reply.isEmpty ? L10n.noticeReply : nil)
-                    .onSubmit {
-                        act(item.leafId, a.requestKey, .reply(reply))
-                        reply = ""
-                        replying = false
-                    }
-                    .onExitCommand { replying = false }
-                    .onAppear { focused = true }
-                    .padding(.horizontal, Theme.Inbox.rowPaddingH)
-                    .padding(.bottom, Theme.Inbox.rowPaddingV)
+                // Several lines: ↩ is a new line, ⌘↩ or «Отправить» sends.
+                VStack(alignment: .trailing, spacing: Theme.Inbox.lineGap) {
+                    // The typed lines get their height: a vertical field in a popover of an inactive window doesn't grow by itself.
+                    TextField("", text: $reply, axis: .vertical)
+                        .lineLimit(1...Theme.Inbox.replyMaxLines)
+                        .frame(minHeight: CGFloat(min(reply.count { $0.isNewline } + 1, Theme.Inbox.replyMaxLines))
+                               * Theme.Typography.body.lineHeight, alignment: .topLeading)
+                        .textFieldStyle(.plain)
+                        .focused($focused)
+                        .inputField(focused: focused, multiline: true, placeholder: reply.isEmpty ? L10n.noticeReply : nil)
+                        .onKeyPress(.return, phases: .down) { press in
+                            if press.modifiers.contains(.command) { send(a.requestKey) } else { newLine() }
+                            return .handled
+                        }
+                        .onExitCommand { replying = false }
+                        .onAppear { focused = true }
+                    Button(L10n.noticeSend) { send(a.requestKey) }
+                        .buttonStyle(.hangar(.secondary, .small))
+                        .fixedSize()
+                        .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .help(L10n.noticeSend + " — ⌘↩")
+                }
+                .padding(.horizontal, Theme.Inbox.rowPaddingH)
+                .padding(.bottom, Theme.Inbox.rowPaddingV)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(n.title)
+        #if DEBUG
+        .onAppear {
+            guard n.category == .questionReply else { return }
+            debugInboxReply = { text in
+                if let text { replying = true; reply = text } else { send(a.requestKey) }
+            }
+        }
+        #endif
+    }
+
+    private func send(_ requestKey: UUID?) {
+        guard !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        act(item.leafId, requestKey, .reply(reply))
+        reply = ""
+        replying = false
+    }
+
+    /// A literal line break at the cursor: what ⌥↩ does in a text field (plain ↩ would end the editing).
+    private func newLine() {
+        NSApp.sendAction(#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: nil)
     }
 
     /// The banner's buttons under the same conditions (`notice(for:)`'s category): «Разрешить» is the row's one
@@ -169,7 +200,9 @@ private struct InboxRow: View {
         case .limit:
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
         case .permission, .open:
-            if first {
+            if item.attention.reason == .failed, item.attention.exitCode != nil {
+                InboxButton(title: L10n.noticeRelaunch, primary: true) { act(item.leafId, n.requestKey, .relaunch) }
+            } else if first {
                 InboxButton(title: L10n.noticeOpen, primary: true) { act(item.leafId, n.requestKey, .open) }
             } else if item.attention.reason == .done {
                 // Hidden at rest but still a button: Tab reaches it (and shows it), VoiceOver reads and presses it.
@@ -193,3 +226,9 @@ private struct InboxButton: View {
             .fixedSize()
     }
 }
+
+#if DEBUG
+/// Debug channel `inbox reply <text>` / `inbox send`: «Ответить» with that text typed, then «Отправить»
+/// (an inactive window drops synthetic clicks).
+@MainActor var debugInboxReply: ((String?) -> Void)?
+#endif

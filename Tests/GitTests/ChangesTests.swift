@@ -20,6 +20,17 @@ import Exec
         return t
     }
 
+    /// «Изменения» in the order of «Файлы» (HD-163): folders before files, `2` before `10`.
+    @Test func treeOrderMatchesFiles() async throws {
+        let sorted = ["file10.ts", "src/b.ts", "file2.ts", "a/z.ts", "file1.ts", "src/a/x.ts", "B.ts", "file11.ts"].sorted(by: treeOrder)
+        #expect(sorted == ["a/z.ts", "src/a/x.ts", "src/b.ts", "B.ts", "file1.ts", "file2.ts", "file10.ts", "file11.ts"])
+        let t = try TempRepo(); defer { t.cleanup() }
+        for n in [1, 10, 2, 12, 11] { try write(t, "n/f\(n).txt", "x\n") }
+        try write(t, "m.txt", "x\n")
+        let u = try await Git(repo: t.repo).changedFiles(.uncommitted)
+        #expect(u.files.map(\.path) == ["n/f1.txt", "n/f2.txt", "n/f10.txt", "n/f11.txt", "n/f12.txt", "m.txt"])
+    }
+
     @Test func baseVsUncommitted() async throws {
         let t = try featRepo(); defer { t.cleanup() }
         let g = Git(repo: t.repo)

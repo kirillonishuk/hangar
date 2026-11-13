@@ -8,7 +8,7 @@ import Workspace
 @MainActor @Observable final class DiffEditorController {
     let page: MonacoPage
     /// The web view's holder inside SwiftUI (the page stays the same while files change).
-    let container = NSView()
+    let container = ResizeReportingView()
     private let app: AppState
     private var session: EditorSession?
     /// The editable working file shown on the right, if any.
@@ -19,6 +19,9 @@ import Workspace
     private(set) var changes = ChangeCounter()
     /// The shown file has one side only: one column whatever the saved setting (HD-150).
     private(set) var oneSided = false
+    /// The pane is narrower than `Theme.diffSideBySideMin`: one column, the saved choice stays (HD-162). Decided here, not by
+    /// Monaco's `useInlineViewWhenSpaceIsLimited`: that one stays inline after the pane widens again.
+    private(set) var narrow = false
 
     init(app: AppState) {
         self.app = app
@@ -28,18 +31,26 @@ import Workspace
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)
         page.onMessage = { [weak self] m, _ in self?.handle(m) }
+        container.onResize = { [weak self] width in
+            guard let self else { return }
+            let narrow = diffIsNarrow(width: width)
+            guard self.narrow != narrow else { return }
+            self.narrow = narrow
+            self.sendOptions()
+        }
     }
 
     func tearDown() { page.tearDown() }
 
     var hasUnsaved: Bool { editablePath.map { session?.isDirty($0) == true } ?? false }
+    var unsavedPath: String? { hasUnsaved ? editablePath : nil }
 
     /// The next / previous change (F7 / ⇧F7, the header's arrows).
     func goChange(next: Bool) { page.send(.goChange(next: next)) }
 
-    /// The saved «Одной колонкой» and «Переносить строки» to the page; a one-sided file stays one column.
+    /// The saved «Одной колонкой» and «Переносить строки» to the page; a one-sided file or a narrow pane stays one column.
     func sendOptions() {
-        page.send(.options(inline: app.state.diffInline || oneSided, minimap: false, wrap: app.state.diffWrap))
+        page.send(.options(inline: app.state.diffInline || oneSided || narrow, minimap: false, wrap: app.state.diffWrap))
     }
 
     /// Loads both sides of the shown diff tab and hands them to the page; a refresh of the same file keeps an edited
@@ -96,6 +107,7 @@ import Workspace
         case .focus: if let session, !session.io.isLocal { Task { await session.checkDisk() } }
         case .openAt(let line, let column): app.openActiveDiffInEditor(line: line, column: column)
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
+        case .sendLines(let path, let from, let to): app.sendLinesToChat(path, from: from, to: to)
         case .request(let r):
             // shortcut: the diff's buffer is not sent to tsserver; it answers only for a file also open in an editor tab.
             let host = app.selectedTask.flatMap { app.project($0.projectId)?.host }
@@ -143,4 +155,14 @@ import Workspace
     var canStep: Bool { (count ?? 0) > 0 }
     /// nil while unknown or empty.
     var text: String? { count.flatMap { $0 > 0 ? L10n.diffChangeCounter(index, $0) : nil } }
+}
+
+/// The diff's web view holder: reports its width (narrow → one column, HD-162).
+final class ResizeReportingView: NSView {
+    var onResize: ((CGFloat) -> Void)?
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        onResize?(newSize.width)
+    }
 }

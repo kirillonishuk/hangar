@@ -129,6 +129,12 @@ extension MainWindowController {
         }
     }
 
+    /// The palette's search field (debug log of its text and caret).
+    private func debugFirstField(in view: NSView) -> NSTextField? {
+        if let f = view as? NSTextField, f.isEditable { return f }
+        return view.subviews.lazy.compactMap { self.debugFirstField(in: $0) }.first
+    }
+
     /// Pane `n` of the active tab (`hover|menu|clicked|action … leaf <n>`).
     private func debugLeafTarget(_ n: Int) -> ActionTarget? {
         guard let task = app.selectedTask, let tab = task.tabs.first(where: { $0.id == task.activeTabId }),
@@ -148,7 +154,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
-            "nextAttention": .nextAttention, "runAction": .runAction,
+            "nextAttention": .nextAttention, "runAction": .runAction, "shortcuts": .shortcuts, "chatOnly": .chatOnly,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -315,6 +321,11 @@ extension MainWindowController {
             debugBranchOpen?()
             PopoverMenu.panel?.hidesOnDeactivate = false
             PopoverMenu.panel?.orderFrontRegardless()
+        case "keepAwakeMenu":  // as a click on the toolbar's «не спать» (HD-160), kept open like `branchMenu`
+            PopoverMenu.debugPinned = true
+            debugKeepAwakeOpen?()
+            PopoverMenu.panel?.hidesOnDeactivate = false
+            PopoverMenu.panel?.orderFrontRegardless()
         case "runMenu":  // as a click on the toolbar run button's chevron (HD-133), kept open like `branchMenu`
             PopoverMenu.debugPinned = true
             debugRunMenuOpen?()
@@ -379,6 +390,30 @@ extension MainWindowController {
         case "screen":
             // screen <file>: the focused terminal's text (incl. scrollback) for checks without a screen.
             try? (column.terminalArea.focusedLeaf?.surface?.screenText() ?? "").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "termDrop":
+            // termDrop <path>|text:<text>: a drop on the focused terminal (HD-159), from a private pasteboard.
+            guard let surface = column.terminalArea.focusedLeaf?.surface else { return }
+            let pb = NSPasteboard(name: NSPasteboard.Name("hangar-debug-drop"))
+            pb.clearContents()
+            if arg.hasPrefix("text:") { pb.setString(String(arg.dropFirst(5)), forType: .string) } else { pb.writeObjects([URL(fileURLWithPath: arg) as NSURL]) }
+            surface.insertDropped(pb)
+        case "find":
+            // find <needle> | find next|prev|close: drives the focused terminal's find bar (HD-159) as typing / ↩ ⇧↩ / Esc would.
+            guard let model = column.terminalArea.focusedLeaf?.debugFind?.model else { return }
+            switch arg {
+            case "next": model.navigate(true)
+            case "prev": model.navigate(false)
+            case "close": model.close()
+            default: model.needle = arg
+            }
+        case "findDump":
+            // findDump <file>: the focused terminal's find bar — open, needle, counter, whether its field has the keyboard.
+            let leaf = column.terminalArea.focusedLeaf
+            let find = leaf?.debugFind
+            let inBar = (window?.firstResponder as? NSView).map { v in find.map { v.isDescendant(of: $0.view) } ?? false } ?? false
+            let onSurface = window?.firstResponder === leaf?.surface
+            let text = "open=\(find != nil) needle=\(find?.model.needle ?? "") counter=\(find?.model.counter ?? "-") total=\(find?.model.total.map(String.init) ?? "nil") selected=\(find?.model.selected.map(String.init) ?? "nil") fieldFocused=\(inBar) surfaceFocused=\(onSurface) barY=\(find.map { Int($0.view.frame.minY) } ?? -1) surfaceY=\(leaf?.surface.map { Int($0.frame.minY) } ?? -1)\n"
+            try? text.write(toFile: arg, atomically: true, encoding: .utf8)
         case "keys":
             // keys <chars>: real key presses into the focused terminal ("␣" = space, "⎋" = Esc).
             guard let surface = column.terminalArea.focusedLeaf?.surface, let w = surface.window else { return }
@@ -445,8 +480,51 @@ extension MainWindowController {
                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) else { return }
             let state = "key=\(window.isKeyWindow) responder=\(window.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"
             let by = handleKeyDown(e) ? "monitor" : window.performKeyEquivalent(with: e) ? "window" : "menu"
-            try? "keyEquiv \(code) \(state) taken by \(by)\n".write(toFile: NSTemporaryDirectory() + "hangar-keyEquiv.txt", atomically: true, encoding: .utf8)
-            if by == "menu" { _ = NSApp.mainMenu?.performKeyEquivalent(with: e) }
+            let menuTook = by == "menu" ? (NSApp.mainMenu?.performKeyEquivalent(with: e) ?? false) : false
+            try? "keyEquiv \(code) \(state) taken by \(by) menuTook=\(menuTook)\n".write(toFile: NSTemporaryDirectory() + "hangar-keyEquiv.txt", atomically: true, encoding: .utf8)
+        case "menuDump":  // menuDump <file>: the menu bar, one line per item: menu / item, key equivalent, enabled (HD-161)
+            var lines: [String] = []
+            func walk(_ menu: NSMenu, _ path: String) {
+                menu.update()
+                for item in menu.items where !item.isSeparatorItem {
+                    let mods = item.keyEquivalentModifierMask
+                    let key = item.keyEquivalent.unicodeScalars.map { $0.value < 0x7f && $0.value > 0x20 ? String($0) : String(format: "U+%04X", $0.value) }.joined()
+                    let shown = key.isEmpty ? "" : (mods.contains(.control) ? "⌃" : "") + (mods.contains(.option) ? "⌥" : "") + (mods.contains(.shift) ? "⇧" : "") + (mods.contains(.command) ? "⌘" : "") + key
+                    lines.append("\(path)\(item.title)\t\(shown)\t\(item.isEnabled ? "" : "disabled")\(item.isAlternate ? " alternate" : "")\(item.isHidden ? " hidden" : "")\t\(type(of: menu))")
+                    if let sub = item.submenu { walk(sub, path + (item.title.isEmpty ? sub.title : item.title) + " / ") }
+                }
+            }
+            if let main = NSApp.mainMenu { walk(main, "") }
+            lines.append("windowsMenu=\(NSApp.windowsMenu?.title ?? "-") helpMenu=\(NSApp.helpMenu?.title ?? "-")")
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "menuItem":  // menuItem <menu>/<item>: as a click on that menu bar item
+            let f = arg.split(separator: "/", maxSplits: 1).map(String.init)
+            guard f.count == 2, let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == f[0] })?.submenu else { return }
+            let all = menu.items + menu.items.compactMap(\.submenu).flatMap(\.items)
+            let item = all.first { $0.title == f[1] }
+            uiLog.info("menuItem \(arg, privacy: .public): found=\(item != nil) enabled=\(item?.isEnabled ?? false)")
+            if let item, let owner = item.menu, let i = owner.items.firstIndex(of: item) { owner.performActionForItem(at: i) }
+        case "listKey":  // listKey up|down|left|right|enter|esc: a plain key through the window's key routing (focus as it is)
+            let keys: [String: (UInt16, Int)] = ["up": (126, NSUpArrowFunctionKey), "down": (125, NSDownArrowFunctionKey), "left": (123, NSLeftArrowFunctionKey),
+                                                 "right": (124, NSRightArrowFunctionKey), "enter": (36, 13), "esc": (53, 27)]
+            guard let window, let (code, ch) = keys[arg], let scalar = Unicode.Scalar(ch) else { return }
+            let chars = String(Character(scalar))
+            let mods: NSEvent.ModifierFlags = code >= 123 ? [.function, .numericPad] : []
+            if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: window.windowNumber, context: nil, characters: chars,
+                                        charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                if !handleKeyDown(e) { window.sendEvent(e) }
+            }
+        case "inspectorOnScreen":  // inspectorOnScreen: the inspector loads as if the window were on screen (a run kept behind other windows)
+            inspectorWatch?.windowVisible = { true }
+            inspectorWatch?.update()
+        case "listDump":  // listDump <file>: inspector list keys state (HD-161)
+            let i = app.inspector
+            let lines = ["segment=\(i.segment) cursor=\(i.cursor ?? "-") diffPath=\(i.diffPath ?? "-") expanded=\(i.expanded.sorted())",
+                         "searchCursor=\(app.search.cursor.map { "\($0)" } ?? "-") collapsed=\(app.search.collapsed.sorted())",
+                         "responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) chain=\(sequence(first: window?.firstResponder as? NSView, next: { $0?.superview }).prefix(8).compactMap { $0.map { String(describing: type(of: $0)) } }.joined(separator: "<"))",
+                         "activeTab=\(app.selectedTask?.activeTabId.flatMap { id in app.selectedTask?.tabs.first { $0.id == id }?.title } ?? "-") diffActive=\(app.activeDiff != nil)"]
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
         case "button":
             // button <title>: clicks it in the attached sheet/alert (posted keys don't reach a sheet window).
             func find(_ v: NSView) -> NSButton? {
@@ -558,6 +636,10 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
+        case "settingsJump":  // settingsJump <n>: the n-th link in «Оформление»'s header (HD-165)
+            if let n = Int(arg), AppearanceAnchor.allCases.indices.contains(n) { debugAppearanceJump?(AppearanceAnchor.allCases[n]) }
+        case "settingsResponder":  // settingsResponder <file>: the settings window's first responder (class name)
+            try? String(describing: settings.window?.firstResponder.map { type(of: $0) }).write(toFile: arg, atomically: true, encoding: .utf8)
         case "statuslineMove":  // statuslineMove <segment> <index>: as a chip dropped before the index-th chip (HD-110)
             let a = arg.split(separator: " ")
             if a.count == 2, let s = StatuslineSegment(rawValue: String(a[0])), let i = Int(a[1]) {
@@ -645,11 +727,18 @@ extension MainWindowController {
             case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
             default: break
             }
-        case "inbox":  // inbox open|close|snap <png>: the «Входящие» popover
+        case "inbox":  // inbox open|close|snap <png>|relaunch <n>|reply <text>|send: the «Входящие» popover; relaunch — the n-th row's button
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             switch f.first ?? "" {
             case "open": if !app.inboxShown { app.toggleInbox() }
+            case "relaunch":
+                let items = app.attentionItems
+                if let n = f.count > 1 ? Int(f[1]) : nil, items.indices.contains(n) {
+                    inboxAction(leaf: items[n].leafId, requestKey: items[n].attention.requestKey, .relaunch)
+                }
             case "close": app.setInboxShown(false)
+            case "reply": debugInboxReply?(f.count > 1 ? f[1] : "")
+            case "send": debugInboxReply?(nil)
             case "snap" where f.count > 1:
                 guard let view = popoverWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
@@ -696,6 +785,9 @@ extension MainWindowController {
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Ветка копии»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntProject":  // ntProject <project index>: as a pick in the header's project pop-up (HD-164)
+            if let n = Int(arg), app.state.projects.indices.contains(n) { switchNewTask(to: app.state.projects[n].id) }
+        case "ntAgent": newTaskModelForDebug?.agent = arg == "codex" ? .codex : .claude  // the «Агент» segment
         case "ntMessage": newTaskModelForDebug?.message = arg  // as if typed into «Задание для …»
         case "ntPrompt": newTaskModelForDebug?.promptOpen = arg == "open"  // the «Задание для …» fold
         case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
@@ -749,6 +841,25 @@ extension MainWindowController {
             case "menu": if f.count > 1, let frame = window?.frame {
                 PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true), at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
             }
+            // changeMenu <path>: a Changes row's menu (with «Откатить изменения…», HD-156), placed as `menu`.
+            case "changeMenu": if f.count > 1, let frame = window?.frame {
+                PopoverMenu.show(fileMenu(app: app, relative: f[1], opens: true) + revertMenu(app: app, relative: f[1]),
+                                 at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
+            }
+            case "revert": if f.count > 1 { app.requestRevert(f[1]) }  // revert <path>: as the menu item (the sheet asks)
+            // sendPath <path> / sendLines <path> <from> <to>: «Вставить путь в чат» / the editor's line reference (HD-163).
+            case "sendPath": if f.count > 1, let root = m.root { app.sendPathToChat(root + "/" + f[1]) }
+            case "sendLines":
+                let a = f.count > 1 ? f[1].split(separator: " ").map(String.init) : []
+                if a.count == 3, let root = m.root, let from = Int(a[1]), let to = Int(a[2]) { app.sendLinesToChat(root + "/" + a[0], from: from, to: to) }
+            case "revertUndo": column.archiveUndo.undoMessage()  // the toast's «Вернуть»
+            case "sheetConfirm":  // ⌘↩ into the attached sheet's view (the inactive app gets no real key)
+                if let sheet = window?.attachedSheet, let view = sheet.contentView,
+                   let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: sheet.windowNumber, context: nil, characters: "\r",
+                                            charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) {
+                    uiLog.info("sheetConfirm handled=\(view.performKeyEquivalent(with: e))")
+                }
             case "diffTab": app.activateDiff()  // a click on the diff tab
             case "diffRow": if f.count > 1 { app.selectDiffRow(Int(f[1])) }  // a click on a diff row
             case "diffKey":
@@ -779,13 +890,42 @@ extension MainWindowController {
             case "type": palette?.model.setQuery(rest)
             case "up": palette?.model.move(-1)
             case "down": palette?.model.move(1)
-            case "enter": if let item = palette?.model.highlighted { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
+            case "enter": if let item = palette?.model.highlighted, palette?.model.completePath(item) != true { let pick = debugPalettePickFor; closePalette(); choosePalette(item, pickFor: pick) }
             case "snap":
                 guard let view = palette?.panel.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: rest))
+            // keys <keyCode>:<mods>:<chars> …: real key events through the key monitor, then the panel (its field editor),
+            // as NSApp would deliver them — e.g. `35:cmd,shift:З` is ⇧⌘P in the ru layout, `0::>` types «>».
+            case "keys":
+                for spec in rest.split(separator: " ") {
+                    let p = spec.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+                    guard p.count == 3, let code = UInt16(p[0]) else { continue }
+                    var mods: NSEvent.ModifierFlags = []
+                    for m in p[1].split(separator: ",") {
+                        switch m {
+                        case "cmd": mods.insert(.command)
+                        case "shift": mods.insert(.shift)
+                        case "opt": mods.insert(.option)
+                        case "ctrl": mods.insert(.control)
+                        default: break
+                        }
+                    }
+                    // Keys AppKit reads by character: ⌫, ↩, Esc, Tab, ↑, ↓.
+                    let named: [UInt16: String] = [51: "\u{7f}", 36: "\r", 53: "\u{1b}", 48: "\t", 126: "\u{f700}", 125: "\u{f701}"]
+                    let chars = p[2] == "space" ? " " : p[2].isEmpty ? named[code] ?? "" : p[2]
+                    let target = palette?.panel ?? window
+                    guard let target, let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: 0,
+                                                                   windowNumber: target.windowNumber, context: nil, characters: chars,
+                                                                   charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code)
+                    else { continue }
+                    if !handleKeyDown(event), let panel = palette?.panel, event.window === panel { panel.sendEvent(event) }
+                }
             default: break
             }
+            let field = (palette?.panel.contentView).flatMap { debugFirstField(in: $0) }
+            let editor = field?.currentEditor()
+            uiLog.info("palette field=\(field?.stringValue ?? "-", privacy: .public) caret=\(editor.map { NSStringFromRange($0.selectedRange) } ?? "-", privacy: .public) responder=\(self.palette?.panel.firstResponder.map { String(describing: type(of: $0)) } ?? "-", privacy: .public)")
             let rows = palette?.model.sections.map { "\($0.kind):\($0.items.map(\.title))" } ?? []
             uiLog.info("palette open=\(self.palette != nil, privacy: .public) frame=\(NSStringFromRect(self.palette?.panel.frame ?? .zero), privacy: .public) visible=\(self.palette?.panel.isVisible ?? false, privacy: .public) commands=\(self.palette?.model.isCommands ?? false, privacy: .public) loading=\(self.palette?.model.showsLoading ?? false, privacy: .public) highlight=\(self.palette?.model.highlight ?? "-", privacy: .public) rows=\(rows, privacy: .public)")
         case "resize":  // resize <w> <h>: the window's content size (screenshots at a known size)
@@ -800,6 +940,15 @@ extension MainWindowController {
             case "sheet": presentRemoteProject()
             case "fill": if f.count == 3 { m?.host = f[1]; m?.path = f[2] }
             case "connect": if let m { Task { await m.connect() } }
+            case "folders":  // the «Путь» ▾ menu (HD-164), shown at a fixed point of the window like `picker open`
+                if let m, let frame = window?.frame {
+                    Task {
+                        let found = await m.folderSuggestions()
+                        uiLog.info("remote folders path=\(m.path, privacy: .public) found=\(found ?? ["-"], privacy: .public)")
+                        PopoverMenu.show(remoteFolderMenu(found) { m.path = $0 }, at: NSPoint(x: frame.minX + 200, y: frame.maxY - 160))
+                    }
+                }
+            case "path": if f.count == 2 { m?.path = f[1] }
             case "add": if let m, let path = m.foundPath { remoteProjectAdd?(m.host, path) }
             case "server": if f.count == 2 { presentServer(f[1]) }
             case "spec": if f.count == 2 { try? server?.terminalSpec()?.command.write(toFile: f[1], atomically: true, encoding: .utf8) }
@@ -846,7 +995,7 @@ extension MainWindowController {
                 "\(i) id=\(n.id) category=\(n.category.rawValue) thread=\(n.thread ?? "-") sound=\(n.sound ?? "-") key=\(n.requestKey?.uuidString ?? "-") title=\(n.title) subtitle=\(n.subtitle) body=\(n.body)"
             }
             try? (lines.joined(separator: "\n") + "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        // noticeAction <n> open|allow [<request key>]|limits|reply <text>: as the n-th notice's button (a key: an older banner's).
+        // noticeAction <n> open|allow [<request key>]|limits|relaunch|reply <text>: as the n-th notice's button (a key: an older banner's).
         case "noticeAction":
             let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard f.count >= 2, let n = Int(f[0]), debugNotices.indices.contains(n) else { return }
@@ -854,6 +1003,7 @@ extension MainWindowController {
             case "open": .open
             case "allow": .allow
             case "limits": .limits
+            case "relaunch": .relaunch
             case "reply": .reply(f.count > 2 ? f[2] : "")
             default: nil
             }

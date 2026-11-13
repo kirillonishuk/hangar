@@ -2,13 +2,17 @@ import Git
 import SwiftUI
 import Workspace
 
-/// «Новый чат» (design-system spec §3.14): name, where to work (project folder / separate copy), the copy's branch
-/// and setup, the folded prompt for the agent. Binds to `NewTaskModel`; all git work happens there.
+/// «Новый чат» (design-system spec §3.14): its project (a pop-up in the header), name and agent, where to work (project
+/// folder / separate copy), the copy's branch and setup, the prompt for the agent (folded or not as last time, HD-164).
+/// Binds to `NewTaskModel`; all git work happens there.
 struct NewTaskSheet: View {
     @Bindable var model: NewTaskModel
-    let projectName: String
-    /// «Claude» / «Codex»: who gets the prompt.
-    let agentName: String
+    /// Every project, for the header's pop-up; switching one makes a new model (the name and prompt carry over).
+    let projects: [Project]
+    let projectId: UUID
+    let onProject: (UUID) -> Void
+    /// «Задание для …» folded or unfolded: remembered for the next sheet.
+    let onPromptOpen: (Bool) -> Void
     let onCreate: (_ name: String, _ message: String, _ mode: TaskMode) -> Void
     let onCancel: () -> Void
 
@@ -17,17 +21,25 @@ struct NewTaskSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            VStack(alignment: .leading, spacing: Theme.Space.s4) {
-                labeled(L10n.projectName) {
-                    TextField("", text: $model.name)
-                        .focused($focus, equals: .name)
-                        .onSubmit(openPrompt)
-                        .inputField(focused: focus == .name, placeholder: model.name.isEmpty ? L10n.taskNamePlaceholder : nil)
-                        .disabled(model.creating)
+            SheetHeader(title: L10n.newTask) { projectButton }
+            SheetFields {
+                HStack(alignment: .bottom, spacing: Theme.Space.s3) {
+                    SheetField(label: L10n.projectName) {
+                        TextField("", text: $model.name)
+                            .focused($focus, equals: .name)
+                            .onSubmit(openPrompt)
+                            .inputField(focused: focus == .name, placeholder: model.name.isEmpty ? L10n.taskNamePlaceholder : nil)
+                            .disabled(model.creating)
+                    }
+                    SheetField(label: L10n.subChatAgent) {
+                        AgentSegment(agent: model.agent) { model.agent = $0 }
+                            .frame(height: Theme.Input.height)
+                            .disabled(model.creating)
+                    }
+                    .fixedSize()
                 }
                 if model.availability != .notRepository {
-                    labeled(L10n.whereToWork) { whereOptions }
+                    SheetField(label: L10n.whereToWork) { whereOptions }
                     if model.worktree { copyFields }
                     errors
                 } else {
@@ -38,81 +50,41 @@ struct NewTaskSheet: View {
                 }
                 task
             }
-            .padding(.top, Theme.Space.s4)
-            .padding([.horizontal, .bottom], Theme.Space.s5)
             footer
         }
-        .frame(width: Theme.sheetWidth)
-        .font(Theme.Typography.body.font())
-        .lineLimit(1)
-        .background(Theme.ui.bg2)
-        .onAppear { focus = .name }
+        .sheetFrame()
+        .onAppear { focus = model.promptOpen ? .message : .name }
+        .onChange(of: model.promptOpen) { onPromptOpen(model.promptOpen) }
         .onChange(of: model.branch) {
             if !model.branchFollowsName { Task { await model.validateBranch() } }
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Space.iconGap) {
-            Text(verbatim: L10n.newTask).font(Theme.Typography.title.font(.semibold)).foregroundStyle(Theme.ui.text0)
-            Text(verbatim: projectName).foregroundStyle(Theme.ui.text2)
-                .truncationMode(.middle)
-                .help(projectName)
+    /// The project as a pop-up button (§3.9): ⌘N may open the sheet for another project than meant (HD-164).
+    private var projectButton: some View {
+        let current = projects.first { $0.id == projectId }
+        return PopupButton(title: current?.name ?? "—", help: L10n.newTaskProjectHelp) {
+            PopoverMenuContent(projects.map { p in
+                .item(PopoverMenuItem(title: p.name, checked: p.id == projectId, note: p.host) { if p.id != projectId { onProject(p.id) } })
+            })
         }
-        .padding([.top, .horizontal], Theme.Space.s5)
-    }
-
-    /// A field's label above it: `secondary` `text2`, 4 to the control.
-    private func labeled<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Space.s1) {
-            Text(verbatim: label).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text2)
-            content()
-        }
+        .disabled(model.creating)
     }
 
     // MARK: Where to work
 
-    /// A radio group: one Tab stop (as a text field, so without Full Keyboard Access too); ←/↑ the folder, →/↓ the
-    /// copy, Space switches; VoiceOver reads it as radio buttons.
     private var whereOptions: some View {
-        let grouped = focus == .place
-        return HStack(spacing: Theme.Space.s2) {
-            RadioOption(title: L10n.whereFolder, detail: folderDetail, selected: !model.worktree,
-                        focused: grouped && !model.worktree) { chooseCopy(false) }
-            RadioOption(title: L10n.whereCopy, detail: AttributedString(copyDetail), selected: model.worktree,
-                        focused: grouped && model.worktree) { chooseCopy(true) }
-                .disabled(!copyAvailable)
+        WhereOptions(folderTitle: L10n.whereFolder, folderDetail: folderDetail, folderHelp: folderBranchHelp,
+                     copyDetail: copyDetail, copyAvailable: copyAvailable, worktree: model.worktree, focused: focus == .place) {
+            model.worktree = $0
         }
-        .fixedSize(horizontal: false, vertical: true)  // both cards as tall as the taller one
         .disabled(model.creating)
-        .focusable(!model.creating, interactions: .edit)
         .focused($focus, equals: .place)
-        .focusEffectDisabled()
-        .onKeyPress(keys: [.space, .leftArrow, .upArrow, .rightArrow, .downArrow]) { press in
-            switch press.key {
-            case .leftArrow, .upArrow: chooseCopy(false)
-            case .rightArrow, .downArrow: chooseCopy(true)
-            default: chooseCopy(!model.worktree)
-            }
-            return .handled
-        }
         // SwiftUI's own Tab order skips the copy's fields that appear below after the group took focus.
         .onKeyPress(keys: [.tab]) { press in
             focus = press.modifiers.contains(.shift) ? .name : model.worktree ? .branch : .prompt
             return .handled
         }
-        .accessibilityRepresentation {
-            Picker(L10n.whereToWork, selection: Binding(get: { model.worktree }, set: { chooseCopy($0) })) {
-                Text(verbatim: L10n.whereFolder).tag(false)
-                Text(verbatim: L10n.whereCopy).tag(true)
-            }
-            .pickerStyle(.radioGroup)
-        }
-    }
-
-    private func chooseCopy(_ on: Bool) {
-        guard !model.creating, !on || copyAvailable else { return }
-        model.worktree = on
     }
 
     /// «Ветка `main`. Изменения увидят все чаты проекта.» — the folder's live HEAD, mono.
@@ -124,9 +96,17 @@ struct NewTaskSheet: View {
         case .detached(let hash): (word, code) = (L10n.whereFolderCommit, hash)
         case nil: return shared
         }
-        var mono = AttributedString(code)
+        // A long branch would stretch the card to five lines: keep its start (the ticket) and end (HD-153).
+        let max = Theme.folderBranchMaxChars
+        var mono = AttributedString(code.count > max ? code.prefix(max / 2) + "…" + code.suffix(max - max / 2 - 1) : code)
         mono.font = Theme.Typography.mono.font()
         return AttributedString(word + " ") + mono + AttributedString(". ") + shared
+    }
+
+    /// The whole branch name when the card shows it cut.
+    private var folderBranchHelp: String {
+        if case .branch(let name) = model.head, name.count > Theme.folderBranchMaxChars { return name }
+        return ""
     }
 
     /// Choosable while the repo still loads: `canCreate` waits for it, and a failed load turns the copy off.
@@ -143,21 +123,23 @@ struct NewTaskSheet: View {
     // MARK: Copy
 
     @ViewBuilder private var copyFields: some View {
-        labeled(L10n.newBranch) {
+        SheetField(label: L10n.newBranch) {
+            // The field gets the whole row: next to the base it was squeezed to a few letters by a long base name (HD-153).
+            TextField("", text: $model.branch)
+                .focused($focus, equals: .branch)
+                .onSubmit(openPrompt)
+                .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
+                .disabled(model.creating)
+            if let error = model.branchError {
+                Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+            }
             HStack(spacing: Theme.Space.s2) {
-                TextField("", text: $model.branch)
-                    .focused($focus, equals: .branch)
-                    .onSubmit(openPrompt)
-                    .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
-                    .disabled(model.creating)
                 Text(verbatim: L10n.branchFrom).foregroundStyle(Theme.ui.text2)
                 BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
                              taskBranches: model.taskBranches, defaultOption: nil)
                     .disabled(model.creating)
                 fetchButton
-            }
-            if let error = model.branchError {
-                Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+                Spacer(minLength: 0)
             }
         }
         if let command = model.setupCommand {
@@ -225,9 +207,7 @@ struct NewTaskSheet: View {
         Text(verbatim: text)
             .font(Theme.Typography.mono.font())
             .foregroundStyle(Theme.ui.failedText)
-            .lineLimit(Theme.errorMaxLines)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
+            .wrappingError()
     }
 
     private var createWithoutFetch: some View {
@@ -238,13 +218,13 @@ struct NewTaskSheet: View {
 
     // MARK: Prompt
 
-    /// Folded by default: the prompt can be written later, in the agent's tab.
+    /// Folded or not as the last sheet left it (HD-164): the prompt can be written later, in the agent's tab.
     private var task: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s2) {
             // Not a Button: a Tab stop without Full Keyboard Access too; Space / ↩ fold and unfold.
             HStack(spacing: Theme.Space.iconGap) {
                 IconView(icon: model.promptOpen ? .chevronDown : .chevronRight, size: Theme.Icon.inline, tint: Theme.ui.text2)
-                Text(verbatim: L10n.taskFor(agentName)).foregroundStyle(Theme.ui.text1)
+                Text(verbatim: L10n.taskFor(model.agent == .codex ? "Codex" : "Claude")).foregroundStyle(Theme.ui.text1)
                 Text(verbatim: "— " + L10n.taskLater).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.text3)
             }
             .contentShape(Rectangle())
@@ -266,9 +246,10 @@ struct NewTaskSheet: View {
             .accessibilityAction { togglePrompt() }
             if model.promptOpen {
                 TextField("", text: $model.message, axis: .vertical)
-                    .lineLimit(2...8)
+                    .lineLimit(Theme.promptLines)
                     .focused($focus, equals: .message)
-                    .inputField(focused: focus == .message, multiline: true)
+                    .inputField(focused: focus == .message, multiline: true,
+                                placeholder: model.message.isEmpty ? L10n.taskPromptPlaceholder : nil)
                     .disabled(model.creating)
             }
         }
@@ -288,12 +269,13 @@ struct NewTaskSheet: View {
     // MARK: Footer
 
     private var footer: some View {
-        HStack(spacing: Theme.Space.s2) {
+        SheetFooter {
             if let entry = model.progress {
                 Text(verbatim: L10n.copyingEntry(entry)).font(Theme.Typography.secondary.font())
                     .foregroundStyle(Theme.ui.text3).truncationMode(.middle)
             }
-            Spacer(minLength: 0)
+        } buttons: {
+            blockedReason
             Button(L10n.cancel, action: cancel)
                 .buttonStyle(.hangar(.secondary))
                 .keyboardShortcut(.cancelAction)
@@ -307,9 +289,18 @@ struct NewTaskSheet: View {
             .disabled(!model.canCreate)
             .help(L10n.createHelp)
         }
-        .padding(.vertical, Theme.Space.s3)
-        .padding(.horizontal, Theme.Space.s5)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.ui.line2).frame(height: 1) }
+    }
+
+    /// Why «Создать чат» is off: the repository still loading (spinner), or no base branch chosen.
+    @ViewBuilder private var blockedReason: some View {
+        if let blocked = model.createBlocked {
+            HStack(spacing: Theme.Space.iconGap) {
+                if blocked == .loading { ProgressView().controlSize(.small) }
+                Text(verbatim: blocked == .loading ? L10n.createWaitsRepo : L10n.createNeedsBase)
+                    .font(Theme.Typography.secondary.font())
+                    .foregroundStyle(Theme.ui.text3)
+            }
+        }
     }
 
     /// While creating: Esc / «Отмена» cancels the pre-create fetch (the sheet stays), `worktree add` can't be

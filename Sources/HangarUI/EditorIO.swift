@@ -12,7 +12,17 @@ enum EditorRead: Equatable, Sendable {
     case text(String, FileStamp)
     case tooLarge(Int64)
     case binary
+    /// A device, FIFO or socket: never read.
+    case special
     case missing
+}
+
+/// Follows a symlink; not a regular file and not a folder (a device, FIFO or socket).
+func isSpecialFile(_ path: String) -> Bool {
+    var st = stat()
+    guard stat(path, &st) == 0 else { return false }
+    let type = st.st_mode & S_IFMT
+    return type != S_IFREG && type != S_IFDIR
 }
 
 struct EditorIOError: Error, Equatable, CustomStringConvertible {
@@ -38,6 +48,8 @@ struct EditorIO: Sendable {
     static let local = EditorIO(
         isLocal: true,
         read: { path, maxBytes in
+            // A device, FIFO or socket (⌘P path mode reaches /dev): reading one never ends or blocks.
+            if isSpecialFile(path) { return .special }
             guard let stamp = localStamp(path) else { return .missing }
             if stamp.size > maxBytes { return .tooLarge(stamp.size) }
             let data = try Data(contentsOf: URL(fileURLWithPath: path))

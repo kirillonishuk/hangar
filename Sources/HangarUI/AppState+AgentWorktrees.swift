@@ -207,7 +207,7 @@ extension AppState {
         }
         app.checkWorktrees(projectId: projectId)
     }
-    if case let .atRisk(dirty, ignored) = check {
+    if case let .atRisk(dirty, ignored, _) = check {
         ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) { Task { await remove() } }
     } else {
         await remove()

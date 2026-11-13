@@ -9,20 +9,23 @@ public enum Theme {
     // Fonts: `Theme.Typography` (Theme+Tokens.swift).
 
     // Sizes
-    /// Sidebar 256 (200–320), inspector 320 (280–420): design system §2.4; the defaults live in `WorkspaceState`.
+    /// Sidebar 256 (200–320), inspector 320 (280 – half the window): design system §2.4; the defaults live in `WorkspaceState`.
     public static let sidebarMin: CGFloat = 200
     public static let sidebarMax: CGFloat = 320
     public static let windowSize = NSSize(width: 1200, height: 760)
-    public static let windowMinSize = NSSize(width: 800, height: 500)
+    /// Half a 14″ MacBook screen fits (HD-162).
+    public static let windowMinSize = NSSize(width: 640, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
-    /// Right sidebar drag limits; tree level indent, file row padding (~22 high).
+    /// Right sidebar drag limits (the maximum is this share of the window); tree level indent, file row padding (~22 high).
     public static let inspectorMin: CGFloat = 280
-    public static let inspectorMax: CGFloat = 420
+    public static let inspectorMaxFraction: CGFloat = 0.5
+    /// Adaptive window (HD-162): below this the chat column first loses the inspector, then the sidebar shrinks to the rail.
+    public static let chatMin: CGFloat = 420
+    /// A diff pane narrower than this shows one column whatever «Рядом» says (HD-162).
+    public static let diffSideBySideMin: CGFloat = 900
     public static let treeIndent: CGFloat = Space.s3
     public static let fileRowPaddingV: CGFloat = Space.s1
     public static let inspectorSegmentPaddingH: CGFloat = Space.s3
-    /// Changes / Search rows show a folder only with at least this much room.
-    public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
     /// Bottom terminal drawer (bar `Height.barPane`): grab strip on its top edge, height limit, open/close animation.
@@ -97,17 +100,30 @@ public enum Theme {
     public static let paneHeaderPaddingH: CGFloat = Space.s3
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = Space.s1
+    /// Terminal find bar (HD-159): a one- or two-letter needle waits this long before Ghostty searches (as its own bar).
+    public static let terminalFindDelay: TimeInterval = 0.3
 
-    /// Every sheet (§3.14: new chat, project settings, remote project, server, integration, update): one width.
+    /// Every sheet (§3.14: new chat, remote project, server, integration, update): one width; project settings — below.
     public static let sheetWidth: CGFloat = 520
+    /// «Настройки проекта» only (HD-157): the action rows' command needs the room.
+    public static let projectSettingsWidth: CGFloat = 640
     /// Initial sheet height; SwiftUI content resizes the sheet.
     public static let sheetPlaceholderHeight: CGFloat = 200
+    /// «В папке проекта — Ветка …»: longer names are cut in the middle so the card stays short.
+    public static let folderBranchMaxChars = 28
     public static let sheetPaddingH: CGFloat = Space.s5
     public static let sheetHeaderTop: CGFloat = Space.s5
     public static let sheetHeaderBottom: CGFloat = Space.s1
+    /// A sheet title with a name in it wraps up to this many lines (full title in the tooltip).
+    public static let sheetTitleMaxLines = 3
     public static let sheetNameTop: CGFloat = Space.s2
     public static let sheetGap: CGFloat = Space.s3
     public static let sheetFooterPaddingV: CGFloat = Space.s3
+    /// §3.14: the body ends 20 above the footer's rule; its fields start 16 under the title (with `sheetHeaderBottom`)
+    /// and stand 16 apart.
+    public static let sheetBodyBottom: CGFloat = Space.s5
+    public static let sheetFieldsTop: CGFloat = Space.s3
+    public static let sheetFieldGap: CGFloat = Space.s4
     public static let fieldRadius: CGFloat = Radius.control
     public static let fieldPaddingH: CGFloat = Space.s2
     public static let buttonPaddingH: CGFloat = Space.s3
@@ -197,6 +213,8 @@ extension Theme {
         public static let sectionPaddingTop: CGFloat = Space.s2
         /// More rows than this scroll inside `listHeight`.
         public static let scrollAfter = 7
+        /// A reply to an agent grows up to this many lines, then scrolls.
+        public static let replyMaxLines = 6
         public static let listHeight: CGFloat = 440
         public static let emptyHeight: CGFloat = 64
         /// «Проект › сессия · время» line; the reason icon centres on it.

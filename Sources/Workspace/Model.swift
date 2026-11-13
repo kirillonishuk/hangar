@@ -386,7 +386,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Last expanded sidebar width; kept while collapsed so expanding restores it.
     public var sidebarWidth: Double
     public var sidebarCollapsed: Bool
-    /// Last inspector width (clamped to 180...480 by the view).
+    /// «Только чат» (HD-162): the sidebar on its rail and the inspector hidden together; the two flags above stay as they were.
+    public var chatOnly: Bool = false
+    /// Last inspector width (clamped to the inspector's limits by the view).
     public var inspectorWidth: Double
     /// Plain ssh logins without a project (HD-064); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
@@ -404,6 +406,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var editorMinimap: Bool = false
     /// «Код · Просмотр» of HTML / Markdown / SVG files: rendered in the diff and the editor (HD-151; off by default).
     public var renderPreview: Bool = false
+    /// «Новый чат» opens with «Задание для …» unfolded: it was left so last time (HD-164).
+    public var newChatPromptOpen: Bool = false
 
     public init(projects: [Project] = [], tasks: [HangarTask] = [],
                 selectedTaskId: UUID? = nil, inspectorVisible: Bool = false,
@@ -422,7 +426,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly, diffInline, diffWrap, editorMinimap, renderPreview, freeChats
+        case attentionOnly, diffInline, diffWrap, editorMinimap, renderPreview, freeChats, chatOnly, newChatPromptOpen
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -441,7 +445,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         diffWrap = try c.decodeIfPresent(Bool.self, forKey: .diffWrap) ?? false
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         renderPreview = try c.decodeIfPresent(Bool.self, forKey: .renderPreview) ?? false
+        newChatPromptOpen = try c.decodeIfPresent(Bool.self, forKey: .newChatPromptOpen) ?? false
         freeChats = try c.decodeIfPresent([FreeChat].self, forKey: .freeChats) ?? []
+        chatOnly = try c.decodeIfPresent(Bool.self, forKey: .chatOnly) ?? false
         assignMissingPorts()
         splitEditorTabs()
     }
@@ -473,6 +479,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         task.port = taskPort(for: task.id, taken: Set(tasks.compactMap(\.port)))
         tasks.append(task)
         return task.id
+    }
+
+    /// The project «Новый чат» (⌘N) opens for (HD-164): the selected chat's, else the most recently created chat's
+    /// (tasks are appended), else the last added project. Chats without a project and ssh logins don't count.
+    public func newChatProjectId() -> UUID? {
+        let ids = Set(projects.map(\.id))
+        if let selected = selectedTaskId, let task = tasks.first(where: { $0.id == selected }), ids.contains(task.projectId) {
+            return task.projectId
+        }
+        return tasks.last(where: { ids.contains($0.projectId) })?.projectId ?? projects.last?.id
     }
 
     /// Active tasks of the project sorted by `order`.

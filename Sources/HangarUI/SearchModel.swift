@@ -63,6 +63,10 @@ enum SearchStatus: Equatable {
     var focusRequest = 0
     /// The last request the field has served.
     @ObservationIgnored var focusServed = 0
+    /// The results' keyboard cursor (HD-161); ↓ in the field hands the keyboard to the list.
+    var cursor: SearchCursor?
+    var listFocusRequest = 0
+    @ObservationIgnored var listFocusServed = 0
 
     /// Builds the process for a query; nil = the target's host is not connected. `gitColumn: false` retries old git.
     @ObservationIgnored var launcher: (SearchQuery, SearchTarget, _ gitColumn: Bool) async -> SearchLaunch? = { _, _, _ in nil }
@@ -214,6 +218,21 @@ enum SearchStatus: Equatable {
 }
 
 /// A search that fails with `reason` (git is only a CLT stub: running it would pop the install dialog).
+/// A results row the keys can stand on: a file's header or one of its lines.
+enum SearchCursor: Hashable {
+    case file(String)
+    case hit(String, Int)
+}
+
+/// The visible results for `listNav`: headers are folders, a folded file hides its lines.
+func searchNavRows(_ files: [SearchFile], collapsed: Set<String>) -> [NavRow<SearchCursor>] {
+    files.flatMap { file -> [NavRow<SearchCursor>] in
+        let open = !collapsed.contains(file.path)
+        return [NavRow(id: .file(file.path), folder: true, expanded: open)]
+            + (open ? file.hits.indices.map { NavRow(id: .hit(file.path, $0), parent: .file(file.path)) } : [])
+    }
+}
+
 func failingSearchLaunch(_ reason: String) -> SearchLaunch {
     SearchLaunch(executable: "/bin/sh", args: ["-c", #"printf '%s\n' "$1" >&2; exit 127"#, "sh", reason], cwd: "/", engine: .gitGrep)
 }

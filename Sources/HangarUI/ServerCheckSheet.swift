@@ -24,6 +24,7 @@ struct ServerCheckSheet: View {
                 Button(model.installRun > 0 ? L10n.close : L10n.cancel, action: onClose)
                     .buttonStyle(.hangar(.secondary))
                     .disabled(model.phase == .installing)
+                    .help(model.phase == .installing ? L10n.installCancelLocked : "")
                     // Esc belongs to the install terminal while it runs.
                     .keyboardShortcut(model.phase == .installing ? nil : .cancelAction)
                 if case .failed = model.phase, model.report == nil {

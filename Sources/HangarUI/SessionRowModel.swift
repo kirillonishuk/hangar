@@ -82,6 +82,9 @@ extension AppState {
             return SessionStatus(head: L10n.waitingFor(waitingTime(since: wait.attention.since, now: now)),
                                  tail: body.isEmpty ? wait.agent : "\(wait.agent) · \(body)", tone: .waiting)
         }
+        if state == .failed, let code = attentionItems.first(where: { $0.taskId == task.id && $0.attention.exitCode != nil })?.attention.exitCode {
+            return SessionStatus(head: L10n.rowStatus(.failed), tail: L10n.agentExited(code), tone: .failed)  // a crash (HD-160)
+        }
         return SessionStatus(state: state, agents: agents.count, subagents: subagents, tabs: task.tabs.count,
                              limitUntil: state == .limit ? limitClock(of: agents) : nil)
     }

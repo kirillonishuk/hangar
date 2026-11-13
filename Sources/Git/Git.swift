@@ -181,6 +181,31 @@ public struct Git: Sendable {
         return !r.stdout.trimmed.isEmpty
     }
 
+    /// What `isDirty` sees, per path: `XY <blob hash of the file now>` (hash empty for a deleted path), untracked files
+    /// one by one. Two equal results mean nothing uncommitted changed in between, also a further edit of a modified file
+    /// (archive's «В архив всё равно» deletes only what the dialog saw, HD-154).
+    /// shortcut: a path git can't hash (a symlink to a folder) leaves every hash empty — then only the status letters
+    /// and paths are compared; hash one by one if that ever matters.
+    public func dirtyFingerprint(path: String) async throws -> [String: String] {
+        let args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"]
+        let r = try await runner.run(["git"] + args, path)
+        guard r.status == 0 else { throw GitError(args: args, status: r.status, stderr: r.stderr.trimmed) }
+        var codes: [String: String] = [:]
+        var fields = r.stdout.split(separator: "\0", omittingEmptySubsequences: true)[...]
+        while let entry = fields.popFirst(), entry.count > 3 {
+            let code = String(entry.prefix(2))
+            codes[String(entry.dropFirst(3))] = code
+            if code.contains("R") || code.contains("C") { _ = fields.popFirst() }  // the rename's source follows
+        }
+        let present = codes.filter { !$0.value.contains("D") }.keys.sorted()
+        var hashes: [String: String] = [:]
+        if !present.isEmpty, let h = try? await runner.run(["git", "hash-object", "--"] + present, path), h.status == 0 {
+            let lines = h.stdout.split(separator: "\n").map(String.init)
+            if lines.count == present.count { hashes = Dictionary(uniqueKeysWithValues: zip(present, lines)) }
+        }
+        return codes.reduce(into: [:]) { $0[$1.key] = $1.value + " " + (hashes[$1.key] ?? "") }
+    }
+
     /// Paths git ignores (`!!` entries of `status --porcelain --ignored`): `worktree remove` deletes them silently.
     public func ignoredFiles(path: String) async throws -> [String] {
         let args = ["status", "--porcelain", "--ignored"]

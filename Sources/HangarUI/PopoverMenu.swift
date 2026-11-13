@@ -16,6 +16,8 @@ struct PopoverMenuItem {
     var checked = false
     /// Right side, `caption` `text3` («текущая», «2 дня», a count).
     var note: String?
+    /// A branch row (HD-155): the name keeps its room, the note shows whole or not at all. Otherwise both are cut.
+    var noteYields = false
     /// Branches, paths: `mono`.
     var mono = false
     /// A branch inside a sentence («Создать ветку feat/x»): only this part of `title` is `mono` (§4).
@@ -33,7 +35,8 @@ struct PopoverMenuItem {
 
     init(title: String, icon: Icon? = nil, shortcut: String? = nil, destructive: Bool = false, enabled: Bool = true,
          checked: Bool = false, note: String? = nil, mono: Bool = false, dot: AgentState? = nil, dotSeen: Bool = false,
-         file: (name: String, isDir: Bool)? = nil, help: String? = nil, keepsOpen: Bool = false, action: @escaping () -> Void) {
+         file: (name: String, isDir: Bool)? = nil, help: String? = nil, noteYields: Bool = false, keepsOpen: Bool = false,
+         action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.shortcut = shortcut
@@ -46,6 +49,7 @@ struct PopoverMenuItem {
         self.dotSeen = dotSeen
         self.file = file
         self.help = help
+        self.noteYields = noteYields
         self.keepsOpen = keepsOpen
         self.action = action
     }
@@ -518,11 +522,22 @@ struct PopoverMenuView: View {
                           mono: Theme.Typography.mono.font()))
                 .lineLimit(1).truncationMode(.middle)
                 .foregroundStyle(text)
-            Spacer(minLength: 0)
-            if let key = item.shortcut {
-                Text(verbatim: key).font(Theme.Typography.secondary.font()).foregroundStyle(side)
-            } else if let note = item.note {
-                Text(verbatim: note).font(Theme.Typography.caption.font()).foregroundStyle(side).lineLimit(1)
+                .layoutPriority(item.noteYields ? 1 : 0)  // a long branch name keeps its room; its note goes first
+            if let note = item.note, item.shortcut == nil, item.noteYields {
+                // Whole or not at all: a sliver of «3 мин назад» next to a long name reads as noise. The only flexible
+                // part after the name, so it gets all the room left (a spacer beside it would take half).
+                ViewThatFits(in: .horizontal) {
+                    Text(verbatim: note).font(Theme.Typography.caption.font()).foregroundStyle(side).lineLimit(1).fixedSize()
+                    Color.clear.frame(width: 0, height: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            } else {
+                Spacer(minLength: 0)
+                if let key = item.shortcut {
+                    Text(verbatim: key).font(Theme.Typography.secondary.font()).foregroundStyle(side).fixedSize()
+                } else if let note = item.note {
+                    Text(verbatim: note).font(Theme.Typography.caption.font()).foregroundStyle(side).lineLimit(1)
+                }
             }
         }
         .padding(.horizontal, Theme.Space.s2)

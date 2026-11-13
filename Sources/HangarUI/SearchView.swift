@@ -33,20 +33,41 @@ struct SearchPanel: View {
     }
 
     private var list: some View {
-        ScrollView(.vertical) {
-            LazyVStack(spacing: 0) {
-                ForEach(model.results.files) { file in
-                    SearchFileHeader(file: file, collapsed: model.collapsed.contains(file.path)) { model.toggle(file.path) }
-                        .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: true) }
-                    if !model.collapsed.contains(file.path) {
-                        ForEach(Array(file.hits.enumerated()), id: \.offset) { _, hit in
-                            SearchHitRow(hit: hit, path: file.path) { open(file.path, hit) }
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 0) {
+                    ForEach(model.results.files) { file in
+                        SearchFileHeader(file: file, collapsed: model.collapsed.contains(file.path), selected: model.cursor == .file(file.path)) {
+                            model.toggle(file.path)
                         }
-                        if file.truncated { line(L10n.searchFileTruncated(SearchLimits.perFile)).padding(.leading, Theme.SearchTab.hitIndent - Theme.rowPaddingH) }
+                        .id(SearchCursor.file(file.path))
+                        .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: true) }
+                        if !model.collapsed.contains(file.path) {
+                            ForEach(Array(file.hits.enumerated()), id: \.offset) { i, hit in
+                                SearchHitRow(hit: hit, path: file.path, selected: model.cursor == .hit(file.path, i)) {
+                                    open(file.path, hit, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2)
+                                }
+                                .id(SearchCursor.hit(file.path, i))
+                            }
+                            if file.truncated { line(L10n.searchFileTruncated(SearchLimits.perFile)).padding(.leading, Theme.SearchTab.hitIndent - Theme.rowPaddingH) }
+                        }
                     }
                 }
+                .padding(.vertical, Theme.fileRowPaddingV)
             }
-            .padding(.vertical, Theme.fileRowPaddingV)
+            .listKeys(focusRequest: model.listFocusRequest, served: Bindable(model).listFocusServed, onKey: key, onEscape: { app.focusTerminal?() })
+            .onChange(of: model.cursor) { if let c = model.cursor { proxy.scrollTo(c) } }
+        }
+    }
+
+    /// ↑↓ move the cursor, ←→ fold / unfold a file, ↩ opens the line (kept, not a preview) or folds the file.
+    private func key(_ key: ListKey) {
+        switch listNav(searchNavRows(model.results.files, collapsed: model.collapsed), cursor: model.cursor, key: key) {
+        case .select(let c): model.cursor = c
+        case .expand(.file(let path)), .collapse(.file(let path)): model.cursor = .file(path); model.toggle(path)
+        case .open(.hit(let path, let i)):
+            if let hits = model.results.files.first(where: { $0.path == path })?.hits, hits.indices.contains(i) { open(path, hits[i], preview: false) }
+        default: break
         }
     }
 
@@ -86,10 +107,10 @@ struct SearchPanel: View {
             .padding(.vertical, Theme.fileRowPaddingV)
     }
 
-    private func open(_ path: String, _ hit: SearchHit) {
+    private func open(_ path: String, _ hit: SearchHit, preview: Bool) {
         // shortcut: a host terminal's results don't open (no editor for its files yet, phase 2 of HD-124).
         guard let root = model.target?.root, model.target?.link == nil else { return }
-        app.openInEditor(path: root + "/" + path, line: hit.line, column: hit.column, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2)
+        app.openInEditor(path: root + "/" + path, line: hit.line, column: hit.column, preview: preview)
     }
 }
 
@@ -104,6 +125,13 @@ private struct SearchQueryField: View {
             TextField("", text: $model.text)
                 .focused($focused)
                 .onSubmit { model.run() }
+                // ↓ hands the keyboard to the results (HD-161).
+                .onKeyPress(.downArrow) {
+                    guard !model.results.files.isEmpty else { return .ignored }
+                    if model.cursor == nil { model.cursor = searchNavRows(model.results.files, collapsed: model.collapsed).first?.id }
+                    model.listFocusRequest += 1
+                    return .handled
+                }
                 // Esc clears the query; on an empty field it hands focus back.
                 .onExitCommand { if model.text.isEmpty { focused = false } else { model.text = "" } }
             if !model.text.isEmpty {
@@ -187,30 +215,23 @@ private struct SearchGlobField: View {
 private struct SearchFileHeader: View {
     let file: SearchFile
     let collapsed: Bool
+    let selected: Bool
     let action: () -> Void
 
     var body: some View {
         let name = (file.path as NSString).lastPathComponent
         let dir = (file.path as NSString).deletingLastPathComponent
-        HoverRow(action: action) { _ in
+        HoverRow(selected: selected, action: action) { _ in
             HStack(spacing: Theme.inlineGap) {
                 IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.Icon.inline)
                 FileIconView(name: name)
-                NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
+                NameFolderLayout(gap: Theme.inlineGap, folderTail: dir.isEmpty ? 0 : folderTailWidth(dir)) {
                     Text(name)
                         .font(Theme.Typography.body.font())
                         .foregroundStyle(Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if !dir.isEmpty {
-                        Text(dir)
-                            .font(Theme.Typography.caption.font())
-                            .foregroundStyle(Theme.ui.text3)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            .clipped()
-                    }
+                    if !dir.isEmpty { FolderText(dir: dir) }
                 }
                 Text(verbatim: file.truncated ? "\(file.hits.count)+" : "\(file.hits.count)")
                     .font(Theme.Typography.monoSmall.font())
@@ -227,27 +248,37 @@ private struct SearchFileHeader: View {
 private struct SearchHitRow: View {
     let hit: SearchHit
     let path: String
+    let selected: Bool
     let action: () -> Void
 
     var body: some View {
-        HoverRow(action: action) { _ in
-            Text(marked)
-                .font(Theme.Typography.mono.font())
-                .foregroundStyle(Theme.ui.text2)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, Theme.SearchTab.hitIndent)
-                .padding(.trailing, Theme.rowPaddingH)
-                .padding(.vertical, Theme.SearchTab.hitPaddingV)
+        HoverRow(selected: selected, action: action) { _ in
+            HStack(spacing: Theme.inlineGap) {
+                Text(marked)
+                    .font(Theme.Typography.mono.font())
+                    .foregroundStyle(Theme.ui.text2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The line number on the right, as the file's count above it.
+                Text(verbatim: "\(hit.line)")
+                    .font(Theme.Typography.monoSmall.font())
+                    .foregroundStyle(Theme.ui.text3)
+                    .fixedSize()
+            }
+            .padding(.leading, Theme.SearchTab.hitIndent)
+            .padding(.trailing, Theme.rowPaddingH)
+            .padding(.vertical, Theme.SearchTab.hitPaddingV)
         }
         .help("\(path):\(hit.line):\(hit.column)")
     }
 
     private var marked: AttributedString {
-        let u = Array(hit.preview.utf16)
+        let (text, ranges) = hitFragment(hit.preview, hit.ranges, lead: Theme.SearchTab.hitLead)
+        let u = Array(text.utf16)
         var out = AttributedString()
         var at = 0
-        for r in hit.ranges where r.lowerBound >= at && r.upperBound <= u.count {
+        for r in ranges where r.lowerBound >= at && r.upperBound <= u.count {
             out += AttributedString(String(decoding: u[at..<r.lowerBound], as: UTF16.self))
             var m = AttributedString(String(decoding: u[r], as: UTF16.self))
             m.backgroundColor = Theme.ui.waiting.opacity(Theme.Opacity.fill)
@@ -258,4 +289,19 @@ private struct SearchHitRow: View {
         out += AttributedString(String(decoding: u[at...], as: UTF16.self))
         return out
     }
+}
+
+/// The part of a hit's preview a row shows: at most `lead` UTF-16 units before the first match (cut with «…»), so the
+/// match is never past the row's edge; the ranges move along. A surrogate pair is never split.
+func hitFragment(_ preview: String, _ ranges: [Range<Int>], lead: Int) -> (String, [Range<Int>]) {
+    let u = Array(preview.utf16)
+    guard let first = ranges.first?.lowerBound, first > lead + 1, first <= u.count else { return (preview, ranges) }
+    var start = first - lead
+    if UTF16.isTrailSurrogate(u[start]) { start += 1 }
+    let shift = 1 - start
+    let moved = ranges.compactMap { r -> Range<Int>? in
+        let lo = max(r.lowerBound, start)
+        return lo < r.upperBound ? (lo + shift)..<(r.upperBound + shift) : nil
+    }
+    return ("…" + String(decoding: u[start...], as: UTF16.self), moved)
 }

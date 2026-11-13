@@ -112,6 +112,11 @@ struct SessionsFailure: Hashable {
 /// The scan did not answer within its source's time.
 struct SessionsTimeout: Error {}
 
+/// How many of a group's `count` rows show before «Показать ещё N»: all of them when only a short tail would fold.
+func sessionsFolded(_ count: Int) -> Int {
+    count > Theme.sessionsGroupLimit + Theme.sessionsGroupTail ? Theme.sessionsGroupLimit : count
+}
+
 /// `op`'s result; after `limit` `op` is cancelled (a remote scan's ssh is killed, a local one stops between files) and
 /// whatever it returns then is kept, flagged `timedOut` (nil if it threw). Throws `op`'s own error, or on cancellation.
 func withSessionsTimeout<T: Sendable>(_ limit: Duration, _ op: @escaping @Sendable () async throws -> T) async throws
@@ -549,7 +554,7 @@ let chatsGroupId = UUID(uuidString: "00000000-0000-0000-0000-00000000C4A7")!
     func visibleItems(_ g: SessionsGroup) -> [SessionsItem] {
         if collapsed.contains(g.id) { return [] }
         // A day of «Чаты» shows all its rows: the days already split them.
-        return expanded.contains(g.id) || scope == .chats ? g.items : Array(g.items.prefix(Theme.sessionsGroupLimit))
+        return expanded.contains(g.id) || scope == .chats ? g.items : Array(g.items.prefix(sessionsFolded(g.items.count)))
     }
 
     func hiddenCount(_ g: SessionsGroup) -> Int { collapsed.contains(g.id) ? 0 : g.items.count - visibleItems(g).count }

@@ -572,6 +572,8 @@ struct HoverRow<Content: View>: View {
     /// Vertical drag (reorder): live translation, then the final one. nil = not draggable.
     var onDrag: ((CGFloat) -> Void)?
     var onDragEnd: ((CGFloat) -> Void)?
+    /// A file the row drags out as a file URL (into a terminal, Finder, another app; HD-159). Not with `onDrag`.
+    var dragFile: URL?
     /// Drawn as hovered regardless of the pointer (debug snapshots).
     var forceHover = false
     @ViewBuilder var content: (_ hover: Bool) -> Content
@@ -580,6 +582,8 @@ struct HoverRow<Content: View>: View {
     @State private var hover = false
     @State private var pressed = false
     @State private var dragging = false
+    /// Where the press that dragged `dragFile` out started, until the drag session ends: that press is no click.
+    @State private var fileDragged: CGPoint?
 
     private var interactive: Bool { action != nil || doubleAction != nil }
 
@@ -598,15 +602,22 @@ struct HoverRow<Content: View>: View {
             // Global space: the dragged row is offset while dragging, local translations would feed back.
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
-                    if !pressed { pressed = true }
+                    if !pressed, fileDragged != value.startLocation { pressed = true }
                     let moved = abs(value.translation.width) >= Theme.dragThreshold || abs(value.translation.height) >= Theme.dragThreshold
                     if let onDrag, dragging || moved {
                         dragging = true
                         onDrag(value.translation.height)
+                    } else if let dragFile, moved, fileDragged != value.startLocation, let event = NSApp.currentEvent,
+                              let view = event.window?.contentView {
+                        // AppKit's drag loop takes the mouse: this press may never end here, so the drag session's end clears it.
+                        fileDragged = value.startLocation
+                        pressed = false
+                        FileDragSource.begin(dragFile, from: view, event: event) { fileDragged = nil }
                     }
                 }
                 .onEnded { value in
                     pressed = false
+                    if fileDragged == value.startLocation { return }
                     if dragging {
                         dragging = false
                         onDragEnd?(value.translation.height)
@@ -614,6 +625,36 @@ struct HoverRow<Content: View>: View {
                         if let doubleAction, (NSApp.currentEvent?.clickCount ?? 1) >= 2 { doubleAction() } else { action?() }
                     }
                 })
+    }
+}
+
+/// Drags a file out of a list row as its file URL (HD-159): a terminal pastes the escaped path, Finder copies the file.
+@MainActor final class FileDragSource: NSObject, NSDraggingSource {
+    private static let shared = FileDragSource()
+    /// The running session's end: the row's press state is reset there, not by its own (maybe never sent) mouse-up.
+    private var ended: (() -> Void)?
+
+    static func begin(_ url: URL, from view: NSView, event: NSEvent, ended: @escaping () -> Void) {
+        shared.ended?()
+        shared.ended = ended
+        let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        let size = NSSize(width: Theme.Icon.dragFile, height: Theme.Icon.dragFile)
+        let at = view.convert(event.locationInWindow, from: nil)
+        item.setDraggingFrame(NSRect(x: at.x - size.width / 2, y: at.y - size.height / 2, width: size.width, height: size.height), contents: icon)
+        view.beginDraggingSession(with: [item], event: event, source: shared)
+    }
+
+    nonisolated func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .outsideApplication ? [.copy, .link] : .copy
+    }
+
+    nonisolated func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        MainActor.assumeIsolated {
+            let ended = ended
+            self.ended = nil
+            ended?()
+        }
     }
 }
 

@@ -17,8 +17,10 @@ import Workspace
     var message = "" {
         didSet { if !branchEdited, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { suggestBranch() } }
     }
-    /// «Задание для …» unfolded (folded by default: the prompt can be written later, in the tab).
+    /// «Задание для …» unfolded; the sheet opens as it was left last time (HD-164).
     var promptOpen = false
+    /// Who gets the chat's first tab (HD-164; the settings' default agent until chosen).
+    var agent = LeafKind.claude
     /// What the chat will be called (decision HD-116); «Чат N» against the project's chats now (another window may add one).
     var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames()) }
     /// The chat gets «Чат N» and waits for its agent's first prompt for a name (HD-116).
@@ -101,6 +103,14 @@ import Workspace
         guard !creating else { return false }
         return !worktree || (availability == .ready && base != nil && branchError == nil)
     }
+
+    /// Why «Создать чат» is off, next to it (a bad branch says so under its field; a failed load turns the copy off).
+    var createBlocked: CreateBlocked? {
+        guard !creating, worktree else { return nil }
+        if availability == .loading { return .loading }
+        return availability == .ready && base == nil ? .noBase : nil
+    }
+    enum CreateBlocked: Equatable { case loading, noBase }
 
     /// The quick part of `load`: not a repository, no commits, host offline, or `.ready` (a repository with commits);
     /// with the folder's HEAD. nil when git couldn't answer (the sheet loads as before).

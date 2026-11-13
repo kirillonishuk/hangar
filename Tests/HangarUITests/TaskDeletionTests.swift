@@ -95,6 +95,30 @@ import TestSupport
         #expect(!exists(wt) && !app.state.tasks.contains { $0.id == id })
     }
 
+    /// HD-154: «Удалить всё равно» deletes only what the question listed. A file written while it was open asks again;
+    /// a session restored meanwhile (CLI/MCP) keeps its folder.
+    @Test func forcedDeleteRechecksAfterTheDialog() async throws {
+        let (t, app, id, wt, calls, ctx0) = try await make(answer: false)
+        defer { t.cleanup() }
+        try "u".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
+        var ctx = ctx0
+        ctx.confirm = { m, _, _, then in
+            calls.confirms.append(m)
+            guard calls.confirms.count == 1 else { return }  // the second question: declined
+            try? "agent".write(toFile: wt + "/untracked.txt", atomically: true, encoding: .utf8)
+            then()
+        }
+        await deleteTaskPermanently(id, alsoWorktree: true, ctx: ctx, git: Git(repo: t.repo))
+        #expect(await waitUntil { calls.confirms.count == 2 })
+        #expect(exists(wt + "/untracked.txt") && app.state.tasks.contains { $0.id == id })
+
+        var restoring = ctx0
+        restoring.confirm = { _, _, _, then in app.perform { $0.restoreTask(id: id) }; then() }
+        await deleteTaskPermanently(id, alsoWorktree: true, ctx: restoring, git: Git(repo: t.repo))
+        for _ in 0..<50 { await Task.yield() }
+        #expect(exists(wt + "/untracked.txt") && app.state.tasks.contains { $0.id == id && !$0.archived })
+    }
+
     @Test func dirtyDeclinedChangesNothing() async throws {
         let (t, app, id, wt, calls, ctx) = try await make(answer: false)
         defer { t.cleanup() }

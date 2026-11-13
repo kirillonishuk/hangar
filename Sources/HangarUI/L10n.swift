@@ -90,11 +90,11 @@ import Workspace
         case menuQuit, menuEdit, undo, redo, cut, copy
         case paste, selectAll, languageTitle, languageSystem, languageRu, languageEn
         case dropRight, dropLeft, dropUp, dropDown, paneNew, paneEditorCap, continueTitle, closePane, detachPane, paneAgentWorking, paneAgentWorkingInfo, tabAgentWorkingInfo, defaultAgent, defaultAgentHint, editor, externalEditor, externalEditorHint, externalEditorPlaceholder, updatesSection, inboxTitle, inboxEmpty, emptyNoProject
-        case appearance, themeTitle, themeGraphite, saveFailed
+        case appearance, themeTitle, themeGraphite, saveFailed, integrationSaveFailed
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
-        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
+        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits, noticeRelaunch, agentExited, agentExitedCode
         case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
         case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
         case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
@@ -113,6 +113,7 @@ import Workspace
         case worktreeLabel, newBranch, refreshHelp
         case whereToWork, whereFolder, whereFolderBranch, whereFolderCommit, whereFolderShared, whereCopy, whereCopyHint
         case copyNeedsCommit, branchFrom, taskFor, taskLater, chatNumbered, createHelp
+        case actionNeedsName, actionNeedsCommand, worktreeFolderNote, worktreeCopyNote, setupCommandNote, setupCommandPlaceholder, createWaitsRepo, createNeedsBase, taskPromptPlaceholder, hostInvalid, remotePathPlaceholder, installCancelLocked, noticeSend, subChatNeedsTask
         case searchBranches, branchesRemote, branchesLocal, branchDefault, branchTask
         case switcherSearch, switcherLocal, switcherRemote, branchCurrent, branchInChatNote, branchInFolderNote, branchNewFrom, branchCreate, branchCreateNamed
         case branchNamePrompt, branchFromCurrent, branchSwitching, branchCreating, branchesLoading, branchSwitchHint
@@ -136,6 +137,7 @@ import Workspace
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
+        case terminalFindPlaceholder, terminalFindCounter, terminalFindNone, terminalFindUp, terminalFindDown, terminalFindClose
         case diffViewed, diffMarkViewed, diffUnmarkViewed, changesViewed, changesViewedOf, diffPreview, diffPreviewHelp, diffPreviewFailed, renderCode
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -145,16 +147,17 @@ import Workspace
         case archiveToggleHelp, showFiles, hostsMenuHelp, refreshLimitsHelp, claudeLimitsHint, claudeLimitsHintHelp, codexLimitsFailed
         case worktreeRootHint, worktreeCopy, worktreeCopyHelp, setupCommand, setupCommandHelp, setupCommandSuggested, afterCreate, afterCreateSuggestedHelp, copyingEntry, copyFailed
         case connectToHost, connectHostTitle, openTerminal, closeTerminal, hostTerminal, plainSSHHint
-        case editorLargeReadOnly, editorTooLarge, editorBinary, editorMissing, editorReadFailed, editorSaveFailed
+        case editorLargeReadOnly, editorTooLarge, editorBinary, editorSpecialFile, editorMissing, editorReadFailed, editorSaveFailed
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
-        case diffWrap, diffNewFile, diffDeletedFile, diffOneSide
+        case diffWrap, diffNewFile, diffDeletedFile, diffOneSide, diffInlineNarrow, diffNarrow
+        case revertFile, revertTitle, revertInfoCounts, revertInfoEdits, revertInfoNew, revertInfoDeleted, revertInfoRenamed, revertButton, revertDone, revertUndo, revertRemote, revertUnsavedTitle, revertUnsavedInfo, revertFailed, revertUndoFailed, revertNotAFile, revertNothing, revertDiffHelp, revertUndoChanged, revertSnapshotKept, revertChangedMeanwhile
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
-        case editorMenuCut, editorMenuCopy, editorMenuPaste
+        case editorMenuCut, editorMenuCopy, editorMenuPaste, editorMenuSendLines, sendPathToChat, sendToChatNoAgent, sendToChatRefused, sendToChatRefusedInfo
         case edCustom, edAsTheme, edHintTheme, edHintCustom, edHintCustomSame, edResetAll, edColors, edSyntax, edCreated, edAllReset, edReplaceTitle, edReplaceInfo, edReplace, edReset, edResetTo, edThemeColors, edSystemPalette, edHue, edLightness, edOpacity, edFontSection, edIndentSection, edViewSection, edFont, edSize, edLineHeight, edLigatures, edTabSize, edDetect, edWrap, edLineHighlight, edCursor, edBlink, edWhitespace, edBracketColors, edBracketGuides, edIndentGuides, edFormatOnSave, edSystemFont, edPt, edLineAuto, edAuto, edSmaller, edLarger, edWrapOff, edWrapOn, edLhNone, edLhGutter, edLhLine, edLhAll, edCursorLine, edCursorBlock, edCursorUnderline, edBlinkBlink, edBlinkSmooth, edBlinkSolid, edWsNone, edWsSelection, edWsAll, edGuidesNone, edGuidesActive, edGuidesAll, edDetectTip, edFormatTip, edLineHeightTip, edLigaturesTip, edcKeyword, edcControl, edcString, edcEscape, edcRegexp, edcComment, edcNumber, edcType, edcFunction, edcVariable, edcConstant, edcJsonKey, edcPunctuation, edcOperator, edcText, edcBackground, edcLine, edcSelection, edcFind, edcGutter, edcGutterActive, edcCursor, edcIndent, edcIndentActive, edcWhitespace, edcBrackets, edcBracket1, edcBracket2, edcBracket3, edcDiffAddedLine, edcDiffRemovedLine, edcDiffAddedText, edcDiffRemovedText, edsKeyword, edsControl, edsString, edsEscape, edsComment, edsNumber, edsType, edsFunction, edsVariable, edsConstant, edsJsonKey, edsPunctuation, edsOperator, edsText
         case editorRenameOtherFiles, editorRenameRefused, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable, lspNotExecutable, downloadTooLarge
-        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, cmdQuickOpen, cmdCommandPalette
-        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, paletteNoCommand, paletteNoFolder, palettePathNoSession, palettePathRemote, paletteModeQuick, paletteModeCommands, paletteModePath, paletteHintQuick, paletteHintCommands, paletteHintPath, cmdQuickOpen, cmdCommandPalette
+        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector, cmdChatOnly
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         case thisMac, notifySectionEvents, notifySectionSystem, cmdNextWorking
         case updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
@@ -171,7 +174,7 @@ import Workspace
         case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore, opensMenu
         case sessionsNoMatch, sessionsTitle, sessionsYesterday, sessionsSearch, sessionsAll, sessionsGo, sessionsMarkerOpen
         case sessionsMessages, sessionsLoading, sessionsOffline, sessionsUntitled, sessionsTabOne, sessionsTabFew, sessionsTabMany
-        case sessionsMore, sessionsMarkerArchived, sessionsMarkerHistory, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
+        case sessionsMore, sessionsMarkerArchived, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
         case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
@@ -194,7 +197,9 @@ import Workspace
         case subagentHours, subagentPrompt, subagentReport, subagentRemoteNote, subagentPendingNote, subagentRow
         case subagentPanelTitle, subagentPanelClose
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
+        case subChatWhereSameHint, newTaskProjectHelp, remoteFoldersHelp, remoteFoldersNeedConnect, remoteFoldersNone, remoteFoldersFailed
         case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
+        case menuChat, menuTab, menuView, menuWindow, menuHelp, menuMinimize, menuZoom, menuFullScreen, menuBringAllToFront, menuGoToTab, menuTabNumber, menuFocusPane, paneLeft, paneRight, paneAbove, paneBelow, cmdShortcuts, shortcutsSearch, shortcutsNothing, shortcutsTabs, shortcutsDone
     }
 
 
@@ -294,7 +299,6 @@ import Workspace
     static var sessionsGo: String { s(.sessionsGo) }
     static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
     static var sessionsMarkerArchived: String { s(.sessionsMarkerArchived) }
-    static var sessionsMarkerHistory: String { s(.sessionsMarkerHistory) }
     static var sessionsChipOpen: String { s(.sessionsChipOpen) }
     static var sessionsChipArchived: String { s(.sessionsChipArchived) }
     static var sessionsChipHistory: String { s(.sessionsChipHistory) }
@@ -403,6 +407,9 @@ import Workspace
     static var closeTabHelp: String { s(.closeTabHelp) }
     static var allTabsHelp: String { s(.allTabsHelp) }
     static var taskNamePlaceholder: String { s(.taskNamePlaceholder) }
+    static var taskPromptPlaceholder: String { s(.taskPromptPlaceholder) }
+    static var createWaitsRepo: String { s(.createWaitsRepo) }
+    static var createNeedsBase: String { s(.createNeedsBase) }
     static var escCancel: String { s(.escCancel) }
     static var cancel: String { s(.cancel) }
     static var create: String { s(.create) }
@@ -539,6 +546,7 @@ import Workspace
     static var sectionProjectTitle: String { s(.sectionProjectTitle) }
     static var sectionToolsTitle: String { s(.sectionToolsTitle) }
     static func saveFailed(_ error: String) -> String { f(.saveFailed, error) }
+    static var integrationSaveFailed: String { s(.integrationSaveFailed) }
     static var notificationsTitle: String { s(.notificationsTitle) }
     static var limitNotificationsTitle: String { s(.limitNotificationsTitle) }
     static var toggleOn: String { s(.toggleOn) }
@@ -589,8 +597,12 @@ import Workspace
         }
     }
     static var noticeOpen: String { s(.noticeOpen) }
+    static var noticeRelaunch: String { s(.noticeRelaunch) }
+    /// An agent's process that ended (HD-160): «процесс завершён (код 3)», -1 — without the code.
+    static func agentExited(_ code: Int32) -> String { code < 0 ? s(.agentExited) : f(.agentExitedCode, code) }
     static var noticeAllow: String { s(.noticeAllow) }
     static var noticeReply: String { s(.noticeReply) }
+    static var noticeSend: String { s(.noticeSend) }
     static var noticeOpenLimits: String { s(.noticeOpenLimits) }
     static func agentsWorking(_ n: Int) -> String { f(.agentsWorking, n) }
 
@@ -742,6 +754,10 @@ import Workspace
     static var worktreeCopyHelp: String { s(.worktreeCopyHelp) }
     static var setupCommand: String { s(.setupCommand) }
     static var setupCommandHelp: String { s(.setupCommandHelp) }
+    static var setupCommandNote: String { s(.setupCommandNote) }
+    static var setupCommandPlaceholder: String { s(.setupCommandPlaceholder) }
+    static var worktreeFolderNote: String { s(.worktreeFolderNote) }
+    static var worktreeCopyNote: String { s(.worktreeCopyNote) }
     static var setupCommandSuggested: String { s(.setupCommandSuggested) }
     static var afterCreate: String { s(.afterCreate) }
     static var afterCreateSuggestedHelp: String { s(.afterCreateSuggestedHelp) }
@@ -779,6 +795,10 @@ import Workspace
     static var segmentFiles: String { s(.segmentFiles) }
     static var openInEditorTab: String { s(.openInEditorTab) }
     static var copyRelativePath: String { s(.copyRelativePath) }
+    static var sendPathToChat: String { s(.sendPathToChat) }
+    static var sendToChatNoAgent: String { s(.sendToChatNoAgent) }
+    static var sendToChatRefused: String { s(.sendToChatRefused) }
+    static var sendToChatRefusedInfo: String { s(.sendToChatRefusedInfo) }
     static var taskArchived: String { s(.taskArchived) }
     static var undoArchive: String { s(.undoArchive) }
     static var archiveAnyway: String { s(.archiveAnyway) }
@@ -897,6 +917,7 @@ import Workspace
     static func editorTooLarge(_ bytes: Int64) -> String {
         f(.editorTooLarge, ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
     }
+    static var editorSpecialFile: String { s(.editorSpecialFile) }
     static var editorBinary: String { s(.editorBinary) }
     static var editorMissing: String { s(.editorMissing) }
     static func editorReadFailed(_ message: String) -> String { f(.editorReadFailed, message) }
@@ -913,12 +934,36 @@ import Workspace
     static var diffNewFile: String { s(.diffNewFile) }
     static var diffDeletedFile: String { s(.diffDeletedFile) }
     static var diffOneSide: String { s(.diffOneSide) }
+    static var diffInlineNarrow: String { s(.diffInlineNarrow) }
+    static var diffNarrow: String { s(.diffNarrow) }
+    static var revertFile: String { s(.revertFile) }
+    static func revertTitle(_ a: String) -> String { f(.revertTitle, a) }
+    static func revertInfoCounts(_ a: String) -> String { f(.revertInfoCounts, a) }
+    static var revertInfoEdits: String { s(.revertInfoEdits) }
+    static var revertInfoNew: String { s(.revertInfoNew) }
+    static var revertInfoDeleted: String { s(.revertInfoDeleted) }
+    static var revertInfoRenamed: String { s(.revertInfoRenamed) }
+    static var revertButton: String { s(.revertButton) }
+    static func revertDone(_ a: String) -> String { f(.revertDone, a) }
+    static var revertUndo: String { s(.revertUndo) }
+    static var revertRemote: String { s(.revertRemote) }
+    static func revertUnsavedTitle(_ a: String) -> String { f(.revertUnsavedTitle, a) }
+    static var revertUnsavedInfo: String { s(.revertUnsavedInfo) }
+    static func revertFailed(_ a: String) -> String { f(.revertFailed, a) }
+    static func revertUndoFailed(_ a: String) -> String { f(.revertUndoFailed, a) }
+    static var revertNotAFile: String { s(.revertNotAFile) }
+    static var revertNothing: String { s(.revertNothing) }
+    static var revertDiffHelp: String { s(.revertDiffHelp) }
+    static var revertUndoChanged: String { s(.revertUndoChanged) }
+    static var revertSnapshotKept: String { s(.revertSnapshotKept) }
+    static var revertChangedMeanwhile: String { s(.revertChangedMeanwhile) }
     static var editorMinimap: String { s(.editorMinimap) }
     /// The editor's context menu (HD-081), handed to the page by key.
     static var editorMenu: [String: String] {
         ["definition": s(.editorMenuDefinition), "references": s(.editorMenuReferences), "rename": s(.editorMenuRename),
          "format": s(.editorMenuFormat), "comment": s(.editorMenuComment), "cut": s(.editorMenuCut),
-         "copy": s(.editorMenuCopy), "paste": s(.editorMenuPaste), "renameRefused": s(.editorRenameRefused)]
+         "copy": s(.editorMenuCopy), "paste": s(.editorMenuPaste), "renameRefused": s(.editorRenameRefused),
+         "sendLines": s(.editorMenuSendLines)]
     }
     static func editorUnsavedQuit(_ n: Int) -> String { f(.editorUnsavedQuit, Int32(clamping: n)) }
     static var editorDependencyReadOnly: String { s(.editorDependencyReadOnly) }
@@ -972,6 +1017,13 @@ import Workspace
     static func diffChangeCounter(_ index: Int, _ count: Int) -> String { f(.diffChangeCounter, index, count) }
     static var diffPrevChange: String { s(.diffPrevChange) }
     static var diffNextChange: String { s(.diffNextChange) }
+    static var terminalFindPlaceholder: String { s(.terminalFindPlaceholder) }
+    /// «3 из 12»; `selected` «–» while no match is picked yet.
+    static func terminalFindCounter(_ selected: String, _ total: Int) -> String { f(.terminalFindCounter, selected, total) }
+    static var terminalFindNone: String { s(.terminalFindNone) }
+    static var terminalFindUp: String { s(.terminalFindUp) }
+    static var terminalFindDown: String { s(.terminalFindDown) }
+    static var terminalFindClose: String { s(.terminalFindClose) }
 
     // SSH hosts, remote project and server sheets
     static var integrationNotInstalled: String { s(.integrationNotInstalled) }
@@ -994,6 +1046,9 @@ import Workspace
     static var hostLabel: String { s(.hostLabel) }
     static var pathLabel: String { s(.pathLabel) }
     static var hostPlaceholder: String { s(.hostPlaceholder) }
+    static var hostInvalid: String { s(.hostInvalid) }
+    static var remotePathPlaceholder: String { s(.remotePathPlaceholder) }
+    static var installCancelLocked: String { s(.installCancelLocked) }
     static var connect: String { s(.connect) }
     static var add: String { s(.add) }
     static var remotePathMissing: String { s(.remotePathMissing) }
@@ -1035,11 +1090,34 @@ import Workspace
     static var paletteSearch: String { s(.paletteSearch) }
     static var paletteEmpty: String { s(.paletteEmpty) }
     static var paletteLoading: String { s(.paletteLoading) }
+    static var paletteNoCommand: String { s(.paletteNoCommand) }
+    static var paletteNoFolder: String { s(.paletteNoFolder) }
+    static func palettePathBlocked(_ block: PalettePathBlock) -> String {
+        switch block {
+        case .noSession: s(.palettePathNoSession)
+        case .remote: s(.palettePathRemote)
+        }
+    }
+    static func paletteMode(_ mode: PaletteMode) -> String {
+        switch mode {
+        case .quick: s(.paletteModeQuick)
+        case .commands: s(.paletteModeCommands)
+        case .path: s(.paletteModePath)
+        }
+    }
+    static func paletteHint(_ mode: PaletteMode) -> String {
+        switch mode {
+        case .quick: s(.paletteHintQuick)
+        case .commands: s(.paletteHintCommands)
+        case .path: s(.paletteHintPath)
+        }
+    }
     static func paletteSection(_ kind: PaletteItem.Kind) -> String {
         switch kind {
         case .task: s(.paletteTasks)
         case .file: s(.paletteFiles)
         case .command: s(.paletteCommands)
+        case .path: s(.paletteFiles)
         }
     }
     /// Palette title of a menu command (`paletteCommands`); the menus' own wording where there is one (en: Title Case).
@@ -1061,6 +1139,7 @@ import Workspace
         case .nextTab: s(.cmdNextTab)
         case .toggleSidebar: s(.cmdToggleSidebar)
         case .toggleInspector: s(.cmdToggleInspector)
+        case .chatOnly: s(.cmdChatOnly)
         case .inspectorFiles: s(.cmdShowFiles)
         case .inspectorChanges: s(.cmdShowChanges)
         case .inspectorGit: showGit
@@ -1077,8 +1156,58 @@ import Workspace
         case .runAction: s(.cmdRunAction)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
+        case .shortcuts: s(.cmdShortcuts)
         case .tab(let n): "\(n)"
         case .focusSplit: ""
+        }
+    }
+}
+
+/// The menu bar and the cheatsheet (HD-161).
+extension L10n {
+    static var menuWindow: String { s(.menuWindow) }
+    static var menuHelp: String { s(.menuHelp) }
+    static var menuMinimize: String { s(.menuMinimize) }
+    static var menuZoom: String { s(.menuZoom) }
+    static var menuFullScreen: String { s(.menuFullScreen) }
+    static var menuBringAllToFront: String { s(.menuBringAllToFront) }
+    static var shortcutsSearch: String { s(.shortcutsSearch) }
+    static var shortcutsNothing: String { s(.shortcutsNothing) }
+    static var shortcutsTabs: String { s(.shortcutsTabs) }
+    static var shortcutsDone: String { s(.shortcutsDone) }
+
+    static func shortcutGroup(_ group: ShortcutGroup) -> String {
+        switch group {
+        case .app: "Hangar"
+        case .chat: s(.menuChat)
+        case .tab: s(.menuTab)
+        case .view: s(.menuView)
+        case .help: s(.menuHelp)
+        }
+    }
+
+    /// The submenu a section of the table becomes (tabs 1…9, split focus); nil for plain items.
+    static func shortcutSubmenu(_ section: [Shortcut]) -> String? {
+        switch section.first {
+        case .tab: s(.menuGoToTab)
+        case .focusSplit: s(.menuFocusPane)
+        default: nil
+        }
+    }
+
+    /// A menu item's title; in the cheatsheet a split-focus line names its submenu too.
+    static func shortcutMenuTitle(_ sc: Shortcut, inCheatsheet: Bool = false) -> String {
+        switch sc {
+        case .tab(let n): return f(.menuTabNumber, Int32(n))
+        case .focusSplit(let d):
+            let side = switch d {
+            case .left: s(.paneLeft)
+            case .right: s(.paneRight)
+            case .up: s(.paneAbove)
+            case .down: s(.paneBelow)
+            }
+            return inCheatsheet ? s(.menuFocusPane) + ": " + side.lowercased() : side
+        default: return command(sc)
         }
     }
 }
@@ -1133,6 +1262,13 @@ extension L10n {
     static var subChatAgent: String { s(.subChatAgent) }
     static var subChatWhereSame: String { s(.subChatWhereSame) }
     static var subChatHint: String { s(.subChatHint) }
+    static var subChatWhereSameHint: String { s(.subChatWhereSameHint) }
+    static var newTaskProjectHelp: String { s(.newTaskProjectHelp) }
+    static var remoteFoldersHelp: String { s(.remoteFoldersHelp) }
+    static var remoteFoldersNeedConnect: String { s(.remoteFoldersNeedConnect) }
+    static var remoteFoldersNone: String { s(.remoteFoldersNone) }
+    static var remoteFoldersFailed: String { s(.remoteFoldersFailed) }
+    static var subChatNeedsTask: String { s(.subChatNeedsTask) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }
     static var actionNotRunning: String { s(.actionNotRunning) }
@@ -1159,14 +1295,16 @@ extension L10n {
     static var actionFromRepo: String { s(.actionFromRepo) }
     static var actionFromRepoHelp: String { s(.actionFromRepoHelp) }
     static var actionsHint: String { s(.actionsHint) }
-    static var actionIncomplete: String { s(.actionIncomplete) }
+    static func actionIncomplete(_ n: Int) -> String { f(.actionIncomplete, n) }
+    static func actionNeedsName(_ n: Int) -> String { f(.actionNeedsName, n) }
+    static func actionNeedsCommand(_ name: String) -> String { f(.actionNeedsCommand, name) }
     static func actionDuplicate(_ value: String) -> String { f(.actionDuplicate, value) }
     static func actionNotStarted(_ value: String) -> String { f(.actionNotStarted, value) }
     static func actionFolderMissing(_ value: String) -> String { f(.actionFolderMissing, value) }
     static var actionFolder: String { s(.actionFolder) }
     static var actionFolderPlaceholder: String { s(.actionFolderPlaceholder) }
     static var actionFolderHelp: String { s(.actionFolderHelp) }
-    static var actionFolderInvalid: String { s(.actionFolderInvalid) }
+    static func actionFolderInvalid(_ name: String) -> String { f(.actionFolderInvalid, name) }
     static var actionMoveUp: String { s(.actionMoveUp) }
     static var actionMoveDown: String { s(.actionMoveDown) }
     static var actionEditOwn: String { s(.actionEditOwn) }

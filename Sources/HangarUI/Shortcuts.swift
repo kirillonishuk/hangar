@@ -5,8 +5,12 @@ public enum Shortcut: Equatable, CaseIterable {
     case rename, archiveTask, toggleDrawer, limits, prevTab, nextTab, focusSplit(SplitDirection)
     case inspectorFiles, inspectorChanges, inspectorGit, revealInFinder, copyPath, quickOpen, commandPalette
     case attentionFilter, sessions, findInFiles, nextAttention
+    /// The cheatsheet: every key of this table, grouped as the menus (HD-161).
+    case shortcuts
     /// The selected chat's last project action (HD-133).
     case runAction
+    /// «Только чат»: sidebar on its rail and inspector hidden together (HD-162).
+    case chatOnly
     /// Palette only, no key (design system §6: what the status bar's «N работает» did); not in `allCases`, the key table.
     case nextWorking
 
@@ -15,7 +19,7 @@ public enum Shortcut: Equatable, CaseIterable {
             + [.prevTask, .nextTask, .toggleInspector, .toggleSidebar, .addProject, .settings, .rename, .archiveTask, .toggleDrawer, .limits]
             + [.prevTab, .nextTab] + [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }
             + [.inspectorFiles, .inspectorChanges, .inspectorGit, .revealInFinder, .copyPath, .quickOpen, .commandPalette]
-            + [.attentionFilter, .sessions, .findInFiles, .nextAttention, .runAction]
+            + [.attentionFilter, .sessions, .findInFiles, .nextAttention, .runAction, .shortcuts, .chatOnly]
     }
 
     /// The physical key (ANSI keyCode, so any layout works), its modifiers and the symbol shown in labels.
@@ -36,6 +40,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .nextTask: ([.command, .shift], 30, "]")
         case .toggleInspector: ([.command, .option], 34, "I")
         case .toggleSidebar: (.command, 29, "0")
+        case .chatOnly: ([.command, .shift], 29, "0")  // ⌘0 hides the sidebar, ⇧⌘0 both panels; free in Ghostty
         case .settings: (.command, 43, ",")
         case .rename: ([], 120, "F2")
         case .toggleDrawer: (.command, 38, "J")  // as in VS Code
@@ -59,6 +64,7 @@ public enum Shortcut: Equatable, CaseIterable {
         case .findInFiles: ([.command, .shift], 3, "F")  // as in VS Code
         case .nextAttention: ([.command, .option], 0, "A")  // the next leaf in the inbox's order
         case .runAction: (.command, 15, "R")  // as Xcode's Run; free in Ghostty
+        case .shortcuts: (.command, 44, "/")  // as in VS Code / Slack; Monaco keeps ⌘/ (toggle comment) while it has the keyboard
         case .nextWorking: ([], .max, "")
         }
     }

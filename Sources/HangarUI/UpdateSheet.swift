@@ -33,7 +33,6 @@ struct UpdateSheet: View {
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(busy || offer == nil)
             }
-            .padding(.top, Theme.sheetGap)
         }
         .sheetFrame()
     }
@@ -101,7 +100,7 @@ struct UpdateSheet: View {
     }
 
     private func message(_ text: String, _ color: Color) -> some View {
-        Text(verbatim: text).foregroundStyle(color).lineLimit(1).truncationMode(.middle).help(text)
+        Text(verbatim: text).foregroundStyle(color).wrappingError()
     }
 }
 

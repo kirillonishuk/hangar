@@ -44,29 +44,37 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             SettingsSidebar(selection: $model.category)
             Rectangle().fill(Theme.ui.line).frame(width: 1)
-            VStack(alignment: .leading, spacing: 0) {
-                // The 52 header shares its bar with the traffic lights (a unified toolbar of no items).
-                Text(verbatim: model.category.title)
-                    .font(Theme.Typography.title.font(.semibold))
-                    .foregroundStyle(Theme.ui.text0)
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 0) {
+                    // The 52 header shares its bar with the traffic lights (a unified toolbar of no items).
+                    // «Оформление»: its group links on the right, dropped whole when they don't fit (HD-165).
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 0) {
+                            pageTitle
+                            Spacer(minLength: Theme.Space.s3)
+                            if model.category == .appearance { appearanceAnchors(proxy) }
+                        }
+                        pageTitle
+                    }
                     .padding(.horizontal, Theme.settingsPagePaddingH)
                     .frame(maxWidth: .infinity, minHeight: Theme.settingsHeaderHeight, maxHeight: Theme.settingsHeaderHeight, alignment: .leading)
                     .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
                     // Over the page: a scrolled page draws past its clip view (AppKit doesn't clip it) under the header.
                     .background(Theme.ui.bg0)
                     .zIndex(1)
-                ScrollView {
-                    page
-                        .padding(.vertical, Theme.settingsPagePaddingV)
-                        .padding(.horizontal, Theme.settingsPagePaddingH)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .environment(\.settingsCards, true)
+                    ScrollView {
+                        page
+                            .padding(.vertical, Theme.settingsPagePaddingV)
+                            .padding(.horizontal, Theme.settingsPagePaddingH)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.settingsCards, true)
+                    }
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                        model.editorTheme.pageHeight = $0.height
+                        model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePaddingH
+                    }
+                    footer
                 }
-                .onGeometryChange(for: CGSize.self) { $0.size } action: {
-                    model.editorTheme.pageHeight = $0.height
-                    model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePaddingH
-                }
-                footer
             }
         }
         // Width only: the window's minimum is a frame size (title bar included); a content minHeight of the same
@@ -75,6 +83,13 @@ struct SettingsView: View {
         .font(Theme.Typography.body.font())
         .background(Theme.ui.bg0)
         .ignoresSafeArea(.container, edges: .top)
+    }
+
+    private var pageTitle: some View {
+        Text(verbatim: model.category.title)
+            .font(Theme.Typography.title.font(.semibold))
+            .foregroundStyle(Theme.ui.text0)
+            .lineLimit(1)
     }
 
     @ViewBuilder private var page: some View {
@@ -92,8 +107,7 @@ struct SettingsView: View {
         if let text = model.error ?? (model.category == .appearance ? model.editorTheme.notice : nil) {
             Text(verbatim: text)
                 .foregroundStyle(model.error != nil ? Theme.ui.failedText : Theme.ui.text2)
-                .lineLimit(1).truncationMode(.middle)
-                .help(text)
+                .wrappingError()
                 .font(Theme.Typography.secondary.font())
                 .padding(.horizontal, Theme.settingsPagePaddingH)
                 .padding(.vertical, Theme.Space.s3)
@@ -125,6 +139,12 @@ struct SettingsView: View {
                         .onSubmit { model.commitExternalEditor() }
                         .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                         .frame(minWidth: Theme.settingsFieldWidth / 2, maxWidth: Theme.settingsFieldWidth)
+                }
+                // Not a notification: it keeps the Mac awake (HD-160).
+                row(L10n.keepAwakeShort, hint: L10n.keepAwakeTitle) {
+                    CardSwitch(on: app.config.keepAwake) { on in
+                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
+                    }
                 }
             }
             CardSection(title: L10n.s(.updatesSection)) {
@@ -211,7 +231,8 @@ struct SettingsView: View {
         case (_, .installed(_, let executable), _): lspLine(tildePath(executable))
         case (_, .missing, .running(let fraction)?):
             lspLine(fraction.map { L10n.lspDownloading(Int($0 * 100)) } ?? L10n.lspInstalling, color: Theme.ui.text2, mono: false)
-        case (_, .missing, .failed(let why)?): lspLine(why, color: Theme.ui.failedText, mono: false)
+        case (_, .missing, .failed(let why)?):
+            Text(verbatim: why).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText).wrappingError()
         case (_, .missing, nil):
             if package == nil { lspLine(L10n.lspXcodeTip, mono: false) }
             else if let package, package.tool != nil, lsp.tools[package] == nil {
@@ -328,11 +349,6 @@ struct SettingsView: View {
                 row(L10n.sshTerminalBellTitle, hint: L10n.sshTerminalBellHelp) {
                     CardSwitch(on: app.config.sshTerminalBell) { on in
                         save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
-                    }
-                }
-                row(L10n.keepAwakeShort, hint: L10n.keepAwakeTitle) {
-                    CardSwitch(on: app.config.keepAwake) { on in
-                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                     }
                 }
             }

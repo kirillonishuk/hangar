@@ -188,12 +188,39 @@ import Workspace
         #expect(k.app.notificationAction(leaf: kLeaf, requestKey: try item(k, kLeaf).attention.requestKey, .allow) == .reveal)
     }
 
+    /// HD-160: a crashed agent says how its process ended, and «Перезапустить» relaunches only that crash's dead tab.
+    @Test func crashedAgentOffersRelaunch() throws {
+        let f = make()
+        let leaf = f.tab0.root.leaves[0].id
+        send(f, f.tab0, .prompt)
+        f.app.exited(leafId: leaf, code: 3)
+        let a = try item(f, leaf).attention
+        #expect(a.reason == .failed && a.exitCode == 3)
+        #expect(notice(for: try item(f, leaf), app: f.app).body == L10n.agentExited(3))
+        #expect(f.app.displayState(of: try #require(f.app.state.tasks.first { $0.id == f.task })) == .failed)
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .exited }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: a.requestKey, .relaunch) == .relaunch)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .relaunch) == .reveal)
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .running }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: a.requestKey, .relaunch) == .reveal)  // already relaunched
+    }
+
+    /// HD-165: a multi-line inbox reply stays multi-line (pasted, then one Enter); nothing else from the control range gets through.
+    @Test func replyTextKeepsLinesOnly() {
+        #expect(replyText("первая\nвторая") == "первая\nвторая")
+        #expect(replyText("a\r\nb\rc\u{2028}d") == "a\nb\nc\nd")
+        #expect(replyText("\n\n  ok  \n") == "ok")
+        #expect(replyText("a\u{1b}[201~b\tc\u{7f}d\u{0}") == "a[201~bcd")
+        #expect(replyText(" \n\t ") == nil)
+        #expect(replyText(String(repeating: "я\n", count: 1500)) == String(String(repeating: "я\n", count: 1000).dropLast()))
+    }
+
     @Test func replySanitizes() throws {
         let f = make()
         let leaf = f.tab1.root.leaves[0].id
         f.app.signal(.desktopNotification(text: "Run tests?"), leaf: leaf)
         let key = try item(f, leaf).attention.requestKey
-        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("да\nну")) == .send(text: "да ну", keys: [.enter]))
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("да\nну")) == .send(text: "да\nну", keys: [.enter]))
         #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("a\u{1b}[2Jb")) == .send(text: "a[2Jb", keys: [.enter]))
         #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("  ")) == .reveal)
         #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .reply("yes")) == .reveal)

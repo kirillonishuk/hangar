@@ -50,7 +50,8 @@ import Workspace
     func present(over parent: NSWindow?) {
         guard let window else { return }
         // Already open (⌘, again): only bring it forward, keep the typed draft.
-        if !window.isVisible {
+        let opening = !window.isVisible
+        if opening {
             if let parent {
                 let p = parent.frame
                 window.setFrameOrigin(NSPoint(x: p.midX - window.frame.width / 2, y: p.maxY - window.frame.height - Theme.settingsTopOffset))
@@ -64,6 +65,8 @@ import Workspace
             app.readStatusline()
         }
         window.makeKeyAndOrderFront(nil)
+        // No caret in «Внешний редактор» on open (AppKit picks the first key view): typing starts nowhere until a click or Tab.
+        if opening { window.makeFirstResponder(nil) }
     }
 
     /// The external-editor field saves on ↩ / focus loss; closing the window must not drop a typed value.

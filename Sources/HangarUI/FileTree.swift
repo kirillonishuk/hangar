@@ -61,19 +61,33 @@ struct FileTree: Equatable, Sendable {
 }
 
 struct TreeRow: Identifiable, Equatable {
+    /// The deepest folder of a compact chain (or the file): its path is the row's id.
     var entry: FileTree.Entry
     var depth: Int
     var expanded: Bool
+    /// Compact folders (HD-163): `apps/web/src` when `apps` and `web` hold one folder each; else the entry's name.
+    var name: String
+    /// Paths of the folders the row stands for, top first (one for a plain folder, empty for a file).
+    var chain: [String] = []
     var id: String { entry.path }
 }
 
-/// Rows of the root plus every expanded directory whose children are loaded.
+/// Rows of the root plus every expanded directory whose children are loaded. A folder whose only child is a folder
+/// is one row with it (VS Code's compact folders); that row is open when its deepest folder is.
+/// shortcut: a chain goes only through loaded folders, so a plain folder compacts as it is opened; fine for non-git.
 func visibleRows(_ tree: FileTree, expanded: Set<String>) -> [TreeRow] {
     var rows: [TreeRow] = []
     func walk(_ dir: String, _ depth: Int) {
-        for entry in tree.children(of: dir) ?? [] {
+        for first in tree.children(of: dir) ?? [] {
+            var entry = first, name = first.name, chain = first.isDir ? [first.path] : []
+            while entry.isDir, let kids = tree.children(of: entry.path), kids.count == 1, kids[0].isDir,
+                  tree.children(of: kids[0].path) != nil {
+                entry = kids[0]
+                name += "/" + entry.name
+                chain.append(entry.path)
+            }
             let open = entry.isDir && expanded.contains(entry.path)
-            rows.append(TreeRow(entry: entry, depth: depth, expanded: open))
+            rows.append(TreeRow(entry: entry, depth: depth, expanded: open, name: name, chain: chain))
             if open { walk(entry.path, depth + 1) }
         }
     }

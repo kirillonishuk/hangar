@@ -64,6 +64,7 @@ import Foundation
                 file = File(stamp: stamp, readOnly: large || dependency)
             case .tooLarge(let size): open.notice = L10n.editorTooLarge(size); notText = true
             case .binary: open.notice = L10n.editorBinary; notText = true
+            case .special: open.notice = L10n.editorSpecialFile  // not to the image preview either: it would read it
             case .missing: open.notice = L10n.editorMissing
             }
         } catch {

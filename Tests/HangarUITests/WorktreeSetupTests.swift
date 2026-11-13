@@ -104,6 +104,16 @@ import Workspace
         #expect(matchIgnored(["node_modules/x/.env"], nested) == ["node_modules/x/.env"])  // named explicitly
     }
 
+    /// Tool caches and Finder litter are not «files outside git» worth asking about (HD-154); user files and `.claude` settings are.
+    @Test func reinstallableCachesAreNotAtRisk() {
+        for e in [".claude/.cache/", "node_modules/", "src/__pycache__/", ".pytest_cache/", ".build/", ".DS_Store", "web/.next/", "vendor/bundle/"] {
+            #expect(isReinstallable(e), "\(e)")
+        }
+        for e in [".env", ".claude/", ".claude/settings.local.json", ".claude/worktrees/", "dev.db", "cache.txt"] {
+            #expect(!isReinstallable(e), "\(e)")
+        }
+    }
+
     @Test func defaultsFollowThePackageManager() {
         let pnpm = WorktreeDefaults(lockfiles: ["pnpm-lock.yaml", "package-lock.json"])
         #expect(pnpm.command == "pnpm install --frozen-lockfile --prefer-offline" && !pnpm.copy.contains("node_modules"))

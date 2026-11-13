@@ -71,7 +71,7 @@ import Workspace
     @Test func dirtyTreeDisablesSwitchingButNotNewBranch() {
         let e = items(entries(choices(uncommitted: 4)))
         let switches = e.filter { $0.mono && !$0.checked }
-        #expect(!switches.isEmpty && switches.allSatisfy { !$0.enabled && $0.help == L10n.branchDirtyHint })
+        #expect(!switches.isEmpty && switches.allSatisfy { !$0.enabled && $0.help == "\($0.title)\n\(L10n.branchDirtyHint)" })
         #expect(e.first { $0.checked }?.enabled == true)
         #expect(e.last?.enabled == true)
         let note = branchSwitcherNote(choices(uncommitted: 4), loadError: nil, creating: false, progress: nil, refusal: nil)

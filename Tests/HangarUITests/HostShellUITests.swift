@@ -14,6 +14,14 @@ import Workspace
         h.app.state.tasks.first { $0.id == task }?.tabs.flatMap(\.root.leaves) ?? []
     }
 
+    /// ⌥⌘1 in «хост · терминал» shows its folder, not the Files list: nothing to take the keyboard from the terminal (HD-161).
+    @Test func noInspectorListToFocus() async throws {
+        let h = try await Harness(); defer { h.cleanup() }
+        _ = try #require(h.app.openHostShell("box"))
+        h.app.showInspector(.files)
+        #expect(!h.app.inspectorListShown(.files))
+    }
+
     @Test func plainShellNeverTouchesTheHost() async throws {
         let h = try await Harness(); defer { h.cleanup() }
         let o = try #require(h.app.openHostShell("box"))

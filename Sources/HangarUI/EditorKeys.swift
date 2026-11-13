@@ -19,6 +19,7 @@ func editorKeyRoute(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, focus: We
     switch (keyCode, mods) {
     case (2, .command): return .monaco                 // ⌘D: next occurrence (Hangar splits with ⇧⌘D / the menu)
     case (3, .command), (3, [.option, .command]): return .monaco  // ⌘F / ⌥⌘F: find / replace
+    case (44, .command): return .monaco                // ⌘/: toggle comment (the cheatsheet is in «Справка»)
     case (126, [.option, .command]) where focus == .diff: return .prevDiffFile
     case (125, [.option, .command]) where focus == .diff: return .nextDiffFile
     default: return nil

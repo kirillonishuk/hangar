@@ -40,7 +40,8 @@ extension Theme {
         /// A log row's chips: widest (`origin/release/2.0` whole), narrowest when the row is tight, gap; the subject
         /// goes first and gives way down to `subjectMin`.
         static let refMaxWidth: CGFloat = 160
-        static let refMinWidth: CGFloat = 44
+        /// Characters a chip keeps before «…»; with less room the row shows «+N» instead.
+        static let refMinChars = 4
         static let refGap: CGFloat = Space.s1
         static let subjectMin: CGFloat = 72
         /// The `⇅` of a branch whose remote twin is at the same commit.
@@ -95,5 +96,7 @@ extension Theme {
         static let fileRow: CGFloat = Height.rowList
         static let hitIndent: CGFloat = 36
         static let hitPaddingV: CGFloat = Space.s1
+        /// Characters kept before a line's first match (the rest of the head is «…»), so the match is in the row.
+        static let hitLead = 12
     }
 }

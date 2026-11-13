@@ -838,6 +838,11 @@ extension MainWindowController {
                                  at: NSPoint(x: frame.maxX - 300, y: frame.maxY - 120))
             }
             case "revert": if f.count > 1 { app.requestRevert(f[1]) }  // revert <path>: as the menu item (the sheet asks)
+            // sendPath <path> / sendLines <path> <from> <to>: «Вставить путь в чат» / the editor's line reference (HD-163).
+            case "sendPath": if f.count > 1, let root = m.root { app.sendPathToChat(root + "/" + f[1]) }
+            case "sendLines":
+                let a = f.count > 1 ? f[1].split(separator: " ").map(String.init) : []
+                if a.count == 3, let root = m.root, let from = Int(a[1]), let to = Int(a[2]) { app.sendLinesToChat(root + "/" + a[0], from: from, to: to) }
             case "revertUndo": column.archiveUndo.undoMessage()  // the toast's «Вернуть»
             case "sheetConfirm":  // ⌘↩ into the attached sheet's view (the inactive app gets no real key)
                 if let sheet = window?.attachedSheet, let view = sheet.contentView,

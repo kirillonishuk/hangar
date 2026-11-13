@@ -107,6 +107,7 @@ import Workspace
         case .focus: if let session, !session.io.isLocal { Task { await session.checkDisk() } }
         case .openAt(let line, let column): app.openActiveDiffInEditor(line: line, column: column)
         case .openFile(let path, let line, let column): app.openInEditor(path: path, line: line, column: column)
+        case .sendLines(let path, let from, let to): app.sendLinesToChat(path, from: from, to: to)
         case .request(let r):
             // shortcut: the diff's buffer is not sent to tsserver; it answers only for a file also open in an editor tab.
             let host = app.selectedTask.flatMap { app.project($0.projectId)?.host }

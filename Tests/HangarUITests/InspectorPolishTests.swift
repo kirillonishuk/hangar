@@ -54,10 +54,16 @@ import Testing
         #expect(graphWidth(wide.max { $0.width < $1.width }) == t.laneX0 * 2 + CGFloat(t.maxLanes - 1) * t.laneStep)
     }
 
-    @Test func folderDroppedWhenTooTight() {
-        #expect(folderRoom(width: 200, name: 80, gap: 6, minFolder: 48) == 114)
-        #expect(folderRoom(width: 130, name: 80, gap: 6, minFolder: 48) == 0)
-        #expect(folderRoom(width: 60, name: 60, gap: 6, minFolder: 48) == 0)
+    @Test func folderKeepsItsLastComponent() {
+        // Room for both: the name whole, the folder the rest.
+        #expect(nameFolderWidths(width: 200, name: 80, gap: 6, folderTail: 30) == (80, 114))
+        // Tight: the name gives way so the folder keeps its tail («…src»).
+        let tight = nameFolderWidths(width: 130, name: 120, gap: 6, folderTail: 30)
+        #expect(tight == (94, 30))
+        // A long tail takes at most half the row.
+        #expect(nameFolderWidths(width: 100, name: 90, gap: 6, folderTail: 80) == (44, 50))
+        // No room at all: nothing negative.
+        #expect(nameFolderWidths(width: 0, name: 90, gap: 6, folderTail: 30) == (0, 0))
     }
 
     @Test func changeColumnsFitTheLongestNumbers() {

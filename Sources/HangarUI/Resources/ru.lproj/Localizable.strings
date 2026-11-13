@@ -447,6 +447,10 @@
 "hostPausedBar" = "Нет связи с %@. Enter — переподключиться";
 "openInEditorTab" = "Открыть в редакторе";
 "copyRelativePath" = "Скопировать путь от корня";
+"sendPathToChat" = "Вставить путь в чат";
+"sendToChatNoAgent" = "В чате нет запущенного агента";
+"sendToChatRefused" = "Путь не вставлен";
+"sendToChatRefusedInfo" = "В имени файла есть перевод строки: агент получил бы часть пути как отдельное сообщение.";
 "taskArchived" = "Чат в архиве";
 "undoArchive" = "Отменить";
 "archiveAnyway" = "В архив всё равно";
@@ -643,6 +647,7 @@
 "editorMenuCut" = "Вырезать";
 "editorMenuCopy" = "Копировать";
 "editorMenuPaste" = "Вставить";
+"editorMenuSendLines" = "Вставить ссылку на строки";
 "editorRainbowTitle" = "Радужные отступы";
 "editorTodoTitle" = "Подсветка TODO";
 "editorRenameOtherFiles" = "Переименование затрагивает другие файлы — пока переименовываются только символы одного файла";

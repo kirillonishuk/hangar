@@ -47,7 +47,7 @@ extension AppState {
 private let noticeBodyLimit = 160
 private let replyLimit = 2000
 
-private func isControl(_ c: Character) -> Bool { c.unicodeScalars.contains { $0.properties.generalCategory == .control } }
+func isControl(_ c: Character) -> Bool { c.unicodeScalars.contains { $0.properties.generalCategory == .control } }
 
 /// Control characters (escapes, newlines) become spaces; long text ends with «…».
 func noticeBody(_ text: String) -> String {

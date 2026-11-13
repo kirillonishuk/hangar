@@ -129,6 +129,7 @@ extension Git {
         for e in st.entries where e.change == .untracked && !listed.contains(e.path) {
             files.append(ChangedFile(path: e.path, change: .untracked))
         }
+        files.sort { treeOrder($0.path, $1.path) }
         let truncated = st.truncated || files.count > limit
         // Status may be capped while `diff HEAD` omits some of its entries (staged, then reverted): fewer files than the limit.
         if files.count > limit { files.removeLast(files.count - limit) }

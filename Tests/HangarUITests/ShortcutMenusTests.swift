@@ -125,9 +125,10 @@ import Testing
     @Test func treeRowsKnowTheirVisibleParent() {
         let tree = FileTree(paths: ["src/app/main.swift", "README.md"])
         let nav = treeNavRows(visibleRows(tree, expanded: ["src", "src/app"]))
-        #expect(nav.map(\.id) == ["src", "src/app", "src/app/main.swift", "README.md"])
-        #expect(nav.map(\.parent) == [nil, "src", "src/app", nil])
-        #expect(nav.map(\.folder) == [true, true, false, false])
+        // `src` holds only `app`: one compact row (HD-163), keyed by its deepest folder; its parent skips the hidden `src`.
+        #expect(nav.map(\.id) == ["src/app", "src/app/main.swift", "README.md"])
+        #expect(nav.map(\.parent) == [nil, "src/app", nil])
+        #expect(nav.map(\.folder) == [true, false, false])
         #expect(nav[0].expanded)
     }
 

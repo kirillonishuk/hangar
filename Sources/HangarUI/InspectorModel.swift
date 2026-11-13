@@ -31,6 +31,21 @@ struct RefreshParts: OptionSet, Sendable {
     /// A listing of this root has been applied (an empty tree before it means «loading», not «empty»).
     private(set) var treeLoaded = false
     var expanded: Set<String> = []
+    /// The file tree's and «Изменения»' keyboard cursors (HD-161); a path no longer shown is no cursor.
+    var cursor: String?
+    var changesCursor: String?
+    /// ⌥⌘1 / ⌥⌘2: that segment's list takes the keyboard (`listFocus(_:)`); the last request served.
+    private(set) var listFocusRequest = 0
+    private(set) var listFocusSegment = Segment.files
+    @ObservationIgnored var listFocusServed = 0
+
+    func requestListFocus(_ segment: Segment) {
+        listFocusSegment = segment
+        listFocusRequest += 1
+    }
+
+    /// The request as `segment`'s list sees it: 0 (none) while it is for the other list.
+    func listFocus(_ segment: Segment) -> Int { listFocusSegment == segment ? listFocusRequest : 0 }
     private(set) var badges: [String: FileChange] = [:]
     private(set) var changes: ChangeSet?
     private(set) var statusTruncated = false
@@ -117,6 +132,8 @@ struct RefreshParts: OptionSet, Sendable {
         treeLoaded = false
         ignored.paths = []
         expanded = []
+        cursor = nil
+        changesCursor = nil
         badges = [:]
         filesTruncated = false
         firstLoad = true

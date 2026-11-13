@@ -31,7 +31,7 @@ Rules are in `AGENTS.md` («Простота», «Инженерные прав�
 ## Correctness
 - Bug → find all callers, fix the root once in shared code.
 - Non-trivial logic (branching, parsing, writing data) gets at least one test (`hangar-test`).
-- Never weaken validation at trust boundaries (socket, hooks, stdin), data-loss protection, security, accessibility.
+- Never weaken validation at trust boundaries (socket, hooks, stdin), data-loss protection, security, keyboard access. VoiceOver is out of scope (HD-161): no labels required for it.
 - Deliberate shortcut → `// shortcut: <limitation>, <when to change>`. Comments only say "why", one line.
 
 ## Safety

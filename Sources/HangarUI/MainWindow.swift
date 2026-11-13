@@ -224,7 +224,7 @@ func clampInspectorWidth(_ w: CGFloat) -> CGFloat {
     min(max(w, Theme.inspectorMin), Theme.inspectorMax)
 }
 
-public final class MainWindowController: NSWindowController, NSWindowDelegate {
+public final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     let app: AppState
     let split = NSSplitViewController()
     let sidebarItem: NSSplitViewItem
@@ -235,7 +235,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
     nonisolated(unsafe) private var accessibilityObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
-    private var inspectorWatch: InspectorWatch?
+    private(set) var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
     /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
     /// does nothing; another sheet waits for its own answer.
@@ -347,6 +347,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
+        app.focusTerminal = { [weak self] in self?.column.terminalArea.focusActiveLeaf() }
         app.onChooseEditor = { [weak self] leaf in self?.togglePalette(commands: false, pickFor: leaf) }
         app.didChange = { [weak self] in
             guard let self else { return }
@@ -607,8 +608,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
+        // An inspector list has the keyboard: its ↑↓ ↩ are its own (HD-161); the diff's other keys still work.
+        let listKeys = !editingText && (window.firstResponder as? NSView)?.isDescendant(of: inspectorItem.viewController.view) == true
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText,
-                                     webFocused: focus == .diff) {
+                                     webFocused: focus == .diff), !(listKeys && [.up, .down, .enter].contains(key)) {
             app.hangarShortcutConsumed()
             switch key {
             case .up: app.diffNeighbour(-1)
@@ -634,7 +637,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 return true
             }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention, .shortcuts]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
             switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
@@ -647,7 +650,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        if event.keyCode == 36, mods.isEmpty, !editingText { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
+        if event.keyCode == 36, mods.isEmpty, !editingText, !listKeys { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
         return false
     }
 
@@ -726,8 +729,14 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it
         // while a terminal has focus (Ghostty's default super+comma binding takes the key first). Drop this if that binding goes.
         case .settings: showSettings(nil)
-        case .inspectorFiles: app.showInspector(.files)
-        case .inspectorChanges: app.showInspector(.changes)
+        // The shown list takes the keyboard (↑↓ ↩ ←→, Esc back), as VS Code's ⇧⌘E (HD-161).
+        case .inspectorFiles, .inspectorChanges:
+            let segment: InspectorModel.Segment = sc == .inspectorFiles ? .files : .changes
+            app.showInspector(segment)
+            if app.inspector.segment == segment, app.state.inspectorVisible {
+                window?.makeFirstResponder(nil)  // a terminal or Monaco lets go first: SwiftUI focus alone doesn't take it from them
+                app.inspector.requestListFocus(segment)
+            }
         case .inspectorGit: app.showInspector(.git)
         case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
@@ -741,6 +750,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .findInFiles: app.showSearch()
         case .nextWorking: app.selectNextWorking()
         case .runAction: app.runPrimaryAction()
+        case .shortcuts: showShortcuts()
         case .nextAttention:
             // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
@@ -938,7 +948,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
 
     /// Rebuilt on every language switch (menus keep the titles they were built with).
-    /// Quit plus a standard Edit menu, so text fields (new-task sheet, rename) get copy/paste/undo.
+    /// App menu and a standard Edit menu (text fields get copy/paste/undo); «Чат», «Вкладка», «Вид», «Справка» from the
+    /// shortcut table, their keys shown only (the key monitor matches them, HD-161); a standard «Окно» (system tiling).
     private func installMainMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -964,7 +975,52 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         edit.addItem(withTitle: L10n.selectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
+
+        for group in ShortcutGroup.menus {
+            let menu = shortcutMenu(group, target: self, action: #selector(menuShortcut(_:)))
+            main.addItem(withTitle: menu.title, action: nil, keyEquivalent: "").submenu = menu
+        }
+
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: L10n.menuWindow)
+        windowMenu.addItem(withTitle: L10n.menuMinimize, action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.menuZoom, action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        let fullScreen = windowMenu.addItem(withTitle: L10n.menuFullScreen, action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.control, .command]
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: L10n.menuBringAllToFront, action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+
+        let helpItem = NSMenuItem()
+        let help = shortcutMenu(.help, target: self, action: #selector(menuShortcut(_:)))
+        helpItem.submenu = help
+        main.addItem(helpItem)
+
         NSApp.mainMenu = main
+        // The system adds tiling («Переместить и изменить размер») and the window list here, and the search field to «Справка».
+        NSApp.windowsMenu = windowMenu
+        NSApp.helpMenu = help
+    }
+
+    /// A «Чат» / «Вкладка» / «Вид» / «Справка» item: the same `perform` as its key.
+    @objc private func menuShortcut(_ sender: NSMenuItem) {
+        guard let sc = sender.representedObject as? Shortcut else { return }
+        // `ShownKeysMenu` never takes a key; if AppKit ever matched one anyway, the key monitor already had it.
+        if let e = NSApp.currentEvent, e.type == .keyDown, shortcut(keyCode: e.keyCode, modifiers: e.modifierFlags) == sc { return }
+        perform(sc)
+    }
+
+    /// Under a sheet the keys do nothing (the monitor skips them), so neither do the menus.
+    public func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.action != #selector(menuShortcut(_:)) || window?.attachedSheet == nil
+    }
+
+    /// ⌘/ and «Справка → Сочетания клавиш».
+    private func showShortcuts() {
+        guard let window, window.attachedSheet == nil else { return }
+        window.beginHangarSheet { end in ShortcutsSheet(onClose: { end(.OK) }) }
     }
 
     // MARK: Projects, tasks

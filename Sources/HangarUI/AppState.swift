@@ -116,6 +116,8 @@ enum EmptyProjectRow: Hashable {
     var editorImage: Set<UUID> = []
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// Esc in an inspector list: the keyboard goes back to the active terminal (HD-161).
+    @ObservationIgnored var focusTerminal: (() -> Void)?
     /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
     @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
     /// Settings → Appearance changed: every editor and diff page restyles (set by `TerminalArea`).

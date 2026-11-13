@@ -233,6 +233,9 @@
 "noticeOpen" = "Открыть";
 "noticeAllow" = "Разрешить";
 "noticeReply" = "Ответить";
+"noticeRelaunch" = "Перезапустить";
+"agentExited" = "процесс завершён";
+"agentExitedCode" = "процесс завершён (код %d)";
 "noticeOpenLimits" = "Открыть лимиты";
 "notifyPermissionTitle" = "Нужно разрешение";
 "notifyQuestionTitle" = "Вопрос агента";
@@ -583,7 +586,6 @@
 "sessionsUnknownError" = "неизвестная ошибка";
 "sessionsMore" = "Ещё";
 "sessionsMarkerArchived" = "в архиве";
-"sessionsMarkerHistory" = "в истории";
 "sessionsChipOpen" = "Открытые";
 "sessionsChipArchived" = "В архиве";
 "sessionsChipHistory" = "В истории";

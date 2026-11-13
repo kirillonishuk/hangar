@@ -233,6 +233,9 @@
 "noticeOpen" = "Open";
 "noticeAllow" = "Allow";
 "noticeReply" = "Reply";
+"noticeRelaunch" = "Restart";
+"agentExited" = "process exited";
+"agentExitedCode" = "process exited (code %d)";
 "noticeOpenLimits" = "Open limits";
 "notifyPermissionTitle" = "Permission needed";
 "notifyQuestionTitle" = "Agent question";
@@ -583,7 +586,6 @@
 "sessionsUnknownError" = "unknown error";
 "sessionsMore" = "More";
 "sessionsMarkerArchived" = "archived";
-"sessionsMarkerHistory" = "in history";
 "sessionsChipOpen" = "Open";
 "sessionsChipArchived" = "Archived";
 "sessionsChipHistory" = "History";

@@ -1079,6 +1079,9 @@ final class PaneFrameView: NSView {
         return true
     }
 
+    /// «Перезапустить» in the inbox: as ↩ on that exited leaf (HD-160).
+    func relaunch(leafId: UUID) { controlLeaf(leafId)?.relaunch() }
+
     /// ↩ on an exited leaf relaunches it. Returns true if handled.
     func relaunchFocusedIfExited() -> Bool {
         guard let leaf = focusedLeaf, leaf.needsRelaunch || leaf.canReconnect else { return false }

@@ -148,7 +148,7 @@ struct SessionsRow: View {
                 IconView(icon: .archive, size: Theme.Icon.inline, tint: Theme.ui.text3)
                 Text(L10n.sessionsMarkerArchived).foregroundStyle(Theme.ui.text3)
             case .history:
-                Text(L10n.sessionsMarkerHistory).foregroundStyle(Theme.ui.text3)
+                EmptyView()  // most rows are: the word is noise, the others stand out by theirs (HD-160)
             }
         }
         .font(Theme.Typography.secondary.font())

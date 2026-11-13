@@ -94,7 +94,7 @@ import Workspace
         case settingsGeneral, settingsNotifications, settingsIntegrations, settingsAdvanced, configFile, showInFinder
         case pillInstalled, pillMissing, pillOutdated, pillUnavailable, pillChecking, pillError, sectionProjectTitle, sectionToolsTitle
         case notificationsTitle, limitNotificationsTitle, toggleOn, toggleOff, projectExpanded, projectCollapsed, agentPermission, agentQuestion, agentDone, agentFailed, agentLimit
-        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits
+        case noticeOpen, noticeAllow, noticeReply, noticeOpenLimits, noticeRelaunch, agentExited, agentExitedCode
         case notifyPermissionTitle, notifyQuestionTitle, notifyDoneTitle, notifyFailedTitle, soundTitle, soundNone, soundDefault
         case allowFromNotificationTitle, allowFromNotificationHelp, notifyWhenActiveTitle, notifyWhenActiveHelp, sshTerminalBellTitle, sshTerminalBellHelp
         case notificationPermissionTitle, notificationsAllowedInSystem, notificationsNotAsked, notificationsDeniedInSystem, openSystemSettings
@@ -174,7 +174,7 @@ import Workspace
         case gitResizeHelp, gitAheadBehind, gitClearFilter, gitFound, gitFoundMore, opensMenu
         case sessionsNoMatch, sessionsTitle, sessionsYesterday, sessionsSearch, sessionsAll, sessionsGo, sessionsMarkerOpen
         case sessionsMessages, sessionsLoading, sessionsOffline, sessionsUntitled, sessionsTabOne, sessionsTabFew, sessionsTabMany
-        case sessionsMore, sessionsMarkerArchived, sessionsMarkerHistory, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
+        case sessionsMore, sessionsMarkerArchived, sessionsChipOpen, sessionsChipArchived, sessionsChipHistory
         case sessionsReset, sessionsResetFilters, sessionsShowMore, sessionsReadingHost, sessionsHostTimedOut, sessionsHostFailed
         case sessionsOfflineHint, sessionsConnect, sessionsEmpty, sessionsNoMatchQuery, sessionsHelpSession, sessionsArchivedHelp
         case sessionsArchivedSince, sessionsContinueIn, sessionsContinueNew, sessionsRestoreHelp, sessionsProjectChip, sessionsProjectChipHelp
@@ -297,7 +297,6 @@ import Workspace
     static var sessionsGo: String { s(.sessionsGo) }
     static var sessionsMarkerOpen: String { s(.sessionsMarkerOpen) }
     static var sessionsMarkerArchived: String { s(.sessionsMarkerArchived) }
-    static var sessionsMarkerHistory: String { s(.sessionsMarkerHistory) }
     static var sessionsChipOpen: String { s(.sessionsChipOpen) }
     static var sessionsChipArchived: String { s(.sessionsChipArchived) }
     static var sessionsChipHistory: String { s(.sessionsChipHistory) }
@@ -596,6 +595,9 @@ import Workspace
         }
     }
     static var noticeOpen: String { s(.noticeOpen) }
+    static var noticeRelaunch: String { s(.noticeRelaunch) }
+    /// An agent's process that ended (HD-160): «процесс завершён (код 3)», -1 — without the code.
+    static func agentExited(_ code: Int32) -> String { code < 0 ? s(.agentExited) : f(.agentExitedCode, code) }
     static var noticeAllow: String { s(.noticeAllow) }
     static var noticeReply: String { s(.noticeReply) }
     static var noticeSend: String { s(.noticeSend) }

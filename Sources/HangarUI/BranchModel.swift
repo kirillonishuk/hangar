@@ -68,6 +68,15 @@ extension AppState {
     /// The chat's current branch or short hash; nil until loaded (or outside git).
     func head(of task: HangarTask) -> Head? { branchModel.heads[task.id] }
 
+    /// What the toolbar's branch button shows at once: the loaded HEAD, else the last known — the copy's branch or a loaded
+    /// chat's in the same folder — so the button holds its place while HEAD loads (HD-160).
+    func shownBranch(of task: HangarTask) -> String? {
+        if let head = head(of: task) { return head.title }
+        if let branch = task.branch { return branch }
+        guard let folder = headFolder(task.id) else { return nil }
+        return branchModel.heads.first { headFolder($0.key) == folder }?.value.title
+    }
+
     /// The chat is selected (the toolbar's branch button): its HEAD loads now, whatever was loaded before.
     func selectedHead(_ task: HangarTask) {
         _ = branchModel.request(task.id)

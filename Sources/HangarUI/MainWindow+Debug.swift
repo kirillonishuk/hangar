@@ -321,6 +321,11 @@ extension MainWindowController {
             debugBranchOpen?()
             PopoverMenu.panel?.hidesOnDeactivate = false
             PopoverMenu.panel?.orderFrontRegardless()
+        case "keepAwakeMenu":  // as a click on the toolbar's «не спать» (HD-160), kept open like `branchMenu`
+            PopoverMenu.debugPinned = true
+            debugKeepAwakeOpen?()
+            PopoverMenu.panel?.hidesOnDeactivate = false
+            PopoverMenu.panel?.orderFrontRegardless()
         case "runMenu":  // as a click on the toolbar run button's chevron (HD-133), kept open like `branchMenu`
             PopoverMenu.debugPinned = true
             debugRunMenuOpen?()
@@ -675,10 +680,15 @@ extension MainWindowController {
             case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
             default: break
             }
-        case "inbox":  // inbox open|close|snap <png>: the «Входящие» popover
+        case "inbox":  // inbox open|close|snap <png>|relaunch <n>: the «Входящие» popover; relaunch — the n-th row's button
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             switch f.first ?? "" {
             case "open": if !app.inboxShown { app.toggleInbox() }
+            case "relaunch":
+                let items = app.attentionItems
+                if let n = f.count > 1 ? Int(f[1]) : nil, items.indices.contains(n) {
+                    inboxAction(leaf: items[n].leafId, requestKey: items[n].attention.requestKey, .relaunch)
+                }
             case "close": app.setInboxShown(false)
             case "snap" where f.count > 1:
                 guard let view = popoverWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
@@ -919,7 +929,7 @@ extension MainWindowController {
                 "\(i) id=\(n.id) category=\(n.category.rawValue) thread=\(n.thread ?? "-") sound=\(n.sound ?? "-") key=\(n.requestKey?.uuidString ?? "-") title=\(n.title) subtitle=\(n.subtitle) body=\(n.body)"
             }
             try? (lines.joined(separator: "\n") + "\n").write(toFile: arg, atomically: true, encoding: .utf8)
-        // noticeAction <n> open|allow [<request key>]|limits|reply <text>: as the n-th notice's button (a key: an older banner's).
+        // noticeAction <n> open|allow [<request key>]|limits|relaunch|reply <text>: as the n-th notice's button (a key: an older banner's).
         case "noticeAction":
             let f = arg.split(separator: " ", maxSplits: 2).map(String.init)
             guard f.count >= 2, let n = Int(f[0]), debugNotices.indices.contains(n) else { return }
@@ -927,6 +937,7 @@ extension MainWindowController {
             case "open": .open
             case "allow": .allow
             case "limits": .limits
+            case "relaunch": .relaunch
             case "reply": .reply(f.count > 2 ? f[2] : "")
             default: nil
             }

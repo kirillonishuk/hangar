@@ -32,21 +32,25 @@ public struct HookDetail: Equatable, Sendable {
 public struct Attention: Equatable, Sendable {
     public var reason: AttentionReason
     public var tool, command, text: String?
+    /// `failed` by the agent's process ending (HD-160): its exit code, -1 — unknown; nil — a failed turn, the process lives.
+    public var exitCode: Int32?
     public var since: Date
     /// Identifies this exact request: notification buttons act only while it is unchanged.
     public var requestKey: UUID
 
-    public init(reason: AttentionReason, tool: String? = nil, command: String? = nil, text: String? = nil, since: Date, requestKey: UUID) {
+    public init(reason: AttentionReason, tool: String? = nil, command: String? = nil, text: String? = nil, exitCode: Int32? = nil,
+                since: Date, requestKey: UUID) {
         self.reason = reason
         self.tool = tool
         self.command = command
         self.text = text
+        self.exitCode = exitCode
         self.since = since
         self.requestKey = requestKey
     }
 
     public func sameRequest(_ o: Attention) -> Bool {
-        reason == o.reason && tool == o.tool && command == o.command && text == o.text
+        reason == o.reason && tool == o.tool && command == o.command && text == o.text && exitCode == o.exitCode
     }
 }
 

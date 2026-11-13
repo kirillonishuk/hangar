@@ -159,6 +159,15 @@ import Workspace
         #expect(m.visibleItems(g).count == 8)
     }
 
+    /// HD-160: a tail of one or two rows is shown, not folded behind «Показать ещё N».
+    @Test func shortTailIsNotFolded() {
+        let limit = Theme.sessionsGroupLimit
+        #expect(sessionsFolded(3) == 3)
+        #expect(sessionsFolded(limit + 1) == limit + 1)
+        #expect(sessionsFolded(limit + 2) == limit + 2)
+        #expect(sessionsFolded(limit + 3) == limit)
+    }
+
     @Test func historyDayBoundaries() {
         let now = date("2026-10-25T00:30:00Z")
         #expect(historyDay(date("2026-10-25T00:00:00Z"), now: now, calendar: Self.utc) == .today)

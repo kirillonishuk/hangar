@@ -283,14 +283,15 @@ struct DiffView: View {
                         app.perform { $0.diffWrap.toggle() }
                         editor.sendOptions()
                     }
-                    // A one-sided file shows one column; the saved choice stays for the next file.
-                    Segmented(selection: app.state.diffInline || oneSided,
-                              options: [(false, L10n.diffSideBySide), (true, L10n.diffInline)],
-                              disabled: oneSided ? [false] : []) { inline in
+                    // A one-sided file or a narrow pane (HD-162) shows one column; the saved choice stays.
+                    let narrow = editor.narrow && !oneSided && !app.state.diffInline
+                    Segmented(selection: app.state.diffInline || oneSided || narrow,
+                              options: [(false, L10n.diffSideBySide), (true, narrow ? L10n.diffInlineNarrow : L10n.diffInline)],
+                              disabled: oneSided || narrow ? [false] : []) { inline in
                         app.perform { $0.diffInline = inline }
                         editor.sendOptions()
                     }
-                    .help(oneSided ? L10n.diffOneSide : "")
+                    .help(oneSided ? L10n.diffOneSide : narrow ? L10n.diffNarrow : "")
                 }
                 DiffReviewControls(app: app, tab: tab, isText: content.isText)
             }

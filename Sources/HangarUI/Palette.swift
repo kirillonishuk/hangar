@@ -112,7 +112,7 @@ let paletteFileCap = 5000
 /// Commands: every menu action of the shortcut table (tabs 1…9 and split focus are not commands, the palette not itself).
 var paletteCommands: [Shortcut] {
     [.newTask, .newFreeChat, .newSubSession, .addProject, .newTab, .closeTab, .splitRight, .splitDown, .archiveTask, .rename,
-     .prevTask, .nextTask, .prevTab, .nextTab, .toggleSidebar, .toggleInspector, .inspectorFiles, .inspectorChanges, .inspectorGit, .findInFiles,
+     .prevTask, .nextTask, .prevTab, .nextTab, .toggleSidebar, .toggleInspector, .chatOnly, .inspectorFiles, .inspectorChanges, .inspectorGit, .findInFiles,
      .toggleDrawer, .limits, .revealInFinder, .copyPath, .attentionFilter, .nextAttention, .nextWorking, .sessions, .settings]
 }
 

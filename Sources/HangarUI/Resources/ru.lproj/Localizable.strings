@@ -482,6 +482,7 @@
 "cmdNextTab" = "Следующая вкладка";
 "cmdToggleSidebar" = "Показать/скрыть сайдбар";
 "cmdToggleInspector" = "Показать/скрыть инспектор";
+"cmdChatOnly" = "Только чат";
 "paletteLoading" = "загрузка…";
 "cmdQuickOpen" = "Перейти к чату или файлу";
 "cmdCommandPalette" = "Команды";
@@ -611,6 +612,8 @@
 "diffNewFile" = "новый файл";
 "diffDeletedFile" = "удалён";
 "diffOneSide" = "Файл есть только с одной стороны — одна колонка";
+"diffInlineNarrow" = "Одной колонкой (узко)";
+"diffNarrow" = "Двум колонкам мало места — «Рядом» вернётся, когда панель станет шире";
 "editorMinimap" = "Миникарта";
 "editorMenuDefinition" = "Перейти к определению";
 "editorMenuReferences" = "Найти все ссылки";

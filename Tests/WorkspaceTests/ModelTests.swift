@@ -229,10 +229,12 @@ import Testing
         let s = try JSONDecoder().decode(WorkspaceState.self, from: Data(json.utf8))
         #expect(s.sidebarWidth == 256)
         #expect(s.sidebarCollapsed == false)
+        #expect(s.chatOnly == false)
         #expect(s.inspectorVisible == true)
         var changed = s
         changed.sidebarWidth = 260
         changed.sidebarCollapsed = true
+        changed.chatOnly = true
         let data = try JSONEncoder().encode(changed)
         #expect(try JSONDecoder().decode(WorkspaceState.self, from: data) == changed)
     }

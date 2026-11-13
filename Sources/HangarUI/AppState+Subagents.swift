@@ -60,7 +60,7 @@ extension AppState {
         }
         subagentPanelJustOpened = true
         if selectedTask?.id != task.id || sessionsViewVisible { select(taskId: task.id) }
-        if !state.inspectorVisible { perform { $0.inspectorVisible = true } } else { didChange?() }
+        revealInspector()
     }
 
     func closeSubagentPanel() {
@@ -78,7 +78,7 @@ extension AppState {
             closeSubagentPanel()
             return
         }
-        panel.setVisible(windowVisible && state.inspectorVisible && !sessionsViewVisible)
+        panel.setVisible(windowVisible && inspectorShown && !sessionsViewVisible)
     }
 
     /// The chat's running subagents (all its agent tabs, the bottom terminal too), oldest first: a finished one leaves the

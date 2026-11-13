@@ -76,7 +76,7 @@ struct WindowTitleBar: View {
     let toggleSidebar: () -> Void
 
     var body: some View {
-        let collapsed = app.state.sidebarCollapsed
+        let collapsed = app.sidebarRail
         let layout = toolbarLayout(contentX: metrics.contentX, lightsMaxX: metrics.lightsCenterY == nil ? nil : metrics.lightsMaxX)
         // Collapsed, the lights stick out of the rail: the bar runs under them, across the rail.
         let barX = collapsed ? 0 : metrics.contentX
@@ -157,7 +157,7 @@ struct WindowTitleBar: View {
         }
         InboxBell(app: app, act: inboxAction)
         IconButton(icon: .sidebarRight, size: .regular, help: L10n.help(L10n.inspectorHelp, .toggleInspector)) {
-            app.perform { $0.inspectorVisible.toggle() }
+            app.toggleInspector()
         }
     }
 }

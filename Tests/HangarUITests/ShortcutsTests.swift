@@ -71,7 +71,7 @@ import Testing
     }
 
     @Test func allCasesListsEveryShortcut() {
-        #expect(Shortcut.allCases.count == 44)  // + runAction ⌘R (HD-133), newSubSession (HD-128)  // + inspectorGit (C), sessions (D), findInFiles (HD-091), nextAttention (HD-096), newFreeChat
+        #expect(Shortcut.allCases.count == 45)  // + runAction ⌘R (HD-133), newSubSession (HD-128)  // + inspectorGit (C), sessions (D), findInFiles (HD-091), nextAttention (HD-096), newFreeChat
     }
 
     /// ⌥⌘1/2 inspector segments, ⌥⌘R reveal, ⌥⌘C copy path: by keyCode, so the Russian layout works too.
@@ -121,6 +121,7 @@ import Testing
         #expect(Shortcut.focusSplit(.left).label == "⌥⌘←")
         #expect(Shortcut.revealInFinder.label == "⌥⌘R")
         #expect(Shortcut.settings.label == "⌘,")
+        #expect(Shortcut.chatOnly.label == "⇧⌘0")
         let order: [Character] = ["⌃", "⌥", "⇧", "⌘"]
         for sc in Shortcut.allCases {
             let mods = sc.label.prefix { order.contains($0) }

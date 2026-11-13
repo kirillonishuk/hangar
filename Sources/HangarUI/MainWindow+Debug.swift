@@ -148,7 +148,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
-            "nextAttention": .nextAttention, "runAction": .runAction,
+            "nextAttention": .nextAttention, "runAction": .runAction, "chatOnly": .chatOnly,
         ]
         switch parts.first ?? "" {
         case "task":

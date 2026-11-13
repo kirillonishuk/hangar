@@ -219,11 +219,6 @@ final class WindowRootController: NSViewController {
     }
 }
 
-/// The persisted inspector width within the drag limits (state.json may hold anything).
-func clampInspectorWidth(_ w: CGFloat) -> CGFloat {
-    min(max(w, Theme.inspectorMin), Theme.inspectorMax)
-}
-
 public final class MainWindowController: NSWindowController, NSWindowDelegate {
     let app: AppState
     let split = NSSplitViewController()
@@ -310,9 +305,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         inspectorItem = NSSplitViewItem(viewController: inspectorHost)
         inspectorItem.canCollapse = true
         inspectorItem.minimumThickness = Theme.inspectorMin
-        inspectorItem.maximumThickness = Theme.inspectorMax
+        inspectorItem.maximumThickness = inspectorMaxWidth(window: Theme.windowSize.width)
         inspectorItem.holdingPriority = .init(260)  // window resizes go to the terminal area
-        inspectorItem.isCollapsed = !app.state.inspectorVisible
+        inspectorItem.isCollapsed = !app.inspectorShown
         split.addSplitViewItem(inspectorItem)
 
         let root = WindowRootController(app: app, split: split)
@@ -358,7 +353,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
                 self.column.terminalArea.isHidden = sessionsShown
                 if !sessionsShown { DispatchQueue.main.async { self.column.terminalArea.focusActiveLeaf() } }
             }
-            self.syncInspector()
+            self.syncPanels()
             self.column.syncNotice()
             self.column.terminalArea.sync()
             self.inspectorWatch?.update()
@@ -444,8 +439,9 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         didApplyInitialLayout = true
         // Position the divider only after the split view has its real size, else setPosition is ignored.
         window.contentView?.layoutSubtreeIfNeeded()
+        syncPanels()
         applySidebarWidth()
-        if app.state.inspectorVisible { applyInspectorWidth() }
+        if app.inspectorShown { applyInspectorWidth() }
         column.terminalArea.sync()
         inspectorWatch?.update()
         if let configWarning { showConfigWarning(configWarning) }
@@ -454,8 +450,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     // MARK: Sidebar width
 
     private var targetSidebarWidth: CGFloat {
-        app.state.sidebarCollapsed ? Theme.sidebarRailWidth
-            : min(max(CGFloat(app.state.sidebarWidth), Theme.sidebarMin), Theme.sidebarMax)
+        app.sidebarRail ? Theme.sidebarRailWidth : clampSidebarWidth(CGFloat(app.state.sidebarWidth))
     }
 
     private func setSidebarBounds(collapsed: Bool) {
@@ -463,13 +458,18 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         sidebarItem.maximumThickness = collapsed ? Theme.sidebarRailWidth : Theme.sidebarMax
     }
 
+    /// The rail state the split was last laid out for.
+    private var appliedRail: Bool?
+    private var togglingSidebar = false
+
     private func applySidebarWidth() {
-        setSidebarBounds(collapsed: app.state.sidebarCollapsed)
+        appliedRail = app.sidebarRail
+        setSidebarBounds(collapsed: app.sidebarRail)
         split.splitView.setPosition(targetSidebarWidth, ofDividerAt: 0)
     }
 
     private func sidebarDragEnded() {
-        guard !app.state.sidebarCollapsed else { return }
+        guard !app.sidebarRail else { return }
         let width = Double(sidebarItem.viewController.view.frame.width)
         guard abs(width - app.state.sidebarWidth) >= 1 else { return }
         uiLog.info("sidebar width \(width)")
@@ -481,31 +481,75 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     private func applyInspectorWidth() {
         let view = split.splitView
         view.layoutSubtreeIfNeeded()
-        let width = clampInspectorWidth(CGFloat(app.state.inspectorWidth))
+        let width = clampInspectorWidth(CGFloat(app.state.inspectorWidth), window: view.bounds.width)
         view.setPosition(view.bounds.width - width - view.dividerThickness, ofDividerAt: 1)
     }
 
-    /// Follows `inspectorVisible` (⌥⌘I, titlebar button); expanding restores the saved width.
+    /// Follows `inspectorShown` (⌥⌘I, titlebar button, the adaptive window); expanding restores the saved width.
     private func syncInspector() {
-        let collapsed = !app.state.inspectorVisible || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
+        let collapsed = !app.inspectorShown || app.sessionsViewVisible  // «Сессии» takes the right sidebar's place too
         guard inspectorItem.isCollapsed != collapsed else { return }
         inspectorItem.isCollapsed = collapsed
         if !collapsed, didApplyInitialLayout { applyInspectorWidth() }
     }
 
     private func inspectorDragEnded() {
-        guard app.state.inspectorVisible, !inspectorItem.isCollapsed else { return }
+        guard app.inspectorShown, !inspectorItem.isCollapsed else { return }
         let width = Double(inspectorItem.viewController.view.frame.width)
         guard abs(width - app.state.inspectorWidth) >= 1 else { return }
         uiLog.info("inspector width \(width)")
         app.perform { $0.inspectorWidth = width }
     }
 
-    /// Animates only the width (ease-in-out); the rows keep their markers in place.
+    // MARK: Adaptive window (HD-162)
+
+    public func windowDidResize(_ notification: Notification) { syncPanels() }
+
+    /// Which panels fit the window now: sets the unsaved auto flags, the inspector's limit (half the window), then the split.
+    private func syncPanels() {
+        guard let window else { return }
+        let width = window.contentView?.bounds.width ?? window.frame.width
+        func layout(keepInspector: Bool, keepSidebar: Bool) -> PanelLayout {
+            panelLayout(window: width, sidebar: clampSidebarWidth(CGFloat(app.state.sidebarWidth)),
+                        inspector: clampInspectorWidth(CGFloat(app.state.inspectorWidth), window: width),
+                        wantsInspector: app.state.inspectorVisible, wantsRail: app.state.sidebarCollapsed, chatOnly: app.state.chatOnly,
+                        keepInspector: keepInspector, keepSidebar: keepSidebar)
+        }
+        // A kept panel the window now fits anyway is adaptive again.
+        let free = layout(keepInspector: false, keepSidebar: false)
+        if app.keepsInspector, free.inspector || !app.state.inspectorVisible { app.keepsInspector = false }
+        if app.keepsSidebar, !free.sidebarRail || app.state.sidebarCollapsed { app.keepsSidebar = false }
+        let shown = layout(keepInspector: app.keepsInspector, keepSidebar: app.keepsSidebar)
+        let autoHide = app.state.inspectorVisible && !app.state.chatOnly && !shown.inspector
+        let autoRail = !app.state.sidebarCollapsed && !app.state.chatOnly && shown.sidebarRail
+        if app.autoHidesInspector != autoHide { app.autoHidesInspector = autoHide }
+        if app.autoRailsSidebar != autoRail { app.autoRailsSidebar = autoRail }
+        let maxInspector = inspectorMaxWidth(window: width)
+        if inspectorItem.maximumThickness != maxInspector { inspectorItem.maximumThickness = maxInspector }
+        // ⌘0 animates its own change; «Только чат» and the adaptive window snap.
+        if appliedRail != app.sidebarRail, didApplyInitialLayout, !togglingSidebar, sidebarAnimation == nil { applySidebarWidth() }
+        syncInspector()
+    }
+
+    /// Animates only the width (ease-in-out); the rows keep their markers in place. In a window too narrow for the
+    /// expanded sidebar it expands anyway (the inspector goes first, HD-162); «Только чат» ends.
     private func toggleSidebar() {
         sidebarAnimation?.invalidate()
+        sidebarAnimation = nil
         let from = sidebarItem.viewController.view.frame.width
-        app.perform { $0.sidebarCollapsed.toggle() }
+        togglingSidebar = true
+        defer { togglingSidebar = false }
+        if app.sidebarRail {
+            app.keepsSidebar = true  // dropped by `syncPanels` when it isn't needed
+            app.keepsInspector = false  // the last panel asked for wins the room
+            app.perform {
+                $0.sidebarCollapsed = false
+                $0.chatOnly = false
+            }
+        } else {
+            app.keepsSidebar = false
+            app.perform { $0.sidebarCollapsed = true }
+        }
         if Motion.reduced { applySidebarWidth(); return }
         let to = targetSidebarWidth
         sidebarItem.minimumThickness = min(from, to, Theme.sidebarRailWidth)
@@ -601,7 +645,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
         if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
-           app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
+           app.inspectorShown, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
             app.gitPanel.searchFocusRequest += 1
             return true
         }
@@ -720,7 +764,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .tab(let n): app.activate(tabNumber: n)
         case .prevTask: app.selectTask(offset: -1)
         case .nextTask: app.selectTask(offset: 1)
-        case .toggleInspector: app.perform { $0.inspectorVisible.toggle() }
+        case .toggleInspector: app.toggleInspector()
+        case .chatOnly: app.toggleChatOnly()
         case .toggleSidebar: toggleSidebar()
         case .addProject: chooseProjectKind()
         // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it

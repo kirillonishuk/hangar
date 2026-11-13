@@ -469,10 +469,10 @@
 "claudeLimitsHintHelp" = "Claude присылает лимиты через строку состояния, пока агент работает: между ходами новых цифр нет, и запросить их нельзя.";
 "codexLimitsFailed" = "не удалось обновить";
 "worktreeRootHint" = "Сюда создаются все копии проекта: %@/<ветка>";
-"worktreeCopy" = "Перенести в копию";
+"worktreeCopy" = "Скопировать в копию";
 "worktreeCopyHelp" = "Игнорируемые git файлы и папки, через запятую; маски вроде .env* ищутся во всём репозитории (кроме node_modules, dist, .turbo). Копируются клоном APFS (мгновенно, без лишнего места); отсутствующие пропускаются. С pnpm/yarn/bun node_modules не копируется — его ставит команда";
 "setupCommand" = "Подготовка копии";
-"setupCommandHelp" = "Выполняется в корне новой копии во вкладке терминала после переноса файлов. Пусто — без команды; команда по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) только предлагается";
+"setupCommandHelp" = "Выполняется в корне новой копии во вкладке терминала после копирования файлов. Пусто — без команды; команда по lockfile (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) только предлагается";
 "setupCommandSuggested" = "Подготовка копии — предложение по lockfile: не запускается, пока не сохраните";
 "afterCreate" = "Подготовить копию";
 "afterCreateSuggestedHelp" = "Предложено по lockfile. Включите — команда выполнится во вкладке терминала новой копии и сохранится в проекте";
@@ -910,8 +910,8 @@
 
 /* Integrations by function (HD-111) */
 "intHooksTitle" = "Статусы и уведомления";
-"intHooksClaudeSub" = "работает · ждёт · готово, «Входящие»";
-"intHooksCodexSub" = "готово, «Входящие»";
+"intHooksClaudeSub" = "статус чата в сайдбаре и уведомления";
+"intHooksCodexSub" = "статус «готово» в сайдбаре и уведомления";
 "intLimitsTitle" = "Лимиты";
 "intLimitsSub" = "5 ч и неделя: сайдбар и уведомления";
 "intStatuslineTitle" = "Строка состояния";
@@ -1117,12 +1117,12 @@
 "actionNeedsCommand" = "Действию «%@» нужна команда";
 "worktreeFolderNote" = "Здесь у каждой копии своя папка по имени ветки";
 "worktreeCopyNote" = "Файлы вне git, нужные копии (например, .env), через запятую";
-"setupCommandNote" = "Выполняется в новой копии после переноса файлов — например, установка зависимостей";
+"setupCommandNote" = "Выполняется в новой копии после копирования файлов — например, установка зависимостей";
 "setupCommandPlaceholder" = "например, pnpm install";
-"createWaitsRepo" = "Читаю репозиторий…";
+"createWaitsRepo" = "Читаю ветки проекта…";
 "createNeedsBase" = "Выберите ветку, от которой создать копию";
 "taskPromptPlaceholder" = "например, почини редирект после логина и добавь тест";
-"hostInvalid" = "Только имя хоста или user@host";
+"hostInvalid" = "Только имя сервера или user@host";
 "remotePathPlaceholder" = "например, ~/src/api";
 "installCancelLocked" = "Идёт установка: закрыть можно, когда она закончится (может ждать пароль sudo в терминале)";
 "noticeSend" = "Отправить";

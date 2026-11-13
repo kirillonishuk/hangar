@@ -44,29 +44,37 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             SettingsSidebar(selection: $model.category)
             Rectangle().fill(Theme.ui.line).frame(width: 1)
-            VStack(alignment: .leading, spacing: 0) {
-                // The 52 header shares its bar with the traffic lights (a unified toolbar of no items).
-                Text(verbatim: model.category.title)
-                    .font(Theme.Typography.title.font(.semibold))
-                    .foregroundStyle(Theme.ui.text0)
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 0) {
+                    // The 52 header shares its bar with the traffic lights (a unified toolbar of no items).
+                    // «Оформление»: its group links on the right, dropped whole when they don't fit (HD-165).
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 0) {
+                            pageTitle
+                            Spacer(minLength: Theme.Space.s3)
+                            if model.category == .appearance { appearanceAnchors(proxy) }
+                        }
+                        pageTitle
+                    }
                     .padding(.horizontal, Theme.settingsPagePaddingH)
                     .frame(maxWidth: .infinity, minHeight: Theme.settingsHeaderHeight, maxHeight: Theme.settingsHeaderHeight, alignment: .leading)
                     .overlay(alignment: .bottom) { Rectangle().fill(Theme.ui.line).frame(height: 1) }
                     // Over the page: a scrolled page draws past its clip view (AppKit doesn't clip it) under the header.
                     .background(Theme.ui.bg0)
                     .zIndex(1)
-                ScrollView {
-                    page
-                        .padding(.vertical, Theme.settingsPagePaddingV)
-                        .padding(.horizontal, Theme.settingsPagePaddingH)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .environment(\.settingsCards, true)
+                    ScrollView {
+                        page
+                            .padding(.vertical, Theme.settingsPagePaddingV)
+                            .padding(.horizontal, Theme.settingsPagePaddingH)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.settingsCards, true)
+                    }
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                        model.editorTheme.pageHeight = $0.height
+                        model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePaddingH
+                    }
+                    footer
                 }
-                .onGeometryChange(for: CGSize.self) { $0.size } action: {
-                    model.editorTheme.pageHeight = $0.height
-                    model.editorTheme.pageWidth = $0.width - 2 * Theme.settingsPagePaddingH
-                }
-                footer
             }
         }
         // Width only: the window's minimum is a frame size (title bar included); a content minHeight of the same
@@ -75,6 +83,13 @@ struct SettingsView: View {
         .font(Theme.Typography.body.font())
         .background(Theme.ui.bg0)
         .ignoresSafeArea(.container, edges: .top)
+    }
+
+    private var pageTitle: some View {
+        Text(verbatim: model.category.title)
+            .font(Theme.Typography.title.font(.semibold))
+            .foregroundStyle(Theme.ui.text0)
+            .lineLimit(1)
     }
 
     @ViewBuilder private var page: some View {

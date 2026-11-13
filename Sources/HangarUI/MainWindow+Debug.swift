@@ -636,6 +636,10 @@ extension MainWindowController {
             showSettings(nil)
             if let category = SettingsCategory(rawValue: arg) { settings.model.category = category }
             park(settings.window)
+        case "settingsJump":  // settingsJump <n>: the n-th link in «Оформление»'s header (HD-165)
+            if let n = Int(arg), AppearanceAnchor.allCases.indices.contains(n) { debugAppearanceJump?(AppearanceAnchor.allCases[n]) }
+        case "settingsResponder":  // settingsResponder <file>: the settings window's first responder (class name)
+            try? String(describing: settings.window?.firstResponder.map { type(of: $0) }).write(toFile: arg, atomically: true, encoding: .utf8)
         case "statuslineMove":  // statuslineMove <segment> <index>: as a chip dropped before the index-th chip (HD-110)
             let a = arg.split(separator: " ")
             if a.count == 2, let s = StatuslineSegment(rawValue: String(a[0])), let i = Int(a[1]) {
@@ -723,7 +727,7 @@ extension MainWindowController {
             case "working": app.keepAwake.update(working: f.count > 1 ? Int(f[1]) ?? 0 : 0, enabled: app.config.keepAwake)
             default: break
             }
-        case "inbox":  // inbox open|close|snap <png>|relaunch <n>: the «Входящие» popover; relaunch — the n-th row's button
+        case "inbox":  // inbox open|close|snap <png>|relaunch <n>|reply <text>|send: the «Входящие» popover; relaunch — the n-th row's button
             let f = arg.split(separator: " ", maxSplits: 1).map(String.init)
             switch f.first ?? "" {
             case "open": if !app.inboxShown { app.toggleInbox() }
@@ -733,6 +737,8 @@ extension MainWindowController {
                     inboxAction(leaf: items[n].leafId, requestKey: items[n].attention.requestKey, .relaunch)
                 }
             case "close": app.setInboxShown(false)
+            case "reply": debugInboxReply?(f.count > 1 ? f[1] : "")
+            case "send": debugInboxReply?(nil)
             case "snap" where f.count > 1:
                 guard let view = popoverWindow?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)

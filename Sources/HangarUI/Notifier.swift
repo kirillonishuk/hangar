@@ -55,6 +55,15 @@ func noticeBody(_ text: String) -> String {
     return flat.count > noticeBodyLimit ? String(flat.prefix(noticeBodyLimit - 1)) + "…" : flat
 }
 
+/// A typed reply as it may reach the terminal (trust boundary): line breaks (any kind) become "\n" — pasted, so
+/// the agent gets several lines and one Enter submits; other control characters (ESC would end the paste) are dropped;
+/// at most `replyLimit` characters. nil — nothing left to send.
+func replyText(_ raw: String) -> String? {
+    let text = String(String(raw.compactMap { $0.isNewline ? "\n" : isControl($0) ? nil : $0 })
+        .trimmingCharacters(in: .whitespacesAndNewlines).prefix(replyLimit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? nil : text
+}
+
 /// `""` — no sound.
 func noticeSound(_ name: String?) -> String? {
     let name = name ?? "default"
@@ -86,9 +95,8 @@ extension AppState {
             return .send(text: nil, keys: permissionApproveKeys)
         case .reply(let raw):
             guard let leaf, acceptsReply(leaf: leaf), current(.question) else { return .reveal }
-            let text = String(raw.compactMap { $0.isNewline ? " " : isControl($0) ? nil : $0 })
-                .trimmingCharacters(in: .whitespaces).prefix(replyLimit)
-            return text.isEmpty ? .reveal : .send(text: String(text), keys: [.enter])
+            guard let text = replyText(raw) else { return .reveal }
+            return .send(text: text, keys: [.enter])
         }
     }
 }

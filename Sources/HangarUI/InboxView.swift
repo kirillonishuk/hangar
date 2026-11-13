@@ -141,8 +141,11 @@ private struct InboxRow: View {
             if replying {
                 // Several lines: ↩ is a new line, ⌘↩ or «Отправить» sends.
                 VStack(alignment: .trailing, spacing: Theme.Inbox.lineGap) {
+                    // The typed lines get their height: a vertical field in a popover of an inactive window doesn't grow by itself.
                     TextField("", text: $reply, axis: .vertical)
                         .lineLimit(1...Theme.Inbox.replyMaxLines)
+                        .frame(minHeight: CGFloat(min(reply.count { $0.isNewline } + 1, Theme.Inbox.replyMaxLines))
+                               * Theme.Typography.body.lineHeight, alignment: .topLeading)
                         .textFieldStyle(.plain)
                         .focused($focused)
                         .inputField(focused: focused, multiline: true, placeholder: reply.isEmpty ? L10n.noticeReply : nil)
@@ -164,6 +167,14 @@ private struct InboxRow: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(n.title)
+        #if DEBUG
+        .onAppear {
+            guard n.category == .questionReply else { return }
+            debugInboxReply = { text in
+                if let text { replying = true; reply = text } else { send(a.requestKey) }
+            }
+        }
+        #endif
     }
 
     private func send(_ requestKey: UUID?) {
@@ -215,3 +226,9 @@ private struct InboxButton: View {
             .fixedSize()
     }
 }
+
+#if DEBUG
+/// Debug channel `inbox reply <text>` / `inbox send`: «Ответить» with that text typed, then «Отправить»
+/// (an inactive window drops synthetic clicks).
+@MainActor var debugInboxReply: ((String?) -> Void)?
+#endif

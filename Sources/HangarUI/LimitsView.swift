@@ -260,8 +260,9 @@ struct LimitsPopover: View {
                 Text(agentName(agent)).font(Theme.Typography.body.font(.semibold)).foregroundStyle(Theme.ui.text0)
                 if let plan = u.plan { Text(plan).foregroundStyle(Theme.ui.text2) }
                 Spacer(minLength: 0)
+                // Prose, so not mono (its spaces are a digit wide); the digits stay even as the age ticks.
                 Text(L10n.updatedAgo(ageLabel(since: u.updatedAt, now: app.usageClock)))
-                    .font(Theme.Typography.monoSmall.font())
+                    .font(Theme.Typography.caption.font().monospacedDigit())
                     .foregroundStyle(Theme.ui.text3)
             }
             .font(Theme.Typography.caption.font())

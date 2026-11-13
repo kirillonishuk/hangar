@@ -188,12 +188,22 @@ import Workspace
         #expect(k.app.notificationAction(leaf: kLeaf, requestKey: try item(k, kLeaf).attention.requestKey, .allow) == .reveal)
     }
 
+    /// HD-165: a multi-line inbox reply stays multi-line (pasted, then one Enter); nothing else from the control range gets through.
+    @Test func replyTextKeepsLinesOnly() {
+        #expect(replyText("первая\nвторая") == "первая\nвторая")
+        #expect(replyText("a\r\nb\rc\u{2028}d") == "a\nb\nc\nd")
+        #expect(replyText("\n\n  ok  \n") == "ok")
+        #expect(replyText("a\u{1b}[201~b\tc\u{7f}d\u{0}") == "a[201~bcd")
+        #expect(replyText(" \n\t ") == nil)
+        #expect(replyText(String(repeating: "я\n", count: 1500)) == String(String(repeating: "я\n", count: 1000).dropLast()))
+    }
+
     @Test func replySanitizes() throws {
         let f = make()
         let leaf = f.tab1.root.leaves[0].id
         f.app.signal(.desktopNotification(text: "Run tests?"), leaf: leaf)
         let key = try item(f, leaf).attention.requestKey
-        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("да\nну")) == .send(text: "да ну", keys: [.enter]))
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("да\nну")) == .send(text: "да\nну", keys: [.enter]))
         #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("a\u{1b}[2Jb")) == .send(text: "a[2Jb", keys: [.enter]))
         #expect(f.app.notificationAction(leaf: leaf, requestKey: key, .reply("  ")) == .reveal)
         #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .reply("yes")) == .reveal)

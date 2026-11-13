@@ -16,12 +16,13 @@ extension SettingsView {
                     }
                 }
             }
+            .id(AppearanceAnchor.theme)
             // A group header like «Тема» and «Цвета» (§3.18), not a second page title.
-            CardSection(title: L10n.editor, card: false) { editorThemeCard(ed) }
-            editorColors(ed)
-            editorFont
-            editorIndent
-            editorView
+            CardSection(title: L10n.editor, card: false) { editorThemeCard(ed) }.id(AppearanceAnchor.editor)
+            editorColors(ed).id(AppearanceAnchor.colors)
+            editorFont.id(AppearanceAnchor.font)
+            editorIndent.id(AppearanceAnchor.indent)
+            editorView.id(AppearanceAnchor.view)
         }
         .sheet(isPresented: Binding(get: { ed.pendingReplace != nil }, set: { if !$0 { ed.cancelReplace() } })) {
             ConfirmSheet(message: L10n.s(.edReplaceTitle),
@@ -32,6 +33,20 @@ extension SettingsView {
     }
 
     private var options: EditorOptions { app.config.editorOptions }
+
+    /// HD-165: the long page stays one page (HD-109); its group names in the header jump to the group.
+    func appearanceAnchors(_ proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 0) {
+            ForEach(AppearanceAnchor.allCases, id: \.self) { anchor in
+                Button(anchor.title) { proxy.scrollTo(anchor, anchor: .top) }
+                    .buttonStyle(.hangar(.plain, .small))
+                    .fixedSize()
+            }
+        }
+        #if DEBUG
+        .onAppear { debugAppearanceJump = { proxy.scrollTo($0, anchor: .top) } }
+        #endif
+    }
 
     // MARK: Editor theme
 
@@ -481,3 +496,24 @@ private struct FontPicker: View {
         return families.filter { !$0.hasPrefix(".") && HangarConfig.isValidFontFamily($0) }.sorted()
     }
 }
+
+/// The groups of «Оформление», in page order (HD-165).
+enum AppearanceAnchor: CaseIterable {
+    case theme, editor, colors, font, indent, view
+
+    @MainActor var title: String {
+        switch self {
+        case .theme: L10n.themeTitle
+        case .editor: L10n.editor
+        case .colors: L10n.s(.edColors)
+        case .font: L10n.s(.edFontSection)
+        case .indent: L10n.s(.edIndentSection)
+        case .view: L10n.s(.edViewSection)
+        }
+    }
+}
+
+#if DEBUG
+/// Debug channel `settingsJump <anchor index>`: as a click on that link (an inactive window drops synthetic clicks).
+@MainActor var debugAppearanceJump: ((AppearanceAnchor) -> Void)?
+#endif

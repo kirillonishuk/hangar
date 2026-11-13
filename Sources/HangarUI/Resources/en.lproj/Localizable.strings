@@ -455,7 +455,7 @@
 "claudeLimitsHintHelp" = "Claude sends its limits through the status line while an agent works: there are no new figures between turns and they can't be requested.";
 "codexLimitsFailed" = "couldn't refresh";
 "worktreeRootHint" = "All copies of this project go here: %@/<branch>";
-"worktreeCopy" = "Bring into the copy";
+"worktreeCopy" = "Copy into new copies";
 "worktreeCopyHelp" = "Git-ignored files and folders, comma-separated; globs like .env* match anywhere in the repo (except node_modules, dist, .turbo). Copied as APFS clones (instant, no extra space); missing ones are skipped. With pnpm/yarn/bun node_modules is not copied: the command installs it";
 "setupCommand" = "Setup after copy";
 "setupCommandHelp" = "Runs at the new copy's top in a terminal tab after the files are brought in. Blank = none; the lockfile's command (pnpm-lock.yaml → pnpm install --frozen-lockfile --prefer-offline) is only suggested";
@@ -882,8 +882,8 @@
 
 /* Integrations by function (HD-111) */
 "intHooksTitle" = "Statuses and notifications";
-"intHooksClaudeSub" = "working · waiting · done, Inbox";
-"intHooksCodexSub" = "done, Inbox";
+"intHooksClaudeSub" = "chat status in the sidebar and notifications";
+"intHooksCodexSub" = "“done” status in the sidebar and notifications";
 "intLimitsTitle" = "Limits";
 "intLimitsSub" = "5h and weekly: sidebar and notifications";
 "intStatuslineTitle" = "Status line";
@@ -1070,10 +1070,10 @@
 "worktreeCopyNote" = "Files outside git a copy needs (e.g. .env), comma-separated";
 "setupCommandNote" = "Runs in a new copy after the files are copied — e.g. installing dependencies";
 "setupCommandPlaceholder" = "e.g. pnpm install";
-"createWaitsRepo" = "Reading the repository…";
+"createWaitsRepo" = "Reading the project’s branches…";
 "createNeedsBase" = "Choose the branch to create the copy from";
 "taskPromptPlaceholder" = "e.g. fix the redirect after login and add a test";
-"hostInvalid" = "Only a host name or user@host";
+"hostInvalid" = "Only a server name or user@host";
 "remotePathPlaceholder" = "e.g. ~/src/api";
 "installCancelLocked" = "Installing: the sheet closes once it is done (it may be waiting for a sudo password in the terminal)";
 "noticeSend" = "Send";

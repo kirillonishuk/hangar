@@ -389,6 +389,12 @@
 "diffChangeCounter" = "%d of %d";
 "diffPrevChange" = "Previous change";
 "diffNextChange" = "Next change";
+"terminalFindPlaceholder" = "Find in terminal";
+"terminalFindCounter" = "%@ of %d";
+"terminalFindNone" = "No matches";
+"terminalFindUp" = "Match above";
+"terminalFindDown" = "Match below";
+"terminalFindClose" = "Close search";
 "keepAwakeTitle" = "Keep awake while agents work";
 "keepAwakeOffHelp" = "Keep awake: off";
 "keepAwakeIdleHelp" = "Keep awake: on — the Mac won't sleep while agents work";

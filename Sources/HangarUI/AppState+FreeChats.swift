@@ -76,7 +76,8 @@ extension AppState {
         guard let task = selectedTask, state.isFreeChatTask(task), ensureChatsFolder() else { return [] }
         let fm = FileManager.default
         var names: [String] = []
-        for url in urls where url.isFileURL {
+        // A row dragged from this folder's own list is already here (HD-159): no «name 2» copy.
+        for url in urls where url.isFileURL && !url.standardizedFileURL.path.hasPrefix(state.chatsFolder + "/") {
             // `"` can't be mentioned inside a quoted name by either agent: it becomes `'`. A dangling symlink is taken too.
             let base = url.lastPathComponent.replacingOccurrences(of: "\"", with: "'")
             let name = freeChatCopyName(base) { (try? fm.attributesOfItem(atPath: state.chatsFolder + "/" + $0)) != nil }

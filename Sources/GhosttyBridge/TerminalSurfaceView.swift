@@ -35,6 +35,8 @@ public struct ClipboardPromptText: Sendable {
     public var onFocus: (() -> Void)?
     /// ⌘V: true = the owner handled it (e.g. sent ⌃V for an image), so no text paste.
     public var onPaste: (() -> Bool)?
+    /// Ghostty's scrollback search (HD-159): the host shows a find bar and drives it with `search` / `navigateSearch` / `endSearch`.
+    public var onSearch: ((SearchEvent) -> Void)?
     /// Something was typed, pasted or sent into this surface (a password, a command): a new surface per launch.
     public internal(set) var hadInput = false
 
@@ -44,6 +46,8 @@ public struct ClipboardPromptText: Sendable {
     /// Views whose surface may still be used by callbacks; locked so deinit can drop itself synchronously on any thread.
     nonisolated private static let live = OSAllocatedUnfairLock(initialState: Set<UInt>())
     /// Open clipboard confirmation; must be answered (denied) before the surface is freed.
+    /// A drop's text for the paste it starts (HD-159): the next clipboard read takes it instead of the clipboard.
+    private var dropText: String?
     nonisolated(unsafe) private var pendingClipboard: (alert: NSAlert, state: UnsafeMutableRawPointer?)?
 
     private var lastCommandExit: Int32?
@@ -64,6 +68,7 @@ public struct ClipboardPromptText: Sendable {
         case mouseShape(ghostty_action_mouse_shape_e), mouseVisible(Bool)
         case cellSize(width: UInt32, height: UInt32), openURL(String)
         case pwd(String)
+        case search(SearchEvent)
     }
 
     public init(spec: LaunchSpec) {
@@ -109,6 +114,7 @@ public struct ClipboardPromptText: Sendable {
         }
         updateTrackingAreas()
         installEventMonitor()
+        registerForDraggedTypes(Self.dropTypes)
         // Ghostty creates surfaces focused (display link + cursor blink running); match `focused = false`.
         ghostty_surface_set_focus(surface, false)
     }
@@ -237,6 +243,25 @@ public struct ClipboardPromptText: Sendable {
         return String(cString: text.text)
     }
 
+    // MARK: Search (HD-159)
+
+    /// Opens the search (Ghostty answers with `.started`); with a search open — the same, so the host refocuses its field.
+    public func startSearch() { bindingAction("start_search") }
+
+    /// Searches the scrollback for `needle`; empty stops the search (the bar stays).
+    public func search(_ needle: String) { bindingAction("search:" + needle) }
+
+    /// `next`: Ghostty's order (from the bottom up), as its own ↩.
+    public func navigateSearch(next: Bool) { bindingAction(next ? "navigate_search:next" : "navigate_search:previous") }
+
+    /// Ends the search; Ghostty answers with `.ended`.
+    public func endSearch() { bindingAction("end_search") }
+
+    private func bindingAction(_ action: String) {
+        guard let surface else { return }
+        _ = ghostty_surface_binding_action(surface, action, UInt(action.utf8.count))
+    }
+
     // MARK: Ghostty actions
 
     func handle(_ event: Event) -> Bool {
@@ -259,6 +284,7 @@ public struct ClipboardPromptText: Sendable {
             NSCursor.setHiddenUntilMouseMoves(!v)
         case .cellSize(let w, let h):
             cellSize = convertFromBacking(NSSize(width: Double(w), height: Double(h)))
+        case .search(let e): onSearch?(e)
         case .openURL(let s):
             guard let url = URL(string: s) ?? URL(string: s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")
             else { return false }
@@ -287,12 +313,10 @@ public struct ClipboardPromptText: Sendable {
 
     func readClipboard(_ location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) -> Bool {
         guard let surface, location == GHOSTTY_CLIPBOARD_STANDARD else { return false }
-        let pb = NSPasteboard.general
-        let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL] ?? []
-        let str = urls.isEmpty ? pb.string(forType: .string)
-            : urls.map { $0.isFileURL ? shellEscape($0.path) : $0.absoluteString }.joined(separator: " ")
-        // false lets performable paste bindings fall through to the terminal.
-        guard let str else { return false }
+        // A drop's text, once (`insertDropped`), else the clipboard. false lets performable paste bindings fall through.
+        let drop = dropText
+        dropText = nil
+        guard let str = drop ?? Self.pasteText(NSPasteboard.general) else { return false }
         str.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
         return true
     }
@@ -335,9 +359,57 @@ public struct ClipboardPromptText: Sendable {
         super.viewWillMove(toWindow: newWindow)
     }
 
-    private func shellEscape(_ path: String) -> String {
+    /// What ⌘V and a drop insert: URLs (Finder files, screenshots, inspector rows) as shell-escaped paths
+    /// (other URLs as they are), joined by spaces; otherwise the text; nil — nothing to insert.
+    nonisolated static func pasteText(_ pb: NSPasteboard) -> String? {
+        let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL] ?? []
+        guard !urls.isEmpty else { return pb.string(forType: .string) }
+        return urls.map { $0.isFileURL ? shellEscape($0.path) : $0.absoluteString }.joined(separator: " ")
+    }
+
+    /// Backslashes before shell specials; a name with a control character (newline, CR, ESC, C1) is `$'…'`-quoted with
+    /// those as `\xHH` bytes, so a dropped file named `a\ncurl …` is one word, never a second command line.
+    nonisolated static func shellEscape(_ path: String) -> String {
+        func isControl(_ u: Unicode.Scalar) -> Bool { u.value < 0x20 || (0x7f...0x9f).contains(u.value) }
+        if path.unicodeScalars.contains(where: isControl) {
+            let body = path.unicodeScalars.map { u -> String in
+                if u == "\\" { return "\\\\" }
+                // `'` and `!` as bytes too: interactive bash expands `!!` even inside $'…' (history comes first).
+                guard isControl(u) || u == "'" || u == "!" else { return String(u) }
+                return String(u).utf8.map { String(format: "\\x%02x", $0) }.joined()
+            }.joined()
+            return "$'" + body + "'"
+        }
         let special = Set("\\ ()[]{}<>\"'`!#$&;|*?\t")
         return String(path.flatMap { special.contains($0) ? ["\\", $0] : [$0] })
+    }
+
+    // MARK: Drop (HD-159)
+
+    static let dropTypes: [NSPasteboard.PasteboardType] = [.fileURL, .URL, .string]
+
+    public override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        surface != nil && Self.pasteText(sender.draggingPasteboard) != nil ? .copy : []
+    }
+
+    public override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        insertDropped(sender.draggingPasteboard)
+    }
+
+    /// The drop's text goes in through Ghostty's own paste, exactly as ⌘V: bracketed, never submitted, and text Ghostty
+    /// finds unsafe (a newline, the end of a bracketed paste) asks first. The terminal takes the keyboard.
+    @discardableResult public func insertDropped(_ pb: NSPasteboard) -> Bool {
+        guard let surface, let text = Self.pasteText(pb) else { return false }
+        hadInput = true
+        dropText = text
+        let binding = "paste_from_clipboard"
+        // Ghostty reads the "clipboard" (`readClipboard`, which hands over `dropText` once); not run — nothing waits for it.
+        guard ghostty_surface_binding_action(surface, binding, UInt(binding.utf8.count)) else {
+            dropText = nil
+            return false
+        }
+        window?.makeFirstResponder(self)
+        return true
     }
 
     // MARK: Layout, scale, focus, visibility
@@ -429,6 +501,17 @@ public struct ClipboardPromptText: Sendable {
     public override func resetCursorRects() {
         addCursorRect(bounds, cursor: cursor)
     }
+}
+
+/// Ghostty's search state, reported by the surface (`onSearch`).
+public enum SearchEvent: Equatable, Sendable {
+    /// Opened (or asked again); `needle` — the selection for ⌘E, else empty.
+    case started(needle: String)
+    case ended
+    /// Matches in the scrollback; nil — not searching.
+    case total(Int?)
+    /// Index of the selected match; nil — none selected yet.
+    case selected(Int?)
 }
 
 /// Keys `sendKey` can press.

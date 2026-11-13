@@ -148,6 +148,8 @@ import Workspace
         #expect(w.app.dropIntoChats([src]) == ["rfc 7636 2.pdf"])
         #expect(FileManager.default.fileExists(atPath: src.path))
         #expect(FileManager.default.fileExists(atPath: w.app.state.chatsFolder + "/rfc 7636 2.pdf"))
+        // A row dragged from the folder's own list (HD-159) is already there: nothing copied, nothing typed.
+        #expect(w.app.dropIntoChats([URL(fileURLWithPath: w.app.state.chatsFolder + "/rfc 7636.pdf")]).isEmpty)
         #expect(sent == ["@\"rfc 7636.pdf\" ", "@\"rfc 7636 2.pdf\" "])
         // A dangling symlink holds its name; `"` becomes `'`; no whitespace — no quotes.
         try FileManager.default.createSymbolicLink(atPath: w.app.state.chatsFolder + "/notes.txt", withDestinationPath: "/nonexistent/x")

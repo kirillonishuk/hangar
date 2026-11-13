@@ -290,6 +290,17 @@ public enum GhosttyError: Error { case initFailed, appCreateFailed }
             guard let p = u.url else { return false }
             let s = String(decoding: UnsafeRawBufferPointer(start: p, count: Int(u.len)), as: UTF8.self)
             event = .openURL(s)
+        case GHOSTTY_ACTION_START_SEARCH:
+            // ⌘F (`start_search`, empty needle) or ⌘E (`search_selection`, the selected text) — HD-159.
+            event = .search(.started(needle: action.action.start_search.needle.map { String(cString: $0) } ?? ""))
+        case GHOSTTY_ACTION_END_SEARCH:
+            event = .search(.ended)
+        case GHOSTTY_ACTION_SEARCH_TOTAL:
+            let n = action.action.search_total.total
+            event = .search(.total(n < 0 ? nil : Int(n)))
+        case GHOSTTY_ACTION_SEARCH_SELECTED:
+            let n = action.action.search_selected.selected
+            event = .search(.selected(n < 0 ? nil : Int(n)))
         default:
             // Splits/tabs/etc. are host requests we don't implement (our own UI owns layout).
             return false

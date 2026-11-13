@@ -385,6 +385,30 @@ extension MainWindowController {
         case "screen":
             // screen <file>: the focused terminal's text (incl. scrollback) for checks without a screen.
             try? (column.terminalArea.focusedLeaf?.surface?.screenText() ?? "").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "termDrop":
+            // termDrop <path>|text:<text>: a drop on the focused terminal (HD-159), from a private pasteboard.
+            guard let surface = column.terminalArea.focusedLeaf?.surface else { return }
+            let pb = NSPasteboard(name: NSPasteboard.Name("hangar-debug-drop"))
+            pb.clearContents()
+            if arg.hasPrefix("text:") { pb.setString(String(arg.dropFirst(5)), forType: .string) } else { pb.writeObjects([URL(fileURLWithPath: arg) as NSURL]) }
+            surface.insertDropped(pb)
+        case "find":
+            // find <needle> | find next|prev|close: drives the focused terminal's find bar (HD-159) as typing / ↩ ⇧↩ / Esc would.
+            guard let model = column.terminalArea.focusedLeaf?.debugFind?.model else { return }
+            switch arg {
+            case "next": model.navigate(true)
+            case "prev": model.navigate(false)
+            case "close": model.close()
+            default: model.needle = arg
+            }
+        case "findDump":
+            // findDump <file>: the focused terminal's find bar — open, needle, counter, whether its field has the keyboard.
+            let leaf = column.terminalArea.focusedLeaf
+            let find = leaf?.debugFind
+            let inBar = (window?.firstResponder as? NSView).map { v in find.map { v.isDescendant(of: $0.view) } ?? false } ?? false
+            let onSurface = window?.firstResponder === leaf?.surface
+            let text = "open=\(find != nil) needle=\(find?.model.needle ?? "") counter=\(find?.model.counter ?? "-") total=\(find?.model.total.map(String.init) ?? "nil") selected=\(find?.model.selected.map(String.init) ?? "nil") fieldFocused=\(inBar) surfaceFocused=\(onSurface) barY=\(find.map { Int($0.view.frame.minY) } ?? -1) surfaceY=\(leaf?.surface.map { Int($0.frame.minY) } ?? -1)\n"
+            try? text.write(toFile: arg, atomically: true, encoding: .utf8)
         case "keys":
             // keys <chars>: real key presses into the focused terminal ("␣" = space, "⎋" = Esc).
             guard let surface = column.terminalArea.focusedLeaf?.surface, let w = surface.window else { return }

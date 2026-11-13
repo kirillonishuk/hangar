@@ -81,7 +81,9 @@ private func fold(_ s: LeafStatus, _ signal: AgentSignal) -> LeafStatus { AgentS
     @Test func exitCodes() {
         #expect(fold(status(.working), .exited(code: 1)).state == .failed)
         #expect(fold(status(.working), .exited(code: 0)).state == .idle)
-        #expect(fold(status(.working), .exited(code: -1)).state == .idle)
+        // An agent tab never ends with an unknown code on purpose: that is a crash too (HD-160); a shell's is not.
+        #expect(fold(status(.working), .exited(code: -1)).state == .failed)
+        #expect(AgentStatus.fold(status(.working), .exited(code: -1), agent: nil).state == .idle)
         // A new launch: its first session id becomes the leaf's (a failed resume starts a fresh session).
         let r = fold(status(.done, hooks: true, session: "s1"), .relaunched)
         #expect(r.state == .idle && !r.claudeHooks && r.sessionId == nil)

@@ -22,6 +22,8 @@ extension Theme {
     public static let historyGroupHeight: CGFloat = Height.barPane
     /// A group shows this many rows until «Показать ещё N».
     public static let sessionsGroupLimit = 5
+    /// A tail this short is shown, not folded: «Показать ещё 1» costs a row and a click (HD-160).
+    public static let sessionsGroupTail = 2
     /// «Показать ещё N»: a list row, its text under the row titles.
     public static let historyMoreHeight: CGFloat = Height.rowList
     public static let historyMoreLeading: CGFloat = historyRowInset + historyRowPaddingH + Icon.toolbar + historyRowGap

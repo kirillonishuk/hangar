@@ -26,9 +26,9 @@ struct AgentNotice: Equatable {
     var requestKey: UUID?
 }
 
-enum NoticeAction: Equatable, Sendable { case open, allow, reply(String), limits }
+enum NoticeAction: Equatable, Sendable { case open, allow, reply(String), limits, relaunch }
 
-enum NoticeResult: Equatable { case reveal, send(text: String?, keys: [SendKey]), showLimits }
+enum NoticeResult: Equatable { case reveal, send(text: String?, keys: [SendKey]), showLimits, relaunch }
 
 /// S2 (HD-095): the key a person presses on Claude's permission dialog ("Yes" is first).
 let permissionApproveKeys: [SendKey] = [.enter]
@@ -74,6 +74,11 @@ extension AppState {
         switch action {
         case .open: return .reveal
         case .limits: return .showLimits
+        case .relaunch:
+            // Only the crash this row reported, while its tab still shows the dead process (HD-160).
+            guard let leaf, let requestKey, let a = statuses.status(leaf).attention, a.reason == .failed, a.exitCode != nil,
+                  a.requestKey == requestKey, terminals?.state(leaf) == .exited else { return .reveal }
+            return .relaunch
         case .allow:
             // Never approve blindly: the banner showed the exact command, and no newer PermissionRequest is pending.
             guard config.allowFromNotification, current(.permission), let s = leaf.map(statuses.status), let a = s.attention,
@@ -108,7 +113,8 @@ extension AppState {
     if let host = item.host { subtitle = app.isHostShellTask(item.taskId) ? L10n.hostTerminal(host) : subtitle + " · \(host)" }
     let details = a.reason == .permission ? a.tool.flatMap { t in a.command.map { "\(t): \($0)" } } : nil
     let fallback = owner?.tab.map(app.tabLabel) ?? app.leaf(id: item.leafId).map { app.title(of: $0) } ?? ""
-    let body = details ?? a.text.flatMap { $0.isEmpty ? nil : $0 } ?? fallback
+    let exited = a.reason == .failed ? a.exitCode.map(L10n.agentExited) : nil
+    let body = details ?? exited ?? a.text.flatMap { $0.isEmpty ? nil : $0 } ?? fallback
     let category: NoticeCategory = switch a.reason {
     case .permission: app.config.allowFromNotification && a.tool != nil && a.command != nil ? .permissionAllow : .permission
     case .question: app.acceptsReply(leaf: item.leafId) ? .questionReply : .open

@@ -7,11 +7,17 @@ import Workspace
 
 /// Empty background that drags the window (titlebar zone is covered by our content).
 struct WindowDragArea: NSViewRepresentable {
+    var toolTip: String?
+    /// A double-click's own meaning (the toolbar title renames); false — the system's.
+    var onDoubleClick: (() -> Bool)?
+
     final class DragView: NSView {
+        var onDoubleClick: (() -> Bool)?
         override var mouseDownCanMoveWindow: Bool { true }
         override func mouseDown(with event: NSEvent) {
             guard let window else { return }
             guard event.clickCount == 2 else { window.performDrag(with: event); return }
+            if onDoubleClick?() == true { return }
             // fullSizeContentView hides the real titlebar, so honour the system double-click setting here.
             switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
             case "Minimize": window.miniaturize(nil)
@@ -20,8 +26,11 @@ struct WindowDragArea: NSViewRepresentable {
             }
         }
     }
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> DragView { DragView() }
+    func updateNSView(_ view: DragView, context: Context) {
+        view.toolTip = toolTip
+        view.onDoubleClick = onDoubleClick
+    }
 }
 
 /// Tab bar row and terminal area of the selected session.
@@ -330,7 +339,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         paneDrag = PaneDragController(app: app, area: column.terminalArea, tabBar: column.tabBar)
         root.titleBar.rootView = WindowTitleBar(app: app, metrics: root.metrics,
                                                 inboxAction: { [weak self] in self?.inboxAction(leaf: $0, requestKey: $1, $2) },
-                                                toggleSidebar: { [weak self] in self?.toggleSidebar() })
+                                                toggleSidebar: { [weak self] in self?.toggleSidebar() },
+                                                openSettings: { [weak self] category in
+                                                    self?.showSettings(nil)
+                                                    self?.settings.model.category = category
+                                                })
         column.sessions.rootView = SessionsHost(app: app, model: column.sessionsModel, ctx: ctx)
         // Undo selects the task again only if the archive left nothing selected (it was the selected one).
         app.branchModel.toast = { [weak self] in self?.column.archiveUndo.show(message: $0) }
@@ -895,6 +908,11 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             if let leaf { reveal(leafId: leaf) }
         case .send(let text, let keys):
             if let leaf { app.sendAnswer(leafId: leaf, requestKey: requestKey, text: text, keys: keys) }
+        case .relaunch:
+            if let leaf {
+                reveal(leafId: leaf)
+                column.terminalArea.relaunch(leafId: leaf)
+            }
         case .showLimits:
             bringUp()
             if !app.limitsPopoverShown { app.toggleLimitsPopover() }

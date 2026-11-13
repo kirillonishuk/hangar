@@ -103,8 +103,9 @@ public func acceptsHook(_ status: LeafStatus, kind: HookKind, session: String?, 
 /// Attention gets `placeholderRequestKey`; `StatusBoard.apply` assigns the real key.
 public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgent?, now: Date = Date()) -> LeafStatus {
     var s = status
-    func attend(_ reason: AttentionReason, tool: String? = nil, command: String? = nil, text: String? = nil) {
-        s.attention = Attention(reason: reason, tool: tool, command: command, text: text, since: now, requestKey: placeholderRequestKey)
+    func attend(_ reason: AttentionReason, tool: String? = nil, command: String? = nil, text: String? = nil, exitCode: Int32? = nil) {
+        s.attention = Attention(reason: reason, tool: tool, command: command, text: text, exitCode: exitCode, since: now,
+                                requestKey: placeholderRequestKey)
     }
     switch signal {
     case let .hook(kind, session, type, source, detail):
@@ -187,10 +188,14 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             s.attention = nil
         }
     case let .exited(code):
-        if code > 0 {
+        if agent != nil, code != 0 {
+            // An agent tab ends only by 0 (closed) or ⌘W (no signal): any other end, an unknown code too, is a crash (HD-160).
             s.state = .failed
-            // Only an agent's exit is a failure to report; a shell's `npm test` or Ctrl-C keeps just the dot.
-            if agent != nil { attend(.failed) } else { s.attention = nil }
+            attend(.failed, exitCode: code)
+        } else if code > 0 {
+            // A shell's `npm test` or Ctrl-C keeps just the dot.
+            s.state = .failed
+            s.attention = nil
         } else {
             s.state = .idle
             s.attention = nil

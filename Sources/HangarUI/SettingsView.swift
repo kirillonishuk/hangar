@@ -126,6 +126,12 @@ struct SettingsView: View {
                         .onChange(of: editingExternal) { _, focused in if !focused { model.commitExternalEditor() } }
                         .frame(minWidth: Theme.settingsFieldWidth / 2, maxWidth: Theme.settingsFieldWidth)
                 }
+                // Not a notification: it keeps the Mac awake (HD-160).
+                row(L10n.keepAwakeShort, hint: L10n.keepAwakeTitle) {
+                    CardSwitch(on: app.config.keepAwake) { on in
+                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
+                    }
+                }
             }
             CardSection(title: L10n.s(.updatesSection)) {
                 row(L10n.checkUpdatesTitle, first: true) {
@@ -328,11 +334,6 @@ struct SettingsView: View {
                 row(L10n.sshTerminalBellTitle, hint: L10n.sshTerminalBellHelp) {
                     CardSwitch(on: app.config.sshTerminalBell) { on in
                         save { try app.setConfig("ssh_terminal_bell", flag: on) { $0.sshTerminalBell = on } }
-                    }
-                }
-                row(L10n.keepAwakeShort, hint: L10n.keepAwakeTitle) {
-                    CardSwitch(on: app.config.keepAwake) { on in
-                        save { try app.setConfig("keep_awake", flag: on) { $0.keepAwake = on } }
                     }
                 }
             }

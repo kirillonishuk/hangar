@@ -9,16 +9,11 @@ import Workspace
 @MainActor @Suite struct SidebarRedesignTests {
     // MARK: Row end
 
-    /// Hover shifts nothing: the row end's slot is constant and always holds the pin and «⋯» (they start where the
-    /// slot's gap ends), for a state word, a wide counter or nothing.
-    @Test func rowEndSlotHoldsActions() {
-        let actions = 2 * Theme.Height.controlSmall - Theme.rowActionsOverhang
-        for own: CGFloat? in [nil, 0, 20, 120] {
-            let slot = SidebarView.rowEndSlot(own)
-            #expect(slot + Theme.rowEndGap >= actions)  // name's edge stays left of the actions: zero shift on hover
-            #expect(slot >= own ?? 0)
-        }
-        #expect(SidebarView.rowEndSlot(120) == 120)
+    /// The row tooltip leads with the full name (the row may cut it), then the status and the note; empty parts drop.
+    @Test func rowHelpStartsWithFullName() {
+        #expect(SidebarView.rowHelp(name: "очень длинное имя чата", status: "работает · 1 агент", note: "чинит тесты")
+                == "очень длинное имя чата\nработает · 1 агент\nчинит тесты")
+        #expect(SidebarView.rowHelp(name: "a", status: "", note: nil) == "a")
     }
 
     // MARK: Plurals and status text

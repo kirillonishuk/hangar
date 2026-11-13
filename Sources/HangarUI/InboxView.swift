@@ -169,7 +169,9 @@ private struct InboxRow: View {
         case .limit:
             InboxButton(title: L10n.noticeOpenLimits) { act(item.leafId, n.requestKey, .limits) }
         case .permission, .open:
-            if first {
+            if item.attention.reason == .failed, item.attention.exitCode != nil {
+                InboxButton(title: L10n.noticeRelaunch, primary: true) { act(item.leafId, n.requestKey, .relaunch) }
+            } else if first {
                 InboxButton(title: L10n.noticeOpen, primary: true) { act(item.leafId, n.requestKey, .open) }
             } else if item.attention.reason == .done {
                 // Hidden at rest but still a button: Tab reaches it (and shows it), VoiceOver reads and presses it.

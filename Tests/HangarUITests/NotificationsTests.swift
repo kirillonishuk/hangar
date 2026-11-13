@@ -188,6 +188,23 @@ import Workspace
         #expect(k.app.notificationAction(leaf: kLeaf, requestKey: try item(k, kLeaf).attention.requestKey, .allow) == .reveal)
     }
 
+    /// HD-160: a crashed agent says how its process ended, and «Перезапустить» relaunches only that crash's dead tab.
+    @Test func crashedAgentOffersRelaunch() throws {
+        let f = make()
+        let leaf = f.tab0.root.leaves[0].id
+        send(f, f.tab0, .prompt)
+        f.app.exited(leafId: leaf, code: 3)
+        let a = try item(f, leaf).attention
+        #expect(a.reason == .failed && a.exitCode == 3)
+        #expect(notice(for: try item(f, leaf), app: f.app).body == L10n.agentExited(3))
+        #expect(f.app.displayState(of: try #require(f.app.state.tasks.first { $0.id == f.task })) == .failed)
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .exited }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: a.requestKey, .relaunch) == .relaunch)
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: UUID(), .relaunch) == .reveal)
+        f.app.terminals = TerminalAccess(start: { _ in }, state: { _ in .running }, send: { _, _, _ in }, read: { _ in nil })
+        #expect(f.app.notificationAction(leaf: leaf, requestKey: a.requestKey, .relaunch) == .reveal)  // already relaunched
+    }
+
     @Test func replySanitizes() throws {
         let f = make()
         let leaf = f.tab1.root.leaves[0].id

@@ -21,6 +21,9 @@ import Testing
     }
 
     @Test func decodesEachKind() {
+        #expect(msg(#"{"type":"sendLines","file":"/r/a.ts","from":12,"to":30}"#) == .sendLines(file: "/r/a.ts", from: 12, to: 30))
+        #expect(msg(#"{"type":"sendLines","file":"/r/a.ts","from":12,"to":3}"#) == nil)
+        #expect(msg(#"{"type":"sendLines","file":"a.ts","from":1,"to":1}"#) == nil)
         #expect(msg(#"{"type":"ready"}"#) == .ready)
         #expect(msg(#"{"type":"clipboard","action":"paste"}"#) == .clipboard(.paste))
         #expect(msg(#"{"type":"clipboard","action":"selectAll"}"#) == nil)

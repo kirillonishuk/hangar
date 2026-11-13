@@ -21,8 +21,6 @@ public enum Theme {
     public static let treeIndent: CGFloat = Space.s3
     public static let fileRowPaddingV: CGFloat = Space.s1
     public static let inspectorSegmentPaddingH: CGFloat = Space.s3
-    /// Changes / Search rows show a folder only with at least this much room.
-    public static let rowFolderMin: CGFloat = 48
     /// Mouse-down tolerance around a 1 pt split divider (which divider is being dragged).
     public static let dividerHitSlop: CGFloat = 4
     /// Bottom terminal drawer (bar `Height.barPane`): grab strip on its top edge, height limit, open/close animation.

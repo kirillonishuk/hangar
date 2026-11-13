@@ -125,6 +125,19 @@ public enum FileDiff: Sendable, Equatable {
     case notAFile
 }
 
+/// The order of the inspector's file tree («Файлы»): folder by folder, a folder before the files beside it, names by
+/// `localizedStandardCompare` (`2` before `10`), so «Изменения» lists files as the tree shows them (HD-163).
+public func treeOrder(_ a: String, _ b: String) -> Bool {
+    let x = a.split(separator: "/", omittingEmptySubsequences: true), y = b.split(separator: "/", omittingEmptySubsequences: true)
+    for i in 0..<min(x.count, y.count) where x[i] != y[i] {
+        let xDir = i < x.count - 1, yDir = i < y.count - 1
+        if xDir != yDir { return xDir }
+        let c = String(x[i]).localizedStandardCompare(String(y[i]))
+        return c == .orderedSame ? x[i] < y[i] : c == .orderedAscending
+    }
+    return x.count < y.count
+}
+
 /// `--name-status -z --find-renames`: `M\0path\0`, `R100\0old\0new\0`.
 func parseNameStatus(_ out: String) -> [ChangedFile] {
     let f = out.split(separator: "\0", omittingEmptySubsequences: true)

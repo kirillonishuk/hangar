@@ -78,6 +78,11 @@ enum TabStrip {
         return at(cap)
     }
 
+    /// A file tab keeps its name whole: one named by its first pane's file (split or not, HD-163), not renamed.
+    static func keepsWhole(_ tab: Workspace.Tab) -> Bool {
+        tab.root.leaves.first?.kind == .editor && tab.customTitle == nil
+    }
+
     static func content(_ widths: [CGFloat]) -> CGFloat {
         widths.reduce(0, +) + Theme.tabGap * CGFloat(Swift.max(widths.count - 1, 0))
     }
@@ -181,7 +186,7 @@ struct TabBarView: View {
             let text = app.renaming == .tab(task: task.id, tab: tab.id) ? Theme.tabRenameWidth : Self.textWidth(app.tabLabel(tab), italic: tab.preview)
             return Self.natural(text: text)
         }
-        var whole = task.tabs.map { tab in tab.root.leaves.count == 1 && tab.root.leaves[0].kind == .editor && tab.customTitle == nil }
+        var whole = task.tabs.map(TabStrip.keepsWhole)
         if let diff = app.diffTabs[task.id] {
             natural.append(Self.natural(text: Self.textWidth((diff.path as NSString).lastPathComponent, italic: true)))
             whole.append(true)

@@ -196,21 +196,13 @@ private struct SearchFileHeader: View {
             HStack(spacing: Theme.inlineGap) {
                 IconView(icon: collapsed ? .chevronRight : .chevronDown, size: Theme.Icon.inline)
                 FileIconView(name: name)
-                NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
+                NameFolderLayout(gap: Theme.inlineGap, folderTail: dir.isEmpty ? 0 : folderTailWidth(dir)) {
                     Text(name)
                         .font(Theme.Typography.body.font())
                         .foregroundStyle(Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if !dir.isEmpty {
-                        Text(dir)
-                            .font(Theme.Typography.caption.font())
-                            .foregroundStyle(Theme.ui.text3)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            .clipped()
-                    }
+                    if !dir.isEmpty { FolderText(dir: dir) }
                 }
                 Text(verbatim: file.truncated ? "\(file.hits.count)+" : "\(file.hits.count)")
                     .font(Theme.Typography.monoSmall.font())
@@ -231,23 +223,32 @@ private struct SearchHitRow: View {
 
     var body: some View {
         HoverRow(action: action) { _ in
-            Text(marked)
-                .font(Theme.Typography.mono.font())
-                .foregroundStyle(Theme.ui.text2)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, Theme.SearchTab.hitIndent)
-                .padding(.trailing, Theme.rowPaddingH)
-                .padding(.vertical, Theme.SearchTab.hitPaddingV)
+            HStack(spacing: Theme.inlineGap) {
+                Text(marked)
+                    .font(Theme.Typography.mono.font())
+                    .foregroundStyle(Theme.ui.text2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The line number on the right, as the file's count above it.
+                Text(verbatim: "\(hit.line)")
+                    .font(Theme.Typography.monoSmall.font())
+                    .foregroundStyle(Theme.ui.text3)
+                    .fixedSize()
+            }
+            .padding(.leading, Theme.SearchTab.hitIndent)
+            .padding(.trailing, Theme.rowPaddingH)
+            .padding(.vertical, Theme.SearchTab.hitPaddingV)
         }
         .help("\(path):\(hit.line):\(hit.column)")
     }
 
     private var marked: AttributedString {
-        let u = Array(hit.preview.utf16)
+        let (text, ranges) = hitFragment(hit.preview, hit.ranges, lead: Theme.SearchTab.hitLead)
+        let u = Array(text.utf16)
         var out = AttributedString()
         var at = 0
-        for r in hit.ranges where r.lowerBound >= at && r.upperBound <= u.count {
+        for r in ranges where r.lowerBound >= at && r.upperBound <= u.count {
             out += AttributedString(String(decoding: u[at..<r.lowerBound], as: UTF16.self))
             var m = AttributedString(String(decoding: u[r], as: UTF16.self))
             m.backgroundColor = Theme.ui.waiting.opacity(Theme.Opacity.fill)
@@ -258,4 +259,19 @@ private struct SearchHitRow: View {
         out += AttributedString(String(decoding: u[at...], as: UTF16.self))
         return out
     }
+}
+
+/// The part of a hit's preview a row shows: at most `lead` UTF-16 units before the first match (cut with «…»), so the
+/// match is never past the row's edge; the ranges move along. A surrogate pair is never split.
+func hitFragment(_ preview: String, _ ranges: [Range<Int>], lead: Int) -> (String, [Range<Int>]) {
+    let u = Array(preview.utf16)
+    guard let first = ranges.first?.lowerBound, first > lead + 1, first <= u.count else { return (preview, ranges) }
+    var start = first - lead
+    if UTF16.isTrailSurrogate(u[start]) { start += 1 }
+    let shift = 1 - start
+    let moved = ranges.compactMap { r -> Range<Int>? in
+        let lo = max(r.lowerBound, start)
+        return lo < r.upperBound ? (lo + shift)..<(r.upperBound + shift) : nil
+    }
+    return ("…" + String(decoding: u[start...], as: UTF16.self), moved)
 }

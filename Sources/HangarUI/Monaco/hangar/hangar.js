@@ -373,6 +373,9 @@
     { clipboard: 'cut', label: 'cut', keys: '⌘X', edits: true },
     { clipboard: 'copy', label: 'copy', keys: '⌘C' },
     { clipboard: 'paste', label: 'paste', keys: '⌘V', edits: true },
+    null,
+    // HD-163: `path:12-30` of the selection into the chat's agent (Swift finds the agent, none — nothing happens; the diff's old side has no file).
+    { send: true, label: 'sendLines', keys: '' },
   ];
   let menu = null;   // { el, items: [{ el, run }], sel }
 
@@ -402,8 +405,10 @@
       // every file model, so they're on there and run through `trigger`, as F12 does.
       const a = m.action && !m.provider && ed.getAction(m.action);
       const model = ed.getModel();
+      const isFile = !!(model && model.uri.scheme === 'file');
       const on = !(m.edits && readOnly) && (m.clipboard ? true
-        : m.provider ? !!(model && model.uri.scheme === 'file') : !!(a && a.isSupported()));
+        : m.send ? isFile && !(diff && ed === diff.getOriginalEditor())
+        : m.provider ? isFile : !!(a && a.isSupported()));
       const row = document.createElement('div');
       row.className = 'item' + (on ? '' : ' off');
       const label = document.createElement('span');
@@ -415,7 +420,12 @@
       // mousedown, not click: the editor keeps its focus and selection (the clipboard commands act on them).
       row.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
       if (on) {
-        const run = () => { hideMenu(); ed.focus(); if (m.clipboard) post({ type: 'clipboard', action: m.clipboard }); else if (a) a.run(); else ed.trigger('menu', m.action, null); };
+        const run = () => {
+          hideMenu(); ed.focus();
+          if (m.clipboard) post({ type: 'clipboard', action: m.clipboard });
+          else if (m.send) sendLines(ed);
+          else if (a) a.run(); else ed.trigger('menu', m.action, null);
+        };
         row.addEventListener('mouseup', (e) => { if (e.button === 0) run(); });
         row.addEventListener('mouseenter', () => select(items.findIndex((i) => i.el === row)));
         items.push({ el: row, run });
@@ -428,6 +438,16 @@
     el.style.left = Math.max(0, x + w > W ? x - w : x) + 'px';
     el.style.top = Math.max(0, y + h > H ? y - h : y) + 'px';
     menu = { el, items, sel: -1 };
+  }
+
+  // A selection ending at a line's start doesn't take that line (as a whole-line selection reads).
+  function sendLines(ed) {
+    const sel = ed.getSelection(), model = ed.getModel();
+    if (!sel || !model) return;
+    const to = sel.endLineNumber > sel.startLineNumber && sel.endColumn === 1 ? sel.endLineNumber - 1 : sel.endLineNumber;
+    // An editor tab's message carries its doc (the host routes by it); the diff's has none.
+    const f = fileOf(model);
+    post(Object.assign({ type: 'sendLines', file: f ? f.path : model.uri.path, from: sel.startLineNumber, to }, f && f.doc ? { doc: f.doc } : {}));
   }
 
   function select(i) {

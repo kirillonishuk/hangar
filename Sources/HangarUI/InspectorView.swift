@@ -108,7 +108,7 @@ enum FileMenuItem: Equatable, CaseIterable {
 @MainActor func fileMenu(app: AppState, relative: String, opens: Bool) -> [PopoverMenuEntry] {
     guard let root = app.inspector.root else { return [] }
     let host = remoteHost(app)
-    return FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInEditorTab }.map { item in
+    let items: [PopoverMenuEntry] = FileMenuItem.items(remote: host != nil).filter { opens || $0 != .openInEditorTab }.map { item in
         .item(PopoverMenuItem(title: item.title, icon: item.icon) {
             let path = root + "/" + relative
             switch item {
@@ -121,6 +121,12 @@ enum FileMenuItem: Equatable, CaseIterable {
             }
         })
     }
+    // «Вставить путь в чат» (HD-163): into the chat's agent, no Enter; without a running agent — disabled.
+    let agent = app.chatAgent
+    return items + [.item(PopoverMenuItem(title: L10n.sendPathToChat, icon: agent?.kind == .codex ? .codex : .claude,
+                                          enabled: agent != nil, help: agent == nil ? L10n.sendToChatNoAgent : nil) {
+        app.sendPathToChat(root + "/" + relative)
+    })]
 }
 
 /// «Откатить изменения…» (HD-156), the last group: only a file with uncommitted changes; a server's project — disabled.
@@ -183,7 +189,8 @@ private struct FilesList: View {
     private func action(_ row: TreeRow) -> (() -> Void)? {
         let entry = row.entry
         if entry.isDir {
-            return { row.expanded ? model.collapse(entry.path) : model.expand(entry.path) }
+            // A compact row opens and closes all of its folders.
+            return { row.expanded ? row.chain.forEach(model.collapse) : row.chain.forEach(model.expand) }
         }
         guard entry.opensInEditor, let root = model.root else { return nil }
         // One click previews (one reused tab), a double click keeps the tab (as in VS Code, HD-083).
@@ -206,7 +213,7 @@ private struct FileRow: View {
                     Color.clear.frame(width: Theme.Icon.inline, height: Theme.Icon.inline)
                 }
                 FileIconView(name: row.entry.name, isDir: row.entry.isDir || row.entry.isDirLink, expanded: row.expanded)
-                Text(row.entry.name)
+                Text(row.name)
                     .font(Theme.Typography.body.font())
                     .foregroundStyle(Theme.ui.text1)
                     .lineLimit(1)
@@ -324,21 +331,13 @@ private struct ChangeRow: View {
                 } else {
                     FileIconView(name: name)
                 }
-                NameFolderLayout(gap: Theme.inlineGap, minFolder: Theme.rowFolderMin) {
+                NameFolderLayout(gap: Theme.inlineGap, folderTail: dir.isEmpty ? 0 : folderTailWidth(dir)) {
                     Text(name)
                         .font(Theme.Typography.body.font())
                         .foregroundStyle(selected ? Theme.ui.text0 : Theme.ui.text1)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if !dir.isEmpty {
-                        Text(dir)
-                            .font(Theme.Typography.caption.font())
-                            .foregroundStyle(Theme.ui.text3)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                            .clipped()
-                    }
+                    if !dir.isEmpty { FolderText(dir: dir) }
                 }
                 // A zero side is noise («+3 −0»): only what changed.
                 Text(verbatim: file.added.flatMap { $0 > 0 ? "+\($0)" : nil } ?? "")
@@ -359,11 +358,11 @@ private struct ChangeRow: View {
     }
 }
 
-/// A file name, then its folder in the room left after it — dropped (laid out at zero width) when less than
-/// `minFolder` remains, so a tight row shows the whole name rather than a sliver of path.
+/// A file name, then its folder in the room left after it. The folder always keeps at least its last component
+/// (`folderTail`, up to half the row): two `index.ts` of different folders stay apart; the name gives way first.
 struct NameFolderLayout: Layout {
     var gap: CGFloat
-    var minFolder: CGFloat
+    var folderTail: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
@@ -374,19 +373,46 @@ struct NameFolderLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard let name = subviews.first else { return }
-        let nameWidth = min(name.sizeThatFits(.unspecified).width, bounds.width)
-        name.place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: nameWidth, height: bounds.height))
+        let ideal = name.sizeThatFits(.unspecified).width
+        let w = subviews.count > 1 ? nameFolderWidths(width: bounds.width, name: ideal, gap: gap, folderTail: folderTail)
+                                   : (name: min(ideal, bounds.width), folder: 0)
+        name.place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: w.name, height: bounds.height))
         guard subviews.count > 1 else { return }
-        let room = folderRoom(width: bounds.width, name: nameWidth, gap: gap, minFolder: minFolder)
-        subviews[1].place(at: CGPoint(x: bounds.minX + nameWidth + gap, y: bounds.midY), anchor: .leading,
-                          proposal: ProposedViewSize(width: room, height: bounds.height))
+        // A cut name draws narrower than offered: the folder follows the drawn name and takes the slack.
+        let drawn = min(name.sizeThatFits(ProposedViewSize(width: w.name, height: bounds.height)).width, w.name)
+        subviews[1].place(at: CGPoint(x: bounds.minX + drawn + gap, y: bounds.midY), anchor: .leading,
+                          proposal: ProposedViewSize(width: w.folder + w.name - drawn, height: bounds.height))
     }
 }
 
-/// What the folder gets after the name: the rest of the row, or 0 when that is under `minFolder`.
-func folderRoom(width: CGFloat, name: CGFloat, gap: CGFloat, minFolder: CGFloat) -> CGFloat {
-    let room = width - name - gap
-    return room >= minFolder ? room : 0
+/// The name's and the folder's widths in a row `width` wide: the folder keeps `folderTail` (at most half the row),
+/// the name the rest up to its own width, the folder anything left after that.
+func nameFolderWidths(width: CGFloat, name: CGFloat, gap: CGFloat, folderTail: CGFloat) -> (name: CGFloat, folder: CGFloat) {
+    let tail = min(folderTail, max(width / 2, 0))
+    let nameWidth = max(min(name, width - gap - tail), 0)
+    return (nameWidth, max(width - nameWidth - gap, 0))
+}
+
+/// What a folder shown head-truncated needs to keep its last component whole: «…web» (or «web» when it is all).
+@MainActor func folderTailWidth(_ dir: String) -> CGFloat {
+    let last = (dir as NSString).lastPathComponent
+    let text = last == dir ? last : "…" + last
+    return ceil((text as NSString).size(withAttributes: [.font: Theme.Typography.caption.nsFont()]).width) + 1
+}
+
+/// The folder of a Changes / Search row: `text3`, cut from the head so its last component stays.
+struct FolderText: View {
+    let dir: String
+
+    var body: some View {
+        Text(dir)
+            .font(Theme.Typography.caption.font())
+            .foregroundStyle(Theme.ui.text3)
+            .lineLimit(1)
+            .truncationMode(.head)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            .clipped()
+    }
 }
 
 /// «Файлы» of a chat without a project takes files from Finder (copies, never moves); the target shows the focus ring.

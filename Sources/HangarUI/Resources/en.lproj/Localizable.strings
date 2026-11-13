@@ -437,6 +437,8 @@
 "hostPausedBar" = "No connection to %@. Enter to reconnect";
 "openInEditorTab" = "Open in Editor";
 "copyRelativePath" = "Copy Relative Path";
+"sendPathToChat" = "Insert Path in Chat";
+"sendToChatNoAgent" = "No agent is running in this chat";
 "taskArchived" = "Chat archived";
 "undoArchive" = "Undo";
 "archiveAnyway" = "Archive anyway";
@@ -620,6 +622,7 @@
 "editorMenuCut" = "Cut";
 "editorMenuCopy" = "Copy";
 "editorMenuPaste" = "Paste";
+"editorMenuSendLines" = "Insert Line Reference in Chat";
 "editorRainbowTitle" = "Rainbow indents";
 "editorTodoTitle" = "TODO highlights";
 "editorRenameOtherFiles" = "The rename reaches other files — only single-file renames for now";

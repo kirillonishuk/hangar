@@ -58,6 +58,8 @@ enum BridgeMessage: Equatable {
     case cancel(id: Int)
     /// The context menu's Cut / Copy / Paste.
     case clipboard(ClipboardAction)
+    /// The context menu's «Вставить ссылку на строки» (HD-163): lines `from`…`to` of `file` into the chat's agent.
+    case sendLines(file: String, from: Int, to: Int)
     /// A buffer with a language server changed (forwarded to it).
     case edit(file: String, [EditorEdit])
     /// The status item's click: restart the file's language server.
@@ -127,6 +129,9 @@ enum BridgeMessage: Equatable {
         case "conflict":
             guard let f = file(), let k = bool("keepMine") else { return nil }
             return .conflict(file: f, keepMine: k)
+        case "sendLines":
+            guard let f = file(), let from = int("from", 1...maxPosition), let to = int("to", from...maxPosition) else { return nil }
+            return .sendLines(file: f, from: from, to: to)
         case "clipboard": return str("action").flatMap(ClipboardAction.init(rawValue:)).map { .clipboard($0) }
         case "inline": return bool("on").map { .inline($0) }
         case "changes":

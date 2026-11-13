@@ -6,6 +6,8 @@ import SwiftUI
 struct GitLogList: View {
     let app: AppState
     let model: GitPanelModel
+    /// The rows' width: how many ref chips fit beside the subject.
+    @State private var width: CGFloat = 0
 
     var body: some View {
         let commits = model.commits
@@ -16,7 +18,7 @@ struct GitLogList: View {
             LazyVStack(spacing: 0) {
                 ForEach(Array(commits.enumerated()), id: \.element.hash) { i, c in
                     GitLogRow(commit: c, graph: graph.indices.contains(i) ? graph[i] : nil, head: head,
-                              mark: mark, now: model.loadedAt, selected: model.selected == c.hash) {
+                              mark: mark, now: model.loadedAt, selected: model.selected == c.hash, width: width) {
                         model.select(model.selected == c.hash ? nil : c.hash)
                     }
                     .equatable()
@@ -26,6 +28,7 @@ struct GitLogList: View {
             .padding(.vertical, Theme.fileRowPaddingV)
         }
         .frame(maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
@@ -41,20 +44,22 @@ struct GitLogRow: View, Equatable {
     let mark: String
     let now: Date
     let selected: Bool
+    /// The list's width (0: not measured yet, chips as they come).
+    var width: CGFloat = 0
     let action: () -> Void
 
     nonisolated static func == (a: Self, b: Self) -> Bool {
         a.commit == b.commit && a.graph == b.graph && a.head == b.head && a.mark == b.mark
-            && a.now == b.now && a.selected == b.selected
+            && a.now == b.now && a.selected == b.selected && a.width == b.width
     }
 
     var body: some View {
-        let chips = refChips(commit.refs, limit: Theme.GitTab.maxRefs)
+        let chips = fittedChips
         GitRow(selected: selected, action: action) {
             HStack(spacing: Theme.GitTab.rowGap) {
                 GitGraphCell(row: graph, isMerge: commit.parents.count > 1, background: selected ? Theme.ui.selected : Theme.ui.bg1)
                     .frame(width: graphWidth(graph), height: Theme.GitTab.logRow)
-                if !chips.shown.isEmpty {
+                if !chips.shown.isEmpty || chips.more > 0 {
                     HStack(spacing: Theme.GitTab.refGap) {
                         ForEach(Array(chips.shown.enumerated()), id: \.offset) { _, chip in
                             GitRefPill(ref: chip.ref, lane: graph?.color ?? 0, head: head, twin: chip.twin, maxWidth: Theme.GitTab.refMaxWidth)
@@ -68,7 +73,7 @@ struct GitLogRow: View, Equatable {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(minWidth: min(Theme.GitTab.subjectMin, subjectWidth), maxWidth: subjectWidth, alignment: .leading)
-                    // The subject whole first, the chips in what is left (down to `refMinWidth`), any rest to the date.
+                    // The subject whole first, the chips in what is left (down to `refMinChars`), any rest to the date.
                     .layoutPriority(1)
                 Text(gitShortDate(commit.date, now: now))
                     .font(Theme.Typography.mono.font())
@@ -89,6 +94,19 @@ struct GitLogRow: View, Equatable {
             })]
         }
         .help(tooltip)
+    }
+
+    /// The chips that fit at their narrowest (four characters, HD-163) beside the subject's minimum and the date; the
+    /// rest fold into «+N» rather than shrink to «…».
+    private var fittedChips: (shown: [RefChip], more: Int) {
+        let chips = refChips(commit.refs, limit: Theme.GitTab.maxRefs)
+        guard width > 0 else { return chips }
+        let t = Theme.GitTab.self
+        let room = width - t.rowInset * 2 - t.chipLeading - graphWidth(graph) - GitRefPill.dateColumn - t.rowGap * 3
+            - min(t.subjectMin, subjectWidth)
+        let n = fitRefChips(chips.shown.map { GitRefPill.minWidth($0.ref.name, twin: $0.twin != nil) }, more: chips.more,
+                            room: room, gap: t.refGap) { GitRefPill.width("+\($0)") }
+        return (Array(chips.shown.prefix(n)), chips.shown.count - n + chips.more)
     }
 
     /// The subject's own width in the row's font.
@@ -144,9 +162,9 @@ struct GitRefPill: View {
         .padding(.horizontal, Theme.GitTab.refPaddingH)
         .frame(height: Theme.GitTab.refHeight)
         .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(tint.opacity(opacity)))
-        // Its own width up to the cap; in a tight row it gives way down to `refMinWidth` (a maxWidth frame alone
+        // Its own width up to the cap; in a tight row it gives way down to `refMinChars` (a maxWidth frame alone
         // would grow to the cap).
-        .frame(minWidth: min(Self.width(label), Theme.GitTab.refMinWidth), idealWidth: min(Self.width(label), maxWidth),
+        .frame(minWidth: Self.minWidth(ref.name, twin: twin != nil), idealWidth: min(Self.width(label), maxWidth),
                maxWidth: min(Self.width(label), maxWidth), alignment: .leading)
         .help(twin.map { ref.name + " · " + $0 } ?? ref.name)
     }
@@ -158,6 +176,12 @@ struct GitRefPill: View {
 
     static func width(_ name: String) -> CGFloat {
         ceil((name as NSString).size(withAttributes: [.font: font]).width) + Theme.GitTab.refPaddingH * 2
+    }
+
+    /// The narrowest a chip goes: its first `refMinChars` characters and «…» (and the `⇅`), or its whole name if shorter.
+    static func minWidth(_ name: String, twin: Bool) -> CGFloat {
+        let mark = twin ? " " + syncedMark : ""
+        return min(width(name + mark), width(String(name.prefix(Theme.GitTab.refMinChars)) + "…" + mark))
     }
 
     /// The date column: «00:00», «23 окт» and «вчера» end on one line; an older year's date may be wider.
@@ -179,6 +203,17 @@ struct GitMoreRefs: View {
             .background(RoundedRectangle(cornerRadius: Theme.GitTab.refRadius).fill(Theme.ui.text2.opacity(Theme.Opacity.fill)))
             .fixedSize()
     }
+}
+
+/// How many of the chips (narrowest widths `widths`, in order) fit in `room` with the «+N» of the rest (`more` already
+/// hidden ones plus those dropped here) and `gap` between items.
+func fitRefChips(_ widths: [CGFloat], more: Int, room: CGFloat, gap: CGFloat, moreWidth: (Int) -> CGFloat) -> Int {
+    for n in stride(from: widths.count, through: 1, by: -1) {
+        let hidden = widths.count - n + more
+        let parts = Array(widths.prefix(n)) + (hidden > 0 ? [moreWidth(hidden)] : [])
+        if parts.reduce(0, +) + gap * CGFloat(parts.count - 1) <= room { return n }
+    }
+    return 0
 }
 
 /// A row's graph cell: as wide as the lanes it draws (one lane → 20), clipped to `maxLanes`.

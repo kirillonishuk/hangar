@@ -38,7 +38,7 @@ struct SidebarView: View {
     /// Row being reordered (task within its group, or project) and its vertical translation.
     @State private var drag: (target: ActionTarget, dy: CGFloat)?
 
-    private var collapsed: Bool { app.state.sidebarCollapsed }
+    private var collapsed: Bool { app.sidebarRail }
 
     var body: some View {
         GeometryReader { geo in

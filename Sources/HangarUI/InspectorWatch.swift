@@ -68,16 +68,16 @@ import Workspace
     func update() {
         // The Git tab loads only while the inspector itself is on screen (a shown diff tab alone keeps the watch, not it).
         defer {
-            app.gitPanel.setOnScreen(current != nil && app.state.inspectorVisible)
+            app.gitPanel.setOnScreen(current != nil && app.inspectorShown)
             updateHeadWatch()
             // A host terminal's files load only while they are on screen (HD-124).
-            app.remoteFiles.follow(app.state.inspectorVisible && windowVisible() ? app.hostShellFocusedLeaf : nil)
+            app.remoteFiles.follow(app.inspectorShown && windowVisible() ? app.hostShellFocusedLeaf : nil)
             app.syncSubagentPanel(windowVisible: windowVisible())
         }
         let task = app.selectedTask
         let want = task.flatMap { t in root(of: t).map { (t.id, $0) } }
         // The shown diff tab is the inspector's data too: it keeps loading (and refreshing) with the inspector hidden.
-        guard shouldWatch(inspectorVisible: app.state.inspectorVisible || app.activeDiff != nil, windowVisible: windowVisible(), hasTask: want != nil),
+        guard shouldWatch(inspectorVisible: app.inspectorShown || app.activeDiff != nil, windowVisible: windowVisible(), hasTask: want != nil),
               let task, let (id, root) = want else {
             stop()
             return

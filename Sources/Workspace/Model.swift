@@ -386,7 +386,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Last expanded sidebar width; kept while collapsed so expanding restores it.
     public var sidebarWidth: Double
     public var sidebarCollapsed: Bool
-    /// Last inspector width (clamped to 180...480 by the view).
+    /// «Только чат» (HD-162): the sidebar on its rail and the inspector hidden together; the two flags above stay as they were.
+    public var chatOnly: Bool = false
+    /// Last inspector width (clamped to the inspector's limits by the view).
     public var inspectorWidth: Double
     /// Plain ssh logins without a project (HD-064); their tasks sit in `tasks` with the shell's id as `projectId`.
     public var hostShells: [HostShell]
@@ -422,7 +424,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case projects, tasks, selectedTaskId, inspectorVisible, sidebarWidth, sidebarCollapsed, inspectorWidth, hostShells
-        case attentionOnly, diffInline, diffWrap, editorMinimap, renderPreview, freeChats
+        case attentionOnly, diffInline, diffWrap, editorMinimap, renderPreview, freeChats, chatOnly
     }
 
     /// Keys added after the first release decode with defaults so older state.json files still load.
@@ -442,6 +444,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         editorMinimap = try c.decodeIfPresent(Bool.self, forKey: .editorMinimap) ?? false
         renderPreview = try c.decodeIfPresent(Bool.self, forKey: .renderPreview) ?? false
         freeChats = try c.decodeIfPresent([FreeChat].self, forKey: .freeChats) ?? []
+        chatOnly = try c.decodeIfPresent(Bool.self, forKey: .chatOnly) ?? false
         assignMissingPorts()
         splitEditorTabs()
     }

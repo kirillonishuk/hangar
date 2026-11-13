@@ -179,7 +179,7 @@ enum Action: CaseIterable {
         }
         return switch self {
         // Sidebar rows can't host a text field in rail mode.
-        case .rename: if case .tab = target { app.renameable(target) } else { !app.state.sidebarCollapsed }
+        case .rename: if case .tab = target { app.renameable(target) } else { !app.sidebarRail }
         case .newTask: app.isAvailable(target)
         case .newSubSession: if case .task(let id) = target { app.state.tasks.contains { $0.id == id && !$0.archived } } else { false }
         // Finder and the external editor see only this Mac's disk.

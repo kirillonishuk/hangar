@@ -9,15 +9,20 @@ public enum Theme {
     // Fonts: `Theme.Typography` (Theme+Tokens.swift).
 
     // Sizes
-    /// Sidebar 256 (200–320), inspector 320 (280–420): design system §2.4; the defaults live in `WorkspaceState`.
+    /// Sidebar 256 (200–320), inspector 320 (280 – half the window): design system §2.4; the defaults live in `WorkspaceState`.
     public static let sidebarMin: CGFloat = 200
     public static let sidebarMax: CGFloat = 320
     public static let windowSize = NSSize(width: 1200, height: 760)
-    public static let windowMinSize = NSSize(width: 800, height: 500)
+    /// Half a 14″ MacBook screen fits (HD-162).
+    public static let windowMinSize = NSSize(width: 640, height: 500)
     public static let sidebarRailWidth: CGFloat = 44
-    /// Right sidebar drag limits; tree level indent, file row padding (~22 high).
+    /// Right sidebar drag limits (the maximum is this share of the window); tree level indent, file row padding (~22 high).
     public static let inspectorMin: CGFloat = 280
-    public static let inspectorMax: CGFloat = 420
+    public static let inspectorMaxFraction: CGFloat = 0.5
+    /// Adaptive window (HD-162): below this the chat column first loses the inspector, then the sidebar shrinks to the rail.
+    public static let chatMin: CGFloat = 420
+    /// A diff pane narrower than this shows one column whatever «Рядом» says (HD-162).
+    public static let diffSideBySideMin: CGFloat = 900
     public static let treeIndent: CGFloat = Space.s3
     public static let fileRowPaddingV: CGFloat = Space.s1
     public static let inspectorSegmentPaddingH: CGFloat = Space.s3

@@ -502,6 +502,7 @@
 "cmdNextTab" = "Next Tab";
 "cmdToggleSidebar" = "Toggle Sidebar";
 "cmdToggleInspector" = "Toggle Inspector";
+"cmdChatOnly" = "Chat Only";
 "paletteLoading" = "loading…";
 "cmdQuickOpen" = "Go to Chat or File";
 "cmdCommandPalette" = "Command Palette";
@@ -631,6 +632,8 @@
 "diffNewFile" = "new file";
 "diffDeletedFile" = "deleted";
 "diffOneSide" = "The file exists on one side only — one column";
+"diffInlineNarrow" = "Inline (narrow)";
+"diffNarrow" = "Not enough room for two columns — side by side returns when the pane is wider";
 "editorMinimap" = "Minimap";
 "editorMenuDefinition" = "Go to Definition";
 "editorMenuReferences" = "Find All References";

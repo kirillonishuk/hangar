@@ -79,7 +79,7 @@ struct WindowTitleBar: View {
     @State private var keepAwakeAnchor = MenuAnchor()
 
     var body: some View {
-        let collapsed = app.state.sidebarCollapsed
+        let collapsed = app.sidebarRail
         let layout = toolbarLayout(contentX: metrics.contentX, lightsMaxX: metrics.lightsCenterY == nil ? nil : metrics.lightsMaxX)
         // Collapsed, the lights stick out of the rail: the bar runs under them, across the rail.
         let barX = collapsed ? 0 : metrics.contentX
@@ -195,7 +195,7 @@ struct WindowTitleBar: View {
         // History covers the chat and the inspector: no toggle for what is not there (HD-160).
         if !app.sessionsViewVisible {
             IconButton(icon: .sidebarRight, size: .regular, help: L10n.help(L10n.inspectorHelp, .toggleInspector)) {
-                app.perform { $0.inspectorVisible.toggle() }
+                app.toggleInspector()
             }
         }
     }

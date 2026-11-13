@@ -25,7 +25,7 @@ enum ShortcutGroup: CaseIterable {
             [[.newTab, .closeTab], [.splitRight, .splitDown], [.prevTab, .nextTab], (1...9).map { .tab($0) },
              [SplitDirection.left, .right, .up, .down].map { .focusSplit($0) }]
         case .view:
-            [[.toggleSidebar, .toggleInspector, .toggleDrawer], [.inspectorFiles, .inspectorChanges, .inspectorGit, .findInFiles],
+            [[.toggleSidebar, .toggleInspector, .chatOnly, .toggleDrawer], [.inspectorFiles, .inspectorChanges, .inspectorGit, .findInFiles],
              [.quickOpen, .commandPalette, .sessions, .limits]]
         case .help: [[.shortcuts]]
         }

@@ -54,6 +54,15 @@ enum EmptyProjectRow: Hashable {
     var leafTitles: [UUID: String] = [:]
     /// True while the sidebar width animates between rail and expanded.
     var sidebarAnimating = false
+    /// Adaptive window (HD-162), not saved: the window is too narrow for the inspector / for the expanded sidebar.
+    var autoHidesInspector = false
+    var autoRailsSidebar = false
+    /// The user showed that panel in a window too narrow for it: it stays until hidden or until the window fits it.
+    var keepsInspector = false
+    var keepsSidebar = false
+    /// What is on screen: the saved flags, «Только чат» and the adaptive window together.
+    var inspectorShown: Bool { state.inspectorVisible && !state.chatOnly && !autoHidesInspector }
+    var sidebarRail: Bool { state.sidebarCollapsed || state.chatOnly || autoRailsSidebar }
     /// Row or tab currently edited inline (F2 / double-click).
     var renaming: ActionTarget?
     /// Agent state per leaf (hooks + terminal fallbacks); in memory only.
@@ -873,12 +882,40 @@ enum EmptyProjectRow: Hashable {
         if segment == .changes || segment == .git, inspector.shownTaskId == task.id, !inspector.isGit { return }
         closeSubagentPanel()
         inspector.segment = segment
-        if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
+        if !inspectorShown { revealInspector() }
+    }
+
+    /// ⌥⌘I and the toolbar button act on what is on screen: an inspector the narrow window hid comes back (HD-162).
+    func toggleInspector() {
+        if inspectorShown {
+            keepsInspector = false
+            perform { $0.inspectorVisible = false }
+        } else {
+            revealInspector()
+        }
+    }
+
+    /// Shows the inspector even in a narrow window (the sidebar goes to its rail instead) and leaves «Только чат».
+    func revealInspector() {
+        guard !inspectorShown else { didChange?(); return }
+        keepsInspector = true  // dropped by the window when it isn't needed
+        keepsSidebar = false  // the last panel asked for wins the room
+        perform {
+            $0.inspectorVisible = true
+            $0.chatOnly = false
+        }
+    }
+
+    /// «Только чат» (HD-162): the sidebar on its rail and no inspector, one key both ways.
+    func toggleChatOnly() {
+        keepsInspector = false
+        keepsSidebar = false
+        perform { $0.chatOnly.toggle() }
     }
 
     /// The inspector shows that segment's own list (what `InspectorView` picks): it can take the keyboard (HD-161).
     func inspectorListShown(_ segment: InspectorModel.Segment) -> Bool {
-        guard let task = selectedTask, state.inspectorVisible, subagentPanel == nil, !isHostShellTask(task.id), inspectorNotice == nil,
+        guard let task = selectedTask, inspectorShown, subagentPanel == nil, !isHostShellTask(task.id), inspectorNotice == nil,
               inspector.segment == segment else { return false }
         return segment == .files || (segment == .changes && inspector.isGit)
     }

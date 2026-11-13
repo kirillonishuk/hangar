@@ -150,14 +150,14 @@ import Workspace
         case editorLargeReadOnly, editorTooLarge, editorBinary, editorSpecialFile, editorMissing, editorReadFailed, editorSaveFailed
         case editorConflict, editorReload, editorKeepMine, editorUnsavedTitle, editorUnsavedInfo, editorDontSave
         case diffInline, diffSideBySide, editorMinimap, editorUnsavedQuit
-        case diffWrap, diffNewFile, diffDeletedFile, diffOneSide
+        case diffWrap, diffNewFile, diffDeletedFile, diffOneSide, diffInlineNarrow, diffNarrow
         case revertFile, revertTitle, revertInfoCounts, revertInfoEdits, revertInfoNew, revertInfoDeleted, revertInfoRenamed, revertButton, revertDone, revertUndo, revertRemote, revertUnsavedTitle, revertUnsavedInfo, revertFailed, revertUndoFailed, revertNotAFile, revertNothing, revertDiffHelp, revertUndoChanged, revertSnapshotKept, revertChangedMeanwhile
         case editorMenuDefinition, editorMenuReferences, editorMenuRename, editorMenuFormat, editorMenuComment
         case editorMenuCut, editorMenuCopy, editorMenuPaste
         case edCustom, edAsTheme, edHintTheme, edHintCustom, edHintCustomSame, edResetAll, edColors, edSyntax, edCreated, edAllReset, edReplaceTitle, edReplaceInfo, edReplace, edReset, edResetTo, edThemeColors, edSystemPalette, edHue, edLightness, edOpacity, edFontSection, edIndentSection, edViewSection, edFont, edSize, edLineHeight, edLigatures, edTabSize, edDetect, edWrap, edLineHighlight, edCursor, edBlink, edWhitespace, edBracketColors, edBracketGuides, edIndentGuides, edFormatOnSave, edSystemFont, edPt, edLineAuto, edAuto, edSmaller, edLarger, edWrapOff, edWrapOn, edLhNone, edLhGutter, edLhLine, edLhAll, edCursorLine, edCursorBlock, edCursorUnderline, edBlinkBlink, edBlinkSmooth, edBlinkSolid, edWsNone, edWsSelection, edWsAll, edGuidesNone, edGuidesActive, edGuidesAll, edDetectTip, edFormatTip, edLineHeightTip, edLigaturesTip, edcKeyword, edcControl, edcString, edcEscape, edcRegexp, edcComment, edcNumber, edcType, edcFunction, edcVariable, edcConstant, edcJsonKey, edcPunctuation, edcOperator, edcText, edcBackground, edcLine, edcSelection, edcFind, edcGutter, edcGutterActive, edcCursor, edcIndent, edcIndentActive, edcWhitespace, edcBrackets, edcBracket1, edcBracket2, edcBracket3, edcDiffAddedLine, edcDiffRemovedLine, edcDiffAddedText, edcDiffRemovedText, edsKeyword, edsControl, edsString, edsEscape, edsComment, edsNumber, edsType, edsFunction, edsVariable, edsConstant, edsJsonKey, edsPunctuation, edsOperator, edsText
         case editorRenameOtherFiles, editorRenameRefused, editorRainbowTitle, editorTodoTitle, editorDependencyReadOnly, tsReady, tsLoading, tsStopped, tsNoTypeScript, tsNoNode, tsNotConnected, tsTooltip, tsUnavailableTip, lspLoading, lspStopped, lspMissing, lspMissingTip, lspTooltip, lspSection, lspInstalledFrom, lspNotInstalled, lspFromProject, lspSourceProject, lspTsDetail, lspNeedsXcode, lspXcodeTip, lspNeedsNode, lspNeedsGo, lspDownload, lspDownloadTip, lspRemove, lspRetry, lspDownloading, lspInstalling, lspToolFailed, lspNoAsset, lspDownloadFailed, lspNotOwned, lspNoExecutable, lspNotExecutable, downloadTooLarge
         case paletteSearch, paletteTasks, paletteFiles, paletteCommands, paletteEmpty, paletteLoading, paletteNoCommand, paletteNoFolder, palettePathNoSession, palettePathRemote, paletteModeQuick, paletteModeCommands, paletteModePath, paletteHintQuick, paletteHintCommands, paletteHintPath, cmdQuickOpen, cmdCommandPalette
-        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector
+        case cmdArchiveTask, cmdPrevTask, cmdNextTask, cmdPrevTab, cmdNextTab, cmdToggleSidebar, cmdToggleInspector, cmdChatOnly
         case cmdNewTab, cmdCloseTab, cmdShowFiles, cmdShowChanges, cmdLimits, cmdAttentionOnly
         case thisMac, notifySectionEvents, notifySectionSystem, cmdNextWorking
         case updateTo, updateAvailableHelp, updateSheetTitle, updateCurrent, updateNoNotes, updateInstall, updateRestart
@@ -929,6 +929,8 @@ import Workspace
     static var diffNewFile: String { s(.diffNewFile) }
     static var diffDeletedFile: String { s(.diffDeletedFile) }
     static var diffOneSide: String { s(.diffOneSide) }
+    static var diffInlineNarrow: String { s(.diffInlineNarrow) }
+    static var diffNarrow: String { s(.diffNarrow) }
     static var revertFile: String { s(.revertFile) }
     static func revertTitle(_ a: String) -> String { f(.revertTitle, a) }
     static func revertInfoCounts(_ a: String) -> String { f(.revertInfoCounts, a) }
@@ -1131,6 +1133,7 @@ import Workspace
         case .nextTab: s(.cmdNextTab)
         case .toggleSidebar: s(.cmdToggleSidebar)
         case .toggleInspector: s(.cmdToggleInspector)
+        case .chatOnly: s(.cmdChatOnly)
         case .inspectorFiles: s(.cmdShowFiles)
         case .inspectorChanges: s(.cmdShowChanges)
         case .inspectorGit: showGit

@@ -233,7 +233,7 @@ func clampInspectorWidth(_ w: CGFloat) -> CGFloat {
     min(max(w, Theme.inspectorMin), Theme.inspectorMax)
 }
 
-public final class MainWindowController: NSWindowController, NSWindowDelegate {
+public final class MainWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     let app: AppState
     let split = NSSplitViewController()
     let sidebarItem: NSSplitViewItem
@@ -244,7 +244,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
     nonisolated(unsafe) private var accessibilityObserver: NSObjectProtocol?
     private var sheetWindow: NSWindow?
-    private var inspectorWatch: InspectorWatch?
+    private(set) var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
     /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
     /// does nothing; another sheet waits for its own answer.
@@ -362,6 +362,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
         }
 
+        app.focusTerminal = { [weak self] in self?.column.terminalArea.focusActiveLeaf() }
         app.onChooseEditor = { [weak self] leaf in self?.togglePalette(commands: false, pickFor: leaf) }
         app.didChange = { [weak self] in
             guard let self else { return }
@@ -629,8 +630,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         }
         // Before the shortcuts: ⌘W closes the diff tab, not the hidden tab; with focus in the TERMINAL panel keys go there.
         let diffActive = app.activeDiff != nil && column.terminalArea.drawer.focusedLeaf == nil
+        // An inspector list has the keyboard: its ↑↓ ↩ are its own (HD-161); the diff's other keys still work.
+        let listKeys = !editingText && (window.firstResponder as? NSView)?.isDescendant(of: inspectorItem.viewController.view) == true
         if let key = diffKeyRoute(keyCode: event.keyCode, modifiers: event.modifierFlags, diffActive: diffActive, editingText: editingText,
-                                     webFocused: focus == .diff) {
+                                     webFocused: focus == .diff), !(listKeys && [.up, .down, .enter].contains(key)) {
             app.hangarShortcutConsumed()
             switch key {
             case .up: app.diffNeighbour(-1)
@@ -645,32 +648,47 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             return true
         }
         if let sc = shortcut(keyCode: event.keyCode, modifiers: event.modifierFlags) {
-            if sc == .rename {
-                switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
-                case .passthrough: return false
-                // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
-                case .rename(let target) where !app.renameable(target): return false
-                case .rename(let target): Action.rename.perform(target, ctx)
-                case .ignore: break
-                }
-                return true
-            }
+            if sc == .rename { return dispatch(sc, fromMenu: false) }
             // Held keys must not open/close/split dozens of tabs; the repeat is swallowed, not sent to the terminal.
-            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention]
+            let once: [Shortcut] = [.closeTab, .newTab, .splitRight, .splitDown, .toggleDrawer, .limits, .revealInFinder, .copyPath, .quickOpen, .commandPalette, .nextAttention, .shortcuts]
             app.hangarShortcutConsumed()
             if event.isARepeat && once.contains(sc) { return true }
-            switch drawerRoute(sc, drawerFocused: column.terminalArea.drawer.focusedLeaf != nil, diffActive: app.activeDiff != nil,
-                               sessionsShown: app.sessionsViewVisible) {
+            return dispatch(sc, fromMenu: false)
+        }
+        let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if event.keyCode == 36, mods.isEmpty, !editingText, !listKeys { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
+        return false
+    }
+
+    /// A matched shortcut, from its key or its menu item (HD-161): the same routing by what is on screen and has the
+    /// keyboard — ⌘W closes the shown diff, «Сессии» and the TERMINAL panel take theirs, F2 by the focus. false: the key
+    /// goes on (F2 to a terminal or Monaco); from the menu there is nothing to pass it to, so the chat is renamed.
+    private func dispatch(_ sc: Shortcut, fromMenu: Bool) -> Bool {
+        let drawerFocused = column.terminalArea.drawer.focusedLeaf != nil
+        // The key monitor's diff route had ⌘W first (`diffKeyRoute`); the menu item gets the same.
+        if fromMenu, sc == .closeTab, app.activeDiff != nil, !drawerFocused, !(window?.firstResponder is NSText) {
+            app.closeDiff()
+            return true
+        }
+        if sc == .rename {
+            switch f2Route(firstResponderKind, lastInteraction: app.lastInteraction, selectedTask: app.selectedTask?.id) {
+            case .passthrough:
+                guard fromMenu, let id = app.selectedTask?.id else { return false }
+                Action.rename.perform(.task(id), ctx)
+            // A file tab / editor pane has no name of its own: F2 goes on (Monaco renames a symbol with it).
+            case .rename(let target) where !app.renameable(target): return false
+            case .rename(let target): Action.rename.perform(target, ctx)
             case .ignore: break
-            case .closeSessions: app.hideSessionsView()
-            case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
-            case .perform: perform(sc)
             }
             return true
         }
-        let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        if event.keyCode == 36, mods.isEmpty, !editingText { return column.terminalArea.relaunchFocusedIfExited() }  // ↩
-        return false
+        switch drawerRoute(sc, drawerFocused: drawerFocused, diffActive: app.activeDiff != nil, sessionsShown: app.sessionsViewVisible) {
+        case .ignore: break
+        case .closeSessions: app.hideSessionsView()
+        case .collapseDrawer: if let id = app.selectedTask?.id { column.terminalArea.toggleDrawer(taskId: id) }
+        case .perform: perform(sc)
+        }
+        return true
     }
 
     /// Services for `Action.perform`; built on demand (closures hold the controller weakly).
@@ -754,8 +772,16 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         // shortcut: ⌘, is also the app menu's key (discoverable there, and it serves other windows); the menu alone misses it
         // while a terminal has focus (Ghostty's default super+comma binding takes the key first). Drop this if that binding goes.
         case .settings: showSettings(nil)
-        case .inspectorFiles: app.showInspector(.files)
-        case .inspectorChanges: app.showInspector(.changes)
+        // The shown list takes the keyboard (↑↓ ↩ ←→, Esc back), as VS Code's ⇧⌘E (HD-161).
+        case .inspectorFiles, .inspectorChanges:
+            let segment: InspectorModel.Segment = sc == .inspectorFiles ? .files : .changes
+            app.showInspector(segment)
+            // Only when the list itself is on screen (not «хост · терминал»'s folder, a notice or a subagent): otherwise the
+            // terminal would let go with nothing to take the keyboard, and a stale request would grab it later.
+            if app.inspectorListShown(segment) {
+                window?.makeFirstResponder(nil)  // a terminal or Monaco lets go first: SwiftUI focus alone doesn't take it from them
+                app.inspector.requestListFocus(segment)
+            }
         case .inspectorGit: app.showInspector(.git)
         case .attentionFilter: app.perform { $0.attentionOnly.toggle() }
         case .limits: app.toggleLimitsPopover()
@@ -769,6 +795,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         case .findInFiles: app.showSearch()
         case .nextWorking: app.selectNextWorking()
         case .runAction: app.runPrimaryAction()
+        case .shortcuts: showShortcuts()
         case .nextAttention:
             // Nothing waiting: nothing happens (R13).
             if let leaf = app.nextAttentionLeaf(drawerFocused: column.terminalArea.drawer.focusedLeaf?.leafId) { reveal(leafId: leaf) }
@@ -976,7 +1003,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
     @objc func showSettings(_ sender: Any?) { settings.present(over: window) }
 
     /// Rebuilt on every language switch (menus keep the titles they were built with).
-    /// Quit plus a standard Edit menu, so text fields (new-task sheet, rename) get copy/paste/undo.
+    /// App menu and a standard Edit menu (text fields get copy/paste/undo); «Чат», «Вкладка», «Вид», «Справка» from the
+    /// shortcut table, their keys shown only (the key monitor matches them, HD-161); a standard «Окно» (system tiling).
     private func installMainMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -1002,7 +1030,52 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
         edit.addItem(withTitle: L10n.selectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
+
+        for group in ShortcutGroup.menus {
+            let menu = shortcutMenu(group, target: self, action: #selector(menuShortcut(_:)))
+            main.addItem(withTitle: menu.title, action: nil, keyEquivalent: "").submenu = menu
+        }
+
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: L10n.menuWindow)
+        windowMenu.addItem(withTitle: L10n.menuMinimize, action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.menuZoom, action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        let fullScreen = windowMenu.addItem(withTitle: L10n.menuFullScreen, action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.control, .command]
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: L10n.menuBringAllToFront, action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+
+        let helpItem = NSMenuItem()
+        let help = shortcutMenu(.help, target: self, action: #selector(menuShortcut(_:)))
+        helpItem.submenu = help
+        main.addItem(helpItem)
+
         NSApp.mainMenu = main
+        // The system adds tiling («Переместить и изменить размер») and the window list here, and the search field to «Справка».
+        NSApp.windowsMenu = windowMenu
+        NSApp.helpMenu = help
+    }
+
+    /// A «Чат» / «Вкладка» / «Вид» / «Справка» item: the same `dispatch` as its key.
+    @objc private func menuShortcut(_ sender: NSMenuItem) {
+        guard let sc = sender.representedObject as? Shortcut else { return }
+        // `ShownKeysMenu` never takes a key; if AppKit ever matched one anyway, the key monitor already had it.
+        if let e = NSApp.currentEvent, e.type == .keyDown, shortcut(keyCode: e.keyCode, modifiers: e.modifierFlags) == sc { return }
+        _ = dispatch(sc, fromMenu: true)
+    }
+
+    /// Under a sheet the keys do nothing (the monitor skips them), so neither do the menus.
+    public func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.action != #selector(menuShortcut(_:)) || window?.attachedSheet == nil
+    }
+
+    /// ⌘/ and «Справка → Сочетания клавиш».
+    private func showShortcuts() {
+        guard let window, window.attachedSheet == nil else { return }
+        window.beginHangarSheet { end in ShortcutsSheet(onClose: { end(.OK) }) }
     }
 
     // MARK: Projects, tasks

@@ -154,7 +154,7 @@ extension MainWindowController {
             "focusUp": .focusSplit(.up), "focusDown": .focusSplit(.down), "inspectorFiles": .inspectorFiles,
             "inspectorChanges": .inspectorChanges, "inspectorGit": .inspectorGit, "revealInFinder": .revealInFinder, "copyPath": .copyPath,
             "quickOpen": .quickOpen, "commandPalette": .commandPalette, "sessions": .sessions, "findInFiles": .findInFiles,
-            "nextAttention": .nextAttention, "runAction": .runAction,
+            "nextAttention": .nextAttention, "runAction": .runAction, "shortcuts": .shortcuts,
         ]
         switch parts.first ?? "" {
         case "task":
@@ -480,8 +480,51 @@ extension MainWindowController {
                                            charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) else { return }
             let state = "key=\(window.isKeyWindow) responder=\(window.firstResponder.map { String(describing: type(of: $0)) } ?? "-")"
             let by = handleKeyDown(e) ? "monitor" : window.performKeyEquivalent(with: e) ? "window" : "menu"
-            try? "keyEquiv \(code) \(state) taken by \(by)\n".write(toFile: NSTemporaryDirectory() + "hangar-keyEquiv.txt", atomically: true, encoding: .utf8)
-            if by == "menu" { _ = NSApp.mainMenu?.performKeyEquivalent(with: e) }
+            let menuTook = by == "menu" ? (NSApp.mainMenu?.performKeyEquivalent(with: e) ?? false) : false
+            try? "keyEquiv \(code) \(state) taken by \(by) menuTook=\(menuTook)\n".write(toFile: NSTemporaryDirectory() + "hangar-keyEquiv.txt", atomically: true, encoding: .utf8)
+        case "menuDump":  // menuDump <file>: the menu bar, one line per item: menu / item, key equivalent, enabled (HD-161)
+            var lines: [String] = []
+            func walk(_ menu: NSMenu, _ path: String) {
+                menu.update()
+                for item in menu.items where !item.isSeparatorItem {
+                    let mods = item.keyEquivalentModifierMask
+                    let key = item.keyEquivalent.unicodeScalars.map { $0.value < 0x7f && $0.value > 0x20 ? String($0) : String(format: "U+%04X", $0.value) }.joined()
+                    let shown = key.isEmpty ? "" : (mods.contains(.control) ? "⌃" : "") + (mods.contains(.option) ? "⌥" : "") + (mods.contains(.shift) ? "⇧" : "") + (mods.contains(.command) ? "⌘" : "") + key
+                    lines.append("\(path)\(item.title)\t\(shown)\t\(item.isEnabled ? "" : "disabled")\(item.isAlternate ? " alternate" : "")\(item.isHidden ? " hidden" : "")\t\(type(of: menu))")
+                    if let sub = item.submenu { walk(sub, path + (item.title.isEmpty ? sub.title : item.title) + " / ") }
+                }
+            }
+            if let main = NSApp.mainMenu { walk(main, "") }
+            lines.append("windowsMenu=\(NSApp.windowsMenu?.title ?? "-") helpMenu=\(NSApp.helpMenu?.title ?? "-")")
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
+        case "menuItem":  // menuItem <menu>/<item>: as a click on that menu bar item
+            let f = arg.split(separator: "/", maxSplits: 1).map(String.init)
+            guard f.count == 2, let menu = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == f[0] })?.submenu else { return }
+            let all = menu.items + menu.items.compactMap(\.submenu).flatMap(\.items)
+            let item = all.first { $0.title == f[1] }
+            uiLog.info("menuItem \(arg, privacy: .public): found=\(item != nil) enabled=\(item?.isEnabled ?? false)")
+            if let item, let owner = item.menu, let i = owner.items.firstIndex(of: item) { owner.performActionForItem(at: i) }
+        case "listKey":  // listKey up|down|left|right|enter|esc: a plain key through the window's key routing (focus as it is)
+            let keys: [String: (UInt16, Int)] = ["up": (126, NSUpArrowFunctionKey), "down": (125, NSDownArrowFunctionKey), "left": (123, NSLeftArrowFunctionKey),
+                                                 "right": (124, NSRightArrowFunctionKey), "enter": (36, 13), "esc": (53, 27)]
+            guard let window, let (code, ch) = keys[arg], let scalar = Unicode.Scalar(ch) else { return }
+            let chars = String(Character(scalar))
+            let mods: NSEvent.ModifierFlags = code >= 123 ? [.function, .numericPad] : []
+            if let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: window.windowNumber, context: nil, characters: chars,
+                                        charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) {
+                if !handleKeyDown(e) { window.sendEvent(e) }
+            }
+        case "inspectorOnScreen":  // inspectorOnScreen: the inspector loads as if the window were on screen (a run kept behind other windows)
+            inspectorWatch?.windowVisible = { true }
+            inspectorWatch?.update()
+        case "listDump":  // listDump <file>: inspector list keys state (HD-161)
+            let i = app.inspector
+            let lines = ["segment=\(i.segment) cursor=\(i.cursor ?? "-") diffPath=\(i.diffPath ?? "-") expanded=\(i.expanded.sorted())",
+                         "searchCursor=\(app.search.cursor.map { "\($0)" } ?? "-") collapsed=\(app.search.collapsed.sorted())",
+                         "responder=\(window?.firstResponder.map { String(describing: type(of: $0)) } ?? "-") sheet=\(window?.attachedSheet != nil) chain=\(sequence(first: window?.firstResponder as? NSView, next: { $0?.superview }).prefix(8).compactMap { $0.map { String(describing: type(of: $0)) } }.joined(separator: "<"))",
+                         "activeTab=\(app.selectedTask?.activeTabId.flatMap { id in app.selectedTask?.tabs.first { $0.id == id }?.title } ?? "-") diffActive=\(app.activeDiff != nil)"]
+            try? lines.joined(separator: "\n").write(toFile: arg, atomically: true, encoding: .utf8)
         case "button":
             // button <title>: clicks it in the attached sheet/alert (posted keys don't reach a sheet window).
             func find(_ v: NSView) -> NSButton? {

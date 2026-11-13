@@ -116,6 +116,8 @@ enum EmptyProjectRow: Hashable {
     var editorImage: Set<UUID> = []
     /// Moves an existing file tab's cursor (a line and column) and focuses it; set by `TerminalArea`.
     @ObservationIgnored var onOpenInEditor: ((UUID, String, Int?, Int?) -> Void)?
+    /// Esc in an inspector list: the keyboard goes back to the active terminal (HD-161).
+    @ObservationIgnored var focusTerminal: (() -> Void)?
     /// A chooser's «Редактор»: the ⌘P file picker for that pane (set by the window controller).
     @ObservationIgnored var onChooseEditor: ((UUID) -> Void)?
     /// Settings → Appearance changed: every editor and diff page restyles (set by `TerminalArea`).
@@ -872,6 +874,13 @@ enum EmptyProjectRow: Hashable {
         closeSubagentPanel()
         inspector.segment = segment
         if !state.inspectorVisible { perform { $0.inspectorVisible = true } }
+    }
+
+    /// The inspector shows that segment's own list (what `InspectorView` picks): it can take the keyboard (HD-161).
+    func inspectorListShown(_ segment: InspectorModel.Segment) -> Bool {
+        guard let task = selectedTask, state.inspectorVisible, subagentPanel == nil, !isHostShellTask(task.id), inspectorNotice == nil,
+              inspector.segment == segment else { return false }
+        return segment == .files || (segment == .changes && inspector.isGit)
     }
 
     /// ⌘1…8: n-th tab of the selected task; ⌘9: its last tab.

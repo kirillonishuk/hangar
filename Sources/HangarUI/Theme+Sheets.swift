@@ -13,6 +13,8 @@ extension Theme {
     /// Install-plan command box.
     public static let planPaddingV: CGFloat = Space.s2
     public static let planCommandGap: CGFloat = Space.s2
+    /// The shortcuts cheatsheet's list (HD-161): as tall as the palette's, it scrolls.
+    public static let shortcutsListHeight: CGFloat = paletteListHeight
 }
 
 extension Theme {

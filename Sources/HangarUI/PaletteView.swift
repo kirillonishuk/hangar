@@ -414,5 +414,6 @@ func paletteIcon(_ sc: Shortcut) -> Icon {
     case .settings: .settings
     case .sessions: .history
     case .findInFiles: .search
+    case .shortcuts: .more
     }
 }

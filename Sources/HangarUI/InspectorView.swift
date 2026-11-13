@@ -173,15 +173,33 @@ private struct FilesList: View {
             }
             if model.filesTruncated { notice(L10n.filesTruncated(FileListing.limit)) }
             if let empty = model.emptyFilesNotice { EmptyNote(text: empty) }
-            ScrollView(.vertical) {
-                LazyVStack(spacing: 0) {
-                    ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
-                        FileRow(row: row, change: model.badges[row.entry.path], action: action(row), dragFile: dragFile(app, relative: row.entry.path))
-                            .popoverContextMenu { fileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
+                            FileRow(row: row, change: model.badges[row.entry.path], selected: model.cursor == row.id, action: action(row), dragFile: dragFile(app, relative: row.entry.path))
+                                .popoverContextMenu { fileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
+                        }
                     }
+                    .padding(.vertical, Theme.fileRowPaddingV)
                 }
-                .padding(.vertical, Theme.fileRowPaddingV)
+                .listKeys(focusRequest: model.listFocus(.files), served: Bindable(model).listFocusServed, onKey: key, onEscape: { app.focusTerminal?() })
+                .onChange(of: model.cursor) { if let c = model.cursor { proxy.scrollTo(c) } }
             }
+        }
+    }
+
+    /// ↑↓ move the cursor, ←→ fold / unfold, ↩ opens the file (kept, not a preview) or folds the folder.
+    private func key(_ key: ListKey) {
+        let rows = visibleRows(model.tree, expanded: model.expanded)
+        switch listNav(treeNavRows(rows), cursor: model.cursor, key: key) {
+        case .select(let path): model.cursor = path
+        // The row's own click toggle (it knows how a row folds), so ←→ fold exactly what a click would.
+        case .expand(let path), .collapse(let path): if let row = rows.first(where: { $0.id == path }) { action(row)?() }
+        case .open(let path):
+            guard let root = model.root, rows.first(where: { $0.id == path })?.entry.opensInEditor == true else { return }
+            app.openInEditor(path: root + "/" + path, line: nil, preview: false)
+        case .none: break
         }
     }
 
@@ -189,22 +207,23 @@ private struct FilesList: View {
     private func action(_ row: TreeRow) -> (() -> Void)? {
         let entry = row.entry
         if entry.isDir {
-            return { row.expanded ? model.collapse(entry.path) : model.expand(entry.path) }
+            return { model.cursor = entry.path; row.expanded ? model.collapse(entry.path) : model.expand(entry.path) }
         }
         guard entry.opensInEditor, let root = model.root else { return nil }
         // One click previews (one reused tab), a double click keeps the tab (as in VS Code, HD-083).
-        return { app.openInEditor(path: root + "/" + entry.path, line: nil, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2) }
+        return { model.cursor = entry.path; app.openInEditor(path: root + "/" + entry.path, line: nil, preview: (NSApp.currentEvent?.clickCount ?? 1) < 2) }
     }
 }
 
 private struct FileRow: View {
     let row: TreeRow
     let change: FileChange?
+    let selected: Bool
     let action: (() -> Void)?
     let dragFile: URL?
 
     var body: some View {
-        HoverRow(action: action, dragFile: dragFile) { _ in
+        HoverRow(selected: selected, action: action, dragFile: dragFile) { _ in
             HStack(spacing: Theme.railInset) {
                 // Files keep the chevron's slot, so names of one level line up.
                 if row.entry.isDir {
@@ -252,14 +271,26 @@ private struct ChangesList: View {
                         let columns = ChangeColumns(changes.files)
                         let viewed = app.viewedChanges
                         ForEach(changes.files) { file in
-                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath, viewed: viewed.contains(file.path),
-                                      dragFile: file.change == .deleted ? nil : dragFile(app, relative: file.path)) { app.openDiff(path: file.path) }
+                            ChangeRow(file: file, columns: columns, selected: file.path == (model.changesCursor ?? model.diffPath), viewed: viewed.contains(file.path),
+                                      dragFile: file.change == .deleted ? nil : dragFile(app, relative: file.path)) { model.changesCursor = file.path; app.openDiff(path: file.path) }
                                 .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) + revertMenu(app: app, relative: file.path) }
                         }
                     }
                 }
                 .padding(.vertical, Theme.fileRowPaddingV)
             }
+            // shortcut: the list doesn't scroll after the cursor (change lists are short; a ScrollViewReader if long ones need it).
+            .listKeys(focusRequest: model.listFocus(.changes), served: Bindable(model).listFocusServed, onKey: key, onEscape: { app.focusTerminal?() })
+        }
+    }
+
+    /// ↑↓ move the cursor (from the open diff), ↩ opens its diff — the diff takes the keyboard, as after a click.
+    private func key(_ key: ListKey) {
+        let rows = (model.changes?.files ?? []).map { NavRow<String>(id: $0.path) }
+        switch listNav(rows, cursor: model.changesCursor ?? model.diffPath, key: key) {
+        case .select(let path): model.changesCursor = path
+        case .open(let path): model.changesCursor = path; app.openDiff(path: path)
+        case .expand, .collapse, .none: break
         }
     }
 

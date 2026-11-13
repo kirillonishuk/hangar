@@ -12,9 +12,11 @@ import Testing
             #expect(editorKeyRoute(keyCode: 2, modifiers: cmd, focus: focus) == .monaco)      // ⌘D next occurrence
             #expect(editorKeyRoute(keyCode: 3, modifiers: cmd, focus: focus) == .monaco)      // ⌘F find
             #expect(editorKeyRoute(keyCode: 3, modifiers: optCmd, focus: focus) == .monaco)   // ⌥⌘F replace
+            #expect(editorKeyRoute(keyCode: 44, modifiers: cmd, focus: focus) == .monaco)     // ⌘/ comment (Hangar: the cheatsheet, HD-161)
         }
-        // Keys Hangar never binds pass through on their own (⌘/, ⌥↑, ⇧⌘K, ⌘[, ⌘Z, F12…).
-        let free: [(UInt16, NSEvent.ModifierFlags)] = [(44, cmd), (126, .option), (125, [.shift, .option]), (40, [.shift, .command]),
+        #expect(shortcut(keyCode: 44, modifiers: cmd) == .shortcuts)
+        // Keys Hangar never binds pass through on their own (⌥↑, ⇧⌘K, ⌘[, ⌘Z, F12…).
+        let free: [(UInt16, NSEvent.ModifierFlags)] = [(126, .option), (125, [.shift, .option]), (40, [.shift, .command]),
                                                        (33, cmd), (30, cmd), (6, cmd), (6, [.shift, .command]), (111, []), (111, .shift)]
         for (code, mods) in free {
             #expect(editorKeyRoute(keyCode: code, modifiers: mods, focus: .editor) == nil)

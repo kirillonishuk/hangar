@@ -198,6 +198,7 @@ import Workspace
         case subagentPanelTitle, subagentPanelClose
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
         case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
+        case menuChat, menuTab, menuView, menuWindow, menuHelp, menuMinimize, menuZoom, menuFullScreen, menuBringAllToFront, menuGoToTab, menuTabNumber, menuFocusPane, paneLeft, paneRight, paneAbove, paneBelow, cmdShortcuts, shortcutsSearch, shortcutsNothing, shortcutsTabs, shortcutsDone
     }
 
 
@@ -1146,8 +1147,58 @@ import Workspace
         case .runAction: s(.cmdRunAction)
         case .sessions: sessionsTitle
         case .findInFiles: s(.cmdFindInFiles)
+        case .shortcuts: s(.cmdShortcuts)
         case .tab(let n): "\(n)"
         case .focusSplit: ""
+        }
+    }
+}
+
+/// The menu bar and the cheatsheet (HD-161).
+extension L10n {
+    static var menuWindow: String { s(.menuWindow) }
+    static var menuHelp: String { s(.menuHelp) }
+    static var menuMinimize: String { s(.menuMinimize) }
+    static var menuZoom: String { s(.menuZoom) }
+    static var menuFullScreen: String { s(.menuFullScreen) }
+    static var menuBringAllToFront: String { s(.menuBringAllToFront) }
+    static var shortcutsSearch: String { s(.shortcutsSearch) }
+    static var shortcutsNothing: String { s(.shortcutsNothing) }
+    static var shortcutsTabs: String { s(.shortcutsTabs) }
+    static var shortcutsDone: String { s(.shortcutsDone) }
+
+    static func shortcutGroup(_ group: ShortcutGroup) -> String {
+        switch group {
+        case .app: "Hangar"
+        case .chat: s(.menuChat)
+        case .tab: s(.menuTab)
+        case .view: s(.menuView)
+        case .help: s(.menuHelp)
+        }
+    }
+
+    /// The submenu a section of the table becomes (tabs 1…9, split focus); nil for plain items.
+    static func shortcutSubmenu(_ section: [Shortcut]) -> String? {
+        switch section.first {
+        case .tab: s(.menuGoToTab)
+        case .focusSplit: s(.menuFocusPane)
+        default: nil
+        }
+    }
+
+    /// A menu item's title; in the cheatsheet a split-focus line names its submenu too.
+    static func shortcutMenuTitle(_ sc: Shortcut, inCheatsheet: Bool = false) -> String {
+        switch sc {
+        case .tab(let n): return f(.menuTabNumber, Int32(n))
+        case .focusSplit(let d):
+            let side = switch d {
+            case .left: s(.paneLeft)
+            case .right: s(.paneRight)
+            case .up: s(.paneAbove)
+            case .down: s(.paneBelow)
+            }
+            return inCheatsheet ? s(.menuFocusPane) + ": " + side.lowercased() : side
+        default: return command(sc)
         }
     }
 }

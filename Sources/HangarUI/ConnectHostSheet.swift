@@ -18,20 +18,17 @@ struct ConnectHostSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.connectHostTitle)
-            CardSection {
-                CardRow(label: L10n.hostLabel, first: true, note: invalid ? L10n.hostInvalid : nil, failed: true) {
-                    TextField("", text: $host)
-                        .focused($focused)
-                        .onSubmit(connect)
-                        .inputField(focused: focused, invalid: invalid, placeholder: host.isEmpty ? L10n.hostPlaceholder : nil)
-                    if !configHosts.isEmpty { HostMenu(hosts: configHosts) { host = $0 } }
+            SheetFields {
+                SheetField(label: L10n.hostLabel, note: invalid ? L10n.hostInvalid : L10n.plainSSHHint, failed: invalid) {
+                    HStack(spacing: Theme.pickGap) {
+                        TextField("", text: $host)
+                            .focused($focused)
+                            .onSubmit(connect)
+                            .inputField(focused: focused, invalid: invalid, placeholder: host.isEmpty ? L10n.hostPlaceholder : nil)
+                        if !configHosts.isEmpty { HostMenu(hosts: configHosts) { host = $0 } }
+                    }
                 }
             }
-            .padding(.top, Theme.sheetNameTop)
-            Text(L10n.plainSSHHint)
-                .font(Theme.Typography.secondary.font())
-                .foregroundStyle(Theme.ui.text3)
-                .padding(.top, Theme.sheetMessageTop)
             footer
         }
         .sheetFrame()

@@ -232,6 +232,15 @@ public func parseRemoteListing(_ data: Data, limit: Int = RemoteListing.limit) -
 public func listRemoteFolder(_ link: RemoteShellLink, path: String, limit: Int = RemoteListing.limit) async throws -> RemoteListing {
     guard link.isUp, let argv = link.argv(script: remoteListScript, args: [path, String(limit)]) else { throw RemoteFileError.offline }
     let r = try await runProcess(link.sshPath, argv, cwd: "/", env: ProcessInfo.processInfo.environment, maxOutput: RemoteListing.maxOutput)
+    return try remoteListing(r, path: path, limit: limit)
+}
+
+/// One folder of the server through any runner (a connected host's: «Удалённый проект»'s path suggestions, HD-164).
+public func listRemoteFolder(_ runner: Runner, path: String, limit: Int = RemoteListing.limit) async throws -> RemoteListing {
+    try remoteListing(try await runner.run(["sh", "-c", remoteListScript, "sh", path, String(limit)], "/"), path: path, limit: limit)
+}
+
+private func remoteListing(_ r: RunResult, path: String, limit: Int) throws -> RemoteListing {
     let raw = Data(r.stdout.utf8)
     // Cut at the cap (ssh killed): what came is shown, marked as cut.
     if raw.count >= RemoteListing.maxOutput {

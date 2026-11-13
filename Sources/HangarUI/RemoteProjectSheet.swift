@@ -75,6 +75,25 @@ import SwiftUI
         await s.show()
     }
 
+    /// The host answers now (this sheet connected it, or a project uses it): «Путь» can suggest its folders (HD-164).
+    var canSuggestFolders: Bool {
+        phase != .connecting && validSSHHost(trimmedHost) != nil && remote.hosts[trimmedHost]?.state == .connected
+    }
+
+    /// The server's folders for «Путь» as typed, one level: those of its last folder that start with the rest; nil when
+    /// that folder can't be listed.
+    func folderSuggestions() async -> [String]? {
+        let h = trimmedHost
+        guard canSuggestFolders, let home = remote.hosts[h]?.home else { return nil }
+        let (dir, prefix) = remotePathCompletion(path)
+        guard let listing = try? await listRemoteFolder(remote.runner(h), path: remoteFullPath(dir, home: home),
+                                                        limit: Self.folderLimit) else { return nil }
+        return remoteFolderSuggestions(listing, dir: dir, prefix: prefix)
+    }
+
+    /// Entries read for one level of suggestions: a menu, not a file browser.
+    static let folderLimit = 500
+
     /// The sheet closes without adding.
     func cancel() {
         if let h = connectedHost { release(h) }
@@ -91,12 +110,45 @@ import SwiftUI
 /// The folder's real path on the server (`pwd -P`), nil if it is not there. `~` is the server's home; a relative path
 /// is taken from there too. Shared by the sheet and `projects.add --host`.
 func remoteRealPath(_ path: String, home: String, runner: Runner) async -> String? {
-    let full = path == "~" ? home : path.hasPrefix("~/") ? home + path.dropFirst(1) : path.hasPrefix("/") ? path : home + "/" + path
-    guard let r = try? await runner.run(["pwd", "-P"], full), r.status == 0, let real = lastLine(r.stdout), real.hasPrefix("/") else { return nil }
+    guard let r = try? await runner.run(["pwd", "-P"], remoteFullPath(path, home: home)), r.status == 0, let real = lastLine(r.stdout), real.hasPrefix("/") else { return nil }
     return real
 }
 
-/// Sheet (520): title, one card (Хост with the ssh-config drop-down, Путь mono), the connection state,
+/// `~` and a relative path are the server's home.
+func remoteFullPath(_ path: String, home: String) -> String {
+    path == "~" ? home : path.hasPrefix("~/") ? home + path.dropFirst(1) : path.hasPrefix("/") ? path : home + "/" + path
+}
+
+/// «Путь» as typed → the folder to list and the start of the name being typed (HD-164): `~/src/ap` → (`~/src/`, `ap`);
+/// a bare name is under the home (`""`), `~` is the home itself.
+func remotePathCompletion(_ typed: String) -> (dir: String, prefix: String) {
+    let t = typed.trimmingCharacters(in: .whitespaces)
+    if t == "~" { return ("~/", "") }
+    guard let slash = t.lastIndex(of: "/") else { return ("", t) }
+    return (String(t[...slash]), String(t[t.index(after: slash)...]))
+}
+
+/// The listing's folders starting with `prefix` (case-insensitive; hidden ones only once a `.` is typed) as values for
+/// «Путь»: `dir` + name + `/`, so the next pick goes one level deeper.
+func remoteFolderSuggestions(_ listing: RemoteListing, dir: String, prefix: String) -> [String] {
+    let lower = prefix.lowercased()
+    return listing.entries
+        .filter { $0.isDir && (prefix.hasPrefix(".") || !$0.name.hasPrefix(".")) && $0.name.lowercased().hasPrefix(lower) }
+        .map { dir + $0.name + "/" }
+}
+
+/// The ▾ menu of «Путь»: the suggested folders by name, or why there are none.
+@MainActor func remoteFolderMenu(_ found: [String]?, pick: @escaping (String) -> Void) -> [PopoverMenuEntry] {
+    guard let found, !found.isEmpty else {
+        return [.item(PopoverMenuItem(title: found == nil ? L10n.remoteFoldersFailed : L10n.remoteFoldersNone, enabled: false) {})]
+    }
+    return found.map { path in
+        let name = (path.dropLast() as Substring).split(separator: "/").last.map(String.init) ?? path
+        return .item(PopoverMenuItem(title: name + "/", mono: true, file: (name, true)) { pick(path) })
+    }
+}
+
+/// Sheet (520): title, the fields (Сервер with the ssh-config drop-down, Путь mono with the server's folders), the connection state,
 /// then the embedded server report. One primary button: «Подключиться», then «Добавить».
 struct RemoteProjectSheet: View {
     @Bindable var model: RemoteProjectModel
@@ -108,12 +160,13 @@ struct RemoteProjectSheet: View {
     @FocusState private var focus: Field?
     private enum Field { case host, path }
     @State private var chrome = SheetChrome()
+    @State private var pathAnchor = MenuAnchor()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.remoteProjectTitle)
 
-            card.padding(.top, Theme.sheetNameTop)
+            SheetFields { fields }
             status
             if let server = model.server {
                 ServerCheckView(model: server, embedded: true, maxHeight: chrome.budget(windowHeight))
@@ -127,28 +180,55 @@ struct RemoteProjectSheet: View {
         .onAppear { focus = .host }
     }
 
-    private var card: some View {
-        VStack(spacing: 0) {
-            CardRow(label: L10n.hostLabel, first: true, note: model.hostMalformed ? L10n.hostInvalid : nil, failed: true) {
-                TextField("", text: $model.host)
-                    .focused($focus, equals: .host)
-                    .onSubmit { focus = .path }
-                    .inputField(focused: focus == .host, invalid: model.hostInvalid,
-                                placeholder: model.host.isEmpty ? L10n.hostPlaceholder : nil)
-                if !model.configHosts.isEmpty {
-                    HostMenu(hosts: model.configHosts) { h in model.host = h; focus = .path }
+    @ViewBuilder private var fields: some View {
+        Group {
+            SheetField(label: L10n.hostLabel, note: model.hostMalformed ? L10n.hostInvalid : nil, failed: true) {
+                HStack(spacing: Theme.pickGap) {
+                    TextField("", text: $model.host)
+                        .focused($focus, equals: .host)
+                        .onSubmit { focus = .path }
+                        .inputField(focused: focus == .host, invalid: model.hostInvalid,
+                                    placeholder: model.host.isEmpty ? L10n.hostPlaceholder : nil)
+                    if !model.configHosts.isEmpty {
+                        HostMenu(hosts: model.configHosts) { h in model.host = h; focus = .path }
+                    }
                 }
             }
-            CardRow(label: L10n.pathLabel) {
-                TextField("", text: $model.path)
-                    .focused($focus, equals: .path)
-                    .onSubmit(primary)
-                    .inputField(focused: focus == .path, mono: true, invalid: model.pathInvalid,
-                                placeholder: model.path.isEmpty ? L10n.remotePathPlaceholder : nil)
+            SheetField(label: L10n.pathLabel) {
+                HStack(spacing: Theme.pickGap) {
+                    TextField("", text: $model.path)
+                        .focused($focus, equals: .path)
+                        .onSubmit(primary)
+                        // ↓ as in a path completer: the folders of what is typed.
+                        .onKeyPress(.downArrow) {
+                            guard model.canSuggestFolders else { return .ignored }
+                            showFolders(again: false)
+                            return .handled
+                        }
+                        .inputField(focused: focus == .path, mono: true, invalid: model.pathInvalid,
+                                    placeholder: model.path.isEmpty ? L10n.remotePathPlaceholder : nil)
+                    IconButton(icon: .chevronDown, help: model.canSuggestFolders ? L10n.remoteFoldersHelp : L10n.remoteFoldersNeedConnect) {
+                        showFolders(again: false)
+                    }
+                    .disabled(!model.canSuggestFolders)
+                }
+                .background(MenuAnchorView(anchor: pathAnchor))
             }
         }
         .disabled(model.phase == .connecting)
-        .sheetCard()
+    }
+
+    /// The server's folders under «Путь»; a pick goes one level deeper and opens the next level (when it has folders).
+    private func showFolders(again: Bool) {
+        Task {
+            let found = await model.folderSuggestions()
+            if again, found?.isEmpty != false { return }
+            PopoverMenu.show(remoteFolderMenu(found) { path in
+                model.path = path
+                focus = .path
+                showFolders(again: true)
+            }, below: pathAnchor.view)
+        }
     }
 
     @ViewBuilder private var status: some View {

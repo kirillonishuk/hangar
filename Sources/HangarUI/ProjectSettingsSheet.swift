@@ -148,7 +148,6 @@ struct ProjectSettingsSheet: View {
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(!canSave)
             }
-            .padding(.top, Theme.sheetGap)
         }
         .sheetFrame(width: Theme.projectSettingsWidth)
         .onAppear { focus = .name }

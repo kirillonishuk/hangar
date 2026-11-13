@@ -2,7 +2,7 @@ import SwiftUI
 import Workspace
 
 /// «Новый подчат…» (HD-128, HD-131): a task for a parallel chat under this one, its agent and where it works (the chat's own
-/// folder by default).
+/// folder by default). Laid out as «Новый чат» (§3.14, HD-164): plain fields, «Где работать» as the same two options.
 struct SubSessionSheet: View {
     let parentName: String
     /// A chat without a project has no repository: no copy (worktree).
@@ -13,36 +13,32 @@ struct SubSessionSheet: View {
 
     @State private var prompt = ""
     @State private var worktree = false
-    @FocusState private var focused: Bool
+    @FocusState private var focus: Field?
+    private enum Field { case task, place }
 
     private var ready: Bool { !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: L10n.newSubChatTitle(parentName))
-            CardSection {
-                CardRow(label: L10n.subChatTask, first: true) {
+            SheetFields {
+                SheetField(label: L10n.subChatTask, note: L10n.subChatHint) {
                     TextField("", text: $prompt, axis: .vertical)
-                        .lineLimit(3...10)
-                        .focused($focused)
-                        .inputField(focused: focused, multiline: true, placeholder: prompt.isEmpty ? L10n.subChatTaskPlaceholder : nil)
+                        .lineLimit(Theme.promptLines)
+                        .focused($focus, equals: .task)
+                        .inputField(focused: focus == .task, multiline: true, placeholder: prompt.isEmpty ? L10n.subChatTaskPlaceholder : nil)
                 }
-                CardRow(label: L10n.subChatAgent) {
-                    Segmented(selection: agent, options: [(LeafKind.claude, "Claude"), (LeafKind.codex, "Codex")]) { agent = $0 }
+                SheetField(label: L10n.subChatAgent) {
+                    AgentSegment(agent: agent) { agent = $0 }
                 }
                 if canWorktree {
-                    CardRow(label: L10n.whereToWork) {
-                        Segmented(selection: worktree, options: [(false, L10n.subChatWhereSame), (true, L10n.whereCopy)]) { worktree = $0 }
+                    SheetField(label: L10n.whereToWork) {
+                        WhereOptions(folderTitle: L10n.subChatWhereSame, folderDetail: AttributedString(L10n.subChatWhereSameHint),
+                                     copyDetail: L10n.whereCopyHint, worktree: worktree, focused: focus == .place) { worktree = $0 }
+                            .focused($focus, equals: .place)
                     }
                 }
             }
-            .padding(.top, Theme.sheetNameTop)
-            Text(verbatim: L10n.subChatHint)
-                .font(Theme.Typography.secondary.font())
-                .foregroundStyle(Theme.ui.text3)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Theme.sheetMessageTop)
             SheetFooter {
                 // Why «Запустить» is off: the subchat starts from its task.
                 if !ready {
@@ -58,7 +54,7 @@ struct SubSessionSheet: View {
             }
         }
         .sheetFrame()
-        .onAppear { focused = true }
+        .onAppear { focus = .task }
     }
 
     private func start() {

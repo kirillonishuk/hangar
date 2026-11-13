@@ -1078,3 +1078,9 @@
 "installCancelLocked" = "Installing: the sheet closes once it is done (it may be waiting for a sudo password in the terminal)";
 "noticeSend" = "Send";
 "subChatNeedsTask" = "Write what to do first";
+"subChatWhereSameHint" = "The same folder and branch as the chat.";
+"newTaskProjectHelp" = "The new chat’s project";
+"remoteFoldersHelp" = "Folders on the server — ↓";
+"remoteFoldersNeedConnect" = "Server folders — once connected";
+"remoteFoldersNone" = "No folders here";
+"remoteFoldersFailed" = "Couldn’t read the folder on the server";

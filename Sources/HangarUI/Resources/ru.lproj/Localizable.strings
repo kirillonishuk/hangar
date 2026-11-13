@@ -388,6 +388,12 @@
 "diffChangeCounter" = "%d из %d";
 "diffPrevChange" = "Предыдущее изменение";
 "diffNextChange" = "Следующее изменение";
+"terminalFindPlaceholder" = "Найти в терминале";
+"terminalFindCounter" = "%@ из %d";
+"terminalFindNone" = "Нет совпадений";
+"terminalFindUp" = "Совпадение выше";
+"terminalFindDown" = "Совпадение ниже";
+"terminalFindClose" = "Закрыть поиск";
 "keepAwakeTitle" = "Не засыпать, пока агенты работают";
 "keepAwakeOffHelp" = "Не засыпать: выключено";
 "keepAwakeIdleHelp" = "Не засыпать: включено — Mac не уснёт, пока агенты работают";

@@ -97,6 +97,8 @@ public enum Theme {
     public static let paneHeaderPaddingH: CGFloat = Space.s3
     /// Gap between the header's «⇱» and «×».
     public static let paneHeaderButtonGap: CGFloat = Space.s1
+    /// Terminal find bar (HD-159): a one- or two-letter needle waits this long before Ghostty searches (as its own bar).
+    public static let terminalFindDelay: TimeInterval = 0.3
 
     /// Every sheet (§3.14: new chat, project settings, remote project, server, integration, update): one width.
     public static let sheetWidth: CGFloat = 520

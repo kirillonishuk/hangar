@@ -82,6 +82,8 @@ extension Theme {
         public static let toolbar: CGFloat = 16
         /// Tabs, files, menus, popovers.
         public static let row: CGFloat = 14
+        /// The file icon under the pointer while a list row is dragged out (HD-159).
+        public static let dragFile: CGFloat = 32
         /// Chevrons, the branch in a field, the pane header icon.
         public static let inline: CGFloat = 12
         public static let statusDot: CGFloat = 8

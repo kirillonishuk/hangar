@@ -599,7 +599,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             }
             return true
         }
-        // ⌘F with the Git tab on screen: its search field (otherwise ⌘F goes on to the terminal).
+        // ⌘F with the keyboard in a terminal (or its find bar): the terminal's find bar, before the Git tab (HD-159).
+        if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+           let leaf = terminalLeaf(of: window.firstResponder) {
+            if !event.isARepeat { leaf.startFind() }
+            return true
+        }
+        // ⌘F with the Git tab on screen and the keyboard elsewhere: its search field (HD-159).
         if event.keyCode == 3, event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
            app.state.inspectorVisible, app.inspector.segment == .git, !app.sessionsViewVisible, app.selectedTask != nil {
             app.gitPanel.searchFocusRequest += 1
@@ -673,6 +679,12 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate {
             },
             showError: { [weak self] message, info in self?.showError(message, info) },
             didArchive: { [weak self] id in self?.column.archiveUndo.show(id) })
+    }
+
+    /// The terminal leaf whose surface or find bar has the keyboard.
+    private func terminalLeaf(of responder: NSResponder?) -> LeafView? {
+        guard let view = responder as? NSView else { return nil }
+        return sequence(first: view, next: { $0.superview }).lazy.compactMap { $0 as? LeafView }.first { $0.surface != nil }
     }
 
     /// Monaco's editor or diff has the keyboard (a view inside its WKWebView is the first responder).

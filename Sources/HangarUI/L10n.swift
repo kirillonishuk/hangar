@@ -136,6 +136,7 @@ import Workspace
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
         case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
+        case terminalFindPlaceholder, terminalFindCounter, terminalFindNone, terminalFindUp, terminalFindDown, terminalFindClose
         case diffViewed, diffMarkViewed, diffUnmarkViewed, changesViewed, changesViewedOf, diffPreview, diffPreviewHelp, diffPreviewFailed, renderCode
         case hostPausedBar, integrationNotInstalled, integrationShortInstalled, integrationShortOutdated, removeEllipsis, addLocalProject, addRemoteProject, hostConnected, hostConnecting, hostReconnecting, hostUnreachable, hostDisconnected, hostPaused
         case reconnect, checkServer, disconnect, remoteProjectTitle, hostLabel, pathLabel, hostPlaceholder, connect
@@ -972,6 +973,13 @@ import Workspace
     static func diffChangeCounter(_ index: Int, _ count: Int) -> String { f(.diffChangeCounter, index, count) }
     static var diffPrevChange: String { s(.diffPrevChange) }
     static var diffNextChange: String { s(.diffNextChange) }
+    static var terminalFindPlaceholder: String { s(.terminalFindPlaceholder) }
+    /// «3 из 12»; `selected` «–» while no match is picked yet.
+    static func terminalFindCounter(_ selected: String, _ total: Int) -> String { f(.terminalFindCounter, selected, total) }
+    static var terminalFindNone: String { s(.terminalFindNone) }
+    static var terminalFindUp: String { s(.terminalFindUp) }
+    static var terminalFindDown: String { s(.terminalFindDown) }
+    static var terminalFindClose: String { s(.terminalFindClose) }
 
     // SSH hosts, remote project and server sheets
     static var integrationNotInstalled: String { s(.integrationNotInstalled) }

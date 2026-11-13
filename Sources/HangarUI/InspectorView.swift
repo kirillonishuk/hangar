@@ -127,6 +127,12 @@ enum FileMenuItem: Equatable, CaseIterable {
     app.selectedTask.flatMap { app.project($0.projectId)?.host }
 }
 
+/// A row's file to drag out (HD-159): only this Mac's files (a server path means nothing to Finder or a local shell).
+@MainActor private func dragFile(_ app: AppState, relative: String) -> URL? {
+    guard remoteHost(app) == nil, let root = app.inspector.root else { return nil }
+    return URL(fileURLWithPath: root + "/" + relative)
+}
+
 /// A one-line `text3` remark above a list (missing base, truncation, git error, no task).
 private func notice(_ text: String) -> some View {
     Text(text)
@@ -162,7 +168,7 @@ private struct FilesList: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRows(model.tree, expanded: model.expanded)) { row in
-                        FileRow(row: row, change: model.badges[row.entry.path], action: action(row))
+                        FileRow(row: row, change: model.badges[row.entry.path], action: action(row), dragFile: dragFile(app, relative: row.entry.path))
                             .popoverContextMenu { fileMenu(app: app, relative: row.entry.path, opens: !row.entry.isDir && row.entry.opensInEditor) }
                     }
                 }
@@ -187,9 +193,10 @@ private struct FileRow: View {
     let row: TreeRow
     let change: FileChange?
     let action: (() -> Void)?
+    let dragFile: URL?
 
     var body: some View {
-        HoverRow(action: action) { _ in
+        HoverRow(action: action, dragFile: dragFile) { _ in
             HStack(spacing: Theme.railInset) {
                 // Files keep the chevron's slot, so names of one level line up.
                 if row.entry.isDir {
@@ -237,8 +244,8 @@ private struct ChangesList: View {
                         let columns = ChangeColumns(changes.files)
                         let viewed = app.viewedChanges
                         ForEach(changes.files) { file in
-                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath,
-                                      viewed: viewed.contains(file.path)) { app.openDiff(path: file.path) }
+                            ChangeRow(file: file, columns: columns, selected: file.path == model.diffPath, viewed: viewed.contains(file.path),
+                                      dragFile: file.change == .deleted ? nil : dragFile(app, relative: file.path)) { app.openDiff(path: file.path) }
                                 .popoverContextMenu { fileMenu(app: app, relative: file.path, opens: file.change != .deleted) }
                         }
                     }
@@ -304,12 +311,13 @@ private struct ChangeRow: View {
     let selected: Bool
     /// «Просмотрено» (HD-151): a check instead of the file icon, the row dimmed (not hidden).
     var viewed = false
+    var dragFile: URL?
     let action: () -> Void
 
     var body: some View {
         let name = (file.path as NSString).lastPathComponent
         let dir = (file.path as NSString).deletingLastPathComponent
-        HoverRow(selected: selected, action: action) { _ in
+        HoverRow(selected: selected, action: action, dragFile: dragFile) { _ in
             HStack(spacing: Theme.inlineGap) {
                 if viewed {
                     IconView(icon: .check, size: Theme.Icon.toolbar, tint: Theme.ui.text2)

@@ -33,7 +33,6 @@ struct UpdateSheet: View {
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(busy || offer == nil)
             }
-            .padding(.top, Theme.sheetGap)
         }
         .sheetFrame()
     }

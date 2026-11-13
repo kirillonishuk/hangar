@@ -1148,3 +1148,9 @@
 "shortcutsTabs" = "Вкладка 1…9";
 "shortcutsDone" = "Готово";
 "menuFullScreen" = "На весь экран";
+"subChatWhereSameHint" = "Та же папка и ветка, что у чата.";
+"newTaskProjectHelp" = "Проект нового чата";
+"remoteFoldersHelp" = "Папки на сервере — ↓";
+"remoteFoldersNeedConnect" = "Папки сервера — после подключения";
+"remoteFoldersNone" = "Здесь нет папок";
+"remoteFoldersFailed" = "Не удалось прочитать папку на сервере";

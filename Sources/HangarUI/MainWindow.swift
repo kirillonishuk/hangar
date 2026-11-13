@@ -241,6 +241,10 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
     private var sheetWindow: NSWindow?
     private(set) var inspectorWatch: InspectorWatch?
     private var newTaskModel: NewTaskModel?
+    /// The open «Новый чат» model's repository load (cancelled when the sheet closes or switches project).
+    private var newTaskLoad: Task<Void, Never>?
+    /// The project last picked in the new-chat sheet's header: a slower probe of an earlier pick never replaces it.
+    private var newTaskSwitchTarget: UUID?
     /// Sheets (project + which sheet) waiting for the project's repository probe: the same one asked again meanwhile
     /// does nothing; another sheet waits for its own answer.
     private var probingSheets: Set<String> = []
@@ -1162,7 +1166,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
 
     func presentNewTask(projectId: UUID?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = projectId ?? app.selectedTask.flatMap { app.project($0.projectId)?.id } ?? app.state.projects.last?.id
+        let id = projectId ?? app.state.newChatProjectId()
         guard let id, let project = app.project(id) else { chooseProjectKind(thenNewTask: true); return }
         withRepository(project, sheet: "newTask") { [weak self] known in self?.showNewTask(project, known: known) }
     }
@@ -1171,14 +1175,13 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
     /// local project's fresh one (a few milliseconds of git; at most `sheetProbeTimeout`, then the sheet loads as
     /// before); a remote one's last answer at once, or none (loading, as before), and a fresh probe for next time.
     private func withRepository(_ project: Project, sheet: String, _ then: @escaping (NewTaskModel.Probe?) -> Void) {
-        let app = self.app
         if project.host != nil {
-            then(app.repoProbes[project.id].map { var p = $0; p.cached = true; return p })
-            Task { _ = await app.probeRepository(project) }
+            then(remoteProbe(project))
             return
         }
         let key = project.id.uuidString + sheet
         guard probingSheets.insert(key).inserted else { return }
+        let app = self.app
         Task { [weak self] in
             let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
             guard let self else { return }
@@ -1188,45 +1191,83 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
         }
     }
 
+    /// A remote project's last repository answer (nil before any), and a fresh probe for next time.
+    private func remoteProbe(_ project: Project) -> NewTaskModel.Probe? {
+        let app = self.app
+        Task { _ = await app.probeRepository(project) }
+        return app.repoProbes[project.id].map { var p = $0; p.cached = true; return p }
+    }
+
     private func showNewTask(_ project: Project, known: NewTaskModel.Probe?) {
         guard let window, window.attachedSheet == nil else { return }
-        let id = project.id
-        let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Theme.sheetWidth, height: Theme.sheetPlaceholderHeight),
-                             styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        sheet.backgroundColor = Theme.bg2
-        sheet.appearance = window.appearance
+        let sheet = makeSheet(over: window)
         sheet.autorecalculatesKeyViewLoop = true  // Tab reaches the copy's fields, which appear after the sheet opens
-        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
-                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
-        let load = Task { await model.load() }
-        let close: () -> Void = { [weak self, weak sheet] in
-            guard let self, let sheet else { return }
-            load.cancel()
-            model.cancelFetch()
-            if let wait = sheet.attachedSheet { sheet.endSheet(wait) } // the «Создаётся worktree…» alert
-            window.endSheet(sheet)
-            self.sheetWindow = nil
-            self.newTaskModel = nil
-        }
-        let view = NewTaskSheet(model: model, projectName: project.name,
-                                agentName: app.config.defaultAgent == .codex ? "Codex" : "Claude",
-                                onCreate: { [weak self] name, message, mode in
-                                    close()
-                                    guard let app = self?.app else { return }
-                                    // Turning the suggested command on is the opt-in: it becomes the project's own.
-                                    if let command = model.commandToSave, let p = app.project(id) {
-                                        app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
-                                    }
-                                    app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript,
-                                                   autoNamed: model.chatNameIsAuto)
-                                },
-                                onCancel: close)
-        let host = NSHostingController(rootView: view)
+        let host = NSHostingController(rootView: newTaskSheet(project, known: known, carrying: nil))
         host.sizingOptions = [.preferredContentSize]
         sheet.contentViewController = host
         sheetWindow = sheet
-        newTaskModel = model
         window.beginSheet(sheet)
+    }
+
+    /// «Новый чат» for `project` with a fresh model; `old`: the model of the project switched away from — its name,
+    /// prompt, fold and agent carry over (HD-164).
+    private func newTaskSheet(_ project: Project, known: NewTaskModel.Probe?, carrying old: NewTaskModel?) -> NewTaskSheet {
+        let id = project.id
+        newTaskLoad?.cancel()
+        old?.cancelFetch()
+        let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
+                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
+        model.agent = old?.agent ?? app.config.defaultAgent
+        model.promptOpen = old?.promptOpen ?? app.state.newChatPromptOpen
+        if let old {
+            model.name = old.name
+            model.message = old.message
+        }
+        newTaskModel = model
+        newTaskLoad = Task { await model.load() }
+        return NewTaskSheet(model: model, projects: app.state.projects, projectId: id,
+                            onProject: { [weak self] in self?.switchNewTask(to: $0) },
+                            onPromptOpen: { [weak app] open in app?.perform { $0.newChatPromptOpen = open } },
+                            onCreate: { [weak self] name, message, mode in
+                                self?.closeNewTask()
+                                guard let app = self?.app else { return }
+                                // Turning the suggested command on is the opt-in: it becomes the project's own.
+                                if let command = model.commandToSave, let p = app.project(id) {
+                                    app.perform { $0.setWorktreeSetup(id: id, copy: p.worktreeCopy, command: command) }
+                                }
+                                app.createTask(projectId: id, name: name, firstMessage: message, mode: mode, setup: model.setupScript,
+                                               autoNamed: model.chatNameIsAuto, agent: model.agent)
+                            },
+                            onCancel: { [weak self] in self?.closeNewTask() })
+    }
+
+    /// The header's project pop-up: the same sheet, a new model for that project once its repository answered.
+    func switchNewTask(to id: UUID) {
+        guard let old = newTaskModel, !old.creating, let project = app.project(id),
+              let host = sheetWindow?.contentViewController as? NSHostingController<NewTaskSheet> else { return }
+        newTaskSwitchTarget = id
+        if project.host != nil {
+            host.rootView = newTaskSheet(project, known: remoteProbe(project), carrying: old)
+            return
+        }
+        let app = self.app
+        Task { [weak self] in
+            let known = await answer(within: Self.sheetProbeTimeout) { await app.probeRepository(project) }
+            // Closed, switched, or another project picked meanwhile (A → B fast: B's sheet stays, whichever answers last).
+            guard let self, self.newTaskModel === old, !old.creating, self.newTaskSwitchTarget == id else { return }
+            host.rootView = self.newTaskSheet(project, known: known, carrying: old)
+        }
+    }
+
+    private func closeNewTask() {
+        guard let window, let sheet = sheetWindow, newTaskModel != nil else { return }
+        newTaskLoad?.cancel()
+        newTaskLoad = nil
+        newTaskModel?.cancelFetch()
+        if let wait = sheet.attachedSheet { sheet.endSheet(wait) }  // the «Создаётся worktree…» alert
+        window.endSheet(sheet)
+        sheetWindow = nil
+        newTaskModel = nil
     }
 
     /// No closing (→ quitting) while the new-task sheet runs `git worktree add`.

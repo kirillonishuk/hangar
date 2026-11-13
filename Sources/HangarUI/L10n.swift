@@ -197,6 +197,7 @@ import Workspace
         case subagentHours, subagentPrompt, subagentReport, subagentRemoteNote, subagentPendingNote, subagentRow
         case subagentPanelTitle, subagentPanelClose
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
+        case subChatWhereSameHint, newTaskProjectHelp, remoteFoldersHelp, remoteFoldersNeedConnect, remoteFoldersNone, remoteFoldersFailed
         case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
         case menuChat, menuTab, menuView, menuWindow, menuHelp, menuMinimize, menuZoom, menuFullScreen, menuBringAllToFront, menuGoToTab, menuTabNumber, menuFocusPane, paneLeft, paneRight, paneAbove, paneBelow, cmdShortcuts, shortcutsSearch, shortcutsNothing, shortcutsTabs, shortcutsDone
     }
@@ -1261,6 +1262,12 @@ extension L10n {
     static var subChatAgent: String { s(.subChatAgent) }
     static var subChatWhereSame: String { s(.subChatWhereSame) }
     static var subChatHint: String { s(.subChatHint) }
+    static var subChatWhereSameHint: String { s(.subChatWhereSameHint) }
+    static var newTaskProjectHelp: String { s(.newTaskProjectHelp) }
+    static var remoteFoldersHelp: String { s(.remoteFoldersHelp) }
+    static var remoteFoldersNeedConnect: String { s(.remoteFoldersNeedConnect) }
+    static var remoteFoldersNone: String { s(.remoteFoldersNone) }
+    static var remoteFoldersFailed: String { s(.remoteFoldersFailed) }
     static var subChatNeedsTask: String { s(.subChatNeedsTask) }
     static var subChatStart: String { s(.subChatStart) }
     static var subChatFailed: String { s(.subChatFailed) }

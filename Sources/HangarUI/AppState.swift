@@ -734,7 +734,7 @@ enum EmptyProjectRow: Hashable {
     /// the tab closes itself when it succeeds and stays, marked failed, when it does not (HD-127).
     /// `autoNamed`: the name is the «Чат N» fallback; the agent's first prompt replaces it (HD-116).
     func createTask(projectId: UUID, name: String, firstMessage: String, mode: TaskMode, select: Bool = true,
-                    setup: String? = nil, autoNamed: Bool = false) -> (task: UUID, tab: UUID) {
+                    setup: String? = nil, autoNamed: Bool = false, agent: LeafKind? = nil) -> (task: UUID, tab: UUID) {
         var created = (task: UUID(), tab: UUID())
         var setupTab: UUID?
         perform { s in
@@ -746,7 +746,7 @@ enum EmptyProjectRow: Hashable {
                 s.rememberNewTaskChoice(projectId: projectId, worktree: mode != .mainFolder, base: base)
                 s.select(taskId: task)
             }
-            let tab = s.addTab(taskId: task, kind: config.defaultAgent)
+            let tab = s.addTab(taskId: task, kind: agent ?? config.defaultAgent)
             created = (task, tab)
             let message = firstMessage.trimmingCharacters(in: .whitespacesAndNewlines)
             if !message.isEmpty, let leaf = s.tasks.last?.tabs.first(where: { $0.id == tab })?.root.leaves.first {

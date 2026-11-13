@@ -17,8 +17,10 @@ import Workspace
     var message = "" {
         didSet { if !branchEdited, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { suggestBranch() } }
     }
-    /// «Задание для …» unfolded (folded by default: the prompt can be written later, in the tab).
+    /// «Задание для …» unfolded; the sheet opens as it was left last time (HD-164).
     var promptOpen = false
+    /// Who gets the chat's first tab (HD-164; the settings' default agent until chosen).
+    var agent = LeafKind.claude
     /// What the chat will be called (decision HD-116); «Чат N» against the project's chats now (another window may add one).
     var chatName: String { HangarUI.chatName(name: name, message: message, existing: chatNames()) }
     /// The chat gets «Чат N» and waits for its agent's first prompt for a name (HD-116).

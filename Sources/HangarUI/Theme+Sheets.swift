@@ -10,6 +10,8 @@ extension Theme {
     public static let sheetMessageTop: CGFloat = Space.s2
     /// Between stacked lines of one value or message block.
     public static let sheetLineGap: CGFloat = Space.s1
+    /// An agent's prompt in a sheet («Задание для …», a sub-chat's «Что сделать»): grows with the text up to 12 lines.
+    public static let promptLines: ClosedRange<Int> = 2...12
     /// Install-plan command box.
     public static let planPaddingV: CGFloat = Space.s2
     public static let planCommandGap: CGFloat = Space.s2

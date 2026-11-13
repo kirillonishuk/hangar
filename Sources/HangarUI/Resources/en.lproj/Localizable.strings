@@ -1148,3 +1148,9 @@
 "shortcutsTabs" = "Tab 1…9";
 "shortcutsDone" = "Done";
 "menuFullScreen" = "Toggle Full Screen";
+"subChatWhereSameHint" = "The same folder and branch as the chat.";
+"newTaskProjectHelp" = "The new chat’s project";
+"remoteFoldersHelp" = "Folders on the server — ↓";
+"remoteFoldersNeedConnect" = "Server folders — once connected";
+"remoteFoldersNone" = "No folders here";
+"remoteFoldersFailed" = "Couldn’t read the folder on the server";

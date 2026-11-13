@@ -779,6 +779,9 @@ extension MainWindowController {
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Ветка копии»
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
+        case "ntProject":  // ntProject <project index>: as a pick in the header's project pop-up (HD-164)
+            if let n = Int(arg), app.state.projects.indices.contains(n) { switchNewTask(to: app.state.projects[n].id) }
+        case "ntAgent": newTaskModelForDebug?.agent = arg == "codex" ? .codex : .claude  // the «Агент» segment
         case "ntMessage": newTaskModelForDebug?.message = arg  // as if typed into «Задание для …»
         case "ntPrompt": newTaskModelForDebug?.promptOpen = arg == "open"  // the «Задание для …» fold
         case "ntCreate":  // ⌘↩ into the sheet: its own «Создать» button (keyboard shortcut) runs, as a user's would
@@ -931,6 +934,15 @@ extension MainWindowController {
             case "sheet": presentRemoteProject()
             case "fill": if f.count == 3 { m?.host = f[1]; m?.path = f[2] }
             case "connect": if let m { Task { await m.connect() } }
+            case "folders":  // the «Путь» ▾ menu (HD-164), shown at a fixed point of the window like `picker open`
+                if let m, let frame = window?.frame {
+                    Task {
+                        let found = await m.folderSuggestions()
+                        uiLog.info("remote folders path=\(m.path, privacy: .public) found=\(found ?? ["-"], privacy: .public)")
+                        PopoverMenu.show(remoteFolderMenu(found) { m.path = $0 }, at: NSPoint(x: frame.minX + 200, y: frame.maxY - 160))
+                    }
+                }
+            case "path": if f.count == 2 { m?.path = f[1] }
             case "add": if let m, let path = m.foundPath { remoteProjectAdd?(m.host, path) }
             case "server": if f.count == 2 { presentServer(f[1]) }
             case "spec": if f.count == 2 { try? server?.terminalSpec()?.command.write(toFile: f[1], atomically: true, encoding: .utf8) }

@@ -119,6 +119,11 @@ public enum Theme {
     public static let sheetNameTop: CGFloat = Space.s2
     public static let sheetGap: CGFloat = Space.s3
     public static let sheetFooterPaddingV: CGFloat = Space.s3
+    /// §3.14: the body ends 20 above the footer's rule; its fields start 16 under the title (with `sheetHeaderBottom`)
+    /// and stand 16 apart.
+    public static let sheetBodyBottom: CGFloat = Space.s5
+    public static let sheetFieldsTop: CGFloat = Space.s3
+    public static let sheetFieldGap: CGFloat = Space.s4
     public static let fieldRadius: CGFloat = Radius.control
     public static let fieldPaddingH: CGFloat = Space.s2
     public static let buttonPaddingH: CGFloat = Space.s3

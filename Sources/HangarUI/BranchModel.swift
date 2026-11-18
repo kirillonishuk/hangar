@@ -97,7 +97,7 @@ extension AppState {
     }
 
     /// Back to the window, at most every `focusInterval`: the worktree list of every expanded project (copies removed
-    /// or moved outside, «Копии без чата» — HD-134) and the selected chat's HEAD; remote ones only while connected.
+    /// or moved outside — HD-122; nested copies — HD-134) and the selected chat's HEAD; remote ones only while connected.
     func refreshHeadsOnFocus(now: Date = Date()) {
         if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
         branchModel.lastFocusRefresh = now

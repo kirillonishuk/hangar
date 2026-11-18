@@ -63,11 +63,10 @@ import Workspace
         // A nested agent (another session) in the copy: not this tab's agent.
         await hook(app, tab: tab, leaf: leaf, cwd: nested, session: "other")
         #expect(app.selectedAgentElsewhere == nil)
-        // The tab's agent entered the worktree (EnterWorktree): offered; under .claude/worktrees it is never a copy without a chat (HD-152).
+        // The tab's agent entered the worktree (EnterWorktree): offered.
         await hook(app, tab: tab, leaf: leaf, cwd: nested + "/src")
         #expect(app.selectedAgentElsewhere?.entry.path == nested)
         #expect(app.selectedAgentElsewhere?.entry.branch == "aut")
-        #expect(app.spareWorktrees(of: app.state.projects[0].id).isEmpty)
         #expect(try snapshot(t) == before)  // reading only
 
         // «Скрыть»: gone for this chat and copy.
@@ -81,9 +80,6 @@ import Workspace
         let l = task.tabs[0].root.leaves[0]
         #expect(l.cwd == nested && l.relinkedFrom == t.repo && l.agentSessionId == "s1")  // resume follows, conversation copied at launch
         #expect(app.selectedAgentElsewhere == nil && app.worktreePlaces[m] == .inPlace)
-        app.recheckWorktree(of: m)
-        await app.worktreeChecksIdle()
-        #expect(app.spareWorktrees(of: app.state.projects[0].id).isEmpty)
         #expect(try snapshot(t) == before)  // adopting touched nothing on disk
     }
 
@@ -127,35 +123,6 @@ import Workspace
         _ = try await t.git("branch", "-m", "aut", "renamed", in: nested)
         #expect(await app.restoreFromArchive(m) == .restored)
         #expect(app.state.tasks.first { $0.id == m }?.branch == "renamed")
-    }
-
-    @Test func spareCopyOpensAsChatAndIsRemovedOnlyOnClick() async throws {
-        let (t, app, _, _, _, inClaudeDir) = try await make()
-        defer { t.cleanup() }
-        // The copy under .claude/worktrees is never spare (HD-152); one beside the repository is.
-        let nested = real(t.base) + "/spare"
-        try await t.git("worktree", "add", "-q", "-b", "spare", nested, "main", in: t.repo)
-        let p = app.state.projects[0].id
-        app.checkWorktrees(projectId: p)
-        await app.worktreeChecksIdle()
-        #expect(FileManager.default.fileExists(atPath: nested))
-        #expect(app.spareWorktrees(of: p).map(\.path) == [nested])
-        _ = inClaudeDir
-        let spare = try #require(app.spareWorktrees(of: p).first)
-        let id = try #require(app.openSpareWorktree(spare, projectId: p))
-        #expect(app.state.tasks.first { $0.id == id }?.mode == .worktree(path: nested, branch: "spare", base: "main"))
-        #expect(app.spareWorktrees(of: p).isEmpty)
-        #expect(FileManager.default.fileExists(atPath: nested))
-
-        // Removing a spare copy: asked first, then the archive's checks; the branch stays.
-        app.perform { $0.deleteTask(id: id) }
-        var asked: [String] = []
-        var ctx = ActionContext(app: app)
-        ctx.confirm = { m, _, _, then in asked.append(m); then() }
-        await removeSpareWorktree(spare, projectId: p, ctx: ctx)
-        #expect(await waitUntil { !FileManager.default.fileExists(atPath: nested) })
-        #expect(asked.count == 1)
-        #expect(try await t.git("branch", "--list", "aut", in: t.repo) != "")
     }
 
     /// Not ignored → noticed (read only); the `info/exclude` line is written only by the click.

@@ -175,18 +175,6 @@ extension MainWindowController {
         case "projectSettings":  // projectSettings [project index], the first project without one
             let n = Int(arg) ?? 0
             if app.state.projects.indices.contains(n) { ctx.projectSettings(app.state.projects[n].id) }
-        case "spareMenu":  // spareMenu <png>: the first project's «Копии без чата» menu drawn offscreen, first item highlighted
-            guard let project = app.state.projects.first?.id else { return }
-            let panel = PopoverMenuPanel(content: PopoverMenuContent(spareCopiesMenu(project, app: app, ctx: ctx)))
-            panel.menuState.highlighted = menuStep(panel.entries, from: nil, by: 1)
-            guard let view = panel.contentView else { return }
-            view.frame.size = view.fittingSize
-            DispatchQueue.main.async {
-                guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-                view.cacheDisplay(in: view.bounds, to: rep)
-                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: arg))
-                _ = panel
-            }
         case "tab": LeafKind(rawValue: arg).flatMap { $0 == .choose ? nil : $0 }.map(app.addTab)
         // choose <kind>: the focused chooser pane's button; continue <n>: row n of «Продолжить» (chooser or empty session).
         case "choose":

@@ -35,8 +35,6 @@ public let uiLog = Logger(subsystem: "dev.hangar", category: "UI")
 enum EmptyProjectRow: Hashable {
     case newChat
     case archive(count: Int)
-    /// «Копии без чата · N» (HD-134): under any expanded project that has such worktrees, chats or not.
-    case spareCopies(count: Int)
 }
 
 /// Single source of UI truth. Every model change goes through `perform`, which schedules a debounced save.
@@ -172,7 +170,7 @@ enum EmptyProjectRow: Hashable {
     @ObservationIgnored var worktreeChecks: [UUID: Task<Void, Never>] = [:]
     /// Projects asked to check again while their check ran: it reruns once after.
     @ObservationIgnored var worktreeRechecks: Set<UUID> = []
-    /// Each project's last `git worktree list` ([] — never answered): spare copies and where agents work (HD-134).
+    /// Each project's last `git worktree list` ([] — never answered): where agents work, nested copies (HD-134).
     var worktreeLists: [UUID: [WorktreeEntry]] = [:]
     /// The last `cwd` each agent leaf's hooks reported (HD-134).
     @ObservationIgnored var agentCwds: [UUID: String] = [:]
@@ -539,11 +537,9 @@ enum EmptyProjectRow: Hashable {
     /// Under an expanded project with no chats in its list (never had any, or all archived), instead of nothing:
     /// «+ Новый чат», then «Архив · N» when some are archived (HD-125).
     func emptyProjectRows(_ projectId: UUID) -> [EmptyProjectRow] {
-        let spare = spareWorktrees(of: projectId).count
-        let copies: [EmptyProjectRow] = spare > 0 ? [.spareCopies(count: spare)] : []
-        guard groupTasks(projectId).isEmpty else { return copies }
+        guard groupTasks(projectId).isEmpty else { return [] }
         let archived = state.tasks.filter { $0.projectId == projectId && $0.archived }.count
-        return (archived > 0 ? [.newChat, .archive(count: archived)] : [.newChat]) + copies
+        return archived > 0 ? [.newChat, .archive(count: archived)] : [.newChat]
     }
 
     /// Visible tasks in sidebar order: pinned, then each expanded project's group.

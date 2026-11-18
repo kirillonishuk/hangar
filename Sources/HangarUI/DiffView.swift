@@ -232,7 +232,8 @@ struct DiffView: View {
                 if app.diffPreviewShown(tab, isText: content.isText) {
                     DiffRenderView(app: app, tab: tab, version: content.version)
                 } else if content.isText {
-                    MonacoDiffView(editor: editor)
+                    // Hidden until the page has this file: a kept page (HD-167) still holds the previous one.
+                    MonacoDiffView(editor: editor, visible: editor.shownKey == DiffEditorController.key(tab))
                         // Every new load (another file, a refresh after an edit on disk) goes to the page.
                         .task(id: "\(tab.path)|\(tab.commit ?? "")|\(content.version)") { await editor.load(tab) }
                 } else if content.isBinary {
@@ -243,6 +244,8 @@ struct DiffView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Theme.ui.bg0)
+            // A new file's text loads while git's numstat and diff still run (HD-167).
+            .task(id: DiffEditorController.key(tab)) { editor.prefetch(tab) }
         } else {
             Theme.ui.bg0
         }
@@ -364,8 +367,9 @@ private struct DiffImageView: View {
 /// The diff page's web view inside the SwiftUI tab (one view for the controller's life, reparented as needed).
 private struct MonacoDiffView: NSViewRepresentable {
     let editor: DiffEditorController
+    let visible: Bool
     func makeNSView(context: Context) -> NSView { editor.container }
-    func updateNSView(_ view: NSView, context: Context) {}
+    func updateNSView(_ view: NSView, context: Context) { view.alphaValue = visible ? 1 : 0 }
 }
 
 /// Takes the keyboard while the diff tab is shown, so typing never reaches the hidden terminal.

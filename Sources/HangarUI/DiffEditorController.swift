@@ -4,7 +4,7 @@ import Workspace
 
 /// The diff tab's Monaco diff editor (HD-080): base on the left (read-only), the working file on the right — editable and
 /// saved like the editor's files for the session's changes, read-only for a commit's file. Lives while the task has a
-/// diff tab (`TerminalArea`).
+/// diff tab (`TerminalArea`); its page then goes on to the next diff tab (HD-167).
 @MainActor @Observable final class DiffEditorController {
     let page: MonacoPage
     /// The web view's holder inside SwiftUI (the page stays the same while files change).
@@ -14,7 +14,11 @@ import Workspace
     /// The editable working file shown on the right, if any.
     private var editablePath: String?
     private var shown: EditorDiff?
-    private var shownKey: String?
+    /// The file (path and commit) the page shows; the view stays hidden until it is the tab's (a reused page shows the
+    /// previous file meanwhile).
+    private(set) var shownKey: String?
+    /// A load started before the inspector's diff came (`prefetch`): the first load of that file waits for it.
+    private var early: (key: String, task: Task<Void, Never>)?
     /// Which change the cursor is at, and how many; unknown until the page has computed the diff.
     private(set) var changes = ChangeCounter()
     /// The shown file has one side only: one column whatever the saved setting (HD-150).
@@ -23,10 +27,10 @@ import Workspace
     /// Monaco's `useInlineViewWhenSpaceIsLimited`: that one stays inline after the pane widens again.
     private(set) var narrow = false
 
-    init(app: AppState) {
+    /// `page`: a kept one (HD-167), else a new one.
+    init(app: AppState, page kept: MonacoPage? = nil) {
         self.app = app
-        page = MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, wrap: app.state.diffWrap,
-                          appearance: EditorAppearance(app.config))
+        page = kept ?? Self.makePage(app)
         page.webView.frame = container.bounds
         page.webView.autoresizingMask = [.width, .height]
         container.addSubview(page.webView)
@@ -38,9 +42,28 @@ import Workspace
             self.narrow = narrow
             self.sendOptions()
         }
+        sendOptions()  // a kept page has the options of the previous tab, or of the launch
     }
 
-    func tearDown() { page.tearDown() }
+    static func makePage(_ app: AppState) -> MonacoPage {
+        MonacoPage(mode: .diff, inline: app.state.diffInline, minimap: false, wrap: app.state.diffWrap,
+                   appearance: EditorAppearance(app.config))
+    }
+
+    func tearDown() {
+        early?.task.cancel()
+        page.tearDown()
+    }
+
+    /// The diff tab closed: the page goes on (to the next diff tab), without this controller.
+    func detachPage() -> MonacoPage {
+        early?.task.cancel()
+        page.onMessage = nil
+        page.webView.removeFromSuperview()
+        return page
+    }
+
+    static func key(_ tab: DiffTab) -> String { tab.path + "|" + (tab.commit ?? "") }
 
     var hasUnsaved: Bool { editablePath.map { session?.isDirty($0) == true } ?? false }
     var unsavedPath: String? { hasUnsaved ? editablePath : nil }
@@ -56,8 +79,29 @@ import Workspace
     /// Loads both sides of the shown diff tab and hands them to the page; a refresh of the same file keeps an edited
     /// buffer (a change on disk then shows the conflict bar instead).
     func load(_ tab: DiffTab) async {
+        let key = Self.key(tab)
+        if let early, early.key == key {
+            self.early = nil
+            await early.task.value
+            if shownKey == key { return }
+        }
+        await fetch(tab)
+    }
+
+    /// Starts the load of a newly opened file of the session's changes while the inspector still runs git's numstat
+    /// and diff (HD-167): `git show` of the base and the file read don't need them. Only a file git counted lines for:
+    /// a binary or huge one waits for git's verdict as before.
+    func prefetch(_ tab: DiffTab) {
+        let key = Self.key(tab)
+        guard tab.commit == nil, key != shownKey, early?.key != key,
+              let file = app.inspector.changes?.files.first(where: { $0.path == tab.path }), diffPrefetchable(file) else { return }
+        early?.task.cancel()
+        early = (key, Task { [weak self] in await self?.fetch(tab) })
+    }
+
+    private func fetch(_ tab: DiffTab) async {
         guard let task = app.selectedTask, let project = app.project(task.projectId) else { return }
-        let key = tab.path + "|" + (tab.commit ?? "")
+        let key = Self.key(tab)
         if key == shownKey, let path = editablePath, let session, session.isDirty(path) {
             await session.checkDisk()
             return
@@ -74,18 +118,21 @@ import Workspace
             guard let root = app.inspector.root, let changes = app.inspector.changes,
                   let file = changes.files.first(where: { $0.path == tab.path }) else { return }
             let added = file.change == .untracked || file.change == .added
-            let original = added ? nil : (try? await git(root).show(rev: changes.from, path: "./" + (file.origPath ?? file.path))) ?? nil
+            let base = git(root), from = changes.from, basePath = "./" + (file.origPath ?? file.path)
+            // The base side and the working file are read at once.
+            async let original = added ? nil : ((try? await base.show(rev: from, path: basePath)) ?? nil)
             let io = app.editorIO(host: project.host)
             let full = root + "/" + tab.path
             let s = EditorSession(io: io) { [page] in page.send($0) }
-            diff = EditorDiff(name: tab.path, original: original ?? "", modified: "", path: nil, line: nil)
+            diff = EditorDiff(name: tab.path, original: "", modified: "", path: nil, line: nil)
             if file.change != .deleted, let opened = await s.adopt(path: full) {
                 diff.modified = opened.text
                 if !opened.readOnly { diff.path = full }
             }
+            diff.original = await original ?? ""
             session = s
         }
-        guard !Task.isCancelled, app.activeDiff.map({ $0.path + "|" + ($0.commit ?? "") }) == key else { return }
+        guard !Task.isCancelled, app.activeDiff.map(Self.key) == key else { return }
         let oneSided = diffOneSided(app.diffChange(of: tab))
         if oneSided != self.oneSided {
             self.oneSided = oneSided
@@ -97,6 +144,7 @@ import Workspace
         shown = diff
         changes = ChangeCounter()
         page.send(.diff(diff))
+        page.revealAfterPaint()
     }
 
     private func handle(_ m: BridgeMessage) {
@@ -144,6 +192,13 @@ import Workspace
             }
         })
     }
+}
+
+/// A file of the session's changes whose diff text can load before git's own diff (`prefetch`): git counted its lines
+/// (not binary, not an unread untracked file) and they fit the diff's limit.
+func diffPrefetchable(_ file: ChangedFile) -> Bool {
+    guard let added = file.added else { return false }
+    return added + (file.deleted ?? 0) <= Git.diffMaxLines
 }
 
 /// The header's «2 из 5»: nil count until the page has computed the diff (nothing is claimed before that).

@@ -19,6 +19,7 @@ struct RefreshParts: OptionSet, Sendable {
 
 /// Files and Changes of the visible task (decision HD-044). One load per context (task, root, mode) at a time:
 /// a refresh during a load queues exactly one rerun; only a context change cancels; stale results are dropped.
+/// The open diff alone runs beside that load against the known changes (HD-167); the newest diff load started wins.
 @MainActor @Observable final class InspectorModel {
     enum Segment { case files, changes, git, search }
     enum ModeChoice { case base, uncommitted }
@@ -72,8 +73,15 @@ struct RefreshParts: OptionSet, Sendable {
     @ObservationIgnored var onStatusLoad: ((UUID) -> Void)?
     /// Git-ignored entries of the last tree load (the watcher drops their events).
     @ObservationIgnored let ignored = IgnoredPaths()
-    /// The running load or its queued rerun; nil when idle (tests await it).
-    @ObservationIgnored private(set) var loading: Task<Void, Never>?
+    /// The running load or its queued rerun; nil when idle.
+    @ObservationIgnored private var mainLoad: Task<Void, Never>?
+    /// A load of the open diff alone (HD-167): it doesn't wait behind a tree or status load.
+    @ObservationIgnored private var diffLoad: Task<Void, Never>?
+    /// Each load that computes the open diff takes the next number; an older one's diff never replaces a newer one's.
+    @ObservationIgnored private var diffSeq = 0
+    @ObservationIgnored private var diffAppliedSeq = 0
+    /// Any load in flight; nil when idle (tests await it).
+    var loading: Task<Void, Never>? { mainLoad ?? diffLoad }
 
     /// Files' calm notice for a loaded, empty listing: a plain folder is empty, a repository folder lists nothing.
     var emptyFilesNotice: String? {
@@ -154,7 +162,8 @@ struct RefreshParts: OptionSet, Sendable {
     /// A same-context change: runs now, or once after the current load.
     func refresh(_ parts: RefreshParts) {
         guard context.root != nil, !parts.isEmpty else { return }
-        if loading != nil { pending.formUnion(parts) } else { start(parts) }
+        if parts == .diff, changes != nil, top != nil { startDiff(); return }
+        if mainLoad != nil { pending.formUnion(parts) } else { start(parts) }
     }
 
     /// ⌥B: base ↔ uncommitted; cancels the load, keeps the tree.
@@ -194,9 +203,12 @@ struct RefreshParts: OptionSet, Sendable {
 
     /// Returns the parts that did not finish.
     @discardableResult private func cancel() -> RefreshParts {
-        let unfinished = running.union(pending)
-        loading?.cancel()
-        loading = nil
+        var unfinished = running.union(pending)
+        if diffLoad != nil { unfinished.insert(.diff) }
+        mainLoad?.cancel()
+        mainLoad = nil
+        diffLoad?.cancel()
+        diffLoad = nil
         generation += 1
         running = []
         pending = []
@@ -208,22 +220,41 @@ struct RefreshParts: OptionSet, Sendable {
         let gen = generation
         running = parts
         if parts.contains(.status), let id = context.taskId { onStatusLoad?(id) }
-        let input = LoadInput(root: context.root!, remote: remote, mode: context.mode, top: top,
-                              known: changes, base: knownBase, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
-        let git = self.git, baseBranch = self.baseBranch
-        loading = Task { [weak self] in
+        diffSeq += 1
+        let seq = diffSeq, input = loadInput(), git = self.git, baseBranch = self.baseBranch
+        mainLoad = Task { [weak self] in
             let result = await Self.load(parts, input, git: git, baseBranch: baseBranch)
             guard let self, !Task.isCancelled, gen == self.generation else { return }
-            self.apply(result, parts: parts)
+            self.apply(result, parts: parts, seq: seq)
             let again = self.pending
             self.pending = []
             if again.isEmpty {
                 self.running = []
-                self.loading = nil
+                self.mainLoad = nil
             } else {
                 self.start(again)
             }
         }
+    }
+
+    /// The open diff against the changes already loaded, beside any running load; a running status load gets a `.diff`
+    /// rerun, so the diff follows the changes it brings.
+    private func startDiff() {
+        diffLoad?.cancel()
+        if running.contains(.status) { pending.insert(.diff) }
+        diffSeq += 1
+        let seq = diffSeq, input = loadInput(), git = self.git, baseBranch = self.baseBranch
+        diffLoad = Task { [weak self] in
+            let result = await Self.load(.diff, input, git: git, baseBranch: baseBranch)
+            guard let self, !Task.isCancelled else { return }  // a newer diff load or a context change cancelled it
+            self.apply(result, parts: .diff, seq: seq)
+            self.diffLoad = nil
+        }
+    }
+
+    private func loadInput() -> LoadInput {
+        LoadInput(root: context.root!, remote: remote, mode: context.mode, top: top,
+                  known: changes, base: knownBase, diffPath: diffPath, expanded: expanded, firstLoad: firstLoad)
     }
 
     private struct LoadInput: Sendable {
@@ -357,10 +388,15 @@ struct RefreshParts: OptionSet, Sendable {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 
-    private func apply(_ r: LoadResult, parts: RefreshParts) {
+    private func apply(_ r: LoadResult, parts: RefreshParts, seq: Int) {
+        // A diff of a path closed or replaced meanwhile is stale (its own load is running or queued), as is an older load's.
+        let diffCurrent = r.diffPath == diffPath && seq > diffAppliedSeq
         error = r.error
         if parts.contains(.tree), r.error == nil { filesError = r.filesError }
-        if r.diffUnavailable, r.diffPath == diffPath { diff = .failed(L10n.diffUnavailable) }
+        if r.diffUnavailable, diffCurrent {
+            diff = .failed(L10n.diffUnavailable)
+            diffAppliedSeq = seq
+        }
         offline = r.offline
         if r.offline { return }
         remoteNoGit = r.remoteNoGit
@@ -391,8 +427,8 @@ struct RefreshParts: OptionSet, Sendable {
             self.changes = withUntrackedCounts(changes)
             countUntracked()
         }
-        // A diff of a path closed or replaced meanwhile is stale (its own `.diff` rerun is queued).
-        if let diff = r.diff, r.diffPath == diffPath {
+        if let diff = r.diff, diffCurrent {
+            diffAppliedSeq = seq
             self.diff = diff
             diffLoads &+= 1
             onDiffApplied?()

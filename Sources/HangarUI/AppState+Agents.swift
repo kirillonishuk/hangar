@@ -44,7 +44,7 @@ extension AppState {
             }
             subSessionHook(leaf: leaf.id, kind: e.kind, background: e.background, message: e.message)
             if leaf.kind == .claude { subagentHook(leaf: leaf.id, e) }
-            noteAgentTurn(leaf: leaf.id, kind: e.kind, message: e.message)
+            if e.kind != .stopFailure || e.inSubagent != true { noteAgentTurn(leaf: leaf.id, kind: e.kind, message: e.message) }
             switch e.kind {
             case .stopFailure where e.error == nil || e.error == "rate_limit":
                 tickUsageClock()
@@ -104,7 +104,15 @@ extension AppState {
 
     func state(of task: HangarTask) -> AgentState {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
-        return taskState(leaves.map { state(ofLeaf: $0.id) })
+        return taskState(leaves.map { chatState(state(ofLeaf: $0.id), leaf: $0) })
+    }
+
+    /// What a leaf adds to its chat's state (HD-166): a shell, action or TERMINAL drawer that ended with a code keeps its own
+    /// dot, but the chat says «ошибка» only for an agent's error (HD-103) or a failed setup tab (HD-127).
+    func chatState(_ state: AgentState, leaf: Leaf) -> AgentState {
+        guard state == .failed, leaf.kind != .claude, leaf.kind != .codex, !setupLeaves.contains(leaf.id),
+              statuses.status(leaf.id).attention?.reason != .failed else { return state }
+        return .idle
     }
 
     /// Like `state`, but an agent leaf whose agent is out of limit (at `usageClock`) shows «лимит»;
@@ -139,7 +147,7 @@ extension AppState {
 
     func displayState(of task: HangarTask) -> AgentState {
         let leaves = task.tabs.flatMap(\.root.leaves) + [task.drawer.leaf].compactMap { $0 }
-        return taskState(leaves.map { displayState(ofLeaf: $0.id, kind: $0.kind) })
+        return taskState(leaves.map { chatState(displayState(ofLeaf: $0.id, kind: $0.kind), leaf: $0) })
     }
 
     /// Agent tabs always show a dot; other tabs only when something is going on.

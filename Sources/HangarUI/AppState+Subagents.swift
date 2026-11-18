@@ -24,7 +24,7 @@ extension AppState {
             event = .returned(toolUseId: id, agentId: e.agentId, background: e.backgrounded == true)
         case .prompt: event = .turnStart
         case .stop: event = .turnEnd(going: e.backgroundIds.map(Set.init))
-        case .stopFailure: event = .turnEnd(going: nil)
+        case .stopFailure where e.inSubagent != true: event = .turnEnd(going: nil)  // a subagent's error ends no turn (HD-166)
         case .sessionStart:
             // compact keeps the conversation and its subagents.
             guard e.source != "compact" else { return }

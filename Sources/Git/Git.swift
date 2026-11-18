@@ -130,12 +130,13 @@ public struct Git: Sendable {
     // MARK: Worktrees
 
     /// On failure a branch created by this call is deleted (git creates it before checking the folder).
-    public func addWorktree(path: String, newBranch: String, base: String) async throws {
+    /// `track`: the new branch follows `base` (a remote-only branch checked out as itself, HD-169); otherwise no upstream (HD-042).
+    public func addWorktree(path: String, newBranch: String, base: String, track: Bool = false) async throws {
         let existed = await refExists("refs/heads/" + newBranch)
         do {
-            try await exec(["worktree", "add", "--no-track", "-b", newBranch, "--", path, base])
+            try await exec(["worktree", "add", track ? "--track" : "--no-track", "-b", newBranch, "--", path, base])
         } catch {
-            // Safe: the branch was just created at `base` and has no commits of its own.
+            // Safe: the branch was just created at `base` and has no commits of its own (a tracked remote's commits stay on the remote).
             if !existed, await refExists("refs/heads/" + newBranch) { _ = try? await exec(["branch", "-D", "--", newBranch]) }
             throw error
         }

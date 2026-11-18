@@ -15,7 +15,7 @@ public func worktree(containing path: String, in list: [WorktreeEntry], normaliz
         .max { normalize($0.path).count < normalize($1.path).count }
 }
 
-/// `path` relative to `<root>/.claude/worktrees` (Claude Code's own area, HD-152; real paths, `root` = main checkout); nil — outside it.
+/// `path` relative to `<root>/.claude/worktrees` (Claude Code's own area; real paths, `root` = main checkout); nil — outside it.
 func claudeWorktreesRelative(_ path: String, root: String, normalize: (String) -> String) -> String? {
     let r = normalize(root), p = normalize(path)
     let dir = (r == "/" ? "" : r) + "/.claude/worktrees/"
@@ -35,23 +35,6 @@ public func otherWorktree(cwd: String, chatFolder: String, in list: [WorktreeEnt
           normalize(at.path) != normalize(main.path), !isClaudeAgentWorktree(at, root: main.path, normalize: normalize) else { return nil }
     let own = worktree(containing: chatFolder, in: list, normalize: normalize)
     return own.map { normalize($0.path) == normalize(at.path) } == true ? nil : at
-}
-
-/// Linked worktrees no chat uses (`used`: every chat's folder, archived ones too): made by an agent or by hand.
-/// Anything under the repo's `.claude/worktrees/` (Claude Code's area) is never listed (HD-152).
-public func unusedWorktrees(_ list: [WorktreeEntry], used: [String], normalize: (String) -> String = { $0 }) -> [WorktreeEntry] {
-    guard let root = list.first?.path else { return [] }
-    let taken = Set(used.map(normalize))
-    return list.dropFirst().filter {
-        !$0.prunable && claudeWorktreesRelative($0.path, root: root, normalize: normalize) == nil && !taken.contains(normalize($0.path))
-    }
-}
-
-/// A chat's name for a copy's branch (HD-141): after the last `/`, and only the tracker key when it leads and is
-/// followed by the end or a separator and a non-digit (`user/aut-1076-epik-…` → `aut-1076`; `release-2026-11` stays).
-public func shortChatName(branch: String) -> String {
-    let rest = branch.split(separator: "/").last.map(String.init) ?? branch
-    return rest.prefixMatch(of: /^([A-Za-z]+-[0-9]+)(?:$|[-_.][^0-9])/).map { String($0.output.1) } ?? rest
 }
 
 /// The branch git has checked out at `path` now (an agent's `branch -m` / `checkout -b`); nil — not listed or detached.

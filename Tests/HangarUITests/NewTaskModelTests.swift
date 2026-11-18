@@ -31,6 +31,11 @@ import TestSupport
         let m = model(t)
         m.name = "Починить логин"
         #expect(m.branch == "pochinit-login")
+        // The field writing its unchanged text back (on focus) is not an edit.
+        m.branch = m.branch
+        #expect(m.branchFollowsName)
+        m.name = "Другое"
+        #expect(m.branch == "drugoe")
         m.branch = "feat/login"
         m.name = "x"
         #expect(m.branch == "feat/login")
@@ -114,7 +119,8 @@ import TestSupport
         #expect(m.createBlocked == .noBase && !m.canCreate)
     }
 
-    @Test func existingBranchIsRejected() async throws {
+    /// An existing branch is taken as is (HD-169); one checked out in a folder (here the project's) is refused.
+    @Test func branchValidation() async throws {
         let t = try await repo()
         defer { t.cleanup() }
         try await t.git("branch", "fix", in: t.repo)
@@ -123,7 +129,12 @@ import TestSupport
         m.name = "n"
         m.branch = "fix"
         await m.validateBranch()
-        #expect(m.branchError == L10n.branchExists("fix"))
+        #expect(m.copyBranch == .local("fix"))
+        #expect(m.branchError == nil)
+        m.branch = "main"
+        await m.validateBranch()
+        guard case .checkedOut("main", let folder) = m.copyBranch else { Issue.record("got \(m.copyBranch)"); return }
+        #expect(m.branchError == L10n.branchCheckedOutAt("main", folder))
         #expect(m.canCreate == false)
         m.branch = "bad..x"
         await m.validateBranch()
@@ -154,14 +165,52 @@ import TestSupport
         #expect(mode == .worktree(path: t.repo + ".worktrees/pochinit-login-4", branch: "pochinit-login-4",
                                   base: "origin/main"))
 
-        // A user-typed name that exists gets an error, not a suffix.
+        // A user-typed name that exists is that branch (HD-169), not a suffixed new one.
         let m2 = model(t, worktreeByDefault: true)
         await m2.load()
         m2.name = "x"
         m2.branch = "pochinit-login"
-        #expect(await m2.create(skipFetch: false) == nil)
-        #expect(m2.branch == "pochinit-login")
-        #expect(m2.branchError == L10n.branchExists("pochinit-login"))
+        #expect(await m2.create(skipFetch: false) == .worktree(path: t.repo + ".worktrees/pochinit-login",
+                                                                branch: "pochinit-login", base: "origin/main"))
+    }
+
+    /// A colleague's branch only on the remote: the copy gets a local branch of that name tracking it (HD-169).
+    @Test func remoteOnlyBranchGetsTrackingCopy() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        try await t.git("checkout", "-q", "-b", "JS-14914", in: t.repo)
+        try await t.commit(file: "c.txt", on: "JS-14914")
+        try await t.pushBranch("JS-14914")
+        try await t.git("checkout", "-q", "main", in: t.repo)
+        try await t.git("branch", "-q", "-D", "JS-14914", in: t.repo)
+        let m = model(t, worktreeByDefault: true)
+        await m.load()
+        m.name = "Dubai"
+        m.pickBranch("origin/JS-14914")
+        #expect(m.branch == "JS-14914")
+        #expect(m.copyBranch == .remote(local: "JS-14914", upstream: "origin/JS-14914"))
+        let path = t.repo + ".worktrees/js-14914"
+        #expect(await m.create(skipFetch: false) == .worktree(path: path, branch: "JS-14914", base: "origin/main"))
+        #expect(m.createError == nil && m.branchError == nil)
+        #expect(FileManager.default.fileExists(atPath: path + "/c.txt"))
+        let upstream = try await t.git("rev-parse", "--abbrev-ref", "JS-14914@{upstream}", in: t.repo)
+        #expect(upstream.trimmingCharacters(in: .whitespacesAndNewlines) == "origin/JS-14914")
+    }
+
+    /// A branch another chat's copy has open: named with that chat, and no git call.
+    @Test func branchOpenInAChatIsRefused() async throws {
+        let t = try await repo()
+        defer { t.cleanup() }
+        try await t.git("worktree", "add", "-q", "-b", "busy", t.repo + ".worktrees/busy", "main", in: t.repo)
+        let project = Project(name: "p", location: .local(path: t.repo), worktreeByDefault: true)
+        let m = NewTaskModel(project: project, git: Git(repo: t.repo), taskBranches: [],
+                             chatAt: { $0.hasSuffix(".worktrees/busy") ? "Чужой чат" : nil })
+        await m.load()
+        m.name = "n"
+        m.pickBranch("busy")
+        await m.validateBranch()
+        #expect(m.branchError == L10n.branchCheckedOutInChat("busy", "Чужой чат"))
+        #expect(await m.create(skipFetch: false) == nil)
     }
 
     /// git can't have both `release` and `release/1.2` (a ref is a file or a folder): such a verbatim name → slug.
@@ -444,6 +493,7 @@ import TestSupport
         L10n.language = .ru
         #expect(L10n.branchExists("fix") == "Ветка «fix» уже существует")
         #expect(L10n.createWithoutFetch == "Создать без fetch")
+        #expect(L10n.existingBranchTracksHelp("origin/x") == "Копия на этой ветке; git push и git pull агента — в origin/x")
         L10n.language = .en
         #expect(L10n.branchExists("fix") == "Branch “fix” already exists")
         #expect(L10n.noCommits == "the repository has no commits")

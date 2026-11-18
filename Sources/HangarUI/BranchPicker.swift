@@ -54,10 +54,11 @@ struct BranchPicker: View {
 }
 
 /// The branch list as a search menu: the current choice checked and highlighted, a note on the right (default, a
-/// session's branch, age).
+/// session's branch, age). `query`: the search's text on open (what «Ветка копии» already has).
 @MainActor func branchMenu(selection: String?, branches: [Branch], defaultBase: String?, taskBranches: Set<String>,
-                           defaultOption: String?, choose: @escaping (String?) -> Void) -> PopoverMenuContent {
-    PopoverMenuContent(search: .init(placeholder: L10n.searchBranches, mono: true, highlightFirst: true), width: Theme.menuWidthBranch) { query in
+                           defaultOption: String?, query: String = "", choose: @escaping (String?) -> Void) -> PopoverMenuContent {
+    PopoverMenuContent(search: .init(placeholder: L10n.searchBranches, mono: true, text: query, highlightFirst: true),
+                       width: Theme.menuWidthBranch) { query in
         let items = branchPickerItems(branches, query: query, defaultBase: defaultBase, taskBranches: taskBranches)
         var entries: [PopoverMenuEntry] = []
         if let defaultOption, query.trimmingCharacters(in: .whitespaces).isEmpty {

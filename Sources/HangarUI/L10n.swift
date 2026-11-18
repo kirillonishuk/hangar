@@ -135,7 +135,7 @@ import Workspace
         case archiveAnyway, archiveFailed, restoreFailed, orphanKept, branchGone, branchGoneInfo, restoreWithoutWorktree
         case baseMissing, baseMissingUnknown, noChanges, statusTruncated, filesTruncated, gitFailed
         case inspectorWorktreeMoved, inspectorWorktreeMissing, worktreeMovedTo, worktreeNotFound, removingCopy, removeCopyFailed, removeCopyChanged, relinkWorktree, relinkWorktreeHelp, notGitNoCopies, preparingConversation
-        case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, spareCopies, spareCopiesHelp, openCopyAsChat, removeCopyMenu, copyLocked, removeCopyTitle, removeCopyInfo, removeCopyInfoDetached, removeCopyButton, hideFromGitMenu, hideFromGitTitle, hideFromGitInfo, hideFromGitButton, hideFromGitFailed, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
+        case agentInCopy, agentInCopyDetached, adoptCopy, adoptCopyHelp, adoptCopyDetached, hideAgentBar, worktreesNotIgnoredNotice, excludeWillAdd, hideFromGitButtonLong
         case diffBinary, diffImageBefore, diffImageAfter, diffTooLarge, diffModeChange, diffRenamedFrom, diffNotChanged, diffNotAFile, diffTabHelp, diffNoChanges, diffChangeCounter, diffPrevChange, diffNextChange
         case terminalFindPlaceholder, terminalFindCounter, terminalFindNone, terminalFindUp, terminalFindDown, terminalFindClose
         case diffViewed, diffMarkViewed, diffUnmarkViewed, changesViewed, changesViewedOf, diffPreview, diffPreviewHelp, diffPreviewFailed, renderCode
@@ -198,6 +198,7 @@ import Workspace
         case subagentPanelTitle, subagentPanelClose
         case subChatDone, newSubChat, newSubChatTitle, subChatTask, subChatTaskPlaceholder, subChatAgent, subChatWhereSame, subChatHint, subChatStart, subChatFailed
         case subChatWhereSameHint, newTaskProjectHelp, remoteFoldersHelp, remoteFoldersNeedConnect, remoteFoldersNone, remoteFoldersFailed
+        case existingBranchesHelp, existingBranch, existingLocalBranch, existingBranchTracksHelp
         case actionNotRunning, actionRunHint, actionFinished, actionStopped, actionRun, actionsMenuHelp, actionStop, actionsEdit, actionRunningNote, actionPalette, cmdRunAction, actionConfirmTitle, actionConfirmInfo, actionConfirmButton, sectionActions, actionName, actionCommand, actionRestart, actionRestartHelp, actionRemove, actionAdd, actionFromRepo, actionFromRepoHelp, actionsHint, actionIncomplete, actionDuplicate, actionNotStarted, actionFolderMissing, actionFolder, actionFolderPlaceholder, actionFolderHelp, actionFolderInvalid, actionMoveUp, actionMoveDown, actionEditOwn, actionHide, actionShow, actionHiddenNote, actionBlank, actionSearch, actionDiscovering, actionNoSuggestions, actionRootGroup, actionRowMenu
         case menuChat, menuTab, menuView, menuWindow, menuHelp, menuMinimize, menuZoom, menuFullScreen, menuBringAllToFront, menuGoToTab, menuTabNumber, menuFocusPane, paneLeft, paneRight, paneAbove, paneBelow, cmdShortcuts, shortcutsSearch, shortcutsNothing, shortcutsTabs, shortcutsDone
     }
@@ -837,20 +838,6 @@ import Workspace
     static var adoptCopyHelp: String { s(.adoptCopyHelp) }
     static var adoptCopyDetached: String { s(.adoptCopyDetached) }
     static var hideAgentBar: String { s(.hideAgentBar) }
-    static func spareCopies(_ n: Int) -> String { f(.spareCopies, n) }
-    static var spareCopiesHelp: String { s(.spareCopiesHelp) }
-    static var openCopyAsChat: String { s(.openCopyAsChat) }
-    static var removeCopyMenu: String { s(.removeCopyMenu) }
-    static var copyLocked: String { s(.copyLocked) }
-    static func removeCopyTitle(_ path: String) -> String { f(.removeCopyTitle, path) }
-    static func removeCopyInfo(_ branch: String) -> String { f(.removeCopyInfo, branch) }
-    static var removeCopyInfoDetached: String { s(.removeCopyInfoDetached) }
-    static var removeCopyButton: String { s(.removeCopyButton) }
-    static var hideFromGitMenu: String { s(.hideFromGitMenu) }
-    static var hideFromGitTitle: String { s(.hideFromGitTitle) }
-    static func hideFromGitInfo(_ lines: String) -> String { f(.hideFromGitInfo, lines) }
-    static var hideFromGitButton: String { s(.hideFromGitButton) }
-    static var hideFromGitFailed: String { s(.hideFromGitFailed) }
     static func worktreesNotIgnoredNotice(_ paths: String) -> String { f(.worktreesNotIgnoredNotice, paths) }
     static func excludeWillAdd(_ lines: String) -> String { f(.excludeWillAdd, lines) }
     static var hideFromGitButtonLong: String { s(.hideFromGitButtonLong) }
@@ -1265,6 +1252,11 @@ extension L10n {
     static var subChatWhereSameHint: String { s(.subChatWhereSameHint) }
     static var newTaskProjectHelp: String { s(.newTaskProjectHelp) }
     static var remoteFoldersHelp: String { s(.remoteFoldersHelp) }
+    // «Ветка копии» names an existing branch (HD-169).
+    static var existingBranchesHelp: String { s(.existingBranchesHelp) }
+    static var existingBranch: String { s(.existingBranch) }
+    static var existingLocalBranch: String { s(.existingLocalBranch) }
+    static func existingBranchTracksHelp(_ upstream: String) -> String { f(.existingBranchTracksHelp, upstream) }
     static var remoteFoldersNeedConnect: String { s(.remoteFoldersNeedConnect) }
     static var remoteFoldersNone: String { s(.remoteFoldersNone) }
     static var remoteFoldersFailed: String { s(.remoteFoldersFailed) }

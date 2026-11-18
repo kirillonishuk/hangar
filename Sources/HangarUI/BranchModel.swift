@@ -97,7 +97,7 @@ extension AppState {
     }
 
     /// Back to the window, at most every `focusInterval`: the worktree list of every expanded project (copies removed
-    /// or moved outside, «Копии без чата» — HD-134) and the selected chat's HEAD; remote ones only while connected.
+    /// or moved outside — HD-122; nested copies — HD-134) and the selected chat's HEAD; remote ones only while connected.
     func refreshHeadsOnFocus(now: Date = Date()) {
         if let last = branchModel.lastFocusRefresh, now.timeIntervalSince(last) < BranchModel.focusInterval { return }
         branchModel.lastFocusRefresh = now
@@ -154,7 +154,7 @@ extension AppState {
         let current = try await head
         var elsewhere: [String: String] = [:]
         for (branch, path) in try await checkedOut where current != .branch(branch) {
-            elsewhere[branch] = chatName(at: path, projectId: task.projectId) ?? path
+            elsewhere[branch] = folderChatName(at: path, projectId: task.projectId) ?? path
         }
         let branches = try await all
         return BranchChoices(head: current, local: branches.filter { !$0.isRemote }, remote: branches.filter(\.isRemote),
@@ -204,7 +204,7 @@ extension AppState {
         switch e {
         case .dirty(let n): L10n.branchDirty(L10n.fileCount(n)) + " " + L10n.branchDirtyHint
         case .checkedOutElsewhere(let branch, let path):
-            chatName(at: path, projectId: projectId).map { L10n.branchCheckedOutInChat(branch, $0) } ?? L10n.branchCheckedOutAt(branch, path)
+            folderChatName(at: path, projectId: projectId).map { L10n.branchCheckedOutInChat(branch, $0) } ?? L10n.branchCheckedOutAt(branch, path)
         case .wouldOverwriteIgnored(let paths):
             L10n.branchIgnoredOverwrite(paths.prefix(3).joined(separator: ", ") + (paths.count > 3 ? ", …" : ""))
         case .operationInProgress(let op): L10n.branchOperationInProgress(op)
@@ -214,7 +214,7 @@ extension AppState {
     }
 
     /// The open chat of this project whose folder is `path` (git prints real paths; a local chat may keep a symlinked one).
-    private func chatName(at path: String, projectId: UUID) -> String? {
+    func folderChatName(at path: String, projectId: UUID) -> String? {
         let local = project(projectId)?.host == nil
         let canonical: (String) -> String = { local ? realPath($0) : $0 }
         let target = canonical(path)

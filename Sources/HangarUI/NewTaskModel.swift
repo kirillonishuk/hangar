@@ -29,7 +29,8 @@ import Workspace
     private(set) var head: Head?
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.
     var branch = "" {
-        didSet { if !suggesting { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
+        // The field writes its unchanged text back when it gets focus: that is not an edit (the suggestion keeps following).
+        didSet { if !suggesting, branch != oldValue { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
     }
     /// The «из названия» hint; redrawn through `branch`, which every change of it accompanies.
     var branchFollowsName: Bool { !branchEdited }
@@ -41,6 +42,10 @@ import Workspace
     private(set) var fetch = FetchState.idle
     private(set) var lastFetch: Date?
     private(set) var branchError: String?
+    /// Branch → folder of every worktree that has one checked out (the project folder too): such a branch can't get a copy.
+    private(set) var checkedOut: [String: String] = [:]
+    /// What «Ветка копии» names: a new branch from `base`, or an existing one checked out as itself (HD-169).
+    var copyBranch: CopyBranch { classifyCopyBranch(branch, branches: branches, remotes: remotes, checkedOut: checkedOut) }
     /// git's stderr of a failed `worktree add`.
     private(set) var createError: String?
     private(set) var creating = false
@@ -59,6 +64,8 @@ import Workspace
     let taskBranches: Set<String>
 
     @ObservationIgnored private let chatNames: @MainActor () -> [String]
+    /// The project's open chat in a folder, for «Ветка открыта в чате …».
+    @ObservationIgnored private let chatAt: @MainActor (String) -> String?
     @ObservationIgnored private let project: Project
     @ObservationIgnored private let git: Git
     @ObservationIgnored private var remotes: [String] = []
@@ -82,9 +89,10 @@ import Workspace
     /// `known`: what `probe` answered, so the sheet's first frame already shows or leaves out «Где работать» and the
     /// folder's branch.
     init(project: Project, git: Git, taskBranches: Set<String>, known: Probe? = nil,
-         chatNames: @escaping @MainActor () -> [String] = { [] }) {
+         chatNames: @escaping @MainActor () -> [String] = { [] }, chatAt: @escaping @MainActor (String) -> String? = { _ in nil }) {
         self.project = project
         self.chatNames = chatNames
+        self.chatAt = chatAt
         self.git = git
         self.taskBranches = taskBranches
         worktree = project.worktreeByDefault
@@ -147,6 +155,7 @@ import Workspace
         branches = (try? await git.listBranches()) ?? []
         defaultBase = try? await git.defaultBranch()
         remotes = (try? await git.remotes()) ?? []
+        checkedOut = (try? await git.checkedOutBranches()) ?? [:]
         lastFetch = await git.lastFetch()
         if let last = project.lastBaseBranch, branches.contains(where: { $0.name == last }) {
             base = last
@@ -224,13 +233,22 @@ import Workspace
             }
         }
         // Captured once: the fields stay editable while git runs.
-        let branch = branch
+        let typed = branch
+        // Another chat may have taken the branch since the sheet opened.
+        checkedOut = (try? await git.checkedOutBranches()) ?? checkedOut
+        let target = classifyCopyBranch(typed, branches: branches, remotes: remotes, checkedOut: checkedOut)
+        let branch = target.name
         guard let base else { return nil }
-        branchError = await branchProblem(branch)
+        branchError = await branchProblem(typed)
         guard branchError == nil else { return nil }
         let path = worktreePath(projectPath: project.path, root: project.worktreeRoot, branch: branch)
         do {
-            try await git.addWorktree(path: path, newBranch: branch, base: base)
+            switch target {
+            case .new: try await git.addWorktree(path: path, newBranch: branch, base: base)
+            case .local: try await git.addWorktree(path: path, existingBranch: branch)
+            case .remote(_, let upstream): try await git.addWorktree(path: path, newBranch: branch, base: upstream, track: true)
+            case .checkedOut: return nil
+            }
         } catch {
             createError = (error as? GitError)?.errorDescription ?? error.localizedDescription
             return nil
@@ -296,17 +314,30 @@ import Workspace
     }
 
     /// `origin/x` → `origin`; a local base → `origin` if the repo has it; otherwise nil (nothing to fetch).
+    /// shortcut: an existing branch on another remote than the base's isn't fetched separately; change if projects with two remotes ask for it.
     private func remoteOfBase() -> String? {
         guard let base else { return nil }
         if let r = remotes.first(where: { base.hasPrefix($0 + "/") }) { return r }
         return remotes.contains("origin") ? "origin" : nil
     }
 
+    /// An existing branch is fine unless some folder has it checked out (HD-169); a new name must be a valid one.
     private func branchProblem(_ branch: String) async -> String? {
-        if branch.isEmpty { return L10n.branchRequired }
-        if await !git.isValidBranchName(branch) { return L10n.branchInvalid }
-        if branches.contains(where: { !$0.isRemote && $0.name == branch }) { return L10n.branchExists(branch) }
-        return nil
+        switch classifyCopyBranch(branch, branches: branches, remotes: remotes, checkedOut: checkedOut) {
+        case .local, .remote: return nil
+        case .checkedOut(let name, let path):
+            return chatAt(path).map { L10n.branchCheckedOutInChat(name, $0) } ?? L10n.branchCheckedOutAt(name, path)
+        case .new:
+            if branch.isEmpty { return L10n.branchRequired }
+            return await git.isValidBranchName(branch) ? nil : L10n.branchInvalid
+        }
+    }
+
+    /// A branch picked from the ▾ list: `origin/x` is written as `x` when that names the same branch (the copy's own name).
+    func pickBranch(_ name: String) {
+        let picked = classifyCopyBranch(name, branches: branches, remotes: remotes, checkedOut: checkedOut)
+        let short = classifyCopyBranch(picked.name, branches: branches, remotes: remotes, checkedOut: checkedOut)
+        branch = short == picked ? picked.name : name
     }
 
     /// `name` itself if it has `/`, is a branch name and doesn't start with a remote (`feat/JS-1`, decision HD-048), else its slug; if that branch (local, or

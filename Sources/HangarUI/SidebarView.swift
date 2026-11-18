@@ -530,7 +530,7 @@ struct SidebarView: View {
         .help(collapsed ? project.name : project.host.map { "\($0):\(project.path)" }
               ?? (exists ? project.path : L10n.folderMissing(project.path)))
         .popoverContextMenu { actionMenu(for: target, ctx: ctx) }
-        // Its worktree list (spare copies, HD-134): asked once when first shown, then with its chats' checks.
+        // Its worktree list (nested copies for settings and search, HD-134): asked once when first shown, then with its chats' checks.
         .onAppear { if exists, app.worktreeLists[project.id] == nil { app.checkWorktrees(projectId: project.id) } }
     }
 
@@ -558,9 +558,6 @@ struct SidebarView: View {
         case .archive(let count):
             (icon, tint, title, help) = (.archive, Theme.ui.text3, L10n.projectArchive(count), L10n.help(L10n.sessionsViewHelp, .sessions))
             action = { app.showSessionsView(projectId: project.id) }
-        case .spareCopies(let count):
-            (icon, tint, title, help) = (.branch, Theme.ui.text3, L10n.spareCopies(count), L10n.spareCopiesHelp)
-            action = available ? { PopoverMenu.show(spareCopiesMenu(project.id, app: app, ctx: ctx), at: NSEvent.mouseLocation) } : nil
         }
         return HoverRow(action: action) { _ in
             GutterRow(collapsed: collapsed, textX: Theme.chatTextX, indent: Theme.chatIndent, trailing: Theme.sessionRowTrailing) {

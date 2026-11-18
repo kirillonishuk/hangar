@@ -17,6 +17,7 @@ struct NewTaskSheet: View {
     let onCancel: () -> Void
 
     @FocusState private var focus: Field?
+    @State private var branchAnchor = MenuAnchor()
     private enum Field { case name, place, branch, prompt, message }
 
     var body: some View {
@@ -125,28 +126,66 @@ struct NewTaskSheet: View {
     @ViewBuilder private var copyFields: some View {
         SheetField(label: L10n.newBranch) {
             // The field gets the whole row: next to the base it was squeezed to a few letters by a long base name (HD-153).
-            TextField("", text: $model.branch)
-                .focused($focus, equals: .branch)
-                .onSubmit(openPrompt)
-                .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
-                .disabled(model.creating)
+            HStack(spacing: Theme.pickGap) {
+                TextField("", text: $model.branch)
+                    .focused($focus, equals: .branch)
+                    .onSubmit(openPrompt)
+                    // ↓ as in a completer: the existing branches matching what is typed (HD-169).
+                    .onKeyPress(.downArrow) {
+                        guard model.availability == .ready else { return .ignored }
+                        showBranches()
+                        return .handled
+                    }
+                    .inputField(focused: focus == .branch, mono: true, invalid: model.branchError != nil)
+                IconButton(icon: .chevronDown, help: L10n.existingBranchesHelp, action: showBranches)
+                    .disabled(model.availability != .ready)
+            }
+            .background(MenuAnchorView(anchor: branchAnchor))
+            .disabled(model.creating)
             if let error = model.branchError {
+                // Wraps as every sheet error does: «открыта в другой папке: <путь>» must show the whole path.
                 Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+                    .wrappingError()
             }
             HStack(spacing: Theme.Space.s2) {
-                Text(verbatim: L10n.branchFrom).foregroundStyle(Theme.ui.text2)
-                BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
-                             taskBranches: model.taskBranches, defaultOption: nil)
-                    .disabled(model.creating)
+                switch model.copyBranch {
+                case .new:
+                    Text(verbatim: L10n.branchFrom).foregroundStyle(Theme.ui.text2)
+                    BranchPicker(selection: $model.base, branches: model.branches, defaultBase: model.defaultBase,
+                                 taskBranches: model.taskBranches, defaultOption: nil)
+                        .disabled(model.creating)
+                case .remote(_, let upstream):
+                    existingNote(upstream)
+                case .local, .checkedOut:
+                    existingNote(nil)
+                }
                 fetchButton
                 Spacer(minLength: 0)
             }
+            // The base's pop-up and the note are one height: no jump when the mode changes.
+            .frame(minHeight: Theme.Height.controlRegular)
         }
         if let command = model.setupCommand {
             Checkbox(L10n.afterCreate, detail: command, isOn: $model.runSetup)
                 .disabled(model.creating)
                 .help(model.setupSuggested ? L10n.afterCreateSuggestedHelp : command)
         }
+    }
+
+    /// «существующая ветка · origin/x» in place of «от base ▾»: the copy is on that branch itself, `git push` goes to `upstream`.
+    private func existingNote(_ upstream: String?) -> some View {
+        var text = AttributedString(upstream == nil ? L10n.existingLocalBranch : L10n.existingBranch + " · ")
+        if let upstream {
+            var mono = AttributedString(upstream)
+            mono.font = Theme.Typography.mono.font()
+            text += mono
+        }
+        return Text(text).foregroundStyle(Theme.ui.text2).lineLimit(1).truncationMode(.middle)
+            .help(upstream.map(L10n.existingBranchTracksHelp) ?? "")
+    }
+
+    private func showBranches() {
+        PopoverMenu.show(copyBranchMenu(model) { focus = .branch }, below: branchAnchor.view)
     }
 
     /// ↻ after the base (a spinner while fetching); when the list was last fetched — in its tooltip. Nothing without a remote.
@@ -320,5 +359,14 @@ struct NewTaskSheet: View {
         Task {
             if let mode = await model.create(skipFetch: skipFetch) { onCreate(name, message, mode) }
         }
+    }
+}
+
+/// The existing branches (remote, then local) under «Ветка копии», searched by what is typed; a pick puts it in the field (HD-169).
+@MainActor func copyBranchMenu(_ model: NewTaskModel, picked: @escaping () -> Void) -> PopoverMenuContent {
+    branchMenu(selection: nil, branches: model.branches, defaultBase: model.defaultBase, taskBranches: model.taskBranches,
+               defaultOption: nil, query: model.branchFollowsName ? "" : model.branch) { name in
+        if let name { model.pickBranch(name) }
+        picked()
     }
 }

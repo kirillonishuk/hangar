@@ -5,7 +5,7 @@ import Git
 import Workspace
 
 /// Worktrees agents make and enter on their own (decision HD-134). Hangar adapts to them and only offers actions: nothing
-/// on disk changes unless the user clicks «Удалить копию…» or «Скрыть от git локально…».
+/// on disk changes unless the user clicks «Скрыть от git локально» in the project's settings.
 extension AppState {
     /// How this project's paths compare with git's list: real paths on this Mac, as written on a server.
     func pathNormalizer(_ project: Project) -> @Sendable (String) -> String {
@@ -96,26 +96,6 @@ extension AppState {
         didChange?()
     }
 
-    /// Linked worktrees of the project no chat (open or archived) uses: an agent's `.claude/worktrees/*`, or by hand.
-    func spareWorktrees(of projectId: UUID) -> [WorktreeEntry] {
-        guard let list = worktreeLists[projectId], list.count > 1, let project = project(projectId) else { return [] }
-        let used = state.tasks.compactMap { t -> String? in
-            guard t.projectId == projectId, case .worktree(let path, _, _) = t.mode else { return nil }
-            return path
-        }
-        return unusedWorktrees(list, used: used, normalize: pathNormalizer(project))
-    }
-
-    /// «Открыть чатом»: a new worktree chat at that copy; no git command, no setup (the copy is ready as it is).
-    @discardableResult
-    func openSpareWorktree(_ entry: WorktreeEntry, projectId: UUID) -> UUID? {
-        guard let branch = entry.branch, let project = project(projectId) else { return nil }
-        let base = project.lastBaseBranch ?? worktreeLists[projectId]?.first?.branch ?? branch
-        let id = createTask(projectId: projectId, name: shortChatName(branch: branch), firstMessage: "", mode: .worktree(path: entry.path, branch: branch, base: base)).task
-        worktreePlaces[id] = .inPlace
-        return id
-    }
-
     /// Nested worktrees of the same repository inside `root` (relative): separate checkouts the search skips.
     func nestedCheckouts(in root: String) -> [String] {
         var out: [String] = []
@@ -159,57 +139,5 @@ extension AppState {
         }
         checkIgnored(projectId: projectId, list: list)
         return nil
-    }
-}
-
-/// The menu's «Скрыть от git локально…»: asks with the exact lines, then appends them.
-@MainActor func hideWorktreesFromGit(_ projectId: UUID, ctx: ActionContext) {
-    guard let copies = ctx.app.unignoredCopies[projectId] else { return }
-    ctx.confirm(L10n.hideFromGitTitle, L10n.hideFromGitInfo(excludeLines(for: copies).joined(separator: "\n")), L10n.hideFromGitButton) {
-        Task {
-            if let failure = await ctx.app.hideCopiesFromGit(projectId) { ctx.showError(L10n.hideFromGitFailed, failure) }
-        }
-    }
-}
-
-/// «Удалить копию…»: always asks; then the same checks as archive (uncommitted changes, ignored files) and the same
-/// removal (HD-059, HD-132). The branch stays. A locked copy (the agent's `git worktree lock`) is never offered.
-@MainActor func removeSpareWorktree(_ entry: WorktreeEntry, projectId: UUID, ctx: ActionContext, asked: Bool = false) async {
-    let app = ctx.app
-    guard let project = app.project(projectId), !entry.locked else { return }
-    guard asked else {
-        ctx.confirm(L10n.removeCopyTitle(abbreviatedHomePath(entry.path)), entry.branch.map(L10n.removeCopyInfo) ?? L10n.removeCopyInfoDetached,
-                    L10n.removeCopyButton) {
-            Task { await removeSpareWorktree(entry, projectId: projectId, ctx: ctx, asked: true) }
-        }
-        return
-    }
-    let git = app.git(for: project), runner = app.runner(for: project)
-    let check: WorktreeCheck
-    do {
-        check = try await checkWorktree(entry.path, git: git, runner: runner)
-    } catch {
-        ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription)
-        return
-    }
-    // The shared removal (HD-132): progress and «Повторить» over the chat area; a failure stays there, not in a dialog.
-    func remove() async {
-        if check == .missing {
-            do { try await git.pruneWorktrees() } catch { ctx.showError(L10n.worktreeRemoveFailed, error.localizedDescription) }
-        } else {
-            let item = app.worktreeRemovals.begin(name: (entry.path as NSString).lastPathComponent, path: entry.path, local: runner.isLocal)
-            @MainActor func attempt() async {
-                await app.removeWorktree(entry.path, name: "", host: project.host, git: git, runner: runner, item: item) {
-                    Task { await attempt(); app.checkWorktrees(projectId: projectId) }
-                }
-            }
-            await attempt()
-        }
-        app.checkWorktrees(projectId: projectId)
-    }
-    if case let .atRisk(dirty, ignored, _) = check {
-        ctx.confirm(worktreeRiskTitle(dirty: dirty), worktreeRiskInfo(ignored: ignored), L10n.deleteAnyway) { Task { await remove() } }
-    } else {
-        await remove()
     }
 }

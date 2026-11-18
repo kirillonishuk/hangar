@@ -1219,7 +1219,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
         newTaskLoad?.cancel()
         old?.cancelFetch()
         let model = NewTaskModel(project: project, git: app.git(for: project), taskBranches: app.taskBranches(id), known: known,
-                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] })
+                                 chatNames: { [weak app] in app?.state.tasks.filter { $0.projectId == id }.map(\.name) ?? [] },
+                                 chatAt: { [weak app] in app?.folderChatName(at: $0, projectId: id) })
         model.agent = old?.agent ?? app.config.defaultAgent
         model.promptOpen = old?.promptOpen ?? app.state.newChatPromptOpen
         if let old {

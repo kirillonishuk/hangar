@@ -35,6 +35,25 @@ import Workspace
 
     private func leaf(_ app: AppState, _ n: Int) -> Leaf { app.state.tasks[0].tabs[n].root.leaves[0] }
 
+    /// The owner's case (HD-166): a TERMINAL drawer or shell tab that ended with a code kept the chat «ошибка» while its agent worked.
+    @Test func deadShellDoesNotFailTheChat() throws {
+        let app = makeApp([.claude, .shell], drawer: true)
+        let drawer = try #require(app.state.tasks[0].drawer.leaf)
+        app.exited(leafId: drawer.id, code: 1)
+        app.exited(leafId: leaf(app, 1).id, code: 2)
+        #expect(app.state(ofLeaf: drawer.id) == .failed)  // its own dot stays
+        #expect(app.displayState(of: app.state.tasks[0].tabs[1]) == .failed)
+        event(app, tab: 0, .prompt)
+        #expect(app.displayState(of: app.state.tasks[0]) == .working)
+        #expect(app.state(of: app.state.tasks[0]) == .working)
+        event(app, tab: 0, .stop)
+        #expect(app.displayState(of: app.state.tasks[0]) == .done)
+        // An agent run by hand in a shell tab still reports its error.
+        event(app, tab: 1, .prompt)
+        app.handle(.event(EventMessage(tab: app.state.tasks[0].tabs[1].id, leaf: leaf(app, 1).id, kind: .stopFailure, error: "server_error")))
+        #expect(app.displayState(of: app.state.tasks[0]) == .failed)
+    }
+
     @Test func eventUpdatesLeafAndTaskState() {
         let app = makeApp([.claude])
         event(app, tab: 0, .prompt)

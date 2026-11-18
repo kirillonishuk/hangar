@@ -299,6 +299,7 @@ import Workspace
         let shell = try #require(app.state.tasks.first { $0.id == created.task }?.tabs.last?.root.leaves.first)
         app.exited(leafId: shell.id, code: -1)
         #expect(app.state(ofLeaf: shell.id) == .failed)
+        #expect(app.displayState(of: try #require(app.state.tasks.first { $0.id == created.task })) == .failed)  // the chat too (HD-127)
         app.relaunched(leafId: shell.id)
         #expect(app.setupLeaves.isEmpty)
         #expect(app.savedState.tasks.first { $0.id == created.task }?.tabs.count == 2)

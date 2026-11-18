@@ -119,8 +119,8 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
         // Once the tab's own agent has reported itself, only it moves the id.
         if ownsSessionId(kind, agent: agent), let id = validSessionId(session), status.agentPid == nil { s.sessionId = id }
         // A missed SubagentStop must not leave a count for good: every turn boundary starts from zero.
-        if [.sessionStart, .prompt, .stop, .stopFailure].contains(kind) { s.activeSubagents = 0 }
-        if [.sessionStart, .prompt, .tool, .stop, .stopFailure].contains(kind) { s.pendingPermission = nil }
+        if [.sessionStart, .prompt, .stop].contains(kind) || kind == .stopFailure && !detail.subagent { s.activeSubagents = 0 }
+        if [.sessionStart, .prompt, .tool, .stop].contains(kind) || kind == .stopFailure && !detail.subagent { s.pendingPermission = nil }
         switch kind {
         case .sessionStart:
             s.attention = nil
@@ -162,6 +162,9 @@ public func fold(_ status: LeafStatus, _ signal: AgentSignal, agent: SessionAgen
             s.state = .done
             s.unseen = true
             attend(.done, text: detail.text)
+        case .stopFailure where detail.subagent:
+            // A subagent's API error ends only its own run: the main agent gets it as a tool result and goes on (HD-166).
+            break
         case .stopFailure:
             s.inTurn = false
             if detail.error == nil || detail.error == "rate_limit" {

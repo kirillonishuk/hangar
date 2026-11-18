@@ -31,6 +31,11 @@ import TestSupport
         let m = model(t)
         m.name = "Починить логин"
         #expect(m.branch == "pochinit-login")
+        // The field writing its unchanged text back (on focus) is not an edit.
+        m.branch = m.branch
+        #expect(m.branchFollowsName)
+        m.name = "Другое"
+        #expect(m.branch == "drugoe")
         m.branch = "feat/login"
         m.name = "x"
         #expect(m.branch == "feat/login")

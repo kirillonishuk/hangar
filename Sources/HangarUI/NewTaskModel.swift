@@ -29,7 +29,8 @@ import Workspace
     private(set) var head: Head?
     /// Follows the slug of `name` until the user edits it; clearing it makes it follow again.
     var branch = "" {
-        didSet { if !suggesting { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
+        // The field writes its unchanged text back when it gets focus: that is not an edit (the suggestion keeps following).
+        didSet { if !suggesting, branch != oldValue { branchEdited = !branch.isEmpty; if !branchEdited { clearBranchError() } } }
     }
     /// The «из названия» hint; redrawn through `branch`, which every change of it accompanies.
     var branchFollowsName: Bool { !branchEdited }

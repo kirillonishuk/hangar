@@ -143,7 +143,9 @@ struct NewTaskSheet: View {
             .background(MenuAnchorView(anchor: branchAnchor))
             .disabled(model.creating)
             if let error = model.branchError {
+                // Wraps as every sheet error does: «открыта в другой папке: <путь>» must show the whole path.
                 Text(verbatim: error).font(Theme.Typography.secondary.font()).foregroundStyle(Theme.ui.failedText)
+                    .wrappingError()
             }
             HStack(spacing: Theme.Space.s2) {
                 switch model.copyBranch {

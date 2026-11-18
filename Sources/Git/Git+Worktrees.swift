@@ -82,3 +82,43 @@ extension Git {
         return out.hasPrefix("/") ? out : nil
     }
 }
+
+/// What the «Ветка копии» field names (decision HD-169): a branch to create from the base, or an existing one to check out.
+public enum CopyBranch: Equatable, Sendable {
+    /// No such branch: created from the base without upstream (HD-042).
+    case new(String)
+    /// A local branch no worktree has: checked out as is.
+    case local(String)
+    /// Only on a remote: a local branch `local` tracking `upstream` (`origin/x`) is created, as `git switch --track` does.
+    case remote(local: String, upstream: String)
+    /// A local branch already checked out at `path` (the project folder or another copy): git refuses a second one.
+    case checkedOut(String, path: String)
+
+    /// The local branch the copy will be on.
+    public var name: String {
+        switch self {
+        case .new(let n), .local(let n), .checkedOut(let n, _): n
+        case .remote(let n, _): n
+        }
+    }
+}
+
+/// `typed` against the repository's branches: `origin/x` names the remote branch (its local `x` when there is one); a bare
+/// `x` is the local branch, else the remote-only one (origin first); anything else is new. `checkedOut`: branch → worktree path.
+public func classifyCopyBranch(_ typed: String, branches: [Branch], remotes: [String],
+                               checkedOut: [String: String]) -> CopyBranch {
+    let remoteNames = Set(branches.filter(\.isRemote).map(\.name))
+    let localNames = Set(branches.filter { !$0.isRemote }.map(\.name))
+    var local = typed
+    var upstream: String?
+    if remoteNames.contains(typed), let r = remotes.filter({ typed.hasPrefix($0 + "/") }).max(by: { $0.count < $1.count }) {
+        local = String(typed.dropFirst(r.count + 1))
+        upstream = typed
+    } else if !localNames.contains(typed), !typed.isEmpty {
+        let ordered = remotes.filter { $0 == "origin" } + remotes.filter { $0 != "origin" }
+        upstream = ordered.map { $0 + "/" + typed }.first(where: remoteNames.contains)
+    }
+    if localNames.contains(local) { return checkedOut[local].map { .checkedOut(local, path: $0) } ?? .local(local) }
+    if let upstream { return .remote(local: local, upstream: upstream) }
+    return .new(typed)
+}

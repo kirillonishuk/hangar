@@ -772,6 +772,13 @@ extension MainWindowController {
             default: debugMenu(parts[0], f.first ?? "", rest)
             }
         case "ntBranch": newTaskModelForDebug?.branch = arg  // as if typed into «Ветка копии»
+        case "ntBranches":  // the ▾ of «Ветка копии» (HD-169), kept open over the inactive app; `menuPanel …` drives it
+            guard let model = newTaskModelForDebug, let frame = window?.frame else { return }
+            PopoverMenu.debugPinned = true
+            PopoverMenu.show(copyBranchMenu(model) { uiLog.info("ntBranches picked=\(model.branch, privacy: .public)") },
+                             at: NSPoint(x: frame.minX + 200, y: frame.maxY - 120))
+            PopoverMenu.panel?.hidesOnDeactivate = false
+            PopoverMenu.panel?.orderFrontRegardless()
         case "ntName": newTaskModelForDebug?.name = arg  // as if typed into the name field
         case "ntProject":  // ntProject <project index>: as a pick in the header's project pop-up (HD-164)
             if let n = Int(arg), app.state.projects.indices.contains(n) { switchNewTask(to: app.state.projects[n].id) }

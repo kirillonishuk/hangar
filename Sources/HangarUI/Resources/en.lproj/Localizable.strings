@@ -1137,6 +1137,10 @@
 "subChatWhereSameHint" = "The same folder and branch as the chat.";
 "newTaskProjectHelp" = "The new chat’s project";
 "remoteFoldersHelp" = "Folders on the server — ↓";
+"existingBranchesHelp" = "Existing branches — ↓";
+"existingBranch" = "existing branch";
+"existingLocalBranch" = "existing local branch";
+"existingBranchTracksHelp" = "The copy is on this branch; the agent’s git push and git pull go to %@";
 "remoteFoldersNeedConnect" = "Server folders — once connected";
 "remoteFoldersNone" = "No folders here";
 "remoteFoldersFailed" = "Couldn’t read the folder on the server";

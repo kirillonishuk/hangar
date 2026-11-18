@@ -1137,6 +1137,10 @@
 "subChatWhereSameHint" = "Та же папка и ветка, что у чата.";
 "newTaskProjectHelp" = "Проект нового чата";
 "remoteFoldersHelp" = "Папки на сервере — ↓";
+"existingBranchesHelp" = "Существующие ветки — ↓";
+"existingBranch" = "существующая ветка";
+"existingLocalBranch" = "существующая локальная ветка";
+"existingBranchTracksHelp" = "Копия на этой ветке; git push и git pull агента — в %@";
 "remoteFoldersNeedConnect" = "Папки сервера — после подключения";
 "remoteFoldersNone" = "Здесь нет папок";
 "remoteFoldersFailed" = "Не удалось прочитать папку на сервере";

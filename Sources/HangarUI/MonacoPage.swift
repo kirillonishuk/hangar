@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import Workspace
 
 /// One WKWebView with Monaco (HD-080): the bundled page over `hangar-editor://`, no network (content rule list + CSP),
 /// a non-persistent data store, and the typed bridge (`BridgeMessage` in, `EditorCommand` out).
@@ -15,6 +16,11 @@ import WebKit
     var isReady: Bool { ready }
     private(set) var pending: [(EditorCommand, UUID?)] = []
     private static let handlerName = "hangar"
+    /// The UI language the page was loaded in: a kept page (HD-167) in another one is replaced once idle.
+    private let language = L10n.resolve(L10n.language)
+    var isStale: Bool { language != L10n.resolve(L10n.language) }
+    /// The latest `revealAfterPaint`: an earlier one's answer doesn't show the view.
+    private var revealing = 0
 
     init(mode: Mode, inline: Bool, minimap: Bool, wrap: Bool = false, appearance: EditorAppearance) {
         let config = WKWebViewConfiguration()
@@ -24,7 +30,7 @@ import WebKit
         config.suppressesIncrementalRendering = true  // no half-styled flash while Monaco loads
         let settings: [String: Any] = [
             "mode": mode.rawValue, "appearance": appearance.json,
-            "inline": inline, "minimap": minimap, "wrap": wrap, "lang": L10n.resolve(L10n.language).rawValue,
+            "inline": inline, "minimap": minimap, "wrap": wrap, "lang": language.rawValue,
             "strings": ["reload": L10n.editorReload, "keepMine": L10n.editorKeepMine, "conflict": L10n.editorConflict],
             "menu": L10n.editorMenu,
         ]
@@ -68,6 +74,22 @@ import WebKit
         guard ready else { pending.append((command, doc)); return }
         webView.callAsyncJavaScript("hangar.receive(c)", arguments: ["c": command.json(doc: doc)], in: nil, in: .page) { result in
             if case .failure(let error) = result { uiLog.error("editor command failed: \(String(describing: error), privacy: .public)") }
+        }
+    }
+
+    /// Hides the view until the page has painted the commands sent so far: a kept page shown for another file never
+    /// shows the previous one's last frame (HD-167). Two frames: Monaco renders in the first, the second follows its paint.
+    /// A page out of the window paints nothing; it answers once it is back on screen.
+    func revealAfterPaint() {
+        revealing += 1
+        let token = revealing
+        // Not loaded yet: it shows nothing until it paints (`suppressesIncrementalRendering`).
+        guard ready else { webView.alphaValue = 1; return }
+        webView.alphaValue = 0
+        webView.callAsyncJavaScript("await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))",
+                                    arguments: [:], in: nil, in: .page) { [weak self] _ in
+            guard let self, token == self.revealing else { return }
+            self.webView.alphaValue = 1  // also on a failure (the page died): never left invisible
         }
     }
 

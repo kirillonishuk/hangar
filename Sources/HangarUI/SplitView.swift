@@ -591,8 +591,10 @@ final class PaneFrameView: NSView {
     private var shownFocus: UUID?
     /// Each task's diff tab, with its Monaco page, while that diff tab exists (an edited buffer survives task switches).
     private var diffHosts: [UUID: (host: DiffHostView, editor: DiffEditorController)] = [:]
-    /// The Monaco pages of the file tabs (HD-083, ≤ 2 for a split); made with the first file tab, gone with the last.
+    /// The Monaco pages of the file tabs (HD-083, ≤ 2 for a split); made ahead by `prewarmMonaco`, kept (HD-167).
     private var editorHost: EditorHost?
+    /// A loaded diff page no diff tab uses (HD-167): the next diff tab takes it instead of loading Monaco again.
+    private var spareDiffPage: MonacoPage?
     /// The selected task's diff editor (F7 / ⇧F7, debug commands).
     var shownDiffEditor: DiffEditorController? { app.selectedTask.flatMap { diffHosts[$0.id]?.editor } }
     /// The selected task's diff tab view.
@@ -634,6 +636,7 @@ final class PaneFrameView: NSView {
         app.onEditorAppearance = { [weak self] look in
             self?.editorHost?.setAppearance(look)
             self?.diffHosts.values.forEach { $0.editor.page.send(.appearance(look)) }
+            self?.spareDiffPage?.send(.appearance(look))
         }
         app.diffUnsaved = { [weak self] in self?.diffHosts.values.filter(\.editor.hasUnsaved).count ?? 0 }
         app.diffUnsavedPaths = { [weak self] in self?.diffHosts.values.compactMap(\.editor.unsavedPath) ?? [] }
@@ -786,7 +789,6 @@ final class PaneFrameView: NSView {
             leaf.editor?.tearDown()
             leaf.removeFromSuperview()
             leafViews[id] = nil
-            if let host = editorHost, host.isEmpty { host.tearDown(); editorHost = nil }  // the last file tab: no web view
             lastVisible[id] = nil
             app.leafTitles[id] = nil
             uiLog.info("surface closed leaf=\(id.uuidString.prefix(8), privacy: .public)")
@@ -794,13 +796,14 @@ final class PaneFrameView: NSView {
 
         let liveTasks = Set(state.tasks.filter { !$0.archived }.map(\.id))
         for (id, d) in diffHosts where app.diffTabs[id] == nil || !liveTasks.contains(id) {
-            d.editor.tearDown()
+            if spareDiffPage == nil, !d.editor.page.isStale { spareDiffPage = d.editor.detachPage() } else { d.editor.tearDown() }
             d.host.removeFromSuperview()
             diffHosts[id] = nil
         }
         let diffShown = app.activeDiff != nil
         if diffShown, let id = app.selectedTask?.id, diffHosts[id] == nil {
-            let editor = DiffEditorController(app: app)
+            let editor = DiffEditorController(app: app, page: spareDiffPage)
+            spareDiffPage = nil
             let host = DiffHostView(rootView: DiffView(app: app, taskId: id, editor: editor))
             host.frame = content.bounds
             host.autoresizingMask = [.width, .height]
@@ -914,6 +917,19 @@ final class PaneFrameView: NSView {
             startContent(view, leaf: leaf, tabId: tab.id)
         }
         if structure[tab.id] != signature(tab.root) { layoutTab(tab) }
+    }
+
+    /// After launch and a language change (HD-167): the editor's page and a diff page load in the background, so the first
+    /// file or diff opens without waiting for Monaco; an idle page in the old language is replaced.
+    func prewarmMonaco() {
+        let host = editorHost ?? EditorHost(minimap: app.state.editorMinimap, appearance: EditorAppearance(app.config))
+        editorHost = host
+        host.prewarm()
+        if spareDiffPage?.isStale == true {
+            spareDiffPage?.tearDown()
+            spareDiffPage = nil
+        }
+        if spareDiffPage == nil, diffHosts.isEmpty { spareDiffPage = DiffEditorController.makePage(app) }
     }
 
     /// What a leaf view holds: a chooser, an editor pane, or a terminal surface started now.

@@ -155,7 +155,7 @@ extension Git {
         return out
     }
 
-    public func diff(file: ChangedFile, from: String, maxLines: Int = 20_000) async throws -> FileDiff {
+    public func diff(file: ChangedFile, from: String, maxLines: Int = Git.diffMaxLines) async throws -> FileDiff {
         let untracked = file.change == .untracked
         let paths = (untracked ? ["/dev/null"] : []) + (file.origPath.map { [$0] } ?? []) + [file.path]
         let target = untracked ? ["--no-index"] : [from]

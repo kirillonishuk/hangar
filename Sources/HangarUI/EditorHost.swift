@@ -21,7 +21,8 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
 
 /// The Monaco pages of the window's file tabs (HD-083): up to `Tab.maxEditorPanes`, one per editor pane on screen at once
 /// (splits). Each page holds the models of the panes bound to it and shows one of them; a pane borrows its page's web
-/// view while it is on screen. A page exists only while some pane is bound to it (or moving off it).
+/// view while it is on screen. Page 0 stays for the window's life once made, also with no file tab (HD-167: a file opens
+/// without loading Monaco again); page 1 (a split) exists only while some pane is bound to it (or moving off it).
 @MainActor final class EditorHost {
     private(set) var pages: [MonacoPage?] = [nil, nil]
     private var panes: [UUID: EditorPane] = [:]
@@ -37,7 +38,6 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
         self.appearance = appearance
     }
 
-    var isEmpty: Bool { panes.isEmpty }
     func holds(_ pane: EditorPane) -> Bool { panes[pane.leafId] === pane }
 
     /// The page in slot `i`, made on first use.
@@ -86,6 +86,7 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
         guard shown[i] != pane.leafId else { return }
         shown[i] = pane.leafId
         page(i).send(.activate(path: "", line: nil, column: nil), doc: pane.leafId)
+        page(i).revealAfterPaint()
     }
 
     func setMinimap(_ on: Bool) {
@@ -99,15 +100,23 @@ func assignPages(visible: [(leaf: UUID, page: Int?)], count: Int) -> [UUID: Int]
         for page in pages { page?.send(.appearance(look)) }
     }
 
+    /// Ends every page (tests; the window keeps its pages for its life).
     func tearDown() {
         panes = [:]
         for i in pages.indices { pages[i]?.tearDown(); pages[i] = nil; shown[i] = nil }
     }
 
-    /// A page no pane is bound to (nor moving off) goes with its web content process.
+    /// Loads page 0 ahead of the first file tab (after launch, after a language change: an idle page in the old one goes).
+    func prewarm() {
+        releaseUnused()
+        _ = page(0)
+    }
+
+    /// A page no pane is bound to (nor moving off) goes with its web content process; page 0 stays unless its language
+    /// is outdated.
     private func releaseUnused() {
         let used = Set(panes.values.map(\.page)).union(leaving.values)
-        for i in pages.indices where pages[i] != nil && !used.contains(i) {
+        for i in pages.indices where pages[i] != nil && !used.contains(i) && (i != 0 || pages[i]?.isStale == true) {
             pages[i]?.tearDown()
             pages[i] = nil
             shown[i] = nil

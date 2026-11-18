@@ -31,7 +31,7 @@ import Workspace
         let page0 = host.page(0)
         let first = pane.session
         await pane.rehome(to: 1)
-        #expect(pane.page == 1 && host.pages[0] == nil)  // nothing bound to page 0: released
+        #expect(pane.page == 1 && host.pages[0] === page0)  // page 0 stays without a pane (HD-167)
         await first.open(path: file, line: nil, column: nil)
         #expect(opens(page0).isEmpty && opens(host.pages[1]).isEmpty)
 
@@ -43,6 +43,41 @@ import Workspace
         #expect(await waitUntil { opens(host.pages[1]).count == 2 })
         #expect(opens(host.pages[1]) == ["a.ts:disk", "a.ts:disk"])
         pane.tearDown()
+    }
+
+    /// Page 0 is loaded ahead and outlives its tabs (HD-167): the next file tab (a replaced preview) gets the same page;
+    /// page 1 of a split still goes with its last pane.
+    @Test func firstPageOutlivesItsTabs() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("hg-editor-pages-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("a.ts").path
+        try "disk".write(toFile: file, atomically: false, encoding: .utf8)
+        var s = WorkspaceState()
+        let t = s.addTask(projectId: s.addProject(name: "app", path: dir.path), name: "a")
+        let first = s.addTab(taskId: t, kind: .editor, openFile: file)
+        let second = s.addTab(taskId: t, kind: .editor, openFile: file)
+        let leaves = try [first, second].map { id in try #require(s.tasks[0].tabs.first { $0.id == id }?.root.leaves.first?.id) }
+        let app = AppState(state: s, store: StateStore(directory: dir), config: HangarConfig(), configURL: dir.appendingPathComponent("c.toml"))
+        let host = EditorHost(minimap: false, appearance: EditorAppearance(app.config))
+        defer { host.tearDown() }
+        host.prewarm()
+        let page0 = try #require(host.pages[0])
+        #expect(host.pages[1] == nil)
+
+        let a = EditorPane(leafId: leaves[0], app: app, host: host)
+        #expect(a.page == 0 && host.page(0) === page0)
+        a.tearDown()
+        #expect(host.pages[0] === page0)
+        let b = EditorPane(leafId: leaves[1], app: app, host: host)
+        #expect(b.page == 0 && host.page(0) === page0)
+        await b.rehome(to: 1)
+        let page1 = try #require(host.pages[1])
+        #expect(page1 !== page0 && host.pages[0] === page0)
+        b.tearDown()
+        #expect(host.pages[1] == nil && host.pages[0] === page0)
+        host.prewarm()
+        #expect(host.pages[0] === page0)  // not reloaded while its language is current
     }
 
     /// A dirty buffer that can't be read off its page (not ready, torn down) stays there: the move is called off instead

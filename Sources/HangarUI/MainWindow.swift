@@ -406,6 +406,7 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
             self?.installMainMenu()
             self?.settings.updateTitle()
             self?.notifier?.registerCategories()
+            self?.column.terminalArea.prewarmMonaco()  // an idle page in the old language is reloaded
         }
         installMainMenu()
         installKeyMonitor()
@@ -466,6 +467,8 @@ public final class MainWindowController: NSWindowController, NSWindowDelegate, N
         column.terminalArea.sync()
         inspectorWatch?.update()
         if let configWarning { showConfigWarning(configWarning) }
+        // Once the window is up, not before its first frame: the first file or diff then opens without loading Monaco.
+        DispatchQueue.main.async { [weak self] in self?.column.terminalArea.prewarmMonaco() }
     }
 
     // MARK: Sidebar width

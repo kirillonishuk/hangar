@@ -4,7 +4,7 @@ import Exec
 extension Git {
     /// One file of a commit against its first parent (the empty tree for a root commit), as `commit(hash:)` lists it:
     /// `path` / `origPath` are top-relative, whatever folder git runs in. Read-only, never the working tree.
-    public func commitFileDiff(hash: String, path: String, origPath: String? = nil, maxLines: Int = 20_000) async throws -> FileDiff {
+    public func commitFileDiff(hash: String, path: String, origPath: String? = nil, maxLines: Int = Git.diffMaxLines) async throws -> FileDiff {
         guard (4...64).contains(hash.count), hash.allSatisfy(\.isHexDigit) else {
             throw GitError(args: [], status: 128, stderr: "invalid hash")
         }

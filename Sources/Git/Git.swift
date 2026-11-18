@@ -31,6 +31,8 @@ public struct GitError: Error, LocalizedError, Equatable, Sendable {
 public struct Git: Sendable {
     public let repo: String
     let runner: Runner
+    /// A diff counting more lines than this is `.tooLarge` (not shown line by line).
+    public static let diffMaxLines = 20_000
 
     public init(repo: String, runner: Runner = .local) {
         self.repo = repo

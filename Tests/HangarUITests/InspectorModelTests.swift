@@ -342,6 +342,65 @@ import TestSupport
         #expect(model.diff == DiffState.none)
     }
 
+    /// The added lines of the loaded diff.
+    private func added(_ model: InspectorModel) -> [String] {
+        guard case .loaded(.text(let hunks, _, _)) = model.diff else { return [] }
+        return hunks.flatMap(\.lines).filter { $0.kind == .added }.map(\.text)
+    }
+
+    /// The open diff doesn't queue behind a slow tree listing (HD-167).
+    @Test func diffDoesNotWaitForTreeLoad() async throws {
+        let repo = try await TempRepo.offMain()
+        defer { repo.cleanup() }
+        try write("changed", repo.repo + "/a.txt")
+        let hold = OSAllocatedUnfairLock(initialState: false)
+        let runner = Runner { args, cwd in
+            if args.contains("ls-files") { while hold.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(5)) } }
+            return try await Runner.local.run(args, cwd)
+        }
+        let model = InspectorModel()
+        model.show(taskId: UUID(), root: repo.repo, git: { Git(repo: $0, runner: runner) }, baseBranch: { "main" })
+        await settle(model)
+        hold.withLock { $0 = true }
+        defer { hold.withLock { $0 = false } }
+        model.refresh(.tree)
+        model.loadDiff(path: "a.txt")
+        #expect(await waitUntil { self.added(model) == ["changed"] })
+        #expect(hold.withLock { $0 })  // the tree is still held
+        hold.withLock { $0 = false }
+        await settle(model)
+        #expect(added(model) == ["changed"])
+    }
+
+    /// A diff load that started earlier never replaces the diff of a newer load of the same file.
+    @Test func olderDiffLoadNeverReplacesNewer() async throws {
+        let repo = try await TempRepo.offMain()
+        defer { repo.cleanup() }
+        try write("one", repo.repo + "/a.txt")
+        let holdNext = OSAllocatedUnfairLock(initialState: false), gate = OSAllocatedUnfairLock(initialState: false)
+        // The held load has already read the file: it answers with the old text once the gate opens.
+        let runner = Runner { args, cwd in
+            let r = try await Runner.local.run(args, cwd)
+            if args.contains("--no-color"), holdNext.withLock({ let h = $0; $0 = false; return h }) {
+                while !gate.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(5)) }
+            }
+            return r
+        }
+        let model = InspectorModel()
+        model.show(taskId: UUID(), root: repo.repo, git: { Git(repo: $0, runner: runner) }, baseBranch: { "main" })
+        await settle(model)
+        defer { gate.withLock { $0 = true } }
+        holdNext.withLock { $0 = true }
+        model.loadDiff(path: "a.txt")
+        #expect(await waitUntil { !holdNext.withLock { $0 } })  // the diff-only load holds its answer
+        try write("two", repo.repo + "/a.txt")
+        model.refresh(.status)
+        #expect(await waitUntil { self.added(model) == ["two"] })
+        gate.withLock { $0 = true }
+        await settle(model)
+        #expect(added(model) == ["two"])
+    }
+
     @Test func baseBranchOfTask() async throws {
         let repo = try await TempRepo.offMain()
         defer { repo.cleanup() }

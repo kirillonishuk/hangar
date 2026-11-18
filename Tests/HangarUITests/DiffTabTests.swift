@@ -355,4 +355,13 @@ extension DiffTabTests {
         #expect(diffChangeLabel(.untracked) == diffChangeLabel(.added))
         #expect(diffChangeLabel(.deleted) != diffChangeLabel(.added))
     }
+
+    /// Only a file git counted lines for, within the diff's limit, loads its text before git's diff (HD-167).
+    @Test func prefetchOnlyCountedTextFiles() {
+        #expect(diffPrefetchable(ChangedFile(path: "a", change: .modified, added: 3, deleted: 1)))
+        #expect(diffPrefetchable(ChangedFile(path: "a", change: .deleted, added: 0, deleted: 5)))
+        #expect(!diffPrefetchable(ChangedFile(path: "a.png", change: .modified)))  // binary: no counts
+        #expect(!diffPrefetchable(ChangedFile(path: "u", change: .untracked)))  // not counted (yet)
+        #expect(!diffPrefetchable(ChangedFile(path: "big", change: .modified, added: Git.diffMaxLines, deleted: 1)))
+    }
 }
